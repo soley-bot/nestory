@@ -378,12 +378,9 @@ export async function submitMaintenanceCostAction(
       taskId: parsed.data.taskId,
     });
     evidenceDocumentId = evidence.documentId;
-  } catch (error) {
+  } catch {
     return {
-      message:
-        error instanceof Error
-          ? error.message
-          : "Receipt evidence could not be retained.",
+      message: "Receipt evidence could not be retained. Try again.",
       status: "error",
     };
   }

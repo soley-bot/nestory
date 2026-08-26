@@ -48,6 +48,7 @@ describe("successful auth entry routes", () => {
       "http://localhost:3000/workspace",
     );
     expect(response.cookies.get("sb-session")?.value).toBe("code:valid");
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
   it("sends email confirmation success through the workspace resolver", async () => {
@@ -61,6 +62,7 @@ describe("successful auth entry routes", () => {
       "http://localhost:3000/workspace",
     );
     expect(response.cookies.get("sb-session")?.value).toBe("magiclink:valid");
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
   it("preserves callback cookie mutations when code exchange fails", async () => {
@@ -109,7 +111,7 @@ describe("successful auth entry routes", () => {
     );
   });
 
-  it("preserves only an allowlisted recovery destination", async () => {
+  it("does not treat an ordinary PKCE callback destination as recovery proof", async () => {
     const response = await callbackGet(
       new NextRequest(
         "http://localhost:3000/auth/callback?code=valid&next=%2Fupdate-password",
@@ -117,26 +119,30 @@ describe("successful auth entry routes", () => {
     );
 
     expect(response.headers.get("location")).toBe(
-      "http://localhost:3000/update-password",
+      "http://localhost:3000/workspace",
+    );
+    expect(response.headers.get("set-cookie")).not.toContain(
+      "nestory_recovery=",
     );
   });
 
-  it("marks a verified PKCE recovery callback for password updates", async () => {
+  it("preserves the PKCE session while refusing client-declared recovery intent", async () => {
     const response = await callbackGet(
       new NextRequest(
         "http://localhost:3000/auth/callback?code=valid&next=%2Fupdate-password",
       ),
     );
 
-    expect(response.headers.get("set-cookie")).toContain(
-      "nestory_recovery=signed-recovery-marker",
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/workspace",
     );
-    expect(response.headers.get("set-cookie")).toContain("HttpOnly");
-    expect(response.headers.get("set-cookie")).toContain("Max-Age=600");
+    expect(response.headers.get("set-cookie")).not.toContain(
+      "nestory_recovery=",
+    );
     expect(response.cookies.get("sb-session")?.value).toBe("code:valid");
   });
 
-  it("marks only a verified recovery-token response for password updates", async () => {
+  it("routes recovery GETs through the explicit app confirmation without consuming them", async () => {
     const response = await confirmGet(
       new NextRequest(
         "http://localhost:3000/auth/confirm?token_hash=valid&type=recovery&next=%2Fupdate-password",
@@ -144,14 +150,11 @@ describe("successful auth entry routes", () => {
     );
 
     expect(response.headers.get("location")).toBe(
-      "http://localhost:3000/update-password",
+      "http://localhost:3000/auth/complete?token_hash=valid&type=recovery",
     );
-    expect(response.headers.get("set-cookie")).toContain(
-      "nestory_recovery=signed-recovery-marker",
-    );
-    expect(response.headers.get("set-cookie")).toContain("HttpOnly");
-    expect(response.headers.get("set-cookie")).toContain("Max-Age=600");
-    expect(response.cookies.get("sb-session")?.value).toBe("recovery:valid");
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(createSupabaseAuthRouteClient).not.toHaveBeenCalled();
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
   it("consumes a recovery token only after an explicit form submission", async () => {
@@ -172,7 +175,10 @@ describe("successful auth entry routes", () => {
           token_hash: "valid",
           type: "recovery",
         }),
-        headers: { "content-type": "application/x-www-form-urlencoded" },
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          origin: "http://localhost:3000",
+        },
         method: "POST",
       }),
     );
@@ -185,6 +191,69 @@ describe("successful auth entry routes", () => {
       "nestory_recovery=signed-recovery-marker",
     );
     expect(response.cookies.get("sb-session")?.value).toBe("recovery:valid");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("rejects cross-origin recovery confirmation before Auth client creation", async () => {
+    const response = await confirmRoute.POST(
+      new NextRequest("http://localhost:3000/auth/confirm", {
+        body: new URLSearchParams({ token_hash: "valid", type: "recovery" }),
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          origin: "https://evil.example",
+        },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(createSupabaseAuthRouteClient).not.toHaveBeenCalled();
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("rejects oversized declared recovery bodies before Auth client creation", async () => {
+    const response = await confirmRoute.POST(
+      new NextRequest("http://localhost:3000/auth/confirm", {
+        body: "token_hash=valid&type=recovery",
+        headers: {
+          "content-length": "5000",
+          "content-type": "application/x-www-form-urlencoded",
+          origin: "http://localhost:3000",
+        },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(413);
+    expect(createSupabaseAuthRouteClient).not.toHaveBeenCalled();
+  });
+
+  it("bounds missing-length recovery streams and rejects multipart parsing", async () => {
+    const oversized = await confirmRoute.POST(
+      new NextRequest("http://localhost:3000/auth/confirm", {
+        body: `token_hash=${"a".repeat(5000)}&type=recovery`,
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          origin: "http://localhost:3000",
+        },
+        method: "POST",
+      }),
+    );
+    expect(oversized.status).toBe(413);
+    expect(createSupabaseAuthRouteClient).not.toHaveBeenCalled();
+
+    const multipart = await confirmRoute.POST(
+      new NextRequest("http://localhost:3000/auth/confirm", {
+        body: "--boundary--",
+        headers: {
+          "content-type": "multipart/form-data; boundary=boundary",
+          origin: "http://localhost:3000",
+        },
+        method: "POST",
+      }),
+    );
+    expect(multipart.status).toBe(415);
+    expect(createSupabaseAuthRouteClient).not.toHaveBeenCalled();
   });
 
   it("rejects external callback destinations", async () => {

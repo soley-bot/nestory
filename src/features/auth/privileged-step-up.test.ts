@@ -189,18 +189,48 @@ describe("privileged email step-up actions", () => {
       error: null,
     });
 
-    await expect(
-      getPrivilegedEmailStepUpStatus({
-        organizationId,
-        organizationName: "Harbor Homes",
-        userId,
-      }),
-    ).resolves.toEqual({
+    await expect(getPrivilegedEmailStepUpStatus()).resolves.toEqual({
       canRequestAt: null,
       email: "admin@example.com",
       enforcementEnabled: false,
       required: true,
       verifiedUntil: null,
     });
+    expect(requireWorkspaceContext).toHaveBeenCalledOnce();
+  });
+
+  it("ignores caller-supplied organization authority for status reads", async () => {
+    adminRpc.mockResolvedValue({
+      data: {
+        canRequestAt: null,
+        enforcementEnabled: false,
+        required: true,
+        verifiedUntil: null,
+      },
+      error: null,
+    });
+
+    const caller = getPrivilegedEmailStepUpStatus as unknown as (
+      context: {
+        organizationId: string;
+        organizationName: string;
+        userId: string;
+      },
+    ) => ReturnType<typeof getPrivilegedEmailStepUpStatus>;
+    await caller({
+      organizationId: "90000000-0000-4000-8000-000000000009",
+      organizationName: "Foreign workspace",
+      userId,
+    });
+
+    expect(requireWorkspaceContext).toHaveBeenCalledOnce();
+    expect(adminRpc).toHaveBeenCalledWith(
+      "get_privileged_email_step_up_status",
+      expect.objectContaining({
+        p_organization_id: organizationId,
+        p_session_id: sessionId,
+        p_user_id: userId,
+      }),
+    );
   });
 });

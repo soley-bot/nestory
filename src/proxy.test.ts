@@ -32,8 +32,11 @@ describe("proxy", () => {
 
     await proxy(new NextRequest("https://www.nestory-kh.com/login"));
 
-    expect(createServerClient.mock.calls[0][2].cookieOptions).toEqual({
+    expect(createServerClient.mock.calls[0][2].cookieOptions).toMatchObject({
       domain: ".nestory-kh.com",
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
     });
     delete process.env.APP_ROOT_DOMAIN;
   });

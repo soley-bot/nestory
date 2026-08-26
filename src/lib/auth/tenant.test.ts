@@ -1,12 +1,51 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { getOrganizationSlugFromHost } from "@/lib/auth/tenant";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  getAuthCookieOptions,
+  getOrganizationSlugFromHost,
+} from "@/lib/auth/tenant";
 
 const originalRootDomain = process.env.APP_ROOT_DOMAIN;
 const originalReservedSubdomains = process.env.APP_RESERVED_SUBDOMAINS;
 
 afterEach(() => {
-  process.env.APP_ROOT_DOMAIN = originalRootDomain;
-  process.env.APP_RESERVED_SUBDOMAINS = originalReservedSubdomains;
+  vi.unstubAllEnvs();
+  if (originalRootDomain === undefined) {
+    delete process.env.APP_ROOT_DOMAIN;
+  } else {
+    process.env.APP_ROOT_DOMAIN = originalRootDomain;
+  }
+  if (originalReservedSubdomains === undefined) {
+    delete process.env.APP_RESERVED_SUBDOMAINS;
+  } else {
+    process.env.APP_RESERVED_SUBDOMAINS = originalReservedSubdomains;
+  }
+});
+
+describe("getAuthCookieOptions", () => {
+  it("keeps Auth sessions HttpOnly and secure in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    process.env.APP_ROOT_DOMAIN = "nestory-kh.com";
+
+    expect(getAuthCookieOptions()).toEqual({
+      domain: ".nestory-kh.com",
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+      secure: true,
+    });
+  });
+
+  it("keeps local Auth sessions HttpOnly without forcing HTTPS", () => {
+    vi.stubEnv("NODE_ENV", "test");
+    delete process.env.APP_ROOT_DOMAIN;
+
+    expect(getAuthCookieOptions()).toEqual({
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+      secure: false,
+    });
+  });
 });
 
 describe("getOrganizationSlugFromHost", () => {

@@ -284,7 +284,7 @@ export async function saveLeaseBillingAction(
     p_lease_id: parsed.data.leaseId,
     p_organization_id: context.organizationId,
   });
-  if (error) return actionError(error.message);
+  if (error) return backendActionError();
   revalidateFinance();
   return { message: "Lease billing rules saved.", status: "success" };
 }
@@ -342,7 +342,7 @@ export async function recoverLeaseRentPeriodAction(
     p_lease_id: parsed.data.leaseId,
     p_organization_id: context.organizationId,
   });
-  if (error) return actionError(error.message);
+  if (error) return backendActionError();
 
   const result = asActionResult(data);
   if (result?.status === "failed") {
@@ -378,7 +378,7 @@ export async function createManualTenantChargeAction(
     p_lease_id: parsed.data.leaseId,
     p_organization_id: context.organizationId,
   });
-  if (error) return actionError(error.message);
+  if (error) return backendActionError();
   revalidateFinance();
   revalidatePath(`/leases/${parsed.data.leaseId}`);
   return { message: "Charge added.", status: "success" };
@@ -399,7 +399,7 @@ export async function createFinanceCategoryAction(
     p_organization_id: context.organizationId,
     p_reporting_group: parsed.data.reportingGroup,
   });
-  if (error) return actionError(error.message);
+  if (error) return backendActionError();
   revalidateFinance();
   return {
     message:
@@ -425,7 +425,7 @@ export async function updateFinanceCategoryAction(
     p_organization_id: context.organizationId,
     p_reporting_group: parsed.data.reportingGroup,
   });
-  if (error) return actionError(error.message);
+  if (error) return backendActionError();
   revalidateFinance();
   return { message: "Finance category renamed.", status: "success" };
 }
@@ -444,7 +444,7 @@ export async function setFinanceCategoryArchivedAction(
     p_category_id: parsed.data.categoryId,
     p_organization_id: context.organizationId,
   });
-  if (error) return actionError(error.message);
+  if (error) return backendActionError();
   revalidateFinance();
   return {
     message: parsed.data.archived
@@ -473,7 +473,7 @@ export async function recordTenantInvoicePaymentAction(
     p_reconciliation_source_id: parsed.data.reconciliationSourceId,
     p_reference: parsed.data.reference,
   });
-  if (error) return actionError(error.message);
+  if (error) return backendActionError();
   const paymentId =
     typeof data === "string" && uuid.safeParse(data).success ? data : null;
   if (!paymentId) {
@@ -603,7 +603,7 @@ export async function confirmOwnerCollectionAction(
     p_organization_id: context.organizationId,
     p_reference: parsed.data.reference,
   });
-  if (error) return actionError(error.message);
+  if (error) return backendActionError();
   revalidateFinance();
   return { message: "Owner collection confirmed.", status: "success" };
 }
@@ -626,7 +626,7 @@ export async function reverseTenantInvoicePaymentAction(
     p_reason: parsed.data.reason,
     p_reversal_date: parsed.data.reversalDate,
   });
-  if (error) return actionError(error.message);
+  if (error) return backendActionError();
   revalidateFinance();
   return { message: "Tenant payment reversed.", status: "success" };
 }
@@ -652,7 +652,7 @@ export async function reverseOwnerCollectionConfirmationAction(
       p_reversal_date: parsed.data.reversalDate,
     },
   );
-  if (error) return actionError(error.message);
+  if (error) return backendActionError();
   revalidateFinance();
   return { message: "Owner collection reversed.", status: "success" };
 }
@@ -682,12 +682,8 @@ export async function submitExpenseAction(
       requestClient: supabase,
     });
     evidenceDocumentId = evidence.documentId;
-  } catch (error) {
-    return actionError(
-      error instanceof Error
-        ? error.message
-        : "Receipt evidence could not be verified.",
-    );
+  } catch {
+    return actionError("Receipt evidence could not be verified. Try again.");
   }
   const { error } = await supabase.rpc("submit_expense", {
     p_currency: "USD",
@@ -709,7 +705,7 @@ export async function submitExpenseAction(
     p_vendor_label: parsed.data.vendorLabel,
     p_vendor_person_id: null,
   });
-  if (error) return actionError(error.message);
+  if (error) return backendActionError();
   revalidateFinance();
   return {
     message: "Paid cost submitted for Finance review.",
@@ -785,7 +781,7 @@ export async function recordOwnerPaymentAction(
     p_received_date: parsed.data.receivedDate,
     p_reference: parsed.data.reference,
   });
-  if (error) return actionError(error.message);
+  if (error) return backendActionError();
   revalidateFinance();
   return { message: "Owner invoice payment recorded.", status: "success" };
 }
@@ -808,7 +804,7 @@ export async function recordWithdrawalAction(
     p_property_id: parsed.data.propertyId,
     p_reference: parsed.data.reference,
   });
-  if (error) return actionError(error.message);
+  if (error) return backendActionError();
   revalidateFinance();
   return { message: "Owner distribution recorded.", status: "success" };
 }
@@ -854,6 +850,10 @@ function actionError(message: string): FinanceOperationsActionState {
   return { message: simplifyDatabaseMessage(message), status: "error" };
 }
 
+function backendActionError(): FinanceOperationsActionState {
+  return actionError("We could not complete this Finance action. Try again.");
+}
+
 function simplifyDatabaseMessage(message: string) {
   return message
     .replace(/^.*?: /, "")
@@ -891,7 +891,7 @@ function expenseWorkflowError(message: string) {
       "This customer charge has already been settled. Use a separate correction.",
     );
   }
-  return actionError(message);
+  return backendActionError();
 }
 
 function asActionResult(

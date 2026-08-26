@@ -414,6 +414,20 @@ describe("ordinary finance operation actions", () => {
     });
   });
 
+  it("does not serialize backend error details to finance clients", async () => {
+    const sentinel = "service_role_secret finance_internal_constraint";
+    rpc.mockResolvedValueOnce({ data: null, error: { message: sentinel } });
+
+    const result = await recordOwnerPaymentAction({}, ownerPaymentForm());
+
+    expect(result).toEqual({
+      message: "We could not complete this Finance action. Try again.",
+      status: "error",
+    });
+    expect(result.message).not.toContain(sentinel);
+    expect(result.message).not.toContain("service role secret");
+  });
+
   it.each([
     ["65", "65.00"],
     ["65.5", "65.50"],

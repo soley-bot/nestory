@@ -165,10 +165,9 @@ export async function verifyPrivilegedEmailStepUpAction(
   }
 }
 
-export async function getPrivilegedEmailStepUpStatus(
-  context: WorkspaceStepUpContext,
-): Promise<PrivilegedEmailStepUpStatus | null> {
+export async function getPrivilegedEmailStepUpStatus(): Promise<PrivilegedEmailStepUpStatus | null> {
   try {
+    const context = await requireWorkspaceContext();
     const identity = await getCurrentSessionIdentity(context.userId);
     if (!identity) return null;
     const admin = createSupabaseAdminClient();

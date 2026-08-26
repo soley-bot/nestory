@@ -23,7 +23,7 @@ export default async function AccountPage() {
     Array.from(context.permissionKeys ?? []).some((permission) =>
       permission.startsWith("finance."),
     )
-      ? getPrivilegedEmailStepUpStatus(context)
+      ? getPrivilegedEmailStepUpStatus()
       : null,
   ]);
 
