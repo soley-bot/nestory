@@ -118,6 +118,7 @@ describe("maintenance action capabilities", () => {
       idempotencyKey: "maintenance-cost-submit-1",
       organizationId: "00000000-0000-4000-8000-000000000001",
       propertyId: "00000000-0000-4000-8000-000000000002",
+      requestClient: expect.objectContaining({ rpc }),
       taskId: "00000000-0000-4000-8000-000000000003",
     });
     expect(requirePermission).toHaveBeenCalledWith("maintenance.review");

@@ -6,12 +6,17 @@ import { createSupabaseAdminClient } from "@/lib/db/admin";
 import {
   downloadTenantCommercialDocumentArtifact,
   markReceiptPublicationFailed,
-  publishTenantInvoiceArtifact,
-  publishTenantReceiptArtifact,
+  publishTenantInvoiceArtifact as publishTenantInvoiceArtifactImpl,
+  publishTenantReceiptArtifact as publishTenantReceiptArtifactImpl,
 } from "@/features/finance-operations/documents/commercial-document-artifacts";
+
+const requirePrivilegedStepUp = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/db/admin", () => ({
   createSupabaseAdminClient: vi.fn(),
+}));
+vi.mock("@/lib/auth/privileged-step-up-guard", () => ({
+  requirePrivilegedStepUp,
 }));
 
 const organizationId = "10000000-0000-4000-8000-000000000001";
@@ -32,8 +37,19 @@ const publicationInput = {
   paymentInstructions: "Bank transfer to IPS operating account 001-9182.",
 };
 
+const publishTenantInvoiceArtifact = (
+  input: Omit<Parameters<typeof publishTenantInvoiceArtifactImpl>[0], "actorId">,
+) => publishTenantInvoiceArtifactImpl({ ...input, actorId });
+const publishTenantReceiptArtifact = (
+  input: Omit<Parameters<typeof publishTenantReceiptArtifactImpl>[0], "actorId">,
+) => publishTenantReceiptArtifactImpl({ ...input, actorId });
+
 beforeEach(() => {
   vi.mocked(createSupabaseAdminClient).mockReset();
+  requirePrivilegedStepUp.mockReset();
+  requirePrivilegedStepUp.mockImplementation(async () =>
+    createSupabaseAdminClient(),
+  );
 });
 
 afterEach(() => {
@@ -41,6 +57,26 @@ afterEach(() => {
 });
 
 describe("commercial document artifact publication", () => {
+  it("fails before admin Storage publication when exact-session proof is unavailable", async () => {
+    const harness = artifactHarness();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(harness.admin as never);
+    requirePrivilegedStepUp.mockRejectedValue(
+      new Error("Privileged email verification required."),
+    );
+
+    await expect(
+      publishTenantInvoiceArtifact({
+        client: harness.client as unknown as SupabaseClient<Database>,
+        invoiceId,
+        organizationId,
+        publicationInput,
+      }),
+    ).rejects.toThrow("Privileged email verification required");
+
+    expect(eventsOf(harness.events, "storage.upload")).toHaveLength(0);
+    expect(createSupabaseAdminClient).not.toHaveBeenCalled();
+  });
+
   it("publishes exact rendered Invoice bytes to the stable server-derived path and attests before authenticated registration", async () => {
     const harness = artifactHarness();
     vi.mocked(createSupabaseAdminClient).mockReturnValue(harness.admin as never);

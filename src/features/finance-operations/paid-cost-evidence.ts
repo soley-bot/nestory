@@ -1,4 +1,8 @@
 import { createHash } from "node:crypto";
+import {
+  requirePrivilegedStepUp,
+  type PrivilegedStepUpRequestClient,
+} from "@/lib/auth/privileged-step-up-guard";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
 import { validateUploadedFileContent } from "@/lib/uploads/upload-content";
 
@@ -16,6 +20,7 @@ type PaidCostEvidenceInput = {
   idempotencyKey: string;
   organizationId: string;
   propertyId: string;
+  requestClient?: PrivilegedStepUpRequestClient;
   taskId?: string;
 };
 
@@ -38,14 +43,47 @@ export function validatePaidCostEvidenceFile(value: FormDataEntryValue | null) {
   return null;
 }
 
-export async function preparePaidCostEvidence({
+export async function preparePaidCostEvidence(
+  input: PaidCostEvidenceInput,
+): Promise<PaidCostEvidenceResult> {
+  return preparePaidCostEvidenceWithAuthority(input, () =>
+    requirePrivilegedStepUp(
+      { organizationId: input.organizationId, userId: input.actorId },
+      input.requestClient,
+    ),
+  );
+}
+
+export async function preparePaidCostEvidenceForFixture(
+  input: Omit<PaidCostEvidenceInput, "requestClient">,
+): Promise<PaidCostEvidenceResult> {
+  assertLocalFixtureAuthority();
+  return preparePaidCostEvidenceWithAuthority(input, async () =>
+    createSupabaseAdminClient(),
+  );
+}
+
+function assertLocalFixtureAuthority() {
+  const configuredUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  let hostname: string;
+  try {
+    hostname = configuredUrl ? new URL(configuredUrl).hostname : "";
+  } catch {
+    hostname = "";
+  }
+  if (!["127.0.0.1", "[::1]", "localhost"].includes(hostname)) {
+    throw new Error("Paid-cost fixture authority requires local Supabase.");
+  }
+}
+
+async function preparePaidCostEvidenceWithAuthority({
   actorId,
   file,
   idempotencyKey,
   organizationId,
   propertyId,
   taskId,
-}: PaidCostEvidenceInput): Promise<PaidCostEvidenceResult> {
+}: PaidCostEvidenceInput, authorize: () => Promise<ReturnType<typeof createSupabaseAdminClient>>): Promise<PaidCostEvidenceResult> {
   const verifiedFile = await validateUploadedFileContent(file, [
     "application/pdf",
     "image/jpeg",
@@ -63,7 +101,7 @@ export async function preparePaidCostEvidence({
     ),
   );
   const storagePath = `${organizationId}/paid-cost-evidence/${pathDigest}`;
-  const admin = createSupabaseAdminClient();
+  const admin = await authorize();
   const bucket = admin.storage.from("nestory-documents");
   const upload = await bucket.upload(storagePath, bytes, {
     contentType: verifiedFile.contentType,

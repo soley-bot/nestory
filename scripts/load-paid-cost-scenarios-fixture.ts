@@ -26,7 +26,7 @@ async function main() {
   process.env.NEXT_PUBLIC_SUPABASE_URL = runtime.apiUrl;
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = runtime.anonKey;
   process.env.SUPABASE_SERVICE_ROLE_KEY = runtime.serviceRoleKey;
-  const { preparePaidCostEvidence } = await import(
+  const { preparePaidCostEvidenceForFixture } = await import(
     "../src/features/finance-operations/paid-cost-evidence"
   );
 
@@ -49,7 +49,7 @@ async function main() {
     admin,
     bankSourceId,
     manager,
-    preparePaidCostEvidence,
+    preparePaidCostEvidence: preparePaidCostEvidenceForFixture,
     service,
   });
   fixturePhase = "create petty-cash funding source";
@@ -99,7 +99,7 @@ async function main() {
       `${input.id}.pdf`,
       { type: "application/pdf" },
     );
-    const evidence = await preparePaidCostEvidence({
+    const evidence = await preparePaidCostEvidenceForFixture({
       actorId: financeMemberId,
       file,
       idempotencyKey: `fixture-track6-${input.id}`,
@@ -403,7 +403,7 @@ async function loadMaintenancePaidCosts({
   admin: SupabaseClient<Database>;
   bankSourceId: string;
   manager: SupabaseClient<Database>;
-  preparePaidCostEvidence: typeof import("../src/features/finance-operations/paid-cost-evidence").preparePaidCostEvidence;
+  preparePaidCostEvidence: typeof import("../src/features/finance-operations/paid-cost-evidence").preparePaidCostEvidenceForFixture;
   service: SupabaseClient<Database>;
 }) {
   const taskResult = await service

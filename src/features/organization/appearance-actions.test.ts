@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/lib/auth/privileged-step-up-guard", () => ({
+  requirePrivilegedStepUp: vi.fn(),
+}));
+
 const {
   createSignedUrl,
   createSupabaseServerClient,

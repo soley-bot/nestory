@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/lib/auth/privileged-step-up-guard", () => ({
+  requirePrivilegedStepUp: vi.fn(),
+}));
+
 const { revalidatePath, requireSuperAdminContext, rpc } = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   requireSuperAdminContext: vi.fn(),

@@ -17,6 +17,7 @@ const {
   requireFinanceSubmissionContext,
   requireHistoricalRentRecoveryContext,
   requirePermission,
+  requirePrivilegedStepUp,
   revalidatePath,
   rpc,
 } = vi.hoisted(() => ({
@@ -36,6 +37,7 @@ const {
   requireFinanceSubmissionContext: vi.fn(),
   requireHistoricalRentRecoveryContext: vi.fn(),
   requirePermission: vi.fn(),
+  requirePrivilegedStepUp: vi.fn(),
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
 }));
@@ -51,6 +53,9 @@ vi.mock("@/lib/auth/context", () => ({
   requireFinanceSubmissionContext,
   requireHistoricalRentRecoveryContext,
   requirePermission,
+}));
+vi.mock("@/lib/auth/privileged-step-up-guard", () => ({
+  requirePrivilegedStepUp,
 }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: async () => ({ rpc }),
@@ -120,7 +125,7 @@ describe("rent generation recovery action", () => {
     rpc.mockReset();
     requirePermission.mockResolvedValue({ organizationId });
     requireCurrentRentRetryContext.mockResolvedValue({ organizationId });
-    requireFinanceOperationContext.mockResolvedValue({ organizationId });
+    requireFinanceOperationContext.mockResolvedValue({ organizationId, userId: actorId });
     requireFinanceSubmissionContext.mockResolvedValue({ organizationId, userId: actorId });
     requireHistoricalRentRecoveryContext.mockResolvedValue({ organizationId });
     requireFinanceReviewContext.mockResolvedValue({ organizationId });
@@ -342,7 +347,7 @@ describe("ordinary finance operation actions", () => {
     requireSuperAdminContext.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
-    requireFinanceOperationContext.mockResolvedValue({ organizationId });
+    requireFinanceOperationContext.mockResolvedValue({ organizationId, userId: actorId });
     requireFinanceCorrectionContext.mockResolvedValue({ organizationId });
     requireFinanceReversalContext.mockResolvedValue({ organizationId });
     adminFrom.mockReturnValue({
@@ -495,7 +500,11 @@ describe("tenant commercial document publication actions", () => {
     requireFinanceOperationContext.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
-    requireFinanceOperationContext.mockResolvedValue({ organizationId });
+    requireFinanceOperationContext.mockResolvedValue({ organizationId, userId: actorId });
+    requirePrivilegedStepUp.mockResolvedValue({
+      rpc: adminRpc,
+      storage: { from: adminFrom },
+    });
     rpc.mockResolvedValue({ data: submissionId, error: null });
     publishTenantInvoiceArtifact.mockResolvedValue(publishedInvoice);
     publishTenantReceiptArtifact.mockResolvedValue(publishedReceipt);
@@ -511,6 +520,7 @@ describe("tenant commercial document publication actions", () => {
     });
     expect(requireFinanceOperationContext).toHaveBeenCalledOnce();
     expect(publishTenantInvoiceArtifact).toHaveBeenCalledWith({
+      actorId,
       client: expect.anything(),
       invoiceId: exceptionId,
       organizationId,
@@ -629,6 +639,7 @@ describe("tenant commercial document publication actions", () => {
       status: "success",
     });
     expect(publishTenantReceiptArtifact).toHaveBeenCalledWith({
+      actorId,
       client: expect.anything(),
       organizationId,
       paymentId: submissionId,
@@ -720,6 +731,7 @@ describe("tenant commercial document publication actions", () => {
     });
     expect(requireFinanceOperationContext).toHaveBeenCalledOnce();
     expect(publishTenantReceiptArtifact).toHaveBeenCalledWith({
+      actorId,
       client: expect.anything(),
       organizationId,
       paymentId: submissionId,
@@ -793,14 +805,51 @@ describe("tenant commercial document publication actions", () => {
 
 describe("expense approval actions", () => {
   beforeEach(() => {
+    adminDownload.mockReset();
+    adminFrom.mockReset();
+    adminRpc.mockReset();
+    adminUpload.mockReset();
     requireFinanceReviewContext.mockReset();
     requireFinanceReversalContext.mockReset();
     requireFinanceSubmissionContext.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
+    requirePrivilegedStepUp.mockReset();
     requireFinanceSubmissionContext.mockResolvedValue({ organizationId, userId: actorId });
     requireFinanceReviewContext.mockResolvedValue({ organizationId });
     requireFinanceReversalContext.mockResolvedValue({ organizationId });
+    adminFrom.mockReturnValue({
+      download: adminDownload,
+      upload: adminUpload,
+    });
+    adminUpload.mockResolvedValue({ data: {}, error: null });
+    adminDownload.mockResolvedValue({
+      data: new Blob([validPdfBytes()], { type: "application/pdf" }),
+      error: null,
+    });
+    adminRpc.mockImplementation(async (name: string, args: Record<string, unknown>) => ({
+      data:
+        name === "get_paid_cost_evidence_object"
+          ? {
+              content_type: "application/pdf",
+              metadata_size_bytes: validPdfBytes().byteLength,
+              storage_object_id: evidenceObjectId,
+              storage_object_version: "paid-cost-object-v1",
+            }
+          : {
+              content_sha256:
+                "50dc246b4ff9509811a23d9fcf7d6c8465ed2b4eed08aa049d9feae8e8afd526",
+              document_id: evidenceDocumentId,
+              size_bytes: validPdfBytes().byteLength,
+              status: "registered",
+              storage_path: args.p_storage_path,
+            },
+      error: null,
+    }));
+    requirePrivilegedStepUp.mockResolvedValue({
+      rpc: adminRpc,
+      storage: { from: adminFrom },
+    });
   });
 
   it("submits evidence through the Finance Member capability without recording money", async () => {

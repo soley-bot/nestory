@@ -1,0 +1,138 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
+const mocks = vi.hoisted(() => ({
+  createAdmin: vi.fn(),
+  createServer: vi.fn(),
+  getClaims: vi.fn(),
+  getUser: vi.fn(),
+  rpc: vi.fn(),
+}));
+
+vi.mock("@/lib/db/admin", () => ({
+  createSupabaseAdminClient: mocks.createAdmin,
+}));
+vi.mock("@/lib/db/server", () => ({
+  createSupabaseServerClient: mocks.createServer,
+}));
+
+import { requirePrivilegedStepUp } from "@/lib/auth/privileged-step-up-guard";
+
+const organizationId = "10000000-0000-4000-8000-000000000001";
+const userId = "20000000-0000-4000-8000-000000000001";
+const sessionId = "30000000-0000-4000-8000-000000000001";
+
+describe("privileged step-up guard", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getClaims.mockResolvedValue({
+      data: { claims: { session_id: sessionId, sub: userId } },
+      error: null,
+    });
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: userId } },
+      error: null,
+    });
+    mocks.createServer.mockResolvedValue({
+      auth: { getClaims: mocks.getClaims, getUser: mocks.getUser },
+    });
+    mocks.createAdmin.mockReturnValue({ rpc: mocks.rpc });
+    mocks.rpc.mockResolvedValue({ data: true, error: null });
+  });
+
+  it("proves the exact verified actor and Auth session through the service-only assertion", async () => {
+    await expect(
+      requirePrivilegedStepUp({ organizationId, userId }),
+    ).resolves.toEqual(expect.objectContaining({ rpc: mocks.rpc }));
+
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "assert_privileged_email_step_up_satisfied",
+      {
+        p_organization_id: organizationId,
+        p_session_id: sessionId,
+        p_user_id: userId,
+      },
+    );
+  });
+
+  it.each([
+    ["missing claims", { data: { claims: null }, error: null }],
+    [
+      "missing session",
+      { data: { claims: { sub: userId } }, error: null },
+    ],
+    [
+      "malformed session",
+      {
+        data: { claims: { session_id: "not-a-uuid", sub: userId } },
+        error: null,
+      },
+    ],
+  ])("fails closed for %s before creating service authority", async (_label, claimsResult) => {
+    mocks.getClaims.mockResolvedValue(claimsResult);
+
+    await expect(
+      requirePrivilegedStepUp({ organizationId, userId }),
+    ).rejects.toThrow("Privileged email verification required");
+
+    expect(mocks.createAdmin).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when verified user and expected server actor differ", async () => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: "20000000-0000-4000-8000-000000000099" } },
+      error: null,
+    });
+
+    await expect(
+      requirePrivilegedStepUp({ organizationId, userId }),
+    ).rejects.toThrow("Privileged email verification required");
+
+    expect(mocks.createAdmin).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the signed claims actor and expected server actor differ", async () => {
+    mocks.getClaims.mockResolvedValue({
+      data: {
+        claims: {
+          session_id: sessionId,
+          sub: "20000000-0000-4000-8000-000000000099",
+        },
+      },
+      error: null,
+    });
+
+    await expect(
+      requirePrivilegedStepUp({ organizationId, userId }),
+    ).rejects.toThrow("Privileged email verification required");
+
+    expect(mocks.createAdmin).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a false assertion", { data: false, error: null }],
+    ["an assertion error", { data: null, error: { message: "unavailable" } }],
+  ])("fails closed on %s", async (_label, assertionResult) => {
+    mocks.rpc.mockResolvedValue(assertionResult);
+
+    await expect(
+      requirePrivilegedStepUp({ organizationId, userId }),
+    ).rejects.toThrow("Privileged email verification required");
+  });
+
+  it("normalizes a thrown assertion request to the generic fail-closed error", async () => {
+    mocks.rpc.mockRejectedValue(new Error("service secret unavailable"));
+
+    await expect(
+      requirePrivilegedStepUp({ organizationId, userId }),
+    ).rejects.toThrow("Privileged email verification required");
+  });
+
+  it("preserves ordinary-member compatibility when the database assertion succeeds", async () => {
+    await expect(
+      requirePrivilegedStepUp({ organizationId, userId }),
+    ).resolves.toEqual(expect.objectContaining({ rpc: mocks.rpc }));
+  });
+});

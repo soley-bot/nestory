@@ -374,6 +374,7 @@ export async function submitMaintenanceCostAction(
       idempotencyKey: parsed.data.idempotencyKey,
       organizationId: context.organizationId,
       propertyId: pathContext.property_id,
+      requestClient: supabase,
       taskId: parsed.data.taskId,
     });
     evidenceDocumentId = evidence.documentId;

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAuthCallbackUrl } from "@/lib/auth/callback-url";
 import { requireSuperAdminContext } from "@/lib/auth/context";
-import { createSupabaseAdminClient } from "@/lib/db/admin";
+import { requirePrivilegedStepUp } from "@/lib/auth/privileged-step-up-guard";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
   ACCENT_PRESET_NAMES,
@@ -837,7 +837,12 @@ export async function inviteOrganizationUserAction(
     };
   }
 
+  const admin = await requirePrivilegedStepUp(
+    { organizationId: context.organizationId, userId: context.userId },
+    supabase,
+  );
   const delivery = await deliverInvitation(
+    admin,
     parsed.data.email,
     createResult.data,
   );
@@ -927,7 +932,7 @@ export async function resendOrganizationInvitationAction(
   _state: OrganizationActionState,
   formData: FormData,
 ): Promise<OrganizationActionState> {
-  await requireSuperAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = invitationIdSchema.safeParse({
     invitationId: readString(formData, "invitationId"),
   });
@@ -948,7 +953,12 @@ export async function resendOrganizationInvitationAction(
       status: "error",
     };
   }
+  const admin = await requirePrivilegedStepUp(
+    { organizationId: context.organizationId, userId: context.userId },
+    supabase,
+  );
   const delivery = await deliverInvitation(
+    admin,
     invitation.email,
     invitation.invitation_id,
   );
@@ -1117,9 +1127,12 @@ function organizationErrorMessage(message: string) {
   return "We could not save the organization setting.";
 }
 
-async function deliverInvitation(email: string, invitationId: string) {
+async function deliverInvitation(
+  adminClient: Awaited<ReturnType<typeof requirePrivilegedStepUp>>,
+  email: string,
+  invitationId: string,
+) {
   try {
-    const adminClient = createSupabaseAdminClient();
     const redirectTo = await getInvitationConfirmUrl(invitationId);
     const { data, error } = await adminClient.auth.admin.inviteUserByEmail(
       email,

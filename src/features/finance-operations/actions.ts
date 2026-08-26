@@ -483,6 +483,7 @@ export async function recordTenantInvoicePaymentAction(
 
   try {
     const artifact = await publishTenantReceiptArtifact({
+      actorId: context.userId,
       client: supabase,
       organizationId: context.organizationId,
       paymentId,
@@ -525,6 +526,7 @@ export async function publishTenantInvoicePdfAction(
   const supabase = await createSupabaseServerClient();
   try {
     const artifact = await publishTenantInvoiceArtifact({
+      actorId: context.userId,
       client: supabase,
       invoiceId: parsed.data.invoiceId,
       organizationId: context.organizationId,
@@ -562,6 +564,7 @@ export async function retryTenantReceiptPdfAction(
   const supabase = await createSupabaseServerClient();
   try {
     const artifact = await publishTenantReceiptArtifact({
+      actorId: context.userId,
       client: supabase,
       organizationId: context.organizationId,
       paymentId: parsed.data.paymentId,
@@ -667,6 +670,7 @@ export async function submitExpenseAction(
     return actionError("Choose the tenant invoice for this charge.");
   }
   const context = await requireFinanceSubmissionContext();
+  const supabase = await createSupabaseServerClient();
   let evidenceDocumentId: string;
   try {
     const evidence = await preparePaidCostEvidence({
@@ -675,6 +679,7 @@ export async function submitExpenseAction(
       idempotencyKey: parsed.data.idempotencyKey,
       organizationId: context.organizationId,
       propertyId: parsed.data.propertyId,
+      requestClient: supabase,
     });
     evidenceDocumentId = evidence.documentId;
   } catch (error) {
@@ -684,7 +689,6 @@ export async function submitExpenseAction(
         : "Receipt evidence could not be verified.",
     );
   }
-  const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("submit_expense", {
     p_currency: "USD",
     p_customer_category: parsed.data.category,

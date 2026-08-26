@@ -1,10 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   download: vi.fn(),
   from: vi.fn(),
   remove: vi.fn(),
   rpc: vi.fn(),
+  requirePrivilegedStepUp: vi.fn(),
   upload: vi.fn(),
 }));
 
@@ -14,8 +15,14 @@ vi.mock("@/lib/db/admin", () => ({
     storage: { from: mocks.from },
   }),
 }));
+vi.mock("@/lib/auth/privileged-step-up-guard", () => ({
+  requirePrivilegedStepUp: mocks.requirePrivilegedStepUp,
+}));
 
-import { preparePaidCostEvidence } from "@/features/finance-operations/paid-cost-evidence";
+import {
+  preparePaidCostEvidence,
+  preparePaidCostEvidenceForFixture,
+} from "@/features/finance-operations/paid-cost-evidence";
 import {
   invalidPdfFile,
   validPdfBytes,
@@ -30,9 +37,11 @@ const objectId = "00000000-0000-4000-8000-000000000009";
 const taskId = "00000000-0000-4000-8000-000000000010";
 const retainedHash =
   "50dc246b4ff9509811a23d9fcf7d6c8465ed2b4eed08aa049d9feae8e8afd526";
+const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 describe("verified paid-cost evidence", () => {
   beforeEach(() => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
     vi.clearAllMocks();
     mocks.from.mockReturnValue({
       download: mocks.download,
@@ -63,6 +72,52 @@ describe("verified paid-cost evidence", () => {
             },
       error: null,
     }));
+    mocks.requirePrivilegedStepUp.mockResolvedValue({
+      rpc: mocks.rpc,
+      storage: { from: mocks.from },
+    });
+  });
+
+  afterEach(() => {
+    if (originalSupabaseUrl === undefined) {
+      delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    } else {
+      process.env.NEXT_PUBLIC_SUPABASE_URL = originalSupabaseUrl;
+    }
+  });
+
+  it("fails before admin Storage when exact-session proof is unavailable", async () => {
+    mocks.requirePrivilegedStepUp.mockRejectedValue(
+      new Error("Privileged email verification required."),
+    );
+
+    await expect(preparePaidCostEvidence(input())).rejects.toThrow(
+      "Privileged email verification required",
+    );
+
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("uses an explicit fixture-only system entry point without fabricating a user session", async () => {
+    await expect(
+      preparePaidCostEvidenceForFixture(input()),
+    ).resolves.toMatchObject({ documentId });
+
+    expect(mocks.requirePrivilegedStepUp).not.toHaveBeenCalled();
+    expect(mocks.upload).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses the fixture-only authority outside a loopback Supabase runtime", async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://hosted-project.supabase.co";
+
+    await expect(preparePaidCostEvidenceForFixture(input())).rejects.toThrow(
+      "Paid-cost fixture authority requires local Supabase",
+    );
+
+    expect(mocks.requirePrivilegedStepUp).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 
   it("returns the exact retained document identity", async () => {
