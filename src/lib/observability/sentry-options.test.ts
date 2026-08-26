@@ -135,6 +135,116 @@ describe("Sentry event privacy", () => {
 
     expect(buildSentryOptions("client").environment).toBe("production");
   });
+
+  it("classifies deployment-skew actions from exception type without retaining values", () => {
+    const event = scrubSentryEvent({
+      type: undefined,
+      exception: {
+        values: [
+          {
+            type: "UnrecognizedActionError",
+            value: "Server Action private-action-id was not found",
+          },
+        ],
+      },
+      message: "operator@example.com retried a stale action",
+    });
+
+    expect(event?.tags).toEqual({
+      error_kind: "server_action_deployment_skew",
+    });
+    expect(event?.exception?.values?.[0]).not.toHaveProperty("value");
+    expect(event).not.toHaveProperty("message");
+  });
+
+  it.each([
+    [
+      "react_hydration_mismatch",
+      {
+        filename:
+          "app:///_next/static/chunks/node_modules/react-dom/cjs/react-dom-client.production.js",
+        function: "throwOnHydrationMismatch",
+      },
+    ],
+    [
+      "react_recoverable_error",
+      {
+        filename:
+          "../node_modules/next/src/client/react-client-callbacks/on-recoverable-error.ts",
+        function: "onRecoverableError",
+      },
+    ],
+  ] as const)("classifies %s from an allowlisted frame identity", (errorKind, frame) => {
+    const event = scrubSentryEvent({
+      type: undefined,
+      exception: {
+        values: [
+          {
+            stacktrace: { frames: [frame] },
+            type: "Error",
+            value: "private rendered content",
+          },
+        ],
+      },
+    });
+
+    expect(event?.tags).toEqual({ error_kind: errorKind });
+    expect(event?.exception?.values?.[0]).not.toHaveProperty("value");
+  });
+
+  it("retains only enumerated structural capture tags", () => {
+    const event = scrubSentryEvent({
+      type: undefined,
+      tags: {
+        boundary: "dashboard",
+        has_digest: "true",
+        has_stack: "false",
+        route: "/units/[unitId]",
+      },
+    });
+
+    expect(event?.tags).toEqual({
+      boundary: "dashboard",
+      has_digest: "true",
+      has_stack: "false",
+      route: "/units/[unitId]",
+    });
+  });
+
+  it("does not derive diagnostic tags from arbitrary values or caller tags", () => {
+    const event = scrubSentryEvent({
+      type: undefined,
+      exception: {
+        values: [
+          {
+            stacktrace: {
+              frames: [
+                {
+                  filename: "src/private/on-recoverable-error.ts",
+                  function: "onRecoverableError",
+                },
+              ],
+            },
+            type: "Error",
+            value:
+              "UnrecognizedActionError throwOnHydrationMismatch operator@example.com",
+          },
+        ],
+      },
+      message: "UnrecognizedActionError",
+      tags: {
+        boundary: "private-workspace-name",
+        error_kind: "react_recoverable_error",
+        has_digest: "private-digest",
+        has_stack: "yes",
+        route: "/units/[unitId]",
+      },
+    });
+
+    expect(event?.tags).toEqual({ route: "/units/[unitId]" });
+    expect(event?.exception?.values?.[0]).not.toHaveProperty("value");
+    expect(event).not.toHaveProperty("message");
+  });
 });
 
 describe("Sentry route normalization", () => {

@@ -8,6 +8,9 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { act } from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { UnitDetailScreen } from "@/features/units/components/unit-detail-screen";
 import { buildUnitDetail } from "@/features/units/data/unit-summary";
@@ -323,7 +326,21 @@ function renderUnitDetail({
   initialSection?: "overview" | "lease" | "finance" | "maintenance" | "files";
   unit?: typeof unitDetail;
 } = {}) {
-  return render(
+  return render(buildUnitDetailElement({ initialSection, unit, canArchive, canWrite }));
+}
+
+function buildUnitDetailElement({
+  canArchive = true,
+  canWrite = true,
+  initialSection = "overview",
+  unit = unitDetail,
+}: {
+  canArchive?: boolean;
+  canWrite?: boolean;
+  initialSection?: "overview" | "lease" | "finance" | "maintenance" | "files";
+  unit?: typeof unitDetail;
+} = {}) {
+  return (
     <UnitDetailScreen
       activeSection={initialSection}
       canArchive={canArchive}
@@ -349,7 +366,7 @@ function renderUnitDetail({
         },
       ]}
       unit={unit}
-    />,
+    />
   );
 }
 
@@ -489,6 +506,72 @@ function buildLeasePanelUnitDetail(
     },
   });
 }
+
+describe("UnitDetailScreen hydration contract", () => {
+  it.each([
+    [
+      "overview with numeric room counts",
+      "overview",
+      () => unitDetail,
+      "3 bedrooms · 2 bathrooms",
+    ],
+    ["lease with numeric room counts", "lease", () => unitDetail, null],
+    ["finance with numeric room counts", "finance", () => unitDetail, null],
+    [
+      "overview with null room counts",
+      "overview",
+      () => availableUnitDetail,
+      "Bedrooms not recorded · Bathrooms not recorded",
+    ],
+  ] as const)(
+    "hydrates %s without a recoverable render error",
+    async (_caseName, initialSection, getUnit, expectedRoomSummary) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-08-26T08:00:00.000Z"));
+      const reactActEnvironment = globalThis as typeof globalThis & {
+        IS_REACT_ACT_ENVIRONMENT?: boolean;
+      };
+      const previousActEnvironment =
+        reactActEnvironment.IS_REACT_ACT_ENVIRONMENT;
+      reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+      const onRecoverableError = vi.fn();
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      const element = buildUnitDetailElement({
+        initialSection,
+        unit: getUnit(),
+      });
+      const container = document.createElement("div");
+      document.body.append(container);
+      container.innerHTML = renderToString(element);
+      const root = hydrateRoot(container, element, { onRecoverableError });
+
+      try {
+        await act(async () => undefined);
+
+        expect(onRecoverableError).not.toHaveBeenCalled();
+        expect(consoleError).not.toHaveBeenCalled();
+        expect(
+          container
+            .querySelector('[role="tabpanel"]')
+            ?.getAttribute("aria-labelledby"),
+        ).toBe(`unit-tab-${initialSection}`);
+        if (expectedRoomSummary) {
+          expect(container.textContent).toContain(expectedRoomSummary);
+        }
+      } finally {
+        await act(async () => root.unmount());
+        container.remove();
+        consoleError.mockRestore();
+        vi.useRealTimers();
+        if (previousActEnvironment === undefined) {
+          delete reactActEnvironment.IS_REACT_ACT_ENVIRONMENT;
+        } else {
+          reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+        }
+      }
+    },
+  );
+});
 
 class ResizeObserverStub {
   disconnect() {}

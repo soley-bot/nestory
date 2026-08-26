@@ -16,11 +16,18 @@ describe("GlobalError", () => {
 
   it("reports root failures and offers recovery", () => {
     const error = new Error("root exploded");
+    error.stack = undefined;
     const reset = vi.fn();
 
     render(<GlobalError error={error} reset={reset} />);
 
-    expect(captureException).toHaveBeenCalledWith(error);
+    expect(captureException).toHaveBeenCalledWith(error, {
+      tags: {
+        boundary: "global",
+        has_digest: "false",
+        has_stack: "false",
+      },
+    });
     expect(
       screen.getByText(/reopen the record to confirm the latest state/i),
     ).toBeInTheDocument();
