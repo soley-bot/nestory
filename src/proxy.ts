@@ -37,6 +37,13 @@ function redirectToLogin(
   const url = request.nextUrl.clone();
   url.pathname = "/login";
   url.search = "";
+  if (isServerActionRequest(request)) {
+    return createSecureServerActionRedirect(
+      url,
+      currentResponse,
+      contentSecurityPolicy,
+    );
+  }
   return createSecureRedirect(url, currentResponse, contentSecurityPolicy);
 }
 
@@ -83,7 +90,7 @@ export async function proxy(request: NextRequest) {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet, responseHeaders) {
         cookiesToSet.forEach(({ name, value }) => {
           request.cookies.set(name, value);
         });
@@ -93,6 +100,10 @@ export async function proxy(request: NextRequest) {
         }
 
         response = createForwardResponse(requestHeaders, contentSecurityPolicy);
+
+        for (const [key, value] of Object.entries(responseHeaders)) {
+          response.headers.set(key, value);
+        }
 
         cookiesToSet.forEach(({ name, options, value }) => {
           response.cookies.set(name, value, options);
@@ -124,10 +135,47 @@ function createSecureRedirect(
   contentSecurityPolicy: string,
 ) {
   const redirect = NextResponse.redirect(url);
+  copyRedirectResponseHeaders(currentResponse, redirect);
   for (const cookie of currentResponse.cookies.getAll()) {
     redirect.cookies.set(cookie);
   }
   return applyBrowserSecurityHeaders(redirect, contentSecurityPolicy);
+}
+
+function createSecureServerActionRedirect(
+  url: URL,
+  currentResponse: NextResponse,
+  contentSecurityPolicy: string,
+) {
+  const redirect = new NextResponse(null, { status: 200 });
+  copyRedirectResponseHeaders(currentResponse, redirect);
+  redirect.headers.set("content-type", "text/plain");
+  redirect.headers.set("x-action-redirect", `${url.pathname};replace`);
+  for (const cookie of currentResponse.cookies.getAll()) {
+    redirect.cookies.set(cookie);
+  }
+  return applyBrowserSecurityHeaders(redirect, contentSecurityPolicy);
+}
+
+function copyRedirectResponseHeaders(
+  currentResponse: NextResponse,
+  redirect: NextResponse,
+) {
+  for (const [key, value] of currentResponse.headers) {
+    const normalizedKey = key.toLowerCase();
+    if (
+      normalizedKey === "location" ||
+      normalizedKey === "set-cookie" ||
+      normalizedKey.startsWith("x-middleware-")
+    ) {
+      continue;
+    }
+    redirect.headers.set(key, value);
+  }
+}
+
+function isServerActionRequest(request: NextRequest) {
+  return request.method === "POST" && request.headers.has("next-action");
 }
 
 function createForwardResponse(

@@ -9,8 +9,18 @@ const ROUTE_IDENTIFIERS: Record<string, string> = {
   units: "unitId",
 };
 
-const SAFE_TAGS = new Set(["organization_id", "role", "route"]);
+const SAFE_PASSTHROUGH_TAGS = new Set(["organization_id", "role", "route"]);
+const SAFE_ENUMERATED_TAGS: Record<string, ReadonlySet<string>> = {
+  boundary: new Set(["dashboard", "global"]),
+  has_digest: new Set(["false", "true"]),
+  has_stack: new Set(["false", "true"]),
+};
 const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type DiagnosticErrorKind =
+  | "react_hydration_mismatch"
+  | "react_recoverable_error"
+  | "server_action_deployment_skew";
 
 export function buildSentryOptions(runtime: SentryRuntime) {
   const dsn = process.env.NEXT_PUBLIC_NESTORY_SENTRY_DSN;
@@ -33,6 +43,7 @@ export function buildSentryOptions(runtime: SentryRuntime) {
 }
 
 export function scrubSentryEvent(event: ErrorEvent): ErrorEvent | null {
+  const errorKind = inferDiagnosticErrorKind(event);
   const scrubbed: ErrorEvent = { ...event };
 
   delete scrubbed.contexts;
@@ -87,13 +98,94 @@ export function scrubSentryEvent(event: ErrorEvent): ErrorEvent | null {
   }
 
   scrubbed.tags = Object.fromEntries(
-    Object.entries(scrubbed.tags ?? {}).filter(([name]) => SAFE_TAGS.has(name)),
+    Object.entries(scrubbed.tags ?? {}).filter(([name, value]) =>
+      isSafeTag(name, value),
+    ),
   );
+  if (errorKind) {
+    scrubbed.tags.error_kind = errorKind;
+  }
 
   scrubbed.user =
     typeof scrubbed.user?.id === "string" ? { id: scrubbed.user.id } : undefined;
 
   return scrubbed;
+}
+
+function inferDiagnosticErrorKind(
+  event: ErrorEvent,
+): DiagnosticErrorKind | undefined {
+  const exceptions = event.exception?.values ?? [];
+
+  if (
+    exceptions.some(
+      (exception) => exception.type === "UnrecognizedActionError",
+    )
+  ) {
+    return "server_action_deployment_skew";
+  }
+
+  const frames = exceptions.flatMap(
+    (exception) => exception.stacktrace?.frames ?? [],
+  );
+  if (frames.some(isReactHydrationMismatchFrame)) {
+    return "react_hydration_mismatch";
+  }
+  if (frames.some(isReactRecoverableErrorFrame)) {
+    return "react_recoverable_error";
+  }
+
+  return undefined;
+}
+
+function isReactHydrationMismatchFrame(frame: {
+  filename?: string;
+  function?: string;
+  module?: string;
+}) {
+  if (frame.function !== "throwOnHydrationMismatch") return false;
+
+  const filename = normalizeFramePath(frame.filename);
+  const frameModule = frame.module?.toLowerCase();
+  return (
+    /(?:^|\/)node_modules\/react-dom\/cjs\/react-dom-client\.production\.js$/.test(
+      filename,
+    ) ||
+    frameModule === "node_modules.react-dom.cjs.react-dom-client.production"
+  );
+}
+
+function isReactRecoverableErrorFrame(frame: {
+  filename?: string;
+  function?: string;
+  module?: string;
+}) {
+  if (frame.function !== "onRecoverableError") return false;
+
+  const filename = normalizeFramePath(frame.filename);
+  const frameModule = frame.module?.toLowerCase();
+  return (
+    /(?:^|\/)node_modules\/next\/src\/client\/react-client-callbacks\/on-recoverable-error\.(?:js|ts)$/.test(
+      filename,
+    ) ||
+    frameModule ===
+      "node_modules.next.src.client.react-client-callbacks.on-recoverable-error"
+  );
+}
+
+function normalizeFramePath(value?: string) {
+  return value?.replaceAll("\\", "/").toLowerCase() ?? "";
+}
+
+function isSafeTag(name: string, value: unknown) {
+  if (SAFE_PASSTHROUGH_TAGS.has(name)) return true;
+
+  const allowedValues = SAFE_ENUMERATED_TAGS[name];
+  return (
+    allowedValues !== undefined &&
+    typeof value === "string" &&
+    allowedValues.has(value)
+  );
 }
 
 export function normalizeSentryRoute(input: string) {
