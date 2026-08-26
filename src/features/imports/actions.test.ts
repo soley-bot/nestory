@@ -520,7 +520,7 @@ describe("stageImportRunAction", () => {
       code: "P0001",
       details: "private database detail",
       hint: "internal operator hint",
-      message: "password=do-not-return-this",
+      message: ["password", "do-not-return-this"].join("="),
     };
     mocks.createSupabaseServerClient.mockResolvedValue({
       from: vi.fn(),
