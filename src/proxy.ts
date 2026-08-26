@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { isAuthError } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { getAuthCookieOptions } from "@/lib/auth/tenant";
 import { getSupabaseEnv } from "@/lib/db/env";
@@ -114,8 +115,13 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  const { data, error } = await supabase.auth.getClaims();
-  const isAuthenticated = !error && typeof data?.claims?.sub === "string";
+  let isAuthenticated = false;
+  try {
+    const { data, error } = await supabase.auth.getClaims();
+    isAuthenticated = !error && typeof data?.claims?.sub === "string";
+  } catch (error) {
+    if (!isAuthError(error)) throw error;
+  }
 
   if (!isAuthenticated && !isPublicRoute) {
     return redirectToLogin(request, contentSecurityPolicy, response);

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextRequest } from "next/server";
+import { NextRequest, type NextResponse } from "next/server";
+import { AuthApiError } from "@supabase/supabase-js";
 
 const { createServerClient, getClaims } = vi.hoisted(() => ({
   createServerClient: vi.fn(),
@@ -30,6 +31,10 @@ const CUSTOM_AUTH_REFRESH_HEADERS = {
   Expires: "Thu, 01 Jan 1970 00:00:00 GMT",
   Pragma: "no-cache",
 };
+const INVALID_REFRESH_HEADERS = {
+  ...AUTH_REFRESH_HEADERS,
+  "X-Auth-Refresh": "stale-session-cleared",
+};
 
 function expectAuthRefreshHeaders(response: Response) {
   expect(response.headers.get("cache-control")).toBe(
@@ -37,6 +42,42 @@ function expectAuthRefreshHeaders(response: Response) {
   );
   expect(response.headers.get("expires")).toBe(AUTH_REFRESH_HEADERS.Expires);
   expect(response.headers.get("pragma")).toBe(AUTH_REFRESH_HEADERS.Pragma);
+}
+
+function rejectClaimsAfterInvalidRefresh() {
+  getClaims.mockImplementation(async () => {
+    createServerClient.mock.calls[0][2].cookies.setAll(
+      [
+        {
+          name: "sb-stale",
+          options: { httpOnly: true, maxAge: 0 },
+          value: "",
+        },
+        {
+          name: "sb-stale-chunk",
+          options: { httpOnly: true, maxAge: 0 },
+          value: "",
+        },
+      ],
+      INVALID_REFRESH_HEADERS,
+    );
+    throw new AuthApiError(
+      "Invalid Refresh Token: Refresh Token Not Found",
+      400,
+      "refresh_token_not_found",
+    );
+  });
+}
+
+function expectInvalidRefreshStatePreserved(response: NextResponse) {
+  expect(response.cookies.get("sb-stale")?.value).toBe("");
+  expect(response.cookies.get("sb-stale")?.maxAge).toBe(0);
+  expect(response.cookies.get("sb-stale-chunk")?.value).toBe("");
+  expect(response.cookies.get("sb-stale-chunk")?.maxAge).toBe(0);
+  expect(response.headers.get("x-auth-refresh")).toBe(
+    INVALID_REFRESH_HEADERS["X-Auth-Refresh"],
+  );
+  expectAuthRefreshHeaders(response);
 }
 
 describe("proxy", () => {
@@ -96,6 +137,22 @@ describe("proxy", () => {
     expectAuthRefreshHeaders(response);
   });
 
+  it("treats a rejected invalid refresh token as signed out on protected GETs", async () => {
+    rejectClaimsAfterInvalidRefresh();
+
+    const response = await proxy(
+      new NextRequest("https://app.nestory-kh.com/tasks?review=open"),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://app.nestory-kh.com/login",
+    );
+    expect(response.headers.get("x-action-redirect")).toBeNull();
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
+    expectInvalidRefreshStatePreserved(response);
+  });
+
   it("uses the Server Action redirect protocol when a protected action loses authentication", async () => {
     getClaims.mockResolvedValue({ data: { claims: null }, error: null });
 
@@ -115,6 +172,24 @@ describe("proxy", () => {
       "script-src 'self' 'nonce-",
     );
     expectAuthRefreshHeaders(response);
+  });
+
+  it("treats a rejected invalid refresh token as signed out on protected Server Actions", async () => {
+    rejectClaimsAfterInvalidRefresh();
+
+    const response = await proxy(
+      new NextRequest("https://app.nestory-kh.com/settings/organization", {
+        headers: { "next-action": "test-action-id" },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("x-action-redirect")).toBe("/login;replace");
+    expect(response.headers.get("content-type")).toBe("text/plain");
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
+    expectInvalidRefreshStatePreserved(response);
   });
 
   it("preserves refreshed and cleared Auth cookies on a Server Action login redirect", async () => {
@@ -161,6 +236,21 @@ describe("proxy", () => {
     expect(response.headers.get("location")).toBeNull();
     expect(response.status).toBe(200);
     expect(response.headers.get("x-middleware-request-x-nonce")).toMatch(/.+/);
+  });
+
+  it("keeps public routes forwardable after a rejected invalid refresh token", async () => {
+    rejectClaimsAfterInvalidRefresh();
+
+    const response = await proxy(
+      new NextRequest("https://app.nestory-kh.com/request?intent=demo"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("x-action-redirect")).toBeNull();
+    expect(response.headers.get("x-middleware-request-x-nonce")).toMatch(/.+/);
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
+    expectInvalidRefreshStatePreserved(response);
   });
 
   it("keeps the CSP nonce and forwarded nonce aligned after Auth refreshes cookies", async () => {
