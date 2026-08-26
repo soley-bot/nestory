@@ -9858,6 +9858,14 @@ export type Database = {
         Args: { p_organization_id: string; p_unit_id: string }
         Returns: string
       }
+      assert_privileged_email_step_up_satisfied: {
+        Args: {
+          p_organization_id: string
+          p_session_id: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       assign_maintenance_task: {
         Args: {
           p_assignee_person_id: string
