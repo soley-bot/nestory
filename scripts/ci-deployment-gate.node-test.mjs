@@ -39,6 +39,13 @@ const financialEvidenceRecoveryVerificationPath = new URL(
   "./verify-hosted-financial-evidence-branch-backfill.sql",
   import.meta.url,
 );
+const actionPins = {
+  checkout: "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0",
+  githubScript:
+    "actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0",
+  setupNode:
+    "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0",
+};
 
 function getJob(workflow, jobName) {
   const normalized = workflow.replace(/\r\n/g, "\n");
@@ -70,7 +77,7 @@ test("production CI reports both release gates to Vercel", async () => {
   const application = getJob(workflow, "application_gate");
   const database = getJob(workflow, "production_database_gate");
 
-  assert.match(workflow, /^  statuses: write$/m);
+  assert.match(workflow, /^permissions: \{\}$/m);
 
   for (const [job, dependency, stepName, statusName] of [
     [
@@ -86,6 +93,8 @@ test("production CI reports both release gates to Vercel", async () => {
       "Vercel - nestory: Database",
     ],
   ]) {
+    assert.match(job, /^    permissions:\n      statuses: write$/m);
+    assert.doesNotMatch(job, /^      contents:/m);
     assert.match(job, new RegExp(`^    needs: ${dependency}$`, "m"));
     assert.match(
       job,
@@ -94,7 +103,10 @@ test("production CI reports both release gates to Vercel", async () => {
 
     const reporter = getStep(job, stepName);
 
-    assert.match(reporter, /^        uses: actions\/github-script@v9$/m);
+    assert.match(
+      reporter,
+      new RegExp(`^        uses: ${escapeRegExp(actionPins.githubScript)}$`, "m"),
+    );
     assert.match(
       reporter,
       new RegExp(
@@ -119,6 +131,33 @@ test("production CI reports both release gates to Vercel", async () => {
   }
 });
 
+test("CI grants status writes only to reporters and pins every external action", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+
+  assert.match(workflow, /^permissions: \{\}$/m);
+
+  for (const jobName of ["application", "database", "production_database"]) {
+    const job = getJob(workflow, jobName);
+    assert.match(job, /^    permissions:\n      contents: read$/m);
+    assert.doesNotMatch(job, /statuses: write/);
+  }
+
+  for (const jobName of ["application_gate", "production_database_gate"]) {
+    const job = getJob(workflow, jobName);
+    assert.match(job, /^    permissions:\n      statuses: write$/m);
+    assert.doesNotMatch(job, /^      contents:/m);
+  }
+
+  const actionReferences = [
+    ...workflow.matchAll(/^\s+uses: ([^\s]+)(?:\s+#\s+([^\s]+))?$/gm),
+  ];
+  assert.ok(actionReferences.length > 0, "workflow must use pinned actions");
+  for (const reference of actionReferences) {
+    assert.match(reference[1], /^[^@\s]+@[0-9a-f]{40}$/);
+    assert.match(reference[2] ?? "", /^v\d+(?:\.\d+){2}$/);
+  }
+});
+
 test("production database release is serialized and runs only from exact merged main", async () => {
   const workflow = await readFile(workflowPath, "utf8");
   const release = getJob(workflow, "production_database");
@@ -133,15 +172,43 @@ test("production database release is serialized and runs only from exact merged 
     /^    if: github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'$/m,
   );
   assert.match(release, /^    environment: production-database$/m);
+  assert.match(release, /^    permissions:\n      contents: read$/m);
   assert.match(release, /^      group: production-supabase$/m);
   assert.match(release, /^      cancel-in-progress: false$/m);
   assert.doesNotMatch(release, /^    env:$/m);
 
   const checkout = getStep(release, "Check out exact merged main SHA");
-  assert.match(checkout, /^        uses: actions\/checkout@v6$/m);
+  assert.match(
+    checkout,
+    new RegExp(`^        uses: ${escapeRegExp(actionPins.checkout)}$`, "m"),
+  );
   assert.match(checkout, /^          ref: \$\{\{ github\.sha \}\}$/m);
   assert.match(checkout, /^          fetch-depth: 0$/m);
   assert.match(checkout, /^          persist-credentials: false$/m);
+
+  const setupNode = getStep(release, "Set up Node.js");
+  assert.match(
+    setupNode,
+    new RegExp(`^        uses: ${escapeRegExp(actionPins.setupNode)}$`, "m"),
+  );
+  assert.match(setupNode, /^          package-manager-cache: false$/m);
+  assert.doesNotMatch(setupNode, /^          cache:/m);
+
+  for (const [stepName, variableName] of [
+    ["Capture Pilot preservation preflight", "snapshot_path"],
+    ["Capture approved financial evidence recovery preflight", "before_path"],
+    ["Verify approved financial evidence recovery", "after_path"],
+    ["Verify Pilot preservation postflight", "after_path"],
+  ]) {
+    const step = getStep(release, stepName);
+    assert.match(
+      step,
+      new RegExp(`> "\\$${variableName}"`),
+      `${stepName} must keep snapshot bodies out of workflow logs`,
+    );
+    assert.match(step, new RegExp(`test -s "\\$${variableName}"`));
+    assert.doesNotMatch(step, new RegExp(`tee "\\$${variableName}"`));
+  }
 
   for (const stepName of [
     "Check out exact merged main SHA",

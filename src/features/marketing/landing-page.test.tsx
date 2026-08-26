@@ -73,4 +73,12 @@ describe("LandingPage enterprise composition", () => {
     expect(informationAction.getAttribute("data-slot")).toBe("button");
     expect(informationAction.getAttribute("data-variant")).toBe("outline");
   });
+
+  it("applies the request nonce to its custom style element", () => {
+    const { container } = render(<LandingPage nonce="landing-nonce" />);
+
+    expect(container.querySelector("style")?.getAttribute("nonce")).toBe(
+      "landing-nonce",
+    );
+  });
 });

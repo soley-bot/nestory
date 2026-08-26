@@ -26,7 +26,7 @@ async function main() {
   process.env.NEXT_PUBLIC_SUPABASE_URL = runtime.apiUrl;
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = runtime.anonKey;
   process.env.SUPABASE_SERVICE_ROLE_KEY = runtime.serviceRoleKey;
-  const { preparePaidCostEvidence } = await import(
+  const { preparePaidCostEvidenceForFixture } = await import(
     "../src/features/finance-operations/paid-cost-evidence"
   );
 
@@ -49,7 +49,7 @@ async function main() {
     admin,
     bankSourceId,
     manager,
-    preparePaidCostEvidence,
+    preparePaidCostEvidence: preparePaidCostEvidenceForFixture,
     service,
   });
   fixturePhase = "create petty-cash funding source";
@@ -95,11 +95,11 @@ async function main() {
   }) {
     fixturePhase = `evidence ${input.id}`;
     const file = new File(
-      [`Nestory local verified paid-cost receipt\n${input.id}\n${input.reference}\n`],
+      [fixturePdfBytes(input.id, input.reference)],
       `${input.id}.pdf`,
       { type: "application/pdf" },
     );
-    const evidence = await preparePaidCostEvidence({
+    const evidence = await preparePaidCostEvidenceForFixture({
       actorId: financeMemberId,
       file,
       idempotencyKey: `fixture-track6-${input.id}`,
@@ -403,7 +403,7 @@ async function loadMaintenancePaidCosts({
   admin: SupabaseClient<Database>;
   bankSourceId: string;
   manager: SupabaseClient<Database>;
-  preparePaidCostEvidence: typeof import("../src/features/finance-operations/paid-cost-evidence").preparePaidCostEvidence;
+  preparePaidCostEvidence: typeof import("../src/features/finance-operations/paid-cost-evidence").preparePaidCostEvidenceForFixture;
   service: SupabaseClient<Database>;
 }) {
   const taskResult = await service
@@ -421,7 +421,7 @@ async function loadMaintenancePaidCosts({
     const key = approved ? "fixture-maintenance-cost" : "fixture-maintenance-pending-review";
     const reference = approved ? "KH-INV-1042" : "GDN-PUMP-2088";
     const file = new File(
-      [`Nestory local maintenance receipt\n${task.id}\n${reference}\n`],
+      [fixturePdfBytes(task.id, reference)],
       `${key}.pdf`,
       { type: "application/pdf" },
     );
@@ -600,6 +600,28 @@ function dateOffset(offset: number) {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offset))
     .toISOString()
     .slice(0, 10);
+}
+
+function fixturePdfBytes(identity: string, reference: string) {
+  const encoder = new TextEncoder();
+  const header = `%PDF-1.7\n% Nestory local verified receipt ${identity} ${reference}\n`;
+  const objects = [
+    "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+    "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n",
+  ];
+  const offsets: number[] = [];
+  let body = header;
+  for (const object of objects) {
+    offsets.push(encoder.encode(body).byteLength);
+    body += object;
+  }
+  const xrefOffset = encoder.encode(body).byteLength;
+  body += "xref\n0 3\n0000000000 65535 f \n";
+  body += `${String(offsets[0]).padStart(10, "0")} 00000 n \n`;
+  body += `${String(offsets[1]).padStart(10, "0")} 00000 n \n`;
+  body += "trailer\n<< /Size 3 /Root 1 0 R >>\n";
+  body += `startxref\n${xrefOffset}\n%%EOF\n`;
+  return encoder.encode(body);
 }
 
 function localRuntime() {

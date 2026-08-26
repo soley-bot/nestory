@@ -19,6 +19,33 @@ const properties: ImportPropertyOption[] = [
 ];
 
 describe("unit import", () => {
+  it("rejects CSVs with more than 500 data rows before building preview records", () => {
+    const csv = [
+      "Property Code,Unit no.",
+      ...Array.from({ length: 501 }, (_, index) => `CTR,${index + 1}`),
+    ].join("\n");
+
+    expect(() => parseCsv(csv)).toThrow(
+      "CSV files may contain no more than 500 data rows.",
+    );
+  });
+
+  it("rejects CSVs with more than 100 columns", () => {
+    const headers = Array.from({ length: 101 }, (_, index) => `Column ${index + 1}`);
+
+    expect(() => parseCsv(headers.join(","))).toThrow(
+      "CSV files may contain no more than 100 columns.",
+    );
+  });
+
+  it("rejects a single oversized cell instead of retaining it in preview memory", () => {
+    const csv = ["Property Code,Remark", `CTR,${"x".repeat(10_001)}`].join("\n");
+
+    expect(() => parseCsv(csv)).toThrow(
+      "CSV cells may contain no more than 10000 characters.",
+    );
+  });
+
   it("parses quoted CSV cells and auto-maps common unit headers", () => {
     const parsed = parseCsv(
       [

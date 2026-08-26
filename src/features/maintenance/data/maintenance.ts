@@ -52,6 +52,7 @@ import type {
 } from "@/features/maintenance/maintenance.types";
 import type { Json } from "@/types/database";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import {
   formatPropertyOptionLabel,
   formatUnitOptionLabel,
@@ -994,7 +995,7 @@ async function getTaskDocuments(
     throw new Error(`Could not load maintenance documents: ${result.error.message}`);
   }
 
-  return addSignedDocumentUrls(result.data ?? [], supabase);
+  return addDocumentDownloadUrls(result.data ?? []);
 }
 
 async function getTaskCostSubmissions(
@@ -1071,22 +1072,14 @@ async function getTaskReopenActivity(
   return result.data ?? [];
 }
 
-async function addSignedDocumentUrls(
-  rows: DocumentRow[],
-  supabase: SupabaseServerClient,
-) {
+function addDocumentDownloadUrls(rows: DocumentRow[]) {
   if (rows.length === 0) {
     return [];
   }
 
-  const { data } = await supabase.storage.from("nestory-documents").createSignedUrls(
-    rows.map((row) => row.storage_path),
-    60 * 60,
-  );
-
-  return rows.map((row, index) => ({
+  return rows.map((row) => ({
     ...row,
-    url: data?.[index]?.signedUrl ?? undefined,
+    url: documentDownloadUrl(row.id),
   }));
 }
 

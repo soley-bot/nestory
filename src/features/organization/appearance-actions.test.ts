@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/lib/auth/privileged-step-up-guard", () => ({
+  requirePrivilegedStepUp: vi.fn(),
+}));
+
 const {
   createSignedUrl,
   createSupabaseServerClient,
@@ -33,6 +37,7 @@ import {
   updateOrganizationIdentityAction,
   uploadOrganizationLogoAction,
 } from "@/features/organization/actions";
+import { validPngBytes } from "@/test-utils/upload-content";
 
 beforeEach(() => {
   createSupabaseServerClient.mockReset();
@@ -155,7 +160,7 @@ describe("organization logo actions", () => {
 
     const uploadedPath = upload.mock.calls[0][0] as string;
     expect(uploadedPath).toMatch(/^org-1\/logos\/[0-9a-f-]{36}\.png$/);
-    expect(upload).toHaveBeenCalledWith(uploadedPath, expect.any(File), {
+    expect(upload).toHaveBeenCalledWith(uploadedPath, expect.any(Uint8Array), {
       cacheControl: "31536000",
       contentType: "image/png",
       upsert: false,
@@ -210,10 +215,7 @@ describe("organization logo actions", () => {
 });
 
 function validPngFile() {
-  const bytes = new Uint8Array(24);
-  bytes.set([137, 80, 78, 71, 13, 10, 26, 10], 0);
-  const view = new DataView(bytes.buffer);
-  view.setUint32(16, 512);
-  view.setUint32(20, 256);
-  return new File([bytes], "company.png", { type: "image/png" });
+  return new File([validPngBytes(512, 256)], "company.png", {
+    type: "image/png",
+  });
 }

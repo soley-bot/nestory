@@ -120,13 +120,13 @@ describe("invitation acceptance", () => {
     });
     const formData = new FormData();
     formData.set("invitationId", invitationId);
-    formData.set("password", "correct-horse-battery");
-    formData.set("passwordConfirm", "correct-horse-battery");
+    formData.set("password", "CorrectHorse9Battery");
+    formData.set("passwordConfirm", "CorrectHorse9Battery");
 
     await expect(acceptInvitationAction({}, formData)).rejects.toThrow(
       "redirect:/workspace",
     );
-    expect(updateUser).toHaveBeenCalledWith({ password: "correct-horse-battery" });
+    expect(updateUser).toHaveBeenCalledWith({ password: "CorrectHorse9Battery" });
     expect(adminRpc).toHaveBeenCalledWith(
       "record_auth_password_credential_proof",
       {
@@ -157,8 +157,8 @@ describe("invitation acceptance", () => {
     updateUser.mockResolvedValue({ error: new Error("password rejected") });
     const formData = new FormData();
     formData.set("invitationId", invitationId);
-    formData.set("password", "correct-horse-battery");
-    formData.set("passwordConfirm", "correct-horse-battery");
+    formData.set("password", "CorrectHorse9Battery");
+    formData.set("passwordConfirm", "CorrectHorse9Battery");
 
     const result = await acceptInvitationAction({}, formData);
 
@@ -178,8 +178,8 @@ describe("invitation acceptance", () => {
     adminRpc.mockResolvedValue({ error: new Error("proof unavailable") });
     const formData = new FormData();
     formData.set("invitationId", invitationId);
-    formData.set("password", "correct-horse-battery");
-    formData.set("passwordConfirm", "correct-horse-battery");
+    formData.set("password", "CorrectHorse9Battery");
+    formData.set("passwordConfirm", "CorrectHorse9Battery");
 
     const result = await acceptInvitationAction({}, formData);
 

@@ -78,8 +78,8 @@ describe("password recovery actions", () => {
   it("requires an authenticated recovery session before updating a password", async () => {
     getUser.mockResolvedValue({ data: { user: null }, error: null });
     const formData = new FormData();
-    formData.set("password", "correct-horse-battery");
-    formData.set("passwordConfirm", "correct-horse-battery");
+    formData.set("password", "CorrectHorse9Battery");
+    formData.set("passwordConfirm", "CorrectHorse9Battery");
 
     const result = await updatePasswordAction({}, formData);
 
@@ -94,8 +94,8 @@ describe("password recovery actions", () => {
     getUser.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
     verifyRecoveryMarker.mockReturnValue(false);
     const formData = new FormData();
-    formData.set("password", "correct-horse-battery");
-    formData.set("passwordConfirm", "correct-horse-battery");
+    formData.set("password", "CorrectHorse9Battery");
+    formData.set("passwordConfirm", "CorrectHorse9Battery");
 
     const result = await updatePasswordAction({}, formData);
 
@@ -118,14 +118,14 @@ describe("password recovery actions", () => {
       throw new Error(`redirect:${path}`);
     });
     const formData = new FormData();
-    formData.set("password", "correct-horse-battery");
-    formData.set("passwordConfirm", "correct-horse-battery");
+    formData.set("password", "CorrectHorse9Battery");
+    formData.set("passwordConfirm", "CorrectHorse9Battery");
 
     await expect(updatePasswordAction({}, formData)).rejects.toThrow(
       "redirect:/login?password=updated",
     );
     expect(updateUser).toHaveBeenCalledWith({
-      password: "correct-horse-battery",
+      password: "CorrectHorse9Battery",
     });
     expect(adminRpc).toHaveBeenCalledWith(
       "record_auth_password_credential_proof",
@@ -145,8 +145,8 @@ describe("password recovery actions", () => {
     getUser.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
     updateUser.mockResolvedValue({ error: new Error("password rejected") });
     const formData = new FormData();
-    formData.set("password", "correct-horse-battery");
-    formData.set("passwordConfirm", "correct-horse-battery");
+    formData.set("password", "CorrectHorse9Battery");
+    formData.set("passwordConfirm", "CorrectHorse9Battery");
 
     await expect(updatePasswordAction({}, formData)).resolves.toEqual({
       message: "We could not update the password. Request a new recovery link.",

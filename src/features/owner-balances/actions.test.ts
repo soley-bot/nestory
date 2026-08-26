@@ -33,6 +33,11 @@ import {
   submitOwnerOpeningBalanceAction,
   submitOwnerOpeningBalanceCorrectionAction,
 } from "@/features/owner-balances/actions";
+import {
+  invalidPdfFile,
+  validPdfBytes,
+  validPdfFile,
+} from "@/test-utils/upload-content";
 
 const organizationId = "00000000-0000-4000-8000-000000000001";
 const propertyId = "00000000-0000-4000-8000-000000000002";
@@ -47,6 +52,8 @@ const hash = "a".repeat(64);
 const actorId = "00000000-0000-4000-8000-000000000010";
 const initialDocumentId = "5e15066a-0f1b-0d6f-f0b1-00e13d8642c0";
 const initialStoragePath = `${organizationId}/owner-opening/${initialDocumentId}`;
+const validPdfHash = "50dc246b4ff9509811a23d9fcf7d6c8465ed2b4eed08aa049d9feae8e8afd526";
+const validPdfSize = validPdfBytes().byteLength;
 
 describe("owner opening balance actions", () => {
   beforeEach(() => {
@@ -76,13 +83,11 @@ describe("owner opening balance actions", () => {
   });
 
   it("uploads new evidence only inside the final initial command and calls the atomic wrapper", async () => {
-    const file = new File([new Uint8Array([1, 2, 3])], "opening.pdf", {
-      type: "application/pdf",
-    });
+    const file = validPdfFile("opening.pdf");
     const form = initialForm();
     form.set("evidenceFile", file);
     form.set("supportingDocumentId", "");
-    form.set("evidenceSha256", "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81");
+    form.set("evidenceSha256", validPdfHash);
     mocks.rpc.mockResolvedValue({
       data: {
         request_id: requestId,
@@ -100,7 +105,7 @@ describe("owner opening balance actions", () => {
     const storage = mocks.storageFrom.mock.results[0]!.value;
     expect(storage.upload).toHaveBeenCalledWith(
       expect.stringMatching(new RegExp(`^${organizationId}/owner-opening/[0-9a-f-]{36}$`)),
-      file,
+      expect.any(Uint8Array),
       expect.objectContaining({ contentType: "application/pdf", upsert: false }),
     );
     const storagePath = storage.upload.mock.calls[0]![0];
@@ -109,9 +114,9 @@ describe("owner opening balance actions", () => {
       expect.objectContaining({
         p_document_file_name: "opening.pdf",
         p_document_mime_type: "application/pdf",
-        p_document_size_bytes: 3,
+        p_document_size_bytes: validPdfSize,
         p_document_storage_path: storagePath,
-        p_evidence_sha256: "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81",
+        p_evidence_sha256: validPdfHash,
         p_idempotency_key: "initial-request-key",
         p_organization_id: organizationId,
       }),
@@ -119,13 +124,28 @@ describe("owner opening balance actions", () => {
     expect(mocks.cleanup).not.toHaveBeenCalled();
   });
 
-  it("removes only a newly uploaded unregistered object after the atomic wrapper fails", async () => {
-    const file = new File([new Uint8Array([1, 2, 3])], "opening.pdf", {
-      type: "application/pdf",
+  it("rejects spoofed evidence content before opening Storage", async () => {
+    const form = initialForm();
+    form.set("evidenceFile", invalidPdfFile("opening.pdf"));
+    form.set(
+      "evidenceSha256",
+      "6d689ba9522127c0c759535f5adb7f2c8f182ac280d94eab93cb54e5ec598fa0",
+    );
+
+    await expect(submitOwnerOpeningBalanceAction({}, form)).resolves.toMatchObject({
+      errorCode: "evidence",
+      status: "error",
     });
+
+    expect(mocks.storageFrom).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("removes only a newly uploaded unregistered object after the atomic wrapper fails", async () => {
+    const file = validPdfFile("opening.pdf");
     const form = initialForm();
     form.set("evidenceFile", file);
-    form.set("evidenceSha256", "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81");
+    form.set("evidenceSha256", validPdfHash);
     mocks.rpc.mockResolvedValue({
       data: null,
       error: { code: "23514", message: "owner_share_total_not_100" },
@@ -142,12 +162,10 @@ describe("owner opening balance actions", () => {
   });
 
   it("cleans a newly uploaded object after a network failure and returns a recoverable error", async () => {
-    const file = new File([new Uint8Array([1, 2, 3])], "opening.pdf", {
-      type: "application/pdf",
-    });
+    const file = validPdfFile("opening.pdf");
     const form = initialForm();
     form.set("evidenceFile", file);
-    form.set("evidenceSha256", "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81");
+    form.set("evidenceSha256", validPdfHash);
     mocks.rpc.mockRejectedValueOnce(new Error("network unavailable"));
 
     await expect(submitOwnerOpeningBalanceAction({}, form)).resolves.toMatchObject({
@@ -158,7 +176,7 @@ describe("owner opening balance actions", () => {
   });
 
   it("reuses an exact pre-existing retry object without overwriting or cleanup", async () => {
-    const bytes = new Uint8Array([1, 2, 3]);
+    const bytes = validPdfBytes();
     const file = new File([bytes], "opening.pdf", { type: "application/pdf" });
     const storage = {
       download: vi.fn(async () => ({
@@ -173,18 +191,18 @@ describe("owner opening balance actions", () => {
     mocks.storageFrom.mockReturnValue(storage);
     mocks.from.mockReturnValue(documentLookup({
       archived_at: null,
-      content_sha256: "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81",
+      content_sha256: validPdfHash,
       file_name: "opening.pdf",
       id: initialDocumentId,
       mime_type: "application/pdf",
       organization_id: organizationId,
-      size_bytes: 3,
+      size_bytes: validPdfSize,
       storage_path: initialStoragePath,
       uploaded_by: actorId,
     }));
     const form = initialForm();
     form.set("evidenceFile", file);
-    form.set("evidenceSha256", "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81");
+    form.set("evidenceSha256", validPdfHash);
 
     await expect(submitOwnerOpeningBalanceAction({}, form)).resolves.toMatchObject({
       status: "success",
@@ -192,7 +210,7 @@ describe("owner opening balance actions", () => {
 
     expect(storage.upload).toHaveBeenCalledWith(
       expect.any(String),
-      file,
+      expect.any(Uint8Array),
       expect.objectContaining({ upsert: false }),
     );
     expect(storage.download).toHaveBeenCalledOnce();
@@ -204,7 +222,7 @@ describe("owner opening balance actions", () => {
   });
 
   it("rejects changed file metadata for a pre-existing exact-path retry", async () => {
-    const bytes = new Uint8Array([1, 2, 3]);
+    const bytes = validPdfBytes();
     const file = new File([bytes], "renamed.pdf", { type: "application/pdf" });
     mocks.storageFrom.mockReturnValue({
       download: vi.fn(async () => ({
@@ -218,18 +236,18 @@ describe("owner opening balance actions", () => {
     });
     mocks.from.mockReturnValue(documentLookup({
       archived_at: null,
-      content_sha256: "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81",
+      content_sha256: validPdfHash,
       file_name: "opening.pdf",
       id: initialDocumentId,
       mime_type: "application/pdf",
       organization_id: organizationId,
-      size_bytes: 3,
+      size_bytes: validPdfSize,
       storage_path: initialStoragePath,
       uploaded_by: actorId,
     }));
     const form = initialForm();
     form.set("evidenceFile", file);
-    form.set("evidenceSha256", "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81");
+    form.set("evidenceSha256", validPdfHash);
 
     await expect(submitOwnerOpeningBalanceAction({}, form)).resolves.toMatchObject({
       errorCode: "evidence",
@@ -245,7 +263,7 @@ describe("owner opening balance actions", () => {
     });
     mocks.storageFrom.mockReturnValue({
       download: vi.fn(async () => ({
-        data: new Blob([new Uint8Array([1, 2, 3])], { type: "application/pdf" }),
+        data: new Blob([validPdfBytes()], { type: "application/pdf" }),
         error: null,
       })),
       upload: vi.fn(async () => ({
@@ -356,13 +374,11 @@ describe("owner opening balance actions", () => {
   });
 
   it("uses the correction-specific atomic wrapper without broadening correction authority", async () => {
-    const file = new File([new Uint8Array([1, 2, 3])], "correction.pdf", {
-      type: "application/pdf",
-    });
+    const file = validPdfFile("correction.pdf");
     const form = correctionForm();
     form.set("propertyId", propertyId);
     form.set("evidenceFile", file);
-    form.set("evidenceSha256", "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81");
+    form.set("evidenceSha256", validPdfHash);
     mocks.rpc.mockResolvedValue({
       data: {
         correction_of_entry_id: entryId,

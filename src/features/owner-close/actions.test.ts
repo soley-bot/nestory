@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   loadPresentation: vi.fn(),
   loadPublication: vi.fn(),
   requireClose: vi.fn(),
+  requirePrivilegedStepUp: vi.fn(),
   requirePublication: vi.fn(),
   requireReopen: vi.fn(),
   remove: vi.fn(),
@@ -24,6 +25,9 @@ vi.mock("@/lib/auth/context", () => ({
   requireOwnerCloseContext: mocks.requireClose,
   requireOwnerMonthReopenContext: mocks.requireReopen,
   requireOwnerStatementPublicationContext: mocks.requirePublication,
+}));
+vi.mock("@/lib/auth/privileged-step-up-guard", () => ({
+  requirePrivilegedStepUp: mocks.requirePrivilegedStepUp,
 }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(async () => ({
@@ -71,6 +75,10 @@ describe("owner close checked actions", () => {
     vi.clearAllMocks();
     mocks.requireClose.mockResolvedValue({ organizationId });
     mocks.requirePublication.mockResolvedValue({ organizationId, userId: actorId });
+    mocks.requirePrivilegedStepUp.mockResolvedValue({
+      rpc: mocks.adminRpc,
+      storage: { from: mocks.adminFrom },
+    });
     mocks.requireReopen.mockResolvedValue({ organizationId });
     mocks.from.mockReturnValue({
       download: mocks.download,
@@ -112,6 +120,36 @@ describe("owner close checked actions", () => {
       propertyLabel: "CTR-RES / Central Residence",
     });
     mocks.rpc.mockResolvedValue({ data: { status: "completed" }, error: null });
+  });
+
+  it.each([
+    ["publish", publishOwnerStatementAction, () => form({
+      idempotencyKey: "owner-statement-publish-guard",
+      revisionId,
+    })],
+    ["resume", ownerCloseActions.resumeOwnerStatementPublicationAction, () => form({
+      idempotencyKey: "owner-statement-resume-guard",
+      publicationId,
+    })],
+  ])("fails %s before owner-statement admin Storage when exact-session proof is unavailable", async (_label, action, command) => {
+    mocks.rpc.mockResolvedValue({
+      data: {
+        publication_id: publicationId,
+        statement_number: "OS-202608-000000000000",
+      },
+      error: null,
+    });
+    mocks.requirePrivilegedStepUp.mockRejectedValue(
+      new Error("Privileged email verification required."),
+    );
+
+    await expect(action(command())).rejects.toThrow(
+      "Privileged email verification required",
+    );
+
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.adminFrom).not.toHaveBeenCalled();
+    expect(mocks.adminRpc).not.toHaveBeenCalled();
   });
 
   it("closes one exact scope through Super Admin close authority", async () => {

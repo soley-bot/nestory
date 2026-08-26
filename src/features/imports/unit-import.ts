@@ -10,6 +10,16 @@ import type {
   UnitImportStatus,
 } from "@/features/imports/import.types";
 
+export const MAX_IMPORT_CELL_CHARACTERS = 10_000;
+export const MAX_IMPORT_COLUMNS = 100;
+export const MAX_IMPORT_FILE_BYTES = 12 * 1024 * 1024;
+export const MAX_IMPORT_HEADER_CHARACTERS = 120;
+export const MAX_IMPORT_ROWS = 500;
+
+export class CsvPreviewLimitError extends Error {
+  override name = "CsvPreviewLimitError";
+}
+
 const unitStatuses: UnitImportStatus[] = [
   "vacant",
   "occupied",
@@ -76,8 +86,21 @@ export function parseCsv(text: string): {
   headers: string[];
   records: ParsedCsvRecord[];
 } {
+  if (text.length > MAX_IMPORT_FILE_BYTES) {
+    throw new CsvPreviewLimitError("CSV content is too large to preview.");
+  }
+
   const parsedRows = parseCsvRows(text.replace(/^\uFEFF/, ""));
   const headerRow = parsedRows[0] ?? [];
+  if (
+    headerRow.some(
+      (header) => header.trim().length > MAX_IMPORT_HEADER_CHARACTERS,
+    )
+  ) {
+    throw new CsvPreviewLimitError(
+      `CSV headers may contain no more than ${MAX_IMPORT_HEADER_CHARACTERS} characters.`,
+    );
+  }
   const headerEntries = makeUniqueHeaderEntries(headerRow);
   const headers = headerEntries.map((entry) => entry.header);
 
@@ -441,13 +464,43 @@ function parseCsvRows(text: string) {
   let currentCell = "";
   let inQuotes = false;
 
+  function appendToCell(value: string) {
+    if (currentCell.length + value.length > MAX_IMPORT_CELL_CHARACTERS) {
+      throw new CsvPreviewLimitError(
+        `CSV cells may contain no more than ${MAX_IMPORT_CELL_CHARACTERS} characters.`,
+      );
+    }
+    currentCell += value;
+  }
+
+  function pushCell() {
+    if (currentRow.length >= MAX_IMPORT_COLUMNS) {
+      throw new CsvPreviewLimitError(
+        `CSV files may contain no more than ${MAX_IMPORT_COLUMNS} columns.`,
+      );
+    }
+    currentRow.push(currentCell);
+    currentCell = "";
+  }
+
+  function pushRow() {
+    pushCell();
+    if (rows.length >= MAX_IMPORT_ROWS + 1) {
+      throw new CsvPreviewLimitError(
+        `CSV files may contain no more than ${MAX_IMPORT_ROWS} data rows.`,
+      );
+    }
+    rows.push(currentRow);
+    currentRow = [];
+  }
+
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index];
     const nextChar = text[index + 1];
 
     if (char === '"') {
       if (inQuotes && nextChar === '"') {
-        currentCell += '"';
+        appendToCell('"');
         index += 1;
       } else {
         inQuotes = !inQuotes;
@@ -456,8 +509,7 @@ function parseCsvRows(text: string) {
     }
 
     if (char === "," && !inQuotes) {
-      currentRow.push(currentCell);
-      currentCell = "";
+      pushCell();
       continue;
     }
 
@@ -465,19 +517,15 @@ function parseCsvRows(text: string) {
       if (char === "\r" && nextChar === "\n") {
         index += 1;
       }
-      currentRow.push(currentCell);
-      rows.push(currentRow);
-      currentRow = [];
-      currentCell = "";
+      pushRow();
       continue;
     }
 
-    currentCell += char;
+    appendToCell(char);
   }
 
-  currentRow.push(currentCell);
-  if (currentRow.some((cell) => cell.trim().length > 0)) {
-    rows.push(currentRow);
+  if (currentCell.length > 0 || currentRow.length > 0) {
+    pushRow();
   }
 
   return rows;

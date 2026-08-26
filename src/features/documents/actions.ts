@@ -14,6 +14,7 @@ import {
   requireWorkspaceContext,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { validateUploadedFileContent } from "@/lib/uploads/upload-content";
 
 type DocumentFieldErrors = {
   category?: string[];
@@ -143,6 +144,19 @@ export async function createDocumentAction(
     };
   }
 
+  const verifiedFile = await validateUploadedFileContent(file, [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ]);
+  if (!verifiedFile.ok) {
+    return {
+      fieldErrors: { document: ["Upload a PDF, JPG, PNG, or WebP document."] },
+      status: "error",
+    };
+  }
+
   const supabase = await createSupabaseServerClient();
   const leaseId = parsed.data.leaseId || null;
   const taskId = parsed.data.taskId || null;
@@ -169,7 +183,7 @@ export async function createDocumentAction(
     };
   }
 
-  const contentSha256 = await sha256Hex(await file.arrayBuffer());
+  const contentSha256 = await sha256Hex(verifiedFile.bytes);
   const storagePath = getDocumentStoragePath(
     context.organizationId,
     validationState.branchId,
@@ -177,9 +191,9 @@ export async function createDocumentAction(
   );
   const { error: uploadError } = await supabase.storage
     .from("nestory-documents")
-    .upload(storagePath, file, {
+    .upload(storagePath, verifiedFile.bytes, {
       cacheControl: "3600",
-      contentType: file.type,
+      contentType: verifiedFile.contentType,
       upsert: false,
     });
 
@@ -195,10 +209,10 @@ export async function createDocumentAction(
     p_content_sha256: contentSha256,
     p_file_name: file.name,
     p_lease_id: leaseId,
-    p_mime_type: file.type,
+    p_mime_type: verifiedFile.contentType,
     p_organization_id: context.organizationId,
     p_property_id: parsed.data.propertyId,
-    p_size_bytes: file.size,
+    p_size_bytes: verifiedFile.bytes.byteLength,
     p_storage_path: storagePath,
     p_task_id: taskId,
     p_unit_id: unitId,
@@ -265,6 +279,22 @@ export async function updateDocumentAction(
         status: "error",
       };
     }
+  }
+
+
+  const verifiedReplacement = replacementFile
+    ? await validateUploadedFileContent(replacementFile, [
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+      ])
+    : null;
+  if (verifiedReplacement && !verifiedReplacement.ok) {
+    return {
+      fieldErrors: { document: ["Upload a PDF, JPG, PNG, or WebP document."] },
+      status: "error",
+    };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -344,16 +374,16 @@ export async function updateDocumentAction(
         replacementFile.name,
       )
     : null;
-  const replacementSha256 = replacementFile
-    ? await sha256Hex(await replacementFile.arrayBuffer())
+  const replacementSha256 = verifiedReplacement?.ok
+    ? await sha256Hex(verifiedReplacement.bytes)
     : null;
 
-  if (replacementFile && replacementPath) {
+  if (replacementFile && replacementPath && verifiedReplacement?.ok) {
     const { error: uploadError } = await supabase.storage
       .from("nestory-documents")
-      .upload(replacementPath, replacementFile, {
+      .upload(replacementPath, verifiedReplacement.bytes, {
         cacheControl: "3600",
-        contentType: replacementFile.type,
+        contentType: verifiedReplacement.contentType,
         upsert: false,
       });
 
@@ -365,7 +395,12 @@ export async function updateDocumentAction(
     }
   }
 
-  if (replacementFile && replacementPath && replacementSha256) {
+  if (
+    replacementFile
+    && replacementPath
+    && replacementSha256
+    && verifiedReplacement?.ok
+  ) {
     const { data: replacementDocumentId, error: replacementError } =
       await supabase.rpc("replace_document", {
         p_category: parsed.data.category,
@@ -373,10 +408,10 @@ export async function updateDocumentAction(
         p_document_id: parsedDocumentId.data,
         p_file_name: replacementFile.name,
         p_lease_id: leaseId ?? undefined,
-        p_mime_type: replacementFile.type,
+        p_mime_type: verifiedReplacement.contentType,
         p_organization_id: context.organizationId,
         p_property_id: parsed.data.propertyId,
-        p_size_bytes: replacementFile.size,
+        p_size_bytes: verifiedReplacement.bytes.byteLength,
         p_storage_path: replacementPath,
         p_task_id: taskId ?? undefined,
         p_unit_id: unitId ?? undefined,

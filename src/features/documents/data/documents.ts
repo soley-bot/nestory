@@ -12,6 +12,7 @@ import type {
   LinkedDocument,
 } from "@/features/documents/document.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import {
   formatPropertyOptionLabel,
   formatUnitOptionLabel,
@@ -167,7 +168,7 @@ export async function getDocumentsScreenData(
   const tasksById = indexById(tasks);
   const timelineById = indexById(timelineEvents);
   const activityByDocumentId = groupActivityByDocumentId(activityRows);
-  const signedUrlsByPath = await getSignedDocumentUrls(rows, supabase);
+  const downloadUrlsByPath = getDocumentDownloadUrls(rows);
   const documents = rows.map((document) =>
     toDocumentSummary({
       activity: activityByDocumentId.get(document.id) ?? [],
@@ -179,7 +180,7 @@ export async function getDocumentsScreenData(
       property: document.property_id
         ? propertiesById.get(document.property_id)
         : undefined,
-      signedUrl: signedUrlsByPath.get(document.storage_path),
+      signedUrl: downloadUrlsByPath.get(document.storage_path),
       task: document.task_id ? tasksById.get(document.task_id) : undefined,
       timelineEvent: document.timeline_event_id
         ? timelineById.get(document.timeline_event_id)
@@ -414,26 +415,15 @@ function buildLinkedRecords({
   ].filter((record): record is DocumentLinkedRecord => Boolean(record));
 }
 
-async function getSignedDocumentUrls(
-  rows: DocumentRow[],
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-) {
+function getDocumentDownloadUrls(rows: DocumentRow[]) {
   if (rows.length === 0) {
     return new Map<string, string>();
   }
 
-  const { data } = await supabase.storage.from("nestory-documents").createSignedUrls(
-    rows.map((row) => row.storage_path),
-    60 * 60,
-  );
   const urlsByPath = new Map<string, string>();
 
-  rows.forEach((row, index) => {
-    const signedUrl = data?.[index]?.signedUrl ?? undefined;
-
-    if (signedUrl) {
-      urlsByPath.set(row.storage_path, signedUrl);
-    }
+  rows.forEach((row) => {
+    urlsByPath.set(row.storage_path, documentDownloadUrl(row.id));
   });
 
   return urlsByPath;

@@ -6,7 +6,14 @@ type CompanyLogoExtension = "jpg" | "png";
 
 export async function validateCompanyLogo(
   file: File,
-): Promise<{ extension: CompanyLogoExtension } | { error: string }> {
+): Promise<
+  | {
+      bytes: Uint8Array;
+      contentType: "image/jpeg" | "image/png";
+      extension: CompanyLogoExtension;
+    }
+  | { error: string }
+> {
   if (file.size === 0) {
     return { error: "Choose a company logo." };
   }
@@ -20,22 +27,35 @@ export async function validateCompanyLogo(
     return { error: "Upload a PNG or JPEG logo." };
   }
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const dimensions =
-    extension === "png" ? readPngDimensions(bytes) : readJpegDimensions(bytes);
-  if (!dimensions) {
+  const verifiedFile = await validateUploadedFileContent(file, [
+    "image/jpeg",
+    "image/png",
+  ]);
+  if (
+    !verifiedFile.ok
+    || (
+      verifiedFile.contentType !== "image/jpeg"
+      && verifiedFile.contentType !== "image/png"
+    )
+    || verifiedFile.width === undefined
+    || verifiedFile.height === undefined
+  ) {
     return { error: "The file content does not match its image type." };
   }
   if (
-    dimensions.width < MIN_LOGO_DIMENSION
-    || dimensions.height < MIN_LOGO_DIMENSION
-    || dimensions.width > MAX_LOGO_DIMENSION
-    || dimensions.height > MAX_LOGO_DIMENSION
+    verifiedFile.width < MIN_LOGO_DIMENSION
+    || verifiedFile.height < MIN_LOGO_DIMENSION
+    || verifiedFile.width > MAX_LOGO_DIMENSION
+    || verifiedFile.height > MAX_LOGO_DIMENSION
   ) {
     return { error: "Logo dimensions must be between 128 and 4096 pixels." };
   }
 
-  return { extension };
+  return {
+    bytes: verifiedFile.bytes,
+    contentType: verifiedFile.contentType,
+    extension,
+  };
 }
 
 export function getCompanyLogoStoragePath(
@@ -52,50 +72,4 @@ function getExtension(fileName: string): CompanyLogoExtension | null {
   return null;
 }
 
-function readPngDimensions(bytes: Uint8Array) {
-  const signature = [137, 80, 78, 71, 13, 10, 26, 10];
-  if (
-    bytes.length < 24
-    || signature.some((value, index) => bytes[index] !== value)
-  ) {
-    return null;
-  }
-
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  return { height: view.getUint32(20), width: view.getUint32(16) };
-}
-
-function readJpegDimensions(bytes: Uint8Array) {
-  if (bytes.length < 12 || bytes[0] !== 0xff || bytes[1] !== 0xd8) {
-    return null;
-  }
-
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  let offset = 2;
-  while (offset + 8 < bytes.length) {
-    if (bytes[offset] !== 0xff) {
-      offset += 1;
-      continue;
-    }
-    const marker = bytes[offset + 1];
-    const isStartOfFrame =
-      marker >= 0xc0
-      && marker <= 0xcf
-      && ![0xc4, 0xc8, 0xcc].includes(marker);
-    if (isStartOfFrame) {
-      return {
-        height: view.getUint16(offset + 5),
-        width: view.getUint16(offset + 7),
-      };
-    }
-    if (marker === 0xd8 || marker === 0xd9) {
-      offset += 2;
-      continue;
-    }
-    const segmentLength = view.getUint16(offset + 2);
-    if (segmentLength < 2) return null;
-    offset += segmentLength + 2;
-  }
-
-  return null;
-}
+import { validateUploadedFileContent } from "@/lib/uploads/upload-content";

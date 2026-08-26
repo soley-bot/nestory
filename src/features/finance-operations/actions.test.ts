@@ -17,6 +17,7 @@ const {
   requireFinanceSubmissionContext,
   requireHistoricalRentRecoveryContext,
   requirePermission,
+  requirePrivilegedStepUp,
   revalidatePath,
   rpc,
 } = vi.hoisted(() => ({
@@ -36,6 +37,7 @@ const {
   requireFinanceSubmissionContext: vi.fn(),
   requireHistoricalRentRecoveryContext: vi.fn(),
   requirePermission: vi.fn(),
+  requirePrivilegedStepUp: vi.fn(),
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
 }));
@@ -51,6 +53,9 @@ vi.mock("@/lib/auth/context", () => ({
   requireFinanceSubmissionContext,
   requireHistoricalRentRecoveryContext,
   requirePermission,
+}));
+vi.mock("@/lib/auth/privileged-step-up-guard", () => ({
+  requirePrivilegedStepUp,
 }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: async () => ({ rpc }),
@@ -87,6 +92,7 @@ import {
   setFinanceCategoryArchivedAction,
   updateFinanceCategoryAction,
 } from "@/features/finance-operations/actions";
+import { validPdfBytes, validPdfFile } from "@/test-utils/upload-content";
 
 const organizationId = "00000000-0000-4000-8000-000000000001";
 const exceptionId = "00000000-0000-4000-8000-000000000002";
@@ -119,7 +125,7 @@ describe("rent generation recovery action", () => {
     rpc.mockReset();
     requirePermission.mockResolvedValue({ organizationId });
     requireCurrentRentRetryContext.mockResolvedValue({ organizationId });
-    requireFinanceOperationContext.mockResolvedValue({ organizationId });
+    requireFinanceOperationContext.mockResolvedValue({ organizationId, userId: actorId });
     requireFinanceSubmissionContext.mockResolvedValue({ organizationId, userId: actorId });
     requireHistoricalRentRecoveryContext.mockResolvedValue({ organizationId });
     requireFinanceReviewContext.mockResolvedValue({ organizationId });
@@ -341,7 +347,7 @@ describe("ordinary finance operation actions", () => {
     requireSuperAdminContext.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
-    requireFinanceOperationContext.mockResolvedValue({ organizationId });
+    requireFinanceOperationContext.mockResolvedValue({ organizationId, userId: actorId });
     requireFinanceCorrectionContext.mockResolvedValue({ organizationId });
     requireFinanceReversalContext.mockResolvedValue({ organizationId });
     adminFrom.mockReturnValue({
@@ -350,7 +356,7 @@ describe("ordinary finance operation actions", () => {
     });
     adminUpload.mockResolvedValue({ data: {}, error: null });
     adminDownload.mockResolvedValue({
-      data: new Blob(["paid-cost-receipt"], { type: "application/pdf" }),
+      data: new Blob([validPdfBytes()], { type: "application/pdf" }),
       error: null,
     });
     adminRpc.mockImplementation(async (name: string, args: Record<string, unknown>) => ({
@@ -358,15 +364,15 @@ describe("ordinary finance operation actions", () => {
         name === "get_paid_cost_evidence_object"
           ? {
               content_type: "application/pdf",
-              metadata_size_bytes: 17,
+              metadata_size_bytes: validPdfBytes().byteLength,
               storage_object_id: evidenceObjectId,
               storage_object_version: "paid-cost-object-v1",
             }
           : {
               content_sha256:
-                "ce67cf246af90faa45cd4b6cde1627da5683d1dbfa53ed5f7ca8a2805543be0d",
+                "50dc246b4ff9509811a23d9fcf7d6c8465ed2b4eed08aa049d9feae8e8afd526",
               document_id: evidenceDocumentId,
-              size_bytes: 17,
+              size_bytes: validPdfBytes().byteLength,
               status: "registered",
               storage_path: args.p_storage_path,
             },
@@ -406,6 +412,20 @@ describe("ordinary finance operation actions", () => {
       p_property_id: propertyId,
       p_reference: "Owner transfer",
     });
+  });
+
+  it("does not serialize backend error details to finance clients", async () => {
+    const sentinel = "service_role_secret finance_internal_constraint";
+    rpc.mockResolvedValueOnce({ data: null, error: { message: sentinel } });
+
+    const result = await recordOwnerPaymentAction({}, ownerPaymentForm());
+
+    expect(result).toEqual({
+      message: "We could not complete this Finance action. Try again.",
+      status: "error",
+    });
+    expect(result.message).not.toContain(sentinel);
+    expect(result.message).not.toContain("service role secret");
   });
 
   it.each([
@@ -494,7 +514,11 @@ describe("tenant commercial document publication actions", () => {
     requireFinanceOperationContext.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
-    requireFinanceOperationContext.mockResolvedValue({ organizationId });
+    requireFinanceOperationContext.mockResolvedValue({ organizationId, userId: actorId });
+    requirePrivilegedStepUp.mockResolvedValue({
+      rpc: adminRpc,
+      storage: { from: adminFrom },
+    });
     rpc.mockResolvedValue({ data: submissionId, error: null });
     publishTenantInvoiceArtifact.mockResolvedValue(publishedInvoice);
     publishTenantReceiptArtifact.mockResolvedValue(publishedReceipt);
@@ -510,6 +534,7 @@ describe("tenant commercial document publication actions", () => {
     });
     expect(requireFinanceOperationContext).toHaveBeenCalledOnce();
     expect(publishTenantInvoiceArtifact).toHaveBeenCalledWith({
+      actorId,
       client: expect.anything(),
       invoiceId: exceptionId,
       organizationId,
@@ -628,6 +653,7 @@ describe("tenant commercial document publication actions", () => {
       status: "success",
     });
     expect(publishTenantReceiptArtifact).toHaveBeenCalledWith({
+      actorId,
       client: expect.anything(),
       organizationId,
       paymentId: submissionId,
@@ -719,6 +745,7 @@ describe("tenant commercial document publication actions", () => {
     });
     expect(requireFinanceOperationContext).toHaveBeenCalledOnce();
     expect(publishTenantReceiptArtifact).toHaveBeenCalledWith({
+      actorId,
       client: expect.anything(),
       organizationId,
       paymentId: submissionId,
@@ -792,14 +819,51 @@ describe("tenant commercial document publication actions", () => {
 
 describe("expense approval actions", () => {
   beforeEach(() => {
+    adminDownload.mockReset();
+    adminFrom.mockReset();
+    adminRpc.mockReset();
+    adminUpload.mockReset();
     requireFinanceReviewContext.mockReset();
     requireFinanceReversalContext.mockReset();
     requireFinanceSubmissionContext.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
+    requirePrivilegedStepUp.mockReset();
     requireFinanceSubmissionContext.mockResolvedValue({ organizationId, userId: actorId });
     requireFinanceReviewContext.mockResolvedValue({ organizationId });
     requireFinanceReversalContext.mockResolvedValue({ organizationId });
+    adminFrom.mockReturnValue({
+      download: adminDownload,
+      upload: adminUpload,
+    });
+    adminUpload.mockResolvedValue({ data: {}, error: null });
+    adminDownload.mockResolvedValue({
+      data: new Blob([validPdfBytes()], { type: "application/pdf" }),
+      error: null,
+    });
+    adminRpc.mockImplementation(async (name: string, args: Record<string, unknown>) => ({
+      data:
+        name === "get_paid_cost_evidence_object"
+          ? {
+              content_type: "application/pdf",
+              metadata_size_bytes: validPdfBytes().byteLength,
+              storage_object_id: evidenceObjectId,
+              storage_object_version: "paid-cost-object-v1",
+            }
+          : {
+              content_sha256:
+                "50dc246b4ff9509811a23d9fcf7d6c8465ed2b4eed08aa049d9feae8e8afd526",
+              document_id: evidenceDocumentId,
+              size_bytes: validPdfBytes().byteLength,
+              status: "registered",
+              storage_path: args.p_storage_path,
+            },
+      error: null,
+    }));
+    requirePrivilegedStepUp.mockResolvedValue({
+      rpc: adminRpc,
+      storage: { from: adminFrom },
+    });
   });
 
   it("submits evidence through the Finance Member capability without recording money", async () => {
@@ -819,9 +883,7 @@ describe("expense approval actions", () => {
     formData.set("vendorLabel", "Sokha Repairs");
     formData.set(
       "evidenceFile",
-      new File(["paid-cost-receipt"], "receipt-42.pdf", {
-        type: "application/pdf",
-      }),
+      validPdfFile("receipt-42.pdf"),
     );
 
     await expect(submitExpenseAction({}, formData)).resolves.toEqual({
@@ -867,7 +929,7 @@ describe("expense approval actions", () => {
         p_file_name: "receipt-42.pdf",
         p_organization_id: organizationId,
         p_property_id: propertyId,
-        p_size_bytes: 17,
+        p_size_bytes: validPdfBytes().byteLength,
         p_storage_object_id: evidenceObjectId,
         p_storage_object_version: "paid-cost-object-v1",
       }),
@@ -891,9 +953,7 @@ describe("expense approval actions", () => {
     formData.set("vendorLabel", "Sokha Gardens");
     formData.set(
       "evidenceFile",
-      new File(["paid-cost-receipt"], "receipt-43.pdf", {
-        type: "application/pdf",
-      }),
+      validPdfFile("receipt-43.pdf"),
     );
 
     await expect(submitExpenseAction({}, formData)).resolves.toMatchObject({
@@ -947,9 +1007,7 @@ describe("expense approval actions", () => {
     formData.set("vendorLabel", "Sokha Repairs");
     formData.set(
       "evidenceFile",
-      new File(["paid-cost-receipt"], "receipt-42.pdf", {
-        type: "application/pdf",
-      }),
+      validPdfFile("receipt-42.pdf"),
     );
 
     await expect(submitExpenseAction({}, formData)).resolves.toEqual({

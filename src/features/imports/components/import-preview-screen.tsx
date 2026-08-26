@@ -50,7 +50,11 @@ import type {
   ParsedCsvRecord,
   UnitImportCleanupItem,
 } from "@/features/imports/import.types";
-import { parseCsv } from "@/features/imports/unit-import";
+import {
+  CsvPreviewLimitError,
+  MAX_IMPORT_FILE_BYTES,
+  parseCsv,
+} from "@/features/imports/unit-import";
 
 type ParsedFile = {
   fileName: string;
@@ -185,6 +189,13 @@ export function ImportPreviewScreen({
     (!importState.draftKey || importState.draftKey === draftKey);
 
   async function handleFileSelect(file: File) {
+    if (file.size > MAX_IMPORT_FILE_BYTES) {
+      setFileError("CSV files must be 12 MB or smaller.");
+      setParsedFile(null);
+      setMapping({});
+      return;
+    }
+
     try {
       const text = await file.text();
       const parsed = parseCsv(text);
@@ -205,8 +216,12 @@ export function ImportPreviewScreen({
       });
       setMapping(mapHeadersForType(selectedType, parsed.headers, savedMapping));
       setFileError(null);
-    } catch {
-      setFileError("The file could not be read.");
+    } catch (error) {
+      setFileError(
+        error instanceof CsvPreviewLimitError
+          ? error.message
+          : "The file could not be read.",
+      );
       setParsedFile(null);
       setMapping({});
     }

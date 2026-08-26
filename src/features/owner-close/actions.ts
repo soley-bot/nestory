@@ -10,7 +10,7 @@ import {
   requireOwnerMonthReopenContext,
   requireOwnerStatementPublicationContext,
 } from "@/lib/auth/context";
-import { createSupabaseAdminClient } from "@/lib/db/admin";
+import { requirePrivilegedStepUp } from "@/lib/auth/privileged-step-up-guard";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { buildOwnerStatementXlsx } from "@/features/reports/data/excel";
 import { buildOwnerStatementPdf } from "@/features/reports/data/pdf";
@@ -197,8 +197,11 @@ async function completeOwnerStatementPublication(
       format: "xlsx" as const,
     },
   ];
+  const admin = await requirePrivilegedStepUp(
+    { organizationId, userId: actorId },
+    supabase,
+  );
   const bucket = supabase.storage.from("owner-statements");
-  const admin = createSupabaseAdminClient();
   const adminBucket = admin.storage.from("owner-statements");
   const registeredFormats = new Set((model.artifacts ?? []).map((artifact) => artifact.format));
 

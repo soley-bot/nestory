@@ -11,6 +11,7 @@ import {
   requireOwnerOpeningBalanceSubmissionContext,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { validateUploadedFileContent } from "@/lib/uploads/upload-content";
 
 import { canonicalizeOwnerOpeningAmount } from "./owner-balance.money";
 import {
@@ -419,7 +420,20 @@ async function prepareAtomicEvidence({
   const fileError = validateEvidenceFile(evidenceFile);
   if (fileError) return { document: null, state: evidenceError(fileError) };
 
-  const exactHash = await sha256Hex(await evidenceFile.arrayBuffer());
+  const verifiedFile = await validateUploadedFileContent(evidenceFile, [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ]);
+  if (!verifiedFile.ok) {
+    return {
+      document: null,
+      state: evidenceError("The evidence content does not match its file type."),
+    };
+  }
+
+  const exactHash = await sha256Hex(verifiedFile.bytes);
   if (exactHash !== evidenceSha256) {
     return {
       document: null,
@@ -435,8 +449,8 @@ async function prepareAtomicEvidence({
   );
   const storagePath = `${organizationId}/owner-opening/${documentId}`;
   const bucket = supabase.storage.from("nestory-documents");
-  const upload = await bucket.upload(storagePath, evidenceFile, {
-    contentType: evidenceFile.type,
+  const upload = await bucket.upload(storagePath, verifiedFile.bytes, {
+    contentType: verifiedFile.contentType,
     upsert: false,
   });
 
@@ -459,8 +473,8 @@ async function prepareAtomicEvidence({
     const existingHash = await sha256Hex(await existing.data.arrayBuffer());
     if (
       existingHash !== evidenceSha256 ||
-      existing.data.size !== evidenceFile.size ||
-      existing.data.type !== evidenceFile.type
+      existing.data.size !== verifiedFile.bytes.byteLength ||
+      existing.data.type !== verifiedFile.contentType
     ) {
       return {
         document: null,
@@ -490,8 +504,8 @@ async function prepareAtomicEvidence({
         metadata.data.organization_id !== organizationId ||
         metadata.data.file_name !== evidenceFile.name ||
         metadata.data.storage_path !== storagePath ||
-        metadata.data.mime_type !== evidenceFile.type ||
-        metadata.data.size_bytes !== evidenceFile.size ||
+        metadata.data.mime_type !== verifiedFile.contentType ||
+        metadata.data.size_bytes !== verifiedFile.bytes.byteLength ||
         metadata.data.content_sha256 !== evidenceSha256 ||
         metadata.data.uploaded_by !== userId ||
         metadata.data.archived_at !== null
@@ -508,8 +522,8 @@ async function prepareAtomicEvidence({
   return {
     document: {
       fileName: evidenceFile.name,
-      mimeType: evidenceFile.type,
-      sizeBytes: evidenceFile.size,
+      mimeType: verifiedFile.contentType,
+      sizeBytes: verifiedFile.bytes.byteLength,
       storagePath,
       uploadedThisAttempt,
     },

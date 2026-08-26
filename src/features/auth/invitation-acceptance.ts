@@ -4,13 +4,14 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { AuthActionState } from "@/features/auth/actions";
 import { recordPasswordCredentialProof } from "@/lib/auth/password-credential-proof";
+import { newPasswordSchema } from "@/lib/auth/password-policy";
 import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 const invitationIdSchema = z.uuid();
 const invitationPasswordSchema = z
   .object({
-    password: z.string().min(8, "Use at least 8 characters."),
+    password: newPasswordSchema,
     passwordConfirm: z.string(),
   })
   .refine((value) => value.password === value.passwordConfirm, {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildTenantReceiptPdf } from "@/features/finance-operations/documents/receipt-pdf";
 import type { TenantReceiptPdfModel } from "@/features/finance-operations/documents/commercial-document.types";
+import { isContainedPdf } from "@/lib/uploads/pdf-containment";
 
 describe("tenant receipt PDF", () => {
   it("renders a deterministic A4 receipt with payment and allocation details", () => {
@@ -10,6 +11,7 @@ describe("tenant receipt PDF", () => {
     const text = pdfText(first);
 
     expect(first).toEqual(second);
+    expect(isContainedPdf(first)).toBe(true);
     expect(text.startsWith("%PDF-1.4")).toBe(true);
     expect(text).toContain("/MediaBox [0 0 595 842]");
     expect(text).toContain("PAYMENT RECEIPT");
