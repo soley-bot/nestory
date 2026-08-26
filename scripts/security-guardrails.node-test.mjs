@@ -39,7 +39,33 @@ test("tracked secret scanning catches high-confidence values without revealing t
     const supabasePat = ["sbp", "D".repeat(40)].join("_");
     const versionedSupabasePat = ["sbp", "v0", "E".repeat(40)].join("_");
     const genericSecret = `Ab9-example-${"Z7x!".repeat(6)}`;
+    const declaredSecret = `Vx8-declared-${"Q4z!".repeat(6)}`;
+    const multilineSecret = `Wq6-multiline-${"T9p!".repeat(6)}`;
+    const prefixedSecrets = [
+      "change-me",
+      "ci",
+      "dummy",
+      "example",
+      "local",
+      "not-set",
+      "placeholder",
+      "redacted",
+      "replace-with",
+      "test",
+      "unset",
+      "your",
+    ].map((prefix, index) => `${prefix}-${index}${"N7r!".repeat(8)}`);
     const untrackedToken = ["npm", "C".repeat(36)].join("_");
+    const serviceRolePlaceholder = [
+      "replace",
+      "with",
+      "service",
+      "role",
+      "key",
+    ].join("-");
+    const randomBytesPlaceholder = ["replace", "with", "random", "bytes"].join(
+      "-",
+    );
     const trackedPath = join(fixtureRoot, "tracked.env");
 
     await writeFile(
@@ -54,12 +80,16 @@ test("tracked secret scanning catches high-confidence values without revealing t
         `SUPABASE_CREDENTIAL=${supabasePat}`,
         `SUPABASE_SCOPED_CREDENTIAL=${versionedSupabasePat}`,
         `PUBLIC_INTEREST_RATE_LIMIT_SECRET=${genericSecret}`,
+        `const INTERNAL_API_TOKEN = "${declaredSecret}";`,
+        ...prefixedSecrets.map((secret) => `DEPLOY_TOKEN=${secret}`),
+        "const INTERNAL_API_TOKEN =",
+        `  "${multilineSecret}";`,
       ].join("\n"),
     );
     await writeFile(
       join(fixtureRoot, ".env.example"),
       [
-        "SUPABASE_SERVICE_ROLE_KEY=replace-with-service-role-key",
+        `SUPABASE_SERVICE_ROLE_KEY=${serviceRolePlaceholder}`,
         "PUBLIC_INTEREST_RATE_LIMIT_SECRET=ci-placeholder",
         "RESEND_API_KEY=",
       ].join("\n"),
@@ -80,6 +110,19 @@ test("tracked secret scanning catches high-confidence values without revealing t
     assert.match(failedOutput, /supabase-personal-access-token at tracked\.env:7/);
     assert.match(failedOutput, /supabase-personal-access-token at tracked\.env:8/);
     assert.match(failedOutput, /generic-sensitive-assignment at tracked\.env:9/);
+    assert.match(failedOutput, /generic-sensitive-assignment at tracked\.env:10/);
+    for (let line = 11; line <= 10 + prefixedSecrets.length; line += 1) {
+      assert.match(
+        failedOutput,
+        new RegExp(`generic-sensitive-assignment at tracked\\.env:${line}`),
+      );
+    }
+    assert.match(
+      failedOutput,
+      new RegExp(
+        `generic-sensitive-assignment at tracked\\.env:${11 + prefixedSecrets.length}`,
+      ),
+    );
     assert.doesNotMatch(failedOutput, /untracked\.env/);
     for (const secret of [
       githubToken,
@@ -91,6 +134,9 @@ test("tracked secret scanning catches high-confidence values without revealing t
       supabasePat,
       versionedSupabasePat,
       genericSecret,
+      declaredSecret,
+      multilineSecret,
+      ...prefixedSecrets,
       untrackedToken,
     ]) {
       assert.equal(failedOutput.includes(secret), false);
@@ -101,10 +147,11 @@ test("tracked secret scanning catches high-confidence values without revealing t
       trackedPath,
       [
         "GITHUB_TOKEN=ci-placeholder",
-        "SUPABASE_SERVICE_ROLE_KEY=replace-with-service-role-key",
+        `SUPABASE_SERVICE_ROLE_KEY=${serviceRolePlaceholder}`,
         "SUPABASE_SECRET_KEY=",
         `PRIVATE_KEY=${privateKeyPlaceholder}`,
-        "PUBLIC_INTEREST_RATE_LIMIT_SECRET=replace-with-random-bytes",
+        `PUBLIC_INTEREST_RATE_LIMIT_SECRET=${randomBytesPlaceholder}`,
+        "const INTERNAL_API_TOKEN: string = \"ci-placeholder\";",
       ].join("\n"),
     );
 

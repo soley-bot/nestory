@@ -4,6 +4,8 @@ import { readContainedJpegDimensions } from "@/lib/uploads/jpeg-structure";
 import { isContainedPdf } from "@/lib/uploads/pdf-containment";
 
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 8_192;
+const MAX_IMAGE_PIXELS = 16_000_000;
 
 export type UploadContentType =
   | "application/pdf"
@@ -51,7 +53,10 @@ export async function validateUploadedFileContent(
 
   if (
     detected.contentType !== "application/pdf"
-    && !(await isDecodableImage(bytes, detected))
+    && (
+      exceedsImageBudget(detected)
+      || !(await isDecodableImage(bytes, detected))
+    )
   ) {
     return { ok: false, reason: "invalid_content" };
   }
@@ -80,17 +85,30 @@ function detectUploadContent(bytes: Uint8Array): DetectedContent | null {
 
 async function isDecodableImage(bytes: Uint8Array, detected: DetectedContent) {
   try {
-    const { info } = await sharp(bytes, {
+    const image = sharp(bytes, {
       failOn: "error",
-      limitInputPixels: 40_000_000,
-    })
-      .raw()
-      .toBuffer({ resolveWithObject: true });
+      limitInputPixels: MAX_IMAGE_PIXELS,
+      sequentialRead: true,
+    });
+    const metadata = await image.metadata();
+    await image.stats();
 
-    return info.width === detected.width && info.height === detected.height;
+    return metadata.width === detected.width && metadata.height === detected.height;
   } catch {
     return false;
   }
+}
+
+function exceedsImageBudget(detected: DetectedContent) {
+  if (!detected.width || !detected.height) {
+    return true;
+  }
+
+  return (
+    detected.width > MAX_IMAGE_DIMENSION
+    || detected.height > MAX_IMAGE_DIMENSION
+    || (detected.width * detected.height) > MAX_IMAGE_PIXELS
+  );
 }
 
 function detectPdf(bytes: Uint8Array): DetectedContent | null {

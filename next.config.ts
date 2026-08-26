@@ -7,14 +7,6 @@ const nextConfig: NextConfig = {
   // Next 16.3 currently omits the root trace files when both are enabled.
   output: process.env.VERCEL ? undefined : "standalone",
   allowedDevOrigins: ["127.0.0.1"],
-  images: {
-    remotePatterns: [
-      {
-        hostname: "images.unsplash.com",
-        protocol: "https",
-      },
-    ],
-  },
   experimental: {
     serverActions: {
       // ponytail: app validators cap files at 10 MB; 12 MB leaves multipart overhead.

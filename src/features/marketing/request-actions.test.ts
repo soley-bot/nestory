@@ -83,9 +83,13 @@ describe("submitPublicInterestRequest", () => {
   );
 
   it("does not expose storage errors to the public caller", async () => {
+    const rawMessage = "permission denied for private row mara@example.com";
+    const logError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
     rpc.mockResolvedValue({
       data: null,
-      error: { code: "42501", message: "permission denied for table" },
+      error: { code: "42501", message: rawMessage },
     });
 
     const state = await submitPublicInterestRequest({}, validFormData());
@@ -94,6 +98,11 @@ describe("submitPublicInterestRequest", () => {
       message: "We could not save your request. Please try again.",
       status: "error",
     });
+    expect(logError).toHaveBeenCalledWith(
+      "[marketing] public interest submission failed",
+      { code: "42501" },
+    );
+    expect(JSON.stringify(logError.mock.calls)).not.toContain(rawMessage);
   });
 
   it("never passes the trusted source address to the database", async () => {

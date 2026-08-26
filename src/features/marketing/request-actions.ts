@@ -109,10 +109,10 @@ export async function submitPublicInterestRequest(
     );
 
     if (error) {
-      console.error("[marketing] public interest submission failed", {
-        code: error.code,
-        message: error.message,
-      });
+      console.error(
+        "[marketing] public interest submission failed",
+        redactedDatabaseError(error),
+      );
       return requestFailureState();
     }
     if (!["accepted", "duplicate", "limited"].includes(String(data))) {
@@ -127,6 +127,19 @@ export async function submitPublicInterestRequest(
   }
 
   return requestReceivedState();
+}
+
+function redactedDatabaseError(error: unknown) {
+  const code =
+    typeof error === "object"
+    && error !== null
+    && "code" in error
+    && typeof error.code === "string"
+    && /^[A-Z0-9]{5,10}$/.test(error.code)
+      ? error.code
+      : "unknown";
+
+  return { code };
 }
 
 function requestFailureState(): PublicInterestRequestState {

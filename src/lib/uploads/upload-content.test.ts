@@ -11,6 +11,26 @@ import {
 } from "@/test-utils/upload-content";
 
 describe("validateUploadedFileContent", () => {
+  it("rejects compressed images that expand beyond the decoded-pixel budget", async () => {
+    const file = new File([validPngBytes(5_000, 4_000)], "large.png", {
+      type: "image/png",
+    });
+
+    await expect(
+      validateUploadedFileContent(file, ["image/png"]),
+    ).resolves.toEqual({ ok: false, reason: "invalid_content" });
+  });
+
+  it("rejects an extreme image dimension even when total pixels stay bounded", async () => {
+    const file = new File([validPngBytes(8_193, 1)], "wide.png", {
+      type: "image/png",
+    });
+
+    await expect(
+      validateUploadedFileContent(file, ["image/png"]),
+    ).resolves.toEqual({ ok: false, reason: "invalid_content" });
+  });
+
   it.each([
     ["application/pdf", "evidence.pdf", validPdfBytes()],
     ["application/pdf", "xref-stream.pdf", xrefStreamPdfBytes()],

@@ -41,7 +41,6 @@ export function buildContentSecurityPolicy({
     "data:",
     "blob:",
     supabaseOrigin,
-    "https://images.unsplash.com",
   ].filter(isPresent);
   const scriptSources = [
     "'self'",

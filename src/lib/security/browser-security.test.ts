@@ -21,7 +21,8 @@ describe("browser security policy", () => {
     expect(policy).toContain("style-src-attr 'unsafe-inline'");
     expect(policy).not.toContain("style-src 'self' 'unsafe-inline'");
     expect(policy).toContain("connect-src 'self' https://project.supabase.co wss://project.supabase.co https://example.ingest.sentry.io");
-    expect(policy).toContain("img-src 'self' data: blob: https://project.supabase.co https://images.unsplash.com");
+    expect(policy).toContain("img-src 'self' data: blob: https://project.supabase.co");
+    expect(policy).not.toContain("images.unsplash.com");
     expect(policy).toContain("frame-ancestors 'none'");
     expect(policy).toContain("upgrade-insecure-requests");
     expect(policy).not.toContain("'unsafe-eval'");

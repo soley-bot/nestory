@@ -558,8 +558,11 @@ describe("stageImportRunAction", () => {
 
     expect(logError).toHaveBeenCalledWith(
       "[imports] stage_import_run_v1 failed",
-      rawError,
+      { code: "P0001" },
     );
+    expect(JSON.stringify(logError.mock.calls)).not.toContain(rawError.message);
+    expect(JSON.stringify(logError.mock.calls)).not.toContain(rawError.details);
+    expect(JSON.stringify(logError.mock.calls)).not.toContain(rawError.hint);
   });
 
   it("recovers the same terminal run after references change without replaying commit", async () => {

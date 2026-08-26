@@ -17,31 +17,45 @@ import type {
   GenericImportPreviewRow,
   ImportType,
 } from "@/features/imports/import.types";
+import {
+  MAX_IMPORT_CELL_CHARACTERS,
+  MAX_IMPORT_COLUMNS,
+  MAX_IMPORT_FILE_BYTES,
+  MAX_IMPORT_HEADER_CHARACTERS,
+  MAX_IMPORT_ROWS,
+} from "@/features/imports/unit-import";
 import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import type { Json } from "@/types/database";
 
-const maxImportRows = 500;
 const importTypeSchema = z.enum(["properties", "units", "people", "leases"]);
 const importMappingSchema = z.record(
-  z.string(),
-  z.string().trim().max(120),
+  z.string().max(MAX_IMPORT_HEADER_CHARACTERS),
+  z.string().trim().max(MAX_IMPORT_HEADER_CHARACTERS),
 );
 
 const parsedRecordSchema = z.object({
-  raw: z.record(z.string(), z.string()),
+  raw: z
+    .record(
+      z.string().max(MAX_IMPORT_HEADER_CHARACTERS),
+      z.string().max(MAX_IMPORT_CELL_CHARACTERS),
+    )
+    .refine((raw) => Object.keys(raw).length <= MAX_IMPORT_COLUMNS),
   rowNumber: z.number().int().positive(),
 });
 
 const stagePayloadSchema = z.object({
   draftKey: z.string().trim().min(1).max(2000),
   fileName: z.string().trim().min(1).max(255),
-  fileSize: z.number().int().nonnegative().max(12 * 1024 * 1024),
-  headers: z.array(z.string().trim().min(1).max(120)).min(1).max(100),
+  fileSize: z.number().int().nonnegative().max(MAX_IMPORT_FILE_BYTES),
+  headers: z
+    .array(z.string().trim().min(1).max(MAX_IMPORT_HEADER_CHARACTERS))
+    .min(1)
+    .max(MAX_IMPORT_COLUMNS),
   importType: importTypeSchema,
   mapping: importMappingSchema,
   mimeType: z.string().trim().max(120).nullable(),
-  records: z.array(parsedRecordSchema).min(1).max(maxImportRows),
+  records: z.array(parsedRecordSchema).min(1).max(MAX_IMPORT_ROWS),
 });
 
 const commitResultSchema = z.object({
@@ -101,7 +115,7 @@ export async function stageImportRunAction(
 
   if (!parsedPayload.success) {
     return {
-      message: `Upload a CSV with headers and no more than ${maxImportRows} rows per run.`,
+      message: `Upload a CSV with headers and no more than ${MAX_IMPORT_ROWS} rows per run.`,
       status: "error",
     };
   }
@@ -129,7 +143,10 @@ export async function stageImportRunAction(
   });
 
   if (stageResult.error) {
-    console.error("[imports] stage_import_run_v1 failed", stageResult.error);
+    console.error(
+      "[imports] stage_import_run_v1 failed",
+      redactedDatabaseError(stageResult.error),
+    );
     return {
       message: "The import run could not be staged. Try again or contact support.",
       status: "error",
@@ -556,6 +573,19 @@ function toCommittedRunStatus(
   return summary.created + summary.updated === 0
     ? "failed"
     : "committed_with_errors";
+}
+
+function redactedDatabaseError(error: unknown) {
+  const code =
+    typeof error === "object"
+    && error !== null
+    && "code" in error
+    && typeof error.code === "string"
+    && /^[A-Z0-9]{5,10}$/.test(error.code)
+      ? error.code
+      : "unknown";
+
+  return { code };
 }
 
 function readJsonFormValue(formData: FormData, key: string) {

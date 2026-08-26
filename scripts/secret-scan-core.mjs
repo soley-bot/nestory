@@ -106,12 +106,29 @@ export function formatRedactedFinding(finding) {
 }
 
 function scanSensitiveAssignments({ findings, occupiedLines, path, text }) {
+  const lines = text.split("\n");
   let offset = 0;
-  for (const line of text.split("\n")) {
-    const assignment = line.match(
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const declarationStart = line.match(
+      /^\s*(?:export\s+)?(?:const|let|var)\s+([A-Z][A-Z0-9_]*)(?:\s*:\s*[^=;]+)?\s*=\s*$/,
+    );
+    const declaration = line.match(
+      /^\s*(?:export\s+)?(?:const|let|var)\s+([A-Z][A-Z0-9_]*)(?:\s*:\s*[^=;]+)?\s*=\s*(.*?)\s*[,;]?\s*$/,
+    );
+    const plainAssignment = line.match(
       /^\s*(?:export\s+)?["']?([A-Z][A-Z0-9_]*)["']?\s*[:=]\s*(.*?)\s*[,;]?\s*$/,
     );
-    if (assignment && sensitiveNamePattern.test(assignment[1])) {
+    let assignment = declaration ?? plainAssignment;
+
+    if (declarationStart && index + 1 < lines.length) {
+      const continuation = lines[index + 1].match(/^\s*(.*?)\s*[,;]?\s*$/);
+      if (continuation) {
+        assignment = [line, declarationStart[1], continuation[1]];
+      }
+    }
+
+    if (assignment && isSensitiveIdentifier(assignment[1])) {
       const value = normalizeAssignedValue(assignment[2]);
       if (isTokenLikeValue(value)) {
         addFinding(
@@ -126,6 +143,13 @@ function scanSensitiveAssignments({ findings, occupiedLines, path, text }) {
     }
     offset += line.length + 1;
   }
+}
+
+function isSensitiveIdentifier(name) {
+  return (
+    sensitiveNamePattern.test(name)
+    && !/(?:_MAX_LENGTH|_MIN_LENGTH|_REQUIREMENT)$/.test(name)
+  );
 }
 
 function normalizeAssignedValue(rawValue) {
@@ -154,14 +178,79 @@ function isTokenLikeValue(value) {
 
 function isPlaceholder(value) {
   const normalized = value.toLowerCase();
+  if (value === "" || /^<[^>]+>$/.test(value)) {
+    return true;
+  }
+
+  const words = normalized.split(/[-_ ]+/).filter(Boolean);
+  if (
+    words.length === 1
+    && ["dummy", "example", "placeholder", "redacted", "unset"].includes(
+      words[0],
+    )
+  ) {
+    return true;
+  }
+  if (
+    words.length === 2
+    && (
+      (words[0] === "change" && words[1] === "me")
+      || (words[0] === "not" && words[1] === "set")
+    )
+  ) {
+    return true;
+  }
+
+  const placeholderNouns = [
+    "dummy",
+    "example",
+    "placeholder",
+    "redacted",
+  ];
+  if (
+    words.length === 2
+    && ["ci", "local", "test"].includes(words[0])
+    && placeholderNouns.includes(words[1])
+  ) {
+    return true;
+  }
+
+  const credentialWords = ["api", "here", "key", "password", "secret", "token"];
+  if (
+    words[0] === "your"
+    && words.length >= 2
+    && words.length <= 5
+    && words.slice(1).every((word) => credentialWords.includes(word))
+  ) {
+    return true;
+  }
+
+  const replacementWords = new Set([
+    "api",
+    "at",
+    "bytes",
+    "here",
+    "key",
+    "least",
+    "local",
+    "or",
+    "password",
+    "project",
+    "publishable",
+    "random",
+    "role",
+    "secret",
+    "service",
+    "token",
+    "value",
+  ]);
   return (
-    value === "" ||
-    /^<[^>]+>$/.test(value) ||
-    /^(?:placeholder|example|dummy|change[-_ ]?me|redacted|not[-_ ]?set|unset)(?:$|[-_ ])/i.test(
-      normalized,
-    ) ||
-    /^replace[-_ ]?with(?:$|[-_ ])/i.test(normalized) ||
-    /^(?:ci|local|test|your)[-_]/.test(normalized)
+    words[0] === "replace"
+    && words[1] === "with"
+    && words.length >= 3
+    && words.slice(2).every(
+      (word) => replacementWords.has(word) || /^\d+$/.test(word),
+    )
   );
 }
 
