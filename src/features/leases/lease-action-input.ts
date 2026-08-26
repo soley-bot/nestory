@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  isPrivilegedStepUpRequiredError,
+  privilegedStepUpRequiredActionMessage,
+} from "@/lib/auth/privileged-step-up-error";
 import { postgresUuid } from "@/lib/validation/postgres-uuid";
 
 const dateSchema = z
@@ -66,11 +70,16 @@ type LeaseMutationOperation = "archive" | "restore" | "update";
 
 export function getLeaseMutationErrorMessage(
   error: {
+    code?: string;
     details?: string | null;
     message?: string;
   },
   operation: LeaseMutationOperation,
 ) {
+  if (isPrivilegedStepUpRequiredError(error)) {
+    return privilegedStepUpRequiredActionMessage;
+  }
+
   if (
     operation === "update" &&
     error.details === "relationship_transition_required"

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   requestPrivilegedEmailStepUpAction,
   verifyPrivilegedEmailStepUpAction,
@@ -12,6 +13,7 @@ export function PrivilegedEmailStepUp({
 }: {
   status: PrivilegedEmailStepUpStatus;
 }) {
+  const router = useRouter();
   const [requestState, requestAction, requestPending] = useActionState(
     requestPrivilegedEmailStepUpAction,
     {},
@@ -20,9 +22,12 @@ export function PrivilegedEmailStepUp({
     verifyPrivilegedEmailStepUpAction,
     {},
   );
-  const verifiedUntil = verifyState.status === "success"
-    ? "for the next 15 minutes"
-    : formatVerifiedUntil(status.verifiedUntil);
+  const verifiedForSession =
+    verifyState.status === "success" || status.verified;
+
+  useEffect(() => {
+    if (verifyState.status === "success") router.refresh();
+  }, [router, verifyState.status]);
 
   return (
     <div className="mt-4 border-t border-border pt-4">
@@ -38,9 +43,9 @@ export function PrivilegedEmailStepUp({
               Staged control: privileged access is not blocked by this verification yet.
             </p>
           ) : null}
-          {verifiedUntil ? (
+          {verifiedForSession ? (
             <p className="mt-2 text-sm font-medium text-success">
-              Verified {verifiedUntil}.
+              Verified for this signed-in session.
             </p>
           ) : null}
         </div>
@@ -105,12 +110,4 @@ export function PrivilegedEmailStepUp({
       ) : null}
     </div>
   );
-}
-
-function formatVerifiedUntil(value: string | null) {
-  if (!value) return null;
-  return `until ${new Intl.DateTimeFormat(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value))}`;
 }

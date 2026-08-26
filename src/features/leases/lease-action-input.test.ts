@@ -21,6 +21,24 @@ const invalidNumericCases = [
 ] as const;
 
 describe("lease action input", () => {
+  it.each(["archive", "restore", "update"] as const)(
+    "maps an exact database step-up denial for %s",
+    (operation) => {
+      expect(
+        getLeaseMutationErrorMessage(
+          {
+            code: "42501",
+            details: null,
+            message: "Privileged email verification required",
+          },
+          operation,
+        ),
+      ).toBe(
+        "Verify this signed-in session by email, then retry saving.",
+      );
+    },
+  );
+
   it("accepts deterministic PostgreSQL fixture identifiers for a future rent term", () => {
     const result = parseFutureRentTermInput({
       ...validFutureTerm,

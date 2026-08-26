@@ -41,6 +41,7 @@ const organizationId = "00000000-0000-4000-8000-000000000001";
 const propertyId = "10000000-0000-0000-0000-000000000001";
 const tenantPersonId = "80000000-0000-0000-0000-000000000001";
 const unitId = "20000000-0000-0000-0000-000000000001";
+const userId = "40000000-0000-4000-8000-000000000001";
 
 describe("Lease occupancy evidence input", () => {
   beforeEach(() => {
@@ -58,8 +59,42 @@ describe("Lease occupancy evidence input", () => {
       error: null,
     });
     leasePathQuery.select.mockReturnValue(leasePathQuery);
-    requirePermission.mockResolvedValue({ organizationId });
+    requirePermission.mockResolvedValue({ organizationId, userId });
     rpc.mockResolvedValue({ data: { leaseId }, error: null });
+  });
+
+  it("explains a database-side verification race during lease save", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "42501",
+        message: "Privileged email verification required",
+      },
+    });
+
+    await expect(createLeaseAction({}, leaseForm())).resolves.toMatchObject({
+      message:
+        "Verify this signed-in session by email, then retry saving.",
+      status: "error",
+    });
+  });
+
+  it("explains a database-side verification race during lease update", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "42501",
+        message: "Privileged email verification required",
+      },
+    });
+    const formData = leaseForm();
+    formData.set("leaseId", leaseId);
+
+    await expect(updateLeaseAction({}, formData)).resolves.toMatchObject({
+      message:
+        "Verify this signed-in session by email, then retry saving.",
+      status: "error",
+    });
   });
 
   it("passes actor-entered scheduled and actual dates without copying term dates", async () => {
@@ -361,6 +396,59 @@ describe("Lease occupancy evidence input", () => {
     ).resolves.toMatchObject({
       message:
         "This lease is no longer linked to a supported property or unit. Refresh the lease before trying again.",
+      status: "error",
+    });
+  });
+
+  it("explains an exact step-up denial from a lease lifecycle write", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "42501",
+        message: "Privileged email verification required",
+      },
+    });
+    const formData = new FormData();
+    formData.set("effectiveDate", "2027-04-01");
+    formData.set("expectedOccupancyId", "40000000-0000-0000-0000-000000000001");
+    formData.set("expectedStatus", "active");
+    formData.set("idempotencyKey", "lease-terminate-v1");
+    formData.set("leaseId", leaseId);
+    formData.set("reason", "Lease ended by mutual agreement");
+    formData.set("scheduledMoveOutDate", "");
+    formData.set("transition", "terminate");
+
+    await expect(
+      transitionLeaseLifecycleAction({}, formData),
+    ).resolves.toMatchObject({
+      message:
+        "Verify this signed-in session by email, then retry saving.",
+      status: "error",
+    });
+  });
+
+  it("does not label sentinel text without SQLSTATE 42501 as step-up", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "XX000",
+        message: "Privileged email verification required",
+      },
+    });
+    const formData = new FormData();
+    formData.set("effectiveDate", "2027-04-01");
+    formData.set("expectedOccupancyId", "40000000-0000-0000-0000-000000000001");
+    formData.set("expectedStatus", "active");
+    formData.set("idempotencyKey", "lease-terminate-v1");
+    formData.set("leaseId", leaseId);
+    formData.set("reason", "Lease ended by mutual agreement");
+    formData.set("scheduledMoveOutDate", "");
+    formData.set("transition", "terminate");
+
+    await expect(
+      transitionLeaseLifecycleAction({}, formData),
+    ).resolves.toMatchObject({
+      message: "We could not save the lease. Please check the fields and try again.",
       status: "error",
     });
   });

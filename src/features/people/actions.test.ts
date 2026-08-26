@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { from, requirePermission, revalidatePath, rpc } = vi.hoisted(() => ({
+const {
+  from,
+  requirePermission,
+  revalidatePath,
+  rpc,
+} = vi.hoisted(() => ({
   from: vi.fn(),
   requirePermission: vi.fn(),
   revalidatePath: vi.fn(),
@@ -20,14 +25,39 @@ import {
 
 const organizationId = "00000000-0000-4000-8000-000000000001";
 const personId = "80000000-0000-0000-0000-000000000001";
+const userId = "40000000-0000-4000-8000-000000000001";
 
 describe("person travel document inputs", () => {
   beforeEach(() => {
     requirePermission.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
-    requirePermission.mockResolvedValue({ isSuperAdmin: true, organizationId });
+    requirePermission.mockResolvedValue({
+      isSuperAdmin: true,
+      organizationId,
+      userId,
+    });
     rpc.mockResolvedValue({ data: personId, error: null });
+  });
+
+  it("explains a database-side verification race instead of returning a generic save error", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "42501",
+        message: "Privileged email verification required",
+      },
+    });
+    const formData = new FormData();
+    formData.set("displayName", "Pilot Tenant");
+    formData.set("partyType", "individual");
+    formData.append("roles", "tenant");
+
+    await expect(createPersonAction({}, formData)).resolves.toMatchObject({
+      message:
+        "Verify this signed-in session by email, then retry saving.",
+      status: "error",
+    });
   });
 
   it("persists passport and optional visa expiry data with an owner", async () => {

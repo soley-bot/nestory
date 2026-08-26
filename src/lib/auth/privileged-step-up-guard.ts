@@ -1,6 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
+import { privilegedStepUpRequiredMessage } from "@/lib/auth/privileged-step-up-error";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -14,8 +15,6 @@ type PrivilegedStepUpContext = {
 };
 
 const uuid = z.uuid();
-const requiredMessage = "Privileged email verification required.";
-
 export async function requirePrivilegedStepUp(
   expected: PrivilegedStepUpContext,
   requestClient?: PrivilegedStepUpRequestClient,
@@ -24,7 +23,7 @@ export async function requirePrivilegedStepUp(
     !uuid.safeParse(expected.organizationId).success ||
     !uuid.safeParse(expected.userId).success
   ) {
-    throw new Error(requiredMessage);
+    throw new Error(privilegedStepUpRequiredMessage);
   }
 
   const supabase = requestClient ?? (await createSupabaseServerClient());
@@ -36,7 +35,7 @@ export async function requirePrivilegedStepUp(
       supabase.auth.getUser(),
     ]);
   } catch {
-    throw new Error(requiredMessage);
+    throw new Error(privilegedStepUpRequiredMessage);
   }
   const claims = claimsResult.data?.claims as
     | { session_id?: unknown; sub?: unknown }
@@ -51,7 +50,7 @@ export async function requirePrivilegedStepUp(
     typeof claims.session_id !== "string" ||
     !uuid.safeParse(claims.session_id).success
   ) {
-    throw new Error(requiredMessage);
+    throw new Error(privilegedStepUpRequiredMessage);
   }
 
   let admin;
@@ -67,10 +66,10 @@ export async function requirePrivilegedStepUp(
       },
     );
   } catch {
-    throw new Error(requiredMessage);
+    throw new Error(privilegedStepUpRequiredMessage);
   }
   if (assertion.error || assertion.data !== true) {
-    throw new Error(requiredMessage);
+    throw new Error(privilegedStepUpRequiredMessage);
   }
 
   return admin;

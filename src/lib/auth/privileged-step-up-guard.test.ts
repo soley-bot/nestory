@@ -18,6 +18,7 @@ vi.mock("@/lib/db/server", () => ({
 }));
 
 import { requirePrivilegedStepUp } from "@/lib/auth/privileged-step-up-guard";
+import { isPrivilegedStepUpRequiredError } from "@/lib/auth/privileged-step-up-error";
 
 const organizationId = "10000000-0000-4000-8000-000000000001";
 const userId = "20000000-0000-4000-8000-000000000001";
@@ -134,5 +135,31 @@ describe("privileged step-up guard", () => {
     await expect(
       requirePrivilegedStepUp({ organizationId, userId }),
     ).resolves.toEqual(expect.objectContaining({ rpc: mocks.rpc }));
+  });
+
+  it("recognizes only the exact guard error or exact database denial", () => {
+    expect(
+      isPrivilegedStepUpRequiredError(
+        new Error("Privileged email verification required."),
+      ),
+    ).toBe(true);
+    expect(
+      isPrivilegedStepUpRequiredError({
+        code: "42501",
+        message: "Privileged email verification required",
+      }),
+    ).toBe(true);
+    expect(
+      isPrivilegedStepUpRequiredError({
+        code: "42501",
+        message: "row-level security denied the write",
+      }),
+    ).toBe(false);
+    expect(
+      isPrivilegedStepUpRequiredError({
+        code: "XX000",
+        message: "Privileged email verification required",
+      }),
+    ).toBe(false);
   });
 });
