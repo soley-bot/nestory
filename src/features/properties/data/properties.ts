@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import {
   resolveRecentChangeTargets,
   type ActivityTargetQueryClient,
@@ -791,10 +792,7 @@ export async function getPropertyDetail(
   const activeOwner = ownerHistory.find(
     (owner) => owner.is_primary && !owner.archived_at && !owner.ended_on,
   );
-  const documents = await addSignedPropertyDocumentUrls(
-    documentsResult.data ?? [],
-    supabase,
-  );
+  const documents = addPropertyDocumentDownloadUrls(documentsResult.data ?? []);
   const ledgerEntries = (ledgerResult.data ?? []) as PropertyDetailLedgerRecord[];
   const maintenanceCases =
     (maintenanceResult.data ?? []) as PropertyDetailMaintenanceRecord[];
@@ -841,22 +839,13 @@ export async function getPropertyDetail(
   });
 }
 
-async function addSignedPropertyDocumentUrls(
+function addPropertyDocumentDownloadUrls(
   rows: PropertyDetailDocumentRecord[],
-  supabase: SupabaseServerClient,
-): Promise<PropertyDetailDocumentRecord[]> {
-  return Promise.all(
-    rows.map(async (row) => {
-      const { data } = await supabase.storage
-        .from("nestory-documents")
-        .createSignedUrl(row.storage_path, 60 * 60);
-
-      return {
-        ...row,
-        url: data?.signedUrl,
-      };
-    }),
-  );
+): PropertyDetailDocumentRecord[] {
+  return rows.map((row) => ({
+    ...row,
+    url: documentDownloadUrl(row.id),
+  }));
 }
 
 function groupByProperty<T extends { property_id: string }>(rows: T[]) {

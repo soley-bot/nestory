@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
 import {
   resolveRecentChangeTargets,
@@ -638,7 +639,7 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
       organizationId,
       supabase: supabase as unknown as ActivityTargetQueryClient,
     }),
-    addSignedDocumentUrls(documentsResult.data ?? [], supabase),
+    addDocumentDownloadUrls(documentsResult.data ?? []),
     getActiveLeasePeople(supabase, organizationId, activeLease),
   ]);
 
@@ -726,22 +727,11 @@ async function getActiveLeasePeople(
   return peopleResult.data ?? [];
 }
 
-async function addSignedDocumentUrls(
-  rows: UnitDocumentRecord[],
-  supabase: SupabaseServerClient,
-): Promise<UnitDocumentRecord[]> {
-  return Promise.all(
-    rows.map(async (row) => {
-      const { data } = await supabase.storage
-        .from("nestory-documents")
-        .createSignedUrl(row.storage_path, 60 * 60);
-
-      return {
-        ...row,
-        url: data?.signedUrl,
-      };
-    }),
-  );
+function addDocumentDownloadUrls(rows: UnitDocumentRecord[]): UnitDocumentRecord[] {
+  return rows.map((row) => ({
+    ...row,
+    url: documentDownloadUrl(row.id),
+  }));
 }
 
 function indexById<T extends { id: string }>(rows: T[]) {

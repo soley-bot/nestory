@@ -68,6 +68,8 @@ describe("report export routes", () => {
     );
 
     expect(response.status).toBe(401);
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
   });
 
   it.each(handlers)("returns 403 without report capability for %s export", async (_, handler, __, route) => {
@@ -80,6 +82,7 @@ describe("report export routes", () => {
     );
 
     expect(response.status).toBe(403);
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
   });
 
   it.each([
@@ -110,6 +113,8 @@ describe("report export routes", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe(contentType);
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(downloadOwnerStatementArtifact).toHaveBeenCalledWith(
       expect.anything(),
       "organization-1",

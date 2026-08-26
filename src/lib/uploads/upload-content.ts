@@ -1,5 +1,10 @@
 import sharp from "sharp";
 
+import { readContainedJpegDimensions } from "@/lib/uploads/jpeg-structure";
+import { isContainedPdf } from "@/lib/uploads/pdf-containment";
+
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
 export type UploadContentType =
   | "application/pdf"
   | "image/jpeg"
@@ -23,6 +28,9 @@ export async function validateUploadedFileContent(
   file: File,
   allowedContentTypes: readonly UploadContentType[],
 ): Promise<UploadContentValidationResult> {
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return { ok: false, reason: "invalid_content" };
+  }
   const bytes = new Uint8Array(await file.arrayBuffer());
   const detected = detectUploadContent(bytes);
 
@@ -86,89 +94,7 @@ async function isDecodableImage(bytes: Uint8Array, detected: DetectedContent) {
 }
 
 function detectPdf(bytes: Uint8Array): DetectedContent | null {
-  if (
-    bytes.length < 14
-    || ascii(bytes, 0, 5) !== "%PDF-"
-    || bytes[5] < 0x31
-    || bytes[5] > 0x32
-    || bytes[6] !== 0x2e
-    || bytes[7] < 0x30
-    || bytes[7] > 0x39
-  ) {
-    return null;
-  }
-
-  const source = new TextDecoder("latin1").decode(bytes);
-  const terminalXref = /startxref[\t \r\n]+(\d+)[\t \r\n]+%%EOF[\0\t\n\f\r ]*$/.exec(source);
-  if (!terminalXref || terminalXref.index <= 0) return null;
-
-  const xrefOffset = Number(terminalXref[1]);
-  if (
-    !Number.isSafeInteger(xrefOffset)
-    || xrefOffset <= 0
-    || xrefOffset >= terminalXref.index
-  ) {
-    return null;
-  }
-
-  return hasClassicPdfXref(source, xrefOffset, terminalXref.index)
-    || hasPdfXrefStream(source, xrefOffset, terminalXref.index)
-    ? { contentType: "application/pdf" }
-    : null;
-}
-
-function hasClassicPdfXref(source: string, xrefOffset: number, startxrefOffset: number) {
-  const section = source.slice(xrefOffset, startxrefOffset);
-  if (!/^xref(?:[\t \r\n])/.test(section)) return false;
-
-  const trailerOffset = section.lastIndexOf("trailer");
-  if (trailerOffset < 0) return false;
-  const xref = section.slice(0, trailerOffset);
-  const trailer = section.slice(trailerOffset + "trailer".length);
-  const hasSubsection = /(?:^|[\r\n])\s*\d+\s+\d+\s*(?:[\r\n])/.test(xref);
-  const hasEntry = /(?:^|[\r\n])\d{10}\s+\d{5}\s+[fn](?:\s|$)/.test(xref);
-  const root = pdfRootReference(trailer);
-
-  return hasSubsection
-    && hasEntry
-    && /\/Size\s+\d+\b/.test(trailer)
-    && root !== null
-    && hasPdfObject(source.slice(0, xrefOffset), root.objectId, root.generation);
-}
-
-function hasPdfXrefStream(source: string, xrefOffset: number, startxrefOffset: number) {
-  const section = source.slice(xrefOffset, startxrefOffset);
-  const object = /^(\d+)\s+(\d+)\s+obj\b/.exec(section);
-  if (!object) return false;
-
-  const streamOffset = section.indexOf("stream", object[0].length);
-  const endStreamOffset = section.indexOf("endstream", streamOffset + 6);
-  const endObjectOffset = section.indexOf("endobj", endStreamOffset + 9);
-  if (streamOffset < 0 || endStreamOffset < 0 || endObjectOffset < 0) return false;
-
-  const dictionary = section.slice(object[0].length, streamOffset);
-  const streamData = section.slice(streamOffset + "stream".length, endStreamOffset)
-    .replace(/^[\r\n]+|[\r\n]+$/g, "");
-  return /\/Type\s*\/XRef\b/.test(dictionary)
-    && /\/Size\s+\d+\b/.test(dictionary)
-    && /\/Length\s+\d+\b/.test(dictionary)
-    && /\/W\s*\[\s*\d+\s+\d+\s+\d+\s*\]/.test(dictionary)
-    && streamData.length > 0
-    && pdfRootReference(dictionary) !== null;
-}
-
-function pdfRootReference(source: string) {
-  const match = /\/Root\s+(\d+)\s+(\d+)\s+R\b/.exec(source);
-  return match
-    ? { generation: Number(match[2]), objectId: Number(match[1]) }
-    : null;
-}
-
-function hasPdfObject(source: string, objectId: number, generation: number) {
-  const object = new RegExp(
-    `(?:^|[\\r\\n])\\s*${objectId}\\s+${generation}\\s+obj\\b`,
-  );
-  return object.test(source);
+  return isContainedPdf(bytes) ? { contentType: "application/pdf" } : null;
 }
 
 function detectPng(bytes: Uint8Array): DetectedContent | null {
@@ -229,86 +155,8 @@ function detectPng(bytes: Uint8Array): DetectedContent | null {
 }
 
 function detectJpeg(bytes: Uint8Array): DetectedContent | null {
-  if (
-    bytes.length < 23
-    || bytes[0] !== 0xff
-    || bytes[1] !== 0xd8
-  ) {
-    return null;
-  }
-
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  let offset = 2;
-  let hasScan = false;
-  let width = 0;
-  let height = 0;
-
-  while (offset < bytes.length) {
-    if (bytes[offset] !== 0xff) return null;
-    while (offset < bytes.length && bytes[offset] === 0xff) offset += 1;
-    if (offset >= bytes.length) return null;
-
-    const marker = bytes[offset];
-    offset += 1;
-
-    if (marker === 0xd9) {
-      return hasScan && width > 0 && height > 0 && offset === bytes.length
-        ? { contentType: "image/jpeg", height, width }
-        : null;
-    }
-
-    if (marker === 0x00 || marker === 0xd8 || isStandaloneJpegMarker(marker)) {
-      return null;
-    }
-    if (offset + 2 > bytes.length) return null;
-
-    const segmentLength = view.getUint16(offset);
-    const segmentEnd = offset + segmentLength;
-    if (segmentLength < 2 || segmentEnd > bytes.length) return null;
-
-    if (isJpegStartOfFrame(marker)) {
-      if (segmentLength < 8) return null;
-      height = view.getUint16(offset + 3);
-      width = view.getUint16(offset + 5);
-      if (width === 0 || height === 0) return null;
-    }
-
-    if (marker !== 0xda) {
-      offset = segmentEnd;
-      continue;
-    }
-
-    if (width === 0 || height === 0 || segmentLength < 6) return null;
-    hasScan = true;
-    offset = segmentEnd;
-
-    while (offset < bytes.length) {
-      if (bytes[offset] !== 0xff) {
-        offset += 1;
-        continue;
-      }
-
-      const markerStart = offset;
-      while (offset < bytes.length && bytes[offset] === 0xff) offset += 1;
-      if (offset >= bytes.length) return null;
-
-      const scanMarker = bytes[offset];
-      if (scanMarker === 0x00 || (scanMarker >= 0xd0 && scanMarker <= 0xd7)) {
-        offset += 1;
-        continue;
-      }
-      if (scanMarker === 0xd9) {
-        return offset + 1 === bytes.length
-          ? { contentType: "image/jpeg", height, width }
-          : null;
-      }
-
-      offset = markerStart;
-      break;
-    }
-  }
-
-  return null;
+  const dimensions = readContainedJpegDimensions(bytes);
+  return dimensions ? { contentType: "image/jpeg", ...dimensions } : null;
 }
 
 function detectWebp(bytes: Uint8Array): DetectedContent | null {
@@ -392,16 +240,6 @@ function ascii(bytes: Uint8Array, offset: number, length: number) {
     value += String.fromCharCode(bytes[index]);
   }
   return value;
-}
-
-function isJpegStartOfFrame(marker: number) {
-  return marker >= 0xc0
-    && marker <= 0xcf
-    && ![0xc4, 0xc8, 0xcc].includes(marker);
-}
-
-function isStandaloneJpegMarker(marker: number) {
-  return marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7);
 }
 
 function uint24LittleEndian(bytes: Uint8Array, offset: number) {

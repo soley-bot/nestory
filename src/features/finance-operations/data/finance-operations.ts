@@ -25,6 +25,7 @@ import type {
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
 import { sortPropertyAccountEntriesNewestFirst } from "@/features/finance-operations/property-account";
+import { documentDownloadUrl } from "@/lib/uploads/document-download";
 
 type TenantInvoiceBalanceRow =
   Database["public"]["Views"]["tenant_invoice_balances"]["Row"];
@@ -573,26 +574,13 @@ export async function getFinanceOperationsData(
   );
 
   const evidenceRows = evidenceResult.data ?? [];
-  const evidencePaths = [...new Set(evidenceRows.map((row) => row.storage_path))];
-  const signedEvidence =
-    evidencePaths.length > 0
-      ? await supabase.storage
-          .from("nestory-documents")
-          .createSignedUrls(evidencePaths, 60 * 15)
-      : { data: [] };
-  const signedUrlByPath = new Map(
-    evidencePaths.flatMap((path, index) => {
-      const href = signedEvidence.data?.[index]?.signedUrl;
-      return href ? [[path, href] as const] : [];
-    }),
-  );
   const evidenceBySubmissionId = new Map(
     evidenceRows.map((row) => [
       row.submission_id,
       {
         documentId: row.document_id,
         fileName: row.file_name,
-        href: signedUrlByPath.get(row.storage_path),
+        href: documentDownloadUrl(row.document_id),
         mimeType: row.mime_type,
         sha256: row.content_sha256,
         sizeBytes: Number(row.size_bytes),

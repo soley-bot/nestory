@@ -11,11 +11,16 @@ import { createSupabaseServerClient } from "@/lib/db/server";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+const PRIVATE_HEADERS = {
+  "Cache-Control": "private, no-store",
+  "X-Content-Type-Options": "nosniff",
+};
+
 export async function GET(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return new Response("Unauthorized", { status: 401 });
+    return textResponse("Unauthorized", 401);
   }
 
   const url = new URL(request.url);
@@ -23,7 +28,7 @@ export async function GET(request: Request) {
   if (artifactId) {
     const membership = await getOwnerStatementMembershipForUser(user.id);
     if (!membership) {
-      return new Response("Forbidden", { status: 403 });
+      return textResponse("Forbidden", 403);
     }
     try {
       const supabase = await createSupabaseServerClient();
@@ -33,17 +38,17 @@ export async function GET(request: Request) {
         artifactId,
       );
       if (artifact.format !== "xlsx") {
-        return new Response("Owner Statement artifact format mismatch.", { status: 409 });
+        return textResponse("Owner Statement artifact format mismatch.", 409);
       }
       return attachment(artifact.bytes, artifact.filename, artifact.contentType);
     } catch {
-      return new Response("Official Owner Statement artifact is unavailable.", { status: 409 });
+      return textResponse("Official Owner Statement artifact is unavailable.", 409);
     }
   }
 
   const membership = await getFinanceReportMembershipForUser(user.id);
   if (!membership) {
-    return new Response("Forbidden", { status: 403 });
+    return textResponse("Forbidden", 403);
   }
 
   const searchParams = Object.fromEntries(url.searchParams);
@@ -68,6 +73,7 @@ function attachment(bodyBytes: Uint8Array, filename: string, contentType: string
   ) as ArrayBuffer;
   return new Response(body, {
     headers: {
+      ...PRIVATE_HEADERS,
       "Content-Disposition": `attachment; filename="${filename}"`,
       "Content-Length": String(bodyBytes.byteLength),
       "Content-Type": contentType,
@@ -76,8 +82,15 @@ function attachment(bodyBytes: Uint8Array, filename: string, contentType: string
 }
 
 function textValidation(validation: { message: string; status: number }) {
-  return new Response(validation.message, {
-    headers: { "Content-Type": "text/plain; charset=utf-8" },
-    status: validation.status,
+  return textResponse(validation.message, validation.status);
+}
+
+function textResponse(body: string, status: number) {
+  return new Response(body, {
+    headers: {
+      ...PRIVATE_HEADERS,
+      "Content-Type": "text/plain; charset=utf-8",
+    },
+    status,
   });
 }
