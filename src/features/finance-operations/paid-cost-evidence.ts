@@ -1,8 +1,5 @@
 import { createHash } from "node:crypto";
-import {
-  requirePrivilegedStepUp,
-  type PrivilegedStepUpRequestClient,
-} from "@/lib/auth/privileged-step-up-guard";
+import type { PrivilegedStepUpRequestClient } from "@/lib/auth/privileged-step-up-guard";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
 import { validateUploadedFileContent } from "@/lib/uploads/upload-content";
 
@@ -46,6 +43,9 @@ export function validatePaidCostEvidenceFile(value: FormDataEntryValue | null) {
 export async function preparePaidCostEvidence(
   input: PaidCostEvidenceInput,
 ): Promise<PaidCostEvidenceResult> {
+  const { requirePrivilegedStepUp } = await import(
+    "@/lib/auth/privileged-step-up-guard"
+  );
   return preparePaidCostEvidenceWithAuthority(input, () =>
     requirePrivilegedStepUp(
       { organizationId: input.organizationId, userId: input.actorId },

@@ -125,6 +125,7 @@
     "shadcn": "^4.19.0",
     "supabase": "^2.108.0",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.21.0",
     "typescript": "^5",
     "vitest": "^4.1.9"
   }

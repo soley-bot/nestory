@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -9,6 +11,47 @@ import {
   fixtureSupportedActivityEntityTypes,
   selectLocalDatabaseContainer,
 } from "./load-test-fixture.mjs";
+
+test("fixture TypeScript runner is installed by the repository manifest", () => {
+  const repositoryRoot = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+  );
+  const result = spawnSync(
+    process.execPath,
+    [path.join(repositoryRoot, "node_modules", "tsx", "dist", "cli.mjs"), "--version"],
+    { cwd: repositoryRoot, encoding: "utf8", shell: false },
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test("paid-cost fixture entry point loads in a standalone TypeScript process", () => {
+  const repositoryRoot = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+  );
+  const moduleUrl = pathToFileURL(
+    path.join(
+      repositoryRoot,
+      "src",
+      "features",
+      "finance-operations",
+      "paid-cost-evidence.ts",
+    ),
+  ).href;
+  const result = spawnSync(
+    process.execPath,
+    [
+      path.join(repositoryRoot, "node_modules", "tsx", "dist", "cli.mjs"),
+      "--eval",
+      `import(${JSON.stringify(moduleUrl)}).then((module) => { const api = module.default ?? module; if (typeof api.preparePaidCostEvidenceForFixture !== "function") process.exit(2); })`,
+    ],
+    { cwd: repositoryRoot, encoding: "utf8", shell: false },
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+});
 
 test("fixture activity validation rejects entity types the application cannot resolve", () => {
   assert.deepEqual(
