@@ -33,6 +33,7 @@ import {
   formatUnitOptionLabel,
 } from "@/lib/entity-option-labels";
 import { getPersonSelectOptions } from "@/features/people/data/person-options";
+import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import type { Database } from "@/types/database";
 import {
   getCalendarDateInTimeZone,
@@ -646,10 +647,7 @@ async function enrichLeaseSummaries({
     readinessClock,
     supabase,
   );
-  const documents = await addSignedDocumentUrls(
-    documentsResult.data ?? [],
-    supabase,
-  );
+  const documents = addDocumentDownloadUrls(documentsResult.data ?? []);
   const partiesByLeaseId = groupByLeaseId(partyRows);
   const termsByLeaseId = groupByLeaseId(termData as LeaseTermRow[]);
   const billingRulesByLeaseId = groupByLeaseId(billingRules);
@@ -1024,28 +1022,19 @@ function compareLeaseBillingRules(
     : left.effectiveFrom.localeCompare(right.effectiveFrom);
 }
 
-async function addSignedDocumentUrls(
+function addDocumentDownloadUrls(
   rows: Array<LeaseDocumentRow & { storage_path: string }>,
-  supabase: SupabaseServerClient,
-): Promise<LeaseDocumentRow[]> {
-  return Promise.all(
-    rows.map(async (row) => {
-      const { data } = await supabase.storage
-        .from("nestory-documents")
-        .createSignedUrl(row.storage_path, 60 * 60);
-
-      return {
-        category: row.category,
-        file_name: row.file_name,
-        id: row.id,
-        lease_id: row.lease_id,
-        mime_type: row.mime_type,
-        size_bytes: row.size_bytes,
-        uploaded_at: row.uploaded_at,
-        url: data?.signedUrl,
-      };
-    }),
-  );
+): LeaseDocumentRow[] {
+  return rows.map((row) => ({
+    category: row.category,
+    file_name: row.file_name,
+    id: row.id,
+    lease_id: row.lease_id,
+    mime_type: row.mime_type,
+    size_bytes: row.size_bytes,
+    uploaded_at: row.uploaded_at,
+    url: documentDownloadUrl(row.id),
+  }));
 }
 
 function groupByLeaseId<T extends { lease_id: string | null }>(rows: T[]) {

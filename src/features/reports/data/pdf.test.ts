@@ -6,16 +6,17 @@ import {
 import { mapOwnerStatementPublicationPayload } from "@/features/reports/data/owner-statement-report";
 import { ownerStatementPublicationPayload } from "@/features/reports/data/owner-statement-report.test-fixture";
 import type { TrustedReport } from "@/features/reports/reports.types";
+import { isContainedPdf } from "@/lib/uploads/pdf-containment";
 
 describe("trusted report PDF export", () => {
   it("renders Owner activity metadata and rows", () => {
-    const pdf = Buffer.from(
-      buildTrustedReportPdf({
-        organizationName: "Sokha Property Services",
-        report: monthlyOwnerActivityReport(),
-      }),
-    ).toString("latin1");
+    const bytes = buildTrustedReportPdf({
+      organizationName: "Sokha Property Services",
+      report: monthlyOwnerActivityReport(),
+    });
+    const pdf = Buffer.from(bytes).toString("latin1");
 
+    expect(isContainedPdf(bytes)).toBe(true);
     expect(pdf.startsWith("%PDF-1.4")).toBe(true);
     expect(pdf).toContain("Owner activity - Sokha Property Services");
     expect(pdf).toContain("RIV / Riverside Apartments");
@@ -51,6 +52,7 @@ describe("official owner statement PDF", () => {
     const text = Buffer.from(first).toString("latin1");
 
     expect(first).toEqual(second);
+    expect(isContainedPdf(first)).toBe(true);
     expect(text).toContain("OWNER STATEMENT");
     expect(text).toContain("Independent Property Service");
     expect(text).toContain("XIA YIXUAN");

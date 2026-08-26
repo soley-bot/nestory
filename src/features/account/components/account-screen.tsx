@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { KeyRound, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { signOutAction } from "@/features/auth/actions";
@@ -25,9 +26,11 @@ export type AccountProfile = {
 export function AccountScreen({
   identity,
   profile,
+  securityStepUp,
 }: {
   identity: AccountIdentity;
   profile: AccountProfile | null;
+  securityStepUp?: ReactNode;
 }) {
   return (
     <main className="divide-y divide-border px-4 sm:px-6">
@@ -95,6 +98,7 @@ export function AccountScreen({
             Set or change password
           </Link>
         </div>
+        {securityStepUp}
       </section>
 
       <section

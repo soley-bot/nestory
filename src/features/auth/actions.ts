@@ -8,6 +8,7 @@ import {
   verifyRecoveryMarker,
 } from "@/lib/auth/recovery-marker";
 import { recordPasswordCredentialProof } from "@/lib/auth/password-credential-proof";
+import { newPasswordSchema } from "@/lib/auth/password-policy";
 import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -34,7 +35,7 @@ const recoverySchema = z.object({
 
 const updatePasswordSchema = z
   .object({
-    password: z.string().min(8, "Use at least 8 characters."),
+    password: newPasswordSchema,
     passwordConfirm: z.string(),
   })
   .refine((value) => value.password === value.passwordConfirm, {

@@ -13,5 +13,52 @@ export function getSupabaseEnv(): SupabaseEnv {
     );
   }
 
-  return { supabaseKey, supabaseUrl };
+  return { supabaseKey, supabaseUrl: validateSupabaseUrl(supabaseUrl) };
+}
+
+function validateSupabaseUrl(value: string) {
+  let parsed: URL;
+
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(
+      "NEXT_PUBLIC_SUPABASE_URL must be an absolute HTTP(S) URL.",
+    );
+  }
+
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    throw new Error(
+      "NEXT_PUBLIC_SUPABASE_URL must be an absolute HTTP(S) URL.",
+    );
+  }
+
+  if (
+    parsed.username
+    || parsed.password
+    || parsed.pathname !== "/"
+    || parsed.search
+    || parsed.hash
+  ) {
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL must contain only an origin.");
+  }
+
+  const hostname = parsed.hostname
+    .toLowerCase()
+    .replace(/^\[/, "")
+    .replace(/\]$/, "");
+  const isLocalHost = [
+    "localhost",
+    "127.0.0.1",
+    "::1",
+    "host.docker.internal",
+  ].includes(hostname);
+
+  if (parsed.protocol !== "https:" && !isLocalHost) {
+    throw new Error(
+      "NEXT_PUBLIC_SUPABASE_URL must use HTTPS for non-local hosts.",
+    );
+  }
+
+  return parsed.origin;
 }

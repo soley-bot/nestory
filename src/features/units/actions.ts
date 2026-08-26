@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createDocumentAction } from "@/features/documents/actions";
 import { requirePermission } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { validateUploadedFileContent } from "@/lib/uploads/upload-content";
 import { postgresUuid } from "@/lib/validation/postgres-uuid";
 
 type UnitFieldErrors = {
@@ -100,7 +101,7 @@ function nullableNumber(value: string) {
   return value.length > 0 ? Number(value) : null;
 }
 
-function validateInlineDocumentFile(formData: FormData) {
+async function validateInlineDocumentFile(formData: FormData) {
   const file = formData.get("document");
 
   if (!(file instanceof File) || file.size === 0) {
@@ -119,6 +120,16 @@ function validateInlineDocumentFile(formData: FormData) {
     return "Upload a PDF, JPG, PNG, or WebP file.";
   }
 
+  const verifiedFile = await validateUploadedFileContent(file, [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ]);
+  if (!verifiedFile.ok) {
+    return "Upload a PDF, JPG, PNG, or WebP file.";
+  }
+
   return "";
 }
 
@@ -133,7 +144,7 @@ export async function createUnitAction(
     return invalidFormState(parsed.error);
   }
 
-  const documentError = validateInlineDocumentFile(formData);
+  const documentError = await validateInlineDocumentFile(formData);
 
   if (documentError) {
     return {
@@ -205,7 +216,7 @@ export async function updateUnitAction(
     return invalidFormState(parsed.error);
   }
 
-  const documentError = validateInlineDocumentFile(formData);
+  const documentError = await validateInlineDocumentFile(formData);
 
   if (documentError) {
     return {

@@ -32,6 +32,7 @@ import {
 } from "@/lib/entity-option-labels";
 import type { CurrencyCode } from "@/lib/money/format";
 import { buildHref } from "@/lib/url/href";
+import { documentDownloadUrl } from "@/lib/uploads/document-download";
 
 const DEFAULT_TIMELINE_VIEW_QUERY: TimelineViewQuery = {
   archiveState: "active",
@@ -352,9 +353,8 @@ export async function getTimelineScreenData(
   const ledgerById = indexById(ledgerResult.data ?? []);
   const periodLocks = periodLocksResult.data ?? [];
   const allDocumentRows = documentsResult.data ?? [];
-  const documentsWithUrls = await addSignedDocumentUrls(
+  const documentsWithUrls = addDocumentDownloadUrls(
     allDocumentRows.filter((document) => !document.archived_at),
-    supabase,
   );
   const documentsByEventId = groupDocumentsByEventId(documentsWithUrls);
   const [activityRows, sourcesByEventId] = await Promise.all([
@@ -639,22 +639,12 @@ function indexById<T extends { id: string }>(rows: T[]) {
   return new Map(rows.map((row) => [row.id, row]));
 }
 
-async function addSignedDocumentUrls(
-  rows: DocumentRow[],
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-): Promise<TimelineDocumentWithLink[]> {
+function addDocumentDownloadUrls(rows: DocumentRow[]): TimelineDocumentWithLink[] {
   if (rows.length === 0) {
     return [];
   }
 
-  const { data } = await supabase.storage
-    .from("nestory-documents")
-    .createSignedUrls(
-      rows.map((row) => row.storage_path),
-      60 * 60,
-    );
-
-  return rows.map((row, index) => ({
+  return rows.map((row) => ({
     category: row.category,
     fileName: row.file_name,
     id: row.id,
@@ -662,7 +652,7 @@ async function addSignedDocumentUrls(
     sizeBytes: row.size_bytes,
     timelineEventId: row.timeline_event_id ?? undefined,
     uploadedAt: row.uploaded_at,
-    url: data?.[index]?.signedUrl ?? undefined,
+    url: documentDownloadUrl(row.id),
   }));
 }
 

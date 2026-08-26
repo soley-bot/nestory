@@ -11,15 +11,15 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
-permissions:
-  contents: read
-  statuses: write
+permissions: {}
 
 jobs:
   application:
     name: Application
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
     env:
       NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
@@ -27,15 +27,21 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
           cache: npm
+
+      - name: Scan tracked repository secrets
+        run: npm run security:secrets
+
+      - name: Audit dependency vulnerabilities
+        run: npm run security:audit
 
       - name: Install dependencies
         run: npm ci
@@ -65,16 +71,18 @@ jobs:
     name: Database
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
           cache: npm
@@ -145,10 +153,12 @@ jobs:
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      statuses: write
 
     steps:
       - name: Report Application deployment gate
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const state = "${{ needs.application.result }}" === "success" ? "success" : "failure";
@@ -168,6 +178,8 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
     environment: production-database
     concurrency:
       group: production-supabase
@@ -175,17 +187,17 @@ jobs:
 
     steps:
       - name: Check out exact merged main SHA
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
-          cache: npm
+          package-manager-cache: false
 
       - name: Install dependencies
         run: npm ci
@@ -233,7 +245,8 @@ jobs:
           readonly snapshot_path="$RUNNER_TEMP/pilot-preservation-before.json"
           readonly query="$(cat scripts/pilot-preservation-snapshot.sql)"
           readonly output="$(npm exec -- supabase --agent yes --output-format json db query --linked "$query")"
-          jq -ceS '.rows | select(length == 1)' <<<"$output" | tee "$snapshot_path"
+          jq -ceS '.rows | select(length == 1)' <<<"$output" > "$snapshot_path"
+          test -s "$snapshot_path"
 
       - name: Normalize approved hosted function newlines
         env:
@@ -274,7 +287,8 @@ jobs:
           case "$recovery_state" in
             required|restore_required|resume|restore_resume)
               readonly snapshot_output="$(npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/financial-evidence-preservation-snapshot.sql)"
-              jq -ceS '.rows | select(length == 1)' <<<"$snapshot_output" | tee "$before_path"
+              jq -ceS '.rows | select(length == 1)' <<<"$snapshot_output" > "$before_path"
+              test -s "$before_path"
               ;;
             complete)
               printf 'Approved financial evidence recovery already complete.\n'
@@ -362,7 +376,8 @@ jobs:
             readonly verification_output="$(npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/verify-hosted-financial-evidence-branch-backfill.sql)"
             jq -ce '.rows | select(length == 1) | .[0].financial_evidence_recovery_descriptor | select(.hosted_ledger_count == 107 and .hosted_ledger_head == "20260822091214" and .target_count == 3 and .strict_guard_restored == true)' <<<"$verification_output"
             readonly snapshot_output="$(npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/financial-evidence-preservation-snapshot.sql)"
-            jq -ceS '.rows | select(length == 1)' <<<"$snapshot_output" | tee "$after_path"
+            jq -ceS '.rows | select(length == 1)' <<<"$snapshot_output" > "$after_path"
+            test -s "$after_path"
             diff --unified=0 "$before_path" "$after_path"
           else
             readonly state_output="$(npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/classify-hosted-financial-evidence-branch-backfill.sql)"
@@ -387,7 +402,8 @@ jobs:
           readonly query="$(cat scripts/pilot-preservation-snapshot.sql)"
           readonly output="$(npm exec -- supabase --agent yes --output-format json db query --linked "$query")"
           test -s "$before_path"
-          jq -ceS '.rows | select(length == 1)' <<<"$output" | tee "$after_path"
+          jq -ceS '.rows | select(length == 1)' <<<"$output" > "$after_path"
+          test -s "$after_path"
           diff --unified=0 "$before_path" "$after_path"
 
       - name: Lint linked database
@@ -408,10 +424,12 @@ jobs:
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      statuses: write
 
     steps:
       - name: Report Database deployment gate
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const state = "${{ needs.production_database.result }}" === "success" ? "success" : "failure";

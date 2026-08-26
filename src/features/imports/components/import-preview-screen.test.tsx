@@ -1,13 +1,31 @@
 /* @vitest-environment jsdom */
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getCurrentImportAction,
   ImportPreviewScreen,
 } from "@/features/imports/components/import-preview-screen";
 
 describe("ImportPreviewScreen", () => {
+  it("rejects an oversized CSV before reading it into browser memory", async () => {
+    const file = new File(["Property Code\nCTR"], "oversized.csv", {
+      type: "text/csv",
+    });
+    const readText = vi.fn(async () => "Property Code\nCTR");
+    Object.defineProperty(file, "size", { value: (12 * 1024 * 1024) + 1 });
+    Object.defineProperty(file, "text", { value: readText });
+    const { container } = renderImport();
+    const input = container.querySelector('input[type="file"]');
+
+    fireEvent.change(input!, { target: { files: [file] } });
+
+    expect(
+      await screen.findByText("CSV files must be 12 MB or smaller."),
+    ).toBeTruthy();
+    expect(readText).not.toHaveBeenCalled();
+  });
+
   it("uses one vertical flow and one ready-row import action", async () => {
     const csv = [
       "Property Code,Property Name",

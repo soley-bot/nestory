@@ -23,7 +23,11 @@ const linkedProfile = {
 describe("AccountScreen", () => {
   it("presents four named regions on one flat divided surface", () => {
     const html = renderToStaticMarkup(
-      <AccountScreen identity={adminIdentity} profile={linkedProfile} />,
+      <AccountScreen
+        identity={adminIdentity}
+        profile={linkedProfile}
+        securityStepUp={<div>Privileged email verification</div>}
+      />,
     );
 
     expect(html).toMatch(/<main class="[^"]*divide-y[^"]*divide-border[^"]*">/);
@@ -34,6 +38,7 @@ describe("AccountScreen", () => {
     expect(html).toContain('id="account-profile-title">');
     expect(html).toContain("Profile</h2>");
     expect(html).toContain("Security and sign-in</h2>");
+    expect(html).toContain("Privileged email verification");
     expect(html).toContain("Access scope</h2>");
     expect(html).toContain("Session</h2>");
 

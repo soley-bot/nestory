@@ -2,10 +2,9 @@ import { chromium } from "playwright";
 import { rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { resolvePropertiesFlowConfig } from "./smoke-properties-flow-policy.mjs";
 
-const baseUrl = process.env.NESTORY_BASE_URL ?? "http://localhost:3000";
-const email = process.env.NESTORY_TEST_EMAIL ?? "nestory@gmail.com";
-const password = process.env.NESTORY_TEST_PASSWORD ?? "123456789";
+const { baseUrl, email, password } = resolvePropertiesFlowConfig();
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const browser = await chromium.launch({ headless: true });

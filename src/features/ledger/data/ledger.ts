@@ -27,6 +27,7 @@ import type { LinkedDocument } from "@/features/documents/document.types";
 import type { CurrencyCode } from "@/lib/money/format";
 import { getQueryTokens, textMatchesToken } from "@/lib/query/screen-query";
 import { buildHref } from "@/lib/url/href";
+import { documentDownloadUrl } from "@/lib/uploads/document-download";
 
 const ledgerEntrySelect =
   "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description, source_type, source_id, reversal_of_ledger_entry_id, archived_at";
@@ -263,7 +264,7 @@ export async function getLedgerScreenData(
   ]);
   const timelineEventsByLedgerEntryId =
     indexTimelineEventsByLedgerEntryId(timelineEvents);
-  const documentsWithUrls = await addSignedDocumentUrls(documents, supabase);
+  const documentsWithUrls = addDocumentDownloadUrls(documents);
   const documentsByLedgerEntryId =
     groupDocumentsByLedgerEntryId(documentsWithUrls);
   const recentActivityRows = recentActivityResult.data ?? [];
@@ -461,22 +462,12 @@ function indexTimelineEventsByLedgerEntryId(rows: TimelineEventRow[]) {
   return index;
 }
 
-async function addSignedDocumentUrls(
-  rows: DocumentRow[],
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-): Promise<LedgerDocumentWithLink[]> {
+function addDocumentDownloadUrls(rows: DocumentRow[]): LedgerDocumentWithLink[] {
   if (rows.length === 0) {
     return [];
   }
 
-  const { data } = await supabase.storage
-    .from("nestory-documents")
-    .createSignedUrls(
-      rows.map((row) => row.storage_path),
-      60 * 60,
-    );
-
-  return rows.map((row, index) => ({
+  return rows.map((row) => ({
     category: row.category,
     fileName: row.file_name,
     id: row.id,
@@ -484,7 +475,7 @@ async function addSignedDocumentUrls(
     mimeType: row.mime_type,
     sizeBytes: row.size_bytes,
     uploadedAt: row.uploaded_at,
-    url: data?.[index]?.signedUrl ?? undefined,
+    url: documentDownloadUrl(row.id),
   }));
 }
 

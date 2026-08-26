@@ -21,6 +21,7 @@ import {
   setPropertyRentalStructureAction,
   updatePropertyAction,
 } from "@/features/properties/actions";
+import { invalidJpegFile } from "@/test-utils/upload-content";
 
 const organizationId = "00000000-0000-4000-8000-000000000001";
 const branchId = "90000000-0000-4000-8000-000000000001";
@@ -34,6 +35,7 @@ describe("property ownership authority inputs", () => {
     requirePermission.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
+    createAssetPhotoAction.mockResolvedValue({ status: "success" });
     requirePermission.mockResolvedValue({
       isSuperAdmin: true,
       organizationId,
@@ -66,6 +68,18 @@ describe("property ownership authority inputs", () => {
       p_registered_date: "2026-08-17",
     });
     expect(requirePermission).toHaveBeenCalledWith("properties.write");
+  });
+
+  it("rejects a spoofed inline photo before creating the Property", async () => {
+    const formData = propertyCreateForm();
+    formData.set("photo", invalidJpegFile("property.jpg"));
+
+    await expect(createPropertyAction({}, formData)).resolves.toEqual({
+      fieldErrors: { photo: ["Upload a JPG, PNG, or WebP photo."] },
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+    expect(createAssetPhotoAction).not.toHaveBeenCalled();
   });
 
   it("uses the checked branch-aware overload for an ordinary writer", async () => {

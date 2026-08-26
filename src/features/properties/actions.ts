@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createAssetPhotoAction } from "@/features/photos/actions";
 import { requirePermission } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { validateUploadedFileContent } from "@/lib/uploads/upload-content";
 import { postgresUuid } from "@/lib/validation/postgres-uuid";
 
 type PropertyFieldErrors = {
@@ -215,7 +216,7 @@ function nullableString(value: string) {
   return value.length > 0 ? value : null;
 }
 
-function validateInlinePhotoFile(formData: FormData) {
+async function validateInlinePhotoFile(formData: FormData) {
   const file = formData.get("photo");
 
   if (!(file instanceof File) || file.size === 0) {
@@ -227,6 +228,15 @@ function validateInlinePhotoFile(formData: FormData) {
   }
 
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    return "Upload a JPG, PNG, or WebP photo.";
+  }
+
+  const verifiedFile = await validateUploadedFileContent(file, [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ]);
+  if (!verifiedFile.ok) {
     return "Upload a JPG, PNG, or WebP photo.";
   }
 
@@ -263,7 +273,7 @@ export async function createPropertyAction(
     };
   }
 
-  const photoError = validateInlinePhotoFile(formData);
+  const photoError = await validateInlinePhotoFile(formData);
 
   if (photoError) {
     return {
@@ -349,7 +359,7 @@ export async function updatePropertyAction(
     return invalidFormState(parsed.error);
   }
 
-  const photoError = validateInlinePhotoFile(formData);
+  const photoError = await validateInlinePhotoFile(formData);
 
   if (photoError) {
     return {

@@ -47,12 +47,18 @@ export function getOrganizationSlugFromHost(host: string | null | undefined) {
 
 export function getAuthCookieOptions() {
   const rootDomain = normalizeHostname(process.env.APP_ROOT_DOMAIN);
+  const baseOptions = {
+    httpOnly: true,
+    path: "/",
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+  };
 
   if (!rootDomain || LOCAL_HOSTS.has(rootDomain) || !rootDomain.includes(".")) {
-    return undefined;
+    return baseOptions;
   }
 
-  return { domain: `.${rootDomain}` };
+  return { ...baseOptions, domain: `.${rootDomain}` };
 }
 
 export function getOrganizationWorkspaceUrl(slug: string | undefined, path: string) {

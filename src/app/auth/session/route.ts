@@ -1,11 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import {
-  createRecoveryMarker,
-  RECOVERY_MARKER_COOKIE,
-  RECOVERY_MARKER_MAX_AGE_SECONDS,
-} from "@/lib/auth/recovery-marker";
 import { createSupabaseAuthRouteClient } from "@/lib/db/auth-route";
+import { readBoundedRequestBody } from "@/lib/http/bounded-request-body";
 
 const tokenSchema = z
   .string()
@@ -17,24 +13,36 @@ const sessionSchema = z
   .object({
     access_token: tokenSchema,
     refresh_token: tokenSchema,
-    type: z.string().regex(/^[a-z_]{1,32}$/i).optional(),
+    type: z
+      .enum(["email", "email_change", "invite", "magiclink", "signup"])
+      .optional(),
   })
   .strict();
 
 const ERROR_MESSAGE = "This email link is invalid or has expired.";
+const MAX_SESSION_BODY_BYTES = 40 * 1024;
 
 export async function POST(request: NextRequest) {
   if (request.headers.get("origin") !== request.nextUrl.origin) {
     return errorResponse(403);
   }
 
-  if (!request.headers.get("content-type")?.startsWith("application/json")) {
-    return errorResponse(415);
-  }
+  const requestBody = await readBoundedRequestBody(
+    request,
+    MAX_SESSION_BODY_BYTES,
+  );
+  if (!requestBody.ok) return errorResponse(requestBody.status);
+
+  const contentType = request.headers
+    .get("content-type")
+    ?.split(";", 1)[0]
+    ?.trim()
+    .toLowerCase();
+  if (contentType !== "application/json") return errorResponse(415);
 
   let body: unknown;
   try {
-    body = await request.json();
+    body = JSON.parse(requestBody.text) as unknown;
   } catch {
     return errorResponse(400);
   }
@@ -55,20 +63,6 @@ export async function POST(request: NextRequest) {
 
   if (error || !data.user) {
     return errorResponse(401);
-  }
-
-  if (parsed.data.type === "recovery") {
-    response.cookies.set(
-      RECOVERY_MARKER_COOKIE,
-      createRecoveryMarker(data.user.id),
-      {
-        httpOnly: true,
-        maxAge: RECOVERY_MARKER_MAX_AGE_SECONDS,
-        path: "/",
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-      },
-    );
   }
 
   return response;
