@@ -515,6 +515,56 @@ describe("stageImportRunAction", () => {
     );
   });
 
+  it("does not disclose raw staging RPC errors to the client", async () => {
+    const rawError = {
+      code: "P0001",
+      details: "private database detail",
+      hint: "internal operator hint",
+      message: ["password", "do-not-return-this"].join("="),
+    };
+    mocks.createSupabaseServerClient.mockResolvedValue({
+      from: vi.fn(),
+      rpc: vi.fn().mockResolvedValue({ data: null, error: rawError }),
+    });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const result = await stageImportRunAction({}, importPayloadForm("draft"));
+
+    expect(result).toEqual({
+      message: "The import run could not be staged. Try again or contact support.",
+      status: "error",
+    });
+    expect(JSON.stringify(result)).not.toContain(rawError.message);
+    expect(JSON.stringify(result)).not.toContain(rawError.details);
+    expect(JSON.stringify(result)).not.toContain(rawError.hint);
+  });
+
+  it("records staging RPC failures in the server diagnostic channel", async () => {
+    const rawError = {
+      code: "P0001",
+      details: "private database detail",
+      hint: "internal operator hint",
+      message: "database staging failed",
+    };
+    const logError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    mocks.createSupabaseServerClient.mockResolvedValue({
+      from: vi.fn(),
+      rpc: vi.fn().mockResolvedValue({ data: null, error: rawError }),
+    });
+
+    await stageImportRunAction({}, importPayloadForm("draft"));
+
+    expect(logError).toHaveBeenCalledWith(
+      "[imports] stage_import_run_v1 failed",
+      { code: "P0001" },
+    );
+    expect(JSON.stringify(logError.mock.calls)).not.toContain(rawError.message);
+    expect(JSON.stringify(logError.mock.calls)).not.toContain(rawError.details);
+    expect(JSON.stringify(logError.mock.calls)).not.toContain(rawError.hint);
+  });
+
   it("recovers the same terminal run after references change without replaying commit", async () => {
     const terminal = importRunRecord("committed", {
       created: 1,

@@ -1,10 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   download: vi.fn(),
   from: vi.fn(),
   remove: vi.fn(),
   rpc: vi.fn(),
+  requirePrivilegedStepUp: vi.fn(),
   upload: vi.fn(),
 }));
 
@@ -14,8 +15,19 @@ vi.mock("@/lib/db/admin", () => ({
     storage: { from: mocks.from },
   }),
 }));
+vi.mock("@/lib/auth/privileged-step-up-guard", () => ({
+  requirePrivilegedStepUp: mocks.requirePrivilegedStepUp,
+}));
 
-import { preparePaidCostEvidence } from "@/features/finance-operations/paid-cost-evidence";
+import {
+  preparePaidCostEvidence,
+  preparePaidCostEvidenceForFixture,
+} from "@/features/finance-operations/paid-cost-evidence";
+import {
+  invalidPdfFile,
+  validPdfBytes,
+  validPdfFile,
+} from "@/test-utils/upload-content";
 
 const actorId = "00000000-0000-4000-8000-000000000007";
 const organizationId = "00000000-0000-4000-8000-000000000001";
@@ -24,10 +36,12 @@ const documentId = "00000000-0000-4000-8000-000000000008";
 const objectId = "00000000-0000-4000-8000-000000000009";
 const taskId = "00000000-0000-4000-8000-000000000010";
 const retainedHash =
-  "ce67cf246af90faa45cd4b6cde1627da5683d1dbfa53ed5f7ca8a2805543be0d";
+  "50dc246b4ff9509811a23d9fcf7d6c8465ed2b4eed08aa049d9feae8e8afd526";
+const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 describe("verified paid-cost evidence", () => {
   beforeEach(() => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
     vi.clearAllMocks();
     mocks.from.mockReturnValue({
       download: mocks.download,
@@ -37,7 +51,7 @@ describe("verified paid-cost evidence", () => {
     mocks.upload.mockResolvedValue({ data: {}, error: null });
     mocks.remove.mockResolvedValue({ data: [], error: null });
     mocks.download.mockResolvedValue({
-      data: new Blob(["paid-cost-receipt"], { type: "application/pdf" }),
+      data: new Blob([validPdfBytes()], { type: "application/pdf" }),
       error: null,
     });
     mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => ({
@@ -45,19 +59,65 @@ describe("verified paid-cost evidence", () => {
         name === "get_paid_cost_evidence_object"
           ? {
               content_type: "application/pdf",
-              metadata_size_bytes: 17,
+              metadata_size_bytes: validPdfBytes().byteLength,
               storage_object_id: objectId,
               storage_object_version: "paid-cost-object-v1",
             }
           : {
               content_sha256: retainedHash,
               document_id: documentId,
-              size_bytes: 17,
+              size_bytes: validPdfBytes().byteLength,
               status: "registered",
               storage_path: args.p_storage_path,
             },
       error: null,
     }));
+    mocks.requirePrivilegedStepUp.mockResolvedValue({
+      rpc: mocks.rpc,
+      storage: { from: mocks.from },
+    });
+  });
+
+  afterEach(() => {
+    if (originalSupabaseUrl === undefined) {
+      delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    } else {
+      process.env.NEXT_PUBLIC_SUPABASE_URL = originalSupabaseUrl;
+    }
+  });
+
+  it("fails before admin Storage when exact-session proof is unavailable", async () => {
+    mocks.requirePrivilegedStepUp.mockRejectedValue(
+      new Error("Privileged email verification required."),
+    );
+
+    await expect(preparePaidCostEvidence(input())).rejects.toThrow(
+      "Privileged email verification required",
+    );
+
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("uses an explicit fixture-only system entry point without fabricating a user session", async () => {
+    await expect(
+      preparePaidCostEvidenceForFixture(input()),
+    ).resolves.toMatchObject({ documentId });
+
+    expect(mocks.requirePrivilegedStepUp).not.toHaveBeenCalled();
+    expect(mocks.upload).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses the fixture-only authority outside a loopback Supabase runtime", async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://hosted-project.supabase.co";
+
+    await expect(preparePaidCostEvidenceForFixture(input())).rejects.toThrow(
+      "Paid-cost fixture authority requires local Supabase",
+    );
+
+    expect(mocks.requirePrivilegedStepUp).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 
   it("returns the exact retained document identity", async () => {
@@ -91,14 +151,14 @@ describe("verified paid-cost evidence", () => {
         name === "get_paid_cost_evidence_object"
           ? {
               content_type: "application/pdf",
-              metadata_size_bytes: 17,
+              metadata_size_bytes: validPdfBytes().byteLength,
               storage_object_id: objectId,
               storage_object_version: "paid-cost-object-v1",
             }
           : {
               content_sha256: "0".repeat(64),
               document_id: documentId,
-              size_bytes: 17,
+              size_bytes: validPdfBytes().byteLength,
               status: "registered",
               storage_path: args.p_storage_path,
             },
@@ -116,7 +176,7 @@ describe("verified paid-cost evidence", () => {
         return {
           data: {
             content_type: "application/pdf",
-            metadata_size_bytes: 17,
+            metadata_size_bytes: validPdfBytes().byteLength,
             storage_object_id: objectId,
             storage_object_version: "paid-cost-object-v1",
           },
@@ -156,7 +216,7 @@ describe("verified paid-cost evidence", () => {
         return {
           data: {
             content_type: "application/pdf",
-            metadata_size_bytes: 17,
+            metadata_size_bytes: validPdfBytes().byteLength,
             storage_object_id: objectId,
             storage_object_version: "paid-cost-object-v1",
           },
@@ -184,7 +244,7 @@ describe("verified paid-cost evidence", () => {
         return {
           data: {
             content_type: "application/pdf",
-            metadata_size_bytes: 17,
+            metadata_size_bytes: validPdfBytes().byteLength,
             storage_object_id: objectId,
             storage_object_version: "paid-cost-object-v1",
           },
@@ -211,14 +271,25 @@ describe("verified paid-cost evidence", () => {
       expect.anything(),
     );
   });
+
+  it("rejects spoofed evidence before creating an upload boundary", async () => {
+    await expect(
+      preparePaidCostEvidence({
+        ...input(),
+        file: invalidPdfFile("receipt-42.pdf"),
+      }),
+    ).rejects.toThrow("Receipt evidence content does not match its file type.");
+
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
 });
 
 function input() {
   return {
     actorId,
-    file: new File(["paid-cost-receipt"], "receipt-42.pdf", {
-      type: "application/pdf",
-    }),
+    file: validPdfFile("receipt-42.pdf"),
     idempotencyKey: "paid-cost-submit-0001",
     organizationId,
     propertyId,

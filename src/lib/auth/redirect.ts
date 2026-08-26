@@ -13,10 +13,13 @@ export function authRedirectResponse(
 
   if (response) {
     response.headers.set("location", url.toString());
+    response.headers.set("cache-control", "no-store");
     return response;
   }
 
-  return NextResponse.redirect(url);
+  const redirectResponse = NextResponse.redirect(url);
+  redirectResponse.headers.set("cache-control", "no-store");
+  return redirectResponse;
 }
 
 export function safeAuthNextPath(value: string | null) {

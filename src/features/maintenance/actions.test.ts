@@ -118,6 +118,7 @@ describe("maintenance action capabilities", () => {
       idempotencyKey: "maintenance-cost-submit-1",
       organizationId: "00000000-0000-4000-8000-000000000001",
       propertyId: "00000000-0000-4000-8000-000000000002",
+      requestClient: expect.objectContaining({ rpc }),
       taskId: "00000000-0000-4000-8000-000000000003",
     });
     expect(requirePermission).toHaveBeenCalledWith("maintenance.review");
@@ -132,6 +133,38 @@ describe("maintenance action capabilities", () => {
     });
     expect(revalidatePath).toHaveBeenCalledWith("/finance");
     expect(revalidatePath).toHaveBeenCalledWith("/bills-expenses");
+  });
+
+  it("does not serialize evidence-provider errors to maintenance clients", async () => {
+    requirePermission.mockResolvedValue(authority(["maintenance.review"], {
+      userId: "00000000-0000-4000-8000-000000000009",
+    }));
+    maybeSingle.mockResolvedValue({
+      data: {
+        property_id: "00000000-0000-4000-8000-000000000002",
+        unit_id: null,
+      },
+      error: null,
+    });
+    const sentinel = "service_role_secret storage_backend_detail";
+    preparePaidCostEvidence.mockRejectedValueOnce(new Error(sentinel));
+    const formData = new FormData();
+    formData.set("expenseDate", "2026-08-08");
+    formData.set(
+      "evidenceFile",
+      new File(["receipt"], "receipt.pdf", { type: "application/pdf" }),
+    );
+    formData.set("idempotencyKey", "maintenance-cost-secret-test");
+    formData.set("reference", "Receipt 43");
+    formData.set("taskId", "00000000-0000-4000-8000-000000000003");
+
+    const result = await submitMaintenanceCostAction({}, formData);
+
+    expect(result).toEqual({
+      message: "Receipt evidence could not be retained. Try again.",
+      status: "error",
+    });
+    expect(result.message).not.toContain(sentinel);
   });
 
   it("requires retained receipt evidence before authorization", async () => {

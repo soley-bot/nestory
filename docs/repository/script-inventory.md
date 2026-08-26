@@ -4,16 +4,17 @@ Generated from package commands, GitHub workflows, script imports, source refere
 
 ## Summary
 
-- default-gate: 39
+- default-gate: 40
 - documented-operator: 2
-- reusable-support: 22
-- specialist-command: 56
+- reusable-support: 23
+- specialist-command: 58
 - unreferenced: 1
 
 ## Inventory
 
 | Script | Classification | Reference evidence |
 | --- | --- | --- |
+| `scripts/audit-dependencies.mjs` | specialist-command | `package:security:audit`, `scripts/security-guardrails.node-test.mjs` |
 | `scripts/ci-deployment-gate.node-test.mjs` | default-gate | `docs/superpowers/plans/2026-08-21-supabase-migration-history-reconciliation.md`, `package:test:contracts` |
 | `scripts/cleanup-paid-cost-storage-orphans-core.mjs` | reusable-support | `scripts/cleanup-paid-cost-storage-orphans.mjs`, `scripts/cleanup-paid-cost-storage-orphans.node-test.mjs` |
 | `scripts/cleanup-paid-cost-storage-orphans.mjs` | unreferenced | None found |
@@ -78,6 +79,8 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/run-vitest-tier.mjs` | default-gate | `docs/superpowers/plans/2026-08-14-repository-health-and-test-architecture.md`, `package:test:ui`, `package:test:unit` |
 | `scripts/script-inventory-core.mjs` | reusable-support | `docs/superpowers/plans/2026-08-14-repository-health-and-test-architecture.md`, `docs/superpowers/plans/2026-08-24-legacy-test-compatibility-cleanup.md`, `scripts/generate-script-inventory.mjs`, `scripts/script-inventory-core.node-test.mjs` |
 | `scripts/script-inventory-core.node-test.mjs` | default-gate | `docs/superpowers/plans/2026-08-14-repository-health-and-test-architecture.md`, `docs/superpowers/plans/2026-08-24-legacy-test-compatibility-cleanup.md`, `package:test:contracts` |
+| `scripts/secret-scan-core.mjs` | reusable-support | `scripts/verify-repository-secrets.mjs` |
+| `scripts/security-guardrails.node-test.mjs` | default-gate | `package:test:contracts` |
 | `scripts/sentry-autofix.mjs` | specialist-command | `docs/superpowers/plans/2026-08-20-sentry-observability-and-autofix.md`, `package:sentry:autofix`, `scripts/sentry-autofix.node-test.mjs` |
 | `scripts/sentry-autofix.node-test.mjs` | default-gate | `docs/repository/legacy-test-compatibility-inventory.md`, `docs/superpowers/plans/2026-08-20-sentry-observability-and-autofix.md`, `package:test:contracts` |
 | `scripts/smoke-authenticated-route-discoverability-core.mjs` | reusable-support | `scripts/smoke-authenticated-route-discoverability.mjs`, `scripts/smoke-authenticated-route-discoverability.node-test.mjs`, `scripts/verify-authenticated-route-discoverability.mjs` |
@@ -125,6 +128,7 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/verify-migration-discipline.mjs` | specialist-command | `docs/superpowers/plans/2026-08-14-repository-health-and-test-architecture.md`, `docs/superpowers/plans/2026-08-21-supabase-migration-history-reconciliation.md`, `package:db:verify-migrations` |
 | `scripts/verify-release-parity.mjs` | specialist-command | `docs/superpowers/plans/2026-08-09-ips-operational-readiness-program.md`, `package:release:verify-local`, `scripts/verify-release-parity.node-test.mjs` |
 | `scripts/verify-release-parity.node-test.mjs` | default-gate | `package:release:test-parity`, `package:test:contracts` |
+| `scripts/verify-repository-secrets.mjs` | specialist-command | `package:security:secrets`, `scripts/security-guardrails.node-test.mjs` |
 | `scripts/verify-ui-copy-scanner.mjs` | reusable-support | `scripts/verify-ui-copy-scanner.test.mjs`, `scripts/verify-ui-copy.mjs` |
 | `scripts/verify-ui-copy-scanner.test.mjs` | default-gate | None found |
 | `scripts/verify-ui-copy.mjs` | specialist-command | `docs/codex-ui-ux-remediation-prompt.md`, `docs/ui-ux-audit-2026-08-12.md`, `package:test:ui-copy` |

@@ -108,6 +108,18 @@ type UpdateUnitRpc =
     };
 
 type RpcFunctionOverrides = {
+  submit_public_interest_request_limited: {
+    Args: {
+      p_company_name: string;
+      p_full_name: string;
+      p_message: string | null;
+      p_portfolio_size: string | null;
+      p_request_type: string;
+      p_subject_digest: string;
+      p_work_email: string;
+    };
+    Returns: string;
+  };
   close_owner_month: WithArgs<
     "close_owner_month",
     {

@@ -11,6 +11,7 @@ import { removeUnregisteredDocumentObject } from "@/features/documents/storage-c
 import { Constants } from "@/types/database";
 import { requirePermission, requireWorkspaceContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { validateUploadedFileContent } from "@/lib/uploads/upload-content";
 
 type TimelineFieldErrors = {
   costAmount?: string[];
@@ -350,6 +351,19 @@ export async function attachTimelineDocumentAction(
     };
   }
 
+  const verifiedFile = await validateUploadedFileContent(file, [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ]);
+  if (!verifiedFile.ok) {
+    return {
+      fieldErrors: { document: ["Upload a PDF, JPG, PNG, or WebP document."] },
+      status: "error",
+    };
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data: event, error: eventError } = await supabase
     .from("timeline_events")
@@ -401,13 +415,13 @@ export async function attachTimelineDocumentAction(
   }
 
   const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
-  const contentSha256 = await sha256Hex(await file.arrayBuffer());
+  const contentSha256 = await sha256Hex(verifiedFile.bytes);
   const storagePath = `${context.organizationId}/branches/${property.branch_id}/timeline/${parsedEventId.data}/${crypto.randomUUID()}-${safeFileName}`;
   const { error: uploadError } = await supabase.storage
     .from("nestory-documents")
-    .upload(storagePath, file, {
+    .upload(storagePath, verifiedFile.bytes, {
       cacheControl: "3600",
-      contentType: file.type,
+      contentType: verifiedFile.contentType,
       upsert: false,
     });
 
@@ -432,10 +446,10 @@ export async function attachTimelineDocumentAction(
       p_content_sha256: contentSha256,
       p_file_name: file.name,
       p_ledger_entry_id: event.ledger_entry_id,
-      p_mime_type: file.type,
+      p_mime_type: verifiedFile.contentType,
       p_organization_id: context.organizationId,
       p_property_id: event.property_id,
-      p_size_bytes: file.size,
+      p_size_bytes: verifiedFile.bytes.byteLength,
       p_storage_path: storagePath,
       p_timeline_event_id: parsedEventId.data,
       p_unit_id: event.unit_id,

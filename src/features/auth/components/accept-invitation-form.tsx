@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AuthActionState } from "@/features/auth/actions";
 import { acceptInvitationAction } from "@/features/auth/invitation-acceptance";
+import {
+  NEW_PASSWORD_MIN_LENGTH,
+  NEW_PASSWORD_REQUIREMENT,
+} from "@/lib/auth/password-policy";
 
 const initialState: AuthActionState = {};
 
@@ -21,6 +25,7 @@ export function AcceptInvitationForm({
   );
   const passwordErrorId = useId();
   const confirmErrorId = useId();
+  const passwordRequirementId = useId();
 
   return (
     <form action={action} className="space-y-5">
@@ -36,13 +41,21 @@ export function AcceptInvitationForm({
 
       {passwordRequired ? (
         <>
+          <p
+            className="text-sm leading-5 text-muted-foreground"
+            id={passwordRequirementId}
+          >
+            {NEW_PASSWORD_REQUIREMENT}
+          </p>
           <PasswordField
+            descriptionId={passwordRequirementId}
             error={state.fieldErrors?.password?.[0]}
             errorId={passwordErrorId}
             label="Create password"
             name="password"
           />
           <PasswordField
+            descriptionId={passwordRequirementId}
             error={state.fieldErrors?.passwordConfirm?.[0]}
             errorId={confirmErrorId}
             label="Confirm password"
@@ -59,11 +72,13 @@ export function AcceptInvitationForm({
 }
 
 function PasswordField({
+  descriptionId,
   error,
   errorId,
   label,
   name,
 }: {
+  descriptionId: string;
   error?: string;
   errorId: string;
   label: string;
@@ -73,11 +88,11 @@ function PasswordField({
     <label className="block text-sm font-semibold text-foreground">
       {label}
       <Input
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={error ? `${descriptionId} ${errorId}` : descriptionId}
         aria-invalid={Boolean(error)}
         autoComplete="new-password"
         className="mt-2 box-border h-11 px-3 text-sm"
-        minLength={8}
+        minLength={NEW_PASSWORD_MIN_LENGTH}
         name={name}
         required
         type="password"

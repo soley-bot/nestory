@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { requirePrivilegedStepUp } from "@/lib/auth/privileged-step-up-guard";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
 import type { Database, Json } from "@/types/database";
 import {
@@ -70,6 +71,7 @@ type CommercialDocumentBucket = {
 };
 
 export async function publishTenantInvoiceArtifact(input: {
+  actorId: string;
   client: SupabaseClient<Database>;
   invoiceId: string;
   organizationId: string;
@@ -92,6 +94,7 @@ export async function publishTenantInvoiceArtifact(input: {
   );
   return publishArtifact({
     bytes: buildTenantInvoicePdf(model),
+    actorId: input.actorId,
     client: input.client,
     documentNumber: model.invoiceNumber,
     model,
@@ -102,6 +105,7 @@ export async function publishTenantInvoiceArtifact(input: {
 }
 
 export async function publishTenantReceiptArtifact(input: {
+  actorId: string;
   client: SupabaseClient<Database>;
   organizationId: string;
   paymentId: string;
@@ -122,6 +126,7 @@ export async function publishTenantReceiptArtifact(input: {
   );
   return publishArtifact({
     bytes: buildTenantReceiptPdf(model),
+    actorId: input.actorId,
     client: input.client,
     documentNumber: model.receiptNumber,
     model,
@@ -225,6 +230,7 @@ export async function downloadTenantCommercialDocumentArtifact(
 }
 
 async function publishArtifact({
+  actorId,
   bytes,
   client,
   documentNumber,
@@ -233,6 +239,7 @@ async function publishArtifact({
   sourceId,
   sourceKind,
 }: {
+  actorId: string;
   bytes: Uint8Array;
   client: SupabaseClient<Database>;
   documentNumber: string;
@@ -247,13 +254,10 @@ async function publishArtifact({
     `${organizationId}/${sourceKind}/${sourceId}/${safeNumber}.pdf`;
   const sha256 = sha256Hex(bytes);
   const snapshot = presentationSnapshot(model);
-  const actor = await client.auth.getUser();
-  const actorId = actor.data.user?.id;
-  if (actor.error || !actorId) {
-    throw new Error("Commercial document publisher is unavailable.");
-  }
-
-  const admin = adminClient();
+  const admin = (await requirePrivilegedStepUp(
+    { organizationId, userId: actorId },
+    client,
+  )) as unknown as CommercialDocumentAdminClient;
   const bucket = admin.storage.from(BUCKET);
   let upload: BoundaryResult;
   try {

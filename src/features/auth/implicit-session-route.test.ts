@@ -77,7 +77,7 @@ describe("implicit auth session route", () => {
     expect(createSupabaseAuthRouteClient).not.toHaveBeenCalled();
   });
 
-  it("marks a verified recovery session for the password-update boundary", async () => {
+  it("does not mint recovery proof from a client-declared session type", async () => {
     const response = await POST(
       request({
         access_token: "access.jwt",
@@ -86,20 +86,49 @@ describe("implicit auth session route", () => {
       }),
     );
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get("set-cookie")).toContain(
-      "nestory_recovery=signed-recovery-marker",
+    expect(response.status).toBe(400);
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(createSupabaseAuthRouteClient).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversized declared JSON before contacting Supabase", async () => {
+    const response = await POST(
+      request(
+        { access_token: "access.jwt", refresh_token: "refresh-token" },
+        "http://localhost:3000",
+        { "content-length": "50000" },
+      ),
     );
-    expect(response.headers.get("set-cookie")).toContain("HttpOnly");
+
+    expect(response.status).toBe(413);
+    expect(createSupabaseAuthRouteClient).not.toHaveBeenCalled();
+  });
+
+  it("bounds oversized JSON streams when Content-Length is missing", async () => {
+    const oversizedRequest = request({
+      access_token: "a".repeat(50_000),
+      refresh_token: "refresh-token",
+    });
+    expect(oversizedRequest.headers.get("content-length")).toBeNull();
+
+    const response = await POST(oversizedRequest);
+
+    expect(response.status).toBe(413);
+    expect(createSupabaseAuthRouteClient).not.toHaveBeenCalled();
   });
 });
 
-function request(body: unknown, origin = "http://localhost:3000") {
+function request(
+  body: unknown,
+  origin = "http://localhost:3000",
+  headers: Record<string, string> = {},
+) {
   return new NextRequest("http://localhost:3000/auth/session", {
     body: JSON.stringify(body),
     headers: {
       "content-type": "application/json",
       origin,
+      ...headers,
     },
     method: "POST",
   });

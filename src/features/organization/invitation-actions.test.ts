@@ -4,18 +4,23 @@ const {
   adminInvite,
   adminOtp,
   revalidatePath,
+  requirePrivilegedStepUp,
   requireSuperAdminContext,
   rpc,
 } = vi.hoisted(() => ({
   adminInvite: vi.fn(),
   adminOtp: vi.fn(),
   revalidatePath: vi.fn(),
+  requirePrivilegedStepUp: vi.fn(),
   requireSuperAdminContext: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({ requireSuperAdminContext }));
+vi.mock("@/lib/auth/privileged-step-up-guard", () => ({
+  requirePrivilegedStepUp,
+}));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: () => ({ rpc }),
 }));
@@ -51,6 +56,52 @@ describe("organization invitation actions", () => {
       organizationId: "22222222-2222-4222-8222-222222222222",
       userId: "33333333-3333-4333-8333-333333333333",
     });
+    requirePrivilegedStepUp.mockResolvedValue({
+      auth: {
+        admin: { inviteUserByEmail: adminInvite },
+        signInWithOtp: adminOtp,
+      },
+    });
+  });
+
+  it("reasserts the exact session before a new invitation email side effect", async () => {
+    rpc.mockResolvedValueOnce({ data: invitationId, error: null });
+    requirePrivilegedStepUp.mockRejectedValue(
+      new Error("Privileged email verification required."),
+    );
+
+    await expect(
+      inviteOrganizationUserAction({}, inviteForm()),
+    ).rejects.toThrow("Privileged email verification required");
+
+    expect(requirePrivilegedStepUp).toHaveBeenCalledWith(
+      {
+        organizationId: "22222222-2222-4222-8222-222222222222",
+        userId: "33333333-3333-4333-8333-333333333333",
+      },
+      expect.objectContaining({ rpc }),
+    );
+    expect(adminInvite).not.toHaveBeenCalled();
+    expect(adminOtp).not.toHaveBeenCalled();
+  });
+
+  it("reasserts the exact session after refresh and before a resend email side effect", async () => {
+    rpc.mockResolvedValueOnce({
+      data: [{ email: "invitee@example.com", invitation_id: invitationId }],
+      error: null,
+    });
+    requirePrivilegedStepUp.mockRejectedValue(
+      new Error("Privileged email verification required."),
+    );
+    const formData = new FormData();
+    formData.set("invitationId", invitationId);
+
+    await expect(
+      resendOrganizationInvitationAction({}, formData),
+    ).rejects.toThrow("Privileged email verification required");
+
+    expect(adminInvite).not.toHaveBeenCalled();
+    expect(adminOtp).not.toHaveBeenCalled();
   });
 
   it("keeps a new Auth user pending until acceptance", async () => {

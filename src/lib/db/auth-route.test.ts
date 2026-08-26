@@ -66,8 +66,20 @@ describe("createSupabaseAuthRouteClient", () => {
     const client = createSupabaseAuthRouteClient(
       request,
       response,
-    ) as unknown as { cookieOptions?: { domain?: string } };
+    ) as unknown as {
+      cookieOptions?: {
+        domain?: string;
+        httpOnly?: boolean;
+        path?: string;
+        sameSite?: string;
+      };
+    };
 
-    expect(client.cookieOptions).toEqual({ domain: ".nestory-kh.com" });
+    expect(client.cookieOptions).toMatchObject({
+      domain: ".nestory-kh.com",
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+    });
   });
 });

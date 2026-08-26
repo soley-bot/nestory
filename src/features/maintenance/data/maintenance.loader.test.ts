@@ -115,7 +115,7 @@ describe("getMaintenanceScreenData reference loading", () => {
       expect.objectContaining({
         fileName: "receipt.pdf",
         id: "document-visible",
-        url: "https://documents.test/receipt.pdf",
+        url: "/api/documents/document-visible",
       }),
     ]);
   });

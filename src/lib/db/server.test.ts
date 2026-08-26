@@ -37,6 +37,11 @@ describe("createSupabaseServerClient", () => {
       cookieOptions?: { domain?: string };
     };
 
-    expect(client.cookieOptions).toEqual({ domain: ".nestory-kh.com" });
+    expect(client.cookieOptions).toMatchObject({
+      domain: ".nestory-kh.com",
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+    });
   });
 });

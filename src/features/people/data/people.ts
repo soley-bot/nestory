@@ -10,6 +10,7 @@ import type { LinkedDocument } from "@/features/documents/document.types";
 import { formatDate } from "@/lib/dates/format";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { buildHref } from "@/lib/url/href";
+import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import {
   DEFAULT_PEOPLE_SORT,
   parsePeopleSearchParams,
@@ -344,10 +345,9 @@ async function getPagedPeopleScreenData({
 
   return {
     pagination,
-    people: await addSignedDocumentUrlsToPeople(
+    people: addDocumentDownloadUrlsToPeople(
       pagePeople,
       documentsById,
-      supabase,
     ),
   };
 }
@@ -429,10 +429,9 @@ async function getQueryFilteredPeopleScreenData({
 
   return {
     pagination,
-    people: await addSignedDocumentUrlsToPeople(
+    people: addDocumentDownloadUrlsToPeople(
       pagePeople,
       documentsById,
-      supabase,
     ),
   };
 }
@@ -500,10 +499,9 @@ async function getCompletePeopleScreenData({
 
   return {
     pagination,
-    people: await addSignedDocumentUrlsToPeople(
+    people: addDocumentDownloadUrlsToPeople(
       pagePeople,
       documentsById,
-      supabase,
     ),
   };
 }
@@ -1796,28 +1794,16 @@ async function getPersonActivityRows(
   return asRows(result.data, toActivityLogRow);
 }
 
-async function addSignedDocumentUrls(
-  documents: DocumentRow[],
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-): Promise<DocumentRow[]> {
-  return Promise.all(
-    documents.map(async (document) => {
-      const { data } = await supabase.storage
-        .from("nestory-documents")
-        .createSignedUrl(document.storagePath, 60 * 5);
-
-      return {
-        ...document,
-        url: data?.signedUrl,
-      };
-    }),
-  );
+function addDocumentDownloadUrls(documents: DocumentRow[]): DocumentRow[] {
+  return documents.map((document) => ({
+    ...document,
+    url: documentDownloadUrl(document.id),
+  }));
 }
 
-async function addSignedDocumentUrlsToPeople(
+function addDocumentDownloadUrlsToPeople(
   people: PeopleSummary[],
   documentsById: Map<string, DocumentRow>,
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
 ) {
   const visibleDocuments = mergeDocuments(
     people.flatMap((person) =>
@@ -1833,16 +1819,13 @@ async function addSignedDocumentUrlsToPeople(
     return people;
   }
 
-  const signedDocuments = await addSignedDocumentUrls(
-    visibleDocuments,
-    supabase,
-  );
-  const signedDocumentsById = indexById(signedDocuments);
+  const documentsWithDownloads = addDocumentDownloadUrls(visibleDocuments);
+  const documentsWithDownloadsById = indexById(documentsWithDownloads);
 
   return people.map((person) => ({
     ...person,
     documents: person.documents.map(
-      (document) => signedDocumentsById.get(document.id) ?? document,
+      (document) => documentsWithDownloadsById.get(document.id) ?? document,
     ),
   }));
 }

@@ -36,13 +36,18 @@ import {
   restoreDocumentAction,
   updateDocumentAction,
 } from "@/features/documents/actions";
+import {
+  invalidPdfFile,
+  validPdfBytes,
+  validPdfFile,
+} from "@/test-utils/upload-content";
 
 const organizationId = "00000000-0000-4000-8000-000000000001";
 const propertyId = "10000000-0000-4000-8000-000000000001";
 const branchId = "10000000-0000-4000-8000-000000000002";
 const documentId = "20000000-0000-4000-8000-000000000001";
 const generatedId = "30000000-0000-4000-8000-000000000001";
-const fileHash = "a76024b36f70838462fca9268bac5c13bf23ee0c6e0c6fa1b9dceb1d5a7f4aa6";
+const fileHash = "50dc246b4ff9509811a23d9fcf7d6c8465ed2b4eed08aa049d9feae8e8afd526";
 
 function createQuery(table: string) {
   const filters = new Map<string, unknown>();
@@ -79,8 +84,8 @@ function documentForm(file?: File) {
   return formData;
 }
 
-function evidenceFile(contents = "Nestory opening evidence\n") {
-  return new File([contents], "opening.pdf", { type: "application/pdf" });
+function evidenceFile() {
+  return validPdfFile("opening.pdf");
 }
 
 describe("document fingerprint actions", () => {
@@ -108,7 +113,7 @@ describe("document fingerprint actions", () => {
     mocks.upload.mockResolvedValue({ error: null });
     mocks.remove.mockResolvedValue({ error: null });
     mocks.download.mockResolvedValue({
-      data: new Blob(["Nestory opening evidence\n"], {
+      data: new Blob([validPdfBytes()], {
         type: "application/pdf",
       }),
       error: null,
@@ -129,7 +134,7 @@ describe("document fingerprint actions", () => {
     expect(mocks.upload).toHaveBeenCalledOnce();
     expect(mocks.upload).toHaveBeenCalledWith(
       `${organizationId}/branches/${branchId}/documents/${generatedId}-opening.pdf`,
-      expect.any(File),
+      expect.any(Uint8Array),
       expect.any(Object),
     );
     expect(mocks.requirePermission).toHaveBeenCalledWith("properties.write");
@@ -143,6 +148,22 @@ describe("document fingerprint actions", () => {
         p_property_id: propertyId,
       }),
     );
+  });
+
+  it("rejects spoofed document bytes before opening Storage", async () => {
+    const result = await createDocumentAction(
+      {},
+      documentForm(invalidPdfFile("opening.pdf")),
+    );
+
+    expect(result).toEqual({
+      fieldErrors: {
+        document: ["Upload a PDF, JPG, PNG, or WebP document."],
+      },
+      status: "error",
+    });
+    expect(mocks.storageFrom).not.toHaveBeenCalled();
+    expect(mocks.upload).not.toHaveBeenCalled();
   });
 
   it("replaces bytes through one atomic metadata create-and-archive RPC", async () => {

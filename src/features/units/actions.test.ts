@@ -40,6 +40,7 @@ import {
   restoreUnitAction,
   updateUnitAction,
 } from "@/features/units/actions";
+import { invalidPdfFile } from "@/test-utils/upload-content";
 
 const organizationId = "00000000-0000-4000-8000-000000000001";
 const propertyId = "00000000-0000-4000-8000-000000000002";
@@ -58,6 +59,7 @@ describe("unit rent authority", () => {
     rpc.mockReset();
     select.mockClear();
 
+    createDocumentAction.mockResolvedValue({ status: "success" });
     requirePermission.mockResolvedValue({ organizationId });
     maybeSingle.mockResolvedValue({ data: { property_id: propertyId }, error: null });
     rpc.mockResolvedValue({ data: unitId, error: null });
@@ -130,6 +132,20 @@ describe("unit rent authority", () => {
       p_unit_number: "1A",
     });
     expect(requirePermission).toHaveBeenCalledWith("properties.write");
+  });
+
+  it("rejects a spoofed inline document before creating the Unit", async () => {
+    const formData = unitForm();
+    formData.set("document", invalidPdfFile("unit.pdf"));
+
+    await expect(createUnitAction({}, formData)).resolves.toEqual({
+      fieldErrors: {
+        document: ["Upload a PDF, JPG, PNG, or WebP file."],
+      },
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+    expect(createDocumentAction).not.toHaveBeenCalled();
   });
 
   it("does not accept a rent override while editing a unit", async () => {

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { validateUploadedFileContent } from "@/lib/uploads/upload-content";
 
 type PhotoFieldErrors = {
   caption?: string[];
@@ -109,6 +110,19 @@ export async function createAssetPhotoAction(
     };
   }
 
+  const verifiedFile = await validateUploadedFileContent(file, [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ]);
+  if (!verifiedFile.ok) {
+    return {
+      fieldErrors: { photo: ["Upload a JPG, PNG, or WebP photo."] },
+      message: "Upload a JPG, PNG, or WebP photo.",
+      status: "error",
+    };
+  }
+
   const supabase = await createSupabaseServerClient();
   const unitId = parsed.data.unitId || null;
   const property = await getPropertyBranchContext(
@@ -137,9 +151,9 @@ export async function createAssetPhotoAction(
   });
   const { error: uploadError } = await supabase.storage
     .from("nestory-photos")
-    .upload(storagePath, file, {
+    .upload(storagePath, verifiedFile.bytes, {
       cacheControl: "3600",
-      contentType: file.type,
+      contentType: verifiedFile.contentType,
       upsert: false,
     });
 
@@ -154,10 +168,10 @@ export async function createAssetPhotoAction(
     p_caption: parsed.data.caption || null,
     p_file_name: file.name,
     p_is_cover: readString(formData, "isCover") === "true",
-    p_mime_type: file.type,
+    p_mime_type: verifiedFile.contentType,
     p_organization_id: context.organizationId,
     p_property_id: parsed.data.propertyId,
-    p_size_bytes: file.size,
+    p_size_bytes: verifiedFile.bytes.byteLength,
     p_storage_path: storagePath,
     p_taken_at: parsed.data.takenAt || null,
     p_unit_id: unitId,
