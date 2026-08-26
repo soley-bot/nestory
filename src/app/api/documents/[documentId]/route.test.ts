@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET } from "@/app/api/documents/[documentId]/route";
@@ -116,6 +117,83 @@ describe("GET /api/documents/[documentId]", () => {
     expect(await response.text()).toBe("Document unavailable.");
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(arrayBuffer).not.toHaveBeenCalled();
+  });
+
+  it("offers hash-matched legacy bytes as an explicitly unverified attachment", async () => {
+    const bytes = validPdfBytes();
+    maybeSingle.mockResolvedValue({
+      data: {
+        content_sha256: createHash("sha256").update(bytes).digest("hex"),
+        file_name: "legacy-document.bin",
+        mime_type: "application/pdf",
+        size_bytes: bytes.byteLength,
+        storage_path: "org/documents/legacy-document.bin",
+      },
+      error: null,
+    });
+    download.mockResolvedValue({
+      data: new Blob([bytes], { type: "application/pdf" }),
+      error: null,
+    });
+
+    const response = await GET(new Request("http://localhost/api/documents/x"), context);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/octet-stream");
+    expect(response.headers.get("content-disposition")).toBe(
+      'attachment; filename="legacy-document.bin.unverified-download"',
+    );
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
+  });
+
+  it("quarantines pre-fingerprint legacy bytes instead of making them inaccessible", async () => {
+    const bytes = validPdfBytes();
+    maybeSingle.mockResolvedValue({
+      data: {
+        content_sha256: null,
+        file_name: "pre-fingerprint.bin",
+        mime_type: "application/pdf",
+        size_bytes: bytes.byteLength,
+        storage_path: "org/documents/pre-fingerprint.bin",
+      },
+      error: null,
+    });
+    download.mockResolvedValue({
+      data: new Blob([bytes], { type: "application/pdf" }),
+      error: null,
+    });
+
+    const response = await GET(new Request("http://localhost/api/documents/x"), context);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/octet-stream");
+    expect(response.headers.get("content-disposition")).toBe(
+      'attachment; filename="pre-fingerprint.bin.unverified-download"',
+    );
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
+  });
+
+  it("refuses legacy bytes whose registered fingerprint does not match", async () => {
+    const bytes = validPdfBytes();
+    maybeSingle.mockResolvedValue({
+      data: {
+        content_sha256: "0".repeat(64),
+        file_name: "legacy-document.bin",
+        mime_type: "application/pdf",
+        size_bytes: bytes.byteLength,
+        storage_path: "org/documents/legacy-document.bin",
+      },
+      error: null,
+    });
+    download.mockResolvedValue({
+      data: new Blob([bytes], { type: "application/pdf" }),
+      error: null,
+    });
+
+    const response = await GET(new Request("http://localhost/api/documents/x"), context);
+
+    expect(response.status).toBe(409);
+    expect(await response.text()).toBe("Document unavailable.");
   });
 
   it("normalizes database and storage failures without provider details", async () => {

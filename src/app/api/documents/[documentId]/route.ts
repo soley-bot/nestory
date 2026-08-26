@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   getCurrentUser,
   getWorkspaceMembershipForUser,
@@ -48,7 +49,7 @@ export async function GET(
   try {
     const result = await client
       .from("documents")
-      .select("file_name, mime_type, size_bytes, storage_path")
+      .select("content_sha256, file_name, mime_type, size_bytes, storage_path")
       .eq("id", documentId)
       .eq("organization_id", membership.organizationId)
       .maybeSingle();
@@ -83,7 +84,29 @@ export async function GET(
       new File([bytes], document.file_name, { type: document.mime_type }),
       [document.mime_type],
     );
-    if (!verified.ok) return textResponse(UNAVAILABLE, 409);
+    if (!verified.ok) {
+      const retainedHash = createHash("sha256").update(bytes).digest("hex");
+      if (
+        document.content_sha256 !== null
+        && retainedHash !== document.content_sha256
+      ) {
+        return textResponse(UNAVAILABLE, 409);
+      }
+
+      const legacyFilename = `${sanitizeAttachmentFilename(document.file_name).slice(0, 160)}.unverified-download`;
+      const body = bytes.buffer.slice(
+        bytes.byteOffset,
+        bytes.byteOffset + bytes.byteLength,
+      ) as ArrayBuffer;
+      return new Response(body, {
+        headers: {
+          ...PRIVATE_HEADERS,
+          "Content-Disposition": `attachment; filename="${legacyFilename}"`,
+          "Content-Length": String(bytes.byteLength),
+          "Content-Type": "application/octet-stream",
+        },
+      });
+    }
 
     const filename = sanitizeAttachmentFilename(document.file_name);
     const body = verified.bytes.buffer.slice(
