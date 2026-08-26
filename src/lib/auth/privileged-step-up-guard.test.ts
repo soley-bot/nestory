@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AuthSessionMissingError } from "@supabase/supabase-js";
 
 vi.mock("server-only", () => ({}));
 
@@ -67,6 +68,7 @@ describe("privileged step-up guard", () => {
         p_user_id: userId,
       },
     );
+    expect(mocks.rpc).toHaveBeenCalledOnce();
   });
 
   it.each([
@@ -106,6 +108,20 @@ describe("privileged step-up guard", () => {
     expect(mocks.createAdmin).not.toHaveBeenCalled();
   });
 
+  it("fails closed before service authority for a non-session getUser error", async () => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: null },
+      error: new Error("Auth service unavailable"),
+    });
+
+    await expect(
+      requirePrivilegedStepUp({ organizationId, userId }),
+    ).rejects.toThrow("Privileged email verification required");
+
+    expect(mocks.createAdmin).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("fails closed when the signed claims actor and expected server actor differ", async () => {
     mocks.getClaims.mockResolvedValue({
       data: {
@@ -135,7 +151,22 @@ describe("privileged step-up guard", () => {
     ).rejects.toThrow("Privileged email verification required");
   });
 
-  it("redirects a still-valid JWT after the database reports its Auth session is gone", async () => {
+  it("redirects a still-valid JWT when getUser reports its Auth session is gone", async () => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: null },
+      error: new AuthSessionMissingError(),
+    });
+
+    await expect(
+      requirePrivilegedStepUp({ organizationId, userId }),
+    ).rejects.toBe(mocks.redirectInterrupt);
+
+    expect(mocks.redirect).toHaveBeenCalledWith("/login", "replace");
+    expect(mocks.createAdmin).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("uses the database status discriminator when getUser succeeds during a session race", async () => {
     mocks.rpc
       .mockResolvedValueOnce({ data: false, error: null })
       .mockResolvedValueOnce({

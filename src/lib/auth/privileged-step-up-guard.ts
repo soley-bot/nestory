@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isAuthSessionMissingError } from "@supabase/supabase-js";
 import { redirect, RedirectType } from "next/navigation";
 import { z } from "zod";
 import { privilegedStepUpRequiredMessage } from "@/lib/auth/privileged-step-up-error";
@@ -42,16 +43,21 @@ export async function requirePrivilegedStepUp(
     | { session_id?: unknown; sub?: unknown }
     | undefined;
   const user = userResult.data.user;
+  const userSessionMissing = isAuthSessionMissingError(userResult.error);
+  const userIdentityMatches =
+    userSessionMissing ||
+    (!userResult.error && user?.id === expected.userId);
   if (
     claimsResult.error ||
-    userResult.error ||
-    !user ||
-    user.id !== expected.userId ||
+    !userIdentityMatches ||
     claims?.sub !== expected.userId ||
     typeof claims.session_id !== "string" ||
     !uuid.safeParse(claims.session_id).success
   ) {
     throw new Error(privilegedStepUpRequiredMessage);
+  }
+  if (userSessionMissing) {
+    redirect("/login", RedirectType.replace);
   }
 
   let admin;
