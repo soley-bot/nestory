@@ -174,18 +174,19 @@ export async function verifyPrivilegedEmailStepUpAction(
 export const getPrivilegedEmailStepUpStatus = cache(async (): Promise<PrivilegedEmailStepUpStatus | null> => {
   try {
     const context = await requireWorkspaceContext();
-    const identity = await getCurrentSessionIdentity(context.userId);
-    if (!identity) return null;
+    const sessionId = z.uuid().safeParse(context.sessionId);
+    const email = context.userEmail?.trim();
+    if (!sessionId.success || !email) return null;
     const admin = createSupabaseAdminClient();
     const { data, error } = await admin.rpc(
       "get_privileged_email_step_up_status",
       {
         p_organization_id: context.organizationId,
-        p_session_id: identity.sessionId,
+        p_session_id: sessionId.data,
         p_user_id: context.userId,
       },
     );
-    return error ? null : readStatus(data, identity.email);
+    return error ? null : readStatus(data, email);
   } catch {
     return null;
   }

@@ -78,6 +78,8 @@ describe("privileged email step-up actions", () => {
     requireWorkspaceContext.mockResolvedValue({
       organizationId,
       organizationName: "Harbor Homes",
+      sessionId,
+      userEmail: "context@example.com",
       userId,
     });
     getClaims.mockResolvedValue({
@@ -134,6 +136,8 @@ describe("privileged email step-up actions", () => {
       "mark_privileged_email_step_up_sent",
       { p_challenge_id: challengeId },
     );
+    expect(getClaims).toHaveBeenCalledOnce();
+    expect(getUser).toHaveBeenCalledOnce();
   });
 
   it("does not restore an invalidated prior challenge after delivery fails", async () => {
@@ -236,6 +240,8 @@ describe("privileged email step-up actions", () => {
       expect.objectContaining({ p_organization_id: "attacker-org" }),
     );
     expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+    expect(getClaims).toHaveBeenCalledOnce();
+    expect(getUser).toHaveBeenCalledOnce();
   });
 
   it("uses the same generic response for wrong, expired, or exhausted codes", async () => {
@@ -252,7 +258,7 @@ describe("privileged email step-up actions", () => {
     });
   });
 
-  it("reports status with the current confirmed Auth email", async () => {
+  it("reports status with the validated workspace identity", async () => {
     adminRpc.mockResolvedValue({
       data: {
         canRequestAt: null,
@@ -266,16 +272,18 @@ describe("privileged email step-up actions", () => {
 
     await expect(getPrivilegedEmailStepUpStatus()).resolves.toEqual({
       canRequestAt: null,
-      email: "admin@example.com",
+      email: "context@example.com",
       enforcementEnabled: false,
       required: true,
       verified: true,
       verifiedUntil: null,
     });
     expect(requireWorkspaceContext).toHaveBeenCalledOnce();
+    expect(getClaims).not.toHaveBeenCalled();
+    expect(getUser).not.toHaveBeenCalled();
   });
 
-  it("shares one status evaluation across consumers in the same request", async () => {
+  it("shares one context-derived status RPC across layout and account consumers", async () => {
     adminRpc.mockResolvedValue({
       data: {
         canRequestAt: null,
@@ -293,8 +301,8 @@ describe("privileged email step-up actions", () => {
     ]);
 
     expect(requireWorkspaceContext).toHaveBeenCalledOnce();
-    expect(getClaims).toHaveBeenCalledOnce();
-    expect(getUser).toHaveBeenCalledOnce();
+    expect(getClaims).not.toHaveBeenCalled();
+    expect(getUser).not.toHaveBeenCalled();
     expect(adminRpc).toHaveBeenCalledOnce();
   });
 
