@@ -123,6 +123,12 @@ type DataPageResult<T> = {
 };
 
 type FinanceServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+type FinanceReadTask = () => PromiseLike<unknown>;
+type FinanceReadResults<Tasks extends readonly FinanceReadTask[]> = {
+  -readonly [Index in keyof Tasks]: Awaited<ReturnType<Tasks[Index]>>;
+};
+
+const FINANCE_INITIAL_READ_CONCURRENCY = 4;
 
 type LeasePaymentResolutionInput = {
   invoiceId: string;
@@ -171,6 +177,29 @@ export async function fetchRowsByIdBatches<T>(
   }
 
   return { data: rows, error: null };
+}
+
+async function runFinanceReadTasks<
+  const Tasks extends readonly FinanceReadTask[],
+>(tasks: Tasks): Promise<FinanceReadResults<Tasks>> {
+  const results: unknown[] = new Array(tasks.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(
+    FINANCE_INITIAL_READ_CONCURRENCY,
+    tasks.length,
+  );
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < tasks.length) {
+        const taskIndex = nextIndex;
+        nextIndex += 1;
+        results[taskIndex] = await tasks[taskIndex]();
+      }
+    }),
+  );
+
+  return results as FinanceReadResults<Tasks>;
 }
 
 export function mergeRowsById<T extends { id: string | null }>(
@@ -302,35 +331,35 @@ export async function getFinanceOperationsData(
     entriesResult,
     sourcesResult,
     financeCategoriesResult,
-  ] = await Promise.all([
-    supabase
+  ] = await runFinanceReadTasks([
+    () => supabase
       .from("organizations")
       .select("operational_timezone")
       .eq("id", organizationId)
       .single(),
-    supabase
+    () => supabase
       .from("properties")
       .select("id, code, name, archived_at")
       .eq("organization_id", organizationId)
       .order("code"),
-    supabase
+    () => supabase
       .from("units")
       .select("id, property_id, unit_number, archived_at")
       .eq("organization_id", organizationId)
       .order("unit_number"),
-    supabase
+    () => supabase
       .from("people")
       .select("id, display_name, party_type, archived_at")
       .eq("organization_id", organizationId)
       .order("display_name"),
-    supabase
+    () => supabase
       .from("property_owners")
       .select("property_id, person_id")
       .eq("organization_id", organizationId)
       .eq("is_primary", true)
       .is("ended_on", null)
       .is("archived_at", null),
-    supabase
+    () => supabase
       .from("current_leases")
       .select(
         "id, property_id, unit_id, primary_tenant_person_id, tenant_name, status, lease_start_date, lease_end_date, monthly_rent_amount",
@@ -339,26 +368,26 @@ export async function getFinanceOperationsData(
       .is("archived_at", null)
       .in("status", ["active", "notice_given", "ended", "terminated"])
       .order("lease_start_date", { ascending: false }),
-    supabase
+    () => supabase
       .from("lease_billing_terms")
       .select("*")
       .eq("organization_id", organizationId),
-    getTenantInvoiceBalanceRows(supabase, organizationId, propertyId),
-    getUnresolvedRentGenerationExceptions(supabase, organizationId),
-    getOwnerInvoiceBalanceRows(supabase, organizationId, propertyId),
-    getExpenseSubmissionRows(supabase, organizationId),
-    supabase
+    () => getTenantInvoiceBalanceRows(supabase, organizationId, propertyId),
+    () => getUnresolvedRentGenerationExceptions(supabase, organizationId),
+    () => getOwnerInvoiceBalanceRows(supabase, organizationId, propertyId),
+    () => getExpenseSubmissionRows(supabase, organizationId),
+    () => supabase
       .from("property_finance_positions")
       .select("*")
       .eq("organization_id", organizationId)
       .order("property_code"),
-    buildAccountEntryQuery(supabase, organizationId, propertyId),
-    supabase
+    () => buildAccountEntryQuery(supabase, organizationId, propertyId),
+    () => supabase
       .from("financial_reconciliation_sources")
       .select("id, property_id, code, display_name, archived_at")
       .eq("organization_id", organizationId)
       .order("code"),
-    supabase
+    () => supabase
       .from("finance_categories")
       .select(
         "id, namespace, code, display_label, reporting_group, sort_order, is_default, is_active, archived_at",
@@ -367,7 +396,7 @@ export async function getFinanceOperationsData(
       .order("namespace")
       .order("sort_order")
       .order("display_label"),
-  ]);
+  ] as const);
 
   const results = [
     organizationResult,
@@ -1287,8 +1316,8 @@ async function getTenantInvoiceBalanceRows(
   organizationId: string,
   propertyId?: string | null,
 ): Promise<DataPageResult<TenantInvoiceBalanceRow>> {
-  const [actionableResult, historyResult] = await Promise.all([
-    fetchAllActionableRows<TenantInvoiceBalanceRow>(async (from, to) => {
+  const actionableResult =
+    await fetchAllActionableRows<TenantInvoiceBalanceRow>(async (from, to) => {
       let query = supabase
         .from("tenant_invoice_balances")
         .select("*")
@@ -1300,22 +1329,20 @@ async function getTenantInvoiceBalanceRows(
 
       if (propertyId) query = query.eq("property_id", propertyId);
       return query;
-    }),
-    (() => {
-      let query = supabase
-        .from("tenant_invoice_balances")
-        .select("*")
-        .eq("organization_id", organizationId)
-        .order("due_date", { ascending: false })
-        .order("id")
-        .limit(250);
-
-      if (propertyId) query = query.eq("property_id", propertyId);
-      return query;
-    })(),
-  ]);
+    });
 
   if (actionableResult.error) return actionableResult;
+
+  let historyQuery = supabase
+    .from("tenant_invoice_balances")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .order("due_date", { ascending: false })
+    .order("id")
+    .limit(250);
+
+  if (propertyId) historyQuery = historyQuery.eq("property_id", propertyId);
+  const historyResult = await historyQuery;
   if (historyResult.error) {
     return { data: null, error: historyResult.error };
   }
@@ -1357,8 +1384,8 @@ async function getOwnerInvoiceBalanceRows(
   organizationId: string,
   propertyId?: string | null,
 ): Promise<DataPageResult<OwnerInvoiceBalanceRow>> {
-  const [actionableResult, historyResult] = await Promise.all([
-    fetchAllActionableRows<OwnerInvoiceBalanceRow>(async (from, to) => {
+  const actionableResult =
+    await fetchAllActionableRows<OwnerInvoiceBalanceRow>(async (from, to) => {
       let query = supabase
         .from("owner_invoice_balances")
         .select("*")
@@ -1370,22 +1397,20 @@ async function getOwnerInvoiceBalanceRows(
 
       if (propertyId) query = query.eq("property_id", propertyId);
       return query;
-    }),
-    (() => {
-      let query = supabase
-        .from("owner_invoice_balances")
-        .select("*")
-        .eq("organization_id", organizationId)
-        .order("due_date", { ascending: false })
-        .order("id")
-        .limit(250);
-
-      if (propertyId) query = query.eq("property_id", propertyId);
-      return query;
-    })(),
-  ]);
+    });
 
   if (actionableResult.error) return actionableResult;
+
+  let historyQuery = supabase
+    .from("owner_invoice_balances")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .order("due_date", { ascending: false })
+    .order("id")
+    .limit(250);
+
+  if (propertyId) historyQuery = historyQuery.eq("property_id", propertyId);
+  const historyResult = await historyQuery;
   if (historyResult.error) {
     return { data: null, error: historyResult.error };
   }
