@@ -1,6 +1,8 @@
 "use server";
 
 import { Resend } from "resend";
+import { revalidatePath } from "next/cache";
+import { cache } from "react";
 import { z } from "zod";
 import { requireWorkspaceContext } from "@/lib/auth/context";
 import {
@@ -25,6 +27,7 @@ export type PrivilegedEmailStepUpStatus = {
   email: string;
   enforcementEnabled: boolean;
   required: boolean;
+  verified: boolean;
   verifiedUntil: string | null;
 };
 
@@ -40,7 +43,6 @@ export async function requestPrivilegedEmailStepUpAction(
   _state: PrivilegedEmailStepUpState,
   _formData: FormData,
 ): Promise<PrivilegedEmailStepUpState> {
-  void _state;
   void _formData;
   let challengeId: string | null = null;
   let admin: AdminClient | null = null;
@@ -49,7 +51,7 @@ export async function requestPrivilegedEmailStepUpAction(
     const context = await requireWorkspaceContext();
     const delivery = readDeliveryConfiguration();
     const identity = await getCurrentSessionIdentity(context.userId);
-    if (!delivery || !identity) return genericError();
+    if (!delivery || !identity) return genericError(_state);
 
     const code = generatePrivilegedStepUpCode();
     admin = createSupabaseAdminClient();
@@ -76,7 +78,9 @@ export async function requestPrivilegedEmailStepUpAction(
       },
     );
     challengeId = readChallengeId(data);
-    if (error || !challengeId) return genericError();
+    if (error || !challengeId) {
+      return genericError(challengeId ? undefined : _state);
+    }
 
     const resend = new Resend(delivery.apiKey);
     const sendResult = await resend.emails.send(
@@ -111,7 +115,7 @@ export async function requestPrivilegedEmailStepUpAction(
     };
   } catch {
     if (admin && challengeId) await markDeliveryFailed(admin, challengeId);
-    return genericError();
+    return genericError(challengeId ? undefined : _state);
   }
 }
 
@@ -156,6 +160,8 @@ export async function verifyPrivilegedEmailStepUpAction(
     );
     if (error || data !== true) return genericError();
 
+    revalidatePath("/", "layout");
+
     return {
       message: "Privileged email verification is active for this session.",
       status: "success",
@@ -165,7 +171,7 @@ export async function verifyPrivilegedEmailStepUpAction(
   }
 }
 
-export async function getPrivilegedEmailStepUpStatus(): Promise<PrivilegedEmailStepUpStatus | null> {
+export const getPrivilegedEmailStepUpStatus = cache(async (): Promise<PrivilegedEmailStepUpStatus | null> => {
   try {
     const context = await requireWorkspaceContext();
     const identity = await getCurrentSessionIdentity(context.userId);
@@ -183,7 +189,7 @@ export async function getPrivilegedEmailStepUpStatus(): Promise<PrivilegedEmailS
   } catch {
     return null;
   }
-}
+});
 
 async function getCurrentSessionIdentity(expectedUserId: string) {
   const supabase = await createSupabaseServerClient();
@@ -258,7 +264,8 @@ function readStatus(
   if (!isRecord(data)) return null;
   if (
     typeof data.required !== "boolean" ||
-    typeof data.enforcementEnabled !== "boolean"
+    typeof data.enforcementEnabled !== "boolean" ||
+    typeof data.verified !== "boolean"
   ) {
     return null;
   }
@@ -267,6 +274,7 @@ function readStatus(
     email,
     enforcementEnabled: data.enforcementEnabled,
     required: data.required,
+    verified: data.verified,
     verifiedUntil: readNullableDate(data.verifiedUntil),
   };
 }
@@ -305,6 +313,15 @@ function buildEmailText({
   ].join("\n\n");
 }
 
-function genericError(): PrivilegedEmailStepUpState {
-  return { message: GENERIC_ERROR, status: "error" };
+function genericError(
+  previous?: PrivilegedEmailStepUpState,
+): PrivilegedEmailStepUpState {
+  const existingChallenge = challengeIdSchema.safeParse(previous?.challengeId);
+  return {
+    ...(existingChallenge.success
+      ? { challengeId: existingChallenge.data }
+      : {}),
+    message: GENERIC_ERROR,
+    status: "error",
+  };
 }

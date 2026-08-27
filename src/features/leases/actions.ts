@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/context";
+import {
+  isPrivilegedStepUpRequiredError,
+  privilegedStepUpRequiredActionMessage,
+} from "@/lib/auth/privileged-step-up-error";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { postgresUuid } from "@/lib/validation/postgres-uuid";
 import {
@@ -459,6 +463,12 @@ export async function createLeaseAction(
   );
 
   if (error) {
+    if (isPrivilegedStepUpRequiredError(error)) {
+      return {
+        message: privilegedStepUpRequiredActionMessage,
+        status: "error",
+      };
+    }
     if (isLeaseUnitTermConflict(error.message)) {
       return {
         fieldErrors: {
@@ -470,7 +480,7 @@ export async function createLeaseAction(
     }
 
     return {
-      message: leaseActionErrorMessage(error.message),
+      message: leaseActionErrorMessage(error),
       status: "error",
     };
   }
@@ -544,7 +554,7 @@ export async function recordCurrentLeaseOccupancyEvidenceAction(
   if (error || typeof occupancyId !== "string") {
     return {
       message: error
-        ? leaseActionErrorMessage(error.message)
+        ? leaseActionErrorMessage(error)
         : "The move-in confirmation could not be returned.",
       status: "error",
     };
@@ -610,7 +620,7 @@ export async function transitionLeaseLifecycleAction(
   if (error || !returnedLeaseId) {
     return {
       message: error
-        ? leaseActionErrorMessage(error.message, error.details)
+        ? leaseActionErrorMessage(error)
         : "The lease lifecycle transition was not returned.",
       status: "error",
     };
@@ -673,7 +683,7 @@ export async function scheduleLeaseActivationAction(
   if (error || !returnedLeaseId) {
     return {
       message: error
-        ? leaseActionErrorMessage(error.message)
+        ? leaseActionErrorMessage(error)
         : "The Lease activation request was not returned.",
       status: "error",
     };
@@ -707,7 +717,7 @@ export async function cancelLeaseActivationAction(
     p_schedule_id: parsed.data.scheduleId,
   });
   if (error) {
-    return { message: leaseActionErrorMessage(error.message), status: "error" };
+    return { message: leaseActionErrorMessage(error), status: "error" };
   }
   revalidateLeasePaths([], [], parsed.data.leaseId);
   return {
@@ -770,10 +780,16 @@ export async function updateLeaseAction(
   );
 
   if (error) {
+    if (isPrivilegedStepUpRequiredError(error)) {
+      return {
+        message: privilegedStepUpRequiredActionMessage,
+        status: "error",
+      };
+    }
     return {
       message:
         getLeaseMutationErrorMessage(error, "update") ??
-        leaseActionErrorMessage(error.message, error.details),
+        leaseActionErrorMessage(error),
       status: "error",
     };
   }
@@ -841,7 +857,7 @@ export async function saveLeaseBillingRulesAction(
 
   if (error) {
     return {
-      message: leaseActionErrorMessage(error.message, error.details),
+      message: leaseActionErrorMessage(error),
       status: "error",
     };
   }
@@ -919,7 +935,7 @@ export async function scheduleFutureRentTermAction(
 
   if (error) {
     return {
-      message: leaseActionErrorMessage(error.message),
+      message: leaseActionErrorMessage(error),
       status: "error",
     };
   }
@@ -967,7 +983,7 @@ export async function archiveLeaseAction(
     return {
       message:
         getLeaseMutationErrorMessage(error, "archive") ??
-        leaseActionErrorMessage(error.message),
+        leaseActionErrorMessage(error),
       status: "error",
     };
   }
@@ -1013,7 +1029,7 @@ export async function restoreLeaseAction(
     return {
       message:
         getLeaseMutationErrorMessage(error, "restore") ??
-        leaseActionErrorMessage(error.message),
+        leaseActionErrorMessage(error),
       status: "error",
     };
   }
@@ -1121,7 +1137,16 @@ function getLeaseLifecycleSuccessMessage(
   }
 }
 
-function leaseActionErrorMessage(message: string, details?: string | null) {
+function leaseActionErrorMessage(error: {
+  code?: string;
+  details?: string | null;
+  message: string;
+}) {
+  if (isPrivilegedStepUpRequiredError(error)) {
+    return privilegedStepUpRequiredActionMessage;
+  }
+
+  const { details, message } = error;
   const errorMessage = `${message} ${details ?? ""}`;
   if (isLeaseUnitTermConflict(message)) {
     return "This unit is already reserved for those dates.";
@@ -1226,7 +1251,7 @@ export async function recordLeaseDepositEventAction(_state: LeaseActionState, fo
   if (!parsed.success) return invalidFormState(parsed.error);
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("record_lease_deposit_event", { p_organization_id: context.organizationId, p_lease_deposit_id: parsed.data.leaseDepositId, p_event_type: parsed.data.eventType, p_event_date: parsed.data.eventDate, p_amount: parsed.data.amount, p_reference: parsed.data.reference });
-  if (error) return { message: leaseActionErrorMessage(error.message), status: "error" };
+  if (error) return { message: leaseActionErrorMessage(error), status: "error" };
   revalidatePath("/leases"); revalidatePath("/overview");
   return { message: "Deposit activity saved.", status: "success" };
 }
@@ -1238,7 +1263,7 @@ export async function reverseLeaseDepositEventAction(_state: LeaseActionState, f
   if (!eventId.success || !eventDate.success) return { message: "Choose valid deposit activity and a date.", status: "error" };
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("reverse_lease_deposit_event", { p_organization_id: context.organizationId, p_event_id: eventId.data, p_event_date: eventDate.data, p_reference: readString(formData, "reference") });
-  if (error) return { message: leaseActionErrorMessage(error.message), status: "error" };
+  if (error) return { message: leaseActionErrorMessage(error), status: "error" };
   revalidatePath("/leases"); revalidatePath("/overview");
   return { message: "Deposit activity undone.", status: "success" };
 }

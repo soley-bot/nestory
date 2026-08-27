@@ -1,6 +1,9 @@
 import "server-only";
 
+import { isAuthSessionMissingError } from "@supabase/supabase-js";
+import { redirect, RedirectType } from "next/navigation";
 import { z } from "zod";
+import { privilegedStepUpRequiredMessage } from "@/lib/auth/privileged-step-up-error";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -14,8 +17,6 @@ type PrivilegedStepUpContext = {
 };
 
 const uuid = z.uuid();
-const requiredMessage = "Privileged email verification required.";
-
 export async function requirePrivilegedStepUp(
   expected: PrivilegedStepUpContext,
   requestClient?: PrivilegedStepUpRequestClient,
@@ -24,7 +25,7 @@ export async function requirePrivilegedStepUp(
     !uuid.safeParse(expected.organizationId).success ||
     !uuid.safeParse(expected.userId).success
   ) {
-    throw new Error(requiredMessage);
+    throw new Error(privilegedStepUpRequiredMessage);
   }
 
   const supabase = requestClient ?? (await createSupabaseServerClient());
@@ -36,22 +37,27 @@ export async function requirePrivilegedStepUp(
       supabase.auth.getUser(),
     ]);
   } catch {
-    throw new Error(requiredMessage);
+    throw new Error(privilegedStepUpRequiredMessage);
   }
   const claims = claimsResult.data?.claims as
     | { session_id?: unknown; sub?: unknown }
     | undefined;
   const user = userResult.data.user;
+  const userSessionMissing = isAuthSessionMissingError(userResult.error);
+  const userIdentityMatches =
+    userSessionMissing ||
+    (!userResult.error && user?.id === expected.userId);
   if (
     claimsResult.error ||
-    userResult.error ||
-    !user ||
-    user.id !== expected.userId ||
+    !userIdentityMatches ||
     claims?.sub !== expected.userId ||
     typeof claims.session_id !== "string" ||
     !uuid.safeParse(claims.session_id).success
   ) {
-    throw new Error(requiredMessage);
+    throw new Error(privilegedStepUpRequiredMessage);
+  }
+  if (userSessionMissing) {
+    redirect("/login", RedirectType.replace);
   }
 
   let admin;
@@ -67,10 +73,29 @@ export async function requirePrivilegedStepUp(
       },
     );
   } catch {
-    throw new Error(requiredMessage);
+    throw new Error(privilegedStepUpRequiredMessage);
   }
-  if (assertion.error || assertion.data !== true) {
-    throw new Error(requiredMessage);
+  if (assertion.error) {
+    throw new Error(privilegedStepUpRequiredMessage);
+  }
+  if (assertion.data !== true) {
+    let statusUnavailable = false;
+    try {
+      const status = await admin.rpc("get_privileged_email_step_up_status", {
+        p_organization_id: expected.organizationId,
+        p_session_id: claims.session_id,
+        p_user_id: expected.userId,
+      });
+      statusUnavailable =
+        status.error?.code === "42501" &&
+        status.error.message === "Status unavailable";
+    } catch {
+      // An unavailable discriminator must fail closed as verification-required.
+    }
+    if (statusUnavailable) {
+      redirect("/login", RedirectType.replace);
+    }
+    throw new Error(privilegedStepUpRequiredMessage);
   }
 
   return admin;

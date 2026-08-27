@@ -1,12 +1,22 @@
+import {
+  isPrivilegedStepUpRequiredError,
+  privilegedStepUpRequiredActionMessage,
+} from "@/lib/auth/privileged-step-up-error";
+
 type PeopleMutationOperation = "archive" | "create" | "restore" | "update";
 
 export function getPeopleMutationErrorMessage(
   error: {
+    code?: string;
     details?: string | null;
     message?: string;
   },
   operation: PeopleMutationOperation,
 ) {
+  if (isPrivilegedStepUpRequiredError(error)) {
+    return privilegedStepUpRequiredActionMessage;
+  }
+
   if (
     operation === "archive" &&
     error.details === "relationship_transition_required"

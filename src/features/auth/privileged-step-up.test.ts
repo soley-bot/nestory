@@ -4,16 +4,39 @@ const {
   adminRpc,
   getClaims,
   getUser,
+  requestCacheEpoch,
   resendSend,
+  revalidatePath,
   requireWorkspaceContext,
 } = vi.hoisted(() => ({
   adminRpc: vi.fn(),
   getClaims: vi.fn(),
   getUser: vi.fn(),
+  requestCacheEpoch: { value: 0 },
   resendSend: vi.fn(),
+  revalidatePath: vi.fn(),
   requireWorkspaceContext: vi.fn(),
 }));
 
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>();
+  return {
+    ...actual,
+    cache: <Args extends unknown[], Result>(
+      operation: (...args: Args) => Result,
+    ) => {
+      const requestResults = new Map<number, Result>();
+      return (...args: Args) => {
+        const requestId = requestCacheEpoch.value;
+        if (!requestResults.has(requestId)) {
+          requestResults.set(requestId, operation(...args));
+        }
+        return requestResults.get(requestId) as Result;
+      };
+    },
+  };
+});
+vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({ requireWorkspaceContext }));
 vi.mock("@/lib/db/admin", () => ({
   createSupabaseAdminClient: () => ({ rpc: adminRpc }),
@@ -37,13 +60,16 @@ const organizationId = "10000000-0000-4000-8000-000000000001";
 const userId = "20000000-0000-4000-8000-000000000001";
 const sessionId = "30000000-0000-4000-8000-000000000001";
 const challengeId = "40000000-0000-4000-8000-000000000001";
+const previousChallengeId = "40000000-0000-4000-8000-000000000002";
 
 describe("privileged email step-up actions", () => {
   beforeEach(() => {
+    requestCacheEpoch.value += 1;
     adminRpc.mockReset();
     getClaims.mockReset();
     getUser.mockReset();
     resendSend.mockReset();
+    revalidatePath.mockReset();
     requireWorkspaceContext.mockReset();
     process.env.RESEND_API_KEY = "re_test_key";
     process.env.NESTORY_EMAIL_FROM = "Nestory Security <security@example.com>";
@@ -110,7 +136,7 @@ describe("privileged email step-up actions", () => {
     );
   });
 
-  it("records failed delivery and returns no provider detail", async () => {
+  it("does not restore an invalidated prior challenge after delivery fails", async () => {
     adminRpc
       .mockResolvedValueOnce({
         data: [{ challenge_id: challengeId }],
@@ -122,7 +148,10 @@ describe("privileged email step-up actions", () => {
       error: { message: "provider credential rejected" },
     });
 
-    const result = await requestPrivilegedEmailStepUpAction({}, new FormData());
+    const result = await requestPrivilegedEmailStepUpAction(
+      { challengeId: previousChallengeId, status: "success" },
+      new FormData(),
+    );
 
     expect(result).toEqual({
       message: "We could not complete email verification. Try again.",
@@ -133,6 +162,50 @@ describe("privileged email step-up actions", () => {
       { p_challenge_id: challengeId },
     );
     expect(result.message).not.toContain("provider");
+  });
+
+  it("does not restore an invalidated prior challenge when marking delivery fails", async () => {
+    adminRpc
+      .mockResolvedValueOnce({
+        data: [{ challenge_id: challengeId }],
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: false, error: null })
+      .mockResolvedValueOnce({ data: true, error: null });
+    resendSend.mockResolvedValue({ data: { id: "email-1" }, error: null });
+
+    await expect(
+      requestPrivilegedEmailStepUpAction(
+        { challengeId: previousChallengeId, status: "success" },
+        new FormData(),
+      ),
+    ).resolves.toEqual({
+      message: "We could not complete email verification. Try again.",
+      status: "error",
+    });
+    expect(adminRpc).toHaveBeenLastCalledWith(
+      "mark_privileged_email_step_up_failed",
+      { p_challenge_id: challengeId },
+    );
+  });
+
+  it("preserves an already delivered challenge when a resend attempt is throttled", async () => {
+    adminRpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "Challenge unavailable" },
+    });
+
+    await expect(
+      requestPrivilegedEmailStepUpAction(
+        { challengeId, status: "success" },
+        new FormData(),
+      ),
+    ).resolves.toEqual({
+      challengeId,
+      message: "We could not complete email verification. Try again.",
+      status: "error",
+    });
+    expect(resendSend).not.toHaveBeenCalled();
   });
 
   it("verifies only against server-derived user, organization, and session", async () => {
@@ -162,6 +235,7 @@ describe("privileged email step-up actions", () => {
     expect(adminRpc.mock.calls[0][1]).not.toEqual(
       expect.objectContaining({ p_organization_id: "attacker-org" }),
     );
+    expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
   });
 
   it("uses the same generic response for wrong, expired, or exhausted codes", async () => {
@@ -184,6 +258,7 @@ describe("privileged email step-up actions", () => {
         canRequestAt: null,
         enforcementEnabled: false,
         required: true,
+        verified: true,
         verifiedUntil: null,
       },
       error: null,
@@ -194,9 +269,33 @@ describe("privileged email step-up actions", () => {
       email: "admin@example.com",
       enforcementEnabled: false,
       required: true,
+      verified: true,
       verifiedUntil: null,
     });
     expect(requireWorkspaceContext).toHaveBeenCalledOnce();
+  });
+
+  it("shares one status evaluation across consumers in the same request", async () => {
+    adminRpc.mockResolvedValue({
+      data: {
+        canRequestAt: null,
+        enforcementEnabled: false,
+        required: true,
+        verified: false,
+        verifiedUntil: null,
+      },
+      error: null,
+    });
+
+    await Promise.all([
+      getPrivilegedEmailStepUpStatus(),
+      getPrivilegedEmailStepUpStatus(),
+    ]);
+
+    expect(requireWorkspaceContext).toHaveBeenCalledOnce();
+    expect(getClaims).toHaveBeenCalledOnce();
+    expect(getUser).toHaveBeenCalledOnce();
+    expect(adminRpc).toHaveBeenCalledOnce();
   });
 
   it("ignores caller-supplied organization authority for status reads", async () => {
@@ -205,6 +304,7 @@ describe("privileged email step-up actions", () => {
         canRequestAt: null,
         enforcementEnabled: false,
         required: true,
+        verified: false,
         verifiedUntil: null,
       },
       error: null,

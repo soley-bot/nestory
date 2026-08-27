@@ -364,11 +364,10 @@ SELECT ok(
     WHERE organization_id = 'a1000000-0000-0000-0000-000000000010'
       AND user_id = 'a1000000-0000-0000-0000-000000000001'
       AND session_id = 'a1000000-0000-0000-0000-000000000101'
-      AND expires_at > now()
-      AND expires_at <= now() + interval '15 minutes 5 seconds'
+      AND expires_at IS NULL
       AND revoked_at IS NULL
   ),
-  'the grant is short-lived and bound to user, session, and organization'
+  'the grant lasts for and remains bound to the exact Auth session'
 );
 
 UPDATE app_private.privileged_email_step_up_challenges
@@ -461,12 +460,19 @@ SELECT is(
   'the correct code cannot revive an exhausted challenge'
 );
 SELECT ok(
-  (public.get_privileged_email_step_up_status(
-    'a1000000-0000-0000-0000-000000000010',
-    'a1000000-0000-0000-0000-000000000001',
-    'a1000000-0000-0000-0000-000000000101'
-  ) ->> 'verifiedUntil') IS NOT NULL,
-  'status exposes the verified expiry without exposing challenge material'
+  (
+    SELECT
+      (status_payload ->> 'verified')::boolean
+      AND status_payload -> 'verifiedUntil' = 'null'::jsonb
+    FROM (
+      SELECT public.get_privileged_email_step_up_status(
+        'a1000000-0000-0000-0000-000000000010',
+        'a1000000-0000-0000-0000-000000000001',
+        'a1000000-0000-0000-0000-000000000101'
+      ) AS status_payload
+    ) AS status_result
+  ),
+  'status reports session verification without an independent expiry'
 );
 
 SELECT set_config(
