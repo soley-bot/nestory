@@ -841,10 +841,13 @@ function LeaseBillingRulesForm({
   const [idempotencyKey] = useState(
     () => `lease-billing:${lease.id}:${crypto.randomUUID()}`,
   );
-  const currentRule =
+  const predecessorRule =
     lease.billingRules.find((rule) => rule.state === "current") ??
     lease.billingRules.find((rule) => rule.state === "scheduled") ??
     null;
+  const editableRule =
+    lease.billingRules.find((rule) => rule.state === "scheduled") ??
+    predecessorRule;
 
   useEffect(() => {
     if (state.status !== "success") return;
@@ -859,7 +862,7 @@ function LeaseBillingRulesForm({
       <input
         name="expectedCurrentBillingRuleId"
         type="hidden"
-        value={currentRule?.id ?? ""}
+        value={predecessorRule?.id ?? ""}
       />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
 
@@ -874,11 +877,11 @@ function LeaseBillingRulesForm({
       </p>
       <LeaseBillingRuleFields
         companyOptions={billingFormConfig?.companyOptions}
-        defaults={currentRule}
+        defaults={editableRule}
         fieldErrors={state.fieldErrors}
         operationalTimezone={
           billingFormConfig?.operationalTimezone ??
-          currentRule?.rentCalculationTimezone ??
+          editableRule?.rentCalculationTimezone ??
           "UTC"
         }
         organizationName={billingFormConfig?.organizationName ?? "our company"}
