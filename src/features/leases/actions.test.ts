@@ -31,6 +31,7 @@ import {
   recordLeaseDepositEventAction,
   recordCurrentLeaseOccupancyEvidenceAction,
   reverseLeaseDepositEventAction,
+  saveLeaseBillingRulesAction,
   scheduleLeaseActivationAction,
   transitionLeaseLifecycleAction,
   updateLeaseAction,
@@ -143,6 +144,34 @@ describe("Lease occupancy evidence input", () => {
       }),
     );
     expect(requirePermission).toHaveBeenCalledWith("leases.prepare");
+  });
+
+  it("preserves percentage zero and an enabled management fee at the billing RPC boundary", async () => {
+    const currentBillingRuleId = "70000000-0000-4000-8000-000000000001";
+    const formData = leaseForm();
+    formData.set("expectedCurrentBillingRuleId", currentBillingRuleId);
+    formData.set("idempotencyKey", "lease-billing-zero-percentage");
+    formData.set("leaseId", leaseId);
+    formData.set("managementFeeValue", "0");
+
+    await expect(
+      saveLeaseBillingRulesAction({}, formData),
+    ).resolves.toMatchObject({
+      leaseId,
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith("save_lease_billing_rules", {
+      p_billing_rule: expect.objectContaining({
+        chargeManagementFeeWhenActive: true,
+        managementFeeMode: "percentage",
+        managementFeeValue: 0,
+      }),
+      p_expected_current_billing_rule_id: currentBillingRuleId,
+      p_idempotency_key: "lease-billing-zero-percentage",
+      p_lease_id: leaseId,
+      p_organization_id: organizationId,
+    });
+    expect(requirePermission).toHaveBeenCalledWith("leases.change_terms");
   });
 
   it("rejects zero rent before calling the authoritative write", async () => {
