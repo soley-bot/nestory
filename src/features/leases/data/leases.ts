@@ -345,6 +345,7 @@ export async function getLeasesScreenData(
       billingFormConfig,
       leases: await enrichLeaseSummaries({
         leases: visibleLeases,
+        loadRentReadiness: Boolean(viewQuery.leaseId),
         organizationId,
         propertiesById,
         readinessDate,
@@ -399,6 +400,7 @@ export async function getLeasesScreenData(
     billingFormConfig,
     leases: await enrichLeaseSummaries({
       leases,
+      loadRentReadiness: Boolean(viewQuery.leaseId),
       organizationId,
       propertiesById,
       readinessDate,
@@ -415,6 +417,7 @@ export async function getLeasesScreenData(
 
 async function enrichLeaseSummaries({
   leases,
+  loadRentReadiness,
   organizationId,
   propertiesById,
   readinessDate,
@@ -423,6 +426,7 @@ async function enrichLeaseSummaries({
   unitsById,
 }: {
   leases: LeaseSummary[];
+  loadRentReadiness: boolean;
   organizationId: string;
   propertiesById: Map<string, LeasePropertyRow>;
   readinessDate: string;
@@ -527,16 +531,18 @@ async function enrichLeaseSummaries({
       .in("lease_id", detailLeaseIds)
       .in("status", ["pending", "failed"])
       .order("created_at", { ascending: false }),
-    Promise.all(
-      leases.map(async (lease) => ({
-        leaseId: lease.id,
-        result: await supabase.rpc("resolve_lease_rent_readiness", {
-          p_effective_date: readinessDate,
-          p_lease_id: lease.id,
-          p_organization_id: organizationId,
-        }),
-      })),
-    ),
+    loadRentReadiness
+      ? Promise.all(
+          leases.map(async (lease) => ({
+            leaseId: lease.id,
+            result: await supabase.rpc("resolve_lease_rent_readiness", {
+              p_effective_date: readinessDate,
+              p_lease_id: lease.id,
+              p_organization_id: organizationId,
+            }),
+          })),
+        )
+      : Promise.resolve([]),
   ]);
 
   const partyData = getOptionalLeaseBackboneRows(
@@ -626,6 +632,7 @@ async function enrichLeaseSummaries({
   for (const { result } of readinessResults) {
     if (
       result.error &&
+      !isStrictPostgrestTransportFailure(result) &&
       !isMissingSchemaObjectMessage(result.error.message, [
         "resolve_lease_rent_readiness",
       ])
@@ -704,6 +711,14 @@ async function enrichLeaseSummaries({
       billingRules: billingRulesByLeaseId.get(lease.id) ?? [],
     };
   });
+}
+
+function isStrictPostgrestTransportFailure(result: {
+  data: unknown;
+  error: { code: string } | null;
+  status: number;
+}) {
+  return result.data === null && result.error?.code === "" && result.status === 0;
 }
 
 export function getEffectiveRentPolicyCalendarDate(
