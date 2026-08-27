@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(63);
+SELECT plan(71);
 
 CREATE TEMP TABLE review_state (
   fixture_clock timestamptz NOT NULL DEFAULT pg_catalog.now(),
@@ -74,7 +74,11 @@ CREATE TEMP TABLE review_state (
   unused_legacy_generation_result jsonb,
   prior_billed_legacy_generation_result jsonb,
   multi_history_repair_result jsonb,
-  multi_history_generation_result jsonb
+  multi_history_generation_result jsonb,
+  scheduled_revision_result jsonb,
+  scheduled_revision_retry_result jsonb,
+  scheduled_revision_updated_at timestamptz,
+  used_scheduled_revision_result jsonb
 ) ON COMMIT DROP;
 
 INSERT INTO review_state DEFAULT VALUES;
@@ -461,6 +465,27 @@ CROSS JOIN LATERAL (VALUES
     state.fixture_lease_month_start)
 ) AS fixture(invoice_id, invoice_number, lease_id, rule_id, period_start);
 
+INSERT INTO public.tenant_invoices(
+  id, organization_id, invoice_number, property_id, unit_id, lease_id,
+  billing_term_id, billing_period_start, billing_period_end, issue_date,
+  due_date, collection_route, recipient_kind, recipient_person_id,
+  recipient_label, currency, total_amount, lifecycle,
+  management_fee_mode, management_fee_value, management_fee_amount,
+  created_by
+)
+SELECT
+  '96000000-0000-0000-0000-000000000203'::uuid,
+  state.organization_id, 'SCHEDULED-CURRENT', state.property_c, state.unit_c,
+  state.scheduled_lease,
+  '96000000-0000-0000-0000-000000000105'::uuid,
+  (state.replacement_effective_on - interval '1 month')::date,
+  (state.replacement_effective_on - interval '1 day')::date,
+  (state.replacement_effective_on - interval '1 month')::date,
+  (state.replacement_effective_on - interval '1 month')::date,
+  'through_ips', 'company', state.company_id, 'Billing Company', 'USD',
+  3100, 'issued', 'flat', 310, 310, state.admin_id
+FROM review_state AS state;
+
 SET LOCAL session_replication_role = origin;
 
 CREATE OR REPLACE FUNCTION pg_temp.capture_billing_save_sqlstate(
@@ -504,6 +529,8 @@ CREATE OR REPLACE FUNCTION pg_temp.capture_billing_save_result(
 ) RETURNS jsonb
 LANGUAGE plpgsql
 AS $$
+DECLARE
+  v_detail text;
 BEGIN
   RETURN public.save_lease_billing_rules(
     p_organization_id,
@@ -513,9 +540,11 @@ BEGIN
     p_idempotency_key
   );
 EXCEPTION WHEN OTHERS THEN
+  GET STACKED DIAGNOSTICS v_detail = PG_EXCEPTION_DETAIL;
   RETURN pg_catalog.jsonb_build_object(
     'errorCode', SQLSTATE,
-    'errorMessage', SQLERRM
+    'errorMessage', SQLERRM,
+    'errorDetail', NULLIF(v_detail, '')
   );
 END;
 $$;
@@ -1428,6 +1457,222 @@ SELECT lives_ok(
     '96000000-0000-0000-0000-000000000105'),
   'scheduled direct-to-owner validation uses the replacement effective date'
 ) FROM review_state;
+
+UPDATE review_state AS state
+SET scheduled_revision_result = pg_temp.capture_billing_save_result(
+  state.organization_id,
+  state.scheduled_lease,
+  pg_temp.billing_rule(
+    state.company_id,
+    'through_ips',
+    'percentage',
+    0,
+    false,
+    'UTC'
+  ),
+  '96000000-0000-0000-0000-000000000105',
+  'revise-scheduled-zero-percentage'
+);
+
+SELECT ok(
+  NOT (scheduled_revision_result ? 'errorCode'),
+  'an unused scheduled replacement can be revised before it becomes current'
+) FROM review_state;
+
+SELECT is(
+  (SELECT pg_catalog.jsonb_build_array(
+      count(*)::integer,
+      count(*) FILTER (
+        WHERE billing.effective_from > state.fixture_utc_date
+      )::integer
+    )
+   FROM public.lease_billing_terms AS billing
+   WHERE billing.lease_id = state.scheduled_lease
+     AND billing.archived_at IS NULL),
+  pg_catalog.jsonb_build_array(2, 1),
+  'revising an unused scheduled replacement leaves exactly one successor'
+) FROM review_state AS state;
+
+SELECT is(
+  (SELECT pg_catalog.jsonb_build_array(
+      billing.management_fee_mode,
+      billing.management_fee_value,
+      billing.charge_management_fee_when_active,
+      billing.collection_route
+    )
+   FROM public.lease_billing_terms AS billing
+   WHERE billing.lease_id = state.scheduled_lease
+     AND billing.archived_at IS NULL
+   ORDER BY billing.effective_from DESC
+   LIMIT 1),
+  pg_catalog.jsonb_build_array('percentage', 0, true, 'through_ips'),
+  'the revised scheduled rule reloads percentage zero and enabled charging unchanged'
+) FROM review_state AS state;
+
+SELECT is(
+  (SELECT pg_catalog.jsonb_build_array(
+      billing.management_fee_mode,
+      billing.management_fee_value,
+      billing.charge_management_fee_when_active,
+      billing.effective_to
+    )
+   FROM public.lease_billing_terms AS billing
+   WHERE billing.id = '96000000-0000-0000-0000-000000000105'),
+  pg_catalog.jsonb_build_array(
+    'flat', 310, true, state.replacement_effective_on - 1
+  ),
+  'revising the scheduled successor leaves its predecessor immutable'
+) FROM review_state AS state;
+
+SELECT is(
+  (SELECT pg_catalog.jsonb_build_array(
+      invoice.billing_term_id,
+      invoice.management_fee_mode,
+      invoice.management_fee_value,
+      invoice.management_fee_amount,
+      invoice.total_amount
+    )
+   FROM public.tenant_invoices AS invoice
+   WHERE invoice.id = '96000000-0000-0000-0000-000000000203'),
+  pg_catalog.jsonb_build_array(
+    '96000000-0000-0000-0000-000000000105'::uuid,
+    'flat', 310, 310, 3100
+  ),
+  'revising the scheduled successor leaves generated invoice evidence immutable'
+) FROM review_state;
+
+UPDATE review_state AS state
+SET scheduled_revision_updated_at = (
+  SELECT billing.updated_at
+  FROM public.lease_billing_terms AS billing
+  WHERE billing.organization_id = state.organization_id
+    AND billing.id = (state.scheduled_revision_result ->> 'billingTermId')::uuid
+);
+
+UPDATE review_state AS state
+SET scheduled_revision_retry_result = pg_temp.capture_billing_save_result(
+  state.organization_id,
+  state.scheduled_lease,
+  pg_temp.billing_rule(
+    state.company_id,
+    'through_ips',
+    'percentage',
+    0,
+    false,
+    'UTC'
+  ),
+  '96000000-0000-0000-0000-000000000105',
+  'revise-scheduled-zero-percentage'
+);
+
+SELECT is(
+  pg_catalog.jsonb_build_array(
+    scheduled_revision_retry_result = scheduled_revision_result,
+    (SELECT billing.updated_at = state.scheduled_revision_updated_at
+     FROM public.lease_billing_terms AS billing
+     WHERE billing.organization_id = state.organization_id
+       AND billing.id =
+         (state.scheduled_revision_result ->> 'billingTermId')::uuid),
+    (SELECT count(*)::integer
+     FROM public.activity_logs AS log
+     WHERE log.organization_id = state.organization_id
+       AND log.entity_type = 'lease_billing_term'
+       AND log.entity_id =
+         (state.scheduled_revision_result ->> 'billingTermId')::uuid
+       AND log.action = 'lease_billing_scheduled_revised')
+  ),
+  pg_catalog.jsonb_build_array(true, true, 1),
+  'an idempotent retry returns the stable result without a second revision side effect'
+) FROM review_state AS state;
+
+RESET ROLE;
+SET LOCAL session_replication_role = replica;
+
+INSERT INTO public.tenant_invoices(
+  id, organization_id, invoice_number, property_id, unit_id, lease_id,
+  billing_term_id, billing_period_start, billing_period_end, issue_date,
+  due_date, collection_route, recipient_kind, recipient_person_id,
+  recipient_label, currency, total_amount, lifecycle,
+  management_fee_mode, management_fee_value, management_fee_amount,
+  created_by
+)
+SELECT
+  '96000000-0000-0000-0000-000000000204'::uuid,
+  state.organization_id, 'SCHEDULED-USED', state.property_c, state.unit_c,
+  state.scheduled_lease,
+  (SELECT billing.id
+   FROM public.lease_billing_terms AS billing
+   WHERE billing.lease_id = state.scheduled_lease
+     AND billing.archived_at IS NULL
+   ORDER BY billing.effective_from DESC
+   LIMIT 1),
+  state.replacement_effective_on,
+  (state.replacement_effective_on + interval '1 month - 1 day')::date,
+  state.replacement_effective_on, state.replacement_effective_on,
+  'through_ips', 'company', state.company_id, 'Billing Company', 'USD',
+  3100, 'issued', 'percentage', 0, 0, state.admin_id
+FROM review_state AS state;
+
+SET LOCAL session_replication_role = origin;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM review_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
+UPDATE review_state AS state
+SET used_scheduled_revision_result = pg_temp.capture_billing_save_result(
+  state.organization_id,
+  state.scheduled_lease,
+  pg_temp.billing_rule(
+    state.company_id,
+    'through_ips',
+    'percentage',
+    5,
+    false,
+    'UTC'
+  ),
+  '96000000-0000-0000-0000-000000000105',
+  'reject-used-scheduled-revision'
+);
+
+SELECT is(
+  pg_catalog.jsonb_build_array(
+    used_scheduled_revision_result ->> 'errorCode',
+    used_scheduled_revision_result ->> 'errorMessage',
+    used_scheduled_revision_result ->> 'errorDetail'
+  ),
+  pg_catalog.jsonb_build_array(
+    '55000',
+    'A used billing rule cannot be overwritten',
+    'lease_billing_rule_used'
+  ),
+  'an already-used scheduled successor reaches the explicit immutable-evidence guard'
+) FROM review_state;
+
+SELECT is(
+  (SELECT pg_catalog.jsonb_build_array(
+      count(*)::integer,
+      max(billing.management_fee_value),
+      invoice.billing_term_id,
+      invoice.management_fee_value
+    )
+   FROM public.lease_billing_terms AS billing
+   JOIN public.tenant_invoices AS invoice
+     ON invoice.id = '96000000-0000-0000-0000-000000000204'
+   WHERE billing.lease_id = state.scheduled_lease
+     AND billing.effective_from > state.fixture_utc_date
+     AND billing.archived_at IS NULL
+   GROUP BY invoice.billing_term_id, invoice.management_fee_value),
+  pg_catalog.jsonb_build_array(
+    1,
+    0,
+    (state.scheduled_revision_result ->> 'billingTermId')::uuid,
+    0
+  ),
+  'a rejected used-successor revision leaves one successor and its invoice snapshot unchanged'
+) FROM review_state AS state;
 
 SELECT throws_ok(
   format($q$SELECT public.save_lease_billing_rules(%L,%L,%L::jsonb,%L,'reject-owner-after-effective-date')$q$,

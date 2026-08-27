@@ -14,6 +14,7 @@ import { LeaseDetailScreen } from "@/features/leases/components/lease-detail-scr
 import { buildLeaseSummary } from "@/features/leases/data/lease-summary";
 import type { LeasePaymentResolutionData } from "@/features/finance-operations/finance-operations.types";
 import type { LeaseRecordSection } from "@/features/leases/lease-detail-route";
+import type { LeaseBillingFormConfig } from "@/features/leases/lease.types";
 
 const actionMocks = vi.hoisted(() => ({
   confirmOwnerCollectionAction: vi.fn(),
@@ -827,6 +828,84 @@ describe("LeaseDetailScreen", () => {
     ).toBe("billing-current");
   });
 
+  it("edits the scheduled successor while retaining the current rule token", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    Object.assign(lease, {
+      billingRules: [
+        billingRule({
+          billingRecipientKind: "individual",
+          billingRecipientLabel: "Alice Tenant",
+          billingRecipientPersonId: "person-1",
+          chargeManagementFeeWhenActive: true,
+          chargeThroughLeaseEnd: false,
+          collectionRoute: "through_ips",
+          effectiveFrom: "2026-07-01",
+          effectiveTo: "2026-08-31",
+          finalPeriodProratedAmount: 15,
+          firstPeriodProratedAmount: 25,
+          fullManagementFeeDuringProration: false,
+          id: "billing-current",
+          managementFeeMode: "percentage",
+          managementFeeValue: 8,
+          rentCalculationTimezone: "America/Los_Angeles",
+          state: "current",
+        }),
+        billingRule({
+          billingRecipientKind: "company",
+          billingRecipientLabel: "Scheduled Billing Company",
+          billingRecipientPersonId: "company-scheduled",
+          chargeManagementFeeWhenActive: false,
+          chargeThroughLeaseEnd: true,
+          collectionRoute: "direct_to_owner",
+          effectiveFrom: "2026-09-01",
+          effectiveTo: "2027-06-30",
+          finalPeriodProratedAmount: 67.89,
+          firstPeriodProratedAmount: 123.45,
+          fullManagementFeeDuringProration: true,
+          id: "billing-scheduled",
+          managementFeeMode: "flat",
+          managementFeeValue: 275,
+          rentCalculationTimezone: "Pacific/Honolulu",
+          state: "scheduled",
+        }),
+      ],
+    });
+
+    renderDetail("rent", lease, allLeasePermissions, {
+      billingFormConfig: {
+        companyOptions: [
+          { id: "company-scheduled", label: "Scheduled Billing Company" },
+        ],
+        operationalTimezone: "Asia/Bangkok",
+        organizationName: "Pilot",
+      },
+    });
+    await user.click(screen.getByRole("button", { name: "Change rules" }));
+
+    const drawer = screen.getByRole("dialog", { name: "Change billing rules" });
+    const form = drawer.querySelector("form");
+    expect(form).not.toBeNull();
+    const values = new FormData(form as HTMLFormElement);
+
+    expect(values.get("expectedCurrentBillingRuleId")).toBe("billing-current");
+    expect(values.get("billingRecipientKind")).toBe("company");
+    expect(values.get("billingRecipientPersonId")).toBe("company-scheduled");
+    expect(values.get("collectionRoute")).toBe("direct_to_owner");
+    expect(values.get("managementFeeMode")).toBe("flat");
+    expect(values.get("managementFeeValue")).toBe("275");
+    expect(values.get("chargeManagementFeeWhenActive")).toBe("no");
+    expect(values.get("fullManagementFeeDuringProration")).toBe("yes");
+    expect(values.get("rentCalculationTimezone")).toBe("Pacific/Honolulu");
+    expect(values.get("firstPeriodProratedAmount")).toBe("123.45");
+    expect(values.get("finalPeriodProratedAmount")).toBe("67.89");
+    expect(values.get("shortMonthDueDayRule")).toBe("last_calendar_day");
+    expect(values.get("leaseStartProrationRule")).toBe("actual_days");
+    expect(values.get("leaseEndProrationRule")).toBe("actual_days");
+    expect(values.get("midPeriodRentChangeRule")).toBe("next_full_month");
+    expect(values.get("chargeThroughLeaseEnd")).toBe("yes");
+  });
+
   it("uses move-in and move-out language without exposing evidence state", () => {
     renderDetail("occupancy");
 
@@ -920,6 +999,7 @@ function renderDetail(
   lease = makeLease(),
   permissions = allLeasePermissions,
   focus: {
+    billingFormConfig?: LeaseBillingFormConfig;
     paymentResolution?: LeasePaymentResolutionData;
     routeNotice?: {
       href?: string;
@@ -936,6 +1016,7 @@ function detailElement(
   lease = makeLease(),
   permissions = allLeasePermissions,
   focus: {
+    billingFormConfig?: LeaseBillingFormConfig;
     paymentResolution?: LeasePaymentResolutionData;
     routeNotice?: {
       href?: string;
@@ -947,6 +1028,7 @@ function detailElement(
   return (
     <LeaseDetailScreen
       activeSection={activeSection}
+      billingFormConfig={focus.billingFormConfig}
       canRecordPayments
       canViewFinance
       lease={lease}
