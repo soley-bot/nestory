@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import { getOrganizationSlugFromHost } from "@/lib/auth/tenant";
 import {
   getWorkspaceCapabilitiesFromPermissions,
@@ -31,6 +32,7 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient
 type AuthUser = {
   email?: string;
   id: string;
+  sessionId?: string;
 };
 
 type WorkspaceMembership = {
@@ -76,15 +78,21 @@ export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
     return null;
   }
 
-  const claims = data.claims as { email?: unknown; sub?: unknown };
+  const claims = data.claims as {
+    email?: unknown;
+    session_id?: unknown;
+    sub?: unknown;
+  };
+  const sessionId = z.uuid().safeParse(claims.session_id);
 
-  if (typeof claims.sub !== "string") {
+  if (typeof claims.sub !== "string" || !sessionId.success) {
     return null;
   }
 
   return {
     email: typeof claims.email === "string" ? claims.email : undefined,
     id: claims.sub,
+    sessionId: sessionId.data,
   };
 });
 
@@ -300,6 +308,9 @@ export async function getCurrentOrganizationSlug() {
 
 export const requireWorkspaceContext = cache(async () => {
   const user = await requireUser();
+  if (!user.sessionId) {
+    redirect("/login");
+  }
   const organizationSlug = await getCurrentOrganizationSlug();
   const membership = await getWorkspaceMembershipForUser(user.id, undefined, {
     organizationSlug,
@@ -311,6 +322,7 @@ export const requireWorkspaceContext = cache(async () => {
 
   return {
     ...membership,
+    sessionId: user.sessionId,
     userEmail: user.email,
     userId: user.id,
   };

@@ -44,6 +44,7 @@ describe("owner balance authority contexts", () => {
       data: {
         claims: {
           email: "finance.manager@nestory.com",
+          session_id: "30000000-0000-4000-8000-000000000001",
           sub: "finance-manager-user",
         },
       },
