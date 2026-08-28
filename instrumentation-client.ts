@@ -8,3 +8,5 @@ const requestNonce = document.querySelector<HTMLScriptElement>("script[nonce]")
 if (requestNonce) setNonce(requestNonce);
 
 Sentry.init(buildSentryOptions("client"));
+
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
