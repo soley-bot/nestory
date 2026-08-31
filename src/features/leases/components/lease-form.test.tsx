@@ -1,6 +1,12 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -79,6 +85,65 @@ afterEach(() => {
 });
 
 describe("LeaseForm inline tenant billing recipient", () => {
+  it("guides creation through the approved steps without implying month-to-month support", async () => {
+    const user = userEvent.setup();
+    render(
+      <LeaseForm
+        createContext={{
+          propertyId: "property-1",
+          propertyLabel: "Riverside Shophouse",
+          unitId: "unit-1",
+          unitLabel: "Unit R-01",
+        }}
+        initialValues={{ tenantPersonId: "tenant-1" }}
+        onClose={() => undefined}
+        properties={[]}
+        tenants={[
+          {
+            archived: false,
+            description: "Tenant",
+            id: "tenant-1",
+            label: "Bright Mekong Trading",
+            partyType: "company",
+            roles: ["tenant"],
+          },
+        ]}
+        units={[]}
+      />,
+    );
+
+    expect(
+      screen.getByRole("navigation", { name: "Create lease steps" }),
+    ).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Tenant" })).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "Lease terms" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(screen.getByRole("heading", { name: "Lease terms" })).not.toBeNull();
+    expect(
+      screen
+        .getByRole("button", { name: /Fixed term/ })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(
+      screen
+        .getByRole("button", { name: /Month-to-month/ })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    expect(
+      screen.getByText("Requires a future lease-contract update"),
+    ).not.toBeNull();
+    expect(screen.getByLabelText("Lease end date")).not.toBeNull();
+
+    const form = screen.getByRole("form", { name: "Add lease form" });
+    const payload = new FormData(form);
+    expect(payload.get("propertyId")).toBe("property-1");
+    expect(payload.get("unitId")).toBe("unit-1");
+    expect(payload.get("tenantPersonId")).toBe("tenant-1");
+    expect(payload.get("leaseType")).toBeNull();
+  });
+
   it("hides receipt controls when the operator cannot change lease terms", () => {
     render(
       <LeaseForm
@@ -109,13 +174,18 @@ describe("LeaseForm inline tenant billing recipient", () => {
       />,
     );
 
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
     const form = screen.getByRole("form", { name: "Add lease form" });
     expect(screen.getByText("Deposit required")).not.toBeNull();
     fireEvent.change(form.elements.namedItem("depositAmount")!, {
       target: { value: "750" },
     });
 
-    await user.click(screen.getByRole("combobox", { name: "Deposit received?" }));
+    await user.click(
+      screen.getByRole("combobox", { name: "Deposit received?" }),
+    );
     await user.click(screen.getByRole("option", { name: "Yes, received" }));
 
     expect(screen.getByText("Received amount")).not.toBeNull();
@@ -124,6 +194,71 @@ describe("LeaseForm inline tenant billing recipient", () => {
     expect(payload.get("depositReceived")).toBe("yes");
     expect(payload.get("depositReceivedAmount")).toBe("750");
     expect(payload.get("depositReceivedOn")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("shows the rent outcome while keeping technical calculation settings automatic", async () => {
+    const user = userEvent.setup();
+    render(
+      <LeaseForm
+        billingFormConfig={{
+          companyOptions: [],
+          operationalTimezone: "Asia/Bangkok",
+          organizationName: "Nestory",
+        }}
+        onClose={() => undefined}
+        properties={[]}
+        tenants={[]}
+        units={[]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    const form = screen.getByRole("form", { name: "Add lease form" });
+    fireEvent.input(form.elements.namedItem("leaseStartDate")!, {
+      target: { value: "2026-08-16" },
+    });
+    fireEvent.input(form.elements.namedItem("leaseEndDate")!, {
+      target: { value: "2027-07-15" },
+    });
+    fireEvent.change(form.elements.namedItem("monthlyRentAmount")!, {
+      target: { value: "1000" },
+    });
+    fireEvent.change(form.elements.namedItem("rentDueDay")!, {
+      target: { value: "5" },
+    });
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(
+      screen.getByRole("button", { name: "Change billing setup" }),
+    );
+
+    expect(screen.queryByText("Advanced billing rules")).toBeNull();
+    expect(screen.queryByText("Calculation timezone")).toBeNull();
+    expect(
+      screen.getByRole("combobox", {
+        name: "First or final month amount",
+      }).textContent,
+    ).toContain("Calculate automatically");
+    expect(
+      screen.queryByRole("textbox", { name: "First month amount (optional)" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("textbox", { name: "Final month amount (optional)" }),
+    ).toBeNull();
+
+    const summary = screen.getByRole("region", {
+      name: "Rent preview",
+    });
+    expect(within(summary).getByText("USD 516.13")).not.toBeNull();
+    expect(within(summary).getByText("USD 1,000.00")).not.toBeNull();
+    expect(within(summary).getByText("USD 483.87")).not.toBeNull();
+    expect(within(summary).getByText("Day 5")).not.toBeNull();
+
+    const payload = new FormData(form);
+    expect(payload.get("rentCalculationTimezone")).toBe("Asia/Bangkok");
+    expect(payload.get("fullManagementFeeDuringProration")).toBe("no");
   });
 
   it.each([
@@ -167,19 +302,20 @@ describe("LeaseForm inline tenant billing recipient", () => {
         await user.click(await screen.findByRole("option", { name: option }));
       };
 
+      await user.click(screen.getByRole("button", { name: "Next" }));
+      await user.click(screen.getByRole("button", { name: "Next" }));
+      await user.click(screen.getByRole("button", { name: "Next" }));
+      await user.click(
+        screen.getByRole("button", { name: "Change billing setup" }),
+      );
+
       await chooseOption("Who collects rent?", "Collected by owner");
       await chooseOption("Management fee", "Flat amount");
       fireEvent.change(form.elements.namedItem("managementFeeValue")!, {
         target: { value: "125.50" },
       });
       await chooseOption(/^Charge management fee\?/, "No");
-      await user.click(
-        screen.getByText("Advanced billing rules", { selector: "summary" }),
-      );
-      await chooseOption(/^Keep full fee in pro-rata months\?/, "Yes");
-      fireEvent.change(form.elements.namedItem("rentCalculationTimezone")!, {
-        target: { value: "Pacific/Honolulu" },
-      });
+      await chooseOption("First or final month amount", "Use agreed amounts");
       fireEvent.change(form.elements.namedItem("firstPeriodProratedAmount")!, {
         target: { value: "321.45" },
       });
@@ -187,6 +323,7 @@ describe("LeaseForm inline tenant billing recipient", () => {
         target: { value: "654.32" },
       });
 
+      await user.click(screen.getByRole("button", { name: "1 Tenant" }));
       await user.click(screen.getByRole("button", { name: "New tenant" }));
       await user.click(screen.getByRole("button", { name: completionLabel }));
 
@@ -198,13 +335,14 @@ describe("LeaseForm inline tenant billing recipient", () => {
       expect(payload.get("managementFeeMode")).toBe("flat");
       expect(payload.get("managementFeeValue")).toBe("125.50");
       expect(payload.get("chargeManagementFeeWhenActive")).toBe("no");
-      expect(payload.get("fullManagementFeeDuringProration")).toBe("yes");
+      expect(payload.get("fullManagementFeeDuringProration")).toBe("no");
       expect(payload.get("chargeThroughLeaseEnd")).toBe("yes");
-      expect(payload.get("rentCalculationTimezone")).toBe("Pacific/Honolulu");
+      expect(payload.get("rentCalculationTimezone")).toBe("Asia/Bangkok");
       expect(payload.get("firstPeriodProratedAmount")).toBe("321.45");
       expect(payload.get("finalPeriodProratedAmount")).toBe("654.32");
       expect(consoleError).not.toHaveBeenCalled();
       expect(consoleWarn).not.toHaveBeenCalled();
     },
+    15_000,
   );
 });

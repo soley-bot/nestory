@@ -820,7 +820,7 @@ describe("LeaseDetailScreen", () => {
     expect(
       within(drawer).getByRole("combobox", { name: "Who collects rent?" }),
     ).not.toBeNull();
-    expect(within(drawer).getByText("Begins with the next unbilled month.")).not.toBeNull();
+    expect(drawer.querySelector('[data-slot="sheet-description"]')).toBeNull();
     expect(
       drawer.querySelector<HTMLInputElement>(
         'input[name="expectedCurrentBillingRuleId"]',

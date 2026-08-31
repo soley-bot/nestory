@@ -961,7 +961,11 @@ describe("FinanceOperationsScreen", () => {
     ).toContain("Dara Tenant");
     expect(screen.queryByLabelText("Billing effective date")).toBeNull();
     expect(screen.getByText("Begins on the lease start date.")).not.toBeNull();
-    expect(screen.getByText("Advanced billing rules")).not.toBeNull();
+    expect(
+      screen.getByRole("region", { name: "Rent preview" }),
+    ).not.toBeNull();
+    expect(screen.queryByText("Advanced billing rules")).toBeNull();
+    expect(screen.queryByText("Calculation timezone")).toBeNull();
     expect(
       screen.getByRole("button", { name: "Save billing rules" }),
     ).not.toBeNull();
@@ -1168,7 +1172,7 @@ describe("FinanceOperationsScreen", () => {
     ]);
   });
 
-  it("keeps uncommon proration controls collapsed in lease billing", async () => {
+  it("shows proration outcomes without technical billing controls", async () => {
     const user = userEvent.setup();
     render(
       <FinanceOperationsScreen
@@ -1182,13 +1186,22 @@ describe("FinanceOperationsScreen", () => {
     await user.click(screen.getByRole("button", { name: "Set up" }));
 
     expect(screen.queryByRole("alert")).toBeNull();
-    const advanced = screen
-      .getByText("Advanced billing rules", {
-        exact: true,
-      })
-      .closest("details");
-    expect(advanced).not.toBeNull();
-    expect(advanced?.hasAttribute("open")).toBe(false);
+    expect(
+      screen.getByRole("combobox", {
+        name: "First or final month amount",
+      }).textContent,
+    ).toContain("Calculate automatically");
+    expect(
+      screen.queryByRole("textbox", { name: "First month amount (optional)" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("textbox", { name: "Final month amount (optional)" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("region", { name: "Rent preview" }),
+    ).not.toBeNull();
+    expect(screen.queryByText("Advanced billing rules")).toBeNull();
+    expect(screen.queryByText("Calculation timezone")).toBeNull();
     expect(
       screen.getByRole("button", { name: "Save billing rules" }),
     ).not.toBeNull();

@@ -872,9 +872,6 @@ function LeaseBillingRulesForm({
           {lease.propertyName} / {lease.unitLabel}
         </p>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Begins with the next unbilled month.
-      </p>
       <LeaseBillingRuleFields
         companyOptions={billingFormConfig?.companyOptions}
         defaults={editableRule}
@@ -885,6 +882,13 @@ function LeaseBillingRulesForm({
           "UTC"
         }
         organizationName={billingFormConfig?.organizationName ?? "our company"}
+        rentSchedule={{
+          currency: lease.formValues.monthlyRentCurrency,
+          leaseEndDate: lease.formValues.leaseEndDate,
+          leaseStartDate: lease.formValues.leaseStartDate,
+          monthlyRentAmount: lease.formValues.monthlyRentAmount,
+          rentDueDay: lease.formValues.rentDueDay,
+        }}
         tenantRecipient={{
           id: lease.formValues.tenantPersonId,
           label: lease.tenantName,
@@ -1072,8 +1076,7 @@ function getDrawerTitle(drawer: DrawerState) {
 function getDrawerDescription(drawer: DrawerState) {
   if (drawer.mode === "archive")
     return "Archive this record without deleting its history.";
-  if (drawer.mode === "billing")
-    return "Schedule the replacement after all generated invoice months.";
+  if (drawer.mode === "billing") return undefined;
   if (drawer.mode === "deposit")
     return "Review the held balance and record deposit changes for this lease.";
   if (drawer.mode === "restore")

@@ -213,10 +213,11 @@ describe("UnitDetailScreen focused operating record", () => {
     expect(
       within(drawer).getByRole("combobox", { name: "Management fee" }),
     ).not.toBeNull();
-    const advanced = within(drawer)
-      .getByText("Advanced billing rules")
-      .closest("details");
-    expect(advanced?.open).toBe(false);
+    expect(
+      within(drawer).queryByRole("region", { name: "Rent preview" }),
+    ).toBeNull();
+    expect(within(drawer).queryByText("Advanced billing rules")).toBeNull();
+    expect(within(drawer).queryByText("Calculation timezone")).toBeNull();
   });
 
   it("blocks the local Lease handoff while the unit is in maintenance", () => {
