@@ -323,7 +323,9 @@ describe("TenantInvoicePaymentForm", () => {
 
     const alert = await screen.findByRole("alert");
     expect(form.getAttribute("aria-describedby")).toBe(alert.id);
-    expect(document.activeElement).toBe(alert);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(alert);
+    });
     expect((amount as HTMLInputElement).value).toBe("125.50");
     expect((reference as HTMLInputElement).value).toBe("Bank transfer 42");
   });
@@ -352,7 +354,9 @@ describe("TenantInvoicePaymentForm", () => {
     const firstAlert = await screen.findByText(
       "The first receiving account is unavailable.",
     );
-    expect(document.activeElement).toBe(firstAlert);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(firstAlert);
+    });
     expect(amount.value).toBe("125.50");
     expect(reference.value).toBe("First transfer");
 
@@ -365,7 +369,9 @@ describe("TenantInvoicePaymentForm", () => {
     const secondAlert = await screen.findByText(
       "The replacement receiving account is unavailable.",
     );
-    expect(document.activeElement).toBe(secondAlert);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(secondAlert);
+    });
     expect(amount.value).toBe("98.75");
     expect(reference.value).toBe("Replacement transfer");
   });

@@ -88,8 +88,24 @@ export function LeaseForm({
   tenants,
 }: LeaseFormProps) {
   const isEditMode = mode === "edit";
+  const [createStep, setCreateStep] = useState(1);
+  const [furthestCreateStep, setFurthestCreateStep] = useState(1);
   const [state, action, pending] = useActionState(
-    isEditMode ? updateLeaseAction : createLeaseAction,
+    async (previousState: LeaseActionState, formData: FormData) => {
+      const nextState = await (isEditMode
+        ? updateLeaseAction(previousState, formData)
+        : createLeaseAction(previousState, formData));
+
+      if (!isEditMode && nextState.status === "error" && nextState.fieldErrors) {
+        const errorStep = getCreateStepForFieldErrors(nextState.fieldErrors);
+        if (errorStep !== null) {
+          setCreateStep(errorStep);
+          setFurthestCreateStep((current) => Math.max(current, errorStep));
+        }
+      }
+
+      return nextState;
+    },
     initialState,
   );
   const defaults = getLeaseDefaults(
@@ -127,8 +143,6 @@ export function LeaseForm({
     "moved_in",
   );
   const [createTenantOpen, setCreateTenantOpen] = useState(false);
-  const [createStep, setCreateStep] = useState(1);
-  const [furthestCreateStep, setFurthestCreateStep] = useState(1);
   const tenantOptions = ensureSelectedTenant(
     availableTenantOptions,
     selectedTenantId,
@@ -698,6 +712,55 @@ export function LeaseForm({
       </Modal>
     </>
   );
+}
+
+function getCreateStepForFieldErrors(
+  fieldErrors: NonNullable<LeaseActionState["fieldErrors"]>,
+) {
+  const stepFields = [
+    ["propertyId", "tenantPersonId", "unitId"],
+    [
+      "actualMoveInDate",
+      "actualMoveOutDate",
+      "leaseEndDate",
+      "leaseStartDate",
+      "scheduledMoveInDate",
+      "scheduledMoveOutDate",
+      "status",
+      "termStatus",
+    ],
+    [
+      "depositAmount",
+      "depositReceived",
+      "depositReceivedAmount",
+      "depositReceivedOn",
+      "monthlyRentAmount",
+      "paymentFrequency",
+      "rentDueDay",
+    ],
+    [
+      "billingRecipientKind",
+      "billingRecipientPersonId",
+      "chargeManagementFeeWhenActive",
+      "chargeThroughLeaseEnd",
+      "collectionRoute",
+      "finalPeriodProratedAmount",
+      "firstPeriodProratedAmount",
+      "fullManagementFeeDuringProration",
+      "leaseEndProrationRule",
+      "leaseStartProrationRule",
+      "managementFeeMode",
+      "managementFeeValue",
+      "midPeriodRentChangeRule",
+      "rentCalculationTimezone",
+      "shortMonthDueDayRule",
+    ],
+  ] as const;
+
+  const index = stepFields.findIndex((fields) =>
+    fields.some((field) => fieldErrors[field]?.length),
+  );
+  return index === -1 ? null : index + 1;
 }
 
 export function shouldCreateSetupLeaseAsActive(

@@ -168,6 +168,51 @@ describe("LeaseBillingRuleFields", () => {
     ).toBe("e.g. 750.00");
   });
 
+  it("uses one boundary amount and one preview for a same-month lease", async () => {
+    const user = userEvent.setup();
+    render(
+      <form data-testid="billing-form">
+        <LeaseBillingRuleFields
+          rentSchedule={{
+            leaseEndDate: "2026-08-20",
+            leaseStartDate: "2026-08-10",
+            monthlyRentAmount: 3100,
+            rentDueDay: 5,
+          }}
+          tenantRecipient={{
+            id: "individual-tenant",
+            label: "Dara Tenant",
+            partyType: "individual",
+          }}
+        />
+      </form>,
+    );
+
+    await user.click(
+      screen.getByRole("combobox", { name: "First or final month amount" }),
+    );
+    await user.click(screen.getByRole("option", { name: "Use agreed amounts" }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Lease month amount (optional)" }),
+      { target: { value: "1100" } },
+    );
+
+    expect(
+      screen.queryByRole("textbox", { name: "Final month amount (optional)" }),
+    ).toBeNull();
+    const summary = screen.getByRole("region", { name: "Rent preview" });
+    expect(within(summary).getByText("Lease month")).not.toBeNull();
+    expect(within(summary).getByText("USD 1,100.00")).not.toBeNull();
+    expect(within(summary).queryByText("First month")).toBeNull();
+    expect(within(summary).queryByText("Final month")).toBeNull();
+
+    const values = new FormData(
+      screen.getByTestId("billing-form") as HTMLFormElement,
+    );
+    expect(values.get("firstPeriodProratedAmount")).toBe("1100");
+    expect(values.get("finalPeriodProratedAmount")).toBe("");
+  });
+
   it("moves a tenant-derived recipient when the selected tenant changes", () => {
     const { rerender } = render(
       <form data-testid="billing-form">

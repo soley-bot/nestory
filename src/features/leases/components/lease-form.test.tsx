@@ -5,6 +5,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -14,8 +15,12 @@ import type {
   PersonRoleValue,
 } from "@/features/people/people.types";
 
+const { createLeaseActionMock } = vi.hoisted(() => ({
+  createLeaseActionMock: vi.fn(),
+}));
+
 vi.mock("@/features/leases/actions", () => ({
-  createLeaseAction: async () => ({}),
+  createLeaseAction: createLeaseActionMock,
   updateLeaseAction: async () => ({}),
 }));
 
@@ -67,6 +72,7 @@ vi.mock("@/features/people/components/person-form", () => ({
 import { LeaseForm } from "@/features/leases/components/lease-form";
 
 beforeEach(() => {
+  createLeaseActionMock.mockResolvedValue({});
   Object.defineProperties(HTMLElement.prototype, {
     hasPointerCapture: { configurable: true, value: () => false },
     releasePointerCapture: { configurable: true, value: () => undefined },
@@ -85,6 +91,34 @@ afterEach(() => {
 });
 
 describe("LeaseForm inline tenant billing recipient", () => {
+  it("returns to the step containing a server validation error", async () => {
+    const user = userEvent.setup();
+    createLeaseActionMock.mockResolvedValueOnce({
+      fieldErrors: { tenantPersonId: ["Choose a tenant."] },
+      status: "error",
+    });
+    render(
+      <LeaseForm
+        onClose={() => undefined}
+        properties={[]}
+        tenants={[]}
+        units={[]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(
+      screen.getByRole("button", { name: "Create draft lease" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Tenant" })).not.toBeNull();
+      expect(screen.getByText("Choose a tenant.")).not.toBeNull();
+    });
+  });
+
   it("guides creation through the approved steps without implying month-to-month support", async () => {
     const user = userEvent.setup();
     render(

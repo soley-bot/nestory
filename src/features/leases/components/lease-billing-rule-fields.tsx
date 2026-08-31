@@ -80,6 +80,11 @@ export function LeaseBillingRuleFields({
   const [specialPeriodMode, setSpecialPeriodMode] = useState<
     "agreed" | "automatic"
   >(hasSpecialPeriodAmount ? "agreed" : "automatic");
+  const sameMonthLease = isSameCalendarMonth(
+    parseCalendarDate(rentSchedule?.leaseStartDate),
+    parseCalendarDate(rentSchedule?.leaseEndDate),
+  );
+  const sameMonthAmount = firstPeriodAmount || finalPeriodAmount;
   const previousTenantRecipientRef = useRef(tenantRecipient);
   const selectedRecipientId =
     recipientId ||
@@ -374,7 +379,31 @@ export function LeaseBillingRuleFields({
             />
           </RecordField>
 
-          {specialPeriodMode === "agreed" ? (
+          {specialPeriodMode === "agreed" && sameMonthLease ? (
+            <div className="mt-3">
+              <RecordField
+                error={
+                  fieldErrors?.firstPeriodProratedAmount?.[0] ??
+                  fieldErrors?.finalPeriodProratedAmount?.[0]
+                }
+                label="Lease month amount (optional)"
+                name="firstPeriodProratedAmount"
+              >
+                <NumberInput
+                  min="0"
+                  name="firstPeriodProratedAmount"
+                  onChange={(event) => {
+                    setFirstPeriodAmount(event.currentTarget.value);
+                    setFinalPeriodAmount("");
+                  }}
+                  placeholder="e.g. 750.00"
+                  step="0.01"
+                  value={sameMonthAmount}
+                />
+              </RecordField>
+              <input name="finalPeriodProratedAmount" type="hidden" value="" />
+            </div>
+          ) : specialPeriodMode === "agreed" ? (
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <RecordField
                 error={fieldErrors?.firstPeriodProratedAmount?.[0]}
@@ -480,6 +509,13 @@ function RentCalculationSummary({
   const endDate = parseCalendarDate(rentSchedule?.leaseEndDate);
   const firstOverride = toFiniteNumber(firstPeriodAmount);
   const finalOverride = toFiniteNumber(finalPeriodAmount);
+  const sameMonthLease = isSameCalendarMonth(startDate, endDate);
+  const leaseMonth =
+    monthlyRent !== null && startDate && sameMonthLease
+      ? (firstOverride ??
+        finalOverride ??
+        prorateFirstMonth(monthlyRent, startDate, endDate))
+      : null;
   const firstMonth =
     monthlyRent !== null && startDate
       ? (firstOverride ?? prorateFirstMonth(monthlyRent, startDate, endDate))
@@ -503,15 +539,24 @@ function RentCalculationSummary({
         Rent preview
       </h3>
       <dl className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
-        <SummaryValue
-          label="First month"
-          value={firstMonth === null ? "—" : formatUsd(firstMonth)}
-        />
-        <SummaryValue label="Regular month" value={formatUsd(monthlyRent)} />
-        <SummaryValue
-          label="Final month"
-          value={finalMonth === null ? "—" : formatUsd(finalMonth)}
-        />
+        {sameMonthLease ? (
+          <SummaryValue
+            label="Lease month"
+            value={leaseMonth === null ? "—" : formatUsd(leaseMonth)}
+          />
+        ) : (
+          <>
+            <SummaryValue
+              label="First month"
+              value={firstMonth === null ? "—" : formatUsd(firstMonth)}
+            />
+            <SummaryValue label="Regular month" value={formatUsd(monthlyRent)} />
+            <SummaryValue
+              label="Final month"
+              value={finalMonth === null ? "—" : formatUsd(finalMonth)}
+            />
+          </>
+        )}
         <SummaryValue
           label="Rent due"
           value={dueDay !== null ? `Day ${dueDay}` : "—"}
@@ -531,6 +576,18 @@ function SummaryValue({ label, value }: { label: string; value: string }) {
 }
 
 type CalendarDate = { day: number; month: number; year: number };
+
+function isSameCalendarMonth(
+  startDate: CalendarDate | null,
+  endDate: CalendarDate | null,
+) {
+  return (
+    startDate !== null &&
+    endDate !== null &&
+    startDate.year === endDate.year &&
+    startDate.month === endDate.month
+  );
+}
 
 function parseCalendarDate(value?: string): CalendarDate | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? "");
