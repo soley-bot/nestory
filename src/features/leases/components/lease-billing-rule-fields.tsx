@@ -10,6 +10,16 @@ import type {
   LeaseBillingFormConfig,
 } from "@/features/leases/lease.types";
 
+type RentSchedule = {
+  currency?: "USD";
+  finalMonthRentAmount?: number | string | null;
+  firstMonthRentAmount?: number | string | null;
+  leaseEndDate?: string;
+  leaseStartDate?: string;
+  monthlyRentAmount?: number | string | null;
+  rentDueDay?: number | string | null;
+};
+
 export function LeaseBillingRuleFields({
   companyOptions = [],
   defaults,
@@ -26,13 +36,7 @@ export function LeaseBillingRuleFields({
   operationalTimezone?: string;
   organizationName?: string;
   presentation?: "expanded" | "summary";
-  rentSchedule?: {
-    currency?: "USD";
-    leaseEndDate?: string;
-    leaseStartDate?: string;
-    monthlyRentAmount?: number | string | null;
-    rentDueDay?: number | string | null;
-  };
+  rentSchedule?: RentSchedule;
   tenantRecipient: {
     id: string;
     label: string;
@@ -495,15 +499,13 @@ function RentCalculationSummary({
 }: {
   finalPeriodAmount: string;
   firstPeriodAmount: string;
-  rentSchedule?: {
-    currency?: "USD";
-    leaseEndDate?: string;
-    leaseStartDate?: string;
-    monthlyRentAmount?: number | string | null;
-    rentDueDay?: number | string | null;
-  };
+  rentSchedule?: RentSchedule;
 }) {
   const monthlyRent = toFiniteNumber(rentSchedule?.monthlyRentAmount);
+  const firstMonthRent =
+    toFiniteNumber(rentSchedule?.firstMonthRentAmount) ?? monthlyRent;
+  const finalMonthRent =
+    toFiniteNumber(rentSchedule?.finalMonthRentAmount) ?? monthlyRent;
   const dueDay = toFiniteNumber(rentSchedule?.rentDueDay);
   const startDate = parseCalendarDate(rentSchedule?.leaseStartDate);
   const endDate = parseCalendarDate(rentSchedule?.leaseEndDate);
@@ -511,18 +513,18 @@ function RentCalculationSummary({
   const finalOverride = toFiniteNumber(finalPeriodAmount);
   const sameMonthLease = isSameCalendarMonth(startDate, endDate);
   const leaseMonth =
-    monthlyRent !== null && startDate && sameMonthLease
+    firstMonthRent !== null && startDate && sameMonthLease
       ? (firstOverride ??
         finalOverride ??
-        prorateFirstMonth(monthlyRent, startDate, endDate))
+        prorateFirstMonth(firstMonthRent, startDate, endDate))
       : null;
   const firstMonth =
-    monthlyRent !== null && startDate
-      ? (firstOverride ?? prorateFirstMonth(monthlyRent, startDate, endDate))
+    firstMonthRent !== null && startDate
+      ? (firstOverride ?? prorateFirstMonth(firstMonthRent, startDate, endDate))
       : null;
   const finalMonth =
-    monthlyRent !== null && endDate
-      ? (finalOverride ?? prorateFinalMonth(monthlyRent, endDate, startDate))
+    finalMonthRent !== null && endDate
+      ? (finalOverride ?? prorateFinalMonth(finalMonthRent, endDate, startDate))
       : null;
 
   if (monthlyRent === null) return null;

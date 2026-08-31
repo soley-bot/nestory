@@ -848,6 +848,19 @@ function LeaseBillingRulesForm({
   const editableRule =
     lease.billingRules.find((rule) => rule.state === "scheduled") ??
     predecessorRule;
+  const billingPreviewTerms = lease.terms.filter(
+    (term) => term.status !== "superseded",
+  );
+  const firstLeaseTerm = billingPreviewTerms.reduce<LeaseTermContext | null>(
+    (first, term) =>
+      first === null || term.startDate < first.startDate ? term : first,
+    null,
+  );
+  const finalLeaseTerm = billingPreviewTerms.reduce<LeaseTermContext | null>(
+    (final, term) =>
+      final === null || term.endDate > final.endDate ? term : final,
+    null,
+  );
 
   useEffect(() => {
     if (state.status !== "success") return;
@@ -884,8 +897,13 @@ function LeaseBillingRulesForm({
         organizationName={billingFormConfig?.organizationName ?? "our company"}
         rentSchedule={{
           currency: lease.formValues.monthlyRentCurrency,
-          leaseEndDate: lease.formValues.leaseEndDate,
-          leaseStartDate: lease.formValues.leaseStartDate,
+          finalMonthRentAmount:
+            finalLeaseTerm?.rentAmount ?? lease.formValues.monthlyRentAmount,
+          firstMonthRentAmount:
+            firstLeaseTerm?.rentAmount ?? lease.formValues.monthlyRentAmount,
+          leaseEndDate: finalLeaseTerm?.endDate ?? lease.formValues.leaseEndDate,
+          leaseStartDate:
+            firstLeaseTerm?.startDate ?? lease.formValues.leaseStartDate,
           monthlyRentAmount: lease.formValues.monthlyRentAmount,
           rentDueDay: lease.formValues.rentDueDay,
         }}
