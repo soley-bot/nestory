@@ -868,7 +868,7 @@ describe("LeaseDetailScreen", () => {
     expect(within(preview).getByText("First month")).not.toBeNull();
     expect(within(preview).getByText("USD 548.39")).not.toBeNull();
     expect(within(preview).getByText("Final month")).not.toBeNull();
-    expect(within(preview).getByText("USD 2,000.00")).not.toBeNull();
+    expect(within(preview).getByText("USD 645.16")).not.toBeNull();
     expect(within(preview).queryByText("Lease month")).toBeNull();
   });
 

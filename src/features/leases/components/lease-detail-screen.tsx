@@ -861,6 +861,10 @@ function LeaseBillingRulesForm({
       final === null || term.endDate > final.endDate ? term : final,
     null,
   );
+  const finalMonthOpeningTerm = getOpeningTermForMonth(
+    billingPreviewTerms,
+    finalLeaseTerm?.endDate ?? lease.formValues.leaseEndDate,
+  );
 
   useEffect(() => {
     if (state.status !== "success") return;
@@ -898,7 +902,9 @@ function LeaseBillingRulesForm({
         rentSchedule={{
           currency: lease.formValues.monthlyRentCurrency,
           finalMonthRentAmount:
-            finalLeaseTerm?.rentAmount ?? lease.formValues.monthlyRentAmount,
+            finalMonthOpeningTerm?.rentAmount ??
+            finalLeaseTerm?.rentAmount ??
+            lease.formValues.monthlyRentAmount,
           firstMonthRentAmount:
             firstLeaseTerm?.rentAmount ?? lease.formValues.monthlyRentAmount,
           leaseEndDate: finalLeaseTerm?.endDate ?? lease.formValues.leaseEndDate,
@@ -939,6 +945,31 @@ function LeaseBillingRulesForm({
       </div>
     </form>
   );
+}
+
+function getOpeningTermForMonth(
+  terms: LeaseTermContext[],
+  billingPeriodEnd: string,
+) {
+  const billingPeriodStart = `${billingPeriodEnd.slice(0, 7)}-01`;
+
+  return terms
+    .filter(
+      (term) =>
+        term.startDate <= billingPeriodEnd &&
+        term.endDate >= billingPeriodStart,
+    )
+    .reduce<LeaseTermContext | null>((opening, term) => {
+      if (opening === null) return term;
+
+      const openingStartsAfterMonth = opening.startDate > billingPeriodStart;
+      const termStartsAfterMonth = term.startDate > billingPeriodStart;
+      if (openingStartsAfterMonth !== termStartsAfterMonth) {
+        return termStartsAfterMonth ? opening : term;
+      }
+
+      return term.startDate < opening.startDate ? term : opening;
+    }, null);
 }
 
 function LeaseTermModal({
