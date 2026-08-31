@@ -718,7 +718,7 @@ function getCreateStepForFieldErrors(
   fieldErrors: NonNullable<LeaseActionState["fieldErrors"]>,
 ) {
   const stepFields = [
-    ["propertyId", "tenantPersonId", "unitId"],
+    ["propertyId", "tenantPersonId"],
     [
       "actualMoveInDate",
       "actualMoveOutDate",
@@ -728,6 +728,7 @@ function getCreateStepForFieldErrors(
       "scheduledMoveOutDate",
       "status",
       "termStatus",
+      "unitId",
     ],
     [
       "depositAmount",

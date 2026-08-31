@@ -119,6 +119,43 @@ describe("LeaseForm inline tenant billing recipient", () => {
     });
   });
 
+  it("returns a fixed-unit conflict to the editable lease dates", async () => {
+    const user = userEvent.setup();
+    createLeaseActionMock.mockResolvedValueOnce({
+      fieldErrors: { unitId: ["This unit is already reserved for those dates."] },
+      message: "Choose another unit or change the lease dates.",
+      status: "error",
+    });
+    render(
+      <LeaseForm
+        createContext={{
+          propertyId: "property-1",
+          propertyLabel: "Riverside House",
+          unitId: "unit-1",
+          unitLabel: "Unit 01",
+        }}
+        onClose={() => undefined}
+        properties={[]}
+        tenants={[]}
+        units={[]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(
+      screen.getByRole("button", { name: "Create draft lease" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Lease terms" })).not.toBeNull();
+      expect(
+        screen.getByText("Choose another unit or change the lease dates."),
+      ).not.toBeNull();
+    });
+  });
+
   it("guides creation through the approved steps without implying month-to-month support", async () => {
     const user = userEvent.setup();
     render(

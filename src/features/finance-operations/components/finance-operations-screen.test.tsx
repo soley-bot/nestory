@@ -971,6 +971,39 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
   });
 
+  it("previews finance billing from the full lease boundary schedule", () => {
+    const input = data();
+    Object.assign(input.leases[0]!, {
+      billingPreview: {
+        endDate: "2026-08-20",
+        finalMonthRent: 1000,
+        firstMonthRent: 1000,
+        startDate: "2026-01-15",
+      },
+      endDate: "2026-08-20",
+      monthlyRent: 3100,
+      startDate: "2026-08-10",
+    });
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canConfigureRent: true })}
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Set up" }));
+    const dialog = screen.getByRole("dialog", { name: "Set up lease billing" });
+    const preview = within(dialog).getByRole("region", { name: "Rent preview" });
+    expect(within(preview).getByText("First month")).not.toBeNull();
+    expect(within(preview).getByText("USD 548.39")).not.toBeNull();
+    expect(within(preview).getByText("Final month")).not.toBeNull();
+    expect(within(preview).getByText("USD 645.16")).not.toBeNull();
+    expect(within(preview).queryByText("Lease month")).toBeNull();
+  });
+
   it("submits a legacy snapshot id as the repair token while showing missing authority", () => {
     const input = data();
     input.leases[0]!.expectedCurrentBillingRuleId = "legacy-snapshot-rule";

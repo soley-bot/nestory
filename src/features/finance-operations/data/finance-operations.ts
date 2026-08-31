@@ -54,6 +54,10 @@ type ExpenseSubmissionRow =
   Database["public"]["Tables"]["expense_submissions"]["Row"];
 type LeaseBillingTermRow =
   Database["public"]["Tables"]["lease_billing_terms"]["Row"];
+type LeaseTermPreviewRow = Pick<
+  Database["public"]["Tables"]["lease_terms"]["Row"],
+  "end_date" | "lease_id" | "rent_amount" | "start_date"
+>;
 type MaintenanceTaskRow = Pick<
   Database["public"]["Tables"]["tasks"]["Row"],
   "completed_at" | "description" | "id" | "status" | "title"
@@ -322,6 +326,7 @@ export async function getFinanceOperationsData(
     peopleResult,
     ownersResult,
     leasesResult,
+    leaseTermsResult,
     billingResult,
     tenantInvoicesResult,
     rentGenerationExceptionsResult,
@@ -369,6 +374,13 @@ export async function getFinanceOperationsData(
       .in("status", ["active", "notice_given", "ended", "terminated"])
       .order("lease_start_date", { ascending: false }),
     () => supabase
+      .from("lease_terms")
+      .select("lease_id, start_date, end_date, rent_amount")
+      .eq("organization_id", organizationId)
+      .eq("authority_kind", "authoritative")
+      .is("archived_at", null)
+      .neq("status", "superseded"),
+    () => supabase
       .from("lease_billing_terms")
       .select("*")
       .eq("organization_id", organizationId),
@@ -405,6 +417,7 @@ export async function getFinanceOperationsData(
     peopleResult,
     ownersResult,
     leasesResult,
+    leaseTermsResult,
     billingResult,
     tenantInvoicesResult,
     rentGenerationExceptionsResult,
@@ -491,6 +504,12 @@ export async function getFinanceOperationsData(
   const ownerByPropertyId = new Map(
     owners.map((owner) => [owner.property_id, owner.person_id]),
   );
+  const leaseTermsByLeaseId = new Map<string, LeaseTermPreviewRow[]>();
+  for (const term of leaseTermsResult.data ?? []) {
+    const terms = leaseTermsByLeaseId.get(term.lease_id) ?? [];
+    terms.push(term);
+    leaseTermsByLeaseId.set(term.lease_id, terms);
+  }
   const operationalTimezone =
     organizationResult.data?.operational_timezone || "UTC";
   const billingClock = new Date();
@@ -658,6 +677,9 @@ export async function getFinanceOperationsData(
       return [
         {
           billing: billingByLeaseId.get(lease.id) ?? null,
+          billingPreview: toFinanceLeaseBillingPreview(
+            leaseTermsByLeaseId.get(lease.id) ?? [],
+          ),
           endDate: lease.lease_end_date,
           expectedCurrentBillingRuleId:
             billingRuleIdByLeaseId.get(lease.id) ?? null,
@@ -746,6 +768,43 @@ export async function getFinanceOperationsData(
         } satisfies FinanceOption,
       ];
     }),
+  };
+}
+
+function toFinanceLeaseBillingPreview(
+  terms: readonly LeaseTermPreviewRow[],
+): FinanceLease["billingPreview"] {
+  if (terms.length === 0) return undefined;
+
+  const firstTerm = terms.reduce((first, term) =>
+    term.start_date < first.start_date ? term : first,
+  );
+  const finalTerm = terms.reduce((final, term) =>
+    term.end_date > final.end_date ? term : final,
+  );
+  const finalMonthStart = `${finalTerm.end_date.slice(0, 7)}-01`;
+  const finalMonthTerms = terms
+    .filter(
+      (term) =>
+        term.start_date <= finalTerm.end_date &&
+        term.end_date >= finalMonthStart,
+    )
+    .sort((left, right) => {
+      const leftStartsByMonth = left.start_date <= finalMonthStart;
+      const rightStartsByMonth = right.start_date <= finalMonthStart;
+      if (leftStartsByMonth !== rightStartsByMonth) {
+        return leftStartsByMonth ? -1 : 1;
+      }
+      return left.start_date.localeCompare(right.start_date);
+    });
+
+  return {
+    endDate: finalTerm.end_date,
+    finalMonthRent: Number(
+      (finalMonthTerms[0] ?? finalTerm).rent_amount,
+    ),
+    firstMonthRent: Number(firstTerm.rent_amount),
+    startDate: firstTerm.start_date,
   };
 }
 

@@ -2522,8 +2522,12 @@ function BillingSetupForm({
         organizationName={organizationName}
         rentSchedule={{
           currency: "USD",
-          leaseEndDate: lease.endDate,
-          leaseStartDate: lease.startDate,
+          finalMonthRentAmount:
+            lease.billingPreview?.finalMonthRent ?? lease.monthlyRent,
+          firstMonthRentAmount:
+            lease.billingPreview?.firstMonthRent ?? lease.monthlyRent,
+          leaseEndDate: lease.billingPreview?.endDate ?? lease.endDate,
+          leaseStartDate: lease.billingPreview?.startDate ?? lease.startDate,
           monthlyRentAmount: lease.monthlyRent,
         }}
         tenantRecipient={
