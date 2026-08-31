@@ -62,6 +62,64 @@ describe("finance operations initial reads", () => {
       "Could not load finance operations: canceling statement due to statement timeout",
     );
   });
+
+  it("loads the outer lease terms and opening final-month rate for billing preview", async () => {
+    const harness = createFinanceReadHarness({
+      current_leases: {
+        data: [
+          {
+            id: "lease-1",
+            lease_end_date: "2026-08-20",
+            lease_start_date: "2026-08-10",
+            monthly_rent_amount: 3100,
+            primary_tenant_person_id: "person-1",
+            property_id: "property-1",
+            status: "active",
+            tenant_name: "Dara Tenant",
+            unit_id: null,
+          },
+        ],
+      },
+      lease_terms: {
+        data: [
+          {
+            end_date: "2026-08-09",
+            lease_id: "lease-1",
+            rent_amount: 1000,
+            start_date: "2026-01-15",
+          },
+          {
+            end_date: "2026-08-20",
+            lease_id: "lease-1",
+            rent_amount: 3100,
+            start_date: "2026-08-10",
+          },
+        ],
+      },
+      properties: {
+        data: [
+          {
+            archived_at: null,
+            code: "P-01",
+            id: "property-1",
+            name: "Palm House",
+          },
+        ],
+      },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      harness.client as never,
+    );
+
+    const result = await getFinanceOperationsData("organization-1");
+
+    expect(result.leases[0]?.billingPreview).toEqual({
+      endDate: "2026-08-20",
+      finalMonthRent: 1000,
+      firstMonthRent: 1000,
+      startDate: "2026-01-15",
+    });
+  });
 });
 
 type QueryResult = {

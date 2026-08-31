@@ -820,12 +820,56 @@ describe("LeaseDetailScreen", () => {
     expect(
       within(drawer).getByRole("combobox", { name: "Who collects rent?" }),
     ).not.toBeNull();
-    expect(within(drawer).getByText("Begins with the next unbilled month.")).not.toBeNull();
+    expect(drawer.querySelector('[data-slot="sheet-description"]')).toBeNull();
     expect(
       drawer.querySelector<HTMLInputElement>(
         'input[name="expectedCurrentBillingRuleId"]',
       )?.value,
     ).toBe("billing-current");
+  });
+
+  it("previews billing against the outer authoritative lease terms", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    const baseTerm = lease.terms[0]!;
+    Object.assign(lease, {
+      billingRules: [billingRule({ id: "billing-current", state: "current" })],
+      formValues: {
+        ...lease.formValues,
+        leaseEndDate: "2026-08-20",
+        leaseStartDate: "2026-08-10",
+        monthlyRentAmount: 3100,
+      },
+      terms: [
+        {
+          ...baseTerm,
+          endDate: "2026-08-09",
+          id: "term-1",
+          rentAmount: 1000,
+          startDate: "2026-01-15",
+          status: "expired",
+        },
+        {
+          ...baseTerm,
+          endDate: "2026-08-20",
+          id: "term-2",
+          rentAmount: 3100,
+          startDate: "2026-08-10",
+          status: "active",
+        },
+      ],
+    });
+
+    renderDetail("rent", lease);
+    await user.click(screen.getByRole("button", { name: "Change rules" }));
+
+    const drawer = screen.getByRole("dialog", { name: "Change billing rules" });
+    const preview = within(drawer).getByRole("region", { name: "Rent preview" });
+    expect(within(preview).getByText("First month")).not.toBeNull();
+    expect(within(preview).getByText("USD 548.39")).not.toBeNull();
+    expect(within(preview).getByText("Final month")).not.toBeNull();
+    expect(within(preview).getByText("USD 645.16")).not.toBeNull();
+    expect(within(preview).queryByText("Lease month")).toBeNull();
   });
 
   it("edits the scheduled successor while retaining the current rule token", async () => {

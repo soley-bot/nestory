@@ -40,6 +40,12 @@ export type LeaseBillingSummary = {
 
 export type FinanceLease = {
   billing: LeaseBillingSummary | null;
+  billingPreview?: {
+    endDate: string;
+    finalMonthRent: number;
+    firstMonthRent: number;
+    startDate: string;
+  };
   endDate: string;
   expectedCurrentBillingRuleId: string | null;
   id: string;

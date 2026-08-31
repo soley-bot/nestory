@@ -1,13 +1,83 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
 import type { LeaseBillingRule } from "@/features/leases/lease.types";
 
-afterEach(cleanup);
+beforeEach(() => {
+  Object.defineProperties(HTMLElement.prototype, {
+    hasPointerCapture: { configurable: true, value: () => false },
+    releasePointerCapture: { configurable: true, value: () => undefined },
+    scrollIntoView: { configurable: true, value: () => undefined },
+    setPointerCapture: { configurable: true, value: () => undefined },
+  });
+});
+
+afterEach(() => {
+  cleanup();
+  delete (HTMLElement.prototype as Partial<HTMLElement>).hasPointerCapture;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).releasePointerCapture;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).setPointerCapture;
+});
 
 describe("LeaseBillingRuleFields", () => {
+  it("summarizes billing and switches between percentage and flat management fees", async () => {
+    const user = userEvent.setup();
+    render(
+      <form data-testid="billing-form">
+        <LeaseBillingRuleFields
+          defaults={billingRule()}
+          organizationName="Nestory Sample Operations"
+          presentation="summary"
+          tenantRecipient={{
+            id: "tenant-a",
+            label: "Dara Tenant",
+            partyType: "individual",
+          }}
+        />
+      </form>,
+    );
+
+    const summary = screen.getByRole("region", {
+      name: "Billing setup summary",
+    });
+    expect(within(summary).getByText("Dara Tenant monthly")).not.toBeNull();
+    expect(
+      within(summary).getByText("Nestory Sample Operations"),
+    ).not.toBeNull();
+    expect(within(summary).getByText("8% while rent is active")).not.toBeNull();
+    expect(
+      screen.queryByRole("combobox", { name: "Management fee" }),
+    ).toBeNull();
+
+    await user.click(
+      screen.getByRole("button", { name: "Change billing setup" }),
+    );
+    await user.click(screen.getByRole("combobox", { name: "Management fee" }));
+    await user.click(screen.getByRole("option", { name: "Flat amount" }));
+    fireEvent.change(screen.getByRole("textbox", { name: /^Fee amount/ }), {
+      target: { value: "125.50" },
+    });
+
+    expect(
+      within(summary).getByText("USD 125.50 per month while rent is active"),
+    ).not.toBeNull();
+    const values = new FormData(
+      screen.getByTestId("billing-form") as HTMLFormElement,
+    );
+    expect(values.get("managementFeeMode")).toBe("flat");
+    expect(values.get("managementFeeValue")).toBe("125.50");
+  });
+
   it("defaults a company tenant to a matching company billing recipient", () => {
     render(
       <form data-testid="billing-form">
@@ -72,6 +142,75 @@ describe("LeaseBillingRuleFields", () => {
       screen.getByTestId("billing-form") as HTMLFormElement,
     );
     expect(values.get("chargeThroughLeaseEnd")).toBe("yes");
+  });
+
+  it("shows concrete amount examples when agreed first or final amounts are enabled", () => {
+    render(
+      <LeaseBillingRuleFields
+        defaults={billingRule({ finalPeriodProratedAmount: 600 })}
+        tenantRecipient={{
+          id: "individual-tenant",
+          label: "Dara Tenant",
+          partyType: "individual",
+        }}
+      />,
+    );
+
+    expect(
+      screen
+        .getByRole("textbox", { name: "First month amount (optional)" })
+        .getAttribute("placeholder"),
+    ).toBe("e.g. 750.00");
+    expect(
+      screen
+        .getByRole("textbox", { name: "Final month amount (optional)" })
+        .getAttribute("placeholder"),
+    ).toBe("e.g. 750.00");
+  });
+
+  it("uses one boundary amount and one preview for a same-month lease", async () => {
+    const user = userEvent.setup();
+    render(
+      <form data-testid="billing-form">
+        <LeaseBillingRuleFields
+          rentSchedule={{
+            leaseEndDate: "2026-08-20",
+            leaseStartDate: "2026-08-10",
+            monthlyRentAmount: 3100,
+            rentDueDay: 5,
+          }}
+          tenantRecipient={{
+            id: "individual-tenant",
+            label: "Dara Tenant",
+            partyType: "individual",
+          }}
+        />
+      </form>,
+    );
+
+    await user.click(
+      screen.getByRole("combobox", { name: "First or final month amount" }),
+    );
+    await user.click(screen.getByRole("option", { name: "Use agreed amounts" }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Lease month amount (optional)" }),
+      { target: { value: "1100" } },
+    );
+
+    expect(
+      screen.queryByRole("textbox", { name: "Final month amount (optional)" }),
+    ).toBeNull();
+    const summary = screen.getByRole("region", { name: "Rent preview" });
+    expect(within(summary).getByText("Lease month")).not.toBeNull();
+    expect(within(summary).getByText("USD 1,100.00")).not.toBeNull();
+    expect(within(summary).queryByText("First month")).toBeNull();
+    expect(within(summary).queryByText("Final month")).toBeNull();
+
+    const values = new FormData(
+      screen.getByTestId("billing-form") as HTMLFormElement,
+    );
+    expect(values.get("firstPeriodProratedAmount")).toBe("1100");
+    expect(values.get("finalPeriodProratedAmount")).toBe("");
   });
 
   it("moves a tenant-derived recipient when the selected tenant changes", () => {

@@ -848,6 +848,23 @@ function LeaseBillingRulesForm({
   const editableRule =
     lease.billingRules.find((rule) => rule.state === "scheduled") ??
     predecessorRule;
+  const billingPreviewTerms = lease.terms.filter(
+    (term) => term.status !== "superseded",
+  );
+  const firstLeaseTerm = billingPreviewTerms.reduce<LeaseTermContext | null>(
+    (first, term) =>
+      first === null || term.startDate < first.startDate ? term : first,
+    null,
+  );
+  const finalLeaseTerm = billingPreviewTerms.reduce<LeaseTermContext | null>(
+    (final, term) =>
+      final === null || term.endDate > final.endDate ? term : final,
+    null,
+  );
+  const finalMonthOpeningTerm = getOpeningTermForMonth(
+    billingPreviewTerms,
+    finalLeaseTerm?.endDate ?? lease.formValues.leaseEndDate,
+  );
 
   useEffect(() => {
     if (state.status !== "success") return;
@@ -872,9 +889,6 @@ function LeaseBillingRulesForm({
           {lease.propertyName} / {lease.unitLabel}
         </p>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Begins with the next unbilled month.
-      </p>
       <LeaseBillingRuleFields
         companyOptions={billingFormConfig?.companyOptions}
         defaults={editableRule}
@@ -885,6 +899,20 @@ function LeaseBillingRulesForm({
           "UTC"
         }
         organizationName={billingFormConfig?.organizationName ?? "our company"}
+        rentSchedule={{
+          currency: lease.formValues.monthlyRentCurrency,
+          finalMonthRentAmount:
+            finalMonthOpeningTerm?.rentAmount ??
+            finalLeaseTerm?.rentAmount ??
+            lease.formValues.monthlyRentAmount,
+          firstMonthRentAmount:
+            firstLeaseTerm?.rentAmount ?? lease.formValues.monthlyRentAmount,
+          leaseEndDate: finalLeaseTerm?.endDate ?? lease.formValues.leaseEndDate,
+          leaseStartDate:
+            firstLeaseTerm?.startDate ?? lease.formValues.leaseStartDate,
+          monthlyRentAmount: lease.formValues.monthlyRentAmount,
+          rentDueDay: lease.formValues.rentDueDay,
+        }}
         tenantRecipient={{
           id: lease.formValues.tenantPersonId,
           label: lease.tenantName,
@@ -917,6 +945,31 @@ function LeaseBillingRulesForm({
       </div>
     </form>
   );
+}
+
+function getOpeningTermForMonth(
+  terms: LeaseTermContext[],
+  billingPeriodEnd: string,
+) {
+  const billingPeriodStart = `${billingPeriodEnd.slice(0, 7)}-01`;
+
+  return terms
+    .filter(
+      (term) =>
+        term.startDate <= billingPeriodEnd &&
+        term.endDate >= billingPeriodStart,
+    )
+    .reduce<LeaseTermContext | null>((opening, term) => {
+      if (opening === null) return term;
+
+      const openingStartsAfterMonth = opening.startDate > billingPeriodStart;
+      const termStartsAfterMonth = term.startDate > billingPeriodStart;
+      if (openingStartsAfterMonth !== termStartsAfterMonth) {
+        return termStartsAfterMonth ? opening : term;
+      }
+
+      return term.startDate < opening.startDate ? term : opening;
+    }, null);
 }
 
 function LeaseTermModal({
@@ -1072,8 +1125,7 @@ function getDrawerTitle(drawer: DrawerState) {
 function getDrawerDescription(drawer: DrawerState) {
   if (drawer.mode === "archive")
     return "Archive this record without deleting its history.";
-  if (drawer.mode === "billing")
-    return "Schedule the replacement after all generated invoice months.";
+  if (drawer.mode === "billing") return undefined;
   if (drawer.mode === "deposit")
     return "Review the held balance and record deposit changes for this lease.";
   if (drawer.mode === "restore")

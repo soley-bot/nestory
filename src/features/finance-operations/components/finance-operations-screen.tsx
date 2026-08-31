@@ -2520,6 +2520,16 @@ function BillingSetupForm({
         defaults={defaults}
         operationalTimezone={operationalTimezone}
         organizationName={organizationName}
+        rentSchedule={{
+          currency: "USD",
+          finalMonthRentAmount:
+            lease.billingPreview?.finalMonthRent ?? lease.monthlyRent,
+          firstMonthRentAmount:
+            lease.billingPreview?.firstMonthRent ?? lease.monthlyRent,
+          leaseEndDate: lease.billingPreview?.endDate ?? lease.endDate,
+          leaseStartDate: lease.billingPreview?.startDate ?? lease.startDate,
+          monthlyRentAmount: lease.monthlyRent,
+        }}
         tenantRecipient={
           lease.tenantPersonId
             ? {

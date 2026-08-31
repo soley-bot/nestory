@@ -196,27 +196,24 @@ describe("UnitDetailScreen focused operating record", () => {
       form.querySelector<HTMLInputElement>('input[name="unitId"]')?.value,
     ).toBe("unit-1");
     expect(
-      within(drawer).getByRole("heading", {
-        level: 3,
-        name: "Rent collection and billing",
-      }),
+      within(drawer).getByRole("heading", { level: 3, name: "Tenant" }),
     ).not.toBeNull();
     expect(
-      within(drawer).getByRole("combobox", { name: "Bill to" }),
+      within(drawer).getByRole("combobox", { name: "Tenant(required)" }),
     ).not.toBeNull();
     expect(
-      within(drawer).getByRole("combobox", { name: "Recipient" }),
+      within(drawer).getByRole("button", { name: "1 Tenant" }),
     ).not.toBeNull();
     expect(
-      within(drawer).getByRole("combobox", { name: "Who collects rent?" }),
-    ).not.toBeNull();
+      within(drawer)
+        .getByRole("button", { name: "4 Billing setup" })
+        .hasAttribute("disabled"),
+    ).toBe(true);
     expect(
-      within(drawer).getByRole("combobox", { name: "Management fee" }),
-    ).not.toBeNull();
-    const advanced = within(drawer)
-      .getByText("Advanced billing rules")
-      .closest("details");
-    expect(advanced?.open).toBe(false);
+      within(drawer).queryByRole("region", { name: "Rent preview" }),
+    ).toBeNull();
+    expect(within(drawer).queryByText("Advanced billing rules")).toBeNull();
+    expect(within(drawer).queryByText("Calculation timezone")).toBeNull();
   });
 
   it("blocks the local Lease handoff while the unit is in maintenance", () => {
