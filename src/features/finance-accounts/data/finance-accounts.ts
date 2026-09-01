@@ -22,7 +22,7 @@ type FinanceAccountRoleRow = Pick<
 >;
 type PropertyRow = Pick<
   Database["public"]["Tables"]["properties"]["Row"],
-  "code" | "id" | "name"
+  "archived_at" | "code" | "id" | "name"
 >;
 
 const ACCOUNT_CLASS_ORDER: readonly FinanceAccountClass[] = [
@@ -57,7 +57,7 @@ export async function getFinanceAccountsData(
     supabase.from("finance_account_roles").select("account_id, role_code").eq("organization_id", organizationId).order("role_code"),
     supabase.from("finance_account_source_links").select("account_id").eq("organization_id", organizationId).order("account_id"),
     supabase.from("finance_account_category_links").select("account_id").eq("organization_id", organizationId).order("account_id"),
-    supabase.from("properties").select("id, code, name").eq("organization_id", organizationId).order("code").order("name"),
+    supabase.from("properties").select("id, code, name, archived_at").eq("organization_id", organizationId).order("code").order("name"),
   ]);
 
   assertReadSucceeded("accounts", accountsResult.error);
@@ -66,13 +66,14 @@ export async function getFinanceAccountsData(
   assertReadSucceeded("account category mappings", categoryLinksResult.error);
   assertReadSucceeded("account properties", propertiesResult.error);
 
-  const properties = ((propertiesResult.data ?? []) as PropertyRow[]).map((property) => ({
+  const propertyRows = (propertiesResult.data ?? []) as PropertyRow[];
+  const propertyLabelById = new Map(
+    propertyRows.map((property) => [property.id, `${property.code} · ${property.name}`]),
+  );
+  const properties = propertyRows.filter((property) => property.archived_at === null).map((property) => ({
     id: property.id,
     label: `${property.code} · ${property.name}`,
   }));
-  const propertyLabelById = new Map(
-    properties.map((property) => [property.id, property.label]),
-  );
   const defaultForByAccountId = groupDefaultRolesByAccount((rolesResult.data ?? []) as FinanceAccountRoleRow[]);
   const summariesById = new Map(
     ((accountsResult.data ?? []) as FinanceAccountRow[]).map((account) => [

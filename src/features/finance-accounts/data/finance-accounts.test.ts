@@ -83,8 +83,8 @@ describe("getFinanceAccountsData", () => {
     const categoryLinksQuery = chainQuery({ data: [], error: null });
     const propertiesQuery = chainQuery({
       data: [
-        { code: "HIL", id: "property-2", name: "Hill House" },
-        { code: "RIV", id: "property-1", name: "Riverside House" },
+        { archived_at: null, code: "HIL", id: "property-2", name: "Hill House" },
+        { archived_at: null, code: "RIV", id: "property-1", name: "Riverside House" },
       ],
       error: null,
     });
@@ -154,6 +154,41 @@ describe("getFinanceAccountsData", () => {
     await expect(getFinanceAccountsData("org-1")).rejects.toThrow(
       "Could not load account category mappings: permission denied",
     );
+  });
+
+  it("keeps archived property labels for history but excludes them from creation options", async () => {
+    // Break caught: filtering archived properties at query time loses the label
+    // on an existing historical account, while returning every readable row as
+    // a form option lets operators create new accounts for archived properties.
+    const accountQuery = chainQuery({
+      data: [accountRow({ id: "historical-account", property_id: "archived-property" })],
+      error: null,
+    });
+    const propertiesQuery = chainQuery({
+      data: [
+        { archived_at: "2026-08-01T00:00:00.000Z", code: "OLD", id: "archived-property", name: "Former House" },
+        { archived_at: null, code: "RIV", id: "active-property", name: "Riverside House" },
+      ],
+      error: null,
+    });
+    createSupabaseServerClient.mockResolvedValue({
+      from: vi.fn((table: string) => {
+        if (table === "finance_accounts") return accountQuery;
+        if (table === "properties") return propertiesQuery;
+        return chainQuery({ data: [], error: null });
+      }),
+    });
+
+    const data = await getFinanceAccountsData("org-1");
+    const historicalAccount = data.groups
+      .find((group) => group.accountClass === "asset")
+      ?.accounts.find((account) => account.id === "historical-account");
+
+    expect(historicalAccount?.propertyLabel).toBe("OLD · Former House");
+    expect(data.properties).toEqual([
+      { id: "active-property", label: "RIV · Riverside House" },
+    ]);
+    expect(propertiesQuery.select).toHaveBeenCalledWith("id, code, name, archived_at");
   });
 
   it("rejects account hierarchies deeper than one supported child level", async () => {
