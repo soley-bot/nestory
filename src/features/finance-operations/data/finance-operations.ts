@@ -314,6 +314,119 @@ export function toExpenseSubmissionSummary(
   };
 }
 
+export type ExpenseTransactionSnapshot = {
+  expenseDate: string;
+  externalPayeeLabel: string | null;
+  id: string;
+  payeeLabel: string;
+  reference: string | null;
+  status: ExpenseSubmissionSummary["status"];
+};
+
+export type ExpenseTransactionLineSnapshot = {
+  description: string;
+  ownerCashAmount: number | null;
+  sortOrder: number;
+  submissionId: string;
+  transactionId: string;
+};
+
+export function groupExpenseTransactionSummaries(
+  submissions: readonly ExpenseSubmissionSummary[],
+  transactions: readonly ExpenseTransactionSnapshot[],
+  transactionLines: readonly ExpenseTransactionLineSnapshot[],
+): ExpenseSubmissionSummary[] {
+  const submissionById = new Map(
+    submissions.map((submission) => [submission.id, submission]),
+  );
+  const linkedSubmissionIds = new Set(
+    transactionLines.map((line) => line.submissionId),
+  );
+  const grouped: ExpenseSubmissionSummary[] = [];
+
+  for (const transaction of transactions) {
+    const lines = transactionLines
+      .filter((line) => line.transactionId === transaction.id)
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .flatMap((line) => {
+        const submission = submissionById.get(line.submissionId);
+        return submission ? [{ line, submission }] : [];
+      });
+    if (lines.length === 0) continue;
+
+    const first = lines[0].submission;
+    const propertyIds = new Set(lines.map(({ submission }) => submission.propertyId));
+    grouped.push({
+      ...first,
+      category: lines.length === 1 ? first.category : "multiple",
+      categoryLabel:
+        lines.length === 1 ? first.categoryLabel : `${lines.length} expense lines`,
+      customerTotal: lines.reduce(
+        (total, { submission }) => total + submission.customerTotal,
+        0,
+      ),
+      date: transaction.expenseDate,
+      id: transaction.id,
+      internalCost: lines.reduce(
+        (total, { submission }) => total + submission.internalCost,
+        0,
+      ),
+      internalMarkup: lines.reduce(
+        (total, { submission }) => total + submission.internalMarkup,
+        0,
+      ),
+      lines: lines.map(({ line, submission }) => ({
+        amount: submission.internalCost,
+        category: submission.category,
+        categoryLabel: submission.categoryLabel,
+        description: line.description,
+        ownerCashAmount: line.ownerCashAmount,
+        propertyId: submission.propertyId,
+        propertyLabel: submission.propertyLabel,
+        submissionId: submission.id,
+        unitId: submission.unitId,
+        unitLabel: submission.unitLabel,
+      })),
+      propertyId: propertyIds.size === 1 ? first.propertyId : "multiple",
+      propertyLabel:
+        propertyIds.size === 1
+          ? first.propertyLabel
+          : `${propertyIds.size} properties`,
+      reference: transaction.reference,
+      status: transaction.status,
+      transactionId: transaction.id,
+      unitId: lines.length === 1 ? first.unitId : null,
+      unitLabel: lines.length === 1 ? first.unitLabel : "Multiple units",
+      vendorLabel: transaction.payeeLabel,
+    });
+  }
+
+  for (const submission of submissions) {
+    if (linkedSubmissionIds.has(submission.id)) continue;
+    grouped.push({
+      ...submission,
+      lines: [{
+        amount: submission.internalCost,
+        category: submission.category,
+        categoryLabel: submission.categoryLabel,
+        description:
+          submission.reference ?? submission.categoryLabel ?? submission.category,
+        ownerCashAmount: null,
+        propertyId: submission.propertyId,
+        propertyLabel: submission.propertyLabel,
+        submissionId: submission.id,
+        unitId: submission.unitId,
+        unitLabel: submission.unitLabel,
+      }],
+      transactionId: null,
+    });
+  }
+
+  return grouped.sort((left, right) =>
+    right.submittedAt.localeCompare(left.submittedAt),
+  );
+}
+
 export async function getFinanceOperationsData(
   organizationId: string,
   propertyId?: string | null,
@@ -324,6 +437,7 @@ export async function getFinanceOperationsData(
     propertiesResult,
     unitsResult,
     peopleResult,
+    personRolesResult,
     ownersResult,
     leasesResult,
     leaseTermsResult,
@@ -332,6 +446,8 @@ export async function getFinanceOperationsData(
     rentGenerationExceptionsResult,
     ownerInvoicesResult,
     expenseSubmissionsResult,
+    expenseTransactionsResult,
+    expenseTransactionLinesResult,
     positionsResult,
     entriesResult,
     sourcesResult,
@@ -357,6 +473,12 @@ export async function getFinanceOperationsData(
       .select("id, display_name, party_type, archived_at")
       .eq("organization_id", organizationId)
       .order("display_name"),
+    () => supabase
+      .from("person_roles")
+      .select("person_id, role")
+      .eq("organization_id", organizationId)
+      .eq("status", "active")
+      .is("archived_at", null),
     () => supabase
       .from("property_owners")
       .select("property_id, person_id")
@@ -389,6 +511,16 @@ export async function getFinanceOperationsData(
     () => getOwnerInvoiceBalanceRows(supabase, organizationId, propertyId),
     () => getExpenseSubmissionRows(supabase, organizationId),
     () => supabase
+      .from("expense_transactions")
+      .select("id, expense_date, external_payee_label, payee_label, reference, status")
+      .eq("organization_id", organizationId)
+      .order("submitted_at", { ascending: false }),
+    () => supabase
+      .from("expense_transaction_lines")
+      .select("transaction_id, submission_id, sort_order, description, owner_cash_amount")
+      .eq("organization_id", organizationId)
+      .order("sort_order"),
+    () => supabase
       .from("property_finance_positions")
       .select("*")
       .eq("organization_id", organizationId)
@@ -415,6 +547,7 @@ export async function getFinanceOperationsData(
     propertiesResult,
     unitsResult,
     peopleResult,
+    personRolesResult,
     ownersResult,
     leasesResult,
     leaseTermsResult,
@@ -423,6 +556,8 @@ export async function getFinanceOperationsData(
     rentGenerationExceptionsResult,
     ownerInvoicesResult,
     expenseSubmissionsResult,
+    expenseTransactionsResult,
+    expenseTransactionLinesResult,
     positionsResult,
     entriesResult,
     sourcesResult,
@@ -501,6 +636,12 @@ export async function getFinanceOperationsData(
   const personById = new Map(
     people.map((person) => [person.id, person.display_name]),
   );
+  const rolesByPersonId = new Map<string, string[]>();
+  for (const role of personRolesResult.data ?? []) {
+    const roles = rolesByPersonId.get(role.person_id) ?? [];
+    roles.push(role.role);
+    rolesByPersonId.set(role.person_id, roles);
+  }
   const ownerByPropertyId = new Map(
     owners.map((owner) => [owner.property_id, owner.person_id]),
   );
@@ -649,24 +790,50 @@ export async function getFinanceOperationsData(
         sortOrder: category.sort_order,
       }) satisfies FinanceCategory,
   );
+  const expenseSubmissionSummaries = (
+    expenseSubmissionsResult.data ?? []
+  ).map((submission) =>
+    toExpenseSubmissionSummary(
+      submission,
+      propertyById,
+      unitById,
+      sourceById,
+      evidenceBySubmissionId,
+      maintenanceTaskById,
+      submitterLabelByUserId,
+      financeCategories,
+    ),
+  );
+  const expenseTransactionSnapshots: ExpenseTransactionSnapshot[] = (
+    expenseTransactionsResult.data ?? []
+  ).map((transaction) => ({
+    expenseDate: transaction.expense_date,
+    externalPayeeLabel: transaction.external_payee_label,
+    id: transaction.id,
+    payeeLabel: transaction.payee_label,
+    reference: transaction.reference,
+    status: transaction.status as ExpenseSubmissionSummary["status"],
+  }));
+  const expenseTransactionLineSnapshots: ExpenseTransactionLineSnapshot[] = (
+    expenseTransactionLinesResult.data ?? []
+  ).map((line) => ({
+    description: line.description,
+    ownerCashAmount:
+      line.owner_cash_amount === null ? null : Number(line.owner_cash_amount),
+    sortOrder: line.sort_order,
+    submissionId: line.submission_id,
+    transactionId: line.transaction_id,
+  }));
   return {
     accountEntries: sortPropertyAccountEntriesNewestFirst(
       (entriesResult.data ?? []).flatMap((row) =>
         toAccountEntry(row as AccountEntryRow),
       ),
     ),
-    expenseSubmissions: (expenseSubmissionsResult.data ?? []).map(
-      (submission) =>
-        toExpenseSubmissionSummary(
-          submission,
-          propertyById,
-          unitById,
-          sourceById,
-          evidenceBySubmissionId,
-          maintenanceTaskById,
-          submitterLabelByUserId,
-          financeCategories,
-        ),
+    expenseSubmissions: groupExpenseTransactionSummaries(
+      expenseSubmissionSummaries,
+      expenseTransactionSnapshots,
+      expenseTransactionLineSnapshots,
     ),
     financeCategories,
     leases: (leasesResult.data ?? []).flatMap((lease) => {
@@ -710,6 +877,7 @@ export async function getFinanceOperationsData(
         id: person.id,
         label: person.display_name,
         partyType: person.party_type,
+        roles: rolesByPersonId.get(person.id) ?? [],
       })),
     positions: (positionsResult.data ?? []).flatMap((row) =>
       toPosition(row as PositionRow, personById),

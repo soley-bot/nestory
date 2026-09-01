@@ -73,6 +73,11 @@ const authoritativeNonnegativeAmount = z.string().transform((value, context) => 
     return z.NEVER;
   }
 });
+
+function exactAmountMinorUnits(value: string): bigint {
+  const [whole, fraction = "00"] = value.split(".");
+  return BigInt(whole) * BigInt(100) + BigInt(fraction.padEnd(2, "0"));
+}
 const billingSchema = leaseBillingRuleSchema.and(
   z.object({
     expectedCurrentBillingRuleId: z.preprocess(
@@ -201,7 +206,7 @@ const settlementReversalSchema = z.object({
   settlementId: uuid,
 });
 
-const expenseSchema = z.object({
+const legacyExpenseSchema = z.object({
   category: financeCategoryCode,
   expenseDate: date,
   idempotencyKey: z.string().min(8),
@@ -220,6 +225,98 @@ const expenseSchema = z.object({
   vendorLabel: z.string().trim().min(2).max(120),
 });
 
+const nullableExactAmount = z.preprocess(
+  (value) => value === null || value === undefined || value === "" ? null : value,
+  authoritativeNonnegativeAmount.nullable(),
+);
+
+const expenseTransactionLineSchema = z
+  .object({
+    amount: authoritativeOwnerAmount,
+    category: financeCategoryCode,
+    description: z.string().trim().min(2).max(500),
+    internalMarkupAmount: z
+      .preprocess(
+        (value) => value === null || value === undefined || value === "" ? "0" : value,
+        authoritativeNonnegativeAmount,
+      ),
+    ownerCashAmount: nullableExactAmount,
+    propertyId: uuid,
+    tenantInvoiceId: z.preprocess((value) => value || null, uuid.nullable()),
+    unitId: z.preprocess((value) => value || null, uuid.nullable()),
+  })
+  .superRefine((line, context) => {
+    if (
+      line.ownerCashAmount !== null &&
+      exactAmountMinorUnits(line.ownerCashAmount) > exactAmountMinorUnits(line.amount)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Owner cash cannot exceed the expense line amount.",
+        path: ["ownerCashAmount"],
+      });
+    }
+  });
+
+const expenseTransactionSchema = z
+  .object({
+    expenseDate: date,
+    externalPayeeLabel: z.string().trim().max(120),
+    idempotencyKey: z.string().min(8).max(160),
+    lines: z.string().transform((value, context) => {
+      try {
+        return JSON.parse(value) as unknown;
+      } catch {
+        context.addIssue({ code: "custom", message: "Expense lines are invalid." });
+        return z.NEVER;
+      }
+    }).pipe(z.array(expenseTransactionLineSchema).min(1).max(20)),
+    payeeMode: z.enum(["person", "external"]),
+    payeePersonId: z.preprocess((value) => value || null, uuid.nullable()),
+    reconciliationSourceId: uuid,
+    reference: z.string().trim().min(1).max(160),
+    responsibility: z.enum(["owner", "tenant"]),
+  })
+  .superRefine((value, context) => {
+    if (value.payeeMode === "person" && !value.payeePersonId) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose an existing payee.",
+        path: ["payeePersonId"],
+      });
+    }
+    if (value.payeeMode === "external" && value.externalPayeeLabel.length < 2) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter the one-time external payee.",
+        path: ["externalPayeeLabel"],
+      });
+    }
+    if (value.responsibility === "tenant" && value.lines.length !== 1) {
+      context.addIssue({
+        code: "custom",
+        message: "Tenant recovery supports one expense line at a time.",
+        path: ["lines"],
+      });
+    }
+    value.lines.forEach((line, index) => {
+      if (value.responsibility === "tenant" && !line.tenantInvoiceId) {
+        context.addIssue({
+          code: "custom",
+          message: "Choose the tenant invoice for this charge.",
+          path: ["lines", index, "tenantInvoiceId"],
+        });
+      }
+      if (value.responsibility === "tenant" && line.ownerCashAmount !== null) {
+        context.addIssue({
+          code: "custom",
+          message: "Owner cash applies only to owner expenses.",
+          path: ["lines", index, "ownerCashAmount"],
+        });
+      }
+    });
+  });
+
 const expenseReviewSchema = z.object({
   decision: z.enum(["approve", "reject"]),
   idempotencyKey: z.string().min(8),
@@ -234,14 +331,20 @@ const expenseReviewSchema = z.object({
     (value) => value || null,
     uuid.nullable(),
   ),
-  submissionId: uuid,
+  submissionId: z.preprocess((value) => value || null, uuid.nullable()),
+  transactionId: z.preprocess((value) => value || null, uuid.nullable()),
+}).refine((value) => Boolean(value.submissionId) !== Boolean(value.transactionId), {
+  message: "Choose one expense review record.",
 });
 
 const expenseReversalSchema = z.object({
   idempotencyKey: z.string().min(8),
   reason: z.string().trim().min(3).max(500),
   reversalDate: date,
-  submissionId: uuid,
+  submissionId: z.preprocess((value) => value || null, uuid.nullable()),
+  transactionId: z.preprocess((value) => value || null, uuid.nullable()),
+}).refine((value) => Boolean(value.submissionId) !== Boolean(value.transactionId), {
+  message: "Choose one expense reversal record.",
 });
 
 const ownerPaymentSchema = z.object({
@@ -668,7 +771,63 @@ export async function submitExpenseAction(
   const evidenceFile = formData.get("evidenceFile");
   const evidenceError = validatePaidCostEvidenceFile(evidenceFile);
   if (evidenceError) return actionError(evidenceError);
-  const parsed = expenseSchema.safeParse(Object.fromEntries(formData));
+  if (formData.has("lines")) {
+    const parsed = expenseTransactionSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return validationError(parsed.error);
+
+    const context = await requireFinanceSubmissionContext();
+    const supabase = await createSupabaseServerClient();
+    let evidenceDocumentId: string;
+    try {
+      const evidence = await preparePaidCostEvidence({
+        actorId: context.userId,
+        file: evidenceFile as File,
+        idempotencyKey: parsed.data.idempotencyKey,
+        organizationId: context.organizationId,
+        propertyId: parsed.data.lines[0].propertyId,
+        requestClient: supabase,
+      });
+      evidenceDocumentId = evidence.documentId;
+    } catch (error) {
+      unstable_rethrow(error);
+      return actionError("Receipt evidence could not be verified. Try again.");
+    }
+
+    const { error } = await supabase.rpc("submit_expense_transaction", {
+      p_currency: "USD",
+      p_expense_date: parsed.data.expenseDate,
+      p_external_payee_label:
+        parsed.data.payeeMode === "external"
+          ? parsed.data.externalPayeeLabel
+          : null,
+      p_idempotency_key: parsed.data.idempotencyKey,
+      p_lines: parsed.data.lines.map((line) => ({
+        amount: line.amount,
+        category: line.category,
+        description: line.description,
+        internal_markup_amount: line.internalMarkupAmount,
+        owner_cash_amount: line.ownerCashAmount,
+        property_id: line.propertyId,
+        tenant_invoice_id: line.tenantInvoiceId,
+        unit_id: line.unitId,
+      })) satisfies Json,
+      p_organization_id: context.organizationId,
+      p_payee_person_id:
+        parsed.data.payeeMode === "person" ? parsed.data.payeePersonId : null,
+      p_reconciliation_source_id: parsed.data.reconciliationSourceId,
+      p_reference: parsed.data.reference,
+      p_responsibility: parsed.data.responsibility,
+      p_supporting_document_id: evidenceDocumentId,
+    });
+    if (error) return expenseWorkflowError(error.message);
+    revalidateFinance();
+    return {
+      message: "Paid cost submitted for Finance review.",
+      status: "success",
+    };
+  }
+
+  const parsed = legacyExpenseSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return validationError(parsed.error);
   if (parsed.data.responsibility === "tenant" && !parsed.data.tenantInvoiceId) {
     return actionError("Choose the tenant invoice for this charge.");
@@ -730,14 +889,22 @@ export async function reviewExpenseAction(
 
   const context = await requireFinanceReviewContext();
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("review_expense", {
-    p_decision: parsed.data.decision,
-    p_idempotency_key: parsed.data.idempotencyKey,
-    p_organization_id: context.organizationId,
-    p_reason: parsed.data.reason || null,
-    p_reconciliation_source_id: parsed.data.reconciliationSourceId,
-    p_submission_id: parsed.data.submissionId,
-  });
+  const { error } = parsed.data.transactionId
+    ? await supabase.rpc("review_expense_transaction", {
+        p_decision: parsed.data.decision,
+        p_idempotency_key: parsed.data.idempotencyKey,
+        p_organization_id: context.organizationId,
+        p_reason: parsed.data.reason || null,
+        p_transaction_id: parsed.data.transactionId,
+      })
+    : await supabase.rpc("review_expense", {
+        p_decision: parsed.data.decision,
+        p_idempotency_key: parsed.data.idempotencyKey,
+        p_organization_id: context.organizationId,
+        p_reason: parsed.data.reason || null,
+        p_reconciliation_source_id: parsed.data.reconciliationSourceId,
+        p_submission_id: parsed.data.submissionId as string,
+      });
   if (error) return expenseWorkflowError(error.message);
   revalidateFinance();
   return {
@@ -758,13 +925,21 @@ export async function reverseExpenseAction(
 
   const context = await requireFinanceReversalContext();
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("reverse_expense", {
-    p_idempotency_key: parsed.data.idempotencyKey,
-    p_organization_id: context.organizationId,
-    p_reason: parsed.data.reason,
-    p_reversal_date: parsed.data.reversalDate,
-    p_submission_id: parsed.data.submissionId,
-  });
+  const { error } = parsed.data.transactionId
+    ? await supabase.rpc("reverse_expense_transaction", {
+        p_idempotency_key: parsed.data.idempotencyKey,
+        p_organization_id: context.organizationId,
+        p_reason: parsed.data.reason,
+        p_reversal_date: parsed.data.reversalDate,
+        p_transaction_id: parsed.data.transactionId,
+      })
+    : await supabase.rpc("reverse_expense", {
+        p_idempotency_key: parsed.data.idempotencyKey,
+        p_organization_id: context.organizationId,
+        p_reason: parsed.data.reason,
+        p_reversal_date: parsed.data.reversalDate,
+        p_submission_id: parsed.data.submissionId as string,
+      });
   if (error) return expenseWorkflowError(error.message);
   revalidateFinance();
   return { message: "Paid cost reversed.", status: "success" };

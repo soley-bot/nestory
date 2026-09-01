@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Select,
   SelectContent,
@@ -27,6 +27,7 @@ type SelectControlProps = {
   "aria-required"?: boolean | "false" | "true";
   ariaLabel?: string;
   className?: string;
+  contentFooter?: ReactNode;
   defaultValue?: string;
   disabled?: boolean;
   name?: string;
@@ -46,6 +47,7 @@ export function SelectControl(props: SelectControlProps) {
     "aria-required": ariaRequired,
     ariaLabel,
     className,
+    contentFooter,
     defaultValue = "",
     disabled = false,
     name,
@@ -125,6 +127,7 @@ export function SelectControl(props: SelectControlProps) {
               </SelectItem>
             ))}
           </SelectGroup>
+          {contentFooter ? <div className="border-t p-2">{contentFooter}</div> : null}
         </SelectContent>
       </Select>
     </>

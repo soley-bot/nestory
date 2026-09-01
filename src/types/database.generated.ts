@@ -693,6 +693,219 @@ export type Database = {
           },
         ]
       }
+      expense_transaction_lines: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          organization_id: string
+          owner_cash_amount: number | null
+          sort_order: number
+          submission_id: string
+          transaction_id: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          organization_id: string
+          owner_cash_amount?: number | null
+          sort_order: number
+          submission_id: string
+          transaction_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          organization_id?: string
+          owner_cash_amount?: number | null
+          sort_order?: number
+          submission_id?: string
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_transaction_lines_organization_id_submission_id_fkey"
+            columns: ["organization_id", "submission_id"]
+            isOneToOne: false
+            referencedRelation: "expense_submissions"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_transaction_lines_organization_id_transaction_id_fkey"
+            columns: ["organization_id", "transaction_id"]
+            isOneToOne: false
+            referencedRelation: "expense_transactions"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      expense_transaction_scopes: {
+        Row: {
+          created_at: string
+          organization_id: string
+          property_id: string
+          transaction_id: string
+        }
+        Insert: {
+          created_at?: string
+          organization_id: string
+          property_id: string
+          transaction_id: string
+        }
+        Update: {
+          created_at?: string
+          organization_id?: string
+          property_id?: string
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_transaction_scopes_organization_id_property_id_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_transaction_scopes_organization_id_property_id_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "expense_transaction_scopes_organization_id_transaction_id_fkey"
+            columns: ["organization_id", "transaction_id"]
+            isOneToOne: false
+            referencedRelation: "expense_transactions"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      expense_transactions: {
+        Row: {
+          created_at: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          expense_date: string
+          external_payee_label: string | null
+          id: string
+          idempotency_key: string
+          organization_id: string
+          payee_label: string
+          payee_person_id: string | null
+          reconciliation_source_id: string
+          reference: string | null
+          request_payload_hash: string
+          responsibility: string
+          reversal_idempotency_key: string | null
+          reversal_payload_hash: string | null
+          reversal_reason: string | null
+          reversed_at: string | null
+          reversed_by: string | null
+          review_idempotency_key: string | null
+          review_payload_hash: string | null
+          review_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submitted_at: string
+          submitted_by: string
+          supporting_document_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: Database["public"]["Enums"]["currency_code"]
+          expense_date: string
+          external_payee_label?: string | null
+          id?: string
+          idempotency_key: string
+          organization_id: string
+          payee_label: string
+          payee_person_id?: string | null
+          reconciliation_source_id: string
+          reference?: string | null
+          request_payload_hash: string
+          responsibility?: string
+          reversal_idempotency_key?: string | null
+          reversal_payload_hash?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
+          review_idempotency_key?: string | null
+          review_payload_hash?: string | null
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string
+          submitted_by: string
+          supporting_document_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: Database["public"]["Enums"]["currency_code"]
+          expense_date?: string
+          external_payee_label?: string | null
+          id?: string
+          idempotency_key?: string
+          organization_id?: string
+          payee_label?: string
+          payee_person_id?: string | null
+          reconciliation_source_id?: string
+          reference?: string | null
+          request_payload_hash?: string
+          responsibility?: string
+          reversal_idempotency_key?: string | null
+          reversal_payload_hash?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
+          review_idempotency_key?: string | null
+          review_payload_hash?: string | null
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string
+          submitted_by?: string
+          supporting_document_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_transactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_transactions_payee_person_id_fkey"
+            columns: ["payee_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_transactions_reconciliation_source_id_fkey"
+            columns: ["reconciliation_source_id"]
+            isOneToOne: false
+            referencedRelation: "financial_reconciliation_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_transactions_supporting_document_id_fkey"
+            columns: ["supporting_document_id"]
+            isOneToOne: true
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       finance_categories: {
         Row: {
           archived_at: string | null
@@ -11647,6 +11860,16 @@ export type Database = {
         }
         Returns: Json
       }
+      reverse_expense_transaction: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+          p_reversal_date: string
+          p_transaction_id: string
+        }
+        Returns: Json
+      }
       reverse_lease_deposit_event: {
         Args: {
           p_event_date: string
@@ -11744,6 +11967,16 @@ export type Database = {
           p_reason: string
           p_reconciliation_source_id: string
           p_submission_id: string
+        }
+        Returns: Json
+      }
+      review_expense_transaction: {
+        Args: {
+          p_decision: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+          p_transaction_id: string
         }
         Returns: Json
       }
@@ -11912,6 +12145,22 @@ export type Database = {
           p_unit_id: string
           p_vendor_label: string
           p_vendor_person_id: string
+        }
+        Returns: Json
+      }
+      submit_expense_transaction: {
+        Args: {
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_expense_date: string
+          p_external_payee_label: string
+          p_idempotency_key: string
+          p_lines: Json
+          p_organization_id: string
+          p_payee_person_id: string
+          p_reconciliation_source_id: string
+          p_reference: string
+          p_responsibility: string
+          p_supporting_document_id: string
         }
         Returns: Json
       }

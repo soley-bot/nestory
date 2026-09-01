@@ -388,6 +388,8 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
               invoices={props.tenantInvoices}
               onClose={closeDrawer}
               onSuccess={onActionSuccess}
+              peopleOptions={props.peopleOptions}
+              positions={props.positions}
               propertyOptions={props.propertyOptions}
               reconciliationSources={props.reconciliationSources}
               unitOptions={props.unitOptions}
@@ -2161,6 +2163,35 @@ function ExpenseDetails({
             : []),
         ]}
       />
+      {submission.lines && submission.lines.length > 0 ? (
+        <div className="space-y-2 border-y border-border py-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Expense lines
+          </p>
+          {submission.lines.map((line, index) => (
+            <div
+              className="grid gap-1 rounded-lg border border-border/80 p-3 sm:grid-cols-[1fr_auto]"
+              key={line.submissionId}
+            >
+              <div>
+                <p className="font-medium">{line.description}</p>
+                <p className="text-xs text-muted-foreground">
+                  {line.propertyLabel} · {line.unitLabel} · {line.categoryLabel ?? categoryLabel(line.category)}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  IPS-held owner cash: {line.ownerCashAmount === null
+                    ? "automatic at approval"
+                    : formatMoneyDisplay(line.ownerCashAmount).primary}
+                </p>
+              </div>
+              <div className="font-medium tabular-nums">
+                <span className="sr-only">Line {index + 1}: </span>
+                {formatMoneyDisplay(line.amount).primary}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {submission.sourceType === "maintenance_task" &&
       submission.maintenanceTask ? (
         <div className="border-y border-border py-3 text-sm">
@@ -2635,7 +2666,409 @@ function PaymentChooser({
   );
 }
 
-function ExpenseForm({
+type ExpenseFormProps = {
+  financeCategories: FinanceCategory[];
+  fixedScope?: FinanceOperationsScreenProps["scope"];
+  initialInvoiceId?: string;
+  initialResponsibility?: "owner" | "tenant";
+  invoices: TenantInvoiceSummary[];
+  onClose: () => void;
+  onSuccess: (message: string) => void;
+  peopleOptions: FinanceOperationsData["peopleOptions"];
+  positions: FinanceOperationsData["positions"];
+  propertyOptions: FinanceOperationsData["propertyOptions"];
+  reconciliationSources: FinanceOperationsData["reconciliationSources"];
+  unitOptions: FinanceOperationsData["unitOptions"];
+};
+
+function ExpenseForm(props: ExpenseFormProps) {
+  if ((props.initialResponsibility ?? "owner") === "owner") {
+    return <OwnerExpenseTransactionForm {...props} />;
+  }
+  return (
+    <SingleLineExpenseForm
+      financeCategories={props.financeCategories}
+      fixedScope={props.fixedScope}
+      initialInvoiceId={props.initialInvoiceId}
+      initialResponsibility={props.initialResponsibility}
+      invoices={props.invoices}
+      onClose={props.onClose}
+      onSuccess={props.onSuccess}
+      propertyOptions={props.propertyOptions}
+      reconciliationSources={props.reconciliationSources}
+      unitOptions={props.unitOptions}
+    />
+  );
+}
+
+type OwnerExpenseDraftLine = {
+  amount: string;
+  category: string;
+  description: string;
+  key: number;
+  ownerCashAmount: string;
+  propertyId: string;
+  unitId: string;
+};
+
+function OwnerExpenseTransactionForm({
+  financeCategories,
+  fixedScope,
+  onClose,
+  onSuccess,
+  peopleOptions,
+  positions,
+  propertyOptions,
+  reconciliationSources,
+  unitOptions,
+}: ExpenseFormProps) {
+  const activeCategories = financeCategories.filter(
+    (category) => category.isActive && category.namespace === "owner_expense",
+  );
+  const defaultPropertyId = fixedScope?.propertyId ?? propertyOptions[0]?.id ?? "";
+  const defaultUnitId = fixedScope?.kind === "unit" ? fixedScope.id : "";
+  const nextLineKey = useRef(2);
+  const idempotencyKey = useStableActionId("expense-transaction");
+  const [state, action, pending] = useActionState(
+    submitExpenseAction,
+    actionInitialState,
+  );
+  const [expenseDate, setExpenseDate] = useState(getBusinessDateValue());
+  const [externalPayeeLabel, setExternalPayeeLabel] = useState("");
+  const [payeeValue, setPayeeValue] = useState("");
+  const [reference, setReference] = useState("");
+  const [lines, setLines] = useState<OwnerExpenseDraftLine[]>([
+    {
+      amount: "",
+      category: activeCategories[0]?.code ?? "",
+      description: "",
+      key: 1,
+      ownerCashAmount: "",
+      propertyId: defaultPropertyId,
+      unitId: defaultUnitId,
+    },
+  ]);
+  const distinctPropertyIds = [...new Set(lines.map((line) => line.propertyId).filter(Boolean))];
+  const eligibleSources = reconciliationSources.filter(
+    (source) =>
+      source.propertyId == null ||
+      (distinctPropertyIds.length === 1 && source.propertyId === distinctPropertyIds[0]),
+  );
+  const [reconciliationSourceId, setReconciliationSourceId] = useState(
+    reconciliationSources.find(
+      (source) => source.propertyId == null || source.propertyId === defaultPropertyId,
+    )?.id ?? "",
+  );
+  const effectiveReconciliationSourceId = eligibleSources.some(
+    (source) => source.id === reconciliationSourceId,
+  )
+    ? reconciliationSourceId
+    : eligibleSources[0]?.id ?? "";
+  useSuccess(state, onSuccess);
+
+  const orderedPayees = [...peopleOptions].sort((left, right) => {
+    const leftVendor = left.roles?.includes("vendor") ? 0 : 1;
+    const rightVendor = right.roles?.includes("vendor") ? 0 : 1;
+    return leftVendor - rightVendor || left.label.localeCompare(right.label);
+  });
+  const payeePersonId = payeeValue.startsWith("person:")
+    ? payeeValue.slice("person:".length)
+    : "";
+  const payeeMode = payeeValue === "external" ? "external" : "person";
+
+  function updateLine(
+    key: number,
+    patch: Partial<OwnerExpenseDraftLine>,
+  ) {
+    setLines((current) =>
+      current.map((line) => line.key === key ? { ...line, ...patch } : line),
+    );
+  }
+
+  const linePayload = lines.map((line) => ({
+    amount: line.amount,
+    category: line.category,
+    description: line.description,
+    internalMarkupAmount: "0",
+    ownerCashAmount: line.ownerCashAmount || null,
+    propertyId: line.propertyId,
+    tenantInvoiceId: null,
+    unitId: line.unitId || null,
+  }));
+  const total = lines.reduce((sum, line) => sum + Number(line.amount || 0), 0);
+
+  return (
+    <RecordForm
+      action={action}
+      allowSaveWhenClean={false}
+      ariaLabel="Record property expense form"
+      onCancel={onClose}
+      pending={pending}
+      saveLabel="Submit for review"
+      savingLabel="Submitting expense"
+      state={state}
+    >
+      <input name="expenseDate" type="hidden" value={expenseDate} />
+      <input name="externalPayeeLabel" type="hidden" value={externalPayeeLabel} />
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      <input name="lines" type="hidden" value={JSON.stringify(linePayload)} />
+      <input name="payeeMode" type="hidden" value={payeeMode} />
+      <input name="payeePersonId" type="hidden" value={payeePersonId} />
+      <input
+        name="reconciliationSourceId"
+        type="hidden"
+        value={effectiveReconciliationSourceId}
+      />
+      <input name="reference" type="hidden" value={reference} />
+      <input name="responsibility" type="hidden" value="owner" />
+
+      <FormSection
+        className="rounded-xl border border-border/80 bg-card p-4 shadow-sm last:border-b last:pb-4"
+        indentContent={false}
+        step="01"
+        title="Cost record"
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Paid to">
+            <SelectControl
+              ariaLabel="Paid to"
+              contentFooter={
+                <Link
+                  className="block rounded-md px-1.5 py-1 text-sm font-medium text-primary hover:bg-accent"
+                  href="/vendors?action=create"
+                  target="_blank"
+                >
+                  Create vendor
+                </Link>
+              }
+              onValueChange={setPayeeValue}
+              options={[
+                ...orderedPayees.map((person) => ({
+                  label: `${person.roles?.includes("vendor") ? "Vendor" : "Person"} · ${person.label}`,
+                  value: `person:${person.id}`,
+                })),
+                { label: "One-time external payee", value: "external" },
+              ]}
+              placeholder="Choose vendor or person"
+              required
+              value={payeeValue}
+            />
+            <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">Uses the People and Vendor directory.</span>
+              <Link
+                className="font-medium text-primary underline-offset-2 hover:underline"
+                href="/vendors?action=create"
+                target="_blank"
+              >
+                Create vendor
+              </Link>
+            </div>
+          </Field>
+          <Field label="Paid date">
+            <Input
+              onChange={(event) => setExpenseDate(event.target.value)}
+              type="date"
+              value={expenseDate}
+            />
+          </Field>
+          {payeeValue === "external" ? (
+            <Field label="External payee name">
+              <Input
+                onChange={(event) => setExternalPayeeLabel(event.target.value)}
+                placeholder="One-time payee"
+                required
+                value={externalPayeeLabel}
+              />
+            </Field>
+          ) : null}
+        </div>
+      </FormSection>
+
+      <FormSection
+        className="rounded-xl border border-border/80 bg-card p-4 shadow-sm last:border-b last:pb-4"
+        indentContent={false}
+        step="02"
+        title="Payment"
+      >
+        <div className="space-y-4">
+          {lines.map((line, index) => {
+            const heldCash = positions.find(
+              (position) => position.propertyId === line.propertyId,
+            )?.cashHeldByIps;
+            return (
+              <div className="rounded-xl border border-border/80 p-3" key={line.key}>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Expense line {index + 1}</p>
+                  {lines.length > 1 ? (
+                    <Button
+                      aria-label={`Remove expense line ${index + 1}`}
+                      onClick={() => setLines((current) => current.filter((item) => item.key !== line.key))}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      Remove
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Property">
+                    {fixedScope ? (
+                      <div className="flex min-h-8 items-center border-b border-border px-1 text-sm font-medium">
+                        {fixedScope.propertyLabel}
+                      </div>
+                    ) : (
+                      <SelectControl
+                        ariaLabel={`Expense line ${index + 1} property`}
+                        onValueChange={(propertyId) => updateLine(line.key, { propertyId, unitId: "" })}
+                        options={propertyOptions.map((property) => ({ label: property.label, value: property.id }))}
+                        value={line.propertyId}
+                      />
+                    )}
+                  </Field>
+                  <Field label="Unit">
+                    {fixedScope?.kind === "unit" ? (
+                      <div className="flex min-h-8 items-center border-b border-border px-1 text-sm font-medium">
+                        {fixedScope.label}
+                      </div>
+                    ) : (
+                      <SelectControl
+                        ariaLabel={`Expense line ${index + 1} unit`}
+                        onValueChange={(unitId) => updateLine(line.key, { unitId })}
+                        options={[
+                          { label: "No unit", value: "" },
+                          ...unitOptions
+                            .filter((unit) => unit.propertyId === line.propertyId)
+                            .map((unit) => ({ label: unit.label, value: unit.id })),
+                        ]}
+                        value={line.unitId}
+                      />
+                    )}
+                  </Field>
+                  <Field label="Owner expense category">
+                    <SelectControl
+                      ariaLabel={index === 0 ? "Paid-cost category" : `Expense line ${index + 1} category`}
+                      onValueChange={(category) => updateLine(line.key, { category })}
+                      options={activeCategories.map((category) => ({
+                        label: category.displayLabel,
+                        value: category.code,
+                      }))}
+                      required
+                      value={line.category}
+                    />
+                  </Field>
+                  <Field label="Expense description">
+                    <Input
+                      aria-label="Expense description"
+                      onChange={(event) => updateLine(line.key, { description: event.target.value })}
+                      placeholder="What was purchased or completed?"
+                      required
+                      value={line.description}
+                    />
+                  </Field>
+                  <Field label="Amount paid">
+                    <NumberInput
+                      aria-label="Line amount"
+                      onChange={(event) => updateLine(line.key, { amount: event.target.value })}
+                      required
+                      value={line.amount}
+                    />
+                  </Field>
+                  <Field label="Apply from IPS-held owner cash">
+                    <NumberInput
+                      aria-label="Apply from IPS-held owner cash"
+                      max={line.amount || undefined}
+                      min="0"
+                      onChange={(event) => updateLine(line.key, { ownerCashAmount: event.target.value })}
+                      placeholder="Automatic"
+                      value={line.ownerCashAmount}
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      <span>Automatic when left blank</span>
+                      {heldCash === undefined
+                        ? "."
+                        : ` · ${formatMoneyDisplay(heldCash).primary} currently held.`}
+                    </p>
+                  </Field>
+                </div>
+              </div>
+            );
+          })}
+          <Button
+            onClick={() => {
+              const key = nextLineKey.current;
+              nextLineKey.current += 1;
+              setLines((current) => [...current, {
+                amount: "",
+                category: activeCategories[0]?.code ?? "",
+                description: "",
+                key,
+                ownerCashAmount: "",
+                propertyId: fixedScope?.propertyId ?? current.at(-1)?.propertyId ?? defaultPropertyId,
+                unitId: fixedScope?.kind === "unit" ? fixedScope.id : "",
+              }]);
+            }}
+            type="button"
+            variant="outline"
+          >
+            <Plus size={14} /> Add line
+          </Button>
+        </div>
+      </FormSection>
+
+      <FormSection
+        className="rounded-xl border border-border/80 bg-card p-4 shadow-sm last:border-b last:pb-4"
+        indentContent={false}
+        step="04"
+        title="Payment evidence"
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Who paid?">
+            <SelectControl
+              ariaLabel="Who paid?"
+              onValueChange={setReconciliationSourceId}
+              options={eligibleSources.map((source) => ({ label: source.label, value: source.id }))}
+              placeholder={eligibleSources.length > 0 ? "Choose funding source" : "No common funding source"}
+              required
+              value={effectiveReconciliationSourceId}
+            />
+          </Field>
+          <Field label="Receipt or payment reference">
+            <Input
+              onChange={(event) => setReference(event.target.value)}
+              placeholder="Receipt number or transfer note"
+              required
+              value={reference}
+            />
+          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Receipt evidence">
+              <Input
+                accept="application/pdf,image/jpeg,image/png,image/webp"
+                name="evidenceFile"
+                required
+                type="file"
+              />
+            </Field>
+          </div>
+          <div className="rounded-xl border border-border/80 sm:col-span-2">
+            <h3 className="sr-only">Financial preview</h3>
+            <DefinitionRows rows={[
+              ["Expense lines", String(lines.length)],
+              ["Total paid", formatMoneyDisplay(total).primary],
+              ["Owner expense", formatMoneyDisplay(total).primary],
+              ["Owner due to company", formatMoneyDisplay(total).primary],
+              ["Approval", "One maker-checker decision for the whole transaction"],
+            ]} />
+          </div>
+        </div>
+      </FormSection>
+      <ActionMessage state={state} />
+    </RecordForm>
+  );
+}
+
+function SingleLineExpenseForm({
   financeCategories,
   fixedScope,
   initialInvoiceId,
@@ -2646,18 +3079,7 @@ function ExpenseForm({
   propertyOptions,
   reconciliationSources,
   unitOptions,
-}: {
-  financeCategories: FinanceCategory[];
-  fixedScope?: FinanceOperationsScreenProps["scope"];
-  initialInvoiceId?: string;
-  initialResponsibility?: "owner" | "tenant";
-  invoices: TenantInvoiceSummary[];
-  onClose: () => void;
-  onSuccess: (message: string) => void;
-  propertyOptions: FinanceOperationsData["propertyOptions"];
-  reconciliationSources: FinanceOperationsData["reconciliationSources"];
-  unitOptions: FinanceOperationsData["unitOptions"];
-}) {
+}: Omit<ExpenseFormProps, "peopleOptions" | "positions">) {
   const idempotencyKey = useStableActionId("expense");
   const effectiveResponsibility = initialResponsibility ?? "owner";
   const categoryNamespace =
@@ -3027,7 +3449,16 @@ function ExpenseReviewForm({
   return (
     <form action={action} className="space-y-4 p-4">
       <input name="decision" type="hidden" value={decision} />
-      <input name="submissionId" type="hidden" value={submission.id} />
+      <input
+        name="submissionId"
+        type="hidden"
+        value={submission.transactionId ? "" : submission.id}
+      />
+      <input
+        name="transactionId"
+        type="hidden"
+        value={submission.transactionId ?? ""}
+      />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
       <input name="reason" type="hidden" value={reason} />
       <DefinitionRows
@@ -3184,7 +3615,16 @@ function ExpenseReversalForm({
 
   return (
     <form action={action} className="space-y-4 p-4">
-      <input name="submissionId" type="hidden" value={submission.id} />
+      <input
+        name="submissionId"
+        type="hidden"
+        value={submission.transactionId ? "" : submission.id}
+      />
+      <input
+        name="transactionId"
+        type="hidden"
+        value={submission.transactionId ?? ""}
+      />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
       <input name="reason" type="hidden" value={reason} />
       <DefinitionRows

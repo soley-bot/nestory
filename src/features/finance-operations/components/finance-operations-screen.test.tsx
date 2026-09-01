@@ -1307,6 +1307,68 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
   });
 
+  it("uses existing People authority for payees and supports ordered expense lines", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.peopleOptions = [
+      {
+        id: "person-vendor",
+        label: "Khmer Home Services",
+        partyType: "company",
+        roles: ["vendor"],
+      },
+      {
+        id: "person-staff",
+        label: "Dara Staff",
+        partyType: "individual",
+        roles: ["staff"],
+      },
+    ];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canSubmitExpense: true })}
+        organizationName="Sokha Property Services"
+        view="expenses"
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Record property expense" }),
+    );
+    await user.click(screen.getByRole("combobox", { name: "Paid to" }));
+    expect(
+      screen.getByRole("option", { name: "Vendor · Khmer Home Services" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("option", { name: "Person · Dara Staff" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("option", { name: "One-time external payee" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Create vendor" }).getAttribute("href"),
+    ).toBe("/vendors?action=create");
+    await user.click(
+      screen.getByRole("option", { name: "Vendor · Khmer Home Services" }),
+    );
+
+    expect(screen.getAllByLabelText("Expense description")).toHaveLength(1);
+    expect(screen.getAllByLabelText("Line amount")).toHaveLength(1);
+    expect(
+      screen.getAllByLabelText("Apply from IPS-held owner cash"),
+    ).toHaveLength(1);
+    expect(screen.getByText("Automatic when left blank")).not.toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Add line" }));
+    expect(screen.getAllByLabelText("Expense description")).toHaveLength(2);
+    expect(screen.getAllByLabelText("Line amount")).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: "Remove expense line 2" }),
+    ).not.toBeNull();
+  });
+
   it("previews a recoverable cost without affecting owner profit and loss", () => {
     const input = data();
     input.tenantInvoices = [

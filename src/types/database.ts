@@ -108,6 +108,32 @@ type UpdateUnitRpc =
     };
 
 type RpcFunctionOverrides = {
+  submit_expense_transaction: WithArgs<
+    "submit_expense_transaction",
+    {
+      p_currency: CurrencyCode;
+      p_expense_date: string;
+      p_external_payee_label: string | null;
+      p_idempotency_key: string;
+      p_lines: Json;
+      p_organization_id: string;
+      p_payee_person_id: string | null;
+      p_reconciliation_source_id: string;
+      p_reference: string | null;
+      p_responsibility: string;
+      p_supporting_document_id: string;
+    }
+  >;
+  review_expense_transaction: WithArgs<
+    "review_expense_transaction",
+    {
+      p_decision: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_reason: string | null;
+      p_transaction_id: string;
+    }
+  >;
   submit_public_interest_request_limited: {
     Args: {
       p_company_name: string;
