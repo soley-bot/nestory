@@ -4,7 +4,10 @@ import { fileURLToPath } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "../src/types/database";
-import { paidCostLifecycleOriginalDate } from "./paid-cost-fixture-periods";
+import {
+  paidCostFixtureDate,
+  paidCostLifecycleOriginalDate,
+} from "./paid-cost-fixture-periods";
 
 const organizationId = "00000000-0000-0000-0000-000000000001";
 const financeMemberId = "00000000-0000-0000-0000-000000000801";
@@ -602,10 +605,7 @@ function monthOffset(offset: number) {
 }
 
 function dateOffset(offset: number) {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offset))
-    .toISOString()
-    .slice(0, 10);
+  return paidCostFixtureDate(new Date().toISOString().slice(0, 10), offset);
 }
 
 function fixturePdfBytes(identity: string, reference: string) {
