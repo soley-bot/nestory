@@ -11597,6 +11597,10 @@ export type Database = {
         Args: { p_document_id: string; p_organization_id: string }
         Returns: string
       }
+      restore_financial_reconciliation_source: {
+        Args: { p_organization_id: string; p_source_id: string }
+        Returns: string
+      }
       restore_lease: {
         Args: { p_lease_id: string; p_organization_id: string }
         Returns: string

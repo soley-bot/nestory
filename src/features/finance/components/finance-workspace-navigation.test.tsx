@@ -29,6 +29,7 @@ describe("FinanceWorkspaceNavigation", () => {
       "Rent & collections",
       "Expenses",
       "Owner accounts",
+      "Funding sources",
       "Advanced",
     ]) {
       expect(within(navigation).getByRole("link", { name: label })).toBeTruthy();
@@ -43,6 +44,7 @@ describe("FinanceWorkspaceNavigation", () => {
       "Rent & collections",
       "Expenses",
       "Owner accounts",
+      "Funding sources",
       "Advanced",
     ]);
     expect(
@@ -86,7 +88,12 @@ describe("FinanceWorkspaceNavigation", () => {
       within(navigation)
         .getAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual(["Portfolio review", "Expenses", "Owner accounts"]);
+    ).toEqual([
+      "Portfolio review",
+      "Expenses",
+      "Owner accounts",
+      "Funding sources",
+    ]);
     expect(within(navigation).queryByRole("link", { name: "Petty cash" })).toBeNull();
   });
 });
