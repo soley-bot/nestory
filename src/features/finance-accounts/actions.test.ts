@@ -136,6 +136,21 @@ describe("Finance account actions", () => {
     });
   });
 
+  it("sends an explicit null replacement when making an account inactive without one", async () => {
+    const formData = new FormData();
+    formData.set("accountId", accountId);
+    formData.set("archived", "true");
+
+    await setFinanceAccountArchivedAction(initialState, formData);
+
+    expect(mocks.rpc).toHaveBeenCalledWith("set_finance_account_archived", {
+      p_account_id: accountId,
+      p_archived: true,
+      p_organization_id: organizationId,
+      p_replacement_account_id: null,
+    });
+  });
+
   it("explains when an account needs a replacement before it can be made inactive", async () => {
     mocks.rpc.mockResolvedValue({
       data: null,
@@ -151,6 +166,19 @@ describe("Finance account actions", () => {
       fieldErrors: { replacementAccountId: ["Choose a replacement default before making this account inactive."] },
       status: "error",
     });
+  });
+
+  it("rethrows an unexpected database error without replacing it", async () => {
+    const unexpectedError = { code: "XX000", message: "Unexpected database failure" };
+    mocks.rpc.mockResolvedValue({ data: null, error: unexpectedError });
+
+    await expect(
+      createFinanceAccountAction(initialState, accountForm({
+        accountClass: "expense",
+        accountSubtype: "expense",
+        displayName: "Landscaping",
+      })),
+    ).rejects.toBe(unexpectedError);
   });
 });
 

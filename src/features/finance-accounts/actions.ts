@@ -221,7 +221,7 @@ export async function setFinanceAccountArchivedAction(
     p_account_id: parsed.data.accountId,
     p_archived: parsed.data.archived,
     p_organization_id: context.organizationId,
-    p_replacement_account_id: parsed.data.replacementAccountId || undefined,
+    p_replacement_account_id: nullableRpcText(parsed.data.replacementAccountId),
   });
   if (error) return expectedDatabaseError(error);
 
@@ -312,7 +312,7 @@ function expectedDatabaseError(error: { code: string; message: string }): Financ
       status: "error",
     };
   }
-  throw new Error(error.message);
+  throw error;
 }
 
 function revalidateFinanceAccountPaths() {
