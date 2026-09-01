@@ -900,7 +900,7 @@ export type Database = {
           {
             foreignKeyName: "expense_transactions_supporting_document_id_fkey"
             columns: ["supporting_document_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "documents"
             referencedColumns: ["id"]
           },
