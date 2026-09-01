@@ -4,6 +4,22 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
 SELECT plan(55);
 
+CREATE FUNCTION pg_temp.cutover_current_period_start()
+RETURNS date
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT date_trunc('month', current_date)::date
+$$;
+
+CREATE FUNCTION pg_temp.cutover_previous_period_start()
+RETURNS date
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT (date_trunc('month', current_date) - interval '1 month')::date
+$$;
+
 SELECT is(
   (
     SELECT count(*)::integer
@@ -98,7 +114,7 @@ LANGUAGE sql
 AS $function$
   SELECT jsonb_build_object(
     'schemaVersion', 1,
-    'authorityStartDate', '2026-09-01',
+    'authorityStartDate', (current_date + 1)::text,
     'dataOwner', 'REDACTED-IPS-DATA-OWNER',
     'scope', jsonb_build_object('organizationReference', 'REDACTED-IPS-ORG', 'propertyCode', 'CTR-RES'),
     'importRuns', jsonb_build_array(
@@ -108,7 +124,7 @@ AS $function$
       jsonb_build_object('importType','leases','sourceKey','cutover-central-lease-v1','sourceClaimHash',repeat('4',64),'expectedCommittedRows',1)
     ),
     'tenantOpeningBalances', jsonb_build_array(
-      jsonb_build_object('sourceKey','cutover-central-a01-tenant-balance-v1','propertyCode','CTR-RES','unitNumber','A-01','currency','USD','selectedRentMonths',jsonb_build_array('2026-07-01','2026-08-01'),'expectedBalance','875.00')
+      jsonb_build_object('sourceKey','cutover-central-a01-tenant-balance-v1','propertyCode','CTR-RES','unitNumber','A-01','currency','USD','selectedRentMonths',jsonb_build_array(pg_temp.cutover_previous_period_start(),pg_temp.cutover_current_period_start()),'expectedBalance','875.00')
     ),
     'ownerOpeningComponents', jsonb_build_array(
       jsonb_build_object('sourceKey','cutover-central-held-v1','sourceReference','FIXTURE-OPENING-CASH-001','propertyCode','CTR-RES','component','ips_held_owner_cash','currency','USD','amount','1250.00'),
@@ -148,7 +164,7 @@ GRANT SELECT, UPDATE ON cutover_test_state TO authenticated;
 SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000701',true);
 SET LOCAL ROLE authenticated;
 SELECT throws_ok(
-  $$SELECT public.stage_ips_cutover_batch('00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',pg_temp.cutover_manifest(),'cutover-finance-denied-v1')$$,
+  $$SELECT public.stage_ips_cutover_batch('00000000-0000-0000-0000-000000000001',current_date + 1,'REDACTED-IPS-DATA-OWNER',pg_temp.cutover_manifest(),'cutover-finance-denied-v1')$$,
   '42501',
   'cutover_not_authorized',
   'Finance Manager cannot stage cutover authority'
@@ -156,7 +172,7 @@ SELECT throws_ok(
 
 SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000101',true);
 UPDATE cutover_test_state SET ready_stage = public.stage_ips_cutover_batch(
-  '00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',
+  '00000000-0000-0000-0000-000000000001',current_date + 1,'REDACTED-IPS-DATA-OWNER',
   pg_temp.cutover_manifest(),'cutover-ready-stage-v1'
 );
 
@@ -187,7 +203,7 @@ SELECT has_function(
 
 SELECT is(
   public.stage_ips_cutover_batch(
-    '00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',
+    '00000000-0000-0000-0000-000000000001',current_date + 1,'REDACTED-IPS-DATA-OWNER',
     jsonb_set(pg_temp.cutover_manifest(),'{tenantOpeningBalances,0,currency}','"KHR"'::jsonb),
     'cutover-unsupported-currency-v1'
   )->>'status',
@@ -198,7 +214,7 @@ SELECT is(
   public.get_ips_cutover_readiness(
     '00000000-0000-0000-0000-000000000001',
     (public.stage_ips_cutover_batch(
-      '00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',
+      '00000000-0000-0000-0000-000000000001',current_date + 1,'REDACTED-IPS-DATA-OWNER',
       jsonb_set(pg_temp.cutover_manifest(),'{tenantOpeningBalances,0,currency}','"KHR"'::jsonb),
       'cutover-unsupported-currency-v1'
     )->>'batch_id')::uuid
@@ -209,7 +225,7 @@ SELECT is(
 
 SELECT is(
   public.stage_ips_cutover_batch(
-    '00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',
+    '00000000-0000-0000-0000-000000000001',current_date + 1,'REDACTED-IPS-DATA-OWNER',
     jsonb_set(
       pg_temp.cutover_manifest(),
       '{signedExceptions}',
@@ -227,7 +243,7 @@ SELECT is(
 );
 SELECT is(
   public.stage_ips_cutover_batch(
-    '00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',
+    '00000000-0000-0000-0000-000000000001',current_date + 1,'REDACTED-IPS-DATA-OWNER',
     jsonb_set(
       pg_temp.cutover_manifest(),
       '{signedExceptions}',
@@ -247,7 +263,7 @@ SELECT is(
   public.get_ips_cutover_readiness(
     '00000000-0000-0000-0000-000000000001',
     (public.stage_ips_cutover_batch(
-      '00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',
+      '00000000-0000-0000-0000-000000000001',current_date + 1,'REDACTED-IPS-DATA-OWNER',
       jsonb_set(
         pg_temp.cutover_manifest(),
         '{signedExceptions}',
@@ -266,16 +282,16 @@ SELECT is(
 );
 
 SELECT throws_ok(
-  $$SELECT public.stage_ips_cutover_batch('00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',pg_temp.cutover_manifest() #- '{importRuns,3}','cutover-missing-import-kind-v1')$$,
+  $$SELECT public.stage_ips_cutover_batch('00000000-0000-0000-0000-000000000001',current_date + 1,'REDACTED-IPS-DATA-OWNER',pg_temp.cutover_manifest() #- '{importRuns,3}','cutover-missing-import-kind-v1')$$,
   '22023','cutover_manifest_import_types_invalid','manifest requires exactly one reconciled run for each import type'
 );
 SELECT throws_ok(
-  $$SELECT public.stage_ips_cutover_batch('00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',pg_temp.cutover_manifest() #- '{ownerOpeningComponents,3}','cutover-missing-owner-component-v1')$$,
+  $$SELECT public.stage_ips_cutover_batch('00000000-0000-0000-0000-000000000001',current_date + 1,'REDACTED-IPS-DATA-OWNER',pg_temp.cutover_manifest() #- '{ownerOpeningComponents,3}','cutover-missing-owner-component-v1')$$,
   '22023','cutover_manifest_owner_components_invalid','every property and currency requires all four owner opening components'
 );
 SELECT throws_ok(
   $$SELECT public.stage_ips_cutover_batch(
-    '00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',
+    '00000000-0000-0000-0000-000000000001',current_date + 1,'REDACTED-IPS-DATA-OWNER',
     jsonb_set(pg_temp.cutover_manifest(),'{ownerOpeningComponents,3,sourceKey}','"cutover-central-held-v1"'::jsonb),
     'cutover-duplicate-source-v1'
   )$$,
@@ -283,7 +299,7 @@ SELECT throws_ok(
 );
 
 UPDATE cutover_test_state SET blocked_stage = public.stage_ips_cutover_batch(
-  '00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',
+  '00000000-0000-0000-0000-000000000001',current_date + 1,'REDACTED-IPS-DATA-OWNER',
   pg_temp.cutover_manifest(false),'cutover-blocked-stage-v1'
 );
 SELECT is((SELECT blocked_stage->>'status' FROM cutover_test_state),'blocked','missing import authority remains visibly blocked');
@@ -294,7 +310,7 @@ SELECT is(
 );
 
 UPDATE cutover_test_state SET mismatch_stage = public.stage_ips_cutover_batch(
-  '00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',
+  '00000000-0000-0000-0000-000000000001',current_date + 1,'REDACTED-IPS-DATA-OWNER',
   jsonb_set(pg_temp.cutover_manifest(),'{tenantOpeningBalances,0,expectedBalance}','"876.00"'::jsonb),
   'cutover-mismatch-stage-v1'
 );
@@ -311,7 +327,7 @@ SELECT is(
   'readiness returns the exact persisted reconciliation blocker'
 );
 SELECT is(
-  (SELECT count(*)::integer FROM public.tenant_invoices AS invoice JOIN public.leases AS lease ON lease.id=invoice.lease_id JOIN public.units AS unit ON unit.id=lease.unit_id JOIN public.properties AS property ON property.id=lease.property_id WHERE property.code='CTR-RES' AND unit.unit_number='A-01' AND invoice.billing_period_start='2026-07-01'),
+  (SELECT count(*)::integer FROM public.tenant_invoices AS invoice JOIN public.leases AS lease ON lease.id=invoice.lease_id JOIN public.units AS unit ON unit.id=lease.unit_id JOIN public.properties AS property ON property.id=lease.property_id WHERE property.code='CTR-RES' AND unit.unit_number='A-01' AND invoice.billing_period_start=pg_temp.cutover_previous_period_start()),
   0,
   'failed reconciliation rolls back its newly generated tenant invoice atomically'
 );
@@ -335,17 +351,17 @@ UPDATE cutover_test_state SET commit_result = public.commit_ips_cutover_batch(
 );
 SELECT is((SELECT commit_result->>'status' FROM cutover_test_state),'reconciled','ready cutover reconciles');
 SELECT is(
-  (SELECT count(*)::integer FROM public.tenant_invoices AS invoice JOIN public.leases AS lease ON lease.id=invoice.lease_id JOIN public.units AS unit ON unit.id=lease.unit_id JOIN public.properties AS property ON property.id=lease.property_id WHERE property.code='CTR-RES' AND unit.unit_number='A-01' AND invoice.billing_period_start IN ('2026-07-01','2026-08-01')),
+  (SELECT count(*)::integer FROM public.tenant_invoices AS invoice JOIN public.leases AS lease ON lease.id=invoice.lease_id JOIN public.units AS unit ON unit.id=lease.unit_id JOIN public.properties AS property ON property.id=lease.property_id WHERE property.code='CTR-RES' AND unit.unit_number='A-01' AND invoice.billing_period_start IN (pg_temp.cutover_previous_period_start(),pg_temp.cutover_current_period_start())),
   2,
   'only both explicitly selected tenant months exist'
 );
 SELECT is(
-  (SELECT count(*)::integer FROM public.tenant_invoices AS invoice JOIN public.leases AS lease ON lease.id=invoice.lease_id JOIN public.units AS unit ON unit.id=lease.unit_id JOIN public.properties AS property ON property.id=lease.property_id WHERE property.code='CTR-RES' AND unit.unit_number='A-01' AND invoice.billing_period_start='2026-06-01'),
+  (SELECT count(*)::integer FROM public.tenant_invoices AS invoice JOIN public.leases AS lease ON lease.id=invoice.lease_id JOIN public.units AS unit ON unit.id=lease.unit_id JOIN public.properties AS property ON property.id=lease.property_id WHERE property.code='CTR-RES' AND unit.unit_number='A-01' AND invoice.billing_period_start=(pg_temp.cutover_previous_period_start() - interval '1 month')::date),
   0,
   'adjacent unselected June is not silently generated'
 );
 SELECT is(
-  (SELECT to_char(sum(balance.balance_due),'FM999999999990.00') FROM public.tenant_invoice_balances AS balance JOIN public.tenant_invoices AS invoice ON invoice.id=balance.id JOIN public.leases AS lease ON lease.id=invoice.lease_id JOIN public.units AS unit ON unit.id=lease.unit_id JOIN public.properties AS property ON property.id=lease.property_id WHERE property.code='CTR-RES' AND unit.unit_number='A-01' AND invoice.billing_period_start IN ('2026-07-01','2026-08-01')),
+  (SELECT to_char(sum(balance.balance_due),'FM999999999990.00') FROM public.tenant_invoice_balances AS balance JOIN public.tenant_invoices AS invoice ON invoice.id=balance.id JOIN public.leases AS lease ON lease.id=invoice.lease_id JOIN public.units AS unit ON unit.id=lease.unit_id JOIN public.properties AS property ON property.id=lease.property_id WHERE property.code='CTR-RES' AND unit.unit_number='A-01' AND invoice.billing_period_start IN (pg_temp.cutover_previous_period_start(),pg_temp.cutover_current_period_start())),
   '875.00',
   'selected tenant opening balance reconciles exactly'
 );
@@ -370,7 +386,7 @@ SELECT is(
   'owner reconciliation freezes exact amount plus currency identity'
 );
 SELECT is(
-  (SELECT count(DISTINCT invoice.currency)::integer FROM public.tenant_invoices AS invoice JOIN public.leases AS lease ON lease.id=invoice.lease_id JOIN public.units AS unit ON unit.id=lease.unit_id JOIN public.properties AS property ON property.id=lease.property_id WHERE property.code='CTR-RES' AND unit.unit_number='A-01' AND invoice.billing_period_start IN ('2026-07-01','2026-08-01') AND invoice.currency='USD'),
+  (SELECT count(DISTINCT invoice.currency)::integer FROM public.tenant_invoices AS invoice JOIN public.leases AS lease ON lease.id=invoice.lease_id JOIN public.units AS unit ON unit.id=lease.unit_id JOIN public.properties AS property ON property.id=lease.property_id WHERE property.code='CTR-RES' AND unit.unit_number='A-01' AND invoice.billing_period_start IN (pg_temp.cutover_previous_period_start(),pg_temp.cutover_current_period_start()) AND invoice.currency='USD'),
   1,
   'selected invoice reconciliation is constrained to the frozen USD authority'
 );
@@ -448,7 +464,7 @@ SELECT is(
 RESET ROLE;
 SET LOCAL ROLE anon;
 SELECT throws_ok(
-  $$SELECT public.stage_ips_cutover_batch('00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',pg_temp.cutover_manifest(),'cutover-anon-denied-v1')$$,
+  $$SELECT public.stage_ips_cutover_batch('00000000-0000-0000-0000-000000000001',current_date + 1,'REDACTED-IPS-DATA-OWNER',pg_temp.cutover_manifest(),'cutover-anon-denied-v1')$$,
   '42501','permission denied for function stage_ips_cutover_batch','anonymous callers cannot invoke cutover authority'
 );
 RESET ROLE;
