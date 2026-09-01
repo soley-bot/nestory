@@ -29,7 +29,7 @@ describe("FinanceWorkspaceNavigation", () => {
       "Rent & collections",
       "Expenses",
       "Owner accounts",
-      "Funding sources",
+      "Chart of Accounts",
       "Advanced",
     ]) {
       expect(within(navigation).getByRole("link", { name: label })).toBeTruthy();
@@ -44,7 +44,7 @@ describe("FinanceWorkspaceNavigation", () => {
       "Rent & collections",
       "Expenses",
       "Owner accounts",
-      "Funding sources",
+      "Chart of Accounts",
       "Advanced",
     ]);
     expect(
@@ -92,7 +92,7 @@ describe("FinanceWorkspaceNavigation", () => {
       "Portfolio review",
       "Expenses",
       "Owner accounts",
-      "Funding sources",
+      "Chart of Accounts",
     ]);
     expect(within(navigation).queryByRole("link", { name: "Petty cash" })).toBeNull();
   });

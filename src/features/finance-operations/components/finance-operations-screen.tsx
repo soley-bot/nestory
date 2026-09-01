@@ -2938,7 +2938,7 @@ function ExpenseForm({
                   "Owner due to company",
                   formatMoneyDisplay(expenseAmount).primary,
                 ],
-                ["Who paid", selectedSource?.label ?? "Choose a funding source"],
+                ["Who paid", selectedSource?.label ?? "Choose a pay-from account"],
               ]}
             />
             <p className="px-3 pb-3 text-xs text-muted-foreground">
@@ -2965,8 +2965,8 @@ function ExpenseForm({
               }))}
               placeholder={
                 matchingSources.length > 0
-                  ? "Choose funding source"
-                  : "No funding source"
+                  ? "Choose pay-from account"
+                  : "No pay-from account"
               }
               value={reconciliationSourceId}
             />

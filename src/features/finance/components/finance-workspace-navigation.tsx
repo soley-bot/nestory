@@ -23,10 +23,10 @@ const financeDestinations = {
     label: "Portfolio review",
     route: "/finance",
   },
-  fundingSources: {
-    href: "/finance/funding-sources",
-    label: "Funding sources",
-    route: "/finance/funding-sources",
+  accounts: {
+    href: "/finance/accounts",
+    label: "Chart of Accounts",
+    route: "/finance/accounts",
   },
   rent: {
     href: "/rent-income",
@@ -66,7 +66,7 @@ export function FinanceWorkspaceNavigation({
     destinations.push(financeDestinations.expenses);
   }
   destinations.push(financeDestinations.balances);
-  destinations.push(financeDestinations.fundingSources);
+  destinations.push(financeDestinations.accounts);
   if (canCorrectFinance || canClosePeriods) {
     destinations.push(financeDestinations.advanced);
   }

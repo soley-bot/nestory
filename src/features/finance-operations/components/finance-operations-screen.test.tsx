@@ -1260,9 +1260,11 @@ describe("FinanceOperationsScreen", () => {
   });
 
   it("previews the owner-borne expense before review", () => {
+    const input = data();
+    input.reconciliationSources = [];
     render(
       <FinanceOperationsScreen
-        {...data()}
+        {...input}
         {...financeCapabilities({ canSubmitExpense: true })}
         organizationName="Sokha Property Services"
         view="expenses"
@@ -1293,6 +1295,9 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByLabelText("Amount paid")).not.toBeNull();
     expect(screen.getByLabelText("Paid date")).not.toBeNull();
     expect(screen.getByLabelText("Who paid?")).not.toBeNull();
+    expect(screen.getByText("Choose a pay-from account")).not.toBeNull();
+    expect(screen.getByText("No pay-from account")).not.toBeNull();
+    expect(screen.queryByText(/funding source/i)).toBeNull();
     expect(
       screen.getByLabelText("Receipt or payment reference"),
     ).toHaveProperty("required", true);
