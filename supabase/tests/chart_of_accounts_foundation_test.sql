@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
-SELECT plan(25);
+SELECT plan(36);
 
 \set organization_id 'cf100000-0000-0000-0000-000000000001'
 \set super_admin_id 'cf200000-0000-0000-0000-000000000001'
@@ -66,6 +66,11 @@ SELECT has_table('public', 'finance_accounts', 'finance_accounts exists');
 SELECT has_table('public', 'finance_account_roles', 'finance_account_roles exists');
 SELECT has_table('public', 'finance_account_source_links', 'source mapping exists');
 SELECT has_table('public', 'finance_account_category_links', 'category mapping exists');
+SELECT has_table(
+  'app_private',
+  'finance_account_internal_sources',
+  'internal account sources have explicit private identity'
+);
 
 SELECT col_is_pk('public', 'finance_accounts', 'id', 'account id is primary key');
 SELECT col_has_check('public', 'finance_accounts', 'account_class', 'account class is constrained');
@@ -119,6 +124,20 @@ SELECT results_eq(
 
 SELECT results_eq(
   format(
+    $$SELECT count(*)::bigint
+      FROM app_private.finance_account_internal_sources AS internal_source
+      JOIN public.finance_account_source_links AS link
+        ON link.organization_id = internal_source.organization_id
+       AND link.source_id = internal_source.source_id
+      WHERE internal_source.organization_id = %L::uuid$$,
+    :'organization_id'
+  ),
+  ARRAY[3::bigint],
+  'all three generated starter cash sources are registered by explicit identity'
+);
+
+SELECT results_eq(
+  format(
     $$SELECT count(*)::bigint FROM public.finance_account_category_links l
     JOIN public.finance_categories c ON c.id = l.category_id
     WHERE c.organization_id = %L::uuid$$,
@@ -161,21 +180,57 @@ SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.finance_accounts'::regclass),
   'finance_accounts has RLS enabled'
 );
-
-SELECT is(
-  has_table_privilege('authenticated', 'public.finance_accounts', 'INSERT'),
-  false,
-  'authenticated cannot insert directly'
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.finance_account_roles'::regclass),
+  'finance_account_roles has RLS enabled'
+);
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.finance_account_source_links'::regclass),
+  'finance_account_source_links has RLS enabled'
+);
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.finance_account_category_links'::regclass),
+  'finance_account_category_links has RLS enabled'
 );
 
-SELECT is(
-  has_table_privilege('authenticated', 'public.finance_accounts', 'UPDATE'),
-  false,
-  'authenticated cannot update directly'
+SELECT ok(
+  NOT has_table_privilege('authenticated', 'public.finance_accounts', 'INSERT')
+    AND NOT has_table_privilege('authenticated', 'public.finance_accounts', 'UPDATE')
+    AND NOT has_table_privilege('authenticated', 'public.finance_accounts', 'DELETE'),
+  'authenticated cannot mutate finance_accounts directly'
+);
+SELECT ok(
+  NOT has_table_privilege('authenticated', 'public.finance_account_roles', 'INSERT')
+    AND NOT has_table_privilege('authenticated', 'public.finance_account_roles', 'UPDATE')
+    AND NOT has_table_privilege('authenticated', 'public.finance_account_roles', 'DELETE'),
+  'authenticated cannot mutate finance_account_roles directly'
+);
+SELECT ok(
+  NOT has_table_privilege('authenticated', 'public.finance_account_source_links', 'INSERT')
+    AND NOT has_table_privilege('authenticated', 'public.finance_account_source_links', 'UPDATE')
+    AND NOT has_table_privilege('authenticated', 'public.finance_account_source_links', 'DELETE'),
+  'authenticated cannot mutate finance_account_source_links directly'
+);
+SELECT ok(
+  NOT has_table_privilege('authenticated', 'public.finance_account_category_links', 'INSERT')
+    AND NOT has_table_privilege('authenticated', 'public.finance_account_category_links', 'UPDATE')
+    AND NOT has_table_privilege('authenticated', 'public.finance_account_category_links', 'DELETE'),
+  'authenticated cannot mutate finance_account_category_links directly'
 );
 
 SELECT set_config('request.jwt.claim.sub', :'super_admin_id', true);
 SET LOCAL ROLE authenticated;
+
+SELECT is(
+  (
+    SELECT count(*)
+    FROM public.financial_reconciliation_sources AS source
+    WHERE source.organization_id = :'organization_id'::uuid
+      AND app_private.is_internal_finance_account_source(source.organization_id, source.id)
+  ),
+  0::bigint,
+  'registered internal account sources remain hidden from authenticated reads'
+);
 
 SELECT lives_ok(
   format(
@@ -234,6 +289,41 @@ SELECT is(
   ),
   1::bigint,
   'a later preserved source receives exactly one account mapping'
+);
+
+SELECT lives_ok(
+  format(
+    $$SELECT public.create_financial_reconciliation_source(
+      %L::uuid, 'CHART_LEGACY_BANK', 'Legacy chart-prefixed bank', 'bank',
+      'organization_pooled', 'USD'::public.currency_code, NULL, NULL
+    )$$,
+    :'organization_id'
+  ),
+  'a legitimate CHART-prefixed preserved source can still be created'
+);
+
+SELECT lives_ok(
+  format(
+    $$SELECT public.create_financial_reconciliation_source(
+      %L::uuid, 'ACCOUNT_LEGACY_CASH', 'Legacy account-prefixed cash', 'cash',
+      'organization_pooled', 'USD'::public.currency_code, NULL, NULL
+    )$$,
+    :'organization_id'
+  ),
+  'a legitimate ACCOUNT-prefixed preserved source can still be created'
+);
+
+SELECT results_eq(
+  format(
+    $$SELECT source.code
+      FROM public.financial_reconciliation_sources AS source
+      WHERE source.organization_id = %L::uuid
+        AND source.code IN ('ACCOUNT_LEGACY_CASH','CHART_LEGACY_BANK')
+      ORDER BY source.code$$,
+    :'organization_id'
+  ),
+  $$VALUES ('ACCOUNT_LEGACY_CASH'::text), ('CHART_LEGACY_BANK'::text)$$,
+  'legitimate preserved prefixed sources remain readable'
 );
 
 SELECT lives_ok(

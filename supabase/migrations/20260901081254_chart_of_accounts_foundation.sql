@@ -120,6 +120,15 @@ CREATE TABLE public.finance_account_source_links (
     REFERENCES public.financial_reconciliation_sources(organization_id, id) ON DELETE RESTRICT
 );
 
+CREATE TABLE app_private.finance_account_internal_sources (
+  organization_id uuid NOT NULL,
+  source_id uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (organization_id, source_id),
+  FOREIGN KEY (organization_id, source_id)
+    REFERENCES public.financial_reconciliation_sources(organization_id, id) ON DELETE RESTRICT
+);
+
 ALTER TABLE public.finance_categories
   ADD CONSTRAINT finance_categories_org_id_key UNIQUE (organization_id, id);
 
@@ -141,6 +150,8 @@ COMMENT ON TABLE public.finance_account_roles IS
   'Current organization workflow defaults pointing to compatible active Chart of Accounts rows.';
 COMMENT ON TABLE public.finance_account_source_links IS
   'Hidden one-to-one compatibility bridge from cash-like accounts to preserved reconciliation-source identities.';
+COMMENT ON TABLE app_private.finance_account_internal_sources IS
+  'Explicit identities of reconciliation-source compatibility rows created internally for Chart of Accounts cash accounts.';
 COMMENT ON TABLE public.finance_account_category_links IS
   'Hidden compatibility bridge from accounts to preserved Finance category identities; one account may own several categories.';
 
@@ -548,6 +559,7 @@ AS $$
 DECLARE
   v_account public.finance_accounts%ROWTYPE;
   v_source_id uuid;
+  v_source_code text;
   v_source_kind text;
 BEGIN
   SELECT account.* INTO v_account
@@ -576,17 +588,29 @@ BEGIN
     ELSE 'cash'
   END;
 
+  LOOP
+    v_source_id := gen_random_uuid();
+    v_source_code := 'I' || upper(replace(v_source_id::text, '-', ''));
+    EXIT WHEN NOT EXISTS (
+      SELECT 1
+      FROM public.financial_reconciliation_sources AS source
+      WHERE source.organization_id = p_organization_id
+        AND source.code = v_source_code
+    );
+  END LOOP;
+
   PERFORM pg_catalog.set_config('app.finance_account_source_context', 'on', true);
   PERFORM pg_catalog.set_config('app.financial_reconciliation_source_context', 'on', true);
   INSERT INTO public.financial_reconciliation_sources (
-    organization_id, property_id, currency, code, display_name,
+    id, organization_id, property_id, currency, code, display_name,
     source_kind, scope_kind, created_by, updated_by
   )
   SELECT
+    v_source_id,
     p_organization_id,
     v_account.property_id,
     organization.preferred_currency,
-    'ACCOUNT_' || upper(left(replace(v_account.id::text, '-', ''), 24)),
+    v_source_code,
     v_account.display_name,
     v_source_kind,
     CASE WHEN v_account.property_id IS NULL THEN 'organization_pooled' ELSE 'property_dedicated' END,
@@ -595,6 +619,11 @@ BEGIN
   FROM public.organizations AS organization
   WHERE organization.id = p_organization_id
   RETURNING id INTO v_source_id;
+
+  INSERT INTO app_private.finance_account_internal_sources (
+    organization_id, source_id
+  ) VALUES (p_organization_id, v_source_id);
+
   PERFORM pg_catalog.set_config('app.financial_reconciliation_source_context', 'off', true);
   PERFORM pg_catalog.set_config('app.finance_account_source_context', 'off', true);
 
@@ -768,52 +797,6 @@ BEGIN
    )
   ON CONFLICT (organization_id, source_id) DO NOTHING;
 
-  PERFORM pg_catalog.set_config('app.finance_account_source_context', 'on', true);
-  PERFORM pg_catalog.set_config('app.financial_reconciliation_source_context', 'on', true);
-  INSERT INTO public.financial_reconciliation_sources (
-    organization_id, property_id, currency, code, display_name,
-    source_kind, scope_kind
-  )
-  SELECT
-    account.organization_id,
-    NULL,
-    organization.preferred_currency,
-    'CHART_' || upper(account.system_role),
-    account.display_name,
-    'bank',
-    'organization_pooled'
-  FROM public.finance_accounts AS account
-  JOIN public.organizations AS organization ON organization.id = account.organization_id
-  WHERE account.organization_id = p_organization_id
-    AND account.system_role IN ('operating_bank','trust_bank')
-    AND NOT EXISTS (
-      SELECT 1 FROM public.finance_account_source_links AS link
-      WHERE link.organization_id = account.organization_id
-        AND link.account_id = account.id
-    )
-  ON CONFLICT (organization_id, code) DO NOTHING;
-  PERFORM pg_catalog.set_config('app.financial_reconciliation_source_context', 'off', true);
-  PERFORM pg_catalog.set_config('app.finance_account_source_context', 'off', true);
-
-  INSERT INTO public.finance_account_source_links (
-    organization_id, account_id, source_id
-  )
-  SELECT account.organization_id, account.id, source.id
-  FROM public.finance_accounts AS account
-  JOIN public.financial_reconciliation_sources AS source
-    ON source.organization_id = account.organization_id
-   AND source.code = 'CHART_' || upper(account.system_role)
-  WHERE account.organization_id = p_organization_id
-    AND account.system_role IN ('operating_bank','trust_bank')
-    AND NOT EXISTS (
-      SELECT 1 FROM public.finance_account_source_links AS link
-      WHERE link.organization_id = account.organization_id
-        AND link.account_id = account.id
-    )
-  ON CONFLICT DO NOTHING;
-
-  -- Petty cash has no system role, so its generated hidden source uses a stable
-  -- account-derived code instead of competing for an organization default role.
   PERFORM app_private.ensure_finance_account_source(
     account.organization_id,
     account.id,
@@ -822,7 +805,10 @@ BEGIN
   FROM public.finance_accounts AS account
   WHERE account.organization_id = p_organization_id
     AND account.account_class = 'asset'
-    AND account.normalized_name = 'petty cash'
+    AND (
+      account.system_role IN ('operating_bank','trust_bank')
+      OR account.normalized_name = 'petty cash'
+    )
     AND NOT EXISTS (
       SELECT 1 FROM public.finance_account_source_links AS link
       WHERE link.organization_id = account.organization_id
@@ -971,18 +957,6 @@ BEGIN
       account.account_subtype
     )
     AND account.property_id IS NOT DISTINCT FROM NEW.property_id
-    AND (
-      (NEW.code = 'CHART_OPERATING_BANK' AND account.system_role = 'operating_bank')
-      OR (NEW.code = 'CHART_TRUST_BANK' AND account.system_role = 'trust_bank')
-      OR (
-        NEW.code LIKE 'ACCOUNT\_%' ESCAPE '\'
-        AND upper(left(replace(account.id::text, '-', ''), 24)) = substr(NEW.code, 9)
-      )
-      OR (
-        NEW.code NOT IN ('CHART_OPERATING_BANK','CHART_TRUST_BANK')
-        AND NEW.code NOT LIKE 'ACCOUNT\_%' ESCAPE '\'
-      )
-    )
   ORDER BY
     CASE account.system_role
       WHEN 'operating_bank' THEN 1
@@ -1205,20 +1179,45 @@ AS $$
   );
 $$;
 
+CREATE FUNCTION app_private.is_internal_finance_account_source(
+  p_organization_id uuid,
+  p_source_id uuid
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT coalesce(
+    auth.uid() IS NOT NULL
+    AND EXISTS (
+      SELECT 1
+      FROM public.organization_members AS membership
+      WHERE membership.organization_id = p_organization_id
+        AND membership.user_id = auth.uid()
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM app_private.finance_account_internal_sources AS internal_source
+      WHERE internal_source.organization_id = p_organization_id
+        AND internal_source.source_id = p_source_id
+    ),
+    false
+  );
+$$;
+
 ALTER TABLE public.finance_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.finance_account_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.finance_account_source_links ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.finance_account_category_links ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY financial_reconciliation_sources_hide_chart_accounts
+CREATE POLICY financial_reconciliation_sources_hide_internal_chart_accounts
 ON public.financial_reconciliation_sources
 AS RESTRICTIVE
 FOR SELECT
 TO authenticated
-USING (
-  code NOT LIKE 'CHART\_%' ESCAPE '\'
-  AND code NOT LIKE 'ACCOUNT\_%' ESCAPE '\'
-);
+USING (NOT app_private.is_internal_finance_account_source(organization_id, id));
 
 CREATE POLICY finance_accounts_select
 ON public.finance_accounts
@@ -1269,6 +1268,8 @@ REVOKE ALL ON TABLE public.finance_accounts FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON TABLE public.finance_account_roles FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON TABLE public.finance_account_source_links FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON TABLE public.finance_account_category_links FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE app_private.finance_account_internal_sources
+  FROM PUBLIC, anon, authenticated, service_role;
 
 GRANT SELECT ON TABLE public.finance_accounts TO authenticated;
 GRANT SELECT ON TABLE public.finance_account_roles TO authenticated;
@@ -1763,8 +1764,12 @@ REVOKE ALL ON FUNCTION app_private.ensure_default_finance_accounts()
   FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION app_private.can_read_finance_account(uuid, uuid)
   FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION app_private.is_internal_finance_account_source(uuid, uuid)
+  FROM PUBLIC, anon, authenticated, service_role;
 
 GRANT EXECUTE ON FUNCTION app_private.can_read_finance_account(uuid, uuid)
+  TO authenticated;
+GRANT EXECUTE ON FUNCTION app_private.is_internal_finance_account_source(uuid, uuid)
   TO authenticated;
 
 REVOKE ALL ON FUNCTION public.create_finance_account(uuid, text, text, text, text, text, uuid, uuid, boolean, boolean, boolean)
