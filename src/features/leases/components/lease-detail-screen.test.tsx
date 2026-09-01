@@ -10,11 +10,17 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LeaseDetailScreen } from "@/features/leases/components/lease-detail-screen";
+import {
+  LeaseDetailScreen,
+  type LeaseActionPermissions,
+} from "@/features/leases/components/lease-detail-screen";
 import { buildLeaseSummary } from "@/features/leases/data/lease-summary";
 import type { LeasePaymentResolutionData } from "@/features/finance-operations/finance-operations.types";
 import type { LeaseRecordSection } from "@/features/leases/lease-detail-route";
-import type { LeaseBillingFormConfig } from "@/features/leases/lease.types";
+import type {
+  HistoricalRentCorrectionCandidate,
+  LeaseBillingFormConfig,
+} from "@/features/leases/lease.types";
 
 const actionMocks = vi.hoisted(() => ({
   confirmOwnerCollectionAction: vi.fn(),
@@ -59,6 +65,11 @@ vi.mock("@/features/leases/actions", () => ({
   saveLeaseBillingRulesAction: async () => ({}),
   transitionLeaseLifecycleAction: async () => ({}),
   updateLeaseAction: async () => ({}),
+}));
+
+vi.mock("@/features/leases/historical-rent-correction-actions", () => ({
+  applyHistoricalRentCorrectionAction: async () => ({}),
+  previewHistoricalRentCorrectionAction: async () => ({}),
 }));
 
 vi.mock("@/features/finance-operations/actions", () => actionMocks);
@@ -403,6 +414,54 @@ describe("LeaseDetailScreen", () => {
     expect(screen.getByRole("menuitem", { name: "Change rent" })).not.toBeNull();
     expect(screen.getByRole("menuitem", { name: "Record notice" })).not.toBeNull();
     expect(screen.getByRole("menuitem", { name: "Complete move-out" })).not.toBeNull();
+  });
+
+  it("keeps historical correction distinct from future Change rent for Super Admin", async () => {
+    const user = userEvent.setup();
+    renderDetail(
+      "rent",
+      makeLease(),
+      { ...allLeasePermissions, canCorrectHistoricalRent: true },
+      {
+        historicalRentCorrectionCandidates: [
+          {
+            billingPeriodEnd: "2026-08-31",
+            billingPeriodStart: "2026-08-01",
+            currency: "USD",
+            invoiceId: "11111111-1111-4111-8111-111111111111",
+            invoiceNumber: "INV-202608-001",
+            originalDueDate: "2026-08-05",
+            originalDueDay: 5,
+            originalRentAmount: 900,
+            paymentStatus: "paid",
+            settledAmount: 900,
+          },
+        ],
+      },
+    );
+
+    await user.click(screen.getByRole("button", { name: "Manage lease" }));
+    expect(screen.getByRole("menuitem", { name: "Change rent" })).not.toBeNull();
+    await user.click(
+      screen.getByRole("menuitem", { name: "Correct historical rent" }),
+    );
+
+    const dialog = screen.getByRole("dialog", {
+      name: "Correct historical rent",
+    });
+    expect(within(dialog).getByText(/separate from Change rent/)).not.toBeNull();
+    expect(
+      within(dialog).getByRole("combobox", { name: "Issued rent period" }),
+    ).not.toBeNull();
+    expect(within(dialog).getByLabelText("Corrected rent amount")).not.toBeNull();
+    expect(within(dialog).getByLabelText("Corrected due day")).not.toBeNull();
+    expect(within(dialog).getByLabelText("Reason")).not.toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Preview correction" }),
+    ).not.toBeNull();
+    expect(
+      within(dialog).queryByRole("button", { name: "Apply historical correction" }),
+    ).toBeNull();
   });
 
   it("offers Activate today or a scheduled date without asking for an explanation", async () => {
@@ -1030,7 +1089,7 @@ describe("LeaseDetailScreen", () => {
   });
 });
 
-const allLeasePermissions = {
+const allLeasePermissions: LeaseActionPermissions = {
   canActivate: true,
   canArchive: true,
   canChangeTerms: true,
@@ -1044,6 +1103,7 @@ function renderDetail(
   permissions = allLeasePermissions,
   focus: {
     billingFormConfig?: LeaseBillingFormConfig;
+    historicalRentCorrectionCandidates?: HistoricalRentCorrectionCandidate[];
     paymentResolution?: LeasePaymentResolutionData;
     routeNotice?: {
       href?: string;
@@ -1061,6 +1121,7 @@ function detailElement(
   permissions = allLeasePermissions,
   focus: {
     billingFormConfig?: LeaseBillingFormConfig;
+    historicalRentCorrectionCandidates?: HistoricalRentCorrectionCandidate[];
     paymentResolution?: LeasePaymentResolutionData;
     routeNotice?: {
       href?: string;
@@ -1076,6 +1137,9 @@ function detailElement(
       canRecordPayments
       canViewFinance
       lease={lease}
+      historicalRentCorrectionCandidates={
+        focus.historicalRentCorrectionCandidates
+      }
       paymentResolution={focus.paymentResolution}
       permissions={permissions}
       propertyOptions={[{ id: "property-1", label: "RIVER - Riverside House" }]}

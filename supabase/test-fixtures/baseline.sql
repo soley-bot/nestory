@@ -1868,8 +1868,8 @@ INSERT INTO public.property_owners (
     '10000000-0000-0000-0000-000000000002',
     '80000000-0000-0000-0000-000000000012',
     'Deliberate event-date remediation vector', 10.000, false,
-    date_trunc('month', current_date)::date,
-    (date_trunc('month', current_date) + interval '1 day')::date,
+    (date_trunc('month', current_date) - interval '1 month')::date,
+    (date_trunc('month', current_date) - interval '1 month' + interval '1 day')::date,
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000101'
   );

@@ -23,6 +23,7 @@ import type {
   LeasePagination,
   LeaseBillingFormConfig,
   LeaseBillingRule,
+  HistoricalRentCorrectionCandidate,
   LeasePropertyOption,
   LeaseSummary,
   LeaseUnitOption,
@@ -413,6 +414,104 @@ export async function getLeasesScreenData(
     tenantOptions,
     unitOptions,
   };
+}
+
+export async function getHistoricalRentCorrectionCandidates(
+  organizationId: string,
+  leaseId: string,
+): Promise<HistoricalRentCorrectionCandidate[]> {
+  const supabase = await createSupabaseServerClient();
+  const currentDate = new Date().toISOString().slice(0, 10);
+  const { data: invoices, error: invoiceError } = await supabase
+    .from("tenant_invoice_balances")
+    .select(
+      "id, invoice_number, billing_period_start, billing_period_end, due_date, currency, payment_status, paid_through_ips, collected_by_owner",
+    )
+    .eq("organization_id", organizationId)
+    .eq("lease_id", leaseId)
+    .eq("lifecycle", "issued")
+    .lt("billing_period_end", currentDate)
+    .order("billing_period_start", { ascending: false });
+
+  if (invoiceError) {
+    throw new Error(
+      `Could not load historical rent correction periods: ${invoiceError.message}`,
+    );
+  }
+  const invoiceIds = (invoices ?? [])
+    .map((invoice) => invoice.id)
+    .filter((invoiceId): invoiceId is string => Boolean(invoiceId));
+  if (invoiceIds.length === 0) return [];
+
+  const [{ data: lines, error: lineError }, { data: corrections, error: correctionError }] =
+    await Promise.all([
+      supabase
+        .from("tenant_invoice_lines")
+        .select("id, invoice_id, amount, reversal_of_id, supersedes_line_id")
+        .eq("organization_id", organizationId)
+        .eq("line_type", "rent")
+        .is("reversal_of_id", null)
+        .is("supersedes_line_id", null)
+        .in("invoice_id", invoiceIds),
+      supabase
+        .from("tenant_invoice_corrections")
+        .select("tenant_invoice_id")
+        .eq("organization_id", organizationId)
+        .eq("action", "historical_rent")
+        .in("tenant_invoice_id", invoiceIds),
+    ]);
+
+  if (lineError) {
+    throw new Error(`Could not load historical rent lines: ${lineError.message}`);
+  }
+  if (correctionError) {
+    throw new Error(
+      `Could not load historical rent corrections: ${correctionError.message}`,
+    );
+  }
+
+  const correctedInvoiceIds = new Set(
+    (corrections ?? []).map((correction) => correction.tenant_invoice_id),
+  );
+  const linesByInvoiceId = new Map<string, typeof lines>();
+  for (const line of lines ?? []) {
+    if (!line.invoice_id) continue;
+    const invoiceLines = linesByInvoiceId.get(line.invoice_id) ?? [];
+    invoiceLines.push(line);
+    linesByInvoiceId.set(line.invoice_id, invoiceLines);
+  }
+
+  return (invoices ?? []).flatMap((invoice) => {
+    if (
+      !invoice.id ||
+      !invoice.invoice_number ||
+      !invoice.billing_period_start ||
+      !invoice.billing_period_end ||
+      !invoice.due_date ||
+      !invoice.currency ||
+      !invoice.payment_status
+    ) {
+      return [];
+    }
+    const rentLines = linesByInvoiceId.get(invoice.id) ?? [];
+    if (correctedInvoiceIds.has(invoice.id) || rentLines.length !== 1) return [];
+    const rentLine = rentLines[0];
+    if (!rentLine) return [];
+    return [{
+      billingPeriodEnd: invoice.billing_period_end,
+      billingPeriodStart: invoice.billing_period_start,
+      currency: invoice.currency,
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoice_number,
+      originalDueDate: invoice.due_date,
+      originalDueDay: Number(invoice.due_date.slice(8, 10)),
+      originalRentAmount: Number(rentLine.amount),
+      paymentStatus: invoice.payment_status,
+      settledAmount:
+        Number(invoice.paid_through_ips ?? 0) +
+        Number(invoice.collected_by_owner ?? 0),
+    }];
+  });
 }
 
 async function enrichLeaseSummaries({

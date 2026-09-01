@@ -47,6 +47,11 @@ import {
   transitionLeaseLifecycleAction,
   type LeaseActionState,
 } from "@/features/leases/actions";
+import {
+  applyHistoricalRentCorrectionAction,
+  previewHistoricalRentCorrectionAction,
+  type HistoricalRentCorrectionPreview,
+} from "@/features/leases/historical-rent-correction-actions";
 import { retryTenantReceiptPdfAction } from "@/features/finance-operations/actions";
 import type { TenantPaymentReceiptResult } from "@/features/finance-operations/components/tenant-invoice-payment-form";
 import type {
@@ -61,6 +66,7 @@ import type {
   LeasePropertyOption,
   LeaseBillingFormConfig,
   LeaseDepositContext,
+  HistoricalRentCorrectionCandidate,
   LeaseSummary,
   LeaseTenantOption,
   LeaseTermContext,
@@ -90,6 +96,7 @@ export type LeaseActionPermissions = {
   canChangeTerms: boolean;
   canClose: boolean;
   canPrepare: boolean;
+  canCorrectHistoricalRent?: boolean;
 };
 
 type LeaseRouteNotice = {
@@ -114,6 +121,7 @@ export function LeaseDetailScreen({
   canRecordPayments,
   canViewFinance,
   lease,
+  historicalRentCorrectionCandidates = [],
   paymentResolution,
   permissions,
   propertyOptions,
@@ -124,6 +132,7 @@ export function LeaseDetailScreen({
   activeSection: LeaseRecordSection;
   billingFormConfig?: LeaseBillingFormConfig;
   lease: LeaseSummary;
+  historicalRentCorrectionCandidates?: HistoricalRentCorrectionCandidate[];
   permissions: LeaseActionPermissions;
   propertyOptions: LeasePropertyOption[];
   tenantOptions: LeaseTenantOption[];
@@ -133,6 +142,8 @@ export function LeaseDetailScreen({
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [transition, setTransition] = useState<LeaseTransition | null>(null);
   const [termChange, setTermChange] = useState<LeaseTermChange | null>(null);
+  const [historicalRentCorrectionOpen, setHistoricalRentCorrectionOpen] =
+    useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const pendingPaymentReceiptRef = useRef<TenantPaymentReceiptResult | null>(
     null,
@@ -209,6 +220,10 @@ export function LeaseDetailScreen({
             onArchive={() => openDrawer({ mode: "archive" })}
             onEditDraft={() => openDrawer({ mode: "edit" })}
             onLifecycleChange={setTransition}
+            onCorrectHistoricalRent={() => {
+              setStatusMessage(null);
+              setHistoricalRentCorrectionOpen(true);
+            }}
             onRestore={() => openDrawer({ mode: "restore" })}
             onScheduleTerm={setTermChange}
             permissions={permissions}
@@ -420,6 +435,18 @@ export function LeaseDetailScreen({
             setTermChange(null);
           }}
           term={activeTerm}
+        />
+      ) : null}
+
+      {historicalRentCorrectionOpen ? (
+        <HistoricalRentCorrectionModal
+          candidates={historicalRentCorrectionCandidates}
+          lease={lease}
+          onClose={() => setHistoricalRentCorrectionOpen(false)}
+          onSuccess={(message) => {
+            setStatusMessage(message);
+            setHistoricalRentCorrectionOpen(false);
+          }}
         />
       ) : null}
 
@@ -675,6 +702,7 @@ function LeaseHeaderActions({
   focused,
   lease,
   onArchive,
+  onCorrectHistoricalRent,
   onEditDraft,
   onLifecycleChange,
   onRestore,
@@ -685,6 +713,7 @@ function LeaseHeaderActions({
   focused: boolean;
   lease: LeaseSummary;
   onArchive: () => void;
+  onCorrectHistoricalRent: () => void;
   onEditDraft: () => void;
   onLifecycleChange: (transition: LeaseTransition) => void;
   onRestore: () => void;
@@ -721,6 +750,11 @@ function LeaseHeaderActions({
               Change rent
             </DropdownMenuItem>
           ) : null}
+          {permissions.canCorrectHistoricalRent ? (
+            <DropdownMenuItem onSelect={onCorrectHistoricalRent}>
+              Correct historical rent
+            </DropdownMenuItem>
+          ) : null}
           {permissions.canClose && lease.statusValue === "active" ? (
             <DropdownMenuItem onSelect={() => onLifecycleChange("give_notice")}>
               Record notice
@@ -751,10 +785,19 @@ function LeaseHeaderActions({
   }
 
   if (lease.isArchived) {
-    return permissions.canArchive ? (
-      <Button onClick={onRestore} variant="default">
-        <RotateCcw aria-hidden size={15} /> Restore
-      </Button>
+    return permissions.canArchive || permissions.canCorrectHistoricalRent ? (
+      <>
+        {permissions.canCorrectHistoricalRent ? (
+          <Button onClick={onCorrectHistoricalRent} variant="outline">
+            Correct historical rent
+          </Button>
+        ) : null}
+        {permissions.canArchive ? (
+          <Button onClick={onRestore} variant="default">
+            <RotateCcw aria-hidden size={15} /> Restore
+          </Button>
+        ) : null}
+      </>
     ) : null;
   }
 
@@ -777,7 +820,7 @@ function LeaseHeaderActions({
 
   return (
     <>
-      {canManageActive || canManageNotice ? (
+      {canManageActive || canManageNotice || permissions.canCorrectHistoricalRent ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="default">
@@ -789,6 +832,11 @@ function LeaseHeaderActions({
             {permissions.canChangeTerms && lease.statusValue === "active" ? (
               <DropdownMenuItem onSelect={() => onScheduleTerm("rent_change")}>
                 Change rent
+              </DropdownMenuItem>
+            ) : null}
+            {permissions.canCorrectHistoricalRent ? (
+              <DropdownMenuItem onSelect={onCorrectHistoricalRent}>
+                Correct historical rent
               </DropdownMenuItem>
             ) : null}
             {permissions.canClose && lease.statusValue === "active" ? (
@@ -970,6 +1018,326 @@ function getOpeningTermForMonth(
 
       return term.startDate < opening.startDate ? term : opening;
     }, null);
+}
+
+function HistoricalRentCorrectionModal({
+  candidates,
+  lease,
+  onClose,
+  onSuccess,
+}: {
+  candidates: HistoricalRentCorrectionCandidate[];
+  lease: LeaseSummary;
+  onClose: () => void;
+  onSuccess: (message: string) => void;
+}) {
+  const router = useRouter();
+  const initialCandidate = candidates[0] ?? null;
+  const [invoiceId, setInvoiceId] = useState(initialCandidate?.invoiceId ?? "");
+  const [correctedRentAmount, setCorrectedRentAmount] = useState(
+    initialCandidate ? initialCandidate.originalRentAmount.toFixed(2) : "",
+  );
+  const [correctedDueDay, setCorrectedDueDay] = useState(
+    initialCandidate ? String(initialCandidate.originalDueDay) : "",
+  );
+  const [reason, setReason] = useState("");
+  const [idempotencyKey] = useState(
+    () => `historical-rent:${lease.id}:${crypto.randomUUID()}`,
+  );
+  const [previewState, previewAction, previewPending] = useActionState(
+    previewHistoricalRentCorrectionAction,
+    {},
+  );
+  const [applyState, applyAction, applyPending] = useActionState(
+    applyHistoricalRentCorrectionAction,
+    {},
+  );
+  const selectedCandidate =
+    candidates.find((candidate) => candidate.invoiceId === invoiceId) ?? null;
+  const preview = previewState.preview;
+  const previewMatches = previewMatchesInput(preview, {
+    correctedDueDay,
+    correctedRentAmount,
+    invoiceId,
+  });
+
+  useEffect(() => {
+    if (applyState.status !== "success") return;
+    onSuccess(
+      applyState.message ??
+        "Historical rent corrected. Issued evidence was retained.",
+    );
+    router.refresh();
+  }, [applyState.message, applyState.status, onSuccess, router]);
+
+  const changeCandidate = (nextInvoiceId: string) => {
+    const nextCandidate = candidates.find(
+      (candidate) => candidate.invoiceId === nextInvoiceId,
+    );
+    setInvoiceId(nextInvoiceId);
+    if (nextCandidate) {
+      setCorrectedRentAmount(nextCandidate.originalRentAmount.toFixed(2));
+      setCorrectedDueDay(String(nextCandidate.originalDueDay));
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} open title="Correct historical rent">
+      <div className="space-y-5 p-4">
+        <div className="border-l-2 border-foreground pl-3">
+          <p className="font-medium text-foreground">{lease.tenantName}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {lease.propertyName} / {lease.unitLabel}
+          </p>
+        </div>
+
+        <p className="text-sm text-muted-foreground">
+          This is separate from Change rent. It appends reversal and replacement
+          evidence for one issued period; the original invoice, receipts, Ledger,
+          lease terms, and prior Owner Statements stay unchanged.
+        </p>
+
+        {candidates.length === 0 ? (
+          <div className="border-y border-border py-3 text-sm" role="status">
+            No eligible issued historical rent period is available for this Lease.
+          </div>
+        ) : (
+          <form action={previewAction} className="space-y-4">
+            <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+            <label className="grid gap-1.5 text-sm font-medium">
+              Issued rent period
+              <SelectControl
+                ariaLabel="Issued rent period"
+                name="invoiceId"
+                onValueChange={changeCandidate}
+                options={candidates.map((candidate) => ({
+                  label: `${candidate.billingPeriodStart}–${candidate.billingPeriodEnd} · ${candidate.invoiceNumber} · ${candidate.paymentStatus}`,
+                  value: candidate.invoiceId,
+                }))}
+                required
+                value={invoiceId}
+              />
+            </label>
+            {selectedCandidate ? (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-y border-border py-3 text-sm">
+                <span className="text-muted-foreground">Issued rent</span>
+                <span className="text-right tabular-nums">
+                  {formatCorrectionMoney(
+                    selectedCandidate.originalRentAmount,
+                    selectedCandidate.currency,
+                  )}
+                </span>
+                <span className="text-muted-foreground">Issued due date</span>
+                <span className="text-right">{selectedCandidate.originalDueDate}</span>
+                <span className="text-muted-foreground">Settlement recorded</span>
+                <span className="text-right tabular-nums">
+                  {formatCorrectionMoney(
+                    selectedCandidate.settledAmount,
+                    selectedCandidate.currency,
+                  )}
+                </span>
+              </div>
+            ) : null}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-1.5 text-sm font-medium">
+                Corrected rent amount
+                <NumberInput
+                  min="0.01"
+                  name="correctedRentAmount"
+                  onChange={(event) => setCorrectedRentAmount(event.target.value)}
+                  required
+                  value={correctedRentAmount}
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-medium">
+                Corrected due day
+                <NumberInput
+                  max="31"
+                  min="1"
+                  name="correctedDueDay"
+                  onChange={(event) => setCorrectedDueDay(event.target.value)}
+                  required
+                  value={correctedDueDay}
+                />
+              </label>
+            </div>
+            <label className="grid gap-1.5 text-sm font-medium">
+              Reason
+              <Input
+                maxLength={500}
+                minLength={8}
+                name="reason"
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="Reference the signed Lease evidence or operator finding"
+                required
+                value={reason}
+              />
+            </label>
+            {previewState.message ? (
+              <p
+                className={
+                  previewState.status === "error"
+                    ? "text-sm text-danger"
+                    : "text-sm text-muted-foreground"
+                }
+                role="status"
+              >
+                {previewState.message}
+              </p>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <Button onClick={onClose} type="button" variant="ghost">
+                Cancel
+              </Button>
+              <Button disabled={previewPending} type="submit" variant="outline">
+                {previewPending ? "Checking..." : "Preview correction"}
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {preview && previewMatches ? (
+          <HistoricalRentCorrectionPreviewPanel
+            applyAction={applyAction}
+            applyMessage={applyState.message}
+            applyPending={applyPending}
+            correctedDueDay={correctedDueDay}
+            correctedRentAmount={correctedRentAmount}
+            idempotencyKey={idempotencyKey}
+            invoiceId={invoiceId}
+            preview={preview}
+            reason={reason}
+          />
+        ) : preview ? (
+          <p className="text-sm text-warning" role="status">
+            The inputs changed after preview. Preview again before applying.
+          </p>
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
+function HistoricalRentCorrectionPreviewPanel({
+  applyAction,
+  applyMessage,
+  applyPending,
+  correctedDueDay,
+  correctedRentAmount,
+  idempotencyKey,
+  invoiceId,
+  preview,
+  reason,
+}: {
+  applyAction: (formData: FormData) => void;
+  applyMessage?: string;
+  applyPending: boolean;
+  correctedDueDay: string;
+  correctedRentAmount: string;
+  idempotencyKey: string;
+  invoiceId: string;
+  preview: HistoricalRentCorrectionPreview;
+  reason: string;
+}) {
+  return (
+    <section className="space-y-3 border-t border-border pt-4" aria-label="Correction preview">
+      <h3 className="text-sm font-semibold">Append-only preview</h3>
+      <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-2 text-sm">
+        <span className="text-muted-foreground">Rent</span>
+        <span className="tabular-nums">{preview.originalRentAmount.toFixed(2)}</span>
+        <span className="tabular-nums">→ {preview.correctedRentAmount.toFixed(2)}</span>
+        <span className="text-muted-foreground">Due date</span>
+        <span>{preview.originalDueDate}</span>
+        <span>→ {preview.correctedDueDate}</span>
+        <span className="text-muted-foreground">Management fee delta</span>
+        <span />
+        <span className="tabular-nums">{preview.managementFeeDelta.toFixed(2)}</span>
+        <span className="text-muted-foreground">Tenant credit liability</span>
+        <span />
+        <span className="tabular-nums">
+          {preview.projectedTenantCreditAmount.toFixed(2)}
+        </span>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Existing settlements will be reversed and reapplied. Any excess becomes
+        tenant-credit evidence; no receipt or statement is deleted.
+      </p>
+      {preview.blockers.length > 0 ? (
+        <div className="border-l-2 border-danger pl-3">
+          <p className="text-sm font-medium text-danger">Cannot apply yet</p>
+          <ul className="mt-1 list-disc space-y-1 pl-4 text-sm">
+            {preview.blockers.map((blocker, index) => (
+              <li key={`${blocker.code}-${index}`}>
+                {historicalRentBlockerLabel(blocker.code)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <form action={applyAction} className="space-y-3">
+          <input name="invoiceId" type="hidden" value={invoiceId} />
+          <input
+            name="correctedRentAmount"
+            type="hidden"
+            value={correctedRentAmount}
+          />
+          <input name="correctedDueDay" type="hidden" value={correctedDueDay} />
+          <input name="reason" type="hidden" value={reason} />
+          <input name="previewHash" type="hidden" value={preview.previewHash} />
+          <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+          {applyMessage ? (
+            <p className="text-sm text-danger" role="status">
+              {applyMessage}
+            </p>
+          ) : null}
+          <div className="flex justify-end">
+            <Button disabled={applyPending} type="submit" variant="destructive">
+              {applyPending ? "Applying..." : "Apply historical correction"}
+            </Button>
+          </div>
+        </form>
+      )}
+    </section>
+  );
+}
+
+function previewMatchesInput(
+  preview: HistoricalRentCorrectionPreview | undefined,
+  input: {
+    correctedDueDay: string;
+    correctedRentAmount: string;
+    invoiceId: string;
+  },
+) {
+  return Boolean(
+    preview &&
+      preview.invoiceId === input.invoiceId &&
+      preview.correctedDueDay === Number(input.correctedDueDay) &&
+      preview.correctedRentAmount === Number(input.correctedRentAmount),
+  );
+}
+
+function historicalRentBlockerLabel(code: string) {
+  if (code === "financial_month_locked") {
+    return "Unlock the current financial month before settlement replay.";
+  }
+  if (code === "historical_rent_owner_close_reopen_required") {
+    return "Reopen the affected Owner Close month; prior statements remain immutable.";
+  }
+  if (code === "owner_invoice_settlement_active") {
+    return "Reverse the management-fee owner settlement first.";
+  }
+  if (code === "historical_rent_owner_custody_changed") {
+    return "The direct-rent owner has changed; preserve custody by resolving that handoff first.";
+  }
+  if (code === "historical_rent_settlement_owner_effect_missing") {
+    return "Complete the missing owner allocation evidence for the settlement.";
+  }
+  return "Resolve the accounting evidence blocker before applying.";
+}
+
+function formatCorrectionMoney(amount: number, currency: string) {
+  return `${currency} ${amount.toFixed(2)}`;
 }
 
 function LeaseTermModal({

@@ -14,8 +14,8 @@ SELECT has_column(
 SELECT has_index(
   'public',
   'finance_income_items',
-  'finance_income_items_org_lease_rent_period_unique',
-  'rent uniqueness is based on lease billing month instead of due date'
+  'finance_income_items_org_lease_rent_period_root_unique',
+  'root rent uniqueness is based on lease billing month instead of due date'
 );
 
 SELECT has_column(
@@ -807,6 +807,19 @@ SELECT
   super_admin_id
 FROM lease_rent_state;
 
+DO $generate_activation_period$
+BEGIN
+  PERFORM app_private.generate_lease_rent_invoice(
+    (SELECT organization_id FROM lease_rent_state),
+    (SELECT good_lease_id FROM lease_rent_state),
+    '2026-08-01',
+    '2026-08-31',
+    'activation_catch_up',
+    (SELECT super_admin_id FROM lease_rent_state)
+  );
+END;
+$generate_activation_period$;
+
 SELECT results_eq(
   $$
     SELECT
@@ -820,17 +833,25 @@ SELECT results_eq(
     )
       AND invoice.billing_period_start = '2026-08-01'
   $$,
-  $$ VALUES ('lease_rules_v1'::text, 750.00::numeric, 1000.00::numeric, true) $$,
+  $$ VALUES ('activation_catch_up'::text, 750.00::numeric, 1000.00::numeric, true) $$,
   'activation catch-up creates the prorated current-month rent from lease authority'
 );
 
 SELECT lives_ok(
   $$
     SELECT app_private.run_due_rent_generation(
-      '2026-08-31 17:30:00+00'::timestamptz
+      (
+        SELECT current_period_start::timestamp AT TIME ZONE 'Asia/Bangkok'
+          - interval '30 minutes'
+        FROM lease_rent_state
+      )
     );
     SELECT app_private.run_due_rent_generation(
-      '2026-09-01 00:30:00+00'::timestamptz
+      (
+        SELECT current_period_start::timestamp AT TIME ZONE 'Asia/Bangkok'
+          + interval '30 minutes'
+        FROM lease_rent_state
+      )
     )
   $$,
   'the scheduled runner isolates leases and covers lease-rule timezones plus missing-rule failure'
@@ -843,7 +864,9 @@ SELECT results_eq(
     WHERE lease_id = (
       SELECT missing_policy_lease_id FROM lease_rent_state
     )
-      AND billing_period_start = '2026-09-01'
+      AND billing_period_start = (
+        SELECT current_period_start FROM lease_rent_state
+      )
   $$,
   $$VALUES ('billing_setup_missing'::text, 1, true)$$,
   'scheduled generation exposes a pre-existing active lease with no lease-owned billing rule'
@@ -854,10 +877,12 @@ SELECT is(
     SELECT count(*)::integer
     FROM public.tenant_invoices
     WHERE lease_id = (SELECT good_lease_id FROM lease_rent_state)
-      AND billing_period_start = '2026-09-01'
+      AND billing_period_start = (
+        SELECT current_period_start FROM lease_rent_state
+      )
   ),
   1,
-  'Bangkok-local September rent is generated while the UTC date is still August'
+  'Bangkok-local rent is generated while UTC is still in the prior month'
 );
 
 SELECT results_eq(
@@ -874,7 +899,9 @@ SELECT results_eq(
       invoice.management_fee_amount
     FROM public.tenant_invoices AS invoice
     WHERE invoice.lease_id = (SELECT good_lease_id FROM lease_rent_state)
-      AND invoice.billing_period_start = '2026-09-01'
+      AND invoice.billing_period_start = (
+        SELECT current_period_start FROM lease_rent_state
+      )
   $$,
   $$
     SELECT
@@ -897,9 +924,11 @@ SELECT is(
     SELECT due_date
     FROM public.tenant_invoices
     WHERE lease_id = (SELECT good_lease_id FROM lease_rent_state)
-      AND billing_period_start = '2026-09-01'
+      AND billing_period_start = (
+        SELECT current_period_start FROM lease_rent_state
+      )
   ),
-  '2026-09-05'::date,
+  (SELECT current_period_start + 4 FROM lease_rent_state),
   'the lease term supplies the due day without mutable organization policy'
 );
 
@@ -911,7 +940,9 @@ SELECT is(
       ON invoice.organization_id = fee.organization_id
      AND invoice.id = fee.tenant_invoice_id
     WHERE invoice.lease_id = (SELECT good_lease_id FROM lease_rent_state)
-      AND invoice.billing_period_start = '2026-09-01'
+      AND invoice.billing_period_start = (
+        SELECT current_period_start FROM lease_rent_state
+      )
   ),
   100.00::numeric,
   'one management-fee occurrence is calculated from the generated rent month'
@@ -920,10 +951,11 @@ SELECT is(
 SELECT lives_ok(
   $$
     SELECT app_private.run_due_rent_generation(
-      '2026-09-01 00:30:00+00'::timestamptz
-    );
-    SELECT app_private.run_due_rent_generation(
-      '2026-09-01 00:30:00+00'::timestamptz
+      (
+        SELECT current_period_start::timestamp AT TIME ZONE 'UTC'
+          + interval '12 hours'
+        FROM lease_rent_state
+      )
     )
   $$,
   'scheduled replay is safe'
@@ -934,7 +966,9 @@ SELECT is(
     SELECT count(*)::integer
     FROM public.tenant_invoices
     WHERE lease_id = (SELECT good_lease_id FROM lease_rent_state)
-      AND billing_period_start = '2026-09-01'
+      AND billing_period_start = (
+        SELECT current_period_start FROM lease_rent_state
+      )
   ),
   1,
   'scheduled replay cannot duplicate a lease-month invoice'
@@ -945,7 +979,9 @@ SELECT results_eq(
     SELECT error_code, attempt_count, resolved_at IS NULL
     FROM public.rent_generation_exceptions
     WHERE lease_id = (SELECT blocked_lease_id FROM lease_rent_state)
-      AND billing_period_start = '2026-09-01'
+      AND billing_period_start = (
+        SELECT current_period_start FROM lease_rent_state
+      )
   $$,
   $$ VALUES ('billing_setup_missing'::text, 3, true) $$,
   'one lease failure is isolated in a typed exception and repeated runs increment attempts'
@@ -1103,6 +1139,19 @@ SET is_locked = EXCLUDED.is_locked,
     locked_at = EXCLUDED.locked_at,
     locked_by = EXCLUDED.locked_by,
     reason = EXCLUDED.reason;
+
+DO $create_non_current_exception$
+BEGIN
+  PERFORM app_private.try_generate_lease_rent_invoice(
+    (SELECT organization_id FROM lease_rent_state),
+    (SELECT blocked_lease_id FROM lease_rent_state),
+    (SELECT non_current_period_start FROM lease_rent_state),
+    (SELECT non_current_period_start FROM lease_rent_state),
+    'scheduled',
+    (SELECT super_admin_id FROM lease_rent_state)
+  );
+END;
+$create_non_current_exception$;
 
 INSERT INTO public.lease_billing_terms (
   id,
@@ -1571,7 +1620,9 @@ SELECT lives_ok(
       SELECT id
       FROM public.rent_generation_exceptions
       WHERE lease_id = (SELECT blocked_lease_id FROM lease_rent_state)
-        AND billing_period_start = '2026-09-01'
+        AND billing_period_start = (
+          SELECT current_period_start FROM lease_rent_state
+        )
     )
   ),
   'Super Admin can recover one configured rent exception'
@@ -1582,7 +1633,9 @@ SELECT results_eq(
     SELECT resolved_at IS NOT NULL, resolved_invoice_id IS NOT NULL
     FROM public.rent_generation_exceptions
     WHERE lease_id = (SELECT blocked_lease_id FROM lease_rent_state)
-      AND billing_period_start = '2026-09-01'
+      AND billing_period_start = (
+        SELECT current_period_start FROM lease_rent_state
+      )
   $$,
   $$ VALUES (true, true) $$,
   'successful recovery resolves the original exception with invoice evidence'
@@ -1593,7 +1646,9 @@ SELECT is(
     SELECT count(*)::integer
     FROM public.tenant_invoices
     WHERE lease_id = (SELECT blocked_lease_id FROM lease_rent_state)
-      AND billing_period_start = '2026-09-01'
+      AND billing_period_start = (
+        SELECT current_period_start FROM lease_rent_state
+      )
   ),
   1,
   'manual recovery creates exactly one missing lease-month invoice'
@@ -1623,7 +1678,9 @@ SELECT results_eq(
     SELECT generation_source, management_fee_amount
     FROM public.tenant_invoices
     WHERE lease_id = (SELECT blocked_lease_id FROM lease_rent_state)
-      AND billing_period_start = '2026-09-01'
+      AND billing_period_start = (
+        SELECT current_period_start FROM lease_rent_state
+      )
   $$,
   $$ VALUES ('lease_rules_v1'::text, 75.00::numeric) $$,
   'recovered rent retains its lease-owned source and configured flat fee snapshot'
@@ -1634,7 +1691,9 @@ SELECT results_eq(
     SELECT collection_route, recipient_label
     FROM public.tenant_invoices
     WHERE lease_id = (SELECT good_lease_id FROM lease_rent_state)
-      AND billing_period_start = '2026-09-01'
+      AND billing_period_start = (
+        SELECT current_period_start FROM lease_rent_state
+      )
   $$,
   $$ VALUES ('through_ips'::text, 'Good Lease Tenant'::text) $$,
   'generated rent preserves the configured collection route and recipient'
@@ -1711,7 +1770,9 @@ SELECT throws_ok(
           ON invoice.organization_id = line.organization_id
          AND invoice.id = line.invoice_id
         WHERE invoice.lease_id = (SELECT good_lease_id FROM lease_rent_state)
-          AND invoice.billing_period_start = '2026-09-01'
+          AND invoice.billing_period_start = (
+            SELECT current_period_start FROM lease_rent_state
+          )
           AND line.line_type = 'rent'
       ),
       (SELECT organization_id FROM lease_rent_state)
@@ -1732,7 +1793,9 @@ SELECT throws_ok(
           ON invoice.organization_id = line.organization_id
          AND invoice.id = line.invoice_id
         WHERE invoice.lease_id = (SELECT good_lease_id FROM lease_rent_state)
-          AND invoice.billing_period_start = '2026-09-01'
+          AND invoice.billing_period_start = (
+            SELECT current_period_start FROM lease_rent_state
+          )
           AND line.line_type = 'rent'
       ),
       (SELECT organization_id FROM lease_rent_state)
@@ -1754,11 +1817,13 @@ SELECT throws_ok(
           ON invoice.organization_id = line.organization_id
          AND invoice.id = line.invoice_id
         WHERE invoice.lease_id = (SELECT good_lease_id FROM lease_rent_state)
-          AND invoice.billing_period_start = '2026-09-01'
+          AND invoice.billing_period_start = (
+            SELECT current_period_start FROM lease_rent_state
+          )
           AND line.line_type = 'rent'
       ),
       10,
-      '2026-09-05',
+      (SELECT current_period_start + 4 FROM lease_rent_state),
       'Direct receipt blocked'
     )
   $$,
@@ -1777,12 +1842,14 @@ SELECT throws_ok(
           ON invoice.organization_id = line.organization_id
          AND invoice.id = line.invoice_id
         WHERE invoice.lease_id = (SELECT good_lease_id FROM lease_rent_state)
-          AND invoice.billing_period_start = '2026-09-01'
+          AND invoice.billing_period_start = (
+            SELECT current_period_start FROM lease_rent_state
+          )
           AND line.line_type = 'rent'
       ),
       (SELECT organization_id FROM lease_rent_state),
       10,
-      '2026-09-05',
+      (SELECT current_period_start + 4 FROM lease_rent_state),
       'Direct payment blocked'
     )
   $$,
@@ -1802,11 +1869,13 @@ SELECT throws_ok(
           ON invoice.organization_id = line.organization_id
          AND invoice.id = line.invoice_id
         WHERE invoice.lease_id = (SELECT good_lease_id FROM lease_rent_state)
-          AND invoice.billing_period_start = '2026-09-01'
+          AND invoice.billing_period_start = (
+            SELECT current_period_start FROM lease_rent_state
+          )
           AND line.line_type = 'rent'
       ),
       10,
-      '2026-09-05',
+      (SELECT current_period_start + 4 FROM lease_rent_state),
       (SELECT source_id FROM lease_rent_state),
       'Direct atomic receipt blocked',
       'rent-direct-v2-blocked'
@@ -1834,7 +1903,9 @@ SELECT results_eq(
       ON income.organization_id = line.organization_id
      AND income.id = line.income_item_id
     WHERE invoice.lease_id = (SELECT good_lease_id FROM lease_rent_state)
-      AND invoice.billing_period_start = '2026-09-01'
+      AND invoice.billing_period_start = (
+        SELECT current_period_start FROM lease_rent_state
+      )
   $$,
   $$VALUES ('open'::text, 0::numeric, true, 'issued'::text, 1000.00::numeric)$$,
   'retired direct mutations leave the generated invoice and income obligation unchanged'

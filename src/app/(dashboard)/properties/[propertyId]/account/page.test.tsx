@@ -166,6 +166,7 @@ describe("PropertyAccountPage", () => {
     render(
       await PropertyAccountPage({
         params: Promise.resolve({ propertyId }),
+        searchParams: Promise.resolve({ month: "2026-08" }),
       }),
     );
 
