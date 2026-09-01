@@ -93,7 +93,7 @@ INSERT INTO public.rent_policy_versions (
   waivers_support_state, lifecycle, created_by, updated_by,
   approved_at, approved_by
 )
-SELECT current_policy_id, organization_id, 1, current_date,
+SELECT current_policy_id, organization_id, 1, (period_start + interval '1 day')::date,
   ARRAY['monthly']::text[], 'Asia/Bangkok', 'term', NULL::integer,
   'last_calendar_day', 'actual_days', 'actual_days', 'through_lease_end',
   'prorate_actual_days', 'unsupported', 'unsupported', 'unsupported',
