@@ -14,8 +14,8 @@ SELECT has_column(
 SELECT has_index(
   'public',
   'finance_income_items',
-  'finance_income_items_org_lease_rent_period_unique',
-  'rent uniqueness is based on lease billing month instead of due date'
+  'finance_income_items_org_lease_rent_period_root_unique',
+  'root rent uniqueness is based on lease billing month instead of due date'
 );
 
 SELECT has_column(

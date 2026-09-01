@@ -344,6 +344,18 @@ BEFORE INSERT OR UPDATE OR DELETE
 ON public.tenant_credit_occurrences
 FOR EACH ROW EXECUTE FUNCTION app_private.guard_historical_rent_evidence();
 
+CREATE TRIGGER privileged_email_step_up_enforcement
+BEFORE INSERT OR UPDATE OR DELETE
+ON public.historical_rent_settlement_reapplications
+FOR EACH ROW EXECUTE FUNCTION
+  app_private.enforce_privileged_email_step_up_on_organization_mutation();
+
+CREATE TRIGGER privileged_email_step_up_enforcement
+BEFORE INSERT OR UPDATE OR DELETE
+ON public.tenant_credit_occurrences
+FOR EACH ROW EXECUTE FUNCTION
+  app_private.enforce_privileged_email_step_up_on_organization_mutation();
+
 ALTER TABLE public.historical_rent_settlement_reapplications
   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.historical_rent_settlement_reapplications
