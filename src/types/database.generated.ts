@@ -910,6 +910,7 @@ export type Database = {
           amount_received: number
           archived_at: string | null
           archived_by: string | null
+          correction_occurrence_id: string | null
           created_at: string
           created_by: string | null
           currency: Database["public"]["Enums"]["currency_code"]
@@ -927,6 +928,7 @@ export type Database = {
           reference: string | null
           rent_billing_period_start: string | null
           status: string
+          supersedes_income_item_id: string | null
           unit_id: string | null
           updated_at: string
           updated_by: string | null
@@ -936,6 +938,7 @@ export type Database = {
           amount_received?: number
           archived_at?: string | null
           archived_by?: string | null
+          correction_occurrence_id?: string | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -953,6 +956,7 @@ export type Database = {
           reference?: string | null
           rent_billing_period_start?: string | null
           status?: string
+          supersedes_income_item_id?: string | null
           unit_id?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -962,6 +966,7 @@ export type Database = {
           amount_received?: number
           archived_at?: string | null
           archived_by?: string | null
+          correction_occurrence_id?: string | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -979,11 +984,19 @@ export type Database = {
           reference?: string | null
           rent_billing_period_start?: string | null
           status?: string
+          supersedes_income_item_id?: string | null
           unit_id?: string | null
           updated_at?: string
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "finance_income_items_correction_fkey"
+            columns: ["organization_id", "correction_occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_corrections"
+            referencedColumns: ["organization_id", "id"]
+          },
           {
             foreignKeyName: "finance_income_items_lease_id_fkey"
             columns: ["lease_id"]
@@ -1032,6 +1045,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "property_finance_positions"
             referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "finance_income_items_successor_fkey"
+            columns: ["organization_id", "supersedes_income_item_id"]
+            isOneToOne: false
+            referencedRelation: "finance_income_items"
+            referencedColumns: ["organization_id", "id"]
           },
           {
             foreignKeyName: "finance_income_items_unit_id_fkey"
@@ -1749,6 +1769,72 @@ export type Database = {
           },
           {
             foreignKeyName: "financial_reconciliation_sources_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      historical_rent_settlement_reapplications: {
+        Row: {
+          correction_occurrence_id: string
+          created_at: string
+          created_by: string
+          credit_amount: number
+          id: string
+          organization_id: string
+          original_allocation_snapshot: Json
+          original_amount: number
+          original_settlement_id: string
+          reapplied_amount: number
+          replacement_allocation_snapshot: Json
+          replacement_settlement_id: string | null
+          reversal_settlement_id: string
+          settlement_kind: string
+        }
+        Insert: {
+          correction_occurrence_id: string
+          created_at?: string
+          created_by: string
+          credit_amount: number
+          id?: string
+          organization_id: string
+          original_allocation_snapshot: Json
+          original_amount: number
+          original_settlement_id: string
+          reapplied_amount: number
+          replacement_allocation_snapshot: Json
+          replacement_settlement_id?: string | null
+          reversal_settlement_id: string
+          settlement_kind: string
+        }
+        Update: {
+          correction_occurrence_id?: string
+          created_at?: string
+          created_by?: string
+          credit_amount?: number
+          id?: string
+          organization_id?: string
+          original_allocation_snapshot?: Json
+          original_amount?: number
+          original_settlement_id?: string
+          reapplied_amount?: number
+          replacement_allocation_snapshot?: Json
+          replacement_settlement_id?: string | null
+          reversal_settlement_id?: string
+          settlement_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historical_rent_settlement_reapplications_correction_fkey"
+            columns: ["organization_id", "correction_occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_corrections"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "historical_rent_settlement_reapplications_org_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -3914,6 +4000,7 @@ export type Database = {
           property_id: string
           reversal_of_id: string | null
           settlement_status: string
+          supersedes_occurrence_id: string | null
           tenant_invoice_id: string
         }
         Insert: {
@@ -3932,6 +4019,7 @@ export type Database = {
           property_id: string
           reversal_of_id?: string | null
           settlement_status?: string
+          supersedes_occurrence_id?: string | null
           tenant_invoice_id: string
         }
         Update: {
@@ -3950,6 +4038,7 @@ export type Database = {
           property_id?: string
           reversal_of_id?: string | null
           settlement_status?: string
+          supersedes_occurrence_id?: string | null
           tenant_invoice_id?: string
         }
         Relationships: [
@@ -4019,6 +4108,13 @@ export type Database = {
           {
             foreignKeyName: "management_fee_occurrences_reversal_fkey"
             columns: ["organization_id", "reversal_of_id"]
+            isOneToOne: false
+            referencedRelation: "management_fee_occurrences"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "management_fee_occurrences_successor_fkey"
+            columns: ["organization_id", "supersedes_occurrence_id"]
             isOneToOne: false
             referencedRelation: "management_fee_occurrences"
             referencedColumns: ["organization_id", "id"]
@@ -6164,6 +6260,7 @@ export type Database = {
           sort_order: number
           source_id: string
           source_type: string
+          supersedes_line_id: string | null
         }
         Insert: {
           amount: number
@@ -6181,6 +6278,7 @@ export type Database = {
           sort_order: number
           source_id: string
           source_type: string
+          supersedes_line_id?: string | null
         }
         Update: {
           amount?: number
@@ -6198,6 +6296,7 @@ export type Database = {
           sort_order?: number
           source_id?: string
           source_type?: string
+          supersedes_line_id?: string | null
         }
         Relationships: [
           {
@@ -6245,6 +6344,13 @@ export type Database = {
           {
             foreignKeyName: "owner_invoice_lines_reversal_fkey"
             columns: ["organization_id", "reversal_of_id"]
+            isOneToOne: false
+            referencedRelation: "owner_invoice_lines"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_invoice_lines_successor_fkey"
+            columns: ["organization_id", "supersedes_line_id"]
             isOneToOne: false
             referencedRelation: "owner_invoice_lines"
             referencedColumns: ["organization_id", "id"]
@@ -8364,10 +8470,155 @@ export type Database = {
           },
         ]
       }
+      tenant_credit_occurrences: {
+        Row: {
+          amount: number
+          correction_occurrence_id: string
+          created_at: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          custody_kind: string
+          id: string
+          lease_id: string
+          occurred_on: string
+          organization_id: string
+          owner_person_id: string | null
+          property_id: string
+          reason: string
+          source_settlement_id: string
+          source_settlement_kind: string
+          tenant_invoice_id: string
+          tenant_person_id: string
+          unit_id: string | null
+        }
+        Insert: {
+          amount: number
+          correction_occurrence_id: string
+          created_at?: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          custody_kind: string
+          id?: string
+          lease_id: string
+          occurred_on: string
+          organization_id: string
+          owner_person_id?: string | null
+          property_id: string
+          reason: string
+          source_settlement_id: string
+          source_settlement_kind: string
+          tenant_invoice_id: string
+          tenant_person_id: string
+          unit_id?: string | null
+        }
+        Update: {
+          amount?: number
+          correction_occurrence_id?: string
+          created_at?: string
+          created_by?: string
+          currency?: Database["public"]["Enums"]["currency_code"]
+          custody_kind?: string
+          id?: string
+          lease_id?: string
+          occurred_on?: string
+          organization_id?: string
+          owner_person_id?: string | null
+          property_id?: string
+          reason?: string
+          source_settlement_id?: string
+          source_settlement_kind?: string
+          tenant_invoice_id?: string
+          tenant_person_id?: string
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_credit_occurrences_correction_fkey"
+            columns: ["organization_id", "correction_occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_corrections"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_credit_occurrences_invoice_fkey"
+            columns: ["organization_id", "tenant_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_balances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_credit_occurrences_invoice_fkey"
+            columns: ["organization_id", "tenant_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoices"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_credit_occurrences_lease_fkey"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_credit_occurrences_lease_fkey"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_credit_occurrences_org_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_credit_occurrences_owner_fkey"
+            columns: ["organization_id", "owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_credit_occurrences_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_credit_occurrences_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "tenant_credit_occurrences_tenant_fkey"
+            columns: ["organization_id", "tenant_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_credit_occurrences_unit_fkey"
+            columns: ["organization_id", "unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       tenant_invoice_corrections: {
         Row: {
           action: string
           affected_line_count: number
+          corrected_due_date: string | null
+          corrected_due_day: number | null
+          corrected_rent_amount: number | null
+          correction_business_date: string | null
           created_at: string
           created_by: string
           currency: Database["public"]["Enums"]["currency_code"]
@@ -8375,9 +8626,14 @@ export type Database = {
           id: string
           idempotency_key: string
           organization_id: string
+          original_due_date: string | null
+          original_due_day: number | null
+          original_rent_amount: number | null
           payload_hash: string
+          preview_hash: string | null
           property_id: string
           reason: string
+          source_billing_term_id: string | null
           source_identity: Json
           target_invoice_line_id: string | null
           tenant_invoice_id: string
@@ -8386,6 +8642,10 @@ export type Database = {
         Insert: {
           action: string
           affected_line_count: number
+          corrected_due_date?: string | null
+          corrected_due_day?: number | null
+          corrected_rent_amount?: number | null
+          correction_business_date?: string | null
           created_at?: string
           created_by: string
           currency: Database["public"]["Enums"]["currency_code"]
@@ -8393,9 +8653,14 @@ export type Database = {
           id?: string
           idempotency_key: string
           organization_id: string
+          original_due_date?: string | null
+          original_due_day?: number | null
+          original_rent_amount?: number | null
           payload_hash: string
+          preview_hash?: string | null
           property_id: string
           reason: string
+          source_billing_term_id?: string | null
           source_identity: Json
           target_invoice_line_id?: string | null
           tenant_invoice_id: string
@@ -8404,6 +8669,10 @@ export type Database = {
         Update: {
           action?: string
           affected_line_count?: number
+          corrected_due_date?: string | null
+          corrected_due_day?: number | null
+          corrected_rent_amount?: number | null
+          correction_business_date?: string | null
           created_at?: string
           created_by?: string
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -8411,9 +8680,14 @@ export type Database = {
           id?: string
           idempotency_key?: string
           organization_id?: string
+          original_due_date?: string | null
+          original_due_day?: number | null
+          original_rent_amount?: number | null
           payload_hash?: string
+          preview_hash?: string | null
           property_id?: string
           reason?: string
+          source_billing_term_id?: string | null
           source_identity?: Json
           target_invoice_line_id?: string | null
           tenant_invoice_id?: string
@@ -8454,6 +8728,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "property_finance_positions"
             referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_corrections_source_billing_term_fkey"
+            columns: ["source_billing_term_id"]
+            isOneToOne: false
+            referencedRelation: "lease_billing_terms"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "tenant_invoice_corrections_target_line_fkey"
@@ -8499,6 +8780,7 @@ export type Database = {
           recognized_on: string
           reversal_of_id: string | null
           sort_order: number
+          supersedes_line_id: string | null
           unit_id: string | null
         }
         Insert: {
@@ -8521,6 +8803,7 @@ export type Database = {
           recognized_on: string
           reversal_of_id?: string | null
           sort_order: number
+          supersedes_line_id?: string | null
           unit_id?: string | null
         }
         Update: {
@@ -8543,6 +8826,7 @@ export type Database = {
           recognized_on?: string
           reversal_of_id?: string | null
           sort_order?: number
+          supersedes_line_id?: string | null
           unit_id?: string | null
         }
         Relationships: [
@@ -8612,6 +8896,20 @@ export type Database = {
           {
             foreignKeyName: "tenant_invoice_lines_reversal_fkey"
             columns: ["organization_id", "reversal_of_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_lines"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_lines_successor_fkey"
+            columns: ["organization_id", "supersedes_line_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_line_balances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_lines_successor_fkey"
+            columns: ["organization_id", "supersedes_line_id"]
             isOneToOne: false
             referencedRelation: "tenant_invoice_lines"
             referencedColumns: ["organization_id", "id"]
@@ -10003,6 +10301,18 @@ export type Database = {
         }
         Returns: string
       }
+      correct_historical_rent: {
+        Args: {
+          p_corrected_due_day: number
+          p_corrected_rent_amount: number
+          p_idempotency_key: string
+          p_invoice_id: string
+          p_organization_id: string
+          p_preview_hash: string
+          p_reason: string
+        }
+        Returns: Json
+      }
       correct_tenant_invoice: {
         Args: {
           p_action: string
@@ -11175,6 +11485,15 @@ export type Database = {
           expires_at: string
           resend_available_at: string
         }[]
+      }
+      preview_historical_rent_correction: {
+        Args: {
+          p_corrected_due_day: number
+          p_corrected_rent_amount: number
+          p_invoice_id: string
+          p_organization_id: string
+        }
+        Returns: Json
       }
       process_due_lease_activations: {
         Args: {

@@ -197,6 +197,19 @@ export type LeaseRentReadiness = {
   tone: LeaseBadgeTone;
 };
 
+export type HistoricalRentCorrectionCandidate = {
+  billingPeriodEnd: string;
+  billingPeriodStart: string;
+  currency: CurrencyCode;
+  invoiceId: string;
+  invoiceNumber: string;
+  originalDueDate: string;
+  originalDueDay: number;
+  originalRentAmount: number;
+  paymentStatus: string;
+  settledAmount: number;
+};
+
 export type LeaseOccupancyContext = {
   actualLabel: string;
   datesLabel: string;
