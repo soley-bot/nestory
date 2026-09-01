@@ -378,6 +378,152 @@ test("approve versus reject serializes to one Finance decision", async () => {
   );
 });
 
+test("multi-line transaction review is atomic and preserves explicit zero owner cash", async () => {
+  const scope = submissionScope();
+  const documentId = registerRaceEvidence("transaction-review", scope.propertyId);
+  const submitted = JSON.parse(run(actorSql(financeMemberId, `
+    SELECT public.submit_expense_transaction(
+      '${organizationId}',
+      '${vendorId}',
+      NULL,
+      current_date - 1,
+      'USD',
+      '${scope.sourceId}',
+      'TRACK6-TRANSACTION-RACE',
+      '${documentId}',
+      'owner',
+      jsonb_build_array(
+        jsonb_build_object(
+          'property_id', '${scope.propertyId}',
+          'unit_id', '${scope.unitId}',
+          'category', 'other',
+          'description', 'Transaction race line one',
+          'amount', '12.00',
+          'internal_markup_amount', '0.00',
+          'owner_cash_amount', '0.00'
+        ),
+        jsonb_build_object(
+          'property_id', '${scope.propertyId}',
+          'unit_id', '${scope.unitId}',
+          'category', 'other',
+          'description', 'Transaction race line two',
+          'amount', '8.00',
+          'internal_markup_amount', '0.00',
+          'owner_cash_amount', '0.00'
+        )
+      ),
+      'track6-transaction-race-submit'
+    );
+  `)));
+  const transactionId = submitted.transaction_id;
+  assert.match(transactionId, /^[0-9a-f-]{36}$/);
+
+  const approve = `SELECT public.review_expense_transaction(
+    '${organizationId}', '${transactionId}', 'approve',
+    'Transaction race approval', 'track6-transaction-race-approve'
+  );`;
+  const reject = `SELECT public.review_expense_transaction(
+    '${organizationId}', '${transactionId}', 'reject',
+    'Transaction race rejection', 'track6-transaction-race-reject'
+  );`;
+  const first = spawnSession(actorSql(financeManagerId, approve, "review_update"));
+  await waitForMarker(first, "paid_cost_review_update_ready");
+  const startedAt = performance.now();
+  const second = spawnSession(actorSql(financeManagerId, reject));
+  const [firstResult, secondResult] = await Promise.all([first.done, second.done]);
+  const elapsedMs = performance.now() - startedAt;
+
+  assert.equal(firstResult.status, 0, firstResult.stderr);
+  assert.notEqual(secondResult.status, 0, "transaction rejection unexpectedly won after approval");
+  assert.match(secondResult.stderr, /Only a submitted expense transaction can be reviewed/);
+  assert.ok(elapsedMs >= 1_500, `transaction review loser waited only ${elapsedMs.toFixed(0)}ms`);
+  assert.doesNotMatch(`${firstResult.stderr}\n${secondResult.stderr}`, /40P01|deadlock detected/i);
+  assert.equal(
+    run(`SELECT transaction.status || '|' || count(*)::text || '|' ||
+      count(*) FILTER (WHERE submission.status='approved')::text || '|' ||
+      coalesce(sum(cash.amount), 0)::text
+      FROM public.expense_transactions AS transaction
+      JOIN public.expense_transaction_lines AS line
+        ON line.transaction_id=transaction.id
+      JOIN public.expense_submissions AS submission
+        ON submission.id=line.submission_id
+      LEFT JOIN public.ips_expense_responsibilities AS responsibility
+        ON responsibility.finance_expense_item_id=submission.approved_finance_expense_item_id
+      LEFT JOIN public.owner_charge_cash_allocations AS cash
+        ON cash.owner_invoice_line_id=responsibility.owner_invoice_line_id
+      WHERE transaction.id='${transactionId}'
+      GROUP BY transaction.status;`),
+    "approved|2|2|0",
+  );
+  assert.equal(
+    run(`SELECT string_agg(expense.description, '|' ORDER BY line.sort_order)
+      FROM public.expense_transaction_lines AS line
+      JOIN public.expense_submissions AS submission ON submission.id=line.submission_id
+      JOIN public.finance_expense_items AS expense
+        ON expense.id=submission.approved_finance_expense_item_id
+      WHERE line.transaction_id='${transactionId}';`),
+    "Transaction race line one|Transaction race line two",
+  );
+});
+
+test("automatic owner cash cannot top up an explicit transaction line", () => {
+  const scope = submissionScope();
+  const ownerId = run(`SELECT person_id
+    FROM public.property_owners
+    WHERE organization_id='${organizationId}'
+      AND property_id='${scope.propertyId}'
+      AND started_on <= current_date
+      AND (ended_on IS NULL OR ended_on >= current_date)
+    ORDER BY ownership_percent DESC, id
+    LIMIT 1;`);
+  assert.match(ownerId, /^[0-9a-f-]{36}$/);
+  run(actorSql(financeManagerId, `SELECT public.record_owner_cash_event(
+    '${organizationId}', '${scope.propertyId}', '${ownerId}', 'USD',
+    'owner_contribution', current_date, 10000.00,
+    'Explicit transaction allocation guard', 'track6-explicit-line-funding'
+  );`));
+
+  const documentId = registerRaceEvidence("explicit-line-guard", scope.propertyId);
+  const submitted = JSON.parse(run(actorSql(financeMemberId, `
+    SELECT public.submit_expense_transaction(
+      '${organizationId}', '${vendorId}', NULL, current_date - 1, 'USD',
+      '${scope.sourceId}', 'TRACK6-EXPLICIT-LINE-GUARD', '${documentId}', 'owner',
+      jsonb_build_array(
+        jsonb_build_object(
+          'property_id', '${scope.propertyId}', 'unit_id', '${scope.unitId}',
+          'category', 'other', 'description', 'Explicit one dollar line',
+          'amount', '12.00', 'internal_markup_amount', '0.00',
+          'owner_cash_amount', '1.00'
+        ),
+        jsonb_build_object(
+          'property_id', '${scope.propertyId}', 'unit_id', '${scope.unitId}',
+          'category', 'other', 'description', 'Automatic companion line',
+          'amount', '8.00', 'internal_markup_amount', '0.00'
+        )
+      ),
+      'track6-explicit-line-submit'
+    );
+  `)));
+  run(actorSql(financeManagerId, `SELECT public.review_expense_transaction(
+    '${organizationId}', '${submitted.transaction_id}', 'approve',
+    'Explicit allocation reviewed', 'track6-explicit-line-approve'
+  );`));
+
+  assert.equal(
+    run(`SELECT coalesce(sum(cash.amount), 0)::text
+      FROM public.expense_transaction_lines AS transaction_line
+      JOIN public.ips_expense_responsibilities AS responsibility
+        ON responsibility.idempotency_key =
+          'expense-approval:' || transaction_line.submission_id::text
+      LEFT JOIN public.owner_charge_cash_allocations AS cash
+        ON cash.organization_id=responsibility.organization_id
+       AND cash.owner_invoice_line_id=responsibility.owner_invoice_line_id
+      WHERE transaction_line.transaction_id='${submitted.transaction_id}'
+        AND transaction_line.sort_order=1;`),
+    "1.00",
+  );
+});
+
 test("approve versus reversal does not reverse an uncommitted approval", async () => {
   const scope = submissionScope();
   const approve = `SELECT public.review_expense('${organizationId}', '${scope.submissionId}',
