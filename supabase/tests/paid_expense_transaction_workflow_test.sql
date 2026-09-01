@@ -38,6 +38,24 @@ SELECT col_is_null(
   'owner_cash_amount',
   'null owner cash preserves the existing automatic allocation behavior'
 );
+SELECT has_trigger(
+  'public',
+  'expense_submissions',
+  'guard_expense_submission_evidence_reuse',
+  'shared transaction evidence is protected by a deferred structural guard'
+);
+SELECT ok(
+  coalesce(
+    (
+      SELECT trigger.tgdeferrable AND trigger.tginitdeferred
+      FROM pg_catalog.pg_trigger AS trigger
+      WHERE trigger.tgrelid = 'public.expense_submissions'::regclass
+        AND trigger.tgname = 'guard_expense_submission_evidence_reuse'
+    ),
+    false
+  ),
+  'transaction evidence reuse is validated after every child line is linked'
+);
 
 SELECT has_function(
   'public',
@@ -160,6 +178,25 @@ SELECT ok(
     'transaction_line.owner_cash_amount IS NOT NULL'
   ) > 0,
   'automatic allocation excludes transaction lines with an explicit amount'
+);
+
+SELECT ok(
+  pg_catalog.strpos(
+    pg_catalog.pg_get_functiondef(
+      'public.submit_expense_transaction(uuid,uuid,text,date,public.currency_code,uuid,text,uuid,text,jsonb,text)'::regprocedure
+    ),
+    'assert_property_permission'
+  ) > 0,
+  'transaction submission checks Finance Member authority for every property scope'
+);
+SELECT ok(
+  pg_catalog.strpos(
+    pg_catalog.pg_get_functiondef(
+      'public.review_expense_transaction(uuid,uuid,text,text,text)'::regprocedure
+    ),
+    'assert_property_permission'
+  ) > 0,
+  'transaction review checks Finance Manager authority for every property scope'
 );
 
 SELECT * FROM finish();

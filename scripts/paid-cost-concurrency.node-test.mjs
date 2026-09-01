@@ -105,7 +105,7 @@ function reloadFixture() {
 function actorSql(actorId, body, pause = "") {
   return `BEGIN;
     SET LOCAL statement_timeout = '20s';
-    SELECT pg_catalog.set_config('request.jwt.claim.sub', '${actorId}', true);
+    SET LOCAL "request.jwt.claim.sub" = '${actorId}';
     SET LOCAL ROLE authenticated;
     ${pause ? `SELECT pg_catalog.set_config('app.paid_cost_test_pause', '${pause}', true);` : ""}
     ${body}
@@ -130,7 +130,7 @@ export function selectCompleteSubmissionScope(output) {
   return complete[0];
 }
 
-function submissionScope(reference = "GDN-PUMP-2088") {
+function submissionScope(reference = "GDN-PUMP-2088", sourceType = "general") {
   return selectCompleteSubmissionScope(run(`
     SELECT submission.id::text || '|' || submission.property_id::text || '|' ||
       coalesce(submission.unit_id::text, '') || '|' ||
@@ -138,7 +138,7 @@ function submissionScope(reference = "GDN-PUMP-2088") {
       coalesce(submission.supporting_document_id::text, '')
     FROM public.expense_submissions AS submission
     WHERE submission.organization_id = '${organizationId}'
-      AND submission.source_type = 'general'
+      AND submission.source_type = '${sourceType}'
       AND submission.reference = '${reference}'
     ORDER BY submission.id;
   `));
@@ -384,8 +384,8 @@ test("multi-line transaction review is atomic and preserves explicit zero owner 
   const submitted = JSON.parse(run(actorSql(financeMemberId, `
     SELECT public.submit_expense_transaction(
       '${organizationId}',
-      '${vendorId}',
       NULL,
+      'Track 6 transaction vendor',
       current_date - 1,
       'USD',
       '${scope.sourceId}',
@@ -467,26 +467,12 @@ test("multi-line transaction review is atomic and preserves explicit zero owner 
 });
 
 test("automatic owner cash cannot top up an explicit transaction line", () => {
-  const scope = submissionScope();
-  const ownerId = run(`SELECT person_id
-    FROM public.property_owners
-    WHERE organization_id='${organizationId}'
-      AND property_id='${scope.propertyId}'
-      AND started_on <= current_date
-      AND (ended_on IS NULL OR ended_on >= current_date)
-    ORDER BY ownership_percent DESC, id
-    LIMIT 1;`);
-  assert.match(ownerId, /^[0-9a-f-]{36}$/);
-  run(actorSql(financeManagerId, `SELECT public.record_owner_cash_event(
-    '${organizationId}', '${scope.propertyId}', '${ownerId}', 'USD',
-    'owner_contribution', current_date, 10000.00,
-    'Explicit transaction allocation guard', 'track6-explicit-line-funding'
-  );`));
+  const scope = submissionScope("KH-INV-1042", "maintenance_task");
 
   const documentId = registerRaceEvidence("explicit-line-guard", scope.propertyId);
   const submitted = JSON.parse(run(actorSql(financeMemberId, `
     SELECT public.submit_expense_transaction(
-      '${organizationId}', '${vendorId}', NULL, current_date - 1, 'USD',
+      '${organizationId}', NULL, 'Track 6 explicit-line vendor', current_date - 1, 'USD',
       '${scope.sourceId}', 'TRACK6-EXPLICIT-LINE-GUARD', '${documentId}', 'owner',
       jsonb_build_array(
         jsonb_build_object(

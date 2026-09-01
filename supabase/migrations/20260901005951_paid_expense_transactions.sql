@@ -95,7 +95,8 @@ CREATE TABLE public.expense_transactions (
     )
   ),
   UNIQUE (organization_id, id),
-  UNIQUE (organization_id, idempotency_key)
+  UNIQUE (organization_id, idempotency_key),
+  UNIQUE (supporting_document_id)
 );
 
 CREATE TABLE public.expense_transaction_scopes (
@@ -148,6 +149,98 @@ CREATE INDEX expense_transaction_scopes_org_property_idx
   ON public.expense_transaction_scopes(organization_id, property_id, transaction_id);
 CREATE INDEX expense_transaction_lines_org_transaction_idx
   ON public.expense_transaction_lines(organization_id, transaction_id, sort_order);
+
+DROP INDEX public.expense_submissions_evidence_once_idx;
+CREATE INDEX expense_submissions_supporting_document_idx
+  ON public.expense_submissions(supporting_document_id)
+  WHERE supporting_document_id IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION app_private.guard_expense_submission_evidence_reuse()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $$
+DECLARE
+  v_all_links_match boolean;
+  v_linked_submission_count integer;
+  v_submission_count integer;
+  v_transaction_count integer;
+BEGIN
+  IF NEW.supporting_document_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'paid-cost-evidence:' || NEW.supporting_document_id::text,
+      0
+    )
+  );
+
+  SELECT
+    count(DISTINCT submission.id)::integer,
+    count(DISTINCT line.submission_id)::integer,
+    count(DISTINCT line.transaction_id)::integer,
+    coalesce(
+      bool_and(
+        line.submission_id IS NULL
+        OR transaction.supporting_document_id
+          IS NOT DISTINCT FROM submission.supporting_document_id
+      ),
+      false
+    )
+  INTO
+    v_submission_count,
+    v_linked_submission_count,
+    v_transaction_count,
+    v_all_links_match
+  FROM public.expense_submissions AS submission
+  LEFT JOIN public.expense_transaction_lines AS line
+    ON line.organization_id = submission.organization_id
+   AND line.submission_id = submission.id
+  LEFT JOIN public.expense_transactions AS transaction
+    ON transaction.organization_id = line.organization_id
+   AND transaction.id = line.transaction_id
+  WHERE submission.supporting_document_id = NEW.supporting_document_id;
+
+  IF v_submission_count = 1 AND v_linked_submission_count = 0 THEN
+    RETURN NEW;
+  END IF;
+  IF v_submission_count = v_linked_submission_count
+    AND v_transaction_count = 1
+    AND v_all_links_match THEN
+    RETURN NEW;
+  END IF;
+
+  RAISE EXCEPTION 'paid_cost_evidence_already_used'
+    USING ERRCODE = '23505';
+END;
+$$;
+
+CREATE CONSTRAINT TRIGGER guard_expense_submission_evidence_reuse
+  AFTER INSERT OR UPDATE ON public.expense_submissions
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW
+  EXECUTE FUNCTION app_private.guard_expense_submission_evidence_reuse();
+
+REVOKE ALL ON FUNCTION app_private.guard_expense_submission_evidence_reuse()
+  FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE TRIGGER privileged_email_step_up_enforcement
+  BEFORE INSERT OR UPDATE OR DELETE ON public.expense_transactions
+  FOR EACH ROW EXECUTE FUNCTION
+    app_private.enforce_privileged_email_step_up_on_organization_mutation();
+
+CREATE TRIGGER privileged_email_step_up_enforcement
+  BEFORE INSERT OR UPDATE OR DELETE ON public.expense_transaction_scopes
+  FOR EACH ROW EXECUTE FUNCTION
+    app_private.enforce_privileged_email_step_up_on_organization_mutation();
+
+CREATE TRIGGER privileged_email_step_up_enforcement
+  BEFORE INSERT OR UPDATE OR DELETE ON public.expense_transaction_lines
+  FOR EACH ROW EXECUTE FUNCTION
+    app_private.enforce_privileged_email_step_up_on_organization_mutation();
 
 ALTER TABLE public.expense_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expense_transaction_scopes ENABLE ROW LEVEL SECURITY;
@@ -230,6 +323,7 @@ AS $$
 DECLARE
   v_document public.documents%ROWTYPE;
   v_object storage.objects%ROWTYPE;
+  v_registration app_private.paid_cost_evidence_registrations%ROWTYPE;
   v_key text := pg_catalog.btrim(coalesce(p_submission_idempotency_key, ''));
   v_transaction_setting text := current_setting(
     'app.expense_transaction_id',
@@ -328,20 +422,24 @@ BEGIN
       USING ERRCODE = '23514';
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1
-    FROM public.activity_logs AS activity
-    WHERE activity.organization_id = p_organization_id
-      AND activity.actor_id = p_submitting_actor_id
-      AND activity.entity_type = 'document'
-      AND activity.entity_id = p_document_id
-      AND activity.action = 'paid_cost_evidence_registered'
-      AND activity.new_values->>'property_id' = v_document.property_id::text
-      AND activity.new_values->>'storage_path' = v_document.storage_path
-      AND activity.new_values->>'content_sha256' = v_document.content_sha256
-      AND activity.new_values->>'size_bytes' = v_document.size_bytes::text
-      AND activity.new_values->>'content_type' = v_document.mime_type
-  ) THEN
+  SELECT registration.*
+  INTO v_registration
+  FROM app_private.paid_cost_evidence_registrations AS registration
+  WHERE registration.document_id = p_document_id
+    AND registration.organization_id = p_organization_id
+  FOR KEY SHARE;
+
+  IF NOT FOUND
+    OR v_registration.property_id IS DISTINCT FROM v_document.property_id
+    OR v_registration.actor_id IS DISTINCT FROM p_submitting_actor_id
+    OR v_registration.storage_path IS DISTINCT FROM v_document.storage_path
+    OR v_registration.content_sha256 IS DISTINCT FROM v_document.content_sha256
+    OR v_registration.size_bytes IS DISTINCT FROM v_document.size_bytes
+    OR v_registration.mime_type IS DISTINCT FROM v_document.mime_type
+    OR v_registration.storage_object_id IS DISTINCT FROM v_object.id
+    OR v_registration.storage_object_version IS DISTINCT FROM v_object.version
+    OR v_registration.registrar_version IS DISTINCT FROM
+      'paid-cost-evidence-registrar-v1' THEN
     RAISE EXCEPTION 'paid_cost_evidence_invalid'
       USING ERRCODE = '23514';
   END IF;
@@ -855,7 +953,11 @@ BEGIN
   IF v_actor_id IS NULL THEN
     RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '28000';
   END IF;
-  IF NOT app_private.can_submit_expense(p_organization_id) THEN
+  IF NOT app_private.is_super_admin(p_organization_id)
+    AND NOT app_private.has_org_permission(
+      p_organization_id,
+      'finance.submit_expenses'
+    ) THEN
     RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
   END IF;
   IF p_expense_date IS NULL
@@ -1011,6 +1113,12 @@ BEGIN
         USING ERRCODE = '22023';
     END IF;
 
+    PERFORM app_private.assert_property_permission(
+      p_organization_id,
+      v_line_property_id,
+      'finance.submit_expenses'
+    );
+
     INSERT INTO public.expense_transaction_scopes (
       organization_id,
       transaction_id,
@@ -1142,6 +1250,7 @@ DECLARE
   v_explicit_pass boolean;
   v_idempotency_key text := btrim(coalesce(p_idempotency_key, ''));
   v_line record;
+  v_line_property_id uuid;
   v_owner_invoice_line_id uuid;
   v_owner_person_id uuid;
   v_payload jsonb;
@@ -1154,7 +1263,11 @@ BEGIN
   IF v_actor_id IS NULL THEN
     RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '28000';
   END IF;
-  IF NOT app_private.can_review_expense(p_organization_id) THEN
+  IF NOT app_private.is_super_admin(p_organization_id)
+    AND NOT app_private.has_org_permission(
+      p_organization_id,
+      'finance.approve_expenses'
+    ) THEN
     RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
   END IF;
   IF p_transaction_id IS NULL
@@ -1196,6 +1309,20 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Expense transaction not found' USING ERRCODE = '23503';
   END IF;
+
+  FOR v_line_property_id IN
+    SELECT scope.property_id
+    FROM public.expense_transaction_scopes AS scope
+    WHERE scope.organization_id = p_organization_id
+      AND scope.transaction_id = p_transaction_id
+    ORDER BY scope.property_id
+  LOOP
+    PERFORM app_private.assert_property_permission(
+      p_organization_id,
+      v_line_property_id,
+      'finance.approve_expenses'
+    );
+  END LOOP;
 
   IF v_transaction.status <> 'submitted' THEN
     IF v_transaction.status = v_target_status
