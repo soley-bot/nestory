@@ -34,6 +34,12 @@ export type FinanceAccountGroup = {
   accounts: FinanceAccountSummary[];
 };
 
+export type FinanceAccountPropertyOption = {
+  id: string;
+  label: string;
+};
+
 export type FinanceAccountsData = {
   groups: FinanceAccountGroup[];
+  properties: FinanceAccountPropertyOption[];
 };

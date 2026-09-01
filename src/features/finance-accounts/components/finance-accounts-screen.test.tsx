@@ -1,14 +1,20 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FinanceAccountsData, FinanceAccountSummary } from "@/features/finance-accounts/finance-accounts.types";
 
+const mocks = vi.hoisted(() => ({
+  createFinanceAccountAction: vi.fn(),
+  setFinanceAccountArchivedAction: vi.fn(),
+  updateFinanceAccountAction: vi.fn(),
+}));
+
 vi.mock("@/features/finance-accounts/actions", () => ({
-  createFinanceAccountAction: vi.fn(async () => ({})),
-  setFinanceAccountArchivedAction: vi.fn(async () => ({})),
-  updateFinanceAccountAction: vi.fn(async () => ({})),
+  createFinanceAccountAction: mocks.createFinanceAccountAction,
+  setFinanceAccountArchivedAction: mocks.setFinanceAccountArchivedAction,
+  updateFinanceAccountAction: mocks.updateFinanceAccountAction,
 }));
 
 import { FinanceAccountsScreen } from "@/features/finance-accounts/components/finance-accounts-screen";
@@ -16,6 +22,13 @@ import { FinanceAccountsScreen } from "@/features/finance-accounts/components/fi
 afterEach(cleanup);
 
 describe("FinanceAccountsScreen", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.createFinanceAccountAction.mockResolvedValue({});
+    mocks.setFinanceAccountArchivedAction.mockResolvedValue({});
+    mocks.updateFinanceAccountAction.mockResolvedValue({});
+  });
+
   it("presents a plain grouped Chart of Accounts", () => {
     // Break caught: replacing the accounting hierarchy with a flat or legacy
     // cash-location screen makes the catalog harder to scan and understand.
@@ -52,7 +65,79 @@ describe("FinanceAccountsScreen", () => {
 
     await user.selectOptions(within(drawer).getByLabelText("Account type"), "asset:bank");
     expect(within(drawer).getByLabelText("Available to")).toBeTruthy();
+    expect(within(drawer).getByRole("option", { name: "HIL · Hill House" })).toBeTruthy();
     expect(within(drawer).queryByLabelText("Use for lease deposits")).toBeNull();
+  });
+
+  it("submits a selected compatible replacement for a protected default", async () => {
+    // Break caught: hiding lifecycle controls for defaults prevents the checked
+    // RPC from atomically moving a role to a compatible replacement.
+    let payload: Record<string, FormDataEntryValue> | null = null;
+    mocks.setFinanceAccountArchivedAction.mockImplementation(async (_state, formData) => {
+      payload = Object.fromEntries(formData.entries());
+      return { message: "Account made inactive.", status: "success" };
+    });
+    const user = userEvent.setup();
+    render(<FinanceAccountsScreen {...fixture()} canManageAccounts />);
+
+    await user.click(screen.getByRole("button", { name: "Make inactive Rental income" }));
+    const drawer = screen.getByRole("dialog", { name: "Make account inactive" });
+    await user.selectOptions(
+      within(drawer).getByLabelText("Replacement account"),
+      "income-replacement",
+    );
+    expect(within(drawer).queryByRole("option", { name: "Former rent income" })).toBeNull();
+    expect(within(drawer).queryByRole("option", { name: "Other income" })).toBeNull();
+    await user.click(within(drawer).getByRole("button", { name: "Make inactive" }));
+
+    expect((await within(drawer).findByRole("status")).textContent).toContain("Account made inactive.");
+    expect(payload).toEqual({
+      accountId: "income",
+      archived: "true",
+      replacementAccountId: "income-replacement",
+    });
+  });
+
+  it("retains the replacement selection and shows expected failure visibly", async () => {
+    // Break caught: a failed checked mutation previously left feedback hidden
+    // and gave the operator no editable replacement selection to correct.
+    mocks.setFinanceAccountArchivedAction.mockResolvedValue({
+      fieldErrors: {
+        replacementAccountId: ["Choose an active replacement with the same account type."],
+      },
+      status: "error",
+    });
+    const user = userEvent.setup();
+    render(<FinanceAccountsScreen {...fixture()} canManageAccounts />);
+
+    await user.click(screen.getByRole("button", { name: "Make inactive Rental income" }));
+    const drawer = screen.getByRole("dialog", { name: "Make account inactive" });
+    const replacement = within(drawer).getByLabelText("Replacement account") as HTMLSelectElement;
+    await user.selectOptions(replacement, "income-replacement");
+    await user.click(within(drawer).getByRole("button", { name: "Make inactive" }));
+
+    expect((await within(drawer).findByRole("alert")).textContent).toContain(
+      "Choose an active replacement with the same account type.",
+    );
+    expect(replacement.value).toBe("income-replacement");
+  });
+
+  it("shows property availability only for cash-like Asset account details", async () => {
+    // Break caught: rendering availability on every view-only account implies
+    // Income, Expense, and non-cash Assets can be scoped to one property.
+    const user = userEvent.setup();
+    render(<FinanceAccountsScreen {...fixture()} canManageAccounts={false} />);
+
+    await user.click(screen.getByRole("button", { name: "View Undeposited funds" }));
+    let drawer = screen.getByRole("dialog", { name: "Account details" });
+    expect(within(drawer).queryByText("Available to")).toBeNull();
+    await user.click(within(drawer).getByRole("button", { name: "Close drawer" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    await user.click(screen.getByRole("button", { name: "View Operating account" }));
+    drawer = screen.getByRole("dialog", { name: "Account details" });
+    expect(within(drawer).getByText("Available to")).toBeTruthy();
+    expect(within(drawer).getByText("RIV · Riverside House")).toBeTruthy();
   });
 
   it("reveals a compatible parent only when Sub-account is enabled", async () => {
@@ -110,6 +195,12 @@ function fixture(): FinanceAccountsData {
           }),
           account({
             accountClass: "asset",
+            accountSubtype: "other_current_asset",
+            displayName: "Undeposited funds",
+            id: "asset-other-current",
+          }),
+          account({
+            accountClass: "asset",
             accountSubtype: "cash",
             archivedAt: "2026-08-01T00:00:00.000Z",
             displayName: "Former cash account",
@@ -136,9 +227,32 @@ function fixture(): FinanceAccountsData {
           account({
             accountClass: "income",
             accountSubtype: "income",
+            defaultFor: ["Rent income"],
             displayName: "Rental income",
             id: "income",
+            systemRole: "Rent income",
             useForLeaseCharges: true,
+          }),
+          account({
+            accountClass: "income",
+            accountSubtype: "income",
+            displayName: "Lease income reserve",
+            id: "income-replacement",
+            useForLeaseCharges: true,
+          }),
+          account({
+            accountClass: "income",
+            accountSubtype: "income",
+            archivedAt: "2026-08-01T00:00:00.000Z",
+            displayName: "Former rent income",
+            id: "income-inactive",
+            useForLeaseCharges: true,
+          }),
+          account({
+            accountClass: "income",
+            accountSubtype: "other_income",
+            displayName: "Other income",
+            id: "income-incompatible",
           }),
         ],
       },
@@ -164,6 +278,10 @@ function fixture(): FinanceAccountsData {
           }),
         ],
       },
+    ],
+    properties: [
+      { id: "10000000-0000-4000-8000-000000000001", label: "RIV · Riverside House" },
+      { id: "20000000-0000-4000-8000-000000000001", label: "HIL · Hill House" },
     ],
   };
 }

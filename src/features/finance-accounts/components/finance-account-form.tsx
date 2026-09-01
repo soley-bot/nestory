@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useState } from "react";
 import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
 import { RecordField, RecordForm } from "@/components/ui/record-form";
@@ -11,6 +11,7 @@ import {
 } from "@/features/finance-accounts/actions";
 import type {
   FinanceAccountClass,
+  FinanceAccountPropertyOption,
   FinanceAccountSummary,
 } from "@/features/finance-accounts/finance-accounts.types";
 
@@ -41,6 +42,7 @@ type FinanceAccountFormProps = {
   accounts: readonly FinanceAccountSummary[];
   mode: "create" | "edit";
   onCancel: () => void;
+  properties: readonly FinanceAccountPropertyOption[];
 };
 
 export function FinanceAccountForm({
@@ -48,6 +50,7 @@ export function FinanceAccountForm({
   accounts,
   mode,
   onCancel,
+  properties,
 }: FinanceAccountFormProps) {
   const action = mode === "create"
     ? createFinanceAccountAction
@@ -67,15 +70,6 @@ export function FinanceAccountForm({
       candidate.accountClass === accountClass &&
       candidate.id !== account?.id,
   );
-  const properties = useMemo(() => {
-    const labels = new Map<string, string>();
-    for (const candidate of accounts) {
-      if (candidate.propertyId && candidate.propertyLabel) {
-        labels.set(candidate.propertyId, candidate.propertyLabel);
-      }
-    }
-    return [...labels].map(([id, label]) => ({ id, label }));
-  }, [accounts]);
   const supportsAvailability =
     accountClass === "asset" && ["bank", "cash", "petty_cash"].includes(accountSubtype);
   const statusMessage = state.status === "error"

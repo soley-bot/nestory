@@ -82,7 +82,10 @@ describe("getFinanceAccountsData", () => {
     const sourceLinksQuery = chainQuery({ data: [], error: null });
     const categoryLinksQuery = chainQuery({ data: [], error: null });
     const propertiesQuery = chainQuery({
-      data: [{ code: "RIV", id: "property-1", name: "Riverside House" }],
+      data: [
+        { code: "HIL", id: "property-2", name: "Hill House" },
+        { code: "RIV", id: "property-1", name: "Riverside House" },
+      ],
       error: null,
     });
     createSupabaseServerClient.mockResolvedValue({
@@ -125,6 +128,10 @@ describe("getFinanceAccountsData", () => {
     expect(data.groups.find((group) => group.accountClass === "asset")?.accounts).toContainEqual(
       expect.objectContaining({ propertyLabel: "RIV · Riverside House" }),
     );
+    expect(data.properties).toEqual([
+      { id: "property-2", label: "HIL · Hill House" },
+      { id: "property-1", label: "RIV · Riverside House" },
+    ]);
     expect(sourceLinksQuery.select).toHaveBeenCalled();
     expect(categoryLinksQuery.select).toHaveBeenCalled();
   });

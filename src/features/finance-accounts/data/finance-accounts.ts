@@ -66,8 +66,12 @@ export async function getFinanceAccountsData(
   assertReadSucceeded("account category mappings", categoryLinksResult.error);
   assertReadSucceeded("account properties", propertiesResult.error);
 
+  const properties = ((propertiesResult.data ?? []) as PropertyRow[]).map((property) => ({
+    id: property.id,
+    label: `${property.code} · ${property.name}`,
+  }));
   const propertyLabelById = new Map(
-    ((propertiesResult.data ?? []) as PropertyRow[]).map((property) => [property.id, `${property.code} · ${property.name}`]),
+    properties.map((property) => [property.id, property.label]),
   );
   const defaultForByAccountId = groupDefaultRolesByAccount((rolesResult.data ?? []) as FinanceAccountRoleRow[]);
   const summariesById = new Map(
@@ -81,6 +85,7 @@ export async function getFinanceAccountsData(
       accountClass,
       accounts: flattenAccountGroup(accountClass, summariesById),
     })),
+    properties,
   };
 }
 

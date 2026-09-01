@@ -23,7 +23,7 @@ import FinanceAccountsPage from "@/app/(dashboard)/finance/accounts/page";
 describe("Finance accounts route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getFinanceAccountsData.mockResolvedValue({ groups: [] });
+    mocks.getFinanceAccountsData.mockResolvedValue({ groups: [], properties: [] });
   });
 
   it("loads the protected catalog and exposes Super Admin mutation authority", async () => {
@@ -39,7 +39,7 @@ describe("Finance accounts route", () => {
     expect(html).toContain("Chart route");
     expect(mocks.getFinanceAccountsData).toHaveBeenCalledWith("organization-1");
     expect(mocks.screenSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ canManageAccounts: true, groups: [] }),
+      expect.objectContaining({ canManageAccounts: true, groups: [], properties: [] }),
     );
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { startTransition, useActionState, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Badge } from "@/components/ui/badge";
@@ -59,12 +59,13 @@ const accountSubtypeLabels: Record<string, string> = {
 type StatusFilter = "active" | "all" | "inactive";
 type DrawerState =
   | { mode: "create" }
-  | { account: FinanceAccountSummary; mode: "edit" | "view" }
+  | { account: FinanceAccountSummary; mode: "edit" | "lifecycle" | "view" }
   | null;
 
 export function FinanceAccountsScreen({
   canManageAccounts,
   groups,
+  properties,
 }: FinanceAccountsData & { canManageAccounts: boolean }) {
   const [drawer, setDrawer] = useState<DrawerState>(null);
   const [query, setQuery] = useState("");
@@ -182,6 +183,7 @@ export function FinanceAccountsScreen({
                       account,
                       mode: canManageAccounts ? "edit" : "view",
                     })}
+                    onOpenLifecycle={(account) => setDrawer({ account, mode: "lifecycle" })}
                     onToggleParent={(accountId) => setExpandedParents((current) => {
                       const next = new Set(current);
                       if (next.has(accountId)) next.delete(accountId);
@@ -205,15 +207,29 @@ export function FinanceAccountsScreen({
           ? "New account"
           : drawer?.mode === "edit"
             ? "Edit account"
-            : "Account details"}
+            : drawer?.mode === "lifecycle"
+              ? drawer.account.archivedAt ? "Make account active" : "Make account inactive"
+              : "Account details"}
       >
         {drawer?.mode === "create" ? (
-          <FinanceAccountForm accounts={accounts} mode="create" onCancel={() => setDrawer(null)} />
+          <FinanceAccountForm
+            accounts={accounts}
+            mode="create"
+            onCancel={() => setDrawer(null)}
+            properties={properties}
+          />
         ) : drawer?.mode === "edit" ? (
           <FinanceAccountForm
             account={drawer.account}
             accounts={accounts}
             mode="edit"
+            onCancel={() => setDrawer(null)}
+            properties={properties}
+          />
+        ) : drawer?.mode === "lifecycle" ? (
+          <AccountLifecycleForm
+            account={drawer.account}
+            accounts={accounts}
             onCancel={() => setDrawer(null)}
           />
         ) : drawer?.mode === "view" ? (
@@ -230,6 +246,7 @@ function AccountGroupRows({
   expandedParents,
   label,
   onOpen,
+  onOpenLifecycle,
   onToggleParent,
   parentIds,
 }: {
@@ -238,6 +255,7 @@ function AccountGroupRows({
   expandedParents: ReadonlySet<string>;
   label: string;
   onOpen: (account: FinanceAccountSummary) => void;
+  onOpenLifecycle: (account: FinanceAccountSummary) => void;
   onToggleParent: (accountId: string) => void;
   parentIds: ReadonlySet<string>;
 }) {
@@ -307,8 +325,16 @@ function AccountGroupRows({
               >
                 {canManageAccounts ? "Edit" : "View"}
               </Button>
-              {canManageAccounts && (account.archivedAt || (!account.systemRole && account.defaultFor.length === 0)) ? (
-                <AccountLifecycleButton account={account} />
+              {canManageAccounts ? (
+                <Button
+                  aria-label={`${account.archivedAt ? "Make active" : "Make inactive"} ${account.displayName}`}
+                  onClick={() => onOpenLifecycle(account)}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  {account.archivedAt ? "Make active" : "Make inactive"}
+                </Button>
               ) : null}
             </div>
           </td>
@@ -327,37 +353,131 @@ function StackedCell({ children, label }: { children: React.ReactNode; label: st
   );
 }
 
-function AccountLifecycleButton({ account }: { account: FinanceAccountSummary }) {
+function AccountLifecycleForm({
+  account,
+  accounts,
+  onCancel,
+}: {
+  account: FinanceAccountSummary;
+  accounts: readonly FinanceAccountSummary[];
+  onCancel: () => void;
+}) {
   const [state, formAction, pending] = useActionState<FinanceAccountActionState, FormData>(
     setFinanceAccountArchivedAction,
     {},
   );
+  const [replacementAccountId, setReplacementAccountId] = useState("");
   const makeActive = Boolean(account.archivedAt);
-  const label = `${makeActive ? "Make active" : "Make inactive"} ${account.displayName}`;
-  const feedback = state.message ?? state.fieldErrors?.replacementAccountId?.[0];
+  const candidates = accounts.filter((candidate) => isCompatibleReplacement(account, candidate));
+  const replacementError = state.fieldErrors?.replacementAccountId?.[0];
 
   return (
-    <form action={formAction}>
+    <RecordLifecycleForm
+      action={formAction}
+      onCancel={onCancel}
+      pending={pending}
+      saveLabel={makeActive ? "Make active" : "Make inactive"}
+      state={state}
+    >
       <input name="accountId" type="hidden" value={account.id} />
       <input name="archived" type="hidden" value={makeActive ? "false" : "true"} />
-      <input name="replacementAccountId" type="hidden" value="" />
-      <Button aria-label={label} disabled={pending} size="sm" type="submit" variant="ghost">
-        {pending ? "Saving" : makeActive ? "Make active" : "Make inactive"}
-      </Button>
-      <span aria-live="polite" className="sr-only">{feedback}</span>
+      {makeActive ? (
+        <>
+          <input name="replacementAccountId" type="hidden" value="" />
+          <p className="text-sm text-muted-foreground">
+            Make <span className="font-medium text-foreground">{account.displayName}</span> available for new activity.
+          </p>
+        </>
+      ) : (
+        <div data-record-field="replacementAccountId">
+          <label className="block text-sm font-medium" htmlFor="replacementAccountId">
+            Replacement account
+          </label>
+          <p className="mt-1 text-xs text-muted-foreground" id="replacementAccountId-hint">
+            Choose an active compatible account if this account is used as a default.
+          </p>
+          <select
+            aria-describedby={`replacementAccountId-hint${replacementError ? " replacementAccountId-error" : ""}`}
+            aria-invalid={replacementError ? "true" : undefined}
+            className="mt-2 h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            id="replacementAccountId"
+            name="replacementAccountId"
+            onChange={(event) => setReplacementAccountId(event.target.value)}
+            value={replacementAccountId}
+          >
+            <option value="">No replacement</option>
+            {candidates.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>{candidate.displayName}</option>
+            ))}
+          </select>
+          {replacementError ? (
+            <p className="mt-1 text-xs text-danger" id="replacementAccountId-error" role="alert">
+              {replacementError}
+            </p>
+          ) : null}
+        </div>
+      )}
+    </RecordLifecycleForm>
+  );
+}
+
+function RecordLifecycleForm({
+  action,
+  children,
+  onCancel,
+  pending,
+  saveLabel,
+  state,
+}: {
+  action: (payload: FormData) => void;
+  children: React.ReactNode;
+  onCancel: () => void;
+  pending: boolean;
+  saveLabel: string;
+  state: FinanceAccountActionState;
+}) {
+  return (
+    <form
+      className="flex h-full flex-col"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (pending) return;
+        const formData = new FormData(event.currentTarget);
+        startTransition(() => action(formData));
+      }}
+    >
+      <fieldset className="min-h-0 flex-1 space-y-5 overflow-y-auto border-0 px-5 py-5" disabled={pending}>
+        {state.message ? (
+          <p
+            className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
+            role={state.status === "error" ? "alert" : "status"}
+          >
+            {state.message}
+          </p>
+        ) : null}
+        {children}
+      </fieldset>
+      <div className="flex shrink-0 justify-end gap-2 border-t px-5 py-3">
+        <Button onClick={onCancel} type="button" variant="ghost">Cancel</Button>
+        <Button disabled={pending} type="submit">
+          {pending ? "Saving" : saveLabel}
+        </Button>
+      </div>
     </form>
   );
 }
 
 function AccountDetails({ account }: { account: FinanceAccountSummary }) {
-  const rows = [
+  const rows: Array<[string, string]> = [
     ["Account", account.displayName],
     ["Type", accountSubtypeLabel(account.accountSubtype)],
     ["Default for", defaultLabels(account).join(", ") || "None"],
     ["Description", account.description ?? "None"],
     ["Status", account.archivedAt ? "Inactive" : "Active"],
-    ["Available to", account.propertyLabel ?? "All properties"],
   ];
+  if (supportsPropertyAvailability(account)) {
+    rows.push(["Available to", account.propertyLabel ?? "All properties"]);
+  }
   return (
     <dl className="divide-y divide-border px-5 py-2 text-sm">
       {rows.map(([term, value]) => (
@@ -368,6 +488,52 @@ function AccountDetails({ account }: { account: FinanceAccountSummary }) {
       ))}
     </dl>
   );
+}
+
+function supportsPropertyAvailability(account: FinanceAccountSummary) {
+  return account.accountClass === "asset" && ["bank", "cash", "petty_cash"].includes(account.accountSubtype);
+}
+
+function isCompatibleReplacement(account: FinanceAccountSummary, candidate: FinanceAccountSummary) {
+  if (
+    candidate.id === account.id ||
+    candidate.archivedAt !== null ||
+    candidate.accountClass !== account.accountClass
+  ) {
+    return false;
+  }
+
+  if (account.systemRole && candidate.systemRole) return false;
+  const requiredDefaults = new Set([
+    ...account.defaultFor,
+    ...(account.systemRole ? [account.systemRole] : []),
+  ]);
+  return [...requiredDefaults].every((role) => replacementSupportsRole(candidate, role));
+}
+
+function replacementSupportsRole(account: FinanceAccountSummary, role: string) {
+  if (["Operating account", "Trust account"].includes(role)) {
+    return account.accountClass === "asset" && account.accountSubtype === "bank";
+  }
+  if (role === "Undeposited funds") {
+    return account.accountClass === "asset" && account.accountSubtype === "other_current_asset";
+  }
+  if (role === "Accounts receivable") {
+    return account.accountClass === "asset" && account.accountSubtype === "accounts_receivable";
+  }
+  if (role === "Accounts payable") {
+    return account.accountClass === "liability" && account.accountSubtype === "accounts_payable";
+  }
+  if (role === "Security deposits") {
+    return account.accountClass === "liability" && account.accountSubtype === "current_liability" && account.useForLeaseDeposits;
+  }
+  if (role === "Rent income") {
+    return account.accountClass === "income" && account.accountSubtype === "income" && account.useForLeaseCharges;
+  }
+  if (["Opening balance", "Owner contributions", "Owner distributions", "Retained earnings"].includes(role)) {
+    return account.accountClass === "equity" && account.accountSubtype === "equity";
+  }
+  return true;
 }
 
 function accountSubtypeLabel(subtype: string) {
