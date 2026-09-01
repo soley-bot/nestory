@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "../src/types/database";
+import { paidCostLifecycleOriginalDate } from "./paid-cost-fixture-periods";
 
 const organizationId = "00000000-0000-0000-0000-000000000001";
 const financeMemberId = "00000000-0000-0000-0000-000000000801";
@@ -246,10 +247,15 @@ async function main() {
   await review("corrected-amount", corrected, "approve");
 
   fixturePhase = "restore prior verified general cost fixtures";
+  const legacyCentralReversalDate = dateOffset(0);
+  const legacyCentralOriginalDate = paidCostLifecycleOriginalDate(
+    dateOffset(-4),
+    legacyCentralReversalDate,
+  );
   const legacyCentralReversed = await submit({
     category: "cleaning",
     cost: "85.00",
-    date: dateOffset(-4),
+    date: legacyCentralOriginalDate,
     id: "legacy-central-reversed",
     markup: "15.00",
     propertyId: centralPropertyId,
@@ -262,7 +268,7 @@ async function main() {
   await reverse(
     "legacy-central-reversed",
     legacyCentralReversed,
-    dateOffset(0),
+    legacyCentralReversalDate,
   );
   await allocateOwnerEvents(admin, monthOffset(0), centralPropertyId);
   await rpc(admin, "generate_owner_balance_period", {
