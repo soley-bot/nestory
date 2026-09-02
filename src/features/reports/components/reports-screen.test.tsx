@@ -49,19 +49,78 @@ describe("minimal Reports workspace", () => {
     ).toBeTruthy();
   });
 
-  it("offers PDF and Excel through one Export menu", async () => {
+  it("offers clearly named PDF and Excel exports through one menu", async () => {
     const user = userEvent.setup();
     renderReport();
 
     await user.click(screen.getByRole("button", { name: "Export" }));
     expect(
-      screen.getByRole("menuitem", { name: "PDF" }).getAttribute("href"),
+      screen.getByRole("menuitem", { name: "PDF report" }).getAttribute("href"),
     ).toBe("/api/reports/pdf?report=unit-profit-loss&month=2026-07");
     expect(
-      screen.getByRole("menuitem", { name: "Excel" }).getAttribute("href"),
+      screen.getByRole("menuitem", { name: "Excel workbook" }).getAttribute("href"),
     ).toBe("/api/reports/excel?report=unit-profit-loss&month=2026-07");
     expect(screen.queryByText("Export CSV")).toBeNull();
     expect(screen.queryByText("Print / PDF")).toBeNull();
+  });
+
+  it("keeps the selected owner in Owner activity exports", async () => {
+    const user = userEvent.setup();
+    const report = ownerActivityReport();
+    renderReport({
+      report,
+      viewQuery: query({
+        ownerPersonId: "owner-1",
+        report: "monthly-owner-activity",
+      }),
+    });
+
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    expect(
+      screen.getByRole("menuitem", { name: "PDF report" }).getAttribute("href"),
+    ).toBe(
+      "/api/reports/pdf?report=monthly-owner-activity&month=2026-07&ownerPersonId=owner-1",
+    );
+    expect(
+      screen
+        .getByRole("menuitem", { name: "Excel workbook" })
+        .getAttribute("href"),
+    ).toBe(
+      "/api/reports/excel?report=monthly-owner-activity&month=2026-07&ownerPersonId=owner-1",
+    );
+  });
+
+  it("shows every Owner activity source and an explicit reconciliation formula", async () => {
+    const user = userEvent.setup();
+    const report = ownerActivityReport();
+    report.rows[0]!.sourceLinks = Array.from({ length: 9 }, (_, index) => ({
+      detail: `0${index + 1} Jul 2026 · USD 100.00 increase`,
+      href: `/properties/property-1/account?source=${index + 1}`,
+      id: `source-${index + 1}`,
+      label: `Source ${index + 1}`,
+      recordType: "property-account-entry" as const,
+    }));
+    report.rows[0]!.sourceCount = 9;
+    report.rows[0]!.sourceSummary = "9 source records";
+
+    renderReport({
+      report: prepareTrustedReportForScreen(report),
+      viewQuery: query({ report: "monthly-owner-activity" }),
+    });
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "View details for Central Residence — CTR-RES",
+      }),
+    );
+    expect(screen.getAllByRole("link", { name: /Source \d/ })).toHaveLength(9);
+    expect(screen.getByText("09 Jul 2026 · USD 100.00 increase")).toBeTruthy();
+    expect(screen.queryByText(/\+\d+ more/)).toBeNull();
+    expect(
+      screen.getByText(
+        "USD 1,725.00 − USD 145.00 − USD 25.00 − USD 350.00 = USD 1,205.00",
+      ),
+    ).toBeTruthy();
   });
 
   it("shows three decision totals and moves source records into row details", async () => {
@@ -253,6 +312,7 @@ function renderReport({
   viewQuery?: ReportsViewQuery;
 } = {}) {
   const data: ReportsScreenData = {
+    ownerOptions: report.ownerOptions ?? [],
     propertyOptions: [{ id: "property-1", label: "P1 - Property One" }],
     trustedReport: report,
     unitOptions: [
@@ -268,6 +328,53 @@ function renderReport({
   return render(
     <ReportBuilderScreen {...data} organizationName="Demo Organization" />,
   );
+}
+
+function ownerActivityReport(): TrustedReport {
+  return {
+    columns: [
+      { key: "property", label: "Property" },
+      { key: "owner", label: "Owner" },
+      { align: "right", key: "rent", label: "Rent" },
+      { align: "right", key: "managementFees", label: "Management fee" },
+      { align: "right", key: "propertyCosts", label: "Property costs" },
+      { align: "right", key: "withdrawals", label: "Owner distributions" },
+      { align: "right", key: "netChange", label: "Net change" },
+    ],
+    description: "Recorded owner activity.",
+    emptyDescription: "No rows.",
+    emptyTitle: "No owner activity",
+    exportFilenameBase: "monthly-owner-activity",
+    generatedAt: "2026-08-01T00:00:00.000Z",
+    kind: "monthly-owner-activity",
+    ownerOptions: [{ id: "owner-1", label: "Sokha Vannak" }],
+    periodLabel: "01 Jul 2026 - 31 Jul 2026",
+    rows: [
+      {
+        cells: {
+          managementFees: "USD 145.00",
+          netChange: "USD 1,205.00",
+          owner: "Sokha Vannak",
+          property: "Central Residence — CTR-RES",
+          propertyCosts: "USD 25.00",
+          rent: "USD 1,725.00",
+          withdrawals: "USD 350.00",
+        },
+        href: "/properties/property-1/account",
+        id: "property-1",
+        ownerPersonId: "owner-1",
+        propertyId: "property-1",
+        sourceCount: 0,
+        sourceLinks: [],
+        sourceSummary: "No source records",
+        title: "Central Residence — CTR-RES",
+      },
+    ],
+    scopeLabel: "All properties",
+    summary: [],
+    title: "Owner activity",
+    totalsTraceLabel: "Totals trace to owner activity.",
+  };
 }
 function query(overrides: Partial<ReportsViewQuery> = {}): ReportsViewQuery {
   return {

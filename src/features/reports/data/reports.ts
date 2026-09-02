@@ -89,6 +89,7 @@ export async function getReportsScreenData(
   });
 
   return {
+    ownerOptions: trustedReport.ownerOptions ?? [],
     propertyOptions,
     trustedReport: prepareTrustedReportForScreen(trustedReport),
     unitOptions,
@@ -123,6 +124,10 @@ function makeReportRecordsFinanceSafe(report: TrustedReport): TrustedReport {
 function toFinanceSafeRecordHref(href?: string) {
   if (!href) return undefined;
 
+  if (/^\/properties\/[^/?]+\/account(?:\?[^#]*)?$/.test(href)) {
+    return href;
+  }
+
   const propertyMatch = href.match(/^\/properties\/([^/?]+)(?:[/?]|$)/);
   if (propertyMatch) {
     return `/properties/${propertyMatch[1]}/account`;
@@ -150,7 +155,10 @@ function trimTrustedReportForScreen(report: TrustedReport): TrustedReport {
     ...report,
     rows: report.rows.slice(0, maxScreenReportRows).map((row) => ({
       ...row,
-      sourceLinks: row.sourceLinks.slice(0, maxScreenSourceLinks),
+      sourceLinks:
+        report.kind === "monthly-owner-activity"
+          ? row.sourceLinks
+          : row.sourceLinks.slice(0, maxScreenSourceLinks),
     })),
     totalRowCount: report.rows.length,
   };

@@ -30,12 +30,40 @@ describe("ReportsFilters", () => {
       within(filters).getByRole("button", { name: "Apply filters" }),
     ).toBeTruthy();
   });
+
+  it("offers owner, property, and month filters for Owner activity", () => {
+    renderFilters(query({ report: "monthly-owner-activity" }));
+
+    const filters = screen.getByRole("region", { name: "Report filters" });
+    expect(
+      within(filters).getByRole("combobox", {
+        name: "Filter report by owner",
+      }),
+    ).toBeTruthy();
+    expect(
+      within(filters).getByRole("combobox", {
+        name: "Filter report by property",
+      }),
+    ).toBeTruthy();
+    expect(
+      within(filters).getByRole("button", { name: "Report month" }),
+    ).toBeTruthy();
+    expect(
+      within(filters).queryByRole("combobox", {
+        name: "Filter report by unit",
+      }),
+    ).toBeNull();
+  });
 });
 
 function renderFilters(viewQuery: ReportsViewQuery) {
   return render(
     <ReportsFilters
       action={`/reports/${viewQuery.report}`}
+      ownerOptions={[
+        { id: "owner-1", label: "Maly Chen" },
+        { id: "owner-2", label: "Sokha Vannak" },
+      ]}
       propertyOptions={[
         { id: "property-1", label: "P1 - Property One" },
       ]}

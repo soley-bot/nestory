@@ -9,8 +9,9 @@ describe("report screen preparation", () => {
     expect(selected.totalRowCount).toBe(76);
   });
 
-  it("bounds source links without changing the source count", () => {
+  it("bounds Unit P&L source links without changing the source count", () => {
     const report = reportWithRows(1);
+    report.kind = "unit-profit-loss";
     report.rows[0]!.sourceCount = 7;
     report.rows[0]!.sourceLinks = Array.from({ length: 7 }, (_, index) => ({
       href: `/ledger?entryId=source-${index + 1}`,
@@ -22,6 +23,43 @@ describe("report screen preparation", () => {
     const selected = prepareTrustedReportForScreen(report);
     expect(selected.rows[0]?.sourceLinks).toHaveLength(5);
     expect(selected.rows[0]?.sourceCount).toBe(7);
+  });
+
+  it("keeps every Owner activity source available in row details", () => {
+    const report = reportWithRows(1);
+    report.rows[0]!.sourceCount = 7;
+    report.rows[0]!.sourceLinks = Array.from({ length: 7 }, (_, index) => ({
+      href: `/properties/property-1/account?source=${index + 1}`,
+      id: `source-${index + 1}`,
+      label: `Source ${index + 1}`,
+      recordType: "property-account-entry" as const,
+    }));
+
+    const selected = prepareTrustedReportForScreen(report);
+    expect(selected.rows[0]?.sourceLinks).toHaveLength(7);
+    expect(selected.rows[0]?.sourceCount).toBe(7);
+  });
+
+  it("preserves scoped property-account links for Finance Managers", () => {
+    const report = reportWithRows(1);
+    const scopedHref =
+      "/properties/property-1/account?activity=corrections&month=2026-08&ownerPersonId=owner-1";
+    report.rows[0]!.href = scopedHref;
+    report.rows[0]!.sourceLinks = [
+      {
+        href: scopedHref,
+        id: "correction-1",
+        label: "Expense reversal",
+        recordType: "property-account-entry",
+      },
+    ];
+
+    const selected = prepareTrustedReportForScreen(report, {
+      financeSafeRecords: true,
+    });
+
+    expect(selected.rows[0]?.href).toBe(scopedHref);
+    expect(selected.rows[0]?.sourceLinks[0]?.href).toBe(scopedHref);
   });
 });
 
