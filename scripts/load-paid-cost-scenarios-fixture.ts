@@ -246,10 +246,11 @@ async function main() {
   await review("corrected-amount", corrected, "approve");
 
   fixturePhase = "restore prior verified general cost fixtures";
+  const legacyCentralExpenseDate = dateOffset(-4);
   const legacyCentralReversed = await submit({
     category: "cleaning",
     cost: "85.00",
-    date: dateOffset(-4),
+    date: legacyCentralExpenseDate,
     id: "legacy-central-reversed",
     markup: "15.00",
     propertyId: centralPropertyId,
@@ -259,6 +260,11 @@ async function main() {
     unitId: centralLegacyUnitId,
   });
   await review("legacy-central-reversed", legacyCentralReversed, "approve");
+  await allocateOwnerEvents(
+    admin,
+    `${legacyCentralExpenseDate.slice(0, 7)}-01`,
+    centralPropertyId,
+  );
   await reverse(
     "legacy-central-reversed",
     legacyCentralReversed,
