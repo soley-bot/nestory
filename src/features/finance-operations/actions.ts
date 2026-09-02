@@ -222,6 +222,10 @@ const expenseSchema = z.object({
 
 const expenseReviewSchema = z.object({
   decision: z.enum(["approve", "reject"]),
+  fundingSourceConfirmed: z.preprocess(
+    (value) => value === "true",
+    z.boolean(),
+  ),
   idempotencyKey: z.string().min(8),
   reason: z
     .string()
@@ -724,6 +728,12 @@ export async function reviewExpenseAction(
 ): Promise<FinanceOperationsActionState> {
   const parsed = expenseReviewSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return validationError(parsed.error);
+  if (
+    parsed.data.decision === "approve" &&
+    !parsed.data.fundingSourceConfirmed
+  ) {
+    return actionError("Confirm the paid-from account before approval.");
+  }
   if (parsed.data.decision === "reject" && parsed.data.reason.length < 3) {
     return actionError("Enter a rejection reason.");
   }

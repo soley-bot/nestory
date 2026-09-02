@@ -78,7 +78,13 @@ function TenantInvoicePaymentFormStateful({
   const sources = reconciliationSources.filter(
     (source) => !source.propertyId || source.propertyId === invoice.propertyId,
   );
-  const defaultReceivingSourceId = getDefaultReceivingSourceId(sources);
+  const defaultReceivingSourceId = getDefaultReceivingSourceId(
+    sources,
+    invoice.propertyId,
+  );
+  const defaultReceivingSource = sources.find(
+    (source) => source.id === defaultReceivingSourceId,
+  );
   const outstandingLines = invoice.lines.filter((line) => line.balanceDue > 0);
   const settlementDateLabel =
     invoice.collectionRoute === "through_ips"
@@ -174,14 +180,34 @@ function TenantInvoicePaymentFormStateful({
               />
               <p className="text-xs leading-4 text-muted-foreground">
                 Where the payment actually arrived.
+                {defaultReceivingSource?.propertyId === invoice.propertyId
+                  ? " Defaulted from this property; choose another account if needed."
+                  : ""}
               </p>
             </div>
           </Field>
         ) : null}
-        <Field label="Reference">
-          <Input name="reference" placeholder="Optional" />
+        <Field label="Payment method or reference">
+          <Input
+            name="reference"
+            placeholder="e.g. bank transfer · ABA 1234"
+          />
         </Field>
       </div>
+      {invoice.collectionRoute === "through_ips" ? (
+        <div className="space-y-1 text-xs leading-4 text-muted-foreground">
+          <p>
+            Automatic allocation applies Rent first, then other charges in
+            invoice order. Expand below to override when several charges are
+            outstanding.
+          </p>
+          <p>
+            A PDF receipt is created after the payment is recorded. If the
+            receipt cannot be created, the payment stays recorded and the
+            receipt can be retried.
+          </p>
+        </div>
+      ) : null}
       {outstandingLines.length > 1 ? (
         <details className="rounded-md border border-border">
           <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
@@ -238,7 +264,14 @@ function useStableActionId(prefix: string) {
 
 const FINANCE_SOURCE_LABEL_SEPARATOR = " · ";
 
-function getDefaultReceivingSourceId(sources: FinanceOption[]) {
+function getDefaultReceivingSourceId(
+  sources: FinanceOption[],
+  propertyId: string,
+) {
+  const propertySources = sources.filter(
+    (source) => source.propertyId === propertyId,
+  );
+  if (propertySources.length === 1) return propertySources[0]?.id;
   return sources.length === 1 ? sources[0]?.id : undefined;
 }
 
