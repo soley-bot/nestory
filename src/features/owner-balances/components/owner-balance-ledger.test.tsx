@@ -114,6 +114,7 @@ describe("OwnerBalanceLedger", () => {
               issueCodes: ["owner_roster_missing", "source_fingerprint_drift"],
               issueCount: 2,
               lastActivityDate: "2026-08-28",
+              lastActivityDetail: "sources=13",
               ownerLabel: "Nora Owner",
               ownerPersonId: ownerId,
               periodStatus: "stale",
@@ -150,6 +151,10 @@ describe("OwnerBalanceLedger", () => {
       .closest("tr")!;
     expect(within(account).getByText("Action required")).toBeTruthy();
     expect(within(account).getByText("High priority")).toBeTruthy();
+    expect(account.children[5]?.textContent).toBe("2026-08-28");
+    expect(
+      within(account).getByText("sources=13").closest("details"),
+    ).not.toBeNull();
     expect(
       within(account).getByRole("link", { name: "Resolve ownership" }).getAttribute("href"),
     ).toBe(`/properties/${propertyId}`);

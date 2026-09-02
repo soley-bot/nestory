@@ -621,6 +621,7 @@ function OwnerAccountRegisterRow({
             { label: "Period status", value: account.periodStatus },
             { label: "Withdrawal status", value: account.withdrawalStatus },
             { label: "Issue codes", value: account.issueCodes.join(", ") },
+            { label: "Activity watermark", value: account.lastActivityDetail },
           ]}
         />
       </td>

@@ -399,7 +399,8 @@ async function loadOwnerAccountRegister({
               ? blockedIssueCount(period.blockedReasonDetail)
               : 0,
         lastActivityDate:
-          period?.inputWatermark?.slice(0, 10) ?? capacity.asOfDate,
+          registerActivityDate(period?.inputWatermark, capacity.asOfDate),
+        lastActivityDetail: period?.inputWatermark ?? null,
         ownerLabel: ownerLabels.get(assignment.person_id)!,
         ownerPersonId: assignment.person_id,
         periodStatus: period?.status ?? null,
@@ -416,6 +417,13 @@ async function loadOwnerAccountRegister({
       left.ownerLabel.localeCompare(right.ownerLabel) ||
       left.propertyLabel.localeCompare(right.propertyLabel),
   );
+}
+
+function registerActivityDate(
+  inputWatermark: string | null | undefined,
+  fallbackDate: string,
+) {
+  return inputWatermark?.match(/^\d{4}-\d{2}-\d{2}(?=T|$)/)?.[0] ?? fallbackDate;
 }
 
 async function mapWithConcurrency<T, R>(

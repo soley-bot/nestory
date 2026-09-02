@@ -222,6 +222,7 @@ export type OwnerAccountRegisterRecord = {
   issueCodes: string[];
   issueCount: number;
   lastActivityDate: string;
+  lastActivityDetail?: string | null;
   ownerLabel: string;
   ownerPersonId: string;
   periodStatus: OwnerBalancePeriodStatus | null;

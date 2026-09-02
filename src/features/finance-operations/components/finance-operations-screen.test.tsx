@@ -1889,7 +1889,8 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
   });
 
-  it("keeps a property-scoped paid cost inside the finance flow", () => {
+  it("keeps a property-scoped paid cost inside the finance flow without dirtying an untouched draft", async () => {
+    const user = userEvent.setup();
     render(
       <FinanceOperationsScreen
         {...data()}
@@ -1942,6 +1943,13 @@ describe("FinanceOperationsScreen", () => {
       expect(section.className).toContain("rounded-xl");
       expect(section.className).toContain("bg-card");
     }
+
+    await user.click(within(form).getByRole("button", { name: "Cancel" }));
+
+    expect(
+      screen.queryByRole("dialog", { name: "Record property expense" }),
+    ).toBeNull();
+    expect(screen.queryByText("Discard unsaved changes?")).toBeNull();
   });
 
   it("lets Finance Members submit paid costs without exposing review controls", () => {

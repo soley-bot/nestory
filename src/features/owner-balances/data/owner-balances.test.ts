@@ -31,10 +31,12 @@ const movementId = "00000000-0000-4000-8000-000000000010";
 const reversalSetId = "00000000-0000-4000-8000-000000000011";
 const reversalAllocationId = "00000000-0000-4000-8000-000000000012";
 const reversalMovementId = "00000000-0000-4000-8000-000000000013";
+let readyPeriodInputWatermark = "2026-08-31T00:00:00Z";
 
 describe("authoritative owner balance loader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    readyPeriodInputWatermark = "2026-08-31T00:00:00Z";
     mocks.requireReadContext.mockResolvedValue({ organizationId });
 
     const tableResults = {
@@ -365,6 +367,21 @@ describe("authoritative owner balance loader", () => {
     expect(result.sources).toEqual([]);
   });
 
+  it("keeps a diagnostic activity watermark out of the register date", async () => {
+    readyPeriodInputWatermark = "sources=13";
+
+    const result = await getOwnerBalanceData({
+      currency: "USD",
+      periodEnd: "2026-08-01",
+      periodStart: "2026-08-01",
+    });
+
+    expect(result.accounts[0]).toMatchObject({
+      lastActivityDate: "2026-09-30",
+      lastActivityDetail: "sources=13",
+    });
+  });
+
   it("bounds default register fan-out to one twelve-account page", async () => {
     const owners = Array.from({ length: 30 }, (_, index) => ({
       archived_at: null,
@@ -450,7 +467,7 @@ function ledgerRows() {
     blocked_reason_code: null,
     blocked_reason_detail: null,
     input_hash: "a".repeat(64),
-    input_watermark: "2026-08-31T00:00:00Z",
+    input_watermark: readyPeriodInputWatermark,
     month_start: "2026-08-01",
     period_id: periodId,
     period_status: "ready",
