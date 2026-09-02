@@ -78,8 +78,14 @@ describe("OwnerBalanceLedger", () => {
     expect(within(source).getByText("Source fingerprint")).toBeTruthy();
     expect(within(source).getByText("b".repeat(64))).toBeTruthy();
     expect(
-      within(source).getByText("IPS-held owner cash +USD 100.01"),
+      within(source).getByText("Owner funds held by IPS +USD 100.01"),
     ).toBeTruthy();
+
+    expect(within(period).getByText("Ready to distribute")).toBeTruthy();
+    expect(within(period).getByText("Owner funds held by IPS")).toBeTruthy();
+    expect(within(period).getByText("Owner owes IPS")).toBeTruthy();
+    expect(screen.getByText("Items to resolve")).toBeTruthy();
+    expect(screen.queryByText("Source issues")).toBeNull();
 
     const remediation = screen.getByTestId(`owner-remediation-${sourceLineId}`);
     expect(
@@ -93,13 +99,31 @@ describe("OwnerBalanceLedger", () => {
     ).toBe(`/properties/${propertyId}`);
   });
 
-  it("uses plain account terminology before an owner scope is selected", () => {
+  it("shows a scannable register before an owner scope is selected", () => {
     render(
       <OwnerBalanceLedger
         canAllocate
         canCorrect
         canTransfer
-        data={data()}
+        data={{
+          ...data(),
+          accountTotal: 1,
+          accounts: [
+            {
+              availableAmount: "500.00",
+              issueCodes: ["owner_roster_missing", "source_fingerprint_drift"],
+              issueCount: 2,
+              lastActivityDate: "2026-08-28",
+              ownerLabel: "Nora Owner",
+              ownerPersonId: ownerId,
+              periodStatus: "stale",
+              propertyId,
+              propertyLabel: "Riverside — RS-01",
+              remediationPath: `/properties/${propertyId}`,
+              withdrawalStatus: "stale",
+            },
+          ],
+        } as unknown as OwnerBalanceData}
         organizationName="IPS"
         selectedMonth="2026-08"
       />,
@@ -109,13 +133,47 @@ describe("OwnerBalanceLedger", () => {
     expect(screen.getByRole("combobox", { name: "Owner" })).toBeTruthy();
     expect(
       screen.getByRole("combobox", { name: "Owner" }).hasAttribute("disabled"),
-    ).toBe(true);
-    expect(screen.queryByText("Owner assignment")).toBeNull();
-    expect(screen.getByRole("button", { name: "View account" })).toBeTruthy();
+    ).toBe(false);
+    expect(screen.getByRole("button", { name: "Apply filters" })).toBeTruthy();
+
+    const register = screen.getByRole("table", { name: "Owner account register" });
+    expect(within(register).getByRole("columnheader", { name: "Owner" })).toBeTruthy();
+    expect(within(register).getByRole("columnheader", { name: "Property" })).toBeTruthy();
+    expect(within(register).getByRole("columnheader", { name: "Available" })).toBeTruthy();
+    expect(within(register).getByRole("columnheader", { name: "Status" })).toBeTruthy();
+    expect(within(register).getByRole("columnheader", { name: "Issues" })).toBeTruthy();
+    expect(within(register).getByRole("columnheader", { name: "Activity" })).toBeTruthy();
+    expect(within(register).getByRole("columnheader", { name: "Next action" })).toBeTruthy();
+
+    const account = within(register)
+      .getByRole("rowheader", { name: "Nora Owner" })
+      .closest("tr")!;
+    expect(within(account).getByText("Action required")).toBeTruthy();
+    expect(within(account).getByText("High priority")).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Choose a property and owner" }),
+      within(account).getByRole("link", { name: "Resolve ownership" }).getAttribute("href"),
+    ).toBe(`/properties/${propertyId}`);
+  });
+
+  it("shows a focused empty result instead of a selector gate", () => {
+    render(
+      <OwnerBalanceLedger
+        canAllocate
+        canCorrect
+        canTransfer
+        data={{ ...data(), accounts: [] } as unknown as OwnerBalanceData}
+        organizationName="IPS"
+        selectedMonth="2026-08"
+        selectedPropertyId={propertyId}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "No owner accounts match these filters" }),
     ).toBeTruthy();
-    expect(screen.queryByText(/will not guess/i)).toBeNull();
+    expect(screen.getByRole("link", { name: "Clear filters" }).getAttribute("href"))
+      .toBe("/balances?month=2026-08");
+    expect(screen.queryByText("Choose a property and owner")).toBeNull();
   });
 
   it("exposes only the checked actions delegated to the current role", async () => {
@@ -174,7 +232,7 @@ describe("OwnerBalanceLedger", () => {
     expect(screen.queryByRole("button", { name: /Record owner/ })).toBeNull();
   });
 
-  it("renders a fail-closed scope prompt instead of guessing an owner", () => {
+  it("keeps account actions fail-closed when no exact scope is selected", () => {
     render(
       <OwnerBalanceLedger
         canAllocate
@@ -187,7 +245,7 @@ describe("OwnerBalanceLedger", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Choose a property and owner" }),
+      screen.getByRole("heading", { name: "No owner accounts yet" }),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Generate month" })).toBeNull();
   });
@@ -299,6 +357,11 @@ describe("OwnerBalanceLedger", () => {
 
 function data(): OwnerBalanceData {
   return {
+    accountPage: 1,
+    accountPageCount: 1,
+    accountPageSize: 12,
+    accountTotal: 0,
+    accounts: [],
     ownerOptions: [
       { id: ownerId, label: "Nora Owner", propertyIds: [propertyId] },
     ],

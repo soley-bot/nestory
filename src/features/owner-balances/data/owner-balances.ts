@@ -4,6 +4,7 @@ import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
 import { canonicalizeSignedOwnerOpeningAmount } from "@/features/owner-balances/owner-balance.money";
 import {
   OWNER_BALANCE_COMPONENTS,
+  type OwnerAccountRegisterRecord,
   type OwnerBalanceComponent,
   type OwnerBalanceData,
   type OwnerBalancePeriodRecord,
@@ -54,7 +55,11 @@ type OwnerBalanceScope = {
   periodEnd: string;
   propertyId?: string;
   ownerPersonId?: string;
+  registerPage?: number;
 };
+
+const OWNER_ACCOUNT_REGISTER_PAGE_SIZE = 12;
+const OWNER_ACCOUNT_REGISTER_RPC_CONCURRENCY = 4;
 
 const PERIOD_STATUSES = new Set<OwnerBalancePeriodStatus>([
   "blocked",
@@ -116,8 +121,75 @@ export async function getOwnerBalanceData(
       propertyIds: Array.from(ownerPropertyIds.get(person.id) ?? []).sort(),
     }));
 
-  if (!scope.propertyId || !scope.ownerPersonId) {
+  const propertyLabels = new Map(
+    propertyOptions.map((option) => [option.id, option.label]),
+  );
+  const ownerLabels = new Map(
+    ownerOptions.map((option) => [option.id, option.label]),
+  );
+  const accountAssignments = uniqueAccountAssignments(
+    assignments.filter(
+      (assignment) =>
+        (!scope.propertyId || assignment.property_id === scope.propertyId) &&
+        (!scope.ownerPersonId || assignment.person_id === scope.ownerPersonId) &&
+        assignment.started_on !== null &&
+        assignment.started_on <= endOfMonth(scope.periodEnd) &&
+        (!assignment.ended_on || assignment.ended_on >= scope.periodStart) &&
+        propertyLabels.has(assignment.property_id) &&
+        ownerLabels.has(assignment.person_id),
+    ),
+  ).sort(
+    (left, right) =>
+      ownerLabels.get(left.person_id)!.localeCompare(
+        ownerLabels.get(right.person_id)!,
+      ) ||
+      propertyLabels.get(left.property_id)!.localeCompare(
+        propertyLabels.get(right.property_id)!,
+      ),
+  );
+  const hasExactScope = Boolean(
+    scope.propertyId &&
+      scope.ownerPersonId &&
+      assignments.some(
+        (assignment) =>
+          assignment.property_id === scope.propertyId &&
+          assignment.person_id === scope.ownerPersonId &&
+          propertyLabels.has(assignment.property_id) &&
+          ownerLabels.has(assignment.person_id),
+      ),
+  );
+
+  if (!hasExactScope) {
+    const accountTotal = accountAssignments.length;
+    const accountPageCount = Math.max(
+      1,
+      Math.ceil(accountTotal / OWNER_ACCOUNT_REGISTER_PAGE_SIZE),
+    );
+    const accountPage = Math.min(
+      Math.max(scope.registerPage ?? 1, 1),
+      accountPageCount,
+    );
+    const pageStart =
+      (accountPage - 1) * OWNER_ACCOUNT_REGISTER_PAGE_SIZE;
+    const accounts = await loadOwnerAccountRegister({
+      assignments: accountAssignments.slice(
+        pageStart,
+        pageStart + OWNER_ACCOUNT_REGISTER_PAGE_SIZE,
+      ),
+      currency: scope.currency,
+      organizationId: context.organizationId,
+      ownerLabels,
+      periodEnd: scope.periodEnd,
+      periodStart: scope.periodStart,
+      propertyLabels,
+      supabase,
+    });
     return {
+      accountPage,
+      accountPageCount,
+      accountPageSize: OWNER_ACCOUNT_REGISTER_PAGE_SIZE,
+      accountTotal,
+      accounts,
       ownerOptions,
       periods: [],
       propertyOptions,
@@ -127,37 +199,43 @@ export async function getOwnerBalanceData(
     };
   }
 
+  const propertyId = scope.propertyId;
+  const ownerPersonId = scope.ownerPersonId;
+  if (!propertyId || !ownerPersonId) {
+    throw new Error("Invalid authoritative owner balance scope.");
+  }
+
   const asOfDate = endOfMonth(scope.periodEnd);
   const [ledgerResult, queueResult, sourcesResult, capacityResult] = await Promise.all([
     supabase.rpc("get_owner_balance_ledger", {
       p_currency: scope.currency,
       p_organization_id: context.organizationId,
-      p_owner_person_id: scope.ownerPersonId,
+      p_owner_person_id: ownerPersonId,
       p_period_end: scope.periodEnd,
       p_period_start: scope.periodStart,
-      p_property_id: scope.propertyId,
+      p_property_id: propertyId,
     }),
     supabase.rpc("get_owner_event_allocation_queue", {
       p_currency: scope.currency,
       p_organization_id: context.organizationId,
       p_period_end: endOfMonth(scope.periodEnd),
       p_period_start: scope.periodStart,
-      p_property_id: scope.propertyId,
+      p_property_id: propertyId,
     }),
     supabase.rpc("get_owner_balance_source_ledger", {
       p_currency: scope.currency,
       p_organization_id: context.organizationId,
-      p_owner_person_id: scope.ownerPersonId,
+      p_owner_person_id: ownerPersonId,
       p_period_end: scope.periodEnd,
       p_period_start: scope.periodStart,
-      p_property_id: scope.propertyId,
+      p_property_id: propertyId,
     }),
     supabase.rpc("get_owner_available_withdrawal", {
       p_as_of_date: asOfDate,
       p_currency: scope.currency,
       p_organization_id: context.organizationId,
-      p_owner_person_id: scope.ownerPersonId,
-      p_property_id: scope.propertyId,
+      p_owner_person_id: ownerPersonId,
+      p_property_id: propertyId,
     }),
   ]);
 
@@ -171,6 +249,11 @@ export async function getOwnerBalanceData(
   }
 
   return {
+    accountPage: 1,
+    accountPageCount: 1,
+    accountPageSize: OWNER_ACCOUNT_REGISTER_PAGE_SIZE,
+    accountTotal: 1,
+    accounts: [],
     ownerOptions,
     periods: mapPeriods((ledgerResult.data ?? []) as OwnerBalanceLedgerRow[]),
     propertyOptions,
@@ -188,6 +271,206 @@ export async function getOwnerBalanceData(
     sources: mapSources((sourcesResult.data ?? []) as OwnerBalanceSourceRow[]),
     withdrawalCapacity: mapWithdrawalCapacity(capacityResult.data),
   };
+}
+
+type OwnerAssignment = {
+  ended_on: string | null;
+  person_id: string;
+  property_id: string;
+  started_on: string | null;
+};
+
+function uniqueAccountAssignments<T extends OwnerAssignment>(assignments: T[]) {
+  const unique = new Map<string, T>();
+  for (const assignment of assignments) {
+    const key = `${assignment.property_id}:${assignment.person_id}`;
+    const existing = unique.get(key);
+    if (
+      !existing ||
+      (assignment.started_on ?? "") > (existing.started_on ?? "")
+    ) {
+      unique.set(key, assignment);
+    }
+  }
+  return [...unique.values()];
+}
+
+async function loadOwnerAccountRegister({
+  assignments,
+  currency,
+  organizationId,
+  ownerLabels,
+  periodEnd,
+  periodStart,
+  propertyLabels,
+  supabase,
+}: {
+  assignments: OwnerAssignment[];
+  currency: "USD";
+  organizationId: string;
+  ownerLabels: Map<string, string>;
+  periodEnd: string;
+  periodStart: string;
+  propertyLabels: Map<string, string>;
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+}): Promise<OwnerAccountRegisterRecord[]> {
+  const asOfDate = endOfMonth(periodEnd);
+  const propertyIds = Array.from(
+    new Set(assignments.map((assignment) => assignment.property_id)),
+  );
+  const queueEntries = await mapWithConcurrency(
+    propertyIds,
+    OWNER_ACCOUNT_REGISTER_RPC_CONCURRENCY,
+    async (propertyId) => {
+      const result = await supabase.rpc("get_owner_event_allocation_queue", {
+          p_currency: currency,
+          p_organization_id: organizationId,
+          p_period_end: asOfDate,
+          p_period_start: periodStart,
+          p_property_id: propertyId,
+        });
+      if (result.error) {
+        throw new Error("Unable to load authoritative owner account register.");
+      }
+      return [
+        propertyId,
+        mapQueue((result.data ?? []) as OwnerEventQueueRow[]),
+      ] as const;
+    },
+  );
+  const queueByProperty = new Map(queueEntries);
+
+  const accounts = await mapWithConcurrency(
+    assignments,
+    Math.max(1, Math.floor(OWNER_ACCOUNT_REGISTER_RPC_CONCURRENCY / 2)),
+    async (assignment) => {
+      const [ledgerResult, capacityResult] = await Promise.all([
+        supabase.rpc("get_owner_balance_ledger", {
+          p_currency: currency,
+          p_organization_id: organizationId,
+          p_owner_person_id: assignment.person_id,
+          p_period_end: periodEnd,
+          p_period_start: periodStart,
+          p_property_id: assignment.property_id,
+        }),
+        supabase.rpc("get_owner_available_withdrawal", {
+          p_as_of_date: asOfDate,
+          p_currency: currency,
+          p_organization_id: organizationId,
+          p_owner_person_id: assignment.person_id,
+          p_property_id: assignment.property_id,
+        }),
+      ]);
+
+      if (ledgerResult.error || capacityResult.error) {
+        throw new Error("Unable to load authoritative owner account register.");
+      }
+
+      const periods = mapPeriods(
+        (ledgerResult.data ?? []) as OwnerBalanceLedgerRow[],
+      );
+      const period = periods.find((item) => item.monthStart === periodStart) ?? null;
+      const capacity = mapWithdrawalCapacity(capacityResult.data);
+      const queue = queueByProperty.get(assignment.property_id) ?? [];
+      const issueCodes = Array.from(
+        new Set(
+          queue.map(
+            (item) => item.remediationCode ?? item.allocationState,
+          ),
+        ),
+      );
+      if (period?.blockedReasonCode) {
+        issueCodes.push(period.blockedReasonCode);
+      }
+      const remediationPath = queue
+        .map((item) => ownerRemediationPath(item.remediationDetail))
+        .find((value): value is string => value !== null) ?? null;
+
+      return {
+        availableAmount:
+          period && capacity.status === "available"
+            ? capacity.availableWithdrawal
+            : null,
+        issueCodes: Array.from(new Set(issueCodes)),
+        issueCount:
+          queue.length > 0
+            ? queue.length
+            : period?.status === "blocked"
+              ? blockedIssueCount(period.blockedReasonDetail)
+              : 0,
+        lastActivityDate:
+          period?.inputWatermark?.slice(0, 10) ?? capacity.asOfDate,
+        ownerLabel: ownerLabels.get(assignment.person_id)!,
+        ownerPersonId: assignment.person_id,
+        periodStatus: period?.status ?? null,
+        propertyId: assignment.property_id,
+        propertyLabel: propertyLabels.get(assignment.property_id)!,
+        remediationPath,
+        withdrawalStatus: capacity.status,
+      } satisfies OwnerAccountRegisterRecord;
+    },
+  );
+
+  return accounts.sort(
+    (left, right) =>
+      left.ownerLabel.localeCompare(right.ownerLabel) ||
+      left.propertyLabel.localeCompare(right.propertyLabel),
+  );
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  map: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    async () => {
+      while (nextIndex < items.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        results[index] = await map(items[index]!, index);
+      }
+    },
+  );
+  await Promise.all(workers);
+  return results;
+}
+
+function ownerRemediationPath(value: unknown) {
+  if (!value || typeof value !== "object" || !("setup_path" in value)) {
+    return null;
+  }
+  const path = (value as { setup_path?: unknown }).setup_path;
+  return typeof path === "string" && path.startsWith("/properties/")
+    ? path
+    : null;
+}
+
+function blockedIssueCount(value: unknown) {
+  if (!value || typeof value !== "object" || !("source_count" in value)) {
+    return 1;
+  }
+  const count = (value as { source_count?: unknown }).source_count;
+  return typeof count === "number" && Number.isSafeInteger(count) && count > 0
+    ? count
+    : 1;
+}
+
+function mapQueue(rows: OwnerEventQueueRow[]) {
+  return rows.map((row) => ({
+    allocationSetId: row.allocation_set_id,
+    allocationState: row.allocation_state,
+    eventDate: row.event_date,
+    grossSignedAmount: canonicalizeSignedOwnerOpeningAmount(row.gross_signed_amount),
+    remediationCode: row.remediation_code,
+    remediationDetail: row.remediation_detail,
+    sourceId: row.source_id,
+    sourceLineId: row.source_line_id,
+    sourceType: row.source_type,
+  }));
 }
 
 function mapWithdrawalCapacity(value: unknown): OwnerWithdrawalCapacity {

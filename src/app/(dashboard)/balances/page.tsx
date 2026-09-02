@@ -19,6 +19,7 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
   const selectedMonth = validMonth(first(query.month)) ?? getBusinessMonthValue();
   const selectedPropertyId = validUuid(first(query.propertyId));
   const selectedOwnerPersonId = validUuid(first(query.ownerPersonId));
+  const registerPage = positiveInteger(first(query.page)) ?? 1;
   const periodStart = `${selectedMonth}-01`;
   const [data, openingData, closeData] = await Promise.all([
     getOwnerBalanceData({
@@ -27,6 +28,7 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
       periodEnd: periodStart,
       periodStart,
       propertyId: selectedPropertyId,
+      registerPage,
     }),
     getOpeningBalanceAuthorityData({
       currency: "USD",
@@ -91,4 +93,10 @@ function validMonth(value: string | undefined) {
 
 function validUuid(value: string | undefined) {
   return value && UUID_PATTERN.test(value) ? value : undefined;
+}
+
+function positiveInteger(value: string | undefined) {
+  if (!value || !/^\d+$/.test(value)) return undefined;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
 }

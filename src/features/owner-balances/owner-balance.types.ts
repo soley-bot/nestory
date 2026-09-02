@@ -217,7 +217,26 @@ export type OwnerWithdrawalCapacity = {
   status: string;
 };
 
+export type OwnerAccountRegisterRecord = {
+  availableAmount: CanonicalOwnerBalanceAmount | null;
+  issueCodes: string[];
+  issueCount: number;
+  lastActivityDate: string;
+  ownerLabel: string;
+  ownerPersonId: string;
+  periodStatus: OwnerBalancePeriodStatus | null;
+  propertyId: string;
+  propertyLabel: string;
+  remediationPath: string | null;
+  withdrawalStatus: string;
+};
+
 export type OwnerBalanceData = {
+  accountPage: number;
+  accountPageCount: number;
+  accountPageSize: number;
+  accountTotal: number;
+  accounts: OwnerAccountRegisterRecord[];
   periods: OwnerBalancePeriodRecord[];
   queue: OwnerEventAllocationQueueRecord[];
   sources: OwnerBalanceSourceRecord[];

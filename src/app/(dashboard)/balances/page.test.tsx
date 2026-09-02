@@ -133,6 +133,7 @@ describe("BalancesPage opening balance integration", () => {
       periodEnd: "2026-08-01",
       periodStart: "2026-08-01",
       propertyId,
+      registerPage: 1,
     });
     expect(mocks.closeData).toHaveBeenCalledWith({
       currency: "USD",
@@ -171,5 +172,6 @@ describe("BalancesPage opening balance integration", () => {
     expect(scope.ownerPersonId).toBeUndefined();
     expect(scope.periodStart).toMatch(/^\d{4}-\d{2}-01$/);
     expect(scope.periodEnd).toBe(scope.periodStart);
+    expect(scope.registerPage).toBe(1);
   });
 });

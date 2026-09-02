@@ -38,7 +38,7 @@ export function OwnerAccountScopeForm({
             (option) =>
               !option.propertyIds || option.propertyIds.includes(propertyId),
           )
-        : [],
+        : ownerOptions,
     [ownerOptions, propertyId],
   );
   const selectedOwnerIsAvailable = matchingOwners.some(
@@ -64,7 +64,7 @@ export function OwnerAccountScopeForm({
             setOwnerPersonId("");
           }}
           options={[
-            { label: "Select property", value: "" },
+            { label: "All properties", value: "" },
             ...propertyOptions.map((option) => ({
               label: option.label,
               value: option.id,
@@ -78,12 +78,11 @@ export function OwnerAccountScopeForm({
         <SelectControl
           ariaLabel="Owner"
           className="h-10"
-          disabled={!propertyId}
           name="ownerPersonId"
           onValueChange={setOwnerPersonId}
           options={[
             {
-              label: propertyId ? "Select owner" : "Select property first",
+              label: "All owners",
               value: "",
             },
             ...matchingOwners.map((option) => ({
@@ -105,10 +104,9 @@ export function OwnerAccountScopeForm({
       </label>
       <Button
         className="h-10 self-end px-4"
-        disabled={!propertyId || !effectiveOwnerPersonId}
         type="submit"
       >
-        View account
+        {propertyId && effectiveOwnerPersonId ? "View account" : "Apply filters"}
       </Button>
     </form>
   );
