@@ -15,6 +15,10 @@ const concurrencyPath = path.join(
   process.cwd(),
   "scripts/paid-cost-concurrency.node-test.mjs",
 );
+const fixtureLoaderPath = path.join(
+  process.cwd(),
+  "scripts/load-paid-cost-scenarios-fixture.ts",
+);
 
 test("Track 6 retains the complete paid-cost lifecycle oracle", () => {
   assert.equal(existsSync(manifestPath), true, "paid-cost manifest must exist");
@@ -85,4 +89,15 @@ test("Track 6 retains literal database and race executors", () => {
   ]) {
     assert.match(races, new RegExp(required));
   }
+});
+
+test("legacy central reversal stays inside the current reroll month", () => {
+  const fixtureLoader = readFileSync(fixtureLoaderPath, "utf8");
+  const scenario = fixtureLoader.match(
+    /const legacyCentralReversed = await submit\(\{(?<body>[\s\S]*?)\n  \}\);/,
+  );
+
+  assert.ok(scenario?.groups?.body, "legacy central scenario must exist");
+  assert.match(scenario.groups.body, /date: monthOffset\(0\),/);
+  assert.doesNotMatch(scenario.groups.body, /dateOffset\(/);
 });

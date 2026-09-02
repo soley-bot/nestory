@@ -246,11 +246,10 @@ async function main() {
   await review("corrected-amount", corrected, "approve");
 
   fixturePhase = "restore prior verified general cost fixtures";
-  const legacyCentralExpenseDate = dateOffset(-4);
   const legacyCentralReversed = await submit({
     category: "cleaning",
     cost: "85.00",
-    date: legacyCentralExpenseDate,
+    date: monthOffset(0),
     id: "legacy-central-reversed",
     markup: "15.00",
     propertyId: centralPropertyId,
@@ -260,16 +259,12 @@ async function main() {
     unitId: centralLegacyUnitId,
   });
   await review("legacy-central-reversed", legacyCentralReversed, "approve");
-  await allocateOwnerEvents(
-    admin,
-    `${legacyCentralExpenseDate.slice(0, 7)}-01`,
-    centralPropertyId,
-  );
   await reverse(
     "legacy-central-reversed",
     legacyCentralReversed,
     dateOffset(0),
   );
+  fixturePhase = "allocate legacy central owner events";
   await allocateOwnerEvents(admin, monthOffset(0), centralPropertyId);
   await rpc(admin, "generate_owner_balance_period", {
     p_currency: "USD",
@@ -535,7 +530,10 @@ async function allocateOwnerEvents(
       if (blocked.length > 0) {
         throw new Error(
           `Track 6 owner allocation remains blocked: ${blocked
-            .map((row) => `${row.source_type}:${row.remediation_code}`)
+            .map(
+              (row) =>
+                `${row.event_date}:${row.source_type}:${row.source_line_id}:${row.remediation_code}`,
+            )
             .join(",")}`,
         );
       }
