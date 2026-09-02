@@ -31,6 +31,8 @@ export type ReportPropertyOption = {
   label: string;
 };
 
+export type ReportOwnerOption = ReportPropertyOption;
+
 export type ReportUnitOption = {
   id: string;
   label: string;
@@ -65,6 +67,7 @@ export type ReportSourceRecordType =
   | "petty-cash-entry"
   | "person"
   | "property"
+  | "property-account-entry"
   | "property-withdrawal"
   | "receipt"
   | "receipt-allocation"
@@ -75,6 +78,7 @@ export type ReportSourceRecordType =
   | "workspace-access";
 
 export type ReportSourceLink = {
+  detail?: string;
   href?: string;
   id: string;
   label: string;
@@ -156,6 +160,7 @@ export type TrustedReport = {
   exportFilenameBase: string;
   generatedAt: string;
   kind: ReportKind;
+  ownerOptions?: ReportOwnerOption[];
   periodLabel: string;
   rows: TrustedReportRow[];
   scopeLabel: string;
@@ -209,6 +214,7 @@ export type OccupancyReport = {
 
 export type ReportsScreenData = {
   occupancyReport?: OccupancyReport;
+  ownerOptions?: ReportOwnerOption[];
   propertyOptions: ReportPropertyOption[];
   trustedReport: TrustedReport;
   unitOptions: ReportUnitOption[];

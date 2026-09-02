@@ -4,6 +4,10 @@ import { fileURLToPath } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "../src/types/database";
+import {
+  paidCostFixtureDate,
+  paidCostLifecycleOriginalDate,
+} from "./paid-cost-fixture-periods";
 
 const organizationId = "00000000-0000-0000-0000-000000000001";
 const financeMemberId = "00000000-0000-0000-0000-000000000801";
@@ -246,10 +250,15 @@ async function main() {
   await review("corrected-amount", corrected, "approve");
 
   fixturePhase = "restore prior verified general cost fixtures";
+  const legacyCentralReversalDate = dateOffset(0);
+  const legacyCentralOriginalDate = paidCostLifecycleOriginalDate(
+    dateOffset(-4),
+    legacyCentralReversalDate,
+  );
   const legacyCentralReversed = await submit({
     category: "cleaning",
     cost: "85.00",
-    date: dateOffset(-4),
+    date: legacyCentralOriginalDate,
     id: "legacy-central-reversed",
     markup: "15.00",
     propertyId: centralPropertyId,
@@ -262,8 +271,9 @@ async function main() {
   await reverse(
     "legacy-central-reversed",
     legacyCentralReversed,
-    dateOffset(0),
+    legacyCentralReversalDate,
   );
+  fixturePhase = "allocate legacy central owner events";
   await allocateOwnerEvents(admin, monthOffset(0), centralPropertyId);
   await rpc(admin, "generate_owner_balance_period", {
     p_currency: "USD",
@@ -529,7 +539,10 @@ async function allocateOwnerEvents(
       if (blocked.length > 0) {
         throw new Error(
           `Track 6 owner allocation remains blocked: ${blocked
-            .map((row) => `${row.source_type}:${row.remediation_code}`)
+            .map(
+              (row) =>
+                `${row.event_date}:${row.source_type}:${row.source_line_id}:${row.remediation_code}`,
+            )
             .join(",")}`,
         );
       }
@@ -596,10 +609,7 @@ function monthOffset(offset: number) {
 }
 
 function dateOffset(offset: number) {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offset))
-    .toISOString()
-    .slice(0, 10);
+  return paidCostFixtureDate(new Date().toISOString().slice(0, 10), offset);
 }
 
 function fixturePdfBytes(identity: string, reference: string) {

@@ -319,6 +319,25 @@ function ReportRowDetails({
           ))}
         </dl>
 
+        {report.kind === "monthly-owner-activity" ? (
+          <section aria-labelledby="owner-activity-reconciliation">
+            <h3
+              className="font-semibold text-foreground"
+              id="owner-activity-reconciliation"
+            >
+              Net change calculation
+            </h3>
+            <p className="mt-2 text-sm tabular-nums text-muted-foreground">
+              {row.cells.rent || "—"} − {row.cells.managementFees || "—"} −{" "}
+              {row.cells.propertyCosts || "—"} − {row.cells.withdrawals || "—"}
+              {" = "}{row.cells.netChange || "—"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Property costs include recorded cost corrections.
+            </p>
+          </section>
+        ) : null}
+
         <section aria-labelledby="report-row-sources">
           <h3 className="font-semibold text-foreground" id="report-row-sources">
             Source records
@@ -334,7 +353,14 @@ function ReportRowDetails({
                     href={source.href}
                     key={`${source.recordType}:${source.id}`}
                   >
-                    <span>{source.label}</span>
+                    <span className="min-w-0">
+                      <span className="block">{source.label}</span>
+                      {source.detail ? (
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          {source.detail}
+                        </span>
+                      ) : null}
+                    </span>
                     <ChevronRight aria-hidden="true" size={15} />
                   </Link>
                 ) : (
@@ -342,7 +368,14 @@ function ReportRowDetails({
                     className="flex min-h-10 items-center py-2 text-foreground"
                     key={`${source.recordType}:${source.id}`}
                   >
-                    {source.label}
+                    <span>
+                      <span className="block">{source.label}</span>
+                      {source.detail ? (
+                        <span className="block text-xs text-muted-foreground">
+                          {source.detail}
+                        </span>
+                      ) : null}
+                    </span>
                   </div>
                 ),
               )}

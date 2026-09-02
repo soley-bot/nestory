@@ -115,6 +115,53 @@ describe("TenantInvoicePaymentForm", () => {
     expect(screen.queryByText(/OPS-USD/)).toBeNull();
   });
 
+  it("prefers the invoice property's configured receiving account and allows override", () => {
+    const { container } = renderForm({
+      reconciliationSources: [
+        {
+          id: "source-global",
+          label: "HQ-USD · Main company account",
+          propertyId: null,
+        },
+        {
+          id: "source-property",
+          label: "HOME-USD · Riverside operating account",
+          propertyId: "property-1",
+        },
+      ],
+    });
+
+    expect(valueOfNamedInput(container, "reconciliationSourceId")).toBe(
+      "source-property",
+    );
+    expect(
+      screen.getAllByText("Riverside operating account").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("Main company account").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/Defaulted from this property; choose another account if needed/i),
+    ).not.toBeNull();
+  });
+
+  it("explains automatic allocation, payment reference, and receipt consequences", () => {
+    renderForm({
+      invoice: invoice({
+        lines: [openLine("Rent", 200), openLine("Parking", 58)],
+      }),
+    });
+
+    expect(
+      screen.getByText(/Rent first, then other charges in invoice order/i),
+    ).not.toBeNull();
+    expect(screen.getByLabelText("Payment method or reference")).not.toBeNull();
+    expect(
+      screen.getByText(/A PDF receipt is created after the payment is recorded/i),
+    ).not.toBeNull();
+    expect(
+      screen.getByText(/If the receipt cannot be created, the payment stays recorded/i),
+    ).not.toBeNull();
+  });
+
   it("resets submission state and idempotency when the invoice identity changes", async () => {
     const firstSuccess = vi.fn();
     const nextSuccess = vi.fn();
@@ -313,7 +360,7 @@ describe("TenantInvoicePaymentForm", () => {
     });
     const { container } = renderForm();
     const amount = screen.getByLabelText("Amount");
-    const reference = screen.getByLabelText("Reference");
+    const reference = screen.getByLabelText("Payment method or reference");
 
     await user.clear(amount);
     await user.type(amount, "125.50");
@@ -343,7 +390,9 @@ describe("TenantInvoicePaymentForm", () => {
       });
     const { container } = renderForm();
     const amount = screen.getByLabelText("Amount") as HTMLInputElement;
-    const reference = screen.getByLabelText("Reference") as HTMLInputElement;
+    const reference = screen.getByLabelText(
+      "Payment method or reference",
+    ) as HTMLInputElement;
     const form = container.querySelector("form")!;
 
     await user.clear(amount);

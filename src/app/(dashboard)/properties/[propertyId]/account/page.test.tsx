@@ -166,8 +166,23 @@ describe("PropertyAccountPage", () => {
     render(
       await PropertyAccountPage({
         params: Promise.resolve({ propertyId }),
+        searchParams: Promise.resolve({ month: "2026-08" }),
       }),
     );
+
+    expect(mocks.ownerBalanceData).toHaveBeenNthCalledWith(1, {
+      currency: "USD",
+      periodEnd: "2026-08-01",
+      periodStart: "2026-08-01",
+      propertyId,
+    });
+    expect(mocks.ownerBalanceData).toHaveBeenNthCalledWith(2, {
+      currency: "USD",
+      ownerPersonId: ownerId,
+      periodEnd: "2026-08-01",
+      periodStart: "2026-08-01",
+      propertyId,
+    });
 
     expect(screen.queryByRole("heading", { name: "Legacy property account" })).toBeNull();
     const heading = screen.getByRole("heading", { name: "Property account" });

@@ -1108,6 +1108,18 @@ describe("expense approval actions", () => {
     });
   });
 
+  it("requires paid-from confirmation before approval authorization", async () => {
+    const formData = expenseDecisionForm("approve", "Reviewed receipt");
+    formData.delete("fundingSourceConfirmed");
+
+    await expect(reviewExpenseAction({}, formData)).resolves.toEqual({
+      message: "Confirm the paid-from account before approval.",
+      status: "error",
+    });
+    expect(requireFinanceReviewContext).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it("passes the funding source selected for maintenance approval", async () => {
     rpc.mockResolvedValue({ data: submissionId, error: null });
     const formData = expenseDecisionForm("approve", "Reviewed receipt");
@@ -1256,6 +1268,9 @@ describe("finance category actions", () => {
 function expenseDecisionForm(decision: "approve" | "reject", reason: string) {
   const formData = new FormData();
   formData.set("decision", decision);
+  if (decision === "approve") {
+    formData.set("fundingSourceConfirmed", "true");
+  }
   formData.set("idempotencyKey", "expense-review-1");
   formData.set("reason", reason);
   formData.set("submissionId", submissionId);
