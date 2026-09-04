@@ -387,7 +387,7 @@ describe("getFinanceAccountActivity", () => {
     expect(activity?.rows[0]).toEqual(expect.objectContaining({
       contact: "Owen Owner",
       increase: "500.00",
-      sourceHref: "/properties/property-1/account?activity=owner_cash&month=2026-08&ownerPersonId=owner-1",
+      sourceHref: "/properties/property-1/account?activity=owner_cash&month=2026-08&ownerPersonId=owner-1&focusAllocationSetId=allocation-1#owner-source-allocation-1",
     }));
   });
 

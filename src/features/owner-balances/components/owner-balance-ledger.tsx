@@ -44,6 +44,7 @@ type OwnerBalanceLedgerProps = {
   organizationName: string;
   propertyAccount?: {
     activityFilter: PropertyAccountActivityFilter;
+    focusAllocationSetId?: string;
     page: number;
     propertyLabel: string;
   };
@@ -70,6 +71,7 @@ export function OwnerBalanceLedger({
       <PropertyAccountLedger
         data={data}
         activityFilter={propertyAccount.activityFilter}
+        focusAllocationSetId={propertyAccount.focusAllocationSetId}
         page={propertyAccount.page}
         propertyId={selectedPropertyId}
         propertyLabel={propertyAccount.propertyLabel}
@@ -700,6 +702,7 @@ function registerNextAction(
 function PropertyAccountLedger({
   activityFilter,
   data,
+  focusAllocationSetId,
   organizationName,
   page,
   propertyId,
@@ -709,6 +712,7 @@ function PropertyAccountLedger({
 }: {
   activityFilter: PropertyAccountActivityFilter;
   data: OwnerBalanceData;
+  focusAllocationSetId?: string;
   organizationName: string;
   page: number;
   propertyId: string;
@@ -749,7 +753,12 @@ function PropertyAccountLedger({
     1,
     Math.ceil(filteredSources.length / PROPERTY_ACCOUNT_PAGE_SIZE),
   );
-  const currentPage = Math.min(Math.max(page, 1), totalPages);
+  const focusedSourceIndex = focusAllocationSetId
+    ? filteredSources.findIndex((source) => source.allocationSetId === focusAllocationSetId)
+    : -1;
+  const currentPage = focusedSourceIndex >= 0
+    ? Math.floor(focusedSourceIndex / PROPERTY_ACCOUNT_PAGE_SIZE) + 1
+    : Math.min(Math.max(page, 1), totalPages);
   const pageStart = (currentPage - 1) * PROPERTY_ACCOUNT_PAGE_SIZE;
   const pagedSources = filteredSources.slice(
     pageStart,
@@ -979,7 +988,11 @@ function PropertyAccountLedger({
                       <tbody className="divide-y divide-border">
                         {pagedSources.map((source) => (
                           <tr
-                            className="transition-colors hover:bg-muted/35"
+                            aria-current={source.allocationSetId === focusAllocationSetId ? "true" : undefined}
+                            className={source.allocationSetId === focusAllocationSetId
+                              ? "scroll-mt-24 bg-accent/55 outline outline-1 outline-primary/40"
+                              : "transition-colors hover:bg-muted/35"}
+                            id={`owner-source-${source.allocationSetId}`}
                             key={source.allocationSetId}
                           >
                             <td className="px-3 py-2 text-muted-foreground">

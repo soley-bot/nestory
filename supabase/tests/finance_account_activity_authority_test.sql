@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
-SELECT plan(22);
+SELECT plan(24);
 
 \set organization_id 'fa610000-0000-0000-0000-000000000001'
 \set actor_id 'fa620000-0000-0000-0000-000000000001'
@@ -13,6 +13,7 @@ SELECT plan(22);
 \set hidden_account 'fa640000-0000-0000-0000-000000000002'
 \set exact_account 'fa640000-0000-0000-0000-000000000003'
 \set other_deposit_account 'fa640000-0000-0000-0000-000000000004'
+\set replacement_equity_account 'fa640000-0000-0000-0000-000000000005'
 \set branch_one 'fa650000-0000-0000-0000-000000000001'
 \set branch_two 'fa650000-0000-0000-0000-000000000002'
 \set finance_role 'fa660000-0000-0000-0000-000000000001'
@@ -20,6 +21,8 @@ SELECT plan(22);
 \set deposit_reversal 'fa670000-0000-0000-0000-000000000002'
 \set unbound_deposit_event 'fa670000-0000-0000-0000-000000000003'
 \set same_day_deposit_event 'fa670000-0000-0000-0000-000000000004'
+\set owner_original_set 'fa690000-0000-0000-0000-000000000001'
+\set owner_reversal_set 'fa690000-0000-0000-0000-000000000002'
 
 INSERT INTO auth.users (
   instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,
@@ -77,17 +80,20 @@ INSERT INTO public.finance_accounts (
   use_for_lease_deposits,created_by
 ) VALUES
 (
-  :'scoped_account'::uuid, :'organization_id'::uuid, 'expense', 'expense',
-  'Scoped expense', :'property_one'::uuid, false, :'actor_id'::uuid
+  :'scoped_account'::uuid, :'organization_id'::uuid, 'asset', 'other_asset',
+  'Scoped asset', :'property_one'::uuid, false, :'actor_id'::uuid
 ), (
-  :'hidden_account'::uuid, :'organization_id'::uuid, 'expense', 'expense',
-  'Hidden expense', :'property_two'::uuid, false, :'actor_id'::uuid
+  :'hidden_account'::uuid, :'organization_id'::uuid, 'asset', 'other_asset',
+  'Hidden asset', :'property_two'::uuid, false, :'actor_id'::uuid
 ), (
   :'exact_account'::uuid, :'organization_id'::uuid, 'liability', 'current_liability',
-  'Exact deposits', :'property_one'::uuid, true, :'actor_id'::uuid
+  'Exact deposits', NULL, true, :'actor_id'::uuid
 ), (
   :'other_deposit_account'::uuid, :'organization_id'::uuid, 'liability', 'current_liability',
-  'Other deposits', :'property_one'::uuid, true, :'actor_id'::uuid
+  'Other deposits', NULL, true, :'actor_id'::uuid
+), (
+  :'replacement_equity_account'::uuid, :'organization_id'::uuid, 'equity', 'equity',
+  'Replacement contributions', NULL, false, :'actor_id'::uuid
 );
 
 SELECT has_table(
@@ -235,13 +241,52 @@ INSERT INTO public.lease_deposit_events (
    75.00, 'USD', NULL, :'exact_account'::uuid, :'actor_id'::uuid);
 ALTER TABLE public.lease_deposit_events ENABLE TRIGGER ALL;
 
+SELECT id AS old_equity_account_id
+FROM public.finance_accounts
+WHERE organization_id = :'organization_id'::uuid
+  AND system_role = 'owner_contributions'
+\gset
+
+INSERT INTO public.owner_event_allocation_sets (
+  id, organization_id, property_id, currency, event_date, source_type,
+  source_id, source_line_id, gross_signed_amount, source_fingerprint,
+  allocation_basis, explicit_owner_person_id, reversal_of_allocation_set_id,
+  created_at, created_by
+) VALUES (
+  :'owner_original_set'::uuid, :'organization_id'::uuid, :'property_one'::uuid,
+  'USD', CURRENT_DATE - 2, 'owner_contribution',
+  'fa6a0000-0000-0000-0000-000000000001'::uuid,
+  'fa6b0000-0000-0000-0000-000000000001'::uuid,
+  100.00, repeat('a', 64), 'effective_roster', NULL, NULL,
+  transaction_timestamp() - interval '1 second', :'actor_id'::uuid
+);
+
 SELECT set_config('request.jwt.claim.sub', :'actor_id', true);
 SET LOCAL ROLE authenticated;
 SELECT public.set_finance_account_archived(
   :'organization_id'::uuid, :'exact_account'::uuid, true,
   :'other_deposit_account'::uuid
 );
+SELECT public.set_finance_account_archived(
+  :'organization_id'::uuid, :'old_equity_account_id'::uuid, true,
+  :'replacement_equity_account'::uuid
+);
 RESET ROLE;
+
+INSERT INTO public.owner_event_allocation_sets (
+  id, organization_id, property_id, currency, event_date, source_type,
+  source_id, source_line_id, gross_signed_amount, source_fingerprint,
+  allocation_basis, explicit_owner_person_id, reversal_of_allocation_set_id,
+  created_at, created_by
+) VALUES (
+  :'owner_reversal_set'::uuid, :'organization_id'::uuid, :'property_one'::uuid,
+  'USD', CURRENT_DATE, 'reversal',
+  'fa6a0000-0000-0000-0000-000000000002'::uuid,
+  'fa6b0000-0000-0000-0000-000000000002'::uuid,
+  -100.00, repeat('b', 64), 'effective_roster', NULL,
+  :'owner_original_set'::uuid,
+  transaction_timestamp() + interval '1 second', :'actor_id'::uuid
+);
 
 SELECT set_config('request.jwt.claim.sub', :'restricted_actor_id', true);
 SET LOCAL ROLE authenticated;
@@ -301,6 +346,22 @@ SELECT is(
   ) WHERE event_key = 'deposit_event:' || :'same_day_deposit_event'
       AND event_matches), 1::bigint,
   'a same-day exact event remains on its archived account after replacement transfer'
+);
+SELECT is(
+  (SELECT count(*) FROM public.get_finance_account_activity_authorities(
+    :'organization_id'::uuid, :'old_equity_account_id'::uuid,
+    :'property_one'::uuid, CURRENT_DATE, CURRENT_DATE
+  ) WHERE event_key = 'owner_balance_source:' || :'owner_reversal_set'
+      AND event_matches), 1::bigint,
+  'an owner-allocation reversal inherits the original Equity account authority'
+);
+SELECT is(
+  (SELECT count(*) FROM public.get_finance_account_activity_authorities(
+    :'organization_id'::uuid, :'replacement_equity_account'::uuid,
+    :'property_one'::uuid, CURRENT_DATE, CURRENT_DATE
+  ) WHERE event_key = 'owner_balance_source:' || :'owner_reversal_set'
+      AND NOT event_matches), 1::bigint,
+  'a transferred Equity role does not relabel the original allocation reversal'
 );
 SELECT ok(
   EXISTS (

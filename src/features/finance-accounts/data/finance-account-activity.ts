@@ -489,6 +489,7 @@ function toOwnerSourceRow(
   people: ReadonlyMap<string, string>,
 ): FinanceAccountActivityRow {
   const month = item.source.event_date.slice(0, 7);
+  const allocationSetId = encodeURIComponent(item.source.allocation_set_id);
   return toRow({
     cents: item.cents,
     contact: people.get(item.ownerPersonId) ?? null,
@@ -497,7 +498,7 @@ function toOwnerSourceRow(
     id: `owner_balance_source:${item.source.allocation_set_id}`,
     propertyId: item.propertyId,
     propertyLabel: propertyLabels.get(item.propertyId) ?? "Property unavailable",
-    sourceHref: `/properties/${encodeURIComponent(item.propertyId)}/account?activity=owner_cash&month=${month}&ownerPersonId=${encodeURIComponent(item.ownerPersonId)}`,
+    sourceHref: `/properties/${encodeURIComponent(item.propertyId)}/account?activity=owner_cash&month=${month}&ownerPersonId=${encodeURIComponent(item.ownerPersonId)}&focusAllocationSetId=${allocationSetId}#owner-source-${allocationSetId}`,
   });
 }
 

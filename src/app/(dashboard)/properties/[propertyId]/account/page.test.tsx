@@ -247,6 +247,29 @@ describe("PropertyAccountPage", () => {
     expect(within(activity).getAllByText("Held by Nestory").length).toBeGreaterThan(0);
     expect(within(activity).getAllByText("Collected by owner")).toHaveLength(2);
   });
+
+  it("consumes an exact allocation focus within the requested activity filter", async () => {
+    const focusAllocationSetId = "50000000-0000-0000-0000-000000000010";
+
+    render(
+      await PropertyAccountPage({
+        params: Promise.resolve({ propertyId }),
+        searchParams: Promise.resolve({
+          activity: "owner_cash",
+          focusAllocationSetId,
+          month: "2026-08",
+          ownerPersonId: ownerId,
+          page: "1",
+        }),
+      }),
+    );
+
+    const focusedRow = document.getElementById(`owner-source-${focusAllocationSetId}`);
+    expect(focusedRow).not.toBeNull();
+    expect(focusedRow?.getAttribute("aria-current")).toBe("true");
+    expect(within(focusedRow!).getByText("2026-08-01")).toBeTruthy();
+    expect(screen.getByText("1–6 of 6")).toBeTruthy();
+  });
 });
 
 function extraActivitySource(index: number) {
