@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+import Link from "next/link";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -316,6 +317,11 @@ function AccountGroupRows({
           <td className="block py-1 md:table-cell md:px-4 md:py-3 md:text-right">
             <span className="mb-1 block text-[0.68rem] font-medium uppercase tracking-wide text-muted-foreground md:hidden">Action</span>
             <div className="flex flex-wrap items-center gap-1 md:justify-end">
+              <Button asChild size="sm" variant="ghost">
+                <Link aria-label={`Activity for ${account.displayName}`} href={`/finance/accounts/${encodeURIComponent(account.id)}`}>
+                  Activity
+                </Link>
+              </Button>
               <Button
                 aria-label={`${canManageAccounts ? "Edit" : "View"} ${account.displayName}`}
                 onClick={() => onOpen(account)}

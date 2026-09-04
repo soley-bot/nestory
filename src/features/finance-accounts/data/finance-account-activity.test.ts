@@ -73,7 +73,7 @@ describe("getFinanceAccountActivity", () => {
       description: "Rent payment",
       increase: "700.00",
       runningBalance: null,
-      sourceHref: expect.stringMatching(/^\/rent-income/),
+      sourceHref: "/leases/lease-1",
     }));
     expect(activity?.runningBalance).toBeNull();
     expect(activity?.total).toBe("700.00");
@@ -92,6 +92,10 @@ describe("getFinanceAccountActivity", () => {
       }),
       categories: [{ code: "cleaning", id: "category-cleaning" }],
       categoryLinks: [{ category_id: "category-cleaning" }],
+      expenseItems: [{ id: "expense-1", vendor_person_id: "vendor-1" }],
+      expenseResponsibilities: [{ finance_expense_item_id: "expense-1", owner_invoice_line_id: "line-1" }],
+      ownerInvoices: [{ id: "invoice-1", owner_person_id: "owner-1" }],
+      people: [{ display_name: "Vera Vendor", id: "vendor-1" }],
     }));
     mocks.iterateOwnerProfitLossEvents.mockImplementation(() => asyncRows([
       ownerProfitLossEvent({
@@ -113,10 +117,11 @@ describe("getFinanceAccountActivity", () => {
     expect(activity?.account.archivedAt).not.toBeNull();
     expect(activity?.rows).toEqual([
       expect.objectContaining({
+        contact: "Vera Vendor",
         description: "Turnover clean",
         increase: "150.25",
         runningBalance: null,
-        sourceHref: expect.stringMatching(/^\/bills-expenses/),
+        sourceHref: "/properties/property-1/account?activity=costs&month=2026-08&ownerPersonId=owner-1",
       }),
     ]);
     expect(activity?.runningBalance).toBeNull();
@@ -253,6 +258,184 @@ describe("getFinanceAccountActivity", () => {
 
     expect(activity?.rows).toEqual([]);
   });
+
+  it("lets an exact true binding include same-day and backdated activity before temporal fallback", async () => {
+    mocks.createSupabaseServerClient.mockResolvedValue(clientFixture({
+      account: accountRow({ id: "bound-bank" }),
+      authorities: [
+        {
+          authority_id: "bank-source-1",
+          authority_kind: "source",
+          event_key: null,
+          event_matches: true,
+          valid_from: "2026-09-02T00:00:00.000Z",
+          valid_to: null,
+        },
+        ...["receipt-1", "receipt-2"].map((id) => ({
+          authority_id: `receipt_allocation:${id}`,
+          authority_kind: "event",
+          event_key: `receipt_allocation:${id}`,
+          event_matches: true,
+          valid_from: "-infinity",
+          valid_to: null,
+        })),
+      ],
+    }));
+    mocks.iteratePropertyCashEvents.mockImplementation(() => asyncRows([
+      propertyCashEvent({ eventDate: "2026-09-01" }),
+      propertyCashEvent({
+        eventDate: "2026-08-15",
+        eventKey: "receipt_allocation:receipt-2",
+        sourceId: "receipt-2",
+      }),
+    ]));
+
+    const activity = await getFinanceAccountActivity("org-1", "bound-bank", {
+      periodEnd: "2026-09-01",
+      periodStart: "2026-08-01",
+    });
+
+    expect(activity?.rows.map(({ id }) => id)).toEqual([
+      "receipt_allocation:receipt-1",
+      "receipt_allocation:receipt-2",
+    ]);
+  });
+
+  it("attributes unbound deposit activity only to the historical security-deposit authority", async () => {
+    const event = propertyCashEvent({
+      depositLiabilityEffectCents: BigInt(450),
+      economicClass: "security_deposit",
+      eventKey: "deposit_event:deposit-1",
+      sourceId: "deposit-1",
+      sourceType: "deposit_event",
+    });
+    mocks.iteratePropertyCashEvents.mockImplementation(() => asyncRows([event]));
+    mocks.createSupabaseServerClient.mockResolvedValue(clientFixture({
+      account: accountRow({
+        account_class: "liability",
+        account_subtype: "current_liability",
+        id: "other-deposits",
+        system_role: null,
+        use_for_lease_deposits: true,
+      }),
+      authorities: [],
+    }));
+    expect((await getFinanceAccountActivity("org-1", "other-deposits", filters))?.rows).toEqual([]);
+
+    mocks.createSupabaseServerClient.mockResolvedValue(clientFixture({
+      account: accountRow({
+        account_class: "liability",
+        account_subtype: "current_liability",
+        id: "historic-deposits",
+        system_role: null,
+        use_for_lease_deposits: true,
+      }),
+      authorities: [{
+        authority_id: "security_deposits",
+        authority_kind: "system_role",
+        event_key: null,
+        event_matches: true,
+        valid_from: "-infinity",
+        valid_to: "2026-09-01T00:00:00.000Z",
+      }],
+    }));
+    expect((await getFinanceAccountActivity("org-1", "historic-deposits", filters))?.rows).toHaveLength(1);
+  });
+
+  it("uses checked owner-balance source movements for Equity accounts", async () => {
+    mocks.createSupabaseServerClient.mockResolvedValue(clientFixture({
+      account: accountRow({
+        account_class: "equity",
+        account_subtype: "equity",
+        id: "owner-contributions",
+        system_role: "owner_contributions",
+      }),
+      authorities: [{
+        authority_id: "owner_contributions",
+        authority_kind: "system_role",
+        event_key: null,
+        event_matches: true,
+        valid_from: "-infinity",
+        valid_to: null,
+      }],
+      ownerAssignments: [{ person_id: "owner-1", property_id: "property-1", started_on: "2020-01-01", ended_on: null }],
+      ownerSources: [{
+        allocation_set_id: "allocation-1",
+        event_date: "2026-08-20",
+        source_type: "owner_contribution",
+        source_id: "contribution-1",
+        source_line_id: "contribution-1",
+        gross_signed_amount: "500.00",
+        source_fingerprint: "fingerprint",
+        allocation_basis: "explicit_owner",
+        allocated_gross_signed_amount: "500.00",
+        ownership_percent_snapshot: "100.000",
+        ownership_roster_hash: "hash",
+        reversal_of_allocation_set_id: null,
+        movement_id: "movement-1",
+        component: "ips_held_owner_cash",
+        signed_amount: "500.00",
+        reversal_of_movement_id: null,
+      }],
+      people: [{ display_name: "Owen Owner", id: "owner-1" }],
+    }));
+
+    const activity = await getFinanceAccountActivity("org-1", "owner-contributions", filters);
+
+    expect(mocks.iteratePropertyCashEvents).not.toHaveBeenCalled();
+    expect(activity?.basisLabel).toBe("Authoritative owner-balance activity");
+    expect(activity?.rows[0]).toEqual(expect.objectContaining({
+      contact: "Owen Owner",
+      increase: "500.00",
+      sourceHref: "/properties/property-1/account?activity=owner_cash&month=2026-08&ownerPersonId=owner-1",
+    }));
+  });
+
+  it("uses consumed record routes and available contacts for recognized activity", async () => {
+    mocks.createSupabaseServerClient.mockResolvedValue(clientFixture({
+      account: accountRow({ account_class: "income", account_subtype: "income", id: "rent" }),
+      categories: [{ code: "rent", id: "category-rent" }],
+      categoryLinks: [{ category_id: "category-rent" }],
+      leases: [{ id: "lease-1", primary_tenant_person_id: "tenant-1" }],
+      people: [{ display_name: "Tara Tenant", id: "tenant-1" }],
+    }));
+    mocks.iterateOwnerProfitLossEvents.mockImplementation(() => asyncRows([
+      ownerProfitLossEvent({
+        categoryCode: "rent",
+        categoryId: "category-rent",
+        economicClass: "owner_income",
+        leaseId: "lease-1",
+        sourceParentId: "invoice-1",
+        sourceParentType: "tenant_invoice",
+        sourceType: "tenant_invoice_line",
+      }),
+    ]));
+
+    const activity = await getFinanceAccountActivity("org-1", "rent", filters);
+
+    expect(activity?.rows[0]).toEqual(expect.objectContaining({
+      contact: "Tara Tenant",
+      sourceHref: "/leases/lease-1",
+    }));
+  });
+
+  it("restricts property choices to a property-scoped account", async () => {
+    mocks.createSupabaseServerClient.mockResolvedValue(clientFixture({
+      account: accountRow({ property_id: "property-1" }),
+    }));
+
+    const activity = await getFinanceAccountActivity("org-1", "operating-account", filters);
+
+    expect(activity?.properties).toEqual([{ id: "property-1", label: "RIV · Riverside" }]);
+  });
+
+  it("rejects periods longer than 366 days", async () => {
+    await expect(getFinanceAccountActivity("org-1", "operating-account", {
+      periodEnd: "2026-01-02",
+      periodStart: "2025-01-01",
+    })).rejects.toThrow("Activity period must be between 1 and 366 days.");
+    expect(mocks.createSupabaseServerClient).not.toHaveBeenCalled();
+  });
 });
 
 function clientFixture({
@@ -260,6 +443,12 @@ function clientFixture({
   authorities,
   categories = [],
   categoryLinks = [],
+  expenseItems = [],
+  expenseResponsibilities = [],
+  leases = [],
+  ownerAssignments = [],
+  ownerInvoices = [],
+  ownerSources = [],
   people = [],
   properties = [
     { archived_at: null, code: "RIV", id: "property-1", name: "Riverside" },
@@ -271,6 +460,12 @@ function clientFixture({
   authorities?: Record<string, unknown>[];
   categories?: Record<string, unknown>[];
   categoryLinks?: Record<string, unknown>[];
+  expenseItems?: Record<string, unknown>[];
+  expenseResponsibilities?: Record<string, unknown>[];
+  leases?: Record<string, unknown>[];
+  ownerAssignments?: Record<string, unknown>[];
+  ownerInvoices?: Record<string, unknown>[];
+  ownerSources?: Record<string, unknown>[];
   people?: Record<string, unknown>[];
   properties?: Record<string, unknown>[];
   sourceLinks?: Record<string, unknown>[];
@@ -281,13 +476,21 @@ function clientFixture({
       if (table === "finance_account_source_links") return chainQuery({ data: sourceLinks, error: null });
       if (table === "finance_account_category_links") return chainQuery({ data: categoryLinks, error: null });
       if (table === "finance_categories") return chainQuery({ data: categories, error: null });
+      if (table === "finance_expense_items") return chainQuery({ data: expenseItems, error: null });
+      if (table === "ips_expense_responsibilities") return chainQuery({ data: expenseResponsibilities, error: null });
+      if (table === "leases") return chainQuery({ data: leases, error: null });
+      if (table === "property_owners") return chainQuery({ data: ownerAssignments, error: null });
+      if (table === "owner_invoices") return chainQuery({ data: ownerInvoices, error: null });
       if (table === "properties") return chainQuery({ data: properties, error: null });
       if (table === "people") return chainQuery({ data: people, error: null });
       throw new Error(`Unexpected relation: ${table}`);
     }),
-    rpc: authorities === undefined
+    rpc: authorities === undefined && ownerSources.length === 0
       ? undefined
-      : vi.fn().mockResolvedValue({ data: authorities, error: null }),
+      : vi.fn((name: string) => Promise.resolve({
+          data: name === "get_owner_balance_source_ledger" ? ownerSources : (authorities ?? []),
+          error: null,
+        })),
   };
 }
 

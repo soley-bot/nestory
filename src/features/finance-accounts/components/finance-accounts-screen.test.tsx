@@ -44,6 +44,8 @@ describe("FinanceAccountsScreen", () => {
     expect(screen.getByRole("button", { name: "Edit Repairs and maintenance" })).toBeTruthy();
     expect(screen.queryByText(/funding source/i)).toBeNull();
     expect(screen.queryByText(/operational cash/i)).toBeNull();
+    expect(screen.getByRole("link", { name: "Activity for Operating account" }).getAttribute("href"))
+      .toBe("/finance/accounts/asset-active");
   });
 
   it("shows only relevant workflow fields for each account type", async () => {

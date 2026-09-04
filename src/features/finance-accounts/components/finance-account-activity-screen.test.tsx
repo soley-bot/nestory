@@ -15,6 +15,9 @@ describe("FinanceAccountActivityScreen", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Operating account" })).toBeInTheDocument();
     expect(screen.getByText("Inactive")).toBeInTheDocument();
     expect(screen.getByText("Recorded cash activity")).toBeInTheDocument();
+    expect(screen.getByText("Asset · Bank")).toBeInTheDocument();
+    expect(screen.getByText("Account 1000")).toBeInTheDocument();
+    expect(screen.getByText("Primary operating bank.")).toBeInTheDocument();
     expect(screen.getAllByText("USD 700.00")).toHaveLength(2);
     expect(screen.getByLabelText("From")).toHaveValue("2026-08-01");
     expect(screen.getByLabelText("To")).toHaveValue("2026-08-31");
@@ -22,7 +25,7 @@ describe("FinanceAccountActivityScreen", () => {
     const row = screen.getByRole("row", { name: /15 Aug 2026.*RIV.*Tara Tenant.*Rent payment.*USD 700\.00/i });
     expect(within(row).getByRole("link", { name: "Rent payment" })).toHaveAttribute(
       "href",
-      "/rent-income?archiveState=all&incomeItemId=income-1",
+      "/leases/lease-1",
     );
     expect(screen.queryByRole("columnheader", { name: "Running balance" })).not.toBeInTheDocument();
   });
@@ -48,6 +51,7 @@ function fixture(): FinanceAccountActivity {
       accountNumber: "1000",
       accountSubtype: "bank",
       archivedAt: "2026-09-01T00:00:00.000Z",
+      description: "Primary operating bank.",
       displayName: "Operating account",
       id: "operating-account",
       propertyId: null,
@@ -72,7 +76,7 @@ function fixture(): FinanceAccountActivity {
       propertyId: "property-1",
       propertyLabel: "RIV · Riverside",
       runningBalance: null,
-      sourceHref: "/rent-income?archiveState=all&incomeItemId=income-1",
+      sourceHref: "/leases/lease-1",
     }],
     runningBalance: null,
     total: "700.00",

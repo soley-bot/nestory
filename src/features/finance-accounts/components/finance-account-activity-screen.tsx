@@ -34,6 +34,11 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
       )}
     >
       <div className="workspace-gutter-x space-y-4 py-4">
+        <div className="text-sm text-muted-foreground">
+          <p>{accountIdentity(activity.account.accountClass, activity.account.accountSubtype)}</p>
+          {activity.account.accountNumber ? <p>Account {activity.account.accountNumber}</p> : null}
+          {activity.account.description ? <p>{activity.account.description}</p> : null}
+        </div>
         <div className="flex flex-wrap items-baseline justify-between gap-3 rounded-lg border bg-card px-4 py-3">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Basis</p>
@@ -48,7 +53,7 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
                 <th className="px-3 py-2" scope="col">Date</th>
                 <th className="px-3 py-2" scope="col">Property</th>
                 <th className="px-3 py-2" scope="col">Contact</th>
-                <th className="px-3 py-2" scope="col">Source</th>
+                <th className="px-3 py-2" scope="col">Description</th>
                 <th className="px-3 py-2 text-right" scope="col">Increase</th>
                 <th className="px-3 py-2 text-right" scope="col">Decrease</th>
                 {showRunningBalance ? <th className="px-3 py-2 text-right" scope="col">Running balance</th> : null}
@@ -78,4 +83,12 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", timeZone: "UTC", year: "numeric" })
     .format(new Date(`${value}T00:00:00.000Z`));
+}
+
+function accountIdentity(accountClass: string, accountSubtype: string) {
+  return `${titleCase(accountClass)} · ${titleCase(accountSubtype.replaceAll("_", " "))}`;
+}
+
+function titleCase(value: string) {
+  return value.replace(/\b\w/g, (character) => character.toUpperCase());
 }
