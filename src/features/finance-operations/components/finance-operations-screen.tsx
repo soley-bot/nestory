@@ -35,6 +35,7 @@ import { SideDrawer } from "@/components/ui/side-drawer";
 import { Table, TableCell, TableHead } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
+import { findConfiguredAccountId } from "@/features/finance-accounts/finance-account-selection";
 import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
 import { buildLeasePaymentResolutionHref } from "@/features/leases/lease-detail-route";
 import type { LeaseBillingRule } from "@/features/leases/lease.types";
@@ -2986,12 +2987,24 @@ function ExpenseForm({
   const initialInvoice = invoices.find(
     (invoice) => invoice.id === initialInvoiceId,
   );
+  const initialPropertyId = fixedScope?.propertyId ?? initialInvoice?.propertyId ?? "";
+  const initialExpenseAccounts = expenseAccounts.filter(
+    (account) =>
+      Boolean(initialPropertyId) &&
+      (account.propertyId === null || account.propertyId === initialPropertyId) &&
+      (effectiveResponsibility === "owner" || account.useForLeaseCredits === true),
+  );
+  const initialPayFromAccounts = payFromAccounts.filter(
+    (account) =>
+      Boolean(initialPropertyId) &&
+      (account.propertyId === null || account.propertyId === initialPropertyId),
+  );
   const [state, action, pending] = useActionState(
     submitExpenseAction,
     actionInitialState,
   );
   const [propertyId, setPropertyId] = useState(
-    fixedScope?.propertyId ?? initialInvoice?.propertyId ?? "",
+    initialPropertyId,
   );
   const [unitId, setUnitId] = useState(
     fixedScope?.kind === "unit"
@@ -2999,13 +3012,7 @@ function ExpenseForm({
       : (initialInvoice?.unitId ?? ""),
   );
   const [categoryAccountId, setCategoryAccountId] = useState(
-    expenseAccounts.find(
-      (account) =>
-        Boolean(fixedScope?.propertyId ?? initialInvoice?.propertyId) &&
-        (account.propertyId === null ||
-          account.propertyId === (fixedScope?.propertyId ?? initialInvoice?.propertyId)) &&
-        (effectiveResponsibility === "owner" || account.useForLeaseCredits === true),
-    )?.id ?? "",
+    initialExpenseAccounts[0]?.id ?? "",
   );
   const [vendor, setVendor] = useState("");
   const [cost, setCost] = useState("");
@@ -3013,12 +3020,9 @@ function ExpenseForm({
   const [expenseDate, setExpenseDate] = useState(getBusinessDateValue());
   const [reference, setReference] = useState("");
   const [payFromAccountId, setPayFromAccountId] = useState(
-    payFromAccounts.find(
-      (account) =>
-        Boolean(fixedScope?.propertyId ?? initialInvoice?.propertyId) &&
-        (account.propertyId === null ||
-          account.propertyId === (fixedScope?.propertyId ?? initialInvoice?.propertyId)),
-    )?.id ?? "",
+    findConfiguredAccountId(initialPayFromAccounts, "operating_bank", initialPropertyId)
+      ?? initialPayFromAccounts[0]?.id
+      ?? "",
   );
   const [tenantInvoiceId, setTenantInvoiceId] = useState(
     initialInvoiceId ?? "",
@@ -3115,18 +3119,21 @@ function ExpenseForm({
                   setPropertyId(value);
                   setUnitId("");
                   setTenantInvoiceId("");
-                  setCategoryAccountId(
-                    expenseAccounts.find(
-                      (account) =>
-                        (account.propertyId === null || account.propertyId === value) &&
-                        (effectiveResponsibility === "owner" ||
-                          account.useForLeaseCredits === true),
-                    )?.id ?? "",
+                  const propertyExpenseAccounts = expenseAccounts.filter(
+                    (account) =>
+                      (account.propertyId === null || account.propertyId === value) &&
+                      (effectiveResponsibility === "owner" ||
+                        account.useForLeaseCredits === true),
                   );
+                  setCategoryAccountId(propertyExpenseAccounts[0]?.id ?? "");
                   const propertyAccounts = payFromAccounts.filter(
                     (account) => !account.propertyId || account.propertyId === value,
                   );
-                  setPayFromAccountId(propertyAccounts[0]?.id ?? "");
+                  setPayFromAccountId(
+                    findConfiguredAccountId(propertyAccounts, "operating_bank", value)
+                      ?? propertyAccounts[0]?.id
+                      ?? "",
+                  );
                 }}
                 options={propertyOptions.map((option) => ({
                   label: option.label,
@@ -3385,16 +3392,19 @@ function ExpenseReviewForm({
     actionInitialState,
   );
   const [reason, setReason] = useState("");
-  const [payFromAccountId, setPayFromAccountId] = useState("");
-  const [fundingSourceConfirmed, setFundingSourceConfirmed] = useState(false);
-  const needsFundingSource =
-    decision === "approve" && submission.sourceType === "maintenance_task";
   const matchingAccounts = payFromAccounts.filter(
     (account) =>
       account.propertyId === null ||
       account.propertyId === undefined ||
       account.propertyId === submission.propertyId,
   );
+  const [payFromAccountId, setPayFromAccountId] = useState(
+    findConfiguredAccountId(matchingAccounts, "operating_bank", submission.propertyId)
+      ?? "",
+  );
+  const [fundingSourceConfirmed, setFundingSourceConfirmed] = useState(false);
+  const needsFundingSource =
+    decision === "approve" && submission.sourceType === "maintenance_task";
   const approvalSourceLabel = needsFundingSource
     ? expensePaymentSourceLabel(
         matchingAccounts.find((account) => account.id === payFromAccountId)
@@ -3878,7 +3888,10 @@ function ManualTenantChargeForm({
     (account) =>
       account.propertyId === null || account.propertyId === initialLease?.propertyId,
   );
-  const initialCategoryAccountId = initialChargeAccounts[0]?.id ?? "";
+  const initialCategoryAccountId =
+    findConfiguredAccountId(initialChargeAccounts, "rental_income", initialLease?.propertyId)
+    ?? initialChargeAccounts[0]?.id
+    ?? "";
   const [categoryAccountId, setCategoryAccountId] = useState(initialCategoryAccountId);
   const submittedCategoryAccountIdRef = useRef(initialCategoryAccountId);
   const [leaseId, setLeaseId] = useState(fixedLease?.id ?? "");
@@ -3950,12 +3963,15 @@ function ManualTenantChargeForm({
             onValueChange={(value) => {
               setLeaseId(value);
               const nextLease = leases.find((lease) => lease.id === value);
+              const nextAccounts = leaseChargeAccounts.filter(
+                (account) =>
+                  account.propertyId === null ||
+                  account.propertyId === nextLease?.propertyId,
+              );
               setCategoryAccountId(
-                leaseChargeAccounts.find(
-                  (account) =>
-                    account.propertyId === null ||
-                    account.propertyId === nextLease?.propertyId,
-                )?.id ?? "",
+                findConfiguredAccountId(nextAccounts, "rental_income", nextLease?.propertyId)
+                  ?? nextAccounts[0]?.id
+                  ?? "",
               );
             }}
             options={availableLeases.map((lease) => ({

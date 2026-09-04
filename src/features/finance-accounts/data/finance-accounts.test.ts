@@ -56,6 +56,7 @@ describe("getFinanceAccountsData", () => {
           display_name: "Operating account",
           id: "asset-1",
           property_id: "property-1",
+          system_role: "operating_bank",
         }),
         accountRow({
           account_class: "liability",
@@ -76,7 +77,10 @@ describe("getFinanceAccountsData", () => {
       error: null,
     });
     const rolesQuery = chainQuery({
-      data: [{ account_id: "income-1", role_code: "rental_income" }],
+      data: [
+        { account_id: "income-1", role_code: "rental_income" },
+        { account_id: "asset-1", role_code: "operating_bank" },
+      ],
       error: null,
     });
     const sourceLinksQuery = chainQuery({ data: [], error: null });
@@ -126,7 +130,11 @@ describe("getFinanceAccountsData", () => {
       }),
     );
     expect(data.groups.find((group) => group.accountClass === "asset")?.accounts).toContainEqual(
-      expect.objectContaining({ propertyLabel: "RIV · Riverside House" }),
+      expect.objectContaining({
+        defaultRoleCodes: ["operating_bank"],
+        propertyLabel: "RIV · Riverside House",
+        systemRoleCode: "operating_bank",
+      }),
     );
     expect(data.properties).toEqual([
       { id: "property-2", label: "HIL · Hill House" },
@@ -270,6 +278,22 @@ describe("finance account selectors", () => {
       "Security deposits",
     ]);
   });
+
+  it("carries configured default and system-role identities into workflow options", () => {
+    const [option] = getPayFromAccountOptions([
+      summary({
+        defaultFor: ["Operating account"],
+        defaultRoleCodes: ["operating_bank"],
+        systemRole: "Operating account",
+        systemRoleCode: "operating_bank",
+      }),
+    ]);
+
+    expect(option).toEqual(expect.objectContaining({
+      defaultRoleCodes: ["operating_bank"],
+      systemRoleCode: "operating_bank",
+    }));
+  });
 });
 
 function accountRow(overrides: Partial<Record<string, unknown>> = {}) {
@@ -300,6 +324,7 @@ function summary(
     accountSubtype: "bank",
     archivedAt: null,
     defaultFor: [],
+    defaultRoleCodes: [],
     depth: 0,
     description: null,
     displayName: "Account",
@@ -308,6 +333,7 @@ function summary(
     propertyId: null,
     propertyLabel: null,
     systemRole: null,
+    systemRoleCode: null,
     useForLeaseCharges: false,
     useForLeaseCredits: false,
     useForLeaseDeposits: false,

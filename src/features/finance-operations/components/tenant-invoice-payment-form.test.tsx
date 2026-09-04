@@ -101,6 +101,35 @@ describe("TenantInvoicePaymentForm", () => {
     ).not.toBeNull();
   });
 
+  it("selects the configured operating account when several receiving accounts are eligible", () => {
+    const { container } = renderForm({
+      payFromAccounts: [
+        {
+          accountClass: "asset",
+          accountSubtype: "cash",
+          defaultRoleCodes: [],
+          displayName: "Front desk cash",
+          id: "account-cash",
+          propertyId: null,
+          systemRoleCode: null,
+        },
+        {
+          accountClass: "asset",
+          accountSubtype: "bank",
+          defaultRoleCodes: ["operating_bank"],
+          displayName: "Configured operating bank",
+          id: "account-operating",
+          propertyId: null,
+          systemRoleCode: "operating_bank",
+        },
+      ],
+    });
+
+    expect(valueOfNamedInput(container, "receivingAccountId")).toBe(
+      "account-operating",
+    );
+  });
+
   it("selects the only eligible receiving account", () => {
     const { container } = renderForm({
       payFromAccounts: [

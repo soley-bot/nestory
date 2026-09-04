@@ -3634,10 +3634,21 @@ function data(): FinanceOperationsData {
     leaseChargeAccounts: [
       {
         accountClass: "income",
+        accountSubtype: "other_income",
+        defaultRoleCodes: [],
+        displayName: "Other tenant income",
+        id: "account-income-other",
+        propertyId: null,
+        systemRoleCode: null,
+      },
+      {
+        accountClass: "income",
         accountSubtype: "income",
+        defaultRoleCodes: ["rental_income"],
         displayName: "Rental income",
         id: "account-income-rent",
         propertyId: null,
+        systemRoleCode: "rental_income",
       },
     ],
     leaseDepositAccounts: [

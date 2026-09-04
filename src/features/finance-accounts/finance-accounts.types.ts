@@ -11,6 +11,7 @@ export type FinanceAccountSummary = {
   accountSubtype: string;
   archivedAt: string | null;
   defaultFor: string[];
+  defaultRoleCodes: string[];
   depth: 0 | 1;
   description: string | null;
   displayName: string;
@@ -19,6 +20,7 @@ export type FinanceAccountSummary = {
   propertyId: string | null;
   propertyLabel: string | null;
   systemRole: string | null;
+  systemRoleCode: string | null;
   useForLeaseCharges: boolean;
   useForLeaseCredits: boolean;
   useForLeaseDeposits: boolean;
@@ -27,7 +29,8 @@ export type FinanceAccountSummary = {
 export type FinanceAccountOption = Pick<
   FinanceAccountSummary,
   "accountClass" | "accountSubtype" | "displayName" | "id" | "propertyId"
-> & { useForLeaseCredits?: boolean };
+> & Partial<Pick<FinanceAccountSummary, "defaultRoleCodes" | "systemRoleCode">>
+  & { useForLeaseCredits?: boolean };
 
 export type FinanceAccountGroup = {
   accountClass: FinanceAccountClass;

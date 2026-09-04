@@ -23,6 +23,10 @@ import type {
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
 import type { FinanceAccountOption } from "@/features/finance-accounts/finance-accounts.types";
+import {
+  findConfiguredAccountId,
+  isTenantPaymentReceivingAccount,
+} from "@/features/finance-accounts/finance-account-selection";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatMoneyDisplay } from "@/lib/money/format";
 
@@ -76,10 +80,7 @@ function TenantInvoicePaymentFormStateful({
   const deliveredSuccessRef = useRef<FinanceOperationsActionState | null>(null);
   const submittedSafeValuesRef = useRef<Map<string, string>>(new Map());
   const receivingAccounts = payFromAccounts.filter(
-    (account) =>
-      account.accountClass === "asset" &&
-      ["bank", "cash", "petty_cash"].includes(account.accountSubtype) &&
-      (!account.propertyId || account.propertyId === invoice.propertyId),
+    (account) => isTenantPaymentReceivingAccount(account, invoice.propertyId),
   );
   const defaultReceivingAccountId = getDefaultReceivingAccountId(
     receivingAccounts,
@@ -269,6 +270,12 @@ function getDefaultReceivingAccountId(
   accounts: FinanceAccountOption[],
   propertyId: string,
 ) {
+  const configuredAccountId = findConfiguredAccountId(
+    accounts,
+    "operating_bank",
+    propertyId,
+  );
+  if (configuredAccountId) return configuredAccountId;
   const propertyAccounts = accounts.filter(
     (account) => account.propertyId === propertyId,
   );

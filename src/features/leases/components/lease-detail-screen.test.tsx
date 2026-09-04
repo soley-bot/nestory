@@ -1086,9 +1086,20 @@ function detailElement(
         {
           accountClass: "liability",
           accountSubtype: "current_liability",
+          defaultRoleCodes: [],
+          displayName: "Other current liability",
+          id: "account-liability-other",
+          propertyId: null,
+          systemRoleCode: null,
+        },
+        {
+          accountClass: "liability",
+          accountSubtype: "current_liability",
+          defaultRoleCodes: ["security_deposits"],
           displayName: "Security deposits",
           id: "account-liability-deposits",
           propertyId: null,
+          systemRoleCode: "security_deposits",
         },
       ]}
       paymentResolution={focus.paymentResolution}

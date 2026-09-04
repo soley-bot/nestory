@@ -297,6 +297,23 @@ describe("LeasePaymentResolutionView", () => {
     expect(screen.getByText("No receiving account is available.")).toBeVisible();
   });
 
+  it("does not render a dead-end submit action for a credit-card-only account list", () => {
+    renderResolution({
+      payFromAccounts: [{
+        accountClass: "liability",
+        accountSubtype: "credit_card",
+        displayName: "Company card",
+        id: "account-card",
+        propertyId: null,
+      }],
+    });
+
+    expect(
+      screen.queryByRole("button", { name: /Record .* payment/ }),
+    ).toBeNull();
+    expect(screen.getByText("No receiving account is available.")).toBeVisible();
+  });
+
   it("keeps both quiet return paths on the full Lease href", () => {
     renderResolution({ returnHref: "/leases/lease-1?from=queue" });
 

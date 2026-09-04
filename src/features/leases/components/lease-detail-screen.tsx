@@ -37,6 +37,7 @@ import { LeaseDetailView } from "@/features/leases/components/lease-detail-view"
 import { LeasePaymentResolutionView } from "@/features/leases/components/lease-payment-resolution-view";
 import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
 import { LeaseForm } from "@/features/leases/components/lease-form";
+import { findConfiguredAccountId } from "@/features/finance-accounts/finance-account-selection";
 import {
   cancelLeaseActivationAction,
   recordLeaseDepositEventAction,
@@ -598,7 +599,13 @@ function LeaseDepositPanel({
                 <DepositField label="Liability account">
                   <SelectControl
                     ariaLabel="Deposit liability account"
-                    defaultValue={leaseDepositAccounts[0]?.id}
+                    defaultValue={
+                      findConfiguredAccountId(
+                        leaseDepositAccounts,
+                        "security_deposits",
+                        lease.propertyId,
+                      ) ?? leaseDepositAccounts[0]?.id
+                    }
                     name="liabilityAccountId"
                     options={leaseDepositAccounts.map((account) => ({
                       label: account.displayName,

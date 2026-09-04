@@ -74,11 +74,11 @@ export async function getFinanceAccountsData(
     id: property.id,
     label: `${property.code} · ${property.name}`,
   }));
-  const defaultForByAccountId = groupDefaultRolesByAccount((rolesResult.data ?? []) as FinanceAccountRoleRow[]);
+  const defaultRolesByAccountId = groupDefaultRolesByAccount((rolesResult.data ?? []) as FinanceAccountRoleRow[]);
   const summariesById = new Map(
     ((accountsResult.data ?? []) as FinanceAccountRow[]).map((account) => [
       account.id,
-      toFinanceAccountSummary(account, defaultForByAccountId.get(account.id) ?? [], propertyLabelById),
+      toFinanceAccountSummary(account, defaultRolesByAccountId.get(account.id) ?? [], propertyLabelById),
     ]),
   );
   return {
@@ -109,13 +109,14 @@ export function getLeaseDepositAccountOptions(accounts: readonly FinanceAccountS
   return accounts.filter((account) => account.archivedAt === null && account.accountClass === "liability" && account.useForLeaseDeposits).map(toFinanceAccountOption);
 }
 
-function toFinanceAccountSummary(account: FinanceAccountRow, defaultFor: string[], propertyLabelById: ReadonlyMap<string, string>): FinanceAccountSummary {
+function toFinanceAccountSummary(account: FinanceAccountRow, defaultRoleCodes: string[], propertyLabelById: ReadonlyMap<string, string>): FinanceAccountSummary {
   return {
     accountClass: toFinanceAccountClass(account.account_class),
     accountNumber: account.account_number,
     accountSubtype: account.account_subtype,
     archivedAt: account.archived_at,
-    defaultFor,
+    defaultFor: defaultRoleCodes.map(roleLabel),
+    defaultRoleCodes,
     depth: 0,
     description: account.description,
     displayName: account.display_name,
@@ -124,6 +125,7 @@ function toFinanceAccountSummary(account: FinanceAccountRow, defaultFor: string[
     propertyId: account.property_id,
     propertyLabel: account.property_id ? propertyLabelById.get(account.property_id) ?? "Property unavailable" : null,
     systemRole: account.system_role ? roleLabel(account.system_role) : null,
+    systemRoleCode: account.system_role,
     useForLeaseCharges: account.use_for_lease_charges,
     useForLeaseCredits: account.use_for_lease_credits,
     useForLeaseDeposits: account.use_for_lease_deposits,
@@ -131,13 +133,14 @@ function toFinanceAccountSummary(account: FinanceAccountRow, defaultFor: string[
 }
 
 function groupDefaultRolesByAccount(roles: readonly FinanceAccountRoleRow[]): ReadonlyMap<string, string[]> {
-  const labelsByAccountId = new Map<string, string[]>();
+  const rolesByAccountId = new Map<string, string[]>();
   for (const role of roles) {
-    const labels = labelsByAccountId.get(role.account_id) ?? [];
-    labels.push(roleLabel(role.role_code));
-    labelsByAccountId.set(role.account_id, labels);
+    const roleCodes = rolesByAccountId.get(role.account_id) ?? [];
+    roleLabel(role.role_code);
+    roleCodes.push(role.role_code);
+    rolesByAccountId.set(role.account_id, roleCodes);
   }
-  return labelsByAccountId;
+  return rolesByAccountId;
 }
 
 function flattenAccountGroup(accountClass: FinanceAccountClass, summariesById: ReadonlyMap<string, FinanceAccountSummary>): FinanceAccountSummary[] {
@@ -174,7 +177,7 @@ function compareAccounts(first: FinanceAccountSummary, second: FinanceAccountSum
 }
 
 function toFinanceAccountOption(account: FinanceAccountSummary): FinanceAccountOption {
-  return { accountClass: account.accountClass, accountSubtype: account.accountSubtype, displayName: account.displayName, id: account.id, propertyId: account.propertyId, useForLeaseCredits: account.useForLeaseCredits };
+  return { accountClass: account.accountClass, accountSubtype: account.accountSubtype, defaultRoleCodes: account.defaultRoleCodes, displayName: account.displayName, id: account.id, propertyId: account.propertyId, systemRoleCode: account.systemRoleCode, useForLeaseCredits: account.useForLeaseCredits };
 }
 
 function toFinanceAccountClass(value: string): FinanceAccountClass {
