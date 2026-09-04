@@ -27,7 +27,7 @@ export type FinanceAccountSummary = {
 export type FinanceAccountOption = Pick<
   FinanceAccountSummary,
   "accountClass" | "accountSubtype" | "displayName" | "id" | "propertyId"
->;
+> & { useForLeaseCredits?: boolean };
 
 export type FinanceAccountGroup = {
   accountClass: FinanceAccountClass;

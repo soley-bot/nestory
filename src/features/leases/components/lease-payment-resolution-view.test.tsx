@@ -4,7 +4,6 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
-  FinanceOption,
   LeasePaymentResolutionData,
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
@@ -289,7 +288,7 @@ describe("LeasePaymentResolutionView", () => {
   });
 
   it("does not render a dead-end submit action without a receiving account", () => {
-    renderResolution({ reconciliationSources: [] });
+    renderResolution({ payFromAccounts: [] });
 
     expect(
       screen.queryByRole("button", { name: /Record .* payment/ }),
@@ -314,14 +313,14 @@ function renderResolution({
   canRecordPayments = true,
   canViewFinance = true,
   lease = leaseFixture(),
-  reconciliationSources = [sourceFixture()],
+  payFromAccounts = [sourceFixture()],
   resolution = resolutionFixture(),
   returnHref = "/leases/lease-1",
 }: {
   canRecordPayments?: boolean;
   canViewFinance?: boolean;
   lease?: LeaseSummary;
-  reconciliationSources?: FinanceOption[];
+  payFromAccounts?: LeasePaymentResolutionData["payFromAccounts"];
   resolution?: LeasePaymentResolutionData;
   returnHref?: string;
 } = {}) {
@@ -332,7 +331,7 @@ function renderResolution({
       lease={lease}
       onPaymentSuccess={vi.fn()}
       onReceiptResult={vi.fn()}
-      resolution={{ ...resolution, reconciliationSources }}
+      resolution={{ ...resolution, payFromAccounts }}
       returnHref={returnHref}
     />,
   );
@@ -345,7 +344,7 @@ function resolutionFixture(
     invoice: invoiceFixture(),
     nextInvoiceDueDate: "2026-09-01",
     ownerLabel: "Sokha Vannak",
-    reconciliationSources: [sourceFixture()],
+    payFromAccounts: [sourceFixture()],
     ...overrides,
   };
 }
@@ -395,10 +394,12 @@ function invoiceFixture(
   };
 }
 
-function sourceFixture(): FinanceOption {
+function sourceFixture(): LeasePaymentResolutionData["payFromAccounts"][number] {
   return {
-    id: "source-1",
-    label: "BANK · Operating",
+    accountClass: "asset",
+    accountSubtype: "bank",
+    displayName: "Operating account",
+    id: "account-bank",
     propertyId: "property-1",
   };
 }

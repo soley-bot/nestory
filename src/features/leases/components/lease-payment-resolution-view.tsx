@@ -47,7 +47,7 @@ export function LeasePaymentResolutionView({
   });
   const upcoming = getUpcoming(lease, resolution.nextInvoiceDueDate);
   const canSubmit =
-    canRecordPayments && resolution.reconciliationSources.length > 0;
+    canRecordPayments && resolution.payFromAccounts.length > 0;
 
   return (
     <div className="workspace-gutter-x pb-8">
@@ -92,7 +92,7 @@ export function LeasePaymentResolutionView({
               onReceiptResult={onReceiptResult}
               onSuccess={onPaymentSuccess}
               ownerLabel={resolution.ownerLabel}
-              reconciliationSources={resolution.reconciliationSources}
+              payFromAccounts={resolution.payFromAccounts}
               submitLabel={`Record ${balanceDisplay} payment`}
             />
           ) : (

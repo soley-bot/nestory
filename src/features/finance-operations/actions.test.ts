@@ -149,6 +149,7 @@ describe("rent generation recovery action", () => {
     formData.set("amount", "75.50");
     formData.set("billingPeriod", "2026-08");
     formData.set("chargeType", "utilities");
+    formData.set("categoryAccountId", sourceId);
     formData.set("description", "Water bill");
     formData.set("dueDate", "2026-08-20");
     formData.set("idempotencyKey", "manual-charge-v1");
@@ -158,10 +159,10 @@ describe("rent generation recovery action", () => {
       message: "Charge added.",
       status: "success",
     });
-    expect(rpc).toHaveBeenCalledWith("create_manual_tenant_charge", {
+    expect(rpc).toHaveBeenCalledWith("create_manual_tenant_charge_with_account", {
       p_amount: 75.5,
       p_billing_period_start: "2026-08-01",
-      p_charge_type: "utilities",
+      p_category_account_id: sourceId,
       p_description: "Water bill",
       p_due_date: "2026-08-20",
       p_idempotency_key: "manual-charge-v1",
@@ -180,7 +181,7 @@ describe("rent generation recovery action", () => {
     const formData = new FormData();
     formData.set("amount", "75.50");
     formData.set("billingPeriod", "2026-08");
-    formData.set("chargeType", "custom_parking_123");
+    formData.set("categoryAccountId", sourceId);
     formData.set("description", "Reserved parking");
     formData.set("dueDate", "2026-08-20");
     formData.set("idempotencyKey", "custom-charge-v1");
@@ -190,8 +191,8 @@ describe("rent generation recovery action", () => {
       status: "success",
     });
     expect(rpc).toHaveBeenCalledWith(
-      "create_manual_tenant_charge",
-      expect.objectContaining({ p_charge_type: "custom_parking_123" }),
+      "create_manual_tenant_charge_with_account",
+      expect.objectContaining({ p_category_account_id: sourceId }),
     );
   });
 
@@ -389,7 +390,7 @@ describe("ordinary finance operation actions", () => {
   });
 
   it.each([
-    [recordTenantInvoicePaymentAction, tenantPaymentForm(), "record_tenant_invoice_payment"],
+    [recordTenantInvoicePaymentAction, tenantPaymentForm(), "record_tenant_invoice_payment_with_account"],
     [confirmOwnerCollectionAction, ownerCollectionForm(), "confirm_owner_collected_rent"],
     [recordOwnerPaymentAction, ownerPaymentForm(), "record_owner_invoice_payment"],
     [recordWithdrawalAction, withdrawalForm(), "record_owner_distribution"],
@@ -682,7 +683,7 @@ describe("tenant commercial document publication actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/timeline");
     expect(revalidatePath).not.toHaveBeenCalledWith("/records");
     expect(rpc).toHaveBeenCalledWith(
-      "record_tenant_invoice_payment",
+      "record_tenant_invoice_payment_with_account",
       expect.objectContaining({ p_invoice_id: invoiceId }),
     );
   });
@@ -917,12 +918,14 @@ describe("expense approval actions", () => {
     rpc.mockResolvedValue({ data: submissionId, error: null });
     const formData = new FormData();
     formData.set("category", "cleaning");
+    formData.set("categoryAccountId", evidenceDocumentId);
     formData.set("expenseDate", "2026-08-08");
     formData.set("idempotencyKey", "expense-submit-1");
     formData.set("internalCost", "200");
     formData.set("internalMarkup", "20");
     formData.set("propertyId", propertyId);
     formData.set("reconciliationSourceId", sourceId);
+    formData.set("payFromAccountId", sourceId);
     formData.set("reference", "Receipt 42");
     formData.set("responsibility", "owner");
     formData.set("tenantInvoiceId", "");
@@ -939,16 +942,16 @@ describe("expense approval actions", () => {
     });
     expect(requireFinanceSubmissionContext).toHaveBeenCalledOnce();
     expect(requireFinanceReviewContext).not.toHaveBeenCalled();
-    expect(rpc).toHaveBeenCalledWith("submit_expense", {
+    expect(rpc).toHaveBeenCalledWith("submit_expense_with_accounts", {
       p_currency: "USD",
-      p_customer_category: "cleaning",
+      p_category_account_id: evidenceDocumentId,
       p_expense_date: "2026-08-08",
       p_idempotency_key: "expense-submit-1",
       p_internal_cost_amount: "200.00",
       p_internal_markup_amount: "20.00",
       p_organization_id: organizationId,
       p_property_id: propertyId,
-      p_reconciliation_source_id: sourceId,
+      p_pay_from_account_id: sourceId,
       p_reference: "Receipt 42",
       p_responsibility: "owner",
       p_source_id: null,
@@ -989,9 +992,11 @@ describe("expense approval actions", () => {
     formData.set("category", "cleaning");
     formData.set("expenseDate", "2026-08-08");
     formData.set("idempotencyKey", "expense-submit-redirect");
+    formData.set("categoryAccountId", evidenceDocumentId);
     formData.set("internalCost", "200");
     formData.set("internalMarkup", "20");
     formData.set("propertyId", propertyId);
+    formData.set("payFromAccountId", sourceId);
     formData.set("reconciliationSourceId", sourceId);
     formData.set("reference", "Receipt 42");
     formData.set("responsibility", "owner");
@@ -1006,15 +1011,16 @@ describe("expense approval actions", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("passes an organization owner-expense category code to paid-cost submission", async () => {
+  it("passes an organization expense account to paid-cost submission", async () => {
     rpc.mockResolvedValue({ data: submissionId, error: null });
     const formData = new FormData();
-    formData.set("category", "custom_landscaping_123");
+    formData.set("categoryAccountId", evidenceDocumentId);
     formData.set("expenseDate", "2026-08-08");
     formData.set("idempotencyKey", "expense-custom-category");
     formData.set("internalCost", "200");
     formData.set("internalMarkup", "0");
     formData.set("propertyId", propertyId);
+    formData.set("payFromAccountId", sourceId);
     formData.set("reconciliationSourceId", sourceId);
     formData.set("reference", "Receipt 43");
     formData.set("responsibility", "owner");
@@ -1030,9 +1036,9 @@ describe("expense approval actions", () => {
       status: "success",
     });
     expect(rpc).toHaveBeenCalledWith(
-      "submit_expense",
+      "submit_expense_with_accounts",
       expect.objectContaining({
-        p_customer_category: "custom_landscaping_123",
+        p_category_account_id: evidenceDocumentId,
         p_responsibility: "owner",
       }),
     );
@@ -1044,9 +1050,11 @@ describe("expense approval actions", () => {
     formData.set("category", "cleaning");
     formData.set("expenseDate", "2026-08-08");
     formData.set("idempotencyKey", "paid-cost-missing-file");
+    formData.set("categoryAccountId", evidenceDocumentId);
     formData.set("internalCost", "200.00");
     formData.set("internalMarkup", "0.00");
     formData.set("propertyId", propertyId);
+    formData.set("payFromAccountId", sourceId);
     formData.set("reconciliationSourceId", sourceId);
     formData.set("reference", "Receipt 42");
     formData.set("responsibility", "owner");
@@ -1066,9 +1074,11 @@ describe("expense approval actions", () => {
     formData.set("category", "cleaning");
     formData.set("expenseDate", "2026-08-08");
     formData.set("idempotencyKey", "expense-submit-no-evidence");
+    formData.set("categoryAccountId", evidenceDocumentId);
     formData.set("internalCost", "200");
     formData.set("internalMarkup", "0");
     formData.set("propertyId", propertyId);
+    formData.set("payFromAccountId", sourceId);
     formData.set("reconciliationSourceId", sourceId);
     formData.set("reference", "");
     formData.set("responsibility", "owner");
@@ -1098,12 +1108,12 @@ describe("expense approval actions", () => {
     });
     expect(requireFinanceReviewContext).toHaveBeenCalledOnce();
     expect(requireFinanceSubmissionContext).not.toHaveBeenCalled();
-    expect(rpc).toHaveBeenCalledWith("review_expense", {
+    expect(rpc).toHaveBeenCalledWith("review_expense_with_account", {
       p_decision: "approve",
       p_idempotency_key: "expense-review-1",
       p_organization_id: organizationId,
       p_reason: "Reviewed receipt",
-      p_reconciliation_source_id: null,
+      p_pay_from_account_id: sourceId,
       p_submission_id: submissionId,
     });
   });
@@ -1123,14 +1133,15 @@ describe("expense approval actions", () => {
   it("passes the funding source selected for maintenance approval", async () => {
     rpc.mockResolvedValue({ data: submissionId, error: null });
     const formData = expenseDecisionForm("approve", "Reviewed receipt");
-    formData.set("reconciliationSourceId", sourceId);
+    formData.set("payFromAccountId", sourceId);
+    formData.set("payFromAccountId", sourceId);
 
     await expect(reviewExpenseAction({}, formData)).resolves.toMatchObject({
       status: "success",
     });
     expect(rpc).toHaveBeenCalledWith(
-      "review_expense",
-      expect.objectContaining({ p_reconciliation_source_id: sourceId }),
+      "review_expense_with_account",
+      expect.objectContaining({ p_pay_from_account_id: sourceId }),
     );
   });
 
@@ -1270,6 +1281,7 @@ function expenseDecisionForm(decision: "approve" | "reject", reason: string) {
   formData.set("decision", decision);
   if (decision === "approve") {
     formData.set("fundingSourceConfirmed", "true");
+    formData.set("payFromAccountId", sourceId);
   }
   formData.set("idempotencyKey", "expense-review-1");
   formData.set("reason", reason);
@@ -1280,6 +1292,7 @@ function expenseDecisionForm(decision: "approve" | "reject", reason: string) {
 function tenantPaymentForm() {
   const formData = ownerCollectionForm();
   formData.set("reconciliationSourceId", sourceId);
+  formData.set("receivingAccountId", sourceId);
   return formData;
 }
 

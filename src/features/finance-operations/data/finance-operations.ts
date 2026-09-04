@@ -1,4 +1,11 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import {
+  getExpenseAccountOptions,
+  getFinanceAccountsData,
+  getLeaseChargeAccountOptions,
+  getLeaseDepositAccountOptions,
+  getPayFromAccountOptions,
+} from "@/features/finance-accounts/data/finance-accounts";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { selectCurrentLeaseBillingRulesByLeaseId } from "@/features/leases/lease-billing-rule-state";
 import {
@@ -435,6 +442,11 @@ export async function getFinanceOperationsData(
     );
   }
 
+  const financeAccountsData = await getFinanceAccountsData(organizationId);
+  const financeAccounts = financeAccountsData.groups.flatMap(
+    (group) => group.accounts,
+  );
+
   const tenantInvoiceIds = (tenantInvoicesResult.data ?? []).flatMap(
     (invoice) => (invoice.id ? [invoice.id] : []),
   );
@@ -655,6 +667,7 @@ export async function getFinanceOperationsData(
         toAccountEntry(row as AccountEntryRow),
       ),
     ),
+    expenseAccounts: getExpenseAccountOptions(financeAccounts),
     expenseSubmissions: (expenseSubmissionsResult.data ?? []).map(
       (submission) =>
         toExpenseSubmissionSummary(
@@ -669,6 +682,8 @@ export async function getFinanceOperationsData(
         ),
     ),
     financeCategories,
+    leaseChargeAccounts: getLeaseChargeAccountOptions(financeAccounts),
+    leaseDepositAccounts: getLeaseDepositAccountOptions(financeAccounts),
     leases: (leasesResult.data ?? []).flatMap((lease) => {
       const property = propertyById.get(lease.property_id);
       if (!property) return [];
@@ -703,6 +718,7 @@ export async function getFinanceOperationsData(
     ownerInvoices: (ownerInvoicesResult.data ?? []).flatMap((row) =>
       toOwnerInvoice(row as OwnerInvoiceBalanceRow, propertyById, personById),
     ),
+    payFromAccounts: getPayFromAccountOptions(financeAccounts),
     operationalTimezone,
     peopleOptions: people
       .filter((person) => person.archived_at === null)
@@ -811,15 +827,18 @@ function toFinanceLeaseBillingPreview(
 export async function getLeasePaymentResolutionData(
   input: LeasePaymentResolutionInput,
 ): Promise<LeasePaymentResolutionData | null> {
+  const accountData = await getFinanceAccountsData(input.organizationId);
   return loadLeasePaymentResolutionData(
     await createSupabaseServerClient(),
     input,
+    getPayFromAccountOptions(accountData.groups.flatMap((group) => group.accounts)),
   );
 }
 
 export async function loadLeasePaymentResolutionData(
   supabase: FinanceServerClient,
   { invoiceId, leaseId, organizationId }: LeasePaymentResolutionInput,
+  payFromAccounts: LeasePaymentResolutionData["payFromAccounts"] = [],
 ): Promise<LeasePaymentResolutionData | null> {
   const selectedResult = await supabase
     .from("tenant_invoice_balances")
@@ -853,7 +872,6 @@ export async function loadLeasePaymentResolutionData(
     generationResult,
     settlementsResult,
     ownerResult,
-    sourcesResult,
     nextInvoiceResult,
   ] = await Promise.all([
     supabase
@@ -884,13 +902,6 @@ export async function loadLeasePaymentResolutionData(
       .is("ended_on", null)
       .maybeSingle(),
     supabase
-      .from("financial_reconciliation_sources")
-      .select("id, property_id, code, display_name, archived_at")
-      .eq("organization_id", organizationId)
-      .is("archived_at", null)
-      .or(`property_id.is.null,property_id.eq.${row.property_id}`)
-      .order("code"),
-    supabase
       .from("tenant_invoice_balances")
       .select("id, due_date")
       .eq("organization_id", organizationId)
@@ -909,7 +920,6 @@ export async function loadLeasePaymentResolutionData(
     generationResult,
     settlementsResult,
     ownerResult,
-    sourcesResult,
     nextInvoiceResult,
   ].find((result) => result.error)?.error;
   if (supportingError) {
@@ -994,11 +1004,9 @@ export async function loadLeasePaymentResolutionData(
     invoice,
     nextInvoiceDueDate: nextInvoiceResult.data?.[0]?.due_date ?? null,
     ownerLabel: ownerPerson?.display_name ?? "Owner needed",
-    reconciliationSources: (sourcesResult.data ?? []).map((source) => ({
-      id: source.id,
-      label: `${source.code} · ${source.display_name}`,
-      propertyId: source.property_id,
-    })),
+    payFromAccounts: payFromAccounts.filter(
+      (account) => account.propertyId === null || account.propertyId === row.property_id,
+    ),
   };
 }
 
@@ -1046,15 +1054,21 @@ export function scopeFinanceOperationsData(
     accountEntries: data.accountEntries.filter(
       (entry) => entry.propertyId === scope.propertyId,
     ),
+    expenseAccounts: data.expenseAccounts,
     expenseSubmissions: data.expenseSubmissions.filter((submission) =>
       inScope(submission.propertyId, submission.unitId),
     ),
     financeCategories: data.financeCategories,
+    leaseChargeAccounts: data.leaseChargeAccounts,
+    leaseDepositAccounts: data.leaseDepositAccounts,
     leases: data.leases.filter((lease) =>
       inScope(lease.propertyId, lease.unitId),
     ),
     ownerInvoices: data.ownerInvoices.filter(
       (invoice) => invoice.propertyId === scope.propertyId,
+    ),
+    payFromAccounts: data.payFromAccounts.filter(
+      (account) => !account.propertyId || account.propertyId === scope.propertyId,
     ),
     operationalTimezone: data.operationalTimezone,
     peopleOptions: data.peopleOptions,

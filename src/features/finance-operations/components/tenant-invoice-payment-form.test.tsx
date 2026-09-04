@@ -12,9 +12,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type {
   FinanceOperationsActionState,
-  FinanceOption,
   TenantInvoiceSummary,
 } from "../finance-operations.types";
+import type { FinanceAccountOption } from "@/features/finance-accounts/finance-accounts.types";
 
 const actionMocks = vi.hoisted(() => ({
   confirmOwnerCollectionAction: vi.fn(),
@@ -58,7 +58,7 @@ describe("TenantInvoicePaymentForm", () => {
       screen.getByRole("combobox", { name: "Received into" }),
     ).not.toBeNull();
     expect(
-      container.querySelector('[name="reconciliationSourceId"]'),
+      container.querySelector('[name="receivingAccountId"]'),
     ).not.toBeNull();
     expect(
       (
@@ -71,21 +71,25 @@ describe("TenantInvoicePaymentForm", () => {
 
   it("keeps multiple receiving accounts explicit and shows automatic owner allocation", () => {
     const { container } = renderForm({
-      reconciliationSources: [
+      payFromAccounts: [
         {
-          id: "source-bank",
-          label: "OPS-USD · Operating bank account",
+          accountClass: "asset",
+          accountSubtype: "bank",
+          displayName: "Operating bank account",
+          id: "account-bank",
           propertyId: null,
         },
         {
-          id: "source-cash",
-          label: "CASH · Front desk cash",
+          accountClass: "asset",
+          accountSubtype: "cash",
+          displayName: "Front desk cash",
+          id: "account-cash",
           propertyId: null,
         },
       ],
     });
 
-    expect(valueOfNamedInput(container, "reconciliationSourceId")).toBe("");
+    expect(valueOfNamedInput(container, "receivingAccountId")).toBe("");
     expect(screen.getByText("Applied to")).not.toBeNull();
     expect(
       screen.getByText(
@@ -99,17 +103,19 @@ describe("TenantInvoicePaymentForm", () => {
 
   it("selects the only eligible receiving account", () => {
     const { container } = renderForm({
-      reconciliationSources: [
+      payFromAccounts: [
         {
-          id: "source-bank",
-          label: "OPS-USD · Operating bank account",
+          accountClass: "asset",
+          accountSubtype: "bank",
+          displayName: "Operating bank account",
+          id: "account-bank",
           propertyId: null,
         },
       ],
     });
 
-    expect(valueOfNamedInput(container, "reconciliationSourceId")).toBe(
-      "source-bank",
+    expect(valueOfNamedInput(container, "receivingAccountId")).toBe(
+      "account-bank",
     );
     expect(screen.getAllByText("Operating bank account").length).toBeGreaterThan(0);
     expect(screen.queryByText(/OPS-USD/)).toBeNull();
@@ -117,22 +123,26 @@ describe("TenantInvoicePaymentForm", () => {
 
   it("prefers the invoice property's configured receiving account and allows override", () => {
     const { container } = renderForm({
-      reconciliationSources: [
+      payFromAccounts: [
         {
-          id: "source-global",
-          label: "HQ-USD · Main company account",
+          accountClass: "asset",
+          accountSubtype: "bank",
+          displayName: "Main company account",
+          id: "account-global",
           propertyId: null,
         },
         {
-          id: "source-property",
-          label: "HOME-USD · Riverside operating account",
+          accountClass: "asset",
+          accountSubtype: "bank",
+          displayName: "Riverside operating account",
+          id: "account-property",
           propertyId: "property-1",
         },
       ],
     });
 
-    expect(valueOfNamedInput(container, "reconciliationSourceId")).toBe(
-      "source-property",
+    expect(valueOfNamedInput(container, "receivingAccountId")).toBe(
+      "account-property",
     );
     expect(
       screen.getAllByText("Riverside operating account").length,
@@ -455,14 +465,14 @@ function renderForm({
   onReceiptResult = vi.fn(),
   onSuccess = vi.fn(),
   ownerLabel = "Sokha Vannak",
-  reconciliationSources = [source()],
+  payFromAccounts = [account()],
   submitLabel,
 }: {
   invoice?: TenantInvoiceSummary;
   onReceiptResult?: (result: TenantPaymentReceiptResult) => void;
   onSuccess?: (message: string) => void;
   ownerLabel?: string;
-  reconciliationSources?: FinanceOption[];
+  payFromAccounts?: FinanceAccountOption[];
   submitLabel?: string;
 } = {}) {
   return render(
@@ -471,7 +481,7 @@ function renderForm({
       onReceiptResult,
       onSuccess,
       ownerLabel,
-      reconciliationSources,
+      payFromAccounts,
       submitLabel,
     }),
   );
@@ -482,14 +492,14 @@ function paymentForm({
   onReceiptResult = vi.fn(),
   onSuccess = vi.fn(),
   ownerLabel = "Sokha Vannak",
-  reconciliationSources = [source()],
+  payFromAccounts = [account()],
   submitLabel,
 }: {
   invoice: TenantInvoiceSummary;
   onReceiptResult?: (result: TenantPaymentReceiptResult) => void;
   onSuccess?: (message: string) => void;
   ownerLabel?: string;
-  reconciliationSources?: FinanceOption[];
+  payFromAccounts?: FinanceAccountOption[];
   submitLabel?: string;
 }) {
   return (
@@ -498,7 +508,7 @@ function paymentForm({
       onReceiptResult={onReceiptResult}
       onSuccess={onSuccess}
       ownerLabel={ownerLabel}
-      reconciliationSources={reconciliationSources}
+      payFromAccounts={payFromAccounts}
       submitLabel={submitLabel}
     />
   );
@@ -563,10 +573,12 @@ function openLine(label: string, balanceDue: number) {
   };
 }
 
-function source(): FinanceOption {
+function account(): FinanceAccountOption {
   return {
-    id: "source-1",
-    label: "BANK · Operating",
+    accountClass: "asset",
+    accountSubtype: "bank",
+    displayName: "Operating",
+    id: "account-1",
     propertyId: "property-1",
   };
 }

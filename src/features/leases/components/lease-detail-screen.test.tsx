@@ -611,6 +611,12 @@ describe("LeaseDetailScreen", () => {
       within(drawer).getByRole("button", { name: "Save deposit activity" }),
     ).not.toBeNull();
     expect(
+      within(drawer).getByRole("combobox", { name: "Deposit liability account" }),
+    ).not.toBeNull();
+    expect(
+      drawer.querySelector<HTMLInputElement>('input[name="liabilityAccountId"]')?.value,
+    ).toBe("account-liability-deposits");
+    expect(
       within(drawer).getByRole("button", { name: "Undo entry" }),
     ).not.toBeNull();
     expect(screen.queryByText(/received \/ /)).toBeNull();
@@ -1076,6 +1082,15 @@ function detailElement(
       canRecordPayments
       canViewFinance
       lease={lease}
+      leaseDepositAccounts={[
+        {
+          accountClass: "liability",
+          accountSubtype: "current_liability",
+          displayName: "Security deposits",
+          id: "account-liability-deposits",
+          propertyId: null,
+        },
+      ]}
       paymentResolution={focus.paymentResolution}
       permissions={permissions}
       propertyOptions={[{ id: "property-1", label: "RIVER - Riverside House" }]}
@@ -1139,8 +1154,14 @@ function resolutionFixture(): LeasePaymentResolutionData {
     },
     nextInvoiceDueDate: "2026-09-05",
     ownerLabel: "Sokha Vannak",
-    reconciliationSources: [
-      { id: "source-1", label: "BANK - Operating", propertyId: null },
+    payFromAccounts: [
+      {
+        accountClass: "asset",
+        accountSubtype: "bank",
+        displayName: "Operating",
+        id: "account-bank",
+        propertyId: null,
+      },
     ],
   };
 }

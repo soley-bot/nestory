@@ -20,9 +20,9 @@ import {
 } from "@/features/finance-operations/actions";
 import type {
   FinanceOperationsActionState,
-  FinanceOption,
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
+import type { FinanceAccountOption } from "@/features/finance-accounts/finance-accounts.types";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatMoneyDisplay } from "@/lib/money/format";
 
@@ -38,7 +38,7 @@ type TenantInvoicePaymentFormProps = {
   onReceiptResult: (result: TenantPaymentReceiptResult) => void;
   onSuccess: (message: string) => void;
   ownerLabel: string;
-  reconciliationSources: FinanceOption[];
+  payFromAccounts: FinanceAccountOption[];
   submitLabel?: string;
 };
 
@@ -59,7 +59,7 @@ function TenantInvoicePaymentFormStateful({
   onReceiptResult,
   onSuccess,
   ownerLabel,
-  reconciliationSources,
+  payFromAccounts,
   submitLabel,
 }: TenantInvoicePaymentFormProps) {
   const idempotencyKey = useStableActionId(
@@ -75,15 +75,18 @@ function TenantInvoicePaymentFormStateful({
   const formRef = useRef<HTMLFormElement | null>(null);
   const deliveredSuccessRef = useRef<FinanceOperationsActionState | null>(null);
   const submittedSafeValuesRef = useRef<Map<string, string>>(new Map());
-  const sources = reconciliationSources.filter(
-    (source) => !source.propertyId || source.propertyId === invoice.propertyId,
+  const receivingAccounts = payFromAccounts.filter(
+    (account) =>
+      account.accountClass === "asset" &&
+      ["bank", "cash", "petty_cash"].includes(account.accountSubtype) &&
+      (!account.propertyId || account.propertyId === invoice.propertyId),
   );
-  const defaultReceivingSourceId = getDefaultReceivingSourceId(
-    sources,
+  const defaultReceivingAccountId = getDefaultReceivingAccountId(
+    receivingAccounts,
     invoice.propertyId,
   );
-  const defaultReceivingSource = sources.find(
-    (source) => source.id === defaultReceivingSourceId,
+  const defaultReceivingAccount = receivingAccounts.find(
+    (account) => account.id === defaultReceivingAccountId,
   );
   const outstandingLines = invoice.lines.filter((line) => line.balanceDue > 0);
   const settlementDateLabel =
@@ -169,18 +172,18 @@ function TenantInvoicePaymentFormStateful({
             <div className="space-y-1.5">
               <SelectControl
                 ariaLabel="Received into"
-                defaultValue={defaultReceivingSourceId}
-                name="reconciliationSourceId"
-                options={sources.map((source) => ({
-                  label: getReceivingSourceDisplayLabel(source.label),
-                  value: source.id,
+                defaultValue={defaultReceivingAccountId}
+                name="receivingAccountId"
+                options={receivingAccounts.map((account) => ({
+                  label: account.displayName,
+                  value: account.id,
                 }))}
                 placeholder="Choose receiving account"
                 required
               />
               <p className="text-xs leading-4 text-muted-foreground">
                 Where the payment actually arrived.
-                {defaultReceivingSource?.propertyId === invoice.propertyId
+                {defaultReceivingAccount?.propertyId === invoice.propertyId
                   ? " Defaulted from this property; choose another account if needed."
                   : ""}
               </p>
@@ -262,24 +265,15 @@ function useStableActionId(prefix: string) {
   return id;
 }
 
-const FINANCE_SOURCE_LABEL_SEPARATOR = " · ";
-
-function getDefaultReceivingSourceId(
-  sources: FinanceOption[],
+function getDefaultReceivingAccountId(
+  accounts: FinanceAccountOption[],
   propertyId: string,
 ) {
-  const propertySources = sources.filter(
-    (source) => source.propertyId === propertyId,
+  const propertyAccounts = accounts.filter(
+    (account) => account.propertyId === propertyId,
   );
-  if (propertySources.length === 1) return propertySources[0]?.id;
-  return sources.length === 1 ? sources[0]?.id : undefined;
-}
-
-function getReceivingSourceDisplayLabel(label: string) {
-  const separatorIndex = label.indexOf(FINANCE_SOURCE_LABEL_SEPARATOR);
-  return separatorIndex < 0
-    ? label
-    : label.slice(separatorIndex + FINANCE_SOURCE_LABEL_SEPARATOR.length);
+  if (propertyAccounts.length === 1) return propertyAccounts[0]?.id;
+  return accounts.length === 1 ? accounts[0]?.id : undefined;
 }
 
 function captureSafeUncontrolledValues(form: HTMLFormElement) {

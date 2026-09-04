@@ -92,9 +92,6 @@ const recoverLeaseRentPeriodSchema = z.object({
   leaseId: uuid,
 });
 
-const financeCategoryCode = z
-  .string()
-  .regex(/^[a-z][a-z0-9_]{1,63}$/, "Choose a valid Finance category.");
 const financeCategoryNamespace = z.enum(["owner_expense", "tenant_billing"]);
 const ownerExpenseReportingGroup = z.enum([
   "vendor_bill",
@@ -143,24 +140,14 @@ const archiveFinanceCategorySchema = z.object({
   categoryId: uuid,
 });
 
-const manualTenantChargeSchema = z
-  .object({
+const manualTenantChargeSchema = z.object({
     amount,
     billingPeriod: z.string().regex(/^\d{4}-(?:0[1-9]|1[0-2])$/, "Choose a month."),
-    chargeType: financeCategoryCode,
+    categoryAccountId: uuid,
     description: z.string().trim().max(240),
     dueDate: date,
     idempotencyKey: z.string().min(8),
     leaseId: uuid,
-  })
-  .superRefine((data, context) => {
-    if (data.chargeType === "other" && !data.description) {
-      context.addIssue({
-        code: "custom",
-        message: "Describe the Other charge.",
-        path: ["description"],
-      });
-    }
   });
 
 const invoiceSettlementSchema = z.object({
@@ -172,7 +159,7 @@ const invoiceSettlementSchema = z.object({
 });
 
 const paymentSchema = invoiceSettlementSchema.extend({
-  reconciliationSourceId: uuid,
+  receivingAccountId: uuid,
 });
 
 const invoicePublicationSchema = z.object({
@@ -202,13 +189,13 @@ const settlementReversalSchema = z.object({
 });
 
 const expenseSchema = z.object({
-  category: financeCategoryCode,
+  categoryAccountId: uuid,
   expenseDate: date,
   idempotencyKey: z.string().min(8),
   internalCost: authoritativeOwnerAmount,
   internalMarkup: authoritativeNonnegativeAmount,
   propertyId: uuid,
-  reconciliationSourceId: uuid,
+  payFromAccountId: uuid,
   reference: z
     .string()
     .trim()
@@ -234,7 +221,7 @@ const expenseReviewSchema = z.object({
     .refine((value) => value.length === 0 || value.length >= 3, {
       message: "Review notes must contain at least 3 characters.",
     }),
-  reconciliationSourceId: z.preprocess(
+  payFromAccountId: z.preprocess(
     (value) => value || null,
     uuid.nullable(),
   ),
@@ -373,10 +360,10 @@ export async function createManualTenantChargeAction(
 
   const context = await requirePermission("finance.record_payments");
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("create_manual_tenant_charge", {
+  const { error } = await supabase.rpc("create_manual_tenant_charge_with_account", {
     p_amount: parsed.data.amount,
     p_billing_period_start: `${parsed.data.billingPeriod}-01`,
-    p_charge_type: parsed.data.chargeType,
+    p_category_account_id: parsed.data.categoryAccountId,
     p_description: parsed.data.description,
     p_due_date: parsed.data.dueDate,
     p_idempotency_key: parsed.data.idempotencyKey,
@@ -468,14 +455,14 @@ export async function recordTenantInvoicePaymentAction(
   const context = await requireFinanceOperationContext();
   const supabase = await createSupabaseServerClient();
   const allocations = parseAllocations(formData);
-  const { data, error } = await supabase.rpc("record_tenant_invoice_payment", {
+  const { data, error } = await supabase.rpc("record_tenant_invoice_payment_with_account", {
     p_allocations: allocations.length > 0 ? (allocations as Json) : null,
     p_amount: parsed.data.amount,
     p_idempotency_key: parsed.data.idempotencyKey,
     p_invoice_id: parsed.data.invoiceId,
     p_organization_id: context.organizationId,
     p_received_date: parsed.data.settlementDate,
-    p_reconciliation_source_id: parsed.data.reconciliationSourceId,
+    p_receiving_account_id: parsed.data.receivingAccountId,
     p_reference: parsed.data.reference,
   });
   if (error) return backendActionError();
@@ -694,16 +681,16 @@ export async function submitExpenseAction(
     unstable_rethrow(error);
     return actionError("Receipt evidence could not be verified. Try again.");
   }
-  const { error } = await supabase.rpc("submit_expense", {
+  const { error } = await supabase.rpc("submit_expense_with_accounts", {
     p_currency: "USD",
-    p_customer_category: parsed.data.category,
+    p_category_account_id: parsed.data.categoryAccountId,
     p_expense_date: parsed.data.expenseDate,
     p_idempotency_key: parsed.data.idempotencyKey,
     p_internal_cost_amount: parsed.data.internalCost,
     p_internal_markup_amount: parsed.data.internalMarkup,
     p_organization_id: context.organizationId,
     p_property_id: parsed.data.propertyId,
-    p_reconciliation_source_id: parsed.data.reconciliationSourceId,
+    p_pay_from_account_id: parsed.data.payFromAccountId,
     p_reference: parsed.data.reference || null,
     p_responsibility: parsed.data.responsibility,
     p_source_id: null,
@@ -740,12 +727,12 @@ export async function reviewExpenseAction(
 
   const context = await requireFinanceReviewContext();
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("review_expense", {
+  const { error } = await supabase.rpc("review_expense_with_account", {
     p_decision: parsed.data.decision,
     p_idempotency_key: parsed.data.idempotencyKey,
     p_organization_id: context.organizationId,
     p_reason: parsed.data.reason || null,
-    p_reconciliation_source_id: parsed.data.reconciliationSourceId,
+    p_pay_from_account_id: parsed.data.payFromAccountId,
     p_submission_id: parsed.data.submissionId,
   });
   if (error) return expenseWorkflowError(error.message);

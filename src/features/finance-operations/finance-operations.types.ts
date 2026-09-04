@@ -1,3 +1,5 @@
+import type { FinanceAccountOption } from "@/features/finance-accounts/finance-accounts.types";
+
 export type FinanceOption = {
   id: string;
   label: string;
@@ -229,10 +231,14 @@ export type PropertyAccountEntry = {
 
 export type FinanceOperationsData = {
   accountEntries: PropertyAccountEntry[];
+  expenseAccounts: FinanceAccountOption[];
   expenseSubmissions: ExpenseSubmissionSummary[];
   financeCategories: FinanceCategory[];
+  leaseChargeAccounts: FinanceAccountOption[];
+  leaseDepositAccounts: FinanceAccountOption[];
   leases: FinanceLease[];
   ownerInvoices: OwnerInvoiceSummary[];
+  payFromAccounts: FinanceAccountOption[];
   operationalTimezone?: string;
   peopleOptions: FinanceOption[];
   positions: PropertyFinancePosition[];
@@ -247,7 +253,7 @@ export type LeasePaymentResolutionData = {
   invoice: TenantInvoiceSummary;
   nextInvoiceDueDate: string | null;
   ownerLabel: string;
-  reconciliationSources: FinanceOption[];
+  payFromAccounts: FinanceAccountOption[];
 };
 
 export type FinanceOperationsActionState = {

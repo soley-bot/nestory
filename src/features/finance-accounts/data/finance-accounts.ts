@@ -174,7 +174,7 @@ function compareAccounts(first: FinanceAccountSummary, second: FinanceAccountSum
 }
 
 function toFinanceAccountOption(account: FinanceAccountSummary): FinanceAccountOption {
-  return { accountClass: account.accountClass, accountSubtype: account.accountSubtype, displayName: account.displayName, id: account.id, propertyId: account.propertyId };
+  return { accountClass: account.accountClass, accountSubtype: account.accountSubtype, displayName: account.displayName, id: account.id, propertyId: account.propertyId, useForLeaseCredits: account.useForLeaseCredits };
 }
 
 function toFinanceAccountClass(value: string): FinanceAccountClass {

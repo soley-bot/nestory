@@ -3,11 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   detailSpy,
+  getFinanceAccountsData,
+  getLeaseDepositAccountOptions,
   getLeasePaymentResolutionData,
   getLeasesScreenData,
   requirePermission,
 } = vi.hoisted(() => ({
     detailSpy: vi.fn(),
+    getFinanceAccountsData: vi.fn(),
+    getLeaseDepositAccountOptions: vi.fn(),
     getLeasePaymentResolutionData: vi.fn(),
     getLeasesScreenData: vi.fn(),
     requirePermission: vi.fn(),
@@ -16,6 +20,10 @@ const {
 vi.mock("@/lib/auth/context", () => ({ requirePermission }));
 vi.mock("@/features/finance-operations/data/finance-operations", () => ({
   getLeasePaymentResolutionData,
+}));
+vi.mock("@/features/finance-accounts/data/finance-accounts", () => ({
+  getFinanceAccountsData,
+  getLeaseDepositAccountOptions,
 }));
 vi.mock("@/features/leases/data/leases", () => ({ getLeasesScreenData }));
 vi.mock("@/features/leases/components/lease-detail-screen", () => ({
@@ -33,6 +41,8 @@ describe("lease detail route", () => {
 
   beforeEach(() => {
     detailSpy.mockReset();
+    getFinanceAccountsData.mockReset();
+    getLeaseDepositAccountOptions.mockReset();
     getLeasePaymentResolutionData.mockReset();
     getLeasesScreenData.mockReset();
     requirePermission.mockReset();
@@ -50,6 +60,8 @@ describe("lease detail route", () => {
       ]),
     });
     getLeasePaymentResolutionData.mockResolvedValue(paymentResolution());
+    getFinanceAccountsData.mockResolvedValue({ groups: [] });
+    getLeaseDepositAccountOptions.mockReturnValue([]);
     getLeasesScreenData.mockResolvedValue({
       leases: [{ id: leaseId, isArchived: false }],
       propertyOptions: [{ id: "property-1" }],
@@ -358,8 +370,14 @@ function paymentResolution(
     invoice: invoice(),
     nextInvoiceDueDate: "2026-09-05",
     ownerLabel: "Sokha Vannak",
-    reconciliationSources: [
-      { id: "source-1", label: "BANK - Operating", propertyId: null },
+    payFromAccounts: [
+      {
+        accountClass: "asset",
+        accountSubtype: "bank",
+        displayName: "Operating",
+        id: "account-bank",
+        propertyId: null,
+      },
     ],
     ...overrides,
   };

@@ -809,6 +809,78 @@ type RpcFunctionOverrides = {
     }
   >;
   update_unit: UpdateUnitRpc;
+  submit_expense_with_accounts: {
+    Args: {
+      p_category_account_id: string;
+      p_currency: CurrencyCode;
+      p_expense_date: string;
+      p_idempotency_key: string;
+      p_internal_cost_amount: number | string;
+      p_internal_markup_amount: number | string;
+      p_organization_id: string;
+      p_pay_from_account_id: string;
+      p_property_id: string;
+      p_reference: string | null;
+      p_responsibility: string;
+      p_source_id: string | null;
+      p_source_type: string;
+      p_supporting_document_id: string;
+      p_tenant_invoice_id: string | null;
+      p_unit_id: string | null;
+      p_vendor_label: string;
+      p_vendor_person_id: string | null;
+    };
+    Returns: GeneratedFunctions["submit_expense"]["Returns"];
+  };
+  review_expense_with_account: {
+    Args: {
+      p_decision: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_pay_from_account_id: string | null;
+      p_reason: string | null;
+      p_submission_id: string;
+    };
+    Returns: GeneratedFunctions["review_expense"]["Returns"];
+  };
+  create_manual_tenant_charge_with_account: {
+    Args: {
+      p_amount: number;
+      p_billing_period_start: string;
+      p_category_account_id: string;
+      p_description: string | null;
+      p_due_date: string;
+      p_idempotency_key: string;
+      p_lease_id: string;
+      p_organization_id: string;
+    };
+    Returns: GeneratedFunctions["create_manual_tenant_charge"]["Returns"];
+  };
+  record_tenant_invoice_payment_with_account: {
+    Args: {
+      p_allocations: Json | null;
+      p_amount: number;
+      p_idempotency_key: string;
+      p_invoice_id: string;
+      p_organization_id: string;
+      p_received_date: string;
+      p_receiving_account_id: string;
+      p_reference: string | null;
+    };
+    Returns: string;
+  };
+  record_lease_deposit_event_with_account: {
+    Args: {
+      p_amount: number;
+      p_event_date: string;
+      p_event_type: string;
+      p_lease_deposit_id: string;
+      p_liability_account_id: string;
+      p_organization_id: string;
+      p_reference: string;
+    };
+    Returns: string;
+  };
 };
 
 type PublicFunctions = Omit<GeneratedFunctions, keyof RpcFunctionOverrides> &

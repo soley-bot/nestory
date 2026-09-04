@@ -1,14 +1,84 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { getFinanceAccountsData } from "@/features/finance-accounts/data/finance-accounts";
 import { getFinanceOperationsData } from "@/features/finance-operations/data/finance-operations";
 
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(),
 }));
 
+vi.mock("@/features/finance-accounts/data/finance-accounts", () => ({
+  getFinanceAccountsData: vi.fn(),
+  getExpenseAccountOptions: vi.fn((accounts) =>
+    accounts.filter((account: { accountClass: string }) => account.accountClass === "expense"),
+  ),
+  getLeaseChargeAccountOptions: vi.fn((accounts) =>
+    accounts.filter((account: { useForLeaseCharges: boolean }) => account.useForLeaseCharges),
+  ),
+  getLeaseDepositAccountOptions: vi.fn((accounts) =>
+    accounts.filter((account: { useForLeaseDeposits: boolean }) => account.useForLeaseDeposits),
+  ),
+  getPayFromAccountOptions: vi.fn((accounts) =>
+    accounts.filter((account: { accountSubtype: string }) =>
+      ["bank", "cash", "petty_cash", "credit_card"].includes(account.accountSubtype),
+    ),
+  ),
+}));
+
 describe("finance operations initial reads", () => {
   beforeEach(() => {
     vi.mocked(createSupabaseServerClient).mockReset();
+    vi.mocked(getFinanceAccountsData).mockReset();
+    vi.mocked(getFinanceAccountsData).mockResolvedValue({
+      groups: [],
+      properties: [],
+    });
+  });
+
+  it("loads compatible account choices for daily finance work", async () => {
+    // Break caught: exposing legacy reconciliation/category identities instead
+    // of the customer-facing Chart accounts used by operational forms.
+    const accounts = [
+      account("asset", "bank", "Operating account"),
+      account("liability", "credit_card", "Company card"),
+      account("expense", "expense", "Cleaning"),
+      account("income", "income", "Rental income", {
+        useForLeaseCharges: true,
+      }),
+      account("liability", "current_liability", "Security deposits", {
+        useForLeaseDeposits: true,
+      }),
+    ];
+    vi.mocked(getFinanceAccountsData).mockResolvedValue({
+      groups: [
+        { accountClass: "asset", accounts: [accounts[0]] },
+        { accountClass: "liability", accounts: [accounts[1], accounts[4]] },
+        { accountClass: "equity", accounts: [] },
+        { accountClass: "income", accounts: [accounts[3]] },
+        { accountClass: "expense", accounts: [accounts[2]] },
+      ],
+      properties: [],
+    } as never);
+    const harness = createFinanceReadHarness();
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+
+    const result = await getFinanceOperationsData("organization-1");
+
+    expect(result.payFromAccounts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ displayName: "Operating account" }),
+        expect.objectContaining({ displayName: "Company card" }),
+      ]),
+    );
+    expect(result.expenseAccounts).toContainEqual(
+      expect.objectContaining({ displayName: "Cleaning" }),
+    );
+    expect(result.leaseChargeAccounts).toContainEqual(
+      expect.objectContaining({ displayName: "Rental income" }),
+    );
+    expect(result.leaseDepositAccounts).toContainEqual(
+      expect.objectContaining({ displayName: "Security deposits" }),
+    );
   });
 
   it("caps database concurrency while preserving declared result order", async () => {
@@ -215,5 +285,32 @@ function createFinanceReadHarness(
       rpc: () => new Query("rpc"),
     },
     maxInFlight: () => peak,
+  };
+}
+
+function account(
+  accountClass: string,
+  accountSubtype: string,
+  displayName: string,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    accountClass,
+    accountNumber: null,
+    accountSubtype,
+    archivedAt: null,
+    defaultFor: [],
+    depth: 0,
+    description: null,
+    displayName,
+    id: `${displayName.toLowerCase().replaceAll(" ", "-")}-id`,
+    parentAccountId: null,
+    propertyId: null,
+    propertyLabel: null,
+    systemRole: null,
+    useForLeaseCharges: false,
+    useForLeaseCredits: false,
+    useForLeaseDeposits: false,
+    ...overrides,
   };
 }

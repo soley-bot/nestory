@@ -146,28 +146,22 @@ describe("FinanceOperationsScreen", () => {
   it("keeps owner-expense and tenant-billing category choices in separate workflows", async () => {
     const user = userEvent.setup();
     const input = data();
-    input.financeCategories = [
+    input.expenseAccounts = [
       {
-        archivedAt: null,
-        code: "custom_landscaping",
-        displayLabel: "Landscaping",
-        id: "category-owner-landscaping",
-        isActive: true,
-        isDefault: false,
-        namespace: "owner_expense",
-        reportingGroup: "maintenance",
-        sortOrder: 50,
+        accountClass: "expense",
+        accountSubtype: "expense",
+        displayName: "Landscaping",
+        id: "account-owner-landscaping",
+        propertyId: null,
       },
+    ];
+    input.leaseChargeAccounts = [
       {
-        archivedAt: null,
-        code: "custom_parking",
-        displayLabel: "Parking",
-        id: "category-tenant-parking",
-        isActive: true,
-        isDefault: false,
-        namespace: "tenant_billing",
-        reportingGroup: "parking",
-        sortOrder: 50,
+        accountClass: "income",
+        accountSubtype: "income",
+        displayName: "Parking",
+        id: "account-tenant-parking",
+        propertyId: null,
       },
     ];
     input.tenantInvoices = [tenantInvoice()];
@@ -183,7 +177,7 @@ describe("FinanceOperationsScreen", () => {
     await user.click(
       screen.getByRole("button", { name: "Record property expense" }),
     );
-    await user.click(screen.getByRole("combobox", { name: "Paid-cost category" }));
+    await user.click(screen.getByRole("combobox", { name: "Category" }));
     expect(screen.getByRole("option", { name: "Landscaping" })).not.toBeNull();
     expect(screen.queryByRole("option", { name: "Parking" })).toBeNull();
     owner.unmount();
@@ -197,14 +191,13 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
     await user.click(screen.getByRole("button", { name: "Bill tenant" }));
-    await user.click(screen.getByRole("combobox", { name: "Charge type" }));
+    await user.click(screen.getByRole("combobox", { name: "Category" }));
     expect(screen.getByRole("option", { name: "Parking" })).not.toBeNull();
     expect(screen.queryByRole("option", { name: "Landscaping" })).toBeNull();
     expect(screen.queryByRole("option", { name: "Manual rent" })).toBeNull();
   });
 
-  it("demotes category administration to a named Finance setup surface and restores focus", async () => {
-    const user = userEvent.setup();
+  it("routes Finance setup to the Chart of Accounts", () => {
     const input = data();
 
     render(
@@ -224,31 +217,15 @@ describe("FinanceOperationsScreen", () => {
     expect(within(setup).getByText("Finance setup")).not.toBeNull();
     expect(
       within(setup).getByText(
-        "Manage the categories used for owner expenses and tenant charges.",
+        "Configure the accounts used for expenses, charges, payments, and deposits.",
       ),
     ).not.toBeNull();
-    const trigger = within(setup).getByRole("button", {
-      name: "Manage categories",
+    const trigger = within(setup).getByRole("link", {
+      name: "Open Chart of Accounts",
     });
     expect(trigger.getAttribute("data-size")).toBe("sm");
-
-    trigger.focus();
-    await user.keyboard("{Enter}");
-    const drawer = screen.getByRole("dialog", { name: "Finance categories" });
-    expect(
-      within(drawer).getByText(
-        "Manage system labels and custom categories used by Finance workflows.",
-      ),
-    ).not.toBeNull();
-    await waitFor(() => expect(drawer.contains(document.activeElement)).toBe(true));
-
-    await user.keyboard("{Escape}");
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("dialog", { name: "Finance categories" }),
-      ).toBeNull(),
-    );
-    await waitFor(() => expect(document.activeElement).toBe(trigger));
+    expect(trigger.getAttribute("href")).toBe("/finance/accounts");
+    expect(screen.queryByRole("dialog", { name: "Finance categories" })).toBeNull();
   });
 
   it("reconciles Finance setup with the grouped portfolio work queue", () => {
@@ -794,7 +771,7 @@ describe("FinanceOperationsScreen", () => {
       dialog.querySelector<HTMLInputElement>('input[name="leaseId"]')?.value,
     ).toBe("");
     expect(
-      within(dialog).getByRole("combobox", { name: "Charge type" }),
+      within(dialog).getByRole("combobox", { name: "Category" }),
     ).not.toBeNull();
     expect(
       within(dialog).getByRole("button", { name: "Billing month" }),
@@ -806,10 +783,10 @@ describe("FinanceOperationsScreen", () => {
     expect(amount.getAttribute("placeholder")).toBe("0.00");
     expect(amount.className).toContain("text-lg");
     await user.click(
-      within(dialog).getByRole("combobox", { name: "Charge type" }),
+      within(dialog).getByRole("combobox", { name: "Category" }),
     );
     expect(screen.queryByText("Manual rent")).toBeNull();
-    expect(screen.getAllByText("Utilities").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Rental income").length).toBeGreaterThan(0);
   });
 
   it("starts tenant billing without an arbitrary category and offers Cancel", async () => {
@@ -827,11 +804,9 @@ describe("FinanceOperationsScreen", () => {
     await user.click(screen.getByRole("button", { name: "Bill tenant" }));
     const dialog = screen.getByRole("dialog", { name: "Bill tenant" });
     expect(
-      dialog.querySelector<HTMLInputElement>('input[name="chargeType"]')?.value,
-    ).toBe("");
-    expect(
-      within(dialog).getByText("Choose tenant billing category"),
-    ).not.toBeNull();
+      dialog.querySelector<HTMLInputElement>('input[name="categoryAccountId"]')?.value,
+    ).toBe("account-income-rent");
+    expect(within(dialog).getAllByText("Rental income").length).toBeGreaterThan(0);
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog", { name: "Bill tenant" })).toBeNull();
   });
@@ -1709,10 +1684,10 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByText("Management company")).not.toBeNull();
     expect(screen.getByText("Owner account after approval")).not.toBeNull();
     expect(screen.queryByText("Tenant or company")).toBeNull();
-    expect(screen.getByLabelText("Paid-cost category")).not.toBeNull();
+    expect(screen.getByLabelText("Category")).not.toBeNull();
     expect(screen.getByLabelText("Amount paid")).not.toBeNull();
     expect(screen.getByLabelText("Paid date")).not.toBeNull();
-    expect(screen.getByLabelText("Paid from account")).not.toBeNull();
+    expect(screen.getByLabelText("Pay from")).not.toBeNull();
     expect(screen.queryByText("Who paid?")).toBeNull();
     expect(
       screen.getByText(
@@ -1761,15 +1736,15 @@ describe("FinanceOperationsScreen", () => {
     });
 
     expect(valueOfNamedInput(form, "propertyId")).toBe("");
-    expect(valueOfNamedInput(form, "category")).toBe("");
-    expect(valueOfNamedInput(form, "reconciliationSourceId")).toBe("");
+    expect(valueOfNamedInput(form, "categoryAccountId")).toBe("");
+    expect(valueOfNamedInput(form, "payFromAccountId")).toBe("");
     expect(within(form).getByRole("combobox", { name: "Property" }).textContent).toContain(
       "Choose property",
     );
-    expect(within(form).getByLabelText("Paid-cost category").textContent).toContain(
-      "Choose owner expense category",
+    expect(within(form).getByLabelText("Category").textContent).toContain(
+      "Choose category",
     );
-    expect(within(form).getByLabelText("Paid from account").textContent).toContain(
+    expect(within(form).getByLabelText("Pay from").textContent).toContain(
       "Choose property first",
     );
 
@@ -1777,7 +1752,7 @@ describe("FinanceOperationsScreen", () => {
     await user.click(
       screen.getByRole("option", { name: "HOME — Riverside Home" }),
     );
-    await user.click(within(form).getByLabelText("Paid from account"));
+    await user.click(within(form).getByLabelText("Pay from"));
     expect(
       screen.getByRole("option", { name: "Company-collected funds" }),
     ).not.toBeNull();
@@ -1807,8 +1782,8 @@ describe("FinanceOperationsScreen", () => {
       name: "Record property expense form",
     });
     expect(valueOfNamedInput(form, "propertyId")).toBe("");
-    expect(valueOfNamedInput(form, "category")).toBe("");
-    expect(valueOfNamedInput(form, "reconciliationSourceId")).toBe("");
+    expect(valueOfNamedInput(form, "categoryAccountId")).toBe("");
+    expect(valueOfNamedInput(form, "payFromAccountId")).toBe("");
   });
 
   it("previews a recoverable cost without affecting owner profit and loss", () => {
@@ -1864,8 +1839,8 @@ describe("FinanceOperationsScreen", () => {
     });
 
     expect(valueOfNamedInput(form, "propertyId")).toBe("");
-    expect(valueOfNamedInput(form, "category")).toBe("");
-    expect(valueOfNamedInput(form, "reconciliationSourceId")).toBe("");
+    expect(valueOfNamedInput(form, "categoryAccountId")).toBe("");
+    expect(valueOfNamedInput(form, "payFromAccountId")).toBe("");
     expect(valueOfNamedInput(form, "tenantInvoiceId")).toBe("");
     expect(
       within(form).getByRole("button", { name: "Choose invoice first" }),
@@ -2221,9 +2196,9 @@ describe("FinanceOperationsScreen", () => {
       name: "Paid from",
     });
     await user.click(paidFrom);
-    await user.click(screen.getByRole("option", { name: "BANK · Operating" }));
+    await user.click(screen.getByRole("option", { name: "Company-collected funds" }));
     const confirmation = within(dialog).getByRole("checkbox", {
-      name: "I confirm BANK · Operating was the account used to pay this cost.",
+      name: "I confirm Company-collected funds was the account used to pay this cost.",
     });
     await user.click(confirmation);
     expect(
@@ -2234,7 +2209,7 @@ describe("FinanceOperationsScreen", () => {
 
     await user.click(paidFrom);
     await user.click(
-      screen.getByRole("option", { name: "CASH · Property cash box" }),
+      screen.getByRole("option", { name: "Company card" }),
     );
     expect(
       within(dialog)
@@ -3536,6 +3511,15 @@ function valueOfNamedInput(container: Element, name: string) {
 function data(): FinanceOperationsData {
   return {
     accountEntries: [],
+    expenseAccounts: [
+      {
+        accountClass: "expense",
+        accountSubtype: "expense",
+        displayName: "Cleaning",
+        id: "account-expense-cleaning",
+        propertyId: null,
+      },
+    ],
     expenseSubmissions: [],
     financeCategories: [
       {
@@ -3647,6 +3631,24 @@ function data(): FinanceOperationsData {
       },
     ],
     ownerInvoices: [],
+    leaseChargeAccounts: [
+      {
+        accountClass: "income",
+        accountSubtype: "income",
+        displayName: "Rental income",
+        id: "account-income-rent",
+        propertyId: null,
+      },
+    ],
+    leaseDepositAccounts: [
+      {
+        accountClass: "liability",
+        accountSubtype: "current_liability",
+        displayName: "Security deposits",
+        id: "account-liability-deposits",
+        propertyId: null,
+      },
+    ],
     peopleOptions: [
       {
         id: "person-tenant",
@@ -3673,6 +3675,22 @@ function data(): FinanceOperationsData {
         rentIncome: 780,
         runningBalance: 502,
         withdrawals: 0,
+      },
+    ],
+    payFromAccounts: [
+      {
+        accountClass: "asset",
+        accountSubtype: "bank",
+        displayName: "Company-collected funds",
+        id: "account-bank-operating",
+        propertyId: "property-1",
+      },
+      {
+        accountClass: "liability",
+        accountSubtype: "credit_card",
+        displayName: "Company card",
+        id: "account-card-company",
+        propertyId: null,
       },
     ],
     propertyOptions: [{ id: "property-1", label: "HOME — Riverside Home" }],

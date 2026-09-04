@@ -962,7 +962,7 @@ describe("Lease payment resolution data", () => {
       propertyId,
     });
 
-    const result = await loadLeasePaymentResolutionData(client.client, input);
+    const result = await loadLeasePaymentResolutionData(client.client, input, payFromAccounts());
 
     expect(result?.invoice).toMatchObject({
       generationSource: "lease_rules_v1",
@@ -1004,7 +1004,7 @@ describe("Lease payment resolution data", () => {
     client.respond("tenant_invoice_balances", { data: null, error: null });
 
     await expect(
-      loadLeasePaymentResolutionData(client.client, input),
+      loadLeasePaymentResolutionData(client.client, input, payFromAccounts()),
     ).resolves.toBeNull();
     expect(client.tables()).toEqual(["tenant_invoice_balances"]);
   });
@@ -1028,7 +1028,7 @@ describe("Lease payment resolution data", () => {
     });
 
     await expect(
-      loadLeasePaymentResolutionData(client.client, input),
+      loadLeasePaymentResolutionData(client.client, input, payFromAccounts()),
     ).resolves.toBeNull();
     expect(client.tables()).toEqual(["tenant_invoice_balances"]);
   });
@@ -1042,14 +1042,21 @@ describe("Lease payment resolution data", () => {
       propertyId,
     });
 
-    const result = await loadLeasePaymentResolutionData(client.client, input);
+    const result = await loadLeasePaymentResolutionData(client.client, input, payFromAccounts());
 
     expect(result).toMatchObject({ nextInvoiceDueDate: "2026-09-01" });
-    expect(result?.reconciliationSources).toEqual([
-      { id: "source-1", label: "ABA · Operating", propertyId },
-      { id: "source-global", label: "CASH · General", propertyId: null },
+    expect(result?.payFromAccounts).toEqual([
+      expect.objectContaining({ id: "account-bank", displayName: "Operating" }),
+      expect.objectContaining({ id: "account-card", displayName: "Company card" }),
     ]);
   });
+
+  function payFromAccounts() {
+    return [
+      { accountClass: "asset" as const, accountSubtype: "bank", displayName: "Operating", id: "account-bank", propertyId },
+      { accountClass: "liability" as const, accountSubtype: "credit_card", displayName: "Company card", id: "account-card", propertyId: null },
+    ];
+  }
 });
 
 type LeasePaymentResolutionTable =

@@ -50,6 +50,7 @@ import {
 import { retryTenantReceiptPdfAction } from "@/features/finance-operations/actions";
 import type { TenantPaymentReceiptResult } from "@/features/finance-operations/components/tenant-invoice-payment-form";
 import type {
+  FinanceOperationsData,
   FinanceOperationsActionState,
   LeasePaymentResolutionData,
 } from "@/features/finance-operations/finance-operations.types";
@@ -114,6 +115,7 @@ export function LeaseDetailScreen({
   canRecordPayments,
   canViewFinance,
   lease,
+  leaseDepositAccounts,
   paymentResolution,
   permissions,
   propertyOptions,
@@ -124,6 +126,7 @@ export function LeaseDetailScreen({
   activeSection: LeaseRecordSection;
   billingFormConfig?: LeaseBillingFormConfig;
   lease: LeaseSummary;
+  leaseDepositAccounts: FinanceOperationsData["leaseDepositAccounts"];
   permissions: LeaseActionPermissions;
   propertyOptions: LeasePropertyOption[];
   tenantOptions: LeaseTenantOption[];
@@ -366,6 +369,7 @@ export function LeaseDetailScreen({
             <LeaseDepositPanel
               canManage={permissions.canChangeTerms && !lease.isArchived}
               lease={lease}
+              leaseDepositAccounts={leaseDepositAccounts}
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
             />
@@ -456,11 +460,13 @@ export function LeaseDetailScreen({
 function LeaseDepositPanel({
   canManage,
   lease,
+  leaseDepositAccounts,
   onClose,
   onSuccess,
 }: {
   canManage: boolean;
   lease: LeaseSummary;
+  leaseDepositAccounts: FinanceOperationsData["leaseDepositAccounts"];
   onClose: () => void;
   onSuccess: (message: string) => void;
 }) {
@@ -587,6 +593,18 @@ function LeaseDepositPanel({
                     defaultValue={activityOptions[0]?.value}
                     name="eventType"
                     options={activityOptions}
+                  />
+                </DepositField>
+                <DepositField label="Liability account">
+                  <SelectControl
+                    ariaLabel="Deposit liability account"
+                    defaultValue={leaseDepositAccounts[0]?.id}
+                    name="liabilityAccountId"
+                    options={leaseDepositAccounts.map((account) => ({
+                      label: account.displayName,
+                      value: account.id,
+                    }))}
+                    required
                   />
                 </DepositField>
                 <DepositField label="Date">
