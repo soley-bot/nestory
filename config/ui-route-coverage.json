@@ -3287,8 +3287,8 @@
     }
   },
   {
-    "route": "/finance/funding-sources",
-    "source": "src/app/(dashboard)/finance/funding-sources/page.tsx",
+    "route": "/finance/accounts",
+    "source": "src/app/(dashboard)/finance/accounts/page.tsx",
     "phase": 3,
     "surface": "workspace",
     "roles": ["super_admin", "finance_manager", "finance_member"],
@@ -3304,40 +3304,77 @@
     ],
     "evidence": {
       "loading": [
-        "src/app/(dashboard)/finance/funding-sources/page.tsx",
+        "src/app/(dashboard)/finance/accounts/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
       "populated": [
-        "src/app/(dashboard)/finance/funding-sources/page.tsx",
-        "src/features/finance-sources/components/finance-sources-screen.test.tsx"
+        "src/app/(dashboard)/finance/accounts/page.tsx",
+        "src/features/finance-accounts/components/finance-accounts-screen.test.tsx"
       ],
       "empty": [
-        "src/app/(dashboard)/finance/funding-sources/page.tsx",
-        "src/features/finance-sources/components/finance-sources-screen.tsx",
-        "src/features/finance-sources/components/finance-sources-screen.test.tsx",
+        "src/app/(dashboard)/finance/accounts/page.tsx",
+        "src/features/finance-accounts/components/finance-accounts-screen.tsx",
+        "src/features/finance-accounts/components/finance-accounts-screen.test.tsx",
         "src/components/ui/empty-state.tsx"
       ],
       "error": [
-        "src/app/(dashboard)/finance/funding-sources/page.tsx",
+        "src/app/(dashboard)/finance/accounts/page.tsx",
         "src/components/ui/error-state.tsx"
       ],
       "permission-blocked": [
-        "src/app/(dashboard)/finance/funding-sources/page.tsx",
+        "src/app/(dashboard)/finance/accounts/page.tsx",
         "src/components/ui/status-notice.tsx"
       ],
       "draft": [
-        "src/app/(dashboard)/finance/funding-sources/page.tsx",
-        "src/features/finance-sources/components/finance-sources-screen.tsx",
+        "src/app/(dashboard)/finance/accounts/page.tsx",
+        "src/features/finance-accounts/components/finance-account-form.tsx",
         "src/components/ui/workflow-feedback.test.tsx"
       ],
       "saving": [
-        "src/app/(dashboard)/finance/funding-sources/page.tsx",
-        "src/features/finance-sources/components/finance-sources-screen.tsx",
+        "src/app/(dashboard)/finance/accounts/page.tsx",
+        "src/features/finance-accounts/components/finance-account-form.tsx",
         "src/components/ui/workflow-feedback.test.tsx"
       ],
       "success": [
+        "src/app/(dashboard)/finance/accounts/page.tsx",
+        "src/features/finance-accounts/actions.test.ts",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/finance/accounts",
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/finance/accounts/page.test.tsx",
+        "src/features/finance-accounts/components/finance-accounts-screen.test.tsx",
+        "src/features/finance-accounts/actions.test.ts",
+        "supabase/tests/chart_of_accounts_foundation_test.sql"
+      ],
+      "limitations": []
+    }
+  },
+  {
+    "route": "/finance/funding-sources",
+    "source": "src/app/(dashboard)/finance/funding-sources/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["super_admin", "finance_manager", "finance_member"],
+    "states": ["redirected", "permission-blocked"],
+    "evidence": {
+      "redirected": [
         "src/app/(dashboard)/finance/funding-sources/page.tsx",
-        "src/features/finance-sources/actions.test.ts",
+        "src/app/(dashboard)/finance/funding-sources/page.test.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/finance/accounts/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
     },
@@ -3351,13 +3388,15 @@
         "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
-      "queryContract": "not-applicable",
+      "queryContract": "redirect-normalized",
       "workflowEvidence": [
+        "src/app/(dashboard)/finance/funding-sources/page.tsx",
         "src/app/(dashboard)/finance/funding-sources/page.test.tsx",
-        "src/features/finance-sources/components/finance-sources-screen.test.tsx",
-        "supabase/tests/financial_reconciliation_source_management_test.sql"
+        "src/app/(dashboard)/finance/accounts/page.test.tsx"
       ],
-      "limitations": []
+      "limitations": [
+        "Legacy route permanently redirects to Chart of Accounts."
+      ]
     }
   },
   {
