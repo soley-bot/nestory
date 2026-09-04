@@ -264,7 +264,7 @@ export function toExpenseSubmissionSummary(
       (submission.source_type === "maintenance_task" &&
       submission.status === "submitted"
         ? "Choose at approval"
-        : "Funding source unavailable"),
+        : "Pay-from account unavailable"),
     id: submission.id,
     internalCost: Number(submission.internal_cost_amount),
     internalMarkup: Number(submission.internal_markup_amount),

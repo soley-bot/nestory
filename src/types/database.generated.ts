@@ -693,6 +693,203 @@ export type Database = {
           },
         ]
       }
+      finance_account_category_links: {
+        Row: {
+          account_id: string
+          category_id: string
+          organization_id: string
+        }
+        Insert: {
+          account_id: string
+          category_id: string
+          organization_id: string
+        }
+        Update: {
+          account_id?: string
+          category_id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_account_category_links_organization_id_account_id_fkey"
+            columns: ["organization_id", "account_id"]
+            isOneToOne: false
+            referencedRelation: "finance_accounts"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "finance_account_category_links_organization_id_category_id_fkey"
+            columns: ["organization_id", "category_id"]
+            isOneToOne: true
+            referencedRelation: "finance_categories"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      finance_account_roles: {
+        Row: {
+          account_id: string
+          organization_id: string
+          role_code: string
+        }
+        Insert: {
+          account_id: string
+          organization_id: string
+          role_code: string
+        }
+        Update: {
+          account_id?: string
+          organization_id?: string
+          role_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_account_roles_organization_id_account_id_fkey"
+            columns: ["organization_id", "account_id"]
+            isOneToOne: false
+            referencedRelation: "finance_accounts"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "finance_account_roles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      finance_account_source_links: {
+        Row: {
+          account_id: string
+          organization_id: string
+          source_id: string
+        }
+        Insert: {
+          account_id: string
+          organization_id: string
+          source_id: string
+        }
+        Update: {
+          account_id?: string
+          organization_id?: string
+          source_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_account_source_links_organization_id_account_id_fkey"
+            columns: ["organization_id", "account_id"]
+            isOneToOne: true
+            referencedRelation: "finance_accounts"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "finance_account_source_links_organization_id_source_id_fkey"
+            columns: ["organization_id", "source_id"]
+            isOneToOne: true
+            referencedRelation: "financial_reconciliation_sources"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      finance_accounts: {
+        Row: {
+          account_class: string
+          account_number: string | null
+          account_subtype: string
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          display_name: string
+          id: string
+          normalized_name: string | null
+          organization_id: string
+          parent_account_id: string | null
+          property_id: string | null
+          system_role: string | null
+          updated_at: string
+          updated_by: string | null
+          use_for_lease_charges: boolean
+          use_for_lease_credits: boolean
+          use_for_lease_deposits: boolean
+        }
+        Insert: {
+          account_class: string
+          account_number?: string | null
+          account_subtype: string
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          display_name: string
+          id?: string
+          normalized_name?: string | null
+          organization_id: string
+          parent_account_id?: string | null
+          property_id?: string | null
+          system_role?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          use_for_lease_charges?: boolean
+          use_for_lease_credits?: boolean
+          use_for_lease_deposits?: boolean
+        }
+        Update: {
+          account_class?: string
+          account_number?: string | null
+          account_subtype?: string
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          display_name?: string
+          id?: string
+          normalized_name?: string | null
+          organization_id?: string
+          parent_account_id?: string | null
+          property_id?: string | null
+          system_role?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          use_for_lease_charges?: boolean
+          use_for_lease_credits?: boolean
+          use_for_lease_deposits?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_accounts_parent_fkey"
+            columns: ["organization_id", "parent_account_id"]
+            isOneToOne: false
+            referencedRelation: "finance_accounts"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "finance_accounts_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "finance_accounts_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+        ]
+      }
       finance_categories: {
         Row: {
           archived_at: string | null
@@ -10068,6 +10265,22 @@ export type Database = {
         }
         Returns: string
       }
+      create_finance_account: {
+        Args: {
+          p_account_class: string
+          p_account_number: string
+          p_account_subtype: string
+          p_description: string
+          p_display_name: string
+          p_organization_id: string
+          p_parent_account_id: string
+          p_property_id: string
+          p_use_for_lease_charges: boolean
+          p_use_for_lease_credits: boolean
+          p_use_for_lease_deposits: boolean
+        }
+        Returns: string
+      }
       create_finance_category: {
         Args: {
           p_display_label: string
@@ -11597,6 +11810,10 @@ export type Database = {
         Args: { p_document_id: string; p_organization_id: string }
         Returns: string
       }
+      restore_financial_reconciliation_source: {
+        Args: { p_organization_id: string; p_source_id: string }
+        Returns: string
+      }
       restore_lease: {
         Args: { p_lease_id: string; p_organization_id: string }
         Returns: string
@@ -11812,6 +12029,15 @@ export type Database = {
       }
       set_asset_photo_cover: {
         Args: { p_organization_id: string; p_photo_id: string }
+        Returns: string
+      }
+      set_finance_account_archived: {
+        Args: {
+          p_account_id: string
+          p_archived: boolean
+          p_organization_id: string
+          p_replacement_account_id?: string
+        }
         Returns: string
       }
       set_finance_category_archived: {
@@ -12048,6 +12274,21 @@ export type Database = {
           p_property_id: string
           p_task_id?: string
           p_unit_id?: string
+        }
+        Returns: string
+      }
+      update_finance_account: {
+        Args: {
+          p_account_id: string
+          p_account_number: string
+          p_description: string
+          p_display_name: string
+          p_organization_id: string
+          p_parent_account_id: string
+          p_property_id: string
+          p_use_for_lease_charges: boolean
+          p_use_for_lease_credits: boolean
+          p_use_for_lease_deposits: boolean
         }
         Returns: string
       }

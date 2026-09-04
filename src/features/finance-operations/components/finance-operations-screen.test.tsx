@@ -1676,9 +1676,11 @@ describe("FinanceOperationsScreen", () => {
   });
 
   it("previews the owner-borne expense before review", () => {
+    const input = data();
+    input.reconciliationSources = [];
     render(
       <FinanceOperationsScreen
-        {...data()}
+        {...input}
         {...financeCapabilities({ canSubmitExpense: true })}
         organizationName="Sokha Property Services"
         view="expenses"
@@ -1717,6 +1719,7 @@ describe("FinanceOperationsScreen", () => {
         "After approval, available owner-held cash is applied automatically. Any remainder becomes an amount due from the owner.",
       ),
     ).not.toBeNull();
+    expect(screen.queryByText(/funding source/i)).toBeNull();
     expect(
       screen.getByLabelText("Receipt or payment reference"),
     ).toHaveProperty("required", true);

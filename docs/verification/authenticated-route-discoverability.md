@@ -1,8 +1,8 @@
 # Authenticated route discoverability
 
-<!-- contract-sha256:441a91d5b1ea6e8b82a1eff554797d3fe8cb7cbabea6c90a7e359b683387eac5 -->
+<!-- contract-sha256:359272bc01fdeea7c9918971a840c3ca0cbef24dfd1f3a7b5052d38f4d8374bf -->
 
-This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 47 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
+This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 48 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
 
 Classifications are `global`, `context`, `profile`, or `intentionally inaccessible`. An authorized page is incomplete unless its visible entry and browser journey from the current shell or contextual origin both exist.
 
@@ -20,6 +20,8 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 | `/finance` | `requireFinanceContext` / `canReadFinance` | global via shell-finance; pending sa:finance | global via shell-finance; pending fm:finance | global via shell-finance; pending fmem:finance | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
 <!-- authenticated-route:/finance/advanced -->
 | `/finance/advanced` | `requireFinanceContext` / `canReadFinance` | global via shell-advanced-finance; pending sa:finance-advanced | global via shell-advanced-finance; pending fm:finance-advanced | global via shell-advanced-finance; pending fmem:finance-advanced | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
+<!-- authenticated-route:/finance/funding-sources -->
+| `/finance/funding-sources` | `requireFinanceContext` / `canReadFinance` | context via finance-funding-sources; pending sa:finance-funding-sources | context via finance-funding-sources; pending fm:finance-funding-sources | context via finance-funding-sources; pending fmem:finance-funding-sources | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
 <!-- authenticated-route:/financial-timeline -->
 | `/financial-timeline` | `requireSuperAdminContext` / `canManageAccess` | global via shell-financial-timeline; pending sa:financial-timeline | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/import -->
