@@ -270,6 +270,34 @@ describe("PropertyAccountPage", () => {
     expect(within(focusedRow!).getByText("2026-08-01")).toBeTruthy();
     expect(screen.getByText("1–6 of 6")).toBeTruthy();
   });
+
+  it("reveals an exact reversal focus on its corrections page and anchor", async () => {
+    const currentData = await mocks.ownerBalanceData.getMockImplementation()!();
+    const focusAllocationSetId = "a0000000-0000-0000-0000-000000000001";
+    mocks.ownerBalanceData.mockResolvedValue({
+      ...currentData,
+      sources: Array.from({ length: 9 }, (_, index) => reversalActivitySource(index)),
+    });
+
+    render(
+      await PropertyAccountPage({
+        params: Promise.resolve({ propertyId }),
+        searchParams: Promise.resolve({
+          activity: "corrections",
+          focusAllocationSetId,
+          month: "2026-08",
+          ownerPersonId: ownerId,
+          page: "1",
+        }),
+      }),
+    );
+
+    const focusedRow = document.getElementById(`owner-source-${focusAllocationSetId}`);
+    expect(focusedRow).not.toBeNull();
+    expect(focusedRow?.getAttribute("aria-current")).toBe("true");
+    expect(within(focusedRow!).getByText("2026-08-01")).toBeTruthy();
+    expect(screen.getByText("9–9 of 9")).toBeTruthy();
+  });
 });
 
 function extraActivitySource(index: number) {
@@ -293,5 +321,15 @@ function extraActivitySource(index: number) {
     sourceId: `70000000-0000-0000-0000-${suffix}`,
     sourceLineId: `80000000-0000-0000-0000-${suffix}`,
     sourceType: "owner_contribution",
+  };
+}
+
+function reversalActivitySource(index: number) {
+  const suffix = String(index + 1).padStart(12, "0");
+  return {
+    ...extraActivitySource(index),
+    allocationSetId: `a0000000-0000-0000-0000-${suffix}`,
+    reversalOfAllocationSetId: `b0000000-0000-0000-0000-${suffix}`,
+    sourceType: "reversal",
   };
 }

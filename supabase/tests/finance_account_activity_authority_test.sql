@@ -247,6 +247,9 @@ WHERE organization_id = :'organization_id'::uuid
   AND system_role = 'owner_contributions'
 \gset
 
+SELECT set_config(
+  'app.owner_balance_write_context', 'checked-owner-balance-v1', true
+);
 INSERT INTO public.owner_event_allocation_sets (
   id, organization_id, property_id, currency, event_date, source_type,
   source_id, source_line_id, gross_signed_amount, source_fingerprint,
@@ -260,6 +263,7 @@ INSERT INTO public.owner_event_allocation_sets (
   100.00, repeat('a', 64), 'effective_roster', NULL, NULL,
   transaction_timestamp() - interval '1 second', :'actor_id'::uuid
 );
+SELECT set_config('app.owner_balance_write_context', '', true);
 
 SELECT set_config('request.jwt.claim.sub', :'actor_id', true);
 SET LOCAL ROLE authenticated;
@@ -273,6 +277,9 @@ SELECT public.set_finance_account_archived(
 );
 RESET ROLE;
 
+SELECT set_config(
+  'app.owner_balance_write_context', 'checked-owner-balance-v1', true
+);
 INSERT INTO public.owner_event_allocation_sets (
   id, organization_id, property_id, currency, event_date, source_type,
   source_id, source_line_id, gross_signed_amount, source_fingerprint,
@@ -287,6 +294,7 @@ INSERT INTO public.owner_event_allocation_sets (
   :'owner_original_set'::uuid,
   transaction_timestamp() + interval '1 second', :'actor_id'::uuid
 );
+SELECT set_config('app.owner_balance_write_context', '', true);
 
 SELECT set_config('request.jwt.claim.sub', :'restricted_actor_id', true);
 SET LOCAL ROLE authenticated;

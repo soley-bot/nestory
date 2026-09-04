@@ -391,6 +391,51 @@ describe("getFinanceAccountActivity", () => {
     }));
   });
 
+  it("links owner-allocation reversals to the exact corrections row", async () => {
+    mocks.createSupabaseServerClient.mockResolvedValue(clientFixture({
+      account: accountRow({
+        account_class: "equity",
+        account_subtype: "equity",
+        id: "owner-contributions",
+        system_role: "owner_contributions",
+      }),
+      authorities: [{
+        authority_id: "owner_balance_source:reversal-allocation-1",
+        authority_kind: "event",
+        event_key: "owner_balance_source:reversal-allocation-1",
+        event_matches: true,
+        valid_from: "-infinity",
+        valid_to: null,
+      }],
+      ownerAssignments: [{ person_id: "owner-1", property_id: "property-1", started_on: "2020-01-01", ended_on: null }],
+      ownerSources: [{
+        allocation_set_id: "reversal-allocation-1",
+        event_date: "2026-08-21",
+        source_type: "reversal",
+        source_id: "reversal-1",
+        source_line_id: "reversal-1",
+        gross_signed_amount: "-500.00",
+        source_fingerprint: "reversal-fingerprint",
+        allocation_basis: "explicit_owner",
+        allocated_gross_signed_amount: "-500.00",
+        ownership_percent_snapshot: "100.000",
+        ownership_roster_hash: "reversal-hash",
+        reversal_of_allocation_set_id: "allocation-1",
+        movement_id: "reversal-movement-1",
+        component: "ips_held_owner_cash",
+        signed_amount: "-500.00",
+        reversal_of_movement_id: "movement-1",
+      }],
+      people: [{ display_name: "Owen Owner", id: "owner-1" }],
+    }));
+
+    const activity = await getFinanceAccountActivity("org-1", "owner-contributions", filters);
+
+    expect(activity?.rows[0]?.sourceHref).toBe(
+      "/properties/property-1/account?activity=corrections&month=2026-08&ownerPersonId=owner-1&focusAllocationSetId=reversal-allocation-1#owner-source-reversal-allocation-1",
+    );
+  });
+
   it("uses consumed record routes and available contacts for recognized activity", async () => {
     mocks.createSupabaseServerClient.mockResolvedValue(clientFixture({
       account: accountRow({ account_class: "income", account_subtype: "income", id: "rent" }),
