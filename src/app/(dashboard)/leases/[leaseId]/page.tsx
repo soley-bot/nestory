@@ -75,6 +75,7 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
       billingFormConfig={billingFormConfig}
       canRecordPayments={context.permissionKeys.has("finance.record_payments")}
       canViewFinance={canViewFinance}
+      canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       permissions={{
         canActivate: context.permissionKeys.has("leases.activate"),
         canArchive: context.permissionKeys.has("leases.archive"),

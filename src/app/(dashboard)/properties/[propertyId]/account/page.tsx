@@ -58,6 +58,7 @@ export default async function PropertyAccountPage({
       canAllocate={context.capabilities.canOperateFinance}
       canCorrect={context.capabilities.canCorrectFinance}
       canTransfer={context.role === "super_admin"}
+      canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       data={data}
       organizationName={context.organizationName}
       propertyAccount={{

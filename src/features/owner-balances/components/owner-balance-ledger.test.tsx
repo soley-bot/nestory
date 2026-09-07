@@ -27,6 +27,33 @@ const allocationSetId = "00000000-0000-4000-8000-000000000006";
 const movementId = "00000000-0000-4000-8000-000000000007";
 
 describe("OwnerBalanceLedger", () => {
+  it.each([false, true])("gates ownership repair in both register and issue rows by delegated authority (%s)", (canResolveOwnership) => {
+    const input = data();
+    input.accounts = [{
+      availableAmount: null, issueCodes: ["owner_roster_missing"], issueCount: 1,
+      lastActivityDate: "2026-08-28", lastActivityDetail: "sources=1",
+      ownerLabel: "Nora Owner", ownerPersonId: ownerId, periodStatus: "blocked",
+      propertyId, propertyLabel: "Riverside", remediationPath: `/properties/${propertyId}`,
+      withdrawalStatus: "blocked",
+    }];
+    input.accountTotal = 1;
+    const props = { canAllocate: false, canCorrect: false, canTransfer: false,
+      canResolveOwnership, data: input, organizationName: "IPS", selectedMonth: "2026-08" };
+    const { container, rerender } = render(<OwnerBalanceLedger {...props} />);
+    expect(screen.getByText("Action required")).toBeTruthy();
+    if (canResolveOwnership) {
+      expect(screen.getByRole("link", { name: "Resolve ownership" }).getAttribute("href")).toBe(`/properties/${propertyId}`);
+    } else {
+      expect(screen.getByRole("link", { name: "Review issues" }).getAttribute("href")).toContain("/balances?");
+      expect(container.querySelector('a[href^="/properties"]')).toBeNull();
+    }
+    rerender(<OwnerBalanceLedger {...props} selectedOwnerPersonId={ownerId} selectedPropertyId={propertyId} />);
+    const issue = screen.getByTestId(`owner-remediation-${sourceLineId}`);
+    expect(within(issue).getByText("High priority")).toBeTruthy();
+    expect(within(issue).queryByRole("link", { name: "Resolve ownership" }) !== null).toBe(canResolveOwnership);
+    expect(within(issue).queryByRole("button")).toBeNull();
+  });
+
   it("updates displayed filters when route navigation selects an exact statement account", () => {
     const props = {
       canAllocate: false, canCorrect: false, canTransfer: false,
@@ -107,6 +134,7 @@ describe("OwnerBalanceLedger", () => {
         canAllocate
         canCorrect
         canTransfer
+        canResolveOwnership
         data={data()}
         openingAuthority={<div>Opening balance queue</div>}
         organizationName="IPS"
@@ -179,6 +207,7 @@ describe("OwnerBalanceLedger", () => {
         canAllocate
         canCorrect
         canTransfer
+        canResolveOwnership
         data={{
           ...data(),
           accountTotal: 1,

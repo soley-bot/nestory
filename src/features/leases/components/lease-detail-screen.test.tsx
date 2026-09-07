@@ -90,6 +90,20 @@ afterEach(() => {
 });
 
 describe("LeaseDetailScreen", () => {
+  it.each([false, true])("gates property breadcrumbs without losing lease context (%s)", (canViewPropertyRecords) => {
+    const { container } = renderDetail("overview", makeLease(), allLeasePermissions, { canViewPropertyRecords });
+    expect(screen.getAllByText(/Riverside House/).length).toBeGreaterThan(0);
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    if (canViewPropertyRecords) {
+      expect(within(breadcrumb).getByRole("link", { name: "Properties" }).getAttribute("href")).toBe("/properties");
+      expect(container.querySelector('a[href="/units/unit-1"]')).toBeTruthy();
+    } else {
+      expect(container.querySelector('a[href="/properties"], a[href="/properties/property-1"], a[href="/units/unit-1"]')).toBeNull();
+      expect(within(breadcrumb).getByRole("link", { name: "Leases" }).getAttribute("href")).toBe("/leases");
+    }
+    expect(screen.getByRole("navigation", { name: "Lease record sections" })).toBeTruthy();
+  });
+
   it("replaces the record sections with the focused payment resolution", () => {
     renderDetail("overview", makeLease(), allLeasePermissions, {
       paymentResolution: resolutionFixture(),
@@ -1049,6 +1063,7 @@ function renderDetail(
   lease = makeLease(),
   permissions = allLeasePermissions,
   focus: {
+    canViewPropertyRecords?: boolean;
     billingFormConfig?: LeaseBillingFormConfig;
     paymentResolution?: LeasePaymentResolutionData;
     routeNotice?: {
@@ -1066,6 +1081,7 @@ function detailElement(
   lease = makeLease(),
   permissions = allLeasePermissions,
   focus: {
+    canViewPropertyRecords?: boolean;
     billingFormConfig?: LeaseBillingFormConfig;
     paymentResolution?: LeasePaymentResolutionData;
     routeNotice?: {
@@ -1081,6 +1097,7 @@ function detailElement(
       billingFormConfig={focus.billingFormConfig}
       canRecordPayments
       canViewFinance
+      canViewPropertyRecords={focus.canViewPropertyRecords}
       lease={lease}
       leaseDepositAccounts={[
         {

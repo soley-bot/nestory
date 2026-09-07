@@ -1,7 +1,9 @@
 /* @vitest-environment jsdom */
 
-import { render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+afterEach(cleanup);
 
 const mocks = vi.hoisted(() => ({
   financeData: vi.fn(),
@@ -50,6 +52,8 @@ describe("PropertyAccountPage", () => {
       },
       organizationId: "30000000-0000-0000-0000-000000000001",
       organizationName: "IPS Property Management",
+      isSuperAdmin: true,
+      permissionKeys: new Set(["properties.view", "properties.write", "finance.view"]),
       role: "super_admin",
     });
     mocks.financeData.mockResolvedValue({
@@ -160,6 +164,22 @@ describe("PropertyAccountPage", () => {
         status: "available",
       },
     });
+  });
+
+  it.each(["Finance Manager", "Finance Member"])("keeps %s property accounts readable without property record links", async (roleName) => {
+    const context = await mocks.requireFinanceContext();
+    mocks.requireFinanceContext.mockResolvedValue({ ...context, isSuperAdmin: false, role: "custom", roleName,
+      capabilities: { canCorrectFinance: roleName === "Finance Manager", canOperateFinance: roleName === "Finance Manager" },
+      permissionKeys: new Set(roleName === "Finance Manager" ? [
+        "leases.view", "leases.prepare", "leases.activate", "leases.change_terms", "leases.close", "leases.archive",
+        "finance.view", "finance.record_payments", "finance.approve_expenses", "finance.correct_records", "finance.close_periods", "finance.publish",
+      ] : ["leases.view", "finance.view", "finance.submit_expenses"]),
+    });
+    const { container } = render(await PropertyAccountPage({ params: Promise.resolve({ propertyId }), searchParams: Promise.resolve({ month: "2026-08" }) }));
+    expect(container.querySelectorAll('a[href="/properties"], a[href^="/properties/"]:not([href*="/account"]):not([href*="/finance"]), a[href^="/units/"]')).toHaveLength(0);
+    expect(screen.queryByRole("navigation", { name: "Property record sections" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Owner cash position" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Balance operations" }).getAttribute("href")).toContain("/balances?");
   });
 
   it("uses the authoritative balance model for the property account", async () => {

@@ -50,6 +50,11 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
       canAllocate={context.capabilities.canOperateFinance}
       canCorrect={context.capabilities.canCorrectFinance}
       canTransfer={context.role === "super_admin"}
+      canResolveOwnership={
+        context.permissionKeys.has("properties.view") &&
+        context.permissionKeys.has("properties.write")
+      }
+      canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       closingAuthority={
         <OwnerCloseScreen
           canClose={context.capabilities.canCloseOwnerMonth}

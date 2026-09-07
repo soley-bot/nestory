@@ -40,6 +40,8 @@ type OwnerBalanceLedgerProps = {
   canAllocate: boolean;
   canCorrect: boolean;
   canTransfer: boolean;
+  canResolveOwnership?: boolean;
+  canViewPropertyRecords?: boolean;
   closingAuthority?: ReactNode;
   data: OwnerBalanceData;
   openingAuthority?: ReactNode;
@@ -60,6 +62,8 @@ export function OwnerBalanceLedger({
   canAllocate,
   canCorrect,
   canTransfer,
+  canResolveOwnership = false,
+  canViewPropertyRecords = false,
   closingAuthority,
   data,
   openingAuthority,
@@ -73,6 +77,7 @@ export function OwnerBalanceLedger({
   if (propertyAccount && selectedPropertyId) {
     return (
       <PropertyAccountLedger
+        canViewPropertyRecords={canViewPropertyRecords}
         data={data}
         activityFilter={propertyAccount.activityFilter}
         focusAllocationSetId={propertyAccount.focusAllocationSetId}
@@ -168,6 +173,7 @@ export function OwnerBalanceLedger({
 
       {!hasExactScope ? (
         <OwnerAccountRegister
+          canResolveOwnership={canResolveOwnership}
           data={data}
           selectedMonth={selectedMonth}
           selectedOwnerPersonId={selectedOwnerPersonId}
@@ -354,6 +360,7 @@ export function OwnerBalanceLedger({
                       {data.queue.map((item) => (
                         <RemediationRow
                           canAllocate={canAllocate}
+                          canResolveOwnership={canResolveOwnership}
                           item={item}
                           key={`${item.sourceType}:${item.sourceLineId}`}
                         />
@@ -497,12 +504,14 @@ export function OwnerBalanceLedger({
 }
 
 function OwnerAccountRegister({
+  canResolveOwnership,
   data,
   selectedMonth,
   selectedOwnerPersonId,
   selectedPropertyId,
   selectedView,
 }: {
+  canResolveOwnership: boolean;
   data: OwnerBalanceData;
   selectedMonth: string;
   selectedOwnerPersonId?: string;
@@ -593,6 +602,7 @@ function OwnerAccountRegister({
             {data.accounts.map((account) => (
               <OwnerAccountRegisterRow
                 account={account}
+                canResolveOwnership={canResolveOwnership}
                 key={`${account.propertyId}:${account.ownerPersonId}`}
                 selectedMonth={selectedMonth}
                 selectedView={selectedView}
@@ -636,10 +646,12 @@ function OwnerAccountRegister({
 
 function OwnerAccountRegisterRow({
   account,
+  canResolveOwnership,
   selectedMonth,
   selectedView,
 }: {
   account: OwnerAccountRegisterRecord;
+  canResolveOwnership: boolean;
   selectedMonth: string;
   selectedView: OwnerAccountView;
 }) {
@@ -653,7 +665,7 @@ function OwnerAccountRegisterRow({
   const detailHref = `/balances?${detailParams.toString()}`;
   const nextAction = selectedView === "statements"
     ? { href: detailHref, label: "View statements" }
-    : registerNextAction(account, detailHref);
+    : registerNextAction(account, detailHref, canResolveOwnership);
 
   return (
     <tr>
@@ -734,8 +746,9 @@ function registerStatus(account: OwnerAccountRegisterRecord) {
 function registerNextAction(
   account: OwnerAccountRegisterRecord,
   detailHref: string,
+  canResolveOwnership: boolean,
 ) {
-  if (account.issueCount > 0 && account.remediationPath) {
+  if (canResolveOwnership && account.issueCount > 0 && account.remediationPath) {
     return { href: account.remediationPath, label: "Resolve ownership" };
   }
   if (account.issueCount > 0 || account.periodStatus === "blocked") {
@@ -752,6 +765,7 @@ function registerNextAction(
 
 function PropertyAccountLedger({
   activityFilter,
+  canViewPropertyRecords,
   data,
   focusAllocationSetId,
   organizationName,
@@ -762,6 +776,7 @@ function PropertyAccountLedger({
   selectedOwnerPersonId,
 }: {
   activityFilter: PropertyAccountActivityFilter;
+  canViewPropertyRecords: boolean;
   data: OwnerBalanceData;
   focusAllocationSetId?: string;
   organizationName: string;
@@ -850,10 +865,14 @@ function PropertyAccountLedger({
         breadcrumb={
           <PageBreadcrumb
             current="Owner account"
-            items={[
-              { href: "/properties", label: "Properties" },
-              { href: `/properties/${propertyId}`, label: propertyLabel },
-            ]}
+            items={
+              canViewPropertyRecords
+                ? [
+                    { href: "/properties", label: "Properties" },
+                    { href: `/properties/${propertyId}`, label: propertyLabel },
+                  ]
+                : [{ href: "/finance", label: "Finance" }]
+            }
           />
         }
         className="px-4 sm:px-6 2xl:px-8"
@@ -865,11 +884,13 @@ function PropertyAccountLedger({
         className="workspace-gutter-x space-y-4 px-4 sm:px-6 2xl:px-8"
         data-slot="property-account-workspace"
       >
-        <PropertyRecordNavigation
-          activeSection="account"
-          accountHref={`/properties/${propertyId}/account`}
-          propertyId={propertyId}
-        />
+        {canViewPropertyRecords ? (
+          <PropertyRecordNavigation
+            activeSection="account"
+            accountHref={`/properties/${propertyId}/account`}
+            propertyId={propertyId}
+          />
+        ) : null}
 
         <form
           className="flex flex-col gap-3 border-b border-border pb-3 sm:flex-row sm:items-end"
@@ -1308,9 +1329,11 @@ function WithdrawalCapacityCard({
 
 function RemediationRow({
   canAllocate,
+  canResolveOwnership,
   item,
 }: {
   canAllocate: boolean;
+  canResolveOwnership: boolean;
   item: OwnerEventAllocationQueueRecord;
 }) {
   const setupPath = remediationSetupPath(item.remediationDetail);
@@ -1342,7 +1365,7 @@ function RemediationRow({
         />
       </td>
       <td className="px-4 py-3">
-        {setupPath ? (
+        {canResolveOwnership && setupPath ? (
           <Link
             className="text-sm font-semibold text-primary underline-offset-4 hover:underline"
             href={setupPath}

@@ -70,6 +70,15 @@ describe("lease detail route", () => {
     });
   });
 
+  it.each([false, true])("delegates property navigation only with properties.view (%s)", async (canViewPropertyRecords) => {
+    requirePermission.mockResolvedValue({ organizationId: "organization-1", permissionKeys: new Set([
+      "leases.view", "finance.view", ...(canViewPropertyRecords ? ["properties.view"] : []),
+    ]) });
+    renderToStaticMarkup(await LeaseDetailPage({ params: Promise.resolve({ leaseId }), searchParams: Promise.resolve({}) }));
+    expect(requirePermission).toHaveBeenCalledWith("leases.view");
+    expect(detailSpy).toHaveBeenCalledWith(expect.objectContaining({ canViewPropertyRecords, canViewFinance: true, canRecordPayments: false }));
+  });
+
   it("loads one lease and preserves the selected operating-record section", async () => {
     const html = renderToStaticMarkup(
       await LeaseDetailPage({

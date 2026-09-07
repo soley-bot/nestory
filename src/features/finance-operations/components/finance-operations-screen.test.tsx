@@ -84,6 +84,54 @@ class ResizeObserverStub {
 }
 
 describe("FinanceOperationsScreen", () => {
+  it.each(["property", "unit"] as const)("keeps %s finance navigation usable without property record access", (kind) => {
+    const { container } = render(<FinanceOperationsScreen
+      {...data()} {...financeCapabilities({})} canViewPropertyRecords={false}
+      organizationName="IPS" selectedPropertyId="property-1" view="rent"
+      scope={{ id: kind === "property" ? "property-1" : "unit-1", kind,
+        label: "Finance scope", propertyId: "property-1", propertyLabel: "Riverside" }}
+    />);
+    const hrefs = Array.from(container.querySelectorAll("a[href]"), (link) => link.getAttribute("href"));
+    expect(hrefs.filter((href) => /^\/(properties|units)(?:\/[^/?]+)?(?:\?|$)/.test(href!))).toEqual([]);
+    expect(screen.getByRole("link", { name: "Finance" }).getAttribute("href")).toBe("/finance");
+    expect(hrefs.some((href) => href?.startsWith(`/${kind === "property" ? "properties/property-1" : "units/unit-1"}/finance`))).toBe(true);
+  });
+
+  it("keeps legacy owner-account navigation finance-safe for finance readers", () => {
+    const { container } = render(<FinanceOperationsScreen {...data()} {...financeCapabilities({})}
+      organizationName="IPS" selectedPropertyId="property-1" view="account" />);
+    expect(container.querySelector('a[href="/properties"], a[href="/properties/property-1"]')).toBeNull();
+    expect(screen.getByRole("link", { name: "Finance" }).getAttribute("href")).toBe("/finance");
+    expect(screen.getByRole("region", { name: "Account position" })).toBeTruthy();
+  });
+
+  it("exposes read-only Rent navigation without invoice money actions", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.tenantInvoices = [tenantInvoice()];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({})}
+      organizationName="IPS" view="rent" />);
+    expect(screen.getByRole("link", { name: "Rent & collections" }).getAttribute("href")).toBe("/rent-income");
+    expect(screen.queryByRole("button", { name: "Bill tenant" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Record tenant payment" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "View invoice INV-202608-001" }));
+    expect(screen.getByRole("dialog", { name: "Invoice details" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /record.*payment|receive.*(?:cash|payment)|confirm.*(?:collection|cash)/i })).toBeNull();
+  });
+
+  it.each(["property", "unit"] as const)("retains authorized %s record breadcrumbs", (kind) => {
+    render(<FinanceOperationsScreen {...data()} {...financeCapabilities({})} canViewPropertyRecords
+      organizationName="IPS" view="rent"
+      scope={{ id: kind === "property" ? "property-1" : "unit-1", kind,
+        label: "Finance scope", propertyId: "property-1", propertyLabel: "Riverside" }}
+    />);
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    const hrefs = Array.from(breadcrumb.querySelectorAll("a[href]"), (link) => link.getAttribute("href"));
+    expect(hrefs).toContain("/properties");
+    expect(hrefs).toContain("/properties/property-1");
+    if (kind === "unit") expect(hrefs).toContain("/units/unit-1");
+  });
+
   it("shows a renamed archived tenant-recharge category in the queue and review detail", async () => {
     const user = userEvent.setup();
     const input = data();
@@ -3429,6 +3477,7 @@ describe("FinanceOperationsScreen", () => {
       <FinanceOperationsScreen
         {...input}
         {...financeCapabilities({ canRecordOwnerCash: true })}
+        canViewPropertyRecords
         organizationName="Sokha Property Services"
         selectedPropertyId="property-1"
         view="account"

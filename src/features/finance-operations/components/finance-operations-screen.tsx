@@ -153,6 +153,7 @@ type FinanceOperationsScreenProps = FinanceOperationsData & {
   canRetryCurrentRent: boolean;
   canSubmitExpense: boolean;
   canViewLeases?: boolean;
+  canViewPropertyRecords?: boolean;
   initialBillingLeaseId?: string;
   initialExpenseIntent?: "owner" | "tenant";
   initialRentLeaseId?: string;
@@ -265,7 +266,9 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
               <PageBreadcrumb
                 current="Finance"
                 items={
-                  props.scope.kind === "property"
+                  !props.canViewPropertyRecords
+                    ? [{ href: "/finance", label: "Finance" }]
+                    : props.scope.kind === "property"
                     ? [
                         { href: "/properties", label: "Properties" },
                         {
@@ -832,13 +835,17 @@ function getScreen(
           breadcrumb={
             <PageBreadcrumb
               current="Owner account"
-              items={[
-                { href: "/properties", label: "Properties" },
-                {
-                  href: `/properties/${position.propertyId}`,
-                  label: position.propertyLabel,
-                },
-              ]}
+              items={
+                props.canViewPropertyRecords
+                  ? [
+                      { href: "/properties", label: "Properties" },
+                      {
+                        href: `/properties/${position.propertyId}`,
+                        label: position.propertyLabel,
+                      },
+                    ]
+                  : [{ href: "/finance", label: "Finance" }]
+              }
             />
           }
           className="px-4 py-3 sm:px-6 2xl:px-8 lg:py-3"

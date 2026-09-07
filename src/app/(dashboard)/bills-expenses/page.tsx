@@ -31,6 +31,7 @@ export default async function BillsExpensesPage({
       canReverseExpense={context.capabilities.canReverseExpense}
       canRetryCurrentRent={context.capabilities.canRetryCurrentRent}
       canSubmitExpense={context.capabilities.canSubmitExpense}
+      canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       initialExpenseIntent={initialExpenseIntent}
       organizationName={context.organizationName}
       view="expenses"

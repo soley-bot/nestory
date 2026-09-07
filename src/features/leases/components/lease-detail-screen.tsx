@@ -115,6 +115,7 @@ export function LeaseDetailScreen({
   billingFormConfig,
   canRecordPayments,
   canViewFinance,
+  canViewPropertyRecords = false,
   lease,
   leaseDepositAccounts,
   paymentResolution,
@@ -126,6 +127,7 @@ export function LeaseDetailScreen({
 }: {
   activeSection: LeaseRecordSection;
   billingFormConfig?: LeaseBillingFormConfig;
+  canViewPropertyRecords?: boolean;
   lease: LeaseSummary;
   leaseDepositAccounts: FinanceOperationsData["leaseDepositAccounts"];
   permissions: LeaseActionPermissions;
@@ -223,7 +225,7 @@ export function LeaseDetailScreen({
         breadcrumb={
           <PageBreadcrumb
             current={lease.tenantName}
-            items={[
+            items={canViewPropertyRecords ? [
               { href: "/properties", label: "Properties" },
               {
                 href: lease.hrefs.property,
@@ -237,7 +239,7 @@ export function LeaseDetailScreen({
                     },
                   ]
                 : []),
-            ]}
+            ] : [{ href: "/leases", label: "Leases" }]}
           />
         }
         className="pb-3"
