@@ -226,6 +226,16 @@ async function openContextJourney(page, journey, chain) {
       openAdvancedFinanceTool(page, chain, journey.route, "Ledger"),
     "advanced-petty-cash": () =>
       openAdvancedFinanceTool(page, chain, journey.route, "Petty cash"),
+    "finance-accounts": () =>
+      openAdvancedFinanceTool(page, chain, "/finance/accounts", "Chart of Accounts"),
+    "finance-account-detail": async () => {
+      await openAdvancedFinanceTool(page, chain, "/finance/accounts", "Chart of Accounts");
+      const activityLink = page.getByRole("link", { name: /^Activity for / }).first();
+      await activityLink.waitFor({ state: "visible", timeout: 20_000 });
+      const label = await activityLink.getAttribute("aria-label");
+      await clickAndWait(page, activityLink, journey.route);
+      chain.push(label || "Account activity");
+    },
     "property-finance-invoice": () =>
       openInvoiceFinance(page, chain, journey.route, "Open Property finance"),
     "unit-finance-invoice": () =>
@@ -317,6 +327,8 @@ async function openContextJourney(page, journey, chain) {
       openSettingsTab(page, chain, journey.route, "Branches"),
     "settings-teams": () =>
       openSettingsTab(page, chain, journey.route, "Teams"),
+    "settings-roles": () =>
+      openSettingsTab(page, chain, journey.route, "Roles"),
     "settings-access": async () => {
       await openSettingsTab(page, chain, "/settings/access", "Access");
       if (journey.route !== "/users-roles") return;
@@ -443,6 +455,11 @@ function assertAuthorizedDestination(page, route) {
 }
 
 function matchesContractPath(pathname, route) {
+  // Legacy bookmarks share the visible canonical entry. This journey proves
+  // discoverability of Chart, not a direct navigation to the retired URL.
+  if (route === "/finance/funding-sources" && pathname === "/finance/accounts") {
+    return true;
+  }
   if (route === "/users-roles" && pathname === "/settings/access") {
     return true;
   }
@@ -469,7 +486,7 @@ function entryLabel(entryId) {
 }
 
 function routeGroup(route) {
-  if (["/finance", "/rent-income", "/bills-expenses", "/balances", "/leases", "/ledger", "/petty-cash"].includes(route)) {
+  if (["/finance", "/finance/advanced", "/rent-income", "/bills-expenses", "/balances", "/leases", "/ledger", "/petty-cash"].includes(route)) {
     return "Finance";
   }
   if (["/maintenance", "/tasks", "/recurring-tasks", "/inspections", "/work-orders"].includes(route)) {

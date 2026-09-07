@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 
 import {
   buildDeniedGlobalEntryChecks,
@@ -15,6 +16,86 @@ import {
 const contract = JSON.parse(
   await readFile("config/authenticated-route-discoverability.json", "utf8"),
 );
+
+// Load the runner's actual journey functions without its top-level login/browser
+// side effects. Only the external browser boundary is replaced below.
+const runner = await readFile("scripts/smoke-authenticated-route-discoverability.mjs", "utf8");
+const journeyFunctions = runner.slice(runner.indexOf("async function openJourney("));
+function loadJourneys(boundary = {}) {
+  return runInNewContext(`${journeyFunctions}\n({ openContextJourney, matchesContractPath, routeGroup })`, {
+    URL, contract, baseUrl: "http://localhost:3000", ...boundary,
+  });
+}
+
+test("every authorized context entry has an executable browser strategy", async () => {
+  const missing = [];
+  const browserBoundary = new Error("browser boundary reached");
+  const page = new Proxy({}, { get() { throw browserBoundary; } });
+  const { openContextJourney } = loadJourneys();
+  for (const journey of buildDiscoverabilityPlan(contract).filter((item) => item.classification === "context")) {
+    try {
+      await openContextJourney(page, journey, []);
+    } catch (error) {
+      if (error !== browserBoundary) missing.push(`${journey.id}: ${error.message}`);
+    }
+  }
+  assert.deepEqual(missing, []);
+});
+
+for (const [entryId, route, expected] of [
+  ["finance-accounts", "/finance/accounts", ["Advanced", "Chart of Accounts"]],
+  ["finance-accounts", "/finance/funding-sources", ["Advanced", "Chart of Accounts"]],
+  ["finance-account-detail", "/finance/accounts/[accountId]", ["Advanced", "Chart of Accounts", "Activity for Operating bank"]],
+  ["settings-roles", "/settings/roles", ["Settings", "Roles"]],
+]) {
+  test(`${entryId} ${route} follows visible links without direct navigation`, async () => {
+    let pathname = "/overview";
+    const pages = {
+      "/overview": [{ name: "Advanced", href: "/finance/advanced" }, { name: "Settings", href: "/settings" }],
+      "/finance/advanced": [{ name: "Chart of Accounts", href: "/finance/accounts" }],
+      "/finance/accounts": [{ name: "Activity for Operating bank", href: "/finance/accounts/account-1" }],
+      "/settings": [{ name: "Roles", href: "/settings/roles" }],
+    };
+    const locate = (predicate) => {
+      const link = pages[pathname]?.find(predicate);
+      assert.ok(link, `visible link missing at ${pathname}`);
+      return {
+        first() { return this; },
+        async isVisible() { return true; },
+        async waitFor() {},
+        async click() { pathname = link.href; },
+        async textContent() { return link.name; },
+        async getAttribute(name) { return name === "aria-label" ? link.name : link.href; },
+      };
+    };
+    const page = {
+      locator(selector) {
+        const href = selector.match(/\[href="([^"]+)"\]/)?.[1];
+        return locate((link) => link.href === href);
+      },
+      getByRole(role, { name }) {
+        assert.equal(role, "link");
+        return locate((link) => typeof name === "string" ? link.name === name : name.test(link.name));
+      },
+      async waitForURL(predicate) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        assert.ok(predicate(new URL(`http://localhost:3000${pathname}`)), `unexpected destination ${pathname}`);
+      },
+      async waitForLoadState() {},
+      url() { return `http://localhost:3000${pathname}`; },
+      goto() { assert.fail("discoverability must use visible links, not goto"); },
+    };
+    const { openContextJourney, matchesContractPath } = loadJourneys();
+    const chain = [];
+    await openContextJourney(page, { entryId, route, role: "super_admin" }, chain);
+    assert.deepEqual(chain, expected);
+    assert.equal(matchesContractPath(pathname, route), true);
+  });
+}
+
+test("the Advanced entry expands the Finance sidebar group", () => {
+  assert.equal(loadJourneys().routeGroup("/finance/advanced"), "Finance");
+});
 
 test("builds one shell-start visible-link journey for every authorized role and route", () => {
   const plan = buildDiscoverabilityPlan(contract);

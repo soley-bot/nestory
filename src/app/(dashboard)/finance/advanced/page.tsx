@@ -1,11 +1,15 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import { requireFinanceContext } from "@/lib/auth/context";
 
 const advancedTools = [
+  {
+    description: "Review account structure, workflow connections, and account activity.",
+    href: "/finance/accounts",
+    label: "Chart of Accounts",
+  },
   {
     description: "Inspect the full accounting record when reconciliation requires it.",
     href: "/ledger",
@@ -20,12 +24,8 @@ const advancedTools = [
 
 export default async function AdvancedFinancePage() {
   const context = await requireFinanceContext();
-  if (
-    !context.capabilities.canCorrectFinance &&
-    !context.capabilities.canLockFinancialMonth
-  ) {
-    redirect("/no-access");
-  }
+  // This page only links to existing Finance-readable destinations. Each
+  // destination continues to enforce its own action/correction authority.
 
   return (
     <WorkspacePage

@@ -43,7 +43,6 @@ export type FinanceWorkspaceRoute =
 
 export function FinanceWorkspaceNavigation({
   activeRoute,
-  canClosePeriods = false,
   canCorrectFinance = false,
   canReadFinanceReports = false,
   canRecordPayments = false,
@@ -67,9 +66,7 @@ export function FinanceWorkspaceNavigation({
   }
   destinations.push(financeDestinations.balances);
   destinations.push(financeDestinations.accounts);
-  if (canCorrectFinance || canClosePeriods) {
-    destinations.push(financeDestinations.advanced);
-  }
+  destinations.push(financeDestinations.advanced);
 
   const visibleDestinations = canReadFinanceReports
     ? [

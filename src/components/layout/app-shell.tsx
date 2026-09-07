@@ -286,9 +286,6 @@ function getGlobalDestinations({
             has("finance.correct_records")
           );
         }
-        if (child.href === "/finance/advanced") {
-          return has("finance.correct_records") || has("finance.close_periods");
-        }
         return true;
       }),
     });

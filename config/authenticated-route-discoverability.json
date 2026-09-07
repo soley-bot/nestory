@@ -36,7 +36,7 @@
     "people-tenants": { "kind": "context", "source": "src/features/people/components/people-workspace-navigation.tsx", "hrefToken": "href: \"/tenants\"", "labelToken": "label: \"Tenants\"" },
     "people-vendors": { "kind": "context", "source": "src/features/people/components/people-workspace-navigation.tsx", "hrefToken": "href: \"/vendors\"", "labelToken": "label: \"Vendors\"" },
     "people-detail": { "kind": "context", "source": "src/features/people/components/people-table.tsx", "hrefToken": "href={`/people/${person.id}`}", "labelToken": "Open record" },
-    "finance-accounts": { "kind": "context", "source": "src/features/finance/components/finance-workspace-navigation.tsx", "hrefToken": "href: \"/finance/accounts\"", "labelToken": "label: \"Chart of Accounts\"" },
+    "finance-accounts": { "kind": "context", "source": "src/app/(dashboard)/finance/advanced/page.tsx", "hrefToken": "href: \"/finance/accounts\"", "labelToken": "label: \"Chart of Accounts\"" },
     "finance-account-detail": { "kind": "context", "source": "src/features/finance-accounts/components/finance-accounts-screen.tsx", "hrefToken": "href={`/finance/accounts/${encodeURIComponent(account.id)}`", "labelToken": "Activity for ${account.displayName}" },
     "property-detail": { "kind": "context", "source": "src/features/properties/components/property-inspector.tsx", "hrefToken": "href={`/properties/${property.id}`}", "labelToken": "Open property" },
     "property-setup": { "kind": "context", "source": "src/features/properties/components/property-screen.tsx", "hrefToken": "href=\"/properties/setup\"", "labelToken": "Set up property" },

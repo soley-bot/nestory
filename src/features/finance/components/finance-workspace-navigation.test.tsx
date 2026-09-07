@@ -93,6 +93,7 @@ describe("FinanceWorkspaceNavigation", () => {
       "Expenses",
       "Owner accounts",
       "Chart of Accounts",
+      "Advanced",
     ]);
     expect(within(navigation).queryByRole("link", { name: "Petty cash" })).toBeNull();
   });

@@ -152,7 +152,7 @@ describe("AppShell Shadcn dashboard block", () => {
     );
 
     expect(screen.getByRole("link", { name: "Portfolio review" })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Advanced" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Advanced" })).toBeTruthy();
     fireEvent.click(
       screen.getByRole("button", { name: "Expand Properties navigation" }),
     );
@@ -180,7 +180,7 @@ describe("AppShell Shadcn dashboard block", () => {
     expect(screen.queryByRole("link", { name: "Rent & collections" })).toBeNull();
     expect(screen.getByRole("link", { name: "Expenses" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Owner accounts" })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Advanced" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Advanced" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Petty cash" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Ledger" })).toBeNull();
     fireEvent.click(
