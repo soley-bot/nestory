@@ -928,8 +928,11 @@ SELECT is(
         SELECT current_period_start FROM lease_rent_state
       )
   ),
-  (SELECT current_period_start + 4 FROM lease_rent_state),
-  'the lease term supplies the due day without mutable organization policy'
+  (SELECT greatest(state.current_period_start + 4, invoice.issue_date)
+   FROM lease_rent_state AS state JOIN public.tenant_invoices AS invoice
+     ON invoice.lease_id = state.good_lease_id
+    AND invoice.billing_period_start = state.current_period_start),
+  'the lease term supplies the due day with the invoice issue-date floor'
 );
 
 SELECT is(

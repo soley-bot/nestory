@@ -660,6 +660,11 @@ test("production release runs a fail-closed aggregate Pilot Chart postflight", a
   assert.match(query, /'privilegedTriggerCount'/);
   assert.match(query, /'enabledPolicyCount'/);
   assert.match(query, /privileged_email_step_up_enforcement/);
+  assert.match(query, /trigger_record\.tgenabled IN \('O', 'A'\)/);
+  assert.match(query, /trigger_record\.tgtype = 31/);
+  assert.match(query, /trigger_record\.tgfoid = 'app_private\.enforce_privileged_email_step_up_on_organization_mutation\(\)'::regprocedure/);
+  assert.match(query, /account\.use_for_lease_charges/);
+  assert.match(query, /account\.use_for_lease_deposits/);
   assert.match(query, /finance_account_source_links/);
   assert.match(query, /finance_account_category_links/);
   assert.doesNotMatch(query, /organization\.id\s+AS|user_id\s+AS/i);

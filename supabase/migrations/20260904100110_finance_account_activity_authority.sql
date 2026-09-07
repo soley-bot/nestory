@@ -142,7 +142,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
         p_organization_id, p_property_id
       ))
   ), exact_events AS (
-    SELECT 'tenant_invoice_line:' || request.result_ids->>'lineId' AS event_key,
+    SELECT 'tenant_invoice_line:' || (request.result_ids->>'lineId') AS event_key,
       binding.primary_account_id AS account_id,
       invoice.property_id
     FROM app_private.finance_chart_workflow_idempotency_bindings AS binding
@@ -182,7 +182,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
       AND request.status = 'completed'
       AND submission.approved_responsibility_id IS NOT NULL
     UNION ALL
-    SELECT 'payment_allocation:' || request.result_ids->>'payment_allocation_id',
+    SELECT 'payment_allocation:' || (request.result_ids->>'payment_allocation_id'),
       binding.primary_account_id, allocation.property_id
     FROM app_private.finance_chart_workflow_idempotency_bindings AS binding
     JOIN app_private.financial_idempotency_requests AS request

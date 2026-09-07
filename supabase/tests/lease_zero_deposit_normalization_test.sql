@@ -202,9 +202,11 @@ SELECT is(
 
 SELECT lives_ok(
   $$
-    SELECT public.record_lease_deposit_event(
+    SELECT public.record_lease_deposit_event_with_account(
       state.organization_id,
       deposit.id,
+      (SELECT id FROM public.finance_accounts WHERE organization_id = state.organization_id
+        AND system_role = 'security_deposits'),
       'received',
       current_date,
       500,

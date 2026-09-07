@@ -2834,6 +2834,7 @@ export type Database = {
           id: string
           lease_deposit_id: string
           ledger_entry_id: string | null
+          liability_account_id: string | null
           organization_id: string
           property_id: string
           reconciliation_source_id: string | null
@@ -2850,6 +2851,7 @@ export type Database = {
           id?: string
           lease_deposit_id: string
           ledger_entry_id?: string | null
+          liability_account_id?: string | null
           organization_id: string
           property_id: string
           reconciliation_source_id?: string | null
@@ -2866,6 +2868,7 @@ export type Database = {
           id?: string
           lease_deposit_id?: string
           ledger_entry_id?: string | null
+          liability_account_id?: string | null
           organization_id?: string
           property_id?: string
           reconciliation_source_id?: string | null
@@ -2892,6 +2895,13 @@ export type Database = {
             columns: ["organization_id", "lease_deposit_id"]
             isOneToOne: false
             referencedRelation: "lease_deposits"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_deposit_events_org_liability_account_fkey"
+            columns: ["organization_id", "liability_account_id"]
+            isOneToOne: false
+            referencedRelation: "finance_accounts"
             referencedColumns: ["organization_id", "id"]
           },
           {
@@ -10408,6 +10418,19 @@ export type Database = {
         }
         Returns: Json
       }
+      create_manual_tenant_charge_with_account: {
+        Args: {
+          p_amount: number
+          p_billing_period_start: string
+          p_category_account_id: string
+          p_description: string
+          p_due_date: string
+          p_idempotency_key: string
+          p_lease_id: string
+          p_organization_id: string
+        }
+        Returns: Json
+      }
       create_organization_branch: {
         Args: {
           p_address: string
@@ -10785,6 +10808,23 @@ export type Database = {
           size_bytes: number
           storage_path: string
           submission_id: string
+        }[]
+      }
+      get_finance_account_activity_authorities: {
+        Args: {
+          p_account_id: string
+          p_organization_id: string
+          p_period_end: string
+          p_period_start: string
+          p_property_id: string
+        }
+        Returns: {
+          authority_id: string
+          authority_kind: string
+          event_key: string
+          event_matches: boolean
+          valid_from: string
+          valid_to: string
         }[]
       }
       get_finance_categories: {
@@ -11443,6 +11483,18 @@ export type Database = {
         }
         Returns: string
       }
+      record_lease_deposit_event_with_account: {
+        Args: {
+          p_amount: number
+          p_event_date: string
+          p_event_type: string
+          p_lease_deposit_id: string
+          p_liability_account_id: string
+          p_organization_id: string
+          p_reference: string
+        }
+        Returns: string
+      }
       record_owner_cash_event: {
         Args: {
           p_amount: number
@@ -11552,6 +11604,19 @@ export type Database = {
           p_organization_id: string
           p_received_date: string
           p_reconciliation_source_id: string
+          p_reference: string
+        }
+        Returns: string
+      }
+      record_tenant_invoice_payment_with_account: {
+        Args: {
+          p_allocations: Json
+          p_amount: number
+          p_idempotency_key: string
+          p_invoice_id: string
+          p_organization_id: string
+          p_received_date: string
+          p_receiving_account_id: string
           p_reference: string
         }
         Returns: string
@@ -11964,6 +12029,17 @@ export type Database = {
         }
         Returns: Json
       }
+      review_expense_with_account: {
+        Args: {
+          p_decision: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_pay_from_account_id: string
+          p_reason: string
+          p_submission_id: string
+        }
+        Returns: Json
+      }
       review_maintenance_task_completion: {
         Args: {
           p_action: string
@@ -12129,6 +12205,29 @@ export type Database = {
           p_organization_id: string
           p_property_id: string
           p_reconciliation_source_id: string
+          p_reference: string
+          p_responsibility: string
+          p_source_id: string
+          p_source_type: string
+          p_supporting_document_id: string
+          p_tenant_invoice_id: string
+          p_unit_id: string
+          p_vendor_label: string
+          p_vendor_person_id: string
+        }
+        Returns: Json
+      }
+      submit_expense_with_accounts: {
+        Args: {
+          p_category_account_id: string
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_expense_date: string
+          p_idempotency_key: string
+          p_internal_cost_amount: number
+          p_internal_markup_amount: number
+          p_organization_id: string
+          p_pay_from_account_id: string
+          p_property_id: string
           p_reference: string
           p_responsibility: string
           p_source_id: string

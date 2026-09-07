@@ -93,6 +93,20 @@ describe("Finance account actions", () => {
     });
   });
 
+  it("returns a field error when the checked hierarchy boundary rejects a grandchild", async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: {
+      code: "23514", message: "Accounts support only one level of sub-accounts",
+    } });
+    const state = await updateFinanceAccountAction(initialState, accountForm({
+      accountClass: "expense", accountSubtype: "expense", accountId,
+      displayName: "Root", parentAccountId: "30000000-0000-4000-8000-000000000001",
+    }));
+    expect(state).toEqual({ status: "error", fieldErrors: {
+      parentAccountId: ["Move this account's sub-accounts before choosing a parent."],
+    } });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
   it("updates editable account details through the checked RPC", async () => {
     const state = await updateFinanceAccountAction(initialState, accountForm({
       accountClass: "income",

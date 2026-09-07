@@ -174,14 +174,14 @@ SELECT ok(
     SELECT 1 FROM app_private.finance_account_activity_authority_history
     WHERE organization_id = :'organization_id'::uuid
       AND account_id = :'old_account_id'::uuid AND authority_kind = 'source'
-      AND valid_to IS NOT NULL
+      AND valid_to IS NULL
   ) AND EXISTS (
     SELECT 1 FROM app_private.finance_account_activity_authority_history
     WHERE organization_id = :'organization_id'::uuid
       AND account_id = :'replacement_account_id'::uuid AND authority_kind = 'source'
       AND valid_to IS NULL
   ),
-  'replacement closes the old source interval and opens a new interval'
+  'replacement preserves both accounts original source authorities'
 );
 
 SELECT set_config('request.jwt.claim.sub', :'actor_id', true);
@@ -190,10 +190,10 @@ SELECT ok(
   EXISTS (
     SELECT 1 FROM public.get_finance_account_activity_authorities(
       :'organization_id'::uuid, :'old_account_id'::uuid, NULL,
-      '2026-08-01'::date, '2026-08-31'::date
-    ) WHERE authority_kind = 'source' AND valid_to IS NOT NULL
+      CURRENT_DATE, CURRENT_DATE
+    ) WHERE authority_kind = 'source' AND valid_to IS NULL
   ),
-  'inactive accounts retain their closed historical authority'
+  'inactive accounts retain their original source authority for corrections'
 );
 SELECT is(
   (SELECT count(*) FROM public.get_finance_account_activity_authorities(
@@ -219,27 +219,55 @@ INSERT INTO app_private.finance_account_activity_authority_history (
   organization_id, authority_kind, authority_id, account_id, valid_from
 ) VALUES
   (:'organization_id'::uuid, 'category', 'fixture-category', :'scoped_account'::uuid, '-infinity'),
-  (:'organization_id'::uuid, 'category', 'hidden-category', :'hidden_account'::uuid, '-infinity'),
-  (:'organization_id'::uuid, 'system_role', 'security_deposits', :'other_deposit_account'::uuid, '-infinity');
+  (:'organization_id'::uuid, 'category', 'hidden-category', :'hidden_account'::uuid, '-infinity');
 
-ALTER TABLE public.lease_deposit_events DISABLE TRIGGER ALL;
+-- Build a real scoped lease/deposit; keep every FK and trigger enabled.
+INSERT INTO public.units (id, organization_id, property_id, unit_number, status,
+  current_rent_amount, current_rent_currency)
+VALUES ('fa6c0000-0000-4000-8000-000000000001', :'organization_id', :'property_one',
+  'ACT-01', 'vacant', 900, 'USD');
+INSERT INTO public.people (id, organization_id, display_name, party_type)
+VALUES ('fa6d0000-0000-4000-8000-000000000001', :'organization_id', 'Activity tenant', 'individual');
+INSERT INTO public.person_roles (organization_id, person_id, role)
+VALUES (:'organization_id', 'fa6d0000-0000-4000-8000-000000000001', 'tenant');
+SELECT (public.create_simplified_unit_lease(
+  :'organization_id', :'property_one', 'fa6c0000-0000-4000-8000-000000000001',
+  'fa6d0000-0000-4000-8000-000000000001', CURRENT_DATE + 30, CURRENT_DATE + 395,
+  900, 'USD', 1, 'monthly', 'draft', 500, 'USD', 'draft',
+  jsonb_build_object(
+    'primaryParty', jsonb_build_object(
+      'personId', 'fa6d0000-0000-4000-8000-000000000001', 'lifecycle', 'planned',
+      'recordSource', 'operator_confirmed', 'reason', 'activity_authority_fixture',
+      'startedOn', jsonb_build_object('date', NULL, 'kind', 'unknown', 'confidence', 'unknown'),
+      'endedOn', jsonb_build_object('date', NULL, 'kind', 'unknown', 'confidence', 'unknown')
+    ),
+    'occupancy', jsonb_build_object(
+      'lifecycle', 'reserved', 'recordSource', 'operator_confirmed', 'reason', 'activity_authority_fixture',
+      'scheduledMoveIn', jsonb_build_object('date', CURRENT_DATE + 30, 'kind', 'known', 'confidence', 'confirmed'),
+      'scheduledMoveOut', jsonb_build_object('date', CURRENT_DATE + 395, 'kind', 'known', 'confidence', 'confirmed'),
+      'actualMoveIn', jsonb_build_object('date', NULL, 'kind', 'unknown', 'confidence', 'unknown'),
+      'actualMoveOut', jsonb_build_object('date', NULL, 'kind', 'unknown', 'confidence', 'unknown')
+    ), 'participants', '[]'::jsonb
+  ), 'activity-authority-lease-v1'
+)->>'leaseId')::uuid AS authority_lease \gset
+SELECT id AS authority_deposit FROM public.lease_deposits
+WHERE organization_id = :'organization_id' AND lease_id = :'authority_lease' \gset
 INSERT INTO public.lease_deposit_events (
   id, organization_id, property_id, lease_deposit_id, event_type, event_date,
   amount, currency, reversal_of_id, liability_account_id, created_by
 ) VALUES
   (:'deposit_event'::uuid, :'organization_id'::uuid, :'property_one'::uuid,
-   'fa680000-0000-0000-0000-000000000001'::uuid, 'received', '2026-08-15',
+   :'authority_deposit'::uuid, 'received', '2026-08-15',
    100.00, 'USD', NULL, :'exact_account'::uuid, :'actor_id'::uuid),
   (:'deposit_reversal'::uuid, :'organization_id'::uuid, :'property_one'::uuid,
-   'fa680000-0000-0000-0000-000000000001'::uuid, 'reversed', '2026-08-20',
+   :'authority_deposit'::uuid, 'reversed', '2026-08-20',
    100.00, 'USD', :'deposit_event'::uuid, NULL, :'actor_id'::uuid),
   (:'unbound_deposit_event'::uuid, :'organization_id'::uuid, :'property_one'::uuid,
-   'fa680000-0000-0000-0000-000000000002'::uuid, 'received', '2026-08-18',
+   :'authority_deposit'::uuid, 'received', '2026-08-18',
    50.00, 'USD', NULL, NULL, :'actor_id'::uuid),
   (:'same_day_deposit_event'::uuid, :'organization_id'::uuid, :'property_one'::uuid,
-   'fa680000-0000-0000-0000-000000000003'::uuid, 'received', CURRENT_DATE,
+   :'authority_deposit'::uuid, 'received', CURRENT_DATE,
    75.00, 'USD', NULL, :'exact_account'::uuid, :'actor_id'::uuid);
-ALTER TABLE public.lease_deposit_events ENABLE TRIGGER ALL;
 
 SELECT id AS old_equity_account_id
 FROM public.finance_accounts
@@ -250,18 +278,26 @@ WHERE organization_id = :'organization_id'::uuid
 SELECT set_config(
   'app.owner_balance_write_context', 'checked-owner-balance-v1', true
 );
+-- This synthetic original predates the lifecycle change. Give the fixture's
+-- initial role the same legacy interval used by the migration backfill.
+UPDATE app_private.finance_account_activity_authority_history
+SET valid_from = '-infinity'
+WHERE organization_id = :'organization_id'::uuid
+  AND account_id = :'old_equity_account_id'::uuid
+  AND authority_kind IN ('role', 'system_role');
 INSERT INTO public.owner_event_allocation_sets (
   id, organization_id, property_id, currency, event_date, source_type,
   source_id, source_line_id, gross_signed_amount, source_fingerprint,
   allocation_basis, explicit_owner_person_id, reversal_of_allocation_set_id,
-  created_at, created_by
+  created_at, created_by, idempotency_key, command_payload_hash
 ) VALUES (
   :'owner_original_set'::uuid, :'organization_id'::uuid, :'property_one'::uuid,
   'USD', CURRENT_DATE - 2, 'owner_contribution',
   'fa6a0000-0000-0000-0000-000000000001'::uuid,
   'fa6b0000-0000-0000-0000-000000000001'::uuid,
   100.00, repeat('a', 64), 'effective_roster', NULL, NULL,
-  transaction_timestamp() - interval '1 second', :'actor_id'::uuid
+  transaction_timestamp() - interval '1 second', :'actor_id'::uuid,
+  'activity-authority-owner-original', repeat('a', 64)
 );
 SELECT set_config('app.owner_balance_write_context', '', true);
 
@@ -284,7 +320,7 @@ INSERT INTO public.owner_event_allocation_sets (
   id, organization_id, property_id, currency, event_date, source_type,
   source_id, source_line_id, gross_signed_amount, source_fingerprint,
   allocation_basis, explicit_owner_person_id, reversal_of_allocation_set_id,
-  created_at, created_by
+  created_at, created_by, idempotency_key, command_payload_hash
 ) VALUES (
   :'owner_reversal_set'::uuid, :'organization_id'::uuid, :'property_one'::uuid,
   'USD', CURRENT_DATE, 'reversal',
@@ -292,7 +328,8 @@ INSERT INTO public.owner_event_allocation_sets (
   'fa6b0000-0000-0000-0000-000000000002'::uuid,
   -100.00, repeat('b', 64), 'effective_roster', NULL,
   :'owner_original_set'::uuid,
-  transaction_timestamp() + interval '1 second', :'actor_id'::uuid
+  transaction_timestamp() + interval '1 second', :'actor_id'::uuid,
+  'activity-authority-owner-reversal', repeat('b', 64)
 );
 SELECT set_config('app.owner_balance_write_context', '', true);
 
@@ -302,7 +339,7 @@ SELECT is(
   (SELECT count(*) FROM public.get_finance_account_activity_authorities(
     :'organization_id'::uuid, :'scoped_account'::uuid, :'property_one'::uuid,
     '2026-08-01'::date, '2026-08-31'::date
-  )), 1::bigint,
+  ) WHERE authority_kind = 'category' AND authority_id = 'fixture-category'), 1::bigint,
   'a restricted finance member receives known-authorized account authority'
 );
 SELECT is(

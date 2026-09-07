@@ -60,6 +60,9 @@ export function FinanceAccountForm({
     account ? `${account.accountClass}:${account.accountSubtype}` : "asset:bank",
   );
   const [isSubAccount, setIsSubAccount] = useState(Boolean(account?.parentAccountId));
+  const hasChildren = Boolean(account && accounts.some(
+    (candidate) => candidate.parentAccountId === account.id,
+  ));
   const [accountClass, accountSubtype] = accountType.split(":") as [
     FinanceAccountClass,
     string,
@@ -168,11 +171,13 @@ export function FinanceAccountForm({
           <input
             checked={isSubAccount}
             className="size-4 accent-primary"
+            disabled={hasChildren}
             onChange={(event) => setIsSubAccount(event.target.checked)}
             type="checkbox"
           />
           Sub-account
         </label>
+        {hasChildren ? <p className="text-xs text-muted-foreground">Move this account&apos;s sub-accounts before choosing a parent.</p> : null}
         {isSubAccount ? (
           <RecordField
             error={state.fieldErrors?.parentAccountId?.[0]}

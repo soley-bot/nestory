@@ -41,6 +41,7 @@ SELECT results_eq(
     SELECT code, display_name, source_kind, scope_kind, currency::text
     FROM public.financial_reconciliation_sources
     WHERE organization_id = '00000000-0000-0000-0000-000000000099'
+      AND code = 'IPS_COLLECTIONS'
   $$,
   $$ VALUES (
     'IPS_COLLECTIONS'::text,

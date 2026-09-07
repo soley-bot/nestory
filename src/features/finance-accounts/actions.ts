@@ -276,7 +276,19 @@ function expectedDatabaseError(error: { code: string; message: string }): Financ
     };
   }
   const message = error.message.toLowerCase();
-  if (error.code === "22023" && message.includes("parent")) {
+  if (error.code === "23514" && message.includes("sub-accounts")) {
+    return {
+      fieldErrors: { parentAccountId: ["Move this account's sub-accounts before choosing a parent."] },
+      status: "error",
+    };
+  }
+  if (error.code === "22023" && message.includes("replacement") && message.includes("property")) {
+    return {
+      fieldErrors: { replacementAccountId: ["Choose a replacement with the same account type and property availability."] },
+      status: "error",
+    };
+  }
+  if (["22023", "23514"].includes(error.code) && message.includes("parent")) {
     return {
       fieldErrors: { parentAccountId: ["Choose a parent with the same account type."] },
       status: "error",

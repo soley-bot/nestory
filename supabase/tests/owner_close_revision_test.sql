@@ -559,8 +559,10 @@ SET LOCAL ROLE authenticated;
 SELECT pg_catalog.set_config(
   'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
 );
-SELECT public.record_lease_deposit_event(
-  '00000000-0000-0000-0000-000000000001', deposit.id, 'received',
+SELECT public.record_lease_deposit_event_with_account(
+  '00000000-0000-0000-0000-000000000001', deposit.id,
+  (SELECT id FROM public.finance_accounts WHERE organization_id = deposit.organization_id
+    AND system_role = 'security_deposits'), 'received',
   current_date,
   0.01, 'TRACK4A-ZERO-MOVEMENT'
 )
@@ -581,8 +583,10 @@ FROM public.lease_deposit_events AS event
 WHERE event.organization_id = '00000000-0000-0000-0000-000000000001'
   AND event.reference = 'TRACK4A-ZERO-MOVEMENT';
 
-SELECT public.record_lease_deposit_event(
-  '00000000-0000-0000-0000-000000000001', deposit.id, 'received',
+SELECT public.record_lease_deposit_event_with_account(
+  '00000000-0000-0000-0000-000000000001', deposit.id,
+  (SELECT id FROM public.finance_accounts WHERE organization_id = deposit.organization_id
+    AND system_role = 'security_deposits'), 'received',
   current_date,
   0.01, 'TRACK4A-ZERO-ACTIVITY'
 )

@@ -157,6 +157,15 @@ describe("FinanceAccountsScreen", () => {
     expect(within(parent).getByRole("option", { name: "Repairs and maintenance" })).toBeTruthy();
   });
 
+  it("keeps a root with children out of the sub-account workflow", async () => {
+    const user = userEvent.setup();
+    render(<FinanceAccountsScreen {...fixture()} canManageAccounts />);
+    await user.click(screen.getByRole("button", { name: "Edit Repairs and maintenance" }));
+    const drawer = screen.getByRole("dialog");
+    expect((within(drawer).getByLabelText("Sub-account") as HTMLInputElement).disabled).toBe(true);
+    expect(within(drawer).queryByLabelText("Parent account")).toBeNull();
+  });
+
   it("filters accounts by search, type, and status", async () => {
     // Break caught: wiring only the visual controls leaves the dense chart
     // impossible to narrow during ordinary account maintenance.

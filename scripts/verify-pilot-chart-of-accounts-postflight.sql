@@ -72,6 +72,19 @@ observed AS (
        AND account.account_class = required.account_class
        AND account.account_subtype = required.account_subtype
        AND account.archived_at IS NULL
+       AND (required.role_code <> 'rental_income' OR account.use_for_lease_charges)
+       AND (required.role_code <> 'security_deposits' OR account.use_for_lease_deposits)
+       AND (required.role_code <> 'operating_bank' OR EXISTS (
+         SELECT 1 FROM public.finance_account_source_links AS bank_link
+         JOIN public.financial_reconciliation_sources AS bank_source
+           ON bank_source.organization_id = bank_link.organization_id
+          AND bank_source.id = bank_link.source_id
+         WHERE bank_link.organization_id = account.organization_id
+           AND bank_link.account_id = account.id
+           AND bank_source.source_kind = 'bank'
+           AND bank_source.archived_at IS NULL
+           AND bank_source.property_id IS NOT DISTINCT FROM account.property_id
+       ))
     ),
     'activeSourceMappingViolationCount', (
       SELECT count(*)
@@ -120,6 +133,12 @@ observed AS (
           'finance_account_category_links'
         )
         AND trigger_record.tgname = 'privileged_email_step_up_enforcement'
+        AND trigger_record.tgenabled IN ('O', 'A')
+        AND trigger_record.tgtype = 31
+        AND trigger_record.tgfoid = 'app_private.enforce_privileged_email_step_up_on_organization_mutation()'::regprocedure
+        AND trigger_record.tgqual IS NULL
+        AND trigger_record.tgnargs = 0
+        AND trigger_record.tgattr = ''::int2vector
         AND NOT trigger_record.tgisinternal
     ),
     'policyCount', (

@@ -2082,9 +2082,11 @@ ORDER BY runtime.runtime_key;
 INSERT INTO owner_balance_fixture_runtime (runtime_key, runtime_id)
 SELECT
   'central-deposit-receipt',
-  public.record_lease_deposit_event(
+  public.record_lease_deposit_event_with_account(
     '00000000-0000-0000-0000-000000000001',
     deposit.id,
+    (SELECT id FROM public.finance_accounts WHERE organization_id = deposit.organization_id
+      AND system_role = 'security_deposits'),
     'received',
     current_date,
     100.00,
@@ -2101,9 +2103,11 @@ WHERE deposit.organization_id = '00000000-0000-0000-0000-000000000001'
 INSERT INTO owner_balance_fixture_runtime (runtime_key, runtime_id)
 SELECT
   'central-deposit-refund',
-  public.record_lease_deposit_event(
+  public.record_lease_deposit_event_with_account(
     '00000000-0000-0000-0000-000000000001',
     deposit.id,
+    (SELECT id FROM public.finance_accounts WHERE organization_id = deposit.organization_id
+      AND system_role = 'security_deposits'),
     'refunded',
     current_date,
     40.00,

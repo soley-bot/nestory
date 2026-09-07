@@ -510,6 +510,9 @@ function isCompatibleReplacement(account: FinanceAccountSummary, candidate: Fina
   }
 
   if (account.systemRole && candidate.systemRole) return false;
+  if (["bank", "cash", "petty_cash", "credit_card"].includes(account.accountSubtype)
+    && (candidate.accountSubtype !== account.accountSubtype
+      || candidate.propertyId !== account.propertyId)) return false;
   const requiredDefaults = new Set([
     ...account.defaultFor,
     ...(account.systemRole ? [account.systemRole] : []),

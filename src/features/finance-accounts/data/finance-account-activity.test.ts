@@ -464,6 +464,32 @@ describe("getFinanceAccountActivity", () => {
     }));
   });
 
+  it.each([
+    ["income", "tenant_invoice_line", "rent", "owner_income"],
+    ["expense", "management_fee_occurrence", "management_fee", "owner_expense"],
+  ] as const)("keeps generated %s originals and reversals on their historical account without category IDs", async (accountClass, sourceType, categoryCode, economicClass) => {
+    const events = ["original", "reversal"].map((id) => ownerProfitLossEvent({
+      categoryId: null, categoryCode, economicClass, sourceType,
+      sourceId: id, eventKey: `${sourceType}:${id}`,
+      isReversal: id === "reversal",
+      signedAmountCents: id === "reversal" ? BigInt(-1000) : BigInt(1000),
+    }));
+    mocks.iterateOwnerProfitLossEvents.mockImplementation(() => asyncRows(events));
+    for (const matches of [true, false]) {
+      mocks.createSupabaseServerClient.mockResolvedValue(clientFixture({
+        account: accountRow({ account_class: accountClass, account_subtype: accountClass,
+          id: matches ? "original-account" : "replacement-account", archived_at: matches ? "2026-09-01" : null }),
+        authorities: events.map((event) => ({
+          authority_id: event.eventKey, authority_kind: "event", event_key: event.eventKey,
+          event_matches: matches, valid_from: "-infinity", valid_to: null,
+        })),
+      }));
+      const result = await getFinanceAccountActivity("org-1", matches ? "original-account" : "replacement-account", filters);
+      expect(result?.rows).toHaveLength(matches ? 2 : 0);
+      expect(result?.total).toBe("0.00");
+    }
+  });
+
   it("restricts property choices to a property-scoped account", async () => {
     mocks.createSupabaseServerClient.mockResolvedValue(clientFixture({
       account: accountRow({ property_id: "property-1" }),
