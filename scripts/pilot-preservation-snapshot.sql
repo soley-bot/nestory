@@ -36,7 +36,18 @@ snapshot AS (
     'ownerComponentMovementCount', (SELECT count(*) FROM public.owner_component_movements AS record JOIN pilot ON pilot.id = record.organization_id),
     'ownerStatementPublicationCount', (SELECT count(*) FROM public.owner_statement_publications AS record JOIN pilot ON pilot.id = record.organization_id),
     'timelineEventCount', (SELECT count(*) FROM public.timeline_events AS record JOIN pilot ON pilot.id = record.organization_id),
-    'activityLogCount', (SELECT count(*) FROM public.activity_logs AS record JOIN pilot ON pilot.id = record.organization_id)
+    'activityLogCount', (SELECT count(*) FROM public.activity_logs AS record JOIN pilot ON pilot.id = record.organization_id),
+    'privilegedStepUpPolicyCount', (
+      SELECT count(*)
+      FROM app_private.privileged_email_step_up_policies AS policy
+      JOIN pilot ON pilot.id = policy.organization_id
+    ),
+    'privilegedStepUpEnabledPolicyCount', (
+      SELECT count(*)
+      FROM app_private.privileged_email_step_up_policies AS policy
+      JOIN pilot ON pilot.id = policy.organization_id
+      WHERE policy.enforcement_enabled
+    )
   ) AS value
 )
 SELECT value AS pilot_preservation

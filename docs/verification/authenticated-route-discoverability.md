@@ -1,8 +1,8 @@
 # Authenticated route discoverability
 
-<!-- contract-sha256:c76bed360b3d03ab8d42b559fd064b01bcce87ba89898e464a7d87b6ecdf99e7 -->
+<!-- contract-sha256:47170b1a20891d6c6dc8224bbd4d2740bd61acf75c9bb708301592bbae3ae3ba -->
 
-This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 49 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
+This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 50 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
 
 Classifications are `global`, `context`, `profile`, or `intentionally inaccessible`. An authorized page is incomplete unless its visible entry and browser journey from the current shell or contextual origin both exist.
 
@@ -22,6 +22,8 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 | `/finance/advanced` | `requireFinanceContext` / `canReadFinance` | global via shell-advanced-finance; pending sa:finance-advanced | global via shell-advanced-finance; pending fm:finance-advanced | global via shell-advanced-finance; pending fmem:finance-advanced | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
 <!-- authenticated-route:/finance/accounts -->
 | `/finance/accounts` | `requireFinanceContext` / `canReadFinance` | context via finance-accounts; pending sa:finance-accounts | context via finance-accounts; pending fm:finance-accounts | context via finance-accounts; pending fmem:finance-accounts | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
+<!-- authenticated-route:/finance/accounts/[accountId] -->
+| `/finance/accounts/[accountId]` | `requireFinanceContext` / `canReadFinance` | context via finance-account-detail; pending sa:finance-account-detail | context via finance-account-detail; pending fm:finance-account-detail | context via finance-account-detail; pending fmem:finance-account-detail | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
 <!-- authenticated-route:/finance/funding-sources -->
 | `/finance/funding-sources` | `permanentRedirect` / `canReadFinance` | context via finance-accounts; pending sa:finance-funding-sources-redirect | context via finance-accounts; pending fm:finance-funding-sources-redirect | context via finance-accounts; pending fmem:finance-funding-sources-redirect | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
 <!-- authenticated-route:/financial-timeline -->
@@ -115,4 +117,5 @@ Browser evidence pending the exact-HEAD local fixture run.
 
 - Public, authentication, invitation, API, and error routes are outside this authenticated dashboard inventory.
 - Direct-denial checks prove authorization only; they are not counted as discoverability evidence.
+- Chart of Accounts and account activity are Finance-readable; account lifecycle mutations remain Super Admin-only.
 - Hosted Supabase, Vercel, email, real IPS data, and production deployment remain unchanged.

@@ -230,6 +230,59 @@ VALUES (
   'Asia/Phnom_Penh'
 );
 
+-- Stable local-only Chart sample used by the account-activity route and daily
+-- Expense Category selector. The account has no real account number, and its
+-- category link preserves the existing operational category authority.
+INSERT INTO public.finance_accounts (
+  id,
+  organization_id,
+  parent_account_id,
+  account_class,
+  account_subtype,
+  account_number,
+  display_name,
+  description,
+  created_by,
+  updated_by
+)
+SELECT
+  'a1000000-0000-4000-8000-000000000001',
+  '00000000-0000-0000-0000-000000000001',
+  parent.id,
+  'expense',
+  'expense',
+  NULL,
+  'Plumbing',
+  'Synthetic local fixture account; no real account number.',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+FROM public.finance_accounts AS parent
+WHERE parent.organization_id = '00000000-0000-0000-0000-000000000001'
+  AND parent.display_name = 'Repairs and maintenance';
+
+INSERT INTO public.finance_categories (
+  id,
+  organization_id,
+  namespace,
+  code,
+  display_label,
+  reporting_group,
+  sort_order,
+  created_by,
+  updated_by
+)
+VALUES (
+  'a2000000-0000-4000-8000-000000000001',
+  '00000000-0000-0000-0000-000000000001',
+  'owner_expense',
+  'fixture_plumbing',
+  'Plumbing',
+  'maintenance',
+  90,
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
 INSERT INTO public.organization_branches (
   id,
   organization_id,

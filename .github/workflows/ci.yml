@@ -406,6 +406,16 @@ jobs:
           test -s "$after_path"
           diff --unified=0 "$before_path" "$after_path"
 
+      - name: Verify Pilot Chart of Accounts postflight
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          readonly output="$(npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/verify-pilot-chart-of-accounts-postflight.sql)"
+          jq -ce '.rows | select(length == 1) | .[0].pilot_chart_of_accounts_postflight' <<<"$output"
+
       - name: Lint linked database
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
