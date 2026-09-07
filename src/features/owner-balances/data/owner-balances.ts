@@ -61,6 +61,12 @@ type OwnerBalanceScope = {
 const OWNER_ACCOUNT_REGISTER_PAGE_SIZE = 12;
 const OWNER_ACCOUNT_REGISTER_RPC_CONCURRENCY = 4;
 
+type OwnerAccountReadContext = {
+  properties: { id: string; code: string; name: string }[];
+  people: { id: string; display_name: string }[];
+  assignments: { id: string; property_id: string; person_id: string; started_on: string | null; ended_on: string | null }[];
+};
+
 const PERIOD_STATUSES = new Set<OwnerBalancePeriodStatus>([
   "blocked",
   "closed",
@@ -74,36 +80,23 @@ export async function getOwnerBalanceData(
   const context = await requireOwnerBalanceReadContext();
   const supabase = await createSupabaseServerClient();
 
-  const [propertiesResult, peopleResult, assignmentsResult] = await Promise.all([
-    supabase
-      .from("properties")
-      .select("id, code, name, archived_at")
-      .eq("organization_id", context.organizationId)
-      .is("archived_at", null)
-      .order("code"),
-    supabase
-      .from("people")
-      .select("id, display_name, archived_at")
-      .eq("organization_id", context.organizationId)
-      .is("archived_at", null)
-      .order("display_name"),
-    supabase
-      .from("property_owners")
-      .select("id, property_id, person_id, started_on, ended_on, archived_at")
-      .eq("organization_id", context.organizationId)
-      .is("archived_at", null)
-      .order("started_on"),
-  ]);
-
-  if (propertiesResult.error || peopleResult.error || assignmentsResult.error) {
+  const scopeResult = await supabase.rpc("get_owner_account_read_context", {
+    p_organization_id: context.organizationId,
+    p_requested_property_id: scope.propertyId,
+  });
+  if (scopeResult.error) {
     throw new Error("Unable to load authoritative owner balance scope.");
   }
+  const readContext = scopeResult.data as unknown as OwnerAccountReadContext | null;
+  if (!readContext || !Array.isArray(readContext.properties) || !Array.isArray(readContext.people) || !Array.isArray(readContext.assignments)) {
+    throw new Error("Unable to load authoritative owner balance scope: Invalid account projection.");
+  }
 
-  const propertyOptions = (propertiesResult.data ?? []).map((property) => ({
+  const propertyOptions = readContext.properties.map((property) => ({
     id: property.id,
     label: formatPropertyOptionLabel(property),
   }));
-  const assignments = assignmentsResult.data ?? [];
+  const assignments = readContext.assignments;
   const explicitOwnerIds = new Set(
     assignments.map((assignment) => assignment.person_id),
   );
@@ -113,7 +106,7 @@ export async function getOwnerBalanceData(
     propertyIds.add(assignment.property_id);
     ownerPropertyIds.set(assignment.person_id, propertyIds);
   }
-  const ownerOptions = (peopleResult.data ?? [])
+  const ownerOptions = readContext.people
     .filter((person) => explicitOwnerIds.has(person.id))
     .map((person) => ({
       id: person.id,

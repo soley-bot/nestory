@@ -35,7 +35,7 @@ describe("opening balance authority loader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireReadContext.mockResolvedValue({ organizationId });
-    mocks.rpc.mockReturnValue(query({
+    mocks.rpc.mockReturnValue(rosterQuery({
       data: [
         {
           active_owner_count: 1,
@@ -89,6 +89,30 @@ describe("opening balance authority loader", () => {
     });
   });
 
+  it.each([null, {}, { readiness: [], assignments: null }])("rejects malformed roster projection %j rather than inventing an empty queue", async (data) => {
+    mocks.rpc.mockReturnValue(query({ data, error: null }));
+    await expect(getOpeningBalanceAuthorityData({ effectiveDate: "2026-08-01" })).rejects.toThrow("Invalid roster projection");
+  });
+
+  it("propagates a denied property roster instead of showing empty success", async () => {
+    mocks.rpc.mockReturnValue(query({ data: null, error: { message: "Not authorized" } }));
+    await expect(getOpeningBalanceAuthorityData({ effectiveDate: "2026-08-01", propertyId })).rejects.toThrow("Not authorized");
+  });
+
+  it("loads Finance-readable roster authority without admin table visibility or a legacy organization bypass", async () => {
+    mocks.rpc.mockImplementation((name: string) => query(name === "get_owner_opening_roster_scope"
+      ? { data: { readiness: [], assignments: [{ archived_at: null, ended_on: null, id: propertyOwnerId, organization_id: organizationId, ownership_percent_text: "100.000", person_id: ownerId, property_id: propertyId, started_on: "2026-07-01" }] }, error: null }
+      : { data: null, error: { message: "Not authorized" } }));
+    const result = await getOpeningBalanceAuthorityData({ effectiveDate: "2026-08-01", propertyId });
+    expect(result.groups[0]?.rosterState).toBe("ready");
+    expect(result.groups[0]?.components.find((row) => row.component === "ips_due_to_owner")?.authority).toMatchObject({ state: "known", amount: "12.34" });
+    expect(mocks.rpc).toHaveBeenCalledWith("get_owner_opening_roster_scope", { p_organization_id: organizationId, p_cutover_date: "2026-08-01", p_property_id: propertyId });
+    expect(mocks.from.mock.calls.map(([table]) => table)).not.toEqual(expect.arrayContaining(["properties"]));
+    expect(mocks.from.mock.calls.map(([table]) => table)).not.toEqual(expect.arrayContaining(["people"]));
+    expect(mocks.from.mock.calls.map(([table]) => table)).not.toEqual(expect.arrayContaining(["person_roles"]));
+    expect(mocks.from.mock.calls.map(([table]) => table)).not.toEqual(expect.arrayContaining(["property_owners"]));
+  });
+
   it("seeds the default queue from real effective-dated property-owner assignments", async () => {
     const results = rowResults();
     results.owner_opening_balance_requests.data = [];
@@ -121,7 +145,7 @@ describe("opening balance authority loader", () => {
         status: "active",
       },
     ];
-    mocks.rpc.mockReturnValue(query({ data: [], error: null }));
+    mocks.rpc.mockReturnValue(rosterQuery({ data: [], error: null }, results.property_owners.data));
     mocks.from.mockImplementation((table: string) =>
       query(results[table as keyof typeof results]),
     );
@@ -173,7 +197,7 @@ describe("opening balance authority loader", () => {
       role: "owner",
       status: "active",
     }];
-    mocks.rpc.mockReturnValue(query({
+    mocks.rpc.mockReturnValue(rosterQuery({
       data: [{
         active_owner_count: 1,
         boundary_date: "2026-08-01",
@@ -188,7 +212,7 @@ describe("opening balance authority loader", () => {
         setup_path: `/properties/${propertyId}`,
       }],
       error: null,
-    }));
+    }, results.property_owners.data));
     mocks.from.mockImplementation((table: string) =>
       query(results[table as keyof typeof results]),
     );
@@ -202,25 +226,19 @@ describe("opening balance authority loader", () => {
     expect(result.readiness).toEqual([]);
   });
 
-  it("uses half-open effective dates and exact filters when loading assignments", async () => {
+  it("sends the exact effective date and property scope to the checked roster projection", async () => {
     await getOpeningBalanceAuthorityData({
       effectiveDate: "2026-08-01",
       ownerPersonId: ownerId,
       propertyId,
     });
 
-    const assignmentBuilder = mocks.from.mock.results.find(
-      (result) => result.value?.select?.mock?.calls?.[0]?.[0]?.includes?.("ownership_percent_text"),
-    )?.value;
-    expect(assignmentBuilder).toBeTruthy();
-    expect(assignmentBuilder.eq).toHaveBeenCalledWith("organization_id", organizationId);
-    expect(assignmentBuilder.is).toHaveBeenCalledWith("archived_at", null);
-    expect(assignmentBuilder.eq).toHaveBeenCalledWith("property_id", propertyId);
-    expect(assignmentBuilder.eq).not.toHaveBeenCalledWith("person_id", ownerId);
-    expect(assignmentBuilder.lte).toHaveBeenCalledWith("started_on", "2026-08-01");
-    expect(assignmentBuilder.or).toHaveBeenCalledWith(
-      "ended_on.is.null,ended_on.gt.2026-08-01",
-    );
+    expect(mocks.rpc).toHaveBeenCalledWith("get_owner_opening_roster_scope", {
+      p_organization_id: organizationId,
+      p_cutover_date: "2026-08-01",
+      p_property_id: propertyId,
+    });
+    expect(mocks.from).not.toHaveBeenCalledWith("property_owners");
   });
 
   it("does not seed a cross-product or an invalid effective roster", async () => {
@@ -257,10 +275,10 @@ describe("opening balance authority loader", () => {
         status: "active",
       },
     ];
-    mocks.rpc.mockReturnValue(query({
+    mocks.rpc.mockReturnValue(rosterQuery({
       data: [readiness("100.000", propertyId)],
       error: null,
-    }));
+    }, results.property_owners.data));
     mocks.from.mockImplementation((table: string) =>
       query(results[table as keyof typeof results]),
     );
@@ -383,9 +401,10 @@ describe("opening balance authority loader", () => {
     });
 
     expect(mocks.requireReadContext).toHaveBeenCalledOnce();
-    expect(mocks.rpc).toHaveBeenCalledWith("get_owner_roster_readiness", {
+    expect(mocks.rpc).toHaveBeenCalledWith("get_owner_opening_roster_scope", {
       p_cutover_date: "2026-08-01",
       p_organization_id: organizationId,
+      p_property_id: propertyId,
     });
     for (const call of mocks.from.mock.results.slice(0, 3)) {
       const builder = call.value;
@@ -395,18 +414,11 @@ describe("opening balance authority loader", () => {
       expect(builder.eq).toHaveBeenCalledWith("owner_person_id", ownerId);
       expect(builder.eq).toHaveBeenCalledWith("currency", "USD");
     }
-    const readinessBuilder = mocks.rpc.mock.results[0]?.value;
-    expect(readinessBuilder.select).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "ownership_percent_total_text:ownership_percent_total::text",
-      ),
-    );
-    expect(readinessBuilder.eq).toHaveBeenCalledWith("property_id", propertyId);
   });
 
   it("maps readiness percentages as exact cast text on both sides of 100", async () => {
     mocks.rpc.mockReturnValue(
-      query({
+      rosterQuery({
         data: [
           readiness("99.999", propertyId),
           readiness("100.001", "00000000-0000-4000-8000-000000000099"),
@@ -596,6 +608,10 @@ function known(component: string, amount: string, entryCount: number, latestEntr
     owner_person_id: ownerId,
     property_id: propertyId,
   };
+}
+
+function rosterQuery(result: { data: unknown[]; error: unknown }, assignments: Record<string, unknown>[] = []) {
+  return query({ data: { readiness: result.data, assignments }, error: result.error });
 }
 
 function query(result: { data: unknown; error: unknown }) {

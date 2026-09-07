@@ -63,7 +63,7 @@ try {
 
       for (const journey of plan.filter((candidate) => candidate.role === role)) {
         const chain = await openJourney(page, journey);
-        assertAuthorizedDestination(page, journey.route);
+        await assertSettledAuthorizedDestination(page, journey.route);
         journeys.push(createPassedJourneyEvidence(journey.id, chain));
         process.stdout.write(`PASS ${journey.id} ${chain.join(" -> ")}\n`);
       }
@@ -130,7 +130,7 @@ async function openWorkspaceArrival(page) {
     (url) => !["/login", "/workspace"].includes(url.pathname),
     { timeout: 30_000 },
   );
-  assertAuthorizedDestination(page);
+  await assertSettledAuthorizedDestination(page);
   return new URL(page.url()).pathname;
 }
 
@@ -212,7 +212,7 @@ async function openContextJourney(page, journey, chain) {
     },
     "lease-detail": async () => {
       await fromGlobal(page, chain, "/leases", "Leases");
-      await page.getByRole("heading", { name: "Leases" }).waitFor({
+      await page.getByRole("heading", { name: "Leases", exact: true }).waitFor({
         state: "visible",
         timeout: 30_000,
       });
@@ -266,7 +266,7 @@ async function openContextJourney(page, journey, chain) {
         (url) => matchesContractPath(url.pathname, journey.route),
         { timeout: 30_000 },
       );
-      assertAuthorizedDestination(page, journey.route);
+      await assertSettledAuthorizedDestination(page, journey.route);
       chain.push("Set up property (empty-state entry)");
     },
     "property-detail": async () => {
@@ -437,6 +437,23 @@ async function clickAndWait(page, locator, route) {
     locator.click(),
   ]);
   await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
+  await assertSettledAuthorizedDestination(page, route);
+}
+
+async function assertSettledAuthorizedDestination(page, route) {
+  assertAuthorizedDestination(page, route);
+  // URL changes precede streamed route content. Neither a loading shell nor a
+  // same-URL ErrorState is evidence that the authorized workspace loaded.
+  await page.locator('[aria-busy="true"][data-loading-kind]:visible').waitFor({
+    state: "hidden", timeout: 30_000,
+  });
+  await page.locator('h1:visible, [data-kind="error"]:visible').first().waitFor({
+    state: "visible", timeout: 30_000,
+  });
+  const error = page.locator('[data-kind="error"]:visible').first();
+  if (await error.isVisible()) {
+    throw new Error(`${route ?? "workspace arrival"} rendered an error: ${(await error.textContent())?.trim()}`);
+  }
   assertAuthorizedDestination(page, route);
 }
 

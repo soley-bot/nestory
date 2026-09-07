@@ -11053,6 +11053,10 @@ export type Database = {
           version: number
         }[]
       }
+      get_owner_account_read_context: {
+        Args: { p_organization_id: string; p_requested_property_id?: string }
+        Returns: Json
+      }
       get_owner_available_withdrawal: {
         Args: {
           p_as_of_date: string
@@ -11154,6 +11158,14 @@ export type Database = {
           source_line_id: string
           source_type: string
         }[]
+      }
+      get_owner_opening_roster_scope: {
+        Args: {
+          p_cutover_date: string
+          p_organization_id: string
+          p_property_id?: string
+        }
+        Returns: Json
       }
       get_owner_profit_loss_events_page: {
         Args: {

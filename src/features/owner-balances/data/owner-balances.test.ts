@@ -131,6 +131,9 @@ describe("authoritative owner balance loader", () => {
       query(tableResults[table]),
     );
     mocks.rpc.mockImplementation((name: string) => {
+      if (name === "get_owner_account_read_context") {
+        return query({ data: { properties: tableResults.properties.data, people: tableResults.people.data, assignments: tableResults.property_owners.data }, error: null });
+      }
       if (name === "get_owner_balance_ledger") {
         return query({ data: ledgerRows(), error: null });
       }
@@ -308,6 +311,25 @@ describe("authoritative owner balance loader", () => {
     ]);
   });
 
+  it("populates authorized account selectors when admin property and people tables are invisible", async () => {
+    const existingRpc = mocks.rpc.getMockImplementation()!;
+    mocks.from.mockReturnValue(query({ data: [], error: null }));
+    mocks.rpc.mockImplementation((name: string, args: unknown) => name === "get_owner_account_read_context"
+      ? query({ data: {
+        properties: [{ id: propertyId, code: "RS-01", name: "Riverside" }],
+        people: [{ id: ownerId, display_name: "Nora Owner" }],
+        assignments: [{ id: propertyOwnerId, property_id: propertyId, person_id: ownerId, started_on: "2026-07-01", ended_on: null }],
+      }, error: null }) : existingRpc(name, args));
+    const result = await getOwnerBalanceData({ currency: "USD", periodStart: "2026-08-01", periodEnd: "2026-08-01" });
+    expect(result.propertyOptions).toEqual([{ id: propertyId, label: "Riverside — RS-01" }]);
+    expect(result.ownerOptions).toEqual([{ id: ownerId, label: "Nora Owner", propertyIds: [propertyId] }]);
+    expect(result.accountTotal).toBe(1);
+    expect(result.accounts[0]?.availableAmount).toBe("900719925374.09");
+    expect(mocks.from).not.toHaveBeenCalledWith("properties");
+    expect(mocks.from).not.toHaveBeenCalledWith("people");
+    expect(mocks.from).not.toHaveBeenCalledWith("property_owners");
+  });
+
   it("builds an authoritative owner-account register without requiring an exact scope", async () => {
     const result = await getOwnerBalanceData({
       currency: "USD",
@@ -411,6 +433,9 @@ describe("authoritative owner balance loader", () => {
       query(tableResults[table]),
     );
     mocks.rpc.mockImplementation((name: string) => {
+      if (name === "get_owner_account_read_context") {
+        return query({ data: { properties, people: owners, assignments }, error: null });
+      }
       if (name === "get_owner_balance_ledger") {
         return query({ data: [], error: null });
       }
@@ -443,7 +468,7 @@ describe("authoritative owner balance loader", () => {
     expect(result.accounts).toHaveLength(12);
     expect(result.accountTotal).toBe(30);
     expect(result.accountPageCount).toBe(3);
-    expect(mocks.rpc).toHaveBeenCalledTimes(36);
+    expect(mocks.rpc).toHaveBeenCalledTimes(37);
   });
 
   it("fails closed on database errors", async () => {
@@ -457,7 +482,25 @@ describe("authoritative owner balance loader", () => {
       periodEnd: "2026-08-01",
       periodStart: "2026-08-01",
       propertyId,
-    })).rejects.toThrow("Unable to load authoritative owner balances");
+    })).rejects.toThrow("Unable to load authoritative owner balance scope");
+  });
+
+  it("retains historical ownership choices while applying the original selected-period overlap", async () => {
+    const existingRpc = mocks.rpc.getMockImplementation()!;
+    const projection = await existingRpc("get_owner_account_read_context");
+    projection.data.assignments[0].ended_on = "2026-08-01";
+    mocks.rpc.mockImplementation((name: string, args: unknown) => name === "get_owner_account_read_context"
+      ? query(projection) : existingRpc(name, args));
+    const historical = await getOwnerBalanceData({ currency: "USD", periodStart: "2026-07-01", periodEnd: "2026-07-01" });
+    expect(historical.accountTotal).toBe(1);
+    const later = await getOwnerBalanceData({ currency: "USD", periodStart: "2026-09-01", periodEnd: "2026-09-01" });
+    expect(later.accountTotal).toBe(0);
+    expect(later.ownerOptions).toEqual([{ id: ownerId, label: "Nora Owner", propertyIds: [propertyId] }]);
+  });
+
+  it.each([null, {}, { properties: [], people: [], assignments: null }])("rejects malformed account projection %j without an empty successful register", async (data) => {
+    mocks.rpc.mockReturnValue(query({ data, error: null }));
+    await expect(getOwnerBalanceData({ currency: "USD", periodStart: "2026-08-01", periodEnd: "2026-08-01" })).rejects.toThrow("Invalid account projection");
   });
 });
 

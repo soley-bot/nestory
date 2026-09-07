@@ -22,10 +22,51 @@ const contract = JSON.parse(
 const runner = await readFile("scripts/smoke-authenticated-route-discoverability.mjs", "utf8");
 const journeyFunctions = runner.slice(runner.indexOf("async function openJourney("));
 function loadJourneys(boundary = {}) {
-  return runInNewContext(`${journeyFunctions}\n({ openContextJourney, matchesContractPath, routeGroup })`, {
+  return runInNewContext(`${journeyFunctions}\n({ openContextJourney, assertSettledAuthorizedDestination, matchesContractPath, routeGroup })`, {
     URL, contract, baseUrl: "http://localhost:3000", ...boundary,
   });
 }
+
+test("a same-URL owner account error cannot pass as a settled destination", async () => {
+  const calls = [];
+  const page = {
+    url: () => "http://localhost:3000/balances",
+    locator(selector) {
+      return {
+        first() { return this; },
+        async waitFor(options) { calls.push([selector, options.state]); },
+        async isVisible() { return selector === '[data-kind="error"]:visible'; },
+        async textContent() { return "Owner accounts could not be loaded"; },
+      };
+    },
+  };
+  await assert.rejects(loadJourneys().assertSettledAuthorizedDestination(page, "/balances"), /Owner accounts could not be loaded/);
+  assert.ok(calls.some(([selector, state]) => selector.includes("aria-busy") && state === "hidden"));
+});
+
+test("Leases waits for its exact destination heading", () => {
+  assert.match(runner, /getByRole\("heading", \{ name: "Leases", exact: true \}\)/);
+});
+
+test("a successful destination waits for loading to finish and a visible heading before recording success", async () => {
+  const calls = [];
+  const page = {
+    url: () => "http://localhost:3000/balances",
+    locator(selector) {
+      return {
+        first() { return this; },
+        async waitFor({ state }) { calls.push([selector, state]); },
+        async isVisible() { calls.push([selector, "inspected"]); return false; },
+      };
+    },
+  };
+  await loadJourneys().assertSettledAuthorizedDestination(page, "/balances");
+  assert.deepEqual(calls, [
+    ['[aria-busy="true"][data-loading-kind]:visible', "hidden"],
+    ['h1:visible, [data-kind="error"]:visible', "visible"],
+    ['[data-kind="error"]:visible', "inspected"],
+  ]);
+});
 
 test("every authorized context entry has an executable browser strategy", async () => {
   const missing = [];
@@ -85,6 +126,9 @@ for (const [entryId, route, expected] of [
     };
     const page = {
       locator(selector) {
+        if (selector.includes('aria-busy') || selector.includes('data-kind="error"') || selector.includes('h1:visible')) {
+          return { first() { return this; }, async waitFor() {}, async isVisible() { return false; } };
+        }
         const href = selector.match(/\[href="([^"]+)"\]/)?.[1];
         const prefix = selector.match(/\[href\^="([^"]+)"\]/)?.[1];
         return locate((link) => href ? link.href === href : prefix && link.href.startsWith(prefix));
