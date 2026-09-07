@@ -315,8 +315,8 @@ function PublicationAuthority({
         <div className="rounded-2xl border border-border/80 bg-card p-4 text-sm">
           <p className="font-semibold">Publication blocked</p>
           <ul className="mt-2 space-y-1 text-muted-foreground">
-            {readiness.blockers.map((blocker, index) => (
-              <li key={`${blocker.code}:${index}`}>{blockerLabel(blocker)}</li>
+            {[...new Set(readiness.blockers.map(blockerLabel))].map((label) => (
+              <li key={label}>{label}</li>
             ))}
           </ul>
         </div>

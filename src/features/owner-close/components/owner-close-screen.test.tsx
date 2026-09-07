@@ -26,6 +26,31 @@ const publicationId = "00000000-0000-4000-8000-000000000019";
 const amount = canonicalizeSignedOwnerOpeningAmount;
 
 describe("OwnerCloseScreen", () => {
+  it("summarizes identical publication blockers once without changing authority or source blockers", () => {
+    const data = closedData();
+    data.publicationReadiness = {
+      blockers: [
+        { code: "owner_close_series_stale" },
+        { code: "owner_close_input_changed" },
+      ],
+      existingPublicationId: null,
+      isReady: false,
+      revisionId: revisionOneId,
+    };
+    Object.freeze(data.publicationReadiness.blockers);
+    render(<OwnerCloseScreen canClose={false} canReopen={false} canPublish
+      data={data} monthStart="2026-08-01" ownerPersonId={ownerId}
+      propertyId={propertyId} presentation="statements" />);
+
+    expect(screen.getAllByText("This month needs review")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Publish owner statement" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Resume owner statement" })).toBeNull();
+    expect(data.publicationReadiness.blockers).toEqual([
+      { code: "owner_close_series_stale" },
+      { code: "owner_close_input_changed" },
+    ]);
+  });
+
   it.each([
     { state: "closed", latestRevision: revisionOneId, complete: true, status: "Current" },
     { state: "closed", latestRevision: revisionOneId, complete: false, status: "Files incomplete" },
