@@ -4,6 +4,12 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/features/reports/remediation-actions", () => ({
+  closeReportMonthAction: vi.fn(), reopenReportMonthAction: vi.fn(), correctReportMonthAction: vi.fn(), publishReportStatementAction: vi.fn(), resumeReportStatementAction: vi.fn(), calculateReportMonthAction: vi.fn(), assignReportSourceAction: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+
 afterEach(cleanup);
 
 vi.mock("@/features/owner-balances/lifecycle-actions", () => ({
@@ -16,6 +22,7 @@ vi.mock("@/features/owner-balances/lifecycle-actions", () => ({
   transferOwnerBalanceComponentAction: vi.fn(),
 }));
 
+import { calculateReportMonthAction, assignReportSourceAction } from "@/features/reports/remediation-actions";
 import { OwnerBalanceLedger } from "@/features/owner-balances/components/owner-balance-ledger";
 import type { OwnerBalanceData } from "@/features/owner-balances/owner-balance.types";
 
@@ -27,6 +34,31 @@ const allocationSetId = "00000000-0000-4000-8000-000000000006";
 const movementId = "00000000-0000-4000-8000-000000000007";
 
 describe("OwnerBalanceLedger", () => {
+  it.each(["success", "error"])("resets inline calculation state when month changes after %s", async (status) => {
+    const user = userEvent.setup();
+    vi.mocked(calculateReportMonthAction).mockResolvedValueOnce(status === "success" ? { status: "success" } : { status: "error", message: "Earlier month needs review." });
+    const props = { canAllocate: false, canGenerate: true, canCorrect: false, canTransfer: false, data: { ...data(), periods: [] }, organizationName: "IPS", selectedOwnerPersonId: ownerId, selectedPropertyId: propertyId };
+    const { rerender } = render(<OwnerBalanceLedger {...props} selectedMonth="2026-08" />);
+    await user.click(screen.getByRole("button", { name: "Generate month" }));
+    await screen.findByText(status === "success" ? /Saved/ : "Earlier month needs review.");
+    rerender(<OwnerBalanceLedger {...props} selectedMonth="2026-09" />);
+    const button = screen.getByRole("button", { name: "Generate month" });
+    expect((button.closest("fieldset") as HTMLFieldSetElement).disabled).toBe(false);
+    expect(new FormData(button.closest("form")!).get("monthStart")).toBe("2026-09-01");
+    expect(screen.queryByText("Earlier month needs review.")).toBeNull();
+    expect(screen.queryByText(/Saved/)).toBeNull();
+  });
+
+  it("keeps a checked re-evaluation action for a blocked source after its prerequisite changes", async () => {
+    const user = userEvent.setup();
+    const input = data(); input.queue[0] = { ...input.queue[0], remediationCode: "source_fingerprint_drift", remediationDetail: null };
+    vi.mocked(assignReportSourceAction).mockResolvedValueOnce({ status: "success" });
+    render(<OwnerBalanceLedger canAllocate canCorrect={false} canTransfer={false} data={input} organizationName="IPS" selectedMonth="2026-08" selectedPropertyId={propertyId} selectedOwnerPersonId={ownerId} />);
+    await user.click(screen.getByRole("button", { name: "Recheck and assign source" }));
+    expect(vi.mocked(assignReportSourceAction).mock.calls.at(-1)?.[0].get("sourceLineId")).toBe(sourceLineId);
+    await screen.findByText(/Saved/);
+  });
+
   it.each([false, true])("gates ownership repair in both register and issue rows by delegated authority (%s)", (canResolveOwnership) => {
     const input = data();
     input.accounts = [{
@@ -42,14 +74,14 @@ describe("OwnerBalanceLedger", () => {
     const { container, rerender } = render(<OwnerBalanceLedger {...props} />);
     expect(screen.getByText("Action required")).toBeTruthy();
     if (canResolveOwnership) {
-      expect(screen.getByRole("link", { name: "Resolve ownership" }).getAttribute("href")).toBe(`/properties/${propertyId}`);
+      expect(screen.getByRole("link", { name: "Resolve ownership" }).getAttribute("href")).toContain(`/properties/${propertyId}?returnTo=`);
     } else {
       expect(screen.getByRole("link", { name: "Review issues" }).getAttribute("href")).toContain("/balances?");
       expect(container.querySelector('a[href^="/properties"]')).toBeNull();
     }
     rerender(<OwnerBalanceLedger {...props} selectedOwnerPersonId={ownerId} selectedPropertyId={propertyId} />);
     const issue = screen.getByTestId(`owner-remediation-${sourceLineId}`);
-    expect(within(issue).getByText("High priority")).toBeTruthy();
+    expect(within(issue).getByText("Ownership needs resolution")).toBeTruthy();
     expect(within(issue).queryByRole("link", { name: "Resolve ownership" }) !== null).toBe(canResolveOwnership);
     expect(within(issue).queryByRole("button")).toBeNull();
   });
@@ -132,6 +164,7 @@ describe("OwnerBalanceLedger", () => {
     const { container } = render(
       <OwnerBalanceLedger
         canAllocate
+        canGenerate
         canCorrect
         canTransfer
         canResolveOwnership
@@ -196,13 +229,14 @@ describe("OwnerBalanceLedger", () => {
       within(remediation)
         .getByRole("link", { name: "Resolve ownership" })
         .getAttribute("href"),
-    ).toBe(`/properties/${propertyId}`);
+    ).toContain(`/properties/${propertyId}?returnTo=`);
   });
 
   it("shows a scannable register before an owner scope is selected", () => {
     render(
       <OwnerBalanceLedger
         canAllocate
+        canGenerate
         canCorrect
         canTransfer
         canResolveOwnership
@@ -259,13 +293,14 @@ describe("OwnerBalanceLedger", () => {
     ).not.toBeNull();
     expect(
       within(account).getByRole("link", { name: "Resolve ownership" }).getAttribute("href"),
-    ).toBe(`/properties/${propertyId}`);
+    ).toContain(`/properties/${propertyId}?returnTo=`);
   });
 
   it("shows a focused empty result instead of a selector gate", () => {
     render(
       <OwnerBalanceLedger
         canAllocate
+        canGenerate
         canCorrect
         canTransfer
         data={{ ...data(), accounts: [] } as unknown as OwnerBalanceData}
@@ -288,9 +323,10 @@ describe("OwnerBalanceLedger", () => {
     const { rerender } = render(
       <OwnerBalanceLedger
         canAllocate
+        canGenerate
         canCorrect
         canTransfer={false}
-        data={data()}
+        data={{ ...data(), queue: data().queue.map(item => ({ ...item, allocationState: "pending", remediationDetail: null, remediationCode: null })) }}
         organizationName="IPS"
         selectedMonth="2026-08"
         selectedOwnerPersonId={ownerId}
@@ -343,6 +379,7 @@ describe("OwnerBalanceLedger", () => {
     render(
       <OwnerBalanceLedger
         canAllocate
+        canGenerate
         canCorrect
         canTransfer
         data={{ ...data(), periods: [], queue: [], sources: [] }}
@@ -362,6 +399,7 @@ describe("OwnerBalanceLedger", () => {
     const { rerender } = render(
       <OwnerBalanceLedger
         canAllocate
+        canGenerate
         canCorrect
         canTransfer
         closingAuthority={<div>Month close workflow</div>}
@@ -378,6 +416,7 @@ describe("OwnerBalanceLedger", () => {
     rerender(
       <OwnerBalanceLedger
         canAllocate
+        canGenerate
         canCorrect
         canTransfer
         closingAuthority={<div>Month close workflow</div>}
@@ -408,6 +447,7 @@ describe("OwnerBalanceLedger", () => {
     render(
       <OwnerBalanceLedger
         canAllocate
+        canGenerate
         canCorrect={false}
         canTransfer={false}
         data={data()}
@@ -443,6 +483,7 @@ describe("OwnerBalanceLedger", () => {
       render(
         <OwnerBalanceLedger
           canAllocate
+        canGenerate
           canCorrect
           canTransfer={false}
           data={blocked}

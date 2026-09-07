@@ -230,7 +230,7 @@ describe("OpeningBalanceScreen", () => {
       "IPS due to owner",
       "Security-deposit custody",
     ]) {
-      expect(screen.getByText(label)).toBeTruthy();
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
   });
 
@@ -563,6 +563,21 @@ describe("OpeningBalanceScreen", () => {
       resubmissionOfRequestId: "",
       supportingDocumentId: documentId,
     });
+  });
+
+  it("puts the pending replacement amount ahead of approved history", async () => {
+    const user = userEvent.setup();
+    const data = authorityData();
+    const component = data.groups[0]!.components[2]!;
+    component.requests[0] = { ...component.requests[0]!, status: "submitted", proposedAmount: canonicalizeOwnerOpeningAmount("42.50"), reviewedAt: null, reviewedBy: null };
+    renderScreen({ ...superAdminProps(), data });
+    await user.click(screen.getByRole("button", { name: "Review IPS due to owner" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Proposed replacement balance")).toBeTruthy();
+    expect(within(dialog).getByText("$42.50")).toBeTruthy();
+    expect(within(dialog).getByText("Awaiting review")).toBeTruthy();
+    expect(within(dialog).queryByText("Approved", { exact: true })).toBeNull();
+    expect(within(dialog).getByText("Request history").closest("details")?.open).toBe(false);
   });
 
   it("sends an independent review decision with its stable intent key", async () => {

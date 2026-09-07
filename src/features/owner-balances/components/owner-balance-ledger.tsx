@@ -1,4 +1,7 @@
+import { assignReportSourceAction, calculateReportMonthAction } from "@/features/reports/remediation-actions";
+import { withReportReturn } from "@/features/reports/report-return";
 import { randomUUID } from "node:crypto";
+import { ReportActionForm, ReportRemediation } from "@/features/reports/components/report-remediation-controls";
 import type { ReactNode } from "react";
 import type { OwnerAccountView } from "@/features/owner-balances/owner-account-view";
 import Link from "next/link";
@@ -16,8 +19,6 @@ import {
 } from "@/features/owner-balances/components/owner-account-controls";
 import { PropertyRecordNavigation } from "@/features/properties/components/property-detail-view";
 import {
-  allocateOwnerEventAction,
-  generateOwnerBalancePeriodAction,
   recordOwnerCashEventAction,
   recordOwnerDistributionAction,
   reverseOwnerInvoicePaymentAction,
@@ -38,6 +39,7 @@ const PROPERTY_ACCOUNT_PAGE_SIZE = 8;
 
 type OwnerBalanceLedgerProps = {
   canAllocate: boolean;
+  canGenerate?: boolean;
   canCorrect: boolean;
   canTransfer: boolean;
   canResolveOwnership?: boolean;
@@ -46,6 +48,7 @@ type OwnerBalanceLedgerProps = {
   data: OwnerBalanceData;
   openingAuthority?: ReactNode;
   organizationName: string;
+  originReportHref?: string;
   propertyAccount?: {
     activityFilter: PropertyAccountActivityFilter;
     focusAllocationSetId?: string;
@@ -60,6 +63,7 @@ type OwnerBalanceLedgerProps = {
 
 export function OwnerBalanceLedger({
   canAllocate,
+  canGenerate = false,
   canCorrect,
   canTransfer,
   canResolveOwnership = false,
@@ -68,6 +72,7 @@ export function OwnerBalanceLedger({
   data,
   openingAuthority,
   organizationName,
+  originReportHref,
   propertyAccount,
   selectedMonth,
   selectedOwnerPersonId,
@@ -108,8 +113,8 @@ export function OwnerBalanceLedger({
       <input name="currency" type="hidden" value="USD" />
     </>
   ) : null;
-  const generationAuthority = canAllocate ? (
-    <form action={generateOwnerBalancePeriodAction} className="space-y-4">
+  const generationAuthority = canGenerate ? (
+    <ReportActionForm key={`${selectedPropertyId}:${selectedOwnerPersonId}:${selectedMonth}`} action={calculateReportMonthAction} newCommandLabel="Start a new calculation" className="space-y-4">
       {scopedHiddenFields}
       <input
         name="monthStart"
@@ -127,9 +132,13 @@ export function OwnerBalanceLedger({
       <div className="flex justify-end">
         <Button type="submit">Generate month</Button>
       </div>
-    </form>
+    </ReportActionForm>
   ) : undefined;
 
+  const reportScope = new URLSearchParams({ month: selectedMonth, view: selectedView });
+  if (selectedPropertyId) reportScope.set("propertyId", selectedPropertyId);
+  if (selectedOwnerPersonId) reportScope.set("ownerPersonId", selectedOwnerPersonId);
+  const returnTo = `/balances?${reportScope}`;
   return (
     <main className="workspace-gutter-x mx-auto w-full max-w-[1280px] space-y-4 px-4 pb-12 pt-4 sm:px-6 2xl:px-8">
       <PageHeader
@@ -144,6 +153,7 @@ export function OwnerBalanceLedger({
       />
 
       <OwnerAccountScopeForm
+        returnTo={originReportHref}
         key={`${selectedPropertyId ?? ""}:${selectedOwnerPersonId ?? ""}:${selectedMonth}:${selectedView}`}
         ownerOptions={data.ownerOptions}
         propertyOptions={data.propertyOptions}
@@ -156,6 +166,7 @@ export function OwnerBalanceLedger({
       <nav aria-label="Owner account views" className="flex gap-6 border-b border-border">
         {(["summary", "activity", "statements"] as const).map((view) => {
           const params = new URLSearchParams({ month: selectedMonth, view });
+          if (originReportHref) params.set("returnTo", originReportHref);
           if (selectedPropertyId) params.set("propertyId", selectedPropertyId);
           if (selectedOwnerPersonId) params.set("ownerPersonId", selectedOwnerPersonId);
           return (
@@ -186,6 +197,7 @@ export function OwnerBalanceLedger({
 
           <div className="space-y-4" hidden={selectedView !== "summary"}>
             {selectedView === "summary" ? <OwnerAccountOperations
+              key={`${selectedPropertyId}:${selectedOwnerPersonId}:${selectedMonth}`}
               closingAuthority={closingAuthority}
               generationAuthority={generationAuthority}
               openingAuthority={openingAuthority}
@@ -201,10 +213,11 @@ export function OwnerBalanceLedger({
                 Monthly balances
               </h2>
               {data.periods.length === 0 ? (
-                <p className="border-y border-border py-5 text-sm text-muted-foreground">
-                  No monthly balance exists. Approve the opening balances and
-                  resolve the items that need attention, then calculate the month.
-                </p>
+                <div className="space-y-3 border-y border-border py-4 text-sm">
+                  <p>No monthly balance exists for {selectedMonth}.</p>
+                  {openingAuthority ? <ReportRemediation key={`${selectedPropertyId}:${selectedOwnerPersonId}:${selectedMonth}`} label="Review opening balances">{openingAuthority}</ReportRemediation> : null}
+                  {generationAuthority ?? <p className="text-muted-foreground">A staff member with Finance close-period permission must calculate this month.</p>}
+                </div>
               ) : (
                 data.periods.map((period) => (
                   <article
@@ -310,6 +323,7 @@ export function OwnerBalanceLedger({
                         { label: "Input hash", value: period.inputHash },
                       ]}
                     />
+                    {period.status === "stale" && generationAuthority ? <div className="py-3">{generationAuthority}</div> : null}
                   </article>
                 ))
               )}
@@ -351,6 +365,7 @@ export function OwnerBalanceLedger({
                     <tbody className="divide-y divide-border/60">
                       {data.queue.map((item) => (
                         <RemediationRow
+                          returnTo={returnTo}
                           canAllocate={canAllocate}
                           canResolveOwnership={canResolveOwnership}
                           item={item}
@@ -745,7 +760,7 @@ function registerNextAction(
   canResolveOwnership: boolean,
 ) {
   if (canResolveOwnership && account.issueCount > 0 && account.remediationPath) {
-    return { href: account.remediationPath, label: "Resolve ownership" };
+    return { href: withReportReturn(account.remediationPath, detailHref), label: "Resolve ownership" };
   }
   if (account.issueCount > 0 || account.periodStatus === "blocked") {
     return { href: detailHref, label: "Review issues" };
@@ -1323,7 +1338,21 @@ function WithdrawalCapacityCard({
   );
 }
 
+export function OwnerSourceResolution({ data, canAllocate, canResolveOwnership, returnTo }: {
+  data: OwnerBalanceData; canAllocate: boolean; canResolveOwnership: boolean; returnTo?: string;
+}) {
+  return data.queue.length === 0 ? <p>No unresolved sources were returned. Recheck before closing.</p> : (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[36rem] text-left text-sm">
+        <thead><tr>{["Date", "Source", "Amount", "Status", "Action"].map(label => <th key={label} scope="col" className="px-4 py-2">{label}</th>)}</tr></thead>
+        <tbody>{data.queue.map(item => <RemediationRow returnTo={returnTo} key={`${item.sourceType}:${item.sourceLineId}`} item={item} canAllocate={canAllocate} canResolveOwnership={canResolveOwnership} />)}</tbody>
+      </table>
+    </div>
+  );
+}
+
 function RemediationRow({
+  returnTo,
   canAllocate,
   canResolveOwnership,
   item,
@@ -1331,6 +1360,7 @@ function RemediationRow({
   canAllocate: boolean;
   canResolveOwnership: boolean;
   item: OwnerEventAllocationQueueRecord;
+  returnTo?: string;
 }) {
   const setupPath = remediationSetupPath(item.remediationDetail);
   return (
@@ -1346,7 +1376,6 @@ function RemediationRow({
         <p className="font-semibold">
           {remediationLabel(item.remediationCode)}
         </p>
-        <p className="mt-0.5 text-xs font-medium text-danger">High priority</p>
         <AuditDetails
           className="mt-1"
           entries={[
@@ -1364,13 +1393,13 @@ function RemediationRow({
         {canResolveOwnership && setupPath ? (
           <Link
             className="text-sm font-semibold text-primary underline-offset-4 hover:underline"
-            href={setupPath}
+            href={withReportReturn(setupPath, returnTo)}
           >
             Resolve ownership
           </Link>
         ) : null}
-        {canAllocate && item.allocationState !== "allocated" ? (
-          <form action={allocateOwnerEventAction} className="mt-2">
+        {canAllocate && !setupPath && ["pending", "blocked"].includes(item.allocationState) && !["source_unsupported", "unresolved_transfer"].includes(item.remediationCode ?? "") ? (
+          <ReportActionForm action={assignReportSourceAction} className="mt-2">
             <input name="sourceType" type="hidden" value={item.sourceType} />
             <input
               name="sourceLineId"
@@ -1383,10 +1412,13 @@ function RemediationRow({
               value={`owner-allocate-${randomUUID()}`}
             />
             <Button size="sm" type="submit" variant="outline">
-              Assign to owner balance
+              {item.allocationState === "blocked" ? "Recheck and assign source" : "Assign to owner balance"}
             </Button>
-          </form>
+          </ReportActionForm>
         ) : null}
+        {!canAllocate && !setupPath ? <p className="text-xs">Finance must review this source.</p> : null}
+        {canAllocate && !setupPath && item.allocationState === "blocked" ? <p className="text-xs">Correct the source prerequisite, then recheck its assignment.</p> : null}
+        {setupPath && !canResolveOwnership ? <p className="text-xs">A property administrator must resolve ownership.</p> : null}
       </td>
     </tr>
   );

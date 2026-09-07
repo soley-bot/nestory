@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import Link from "next/link";
+import { calculateReportMonthAction } from "@/features/reports/remediation-actions";
+import { LockReportMonth, RecheckReport, ReportActionForm, ReportRemediation } from "@/features/reports/components/report-remediation-controls";
 import type { ReactNode } from "react";
 import { AuditDetails } from "@/components/ui/audit-details";
 import { Badge } from "@/components/ui/badge";
@@ -7,12 +10,12 @@ import { Input } from "@/components/ui/input";
 import { SelectControl } from "@/components/ui/select-control";
 import { formatDate } from "@/lib/dates/format";
 import {
-  closeOwnerMonthAction,
-  publishOwnerStatementAction,
-  recordOwnerCloseCorrectionAction,
-  reopenOwnerMonthAction,
-  resumeOwnerStatementPublicationAction,
-} from "@/features/owner-close/actions";
+  closeReportMonthAction,
+  publishReportStatementAction,
+  correctReportMonthAction,
+  reopenReportMonthAction,
+  resumeReportStatementAction,
+} from "@/features/reports/remediation-actions";
 import {
   OWNER_BALANCE_COMPONENT_LABELS,
   OWNER_BALANCE_COMPONENTS,
@@ -33,6 +36,9 @@ type OwnerCloseScreenProps = {
   ownerPersonId?: string;
   propertyId?: string;
   presentation?: "close" | "statements";
+  canLockMonth?: boolean;
+  openingAuthority?: ReactNode;
+  sourceAuthority?: ReactNode;
 };
 
 export function OwnerCloseScreen({
@@ -44,6 +50,9 @@ export function OwnerCloseScreen({
   ownerPersonId,
   propertyId,
   presentation = "close",
+  canLockMonth = false,
+  openingAuthority,
+  sourceAuthority,
 }: OwnerCloseScreenProps) {
   const hasExactScope = Boolean(propertyId && ownerPersonId);
   const preparingRevision = data.revisions.find(
@@ -54,14 +63,16 @@ export function OwnerCloseScreen({
     isCloseableSeriesState(data.series?.state);
   const mayClose = hasExactScope && canClose && scopeIsCloseReady;
   const mayReopen = canReopen && data.series !== null &&
-    (data.series.state === "closed" || data.series.state === "stale");
+    (data.series.state === "closed" || data.series.state === "stale") &&
+    !data.publicationReadiness?.blockers.some(blocker => blocker.code === "owner_statement_artifacts_incomplete");
 
   return (
     <section aria-labelledby="owner-close-heading" className="space-y-4">
-      <header>
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold" id="owner-close-heading">
           {presentation === "statements" ? "Official owner statements" : "Close owner month"}
         </h2>
+        <RecheckReport />
         {presentation === "close" ? (
           <p className="text-sm text-muted-foreground">
             Close the selected owner month only after every balance and source check passes.
@@ -84,11 +95,15 @@ export function OwnerCloseScreen({
             label="Prepare or correct a statement"
             open={presentation === "statements" && (data.publications ?? []).length === 0 && data.publicationReadiness?.isReady !== true}
           >
-            <ReadinessCard data={data} closeRevisionNumber={closeRevisionNumber} />
+            <ReadinessCard data={data} closeRevisionNumber={closeRevisionNumber}
+              canClose={canClose} canLockMonth={canLockMonth}
+              openingAuthority={openingAuthority} sourceAuthority={sourceAuthority}
+              monthStart={monthStart} propertyId={propertyId!} ownerPersonId={ownerPersonId!} />
 
             {mayClose ? (
-              <form
-                action={closeOwnerMonthAction}
+              <ReportActionForm
+                action={closeReportMonthAction}
+                successMessage="Owner month closed. Rechecking statement readiness."
                 className="grid gap-3 rounded-lg border border-success/30 bg-success-soft/50 p-4 md:grid-cols-[1fr_auto]"
               >
                 <input name="currency" type="hidden" value="USD" />
@@ -115,12 +130,14 @@ export function OwnerCloseScreen({
                 >
                   Close owner month
                 </Button>
-              </form>
+              </ReportActionForm>
             ) : null}
 
             {mayReopen ? (
-              <form
-                action={reopenOwnerMonthAction}
+              <ReportRemediation label="Prepare a corrected statement">
+              <ReportActionForm
+                action={reopenReportMonthAction}
+                successMessage="Month reopened for correction. Rechecking readiness."
                 className="grid gap-3 rounded-lg border border-warning/30 bg-warning-soft/50 p-4 md:grid-cols-[1fr_auto]"
               >
                 <input name="seriesId" type="hidden" value={data.series!.id} />
@@ -145,7 +162,8 @@ export function OwnerCloseScreen({
                 >
                   Reopen month
                 </Button>
-              </form>
+              </ReportActionForm>
+              </ReportRemediation>
             ) : null}
 
             {canReopen && preparingRevision ? (
@@ -264,8 +282,8 @@ function PublicationAuthority({
       )}
 
       {canPublish && readiness?.isReady ? (
-        <form
-          action={publishOwnerStatementAction}
+        <ReportActionForm
+          action={publishReportStatementAction}
           className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-success/30 bg-success-soft/50 p-4"
         >
           <input name="revisionId" type="hidden" value={readiness.revisionId} />
@@ -286,14 +304,14 @@ function PublicationAuthority({
           >
             Publish owner statement
           </Button>
-        </form>
+        </ReportActionForm>
       ) : canPublish &&
         readiness?.existingPublicationId &&
         readiness.blockers.some((blocker) =>
           blocker.code === "owner_statement_artifacts_incomplete"
         ) ? (
-        <form
-          action={resumeOwnerStatementPublicationAction}
+        <ReportActionForm
+          action={resumeReportStatementAction}
           className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning-soft/50 p-4"
         >
           <input name="publicationId" type="hidden" value={readiness.existingPublicationId} />
@@ -314,17 +332,18 @@ function PublicationAuthority({
           >
             Resume owner statement
           </Button>
-        </form>
-      ) : readiness && readiness.blockers.length > 0 ? (
+        </ReportActionForm>
+      ) : readiness && readiness.blockers.some(blocker => blocker.code !== "owner_statement_already_published") ? (
         <div className="rounded-2xl border border-border/80 bg-card p-4 text-sm">
           <p className="font-semibold">Publication blocked</p>
           <ul className="mt-2 space-y-1 text-muted-foreground">
-            {[...new Set(readiness.blockers.map(blockerLabel))].map((label) => (
+            {[...new Set(readiness.blockers.filter(blocker => blocker.code !== "owner_statement_already_published").map(blockerLabel))].map((label) => (
               <li key={label}>{label}</li>
             ))}
           </ul>
+          {!canPublish ? <p className="mt-2">A staff member with statement-publication permission must complete publication.</p> : null}
         </div>
-      ) : null}
+      ) : readiness?.isReady && !canPublish ? <p className="text-sm">Ready for a staff member with statement-publication permission to publish.</p> : null}
     </section>
   );
 }
@@ -332,13 +351,25 @@ function PublicationAuthority({
 function ReadinessCard({
   closeRevisionNumber,
   data,
+  canClose, canLockMonth, openingAuthority, sourceAuthority, monthStart, propertyId, ownerPersonId,
 }: {
   closeRevisionNumber: number;
   data: OwnerCloseData;
+  canClose: boolean;
+  canLockMonth: boolean;
+  openingAuthority?: ReactNode;
+  sourceAuthority?: ReactNode;
+  monthStart: string;
+  propertyId: string;
+  ownerPersonId: string;
 }) {
   const readiness = data.readiness!;
   const scopeIsCloseReady = readiness.isReady &&
     isCloseableSeriesState(data.series?.state);
+  const blockers = readiness.blockers
+    .filter(blocker => !(data.series?.state === "closed" && ["owner_close_reopen_required", "owner_balance_period_already_closed"].includes(blocker.code)))
+    .toSorted((a, b) => prerequisiteRank(a.code) - prerequisiteRank(b.code));
+  const nextRank = blockers.length ? prerequisiteRank(blockers[0].code) : 0;
   return (
     <article
       className="overflow-hidden rounded-2xl border border-border/80 bg-card"
@@ -349,22 +380,43 @@ function ReadinessCard({
           <h3 className="font-semibold">
             {scopeIsCloseReady
       ? `Ready to close owner month · revision ${closeRevisionNumber}`
-              : "Close readiness blocked"}
+              : data.series?.state === "closed" ? "Owner month closed"
+              : data.series?.state === "stale" ? "Closed month has changed"
+              : "Prepare this month"}
           </h3>
           <p className="text-xs text-muted-foreground">
             Series state: {data.series?.state ?? readiness.seriesState ?? "not started"}
           </p>
         </div>
         <p className="text-xs font-medium uppercase tracking-wide">
-          {readiness.blockers.length} blocker{readiness.blockers.length === 1 ? "" : "s"}
+          {blockers.length > 0 ? `${blockers.length} checks to resolve` : ""}
         </p>
       </div>
 
-      {readiness.blockers.length > 0 ? (
+      {blockers.length > 0 ? (
         <ul className="space-y-2 border-b border-border/60 bg-amber-50/60 px-4 py-3 text-sm">
-          {readiness.blockers.map((blocker, index) => (
+          {blockers.map((blocker, index) => (
             <li key={`${blocker.code}:${index}`}>
               <p className="font-semibold text-amber-950">{blockerLabel(blocker)}</p>
+              <div className="mt-2">
+                {prerequisiteRank(blocker.code) > nextRank ? (
+                  <p className="text-xs text-muted-foreground">{blocker.code === "financial_month_not_locked" ? "Lock the company month after the earlier checks are resolved." : "Calculate after the earlier checks are resolved."}</p>
+                ) : blocker.code === "financial_month_not_locked" ? (
+                  canLockMonth ? <LockReportMonth month={monthStart.slice(0, 7)} /> : <p>A staff member with Finance close-period permission must lock this month.</p>
+                ) : ["owner_balance_period_missing", "owner_balance_period_stale"].includes(blocker.code) ? (
+                  canClose ? <CalculateMonthForm monthStart={monthStart} propertyId={propertyId} ownerPersonId={ownerPersonId} /> : <p>A staff member with Finance close-period permission must calculate this month.</p>
+                ) : ["pending_owner_opening_or_correction", "opening_component_unknown"].includes(blocker.code) && openingAuthority ? (
+                  <ReportRemediation label="Review opening balances">{openingAuthority}{canClose && blocker.code === "opening_component_unknown" ? <CalculateMonthForm monthStart={monthStart} propertyId={propertyId} ownerPersonId={ownerPersonId} /> : null}</ReportRemediation>
+                ) : blocker.code === "source_allocation_incomplete" && sourceAuthority ? (
+                  <ReportRemediation label="Resolve source assignments">{sourceAuthority}{canClose ? <CalculateMonthForm monthStart={monthStart} propertyId={propertyId} ownerPersonId={ownerPersonId} /> : null}</ReportRemediation>
+                ) : earlierMonthHref(blocker, monthStart, propertyId, ownerPersonId) ? (
+                  <Link className="font-medium underline underline-offset-4" href={earlierMonthHref(blocker, monthStart, propertyId, ownerPersonId)!}>Review earlier month</Link>
+                ) : blocker.code === "owner_close_reopen_required" ? (
+                  <p>A staff member with reopen permission must prepare a corrected statement.</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{blocker.code === "pending_financial_idempotency" ? "Wait for the financial update to finish, then recheck." : "Finance or an Admin must review this check before the month can close."}</p>
+                )}
+              </div>
               <AuditDetails
                 entries={blockerAuditEntries(blocker)}
                 label="Technical details"
@@ -421,6 +473,34 @@ function isCloseableSeriesState(state: OwnerCloseSeriesState | undefined) {
   return state === undefined || state === "open" || state === "preparing";
 }
 
+function CalculateMonthForm({ monthStart, propertyId, ownerPersonId }: { monthStart: string; propertyId: string; ownerPersonId: string }) {
+  return <ReportActionForm action={calculateReportMonthAction} newCommandLabel="Start a new calculation" successMessage="Calculation finished. Recheck whether all balance checks passed.">
+    <input type="hidden" name="propertyId" value={propertyId} />
+    <input type="hidden" name="ownerPersonId" value={ownerPersonId} />
+    <input type="hidden" name="monthStart" value={monthStart} />
+    <input type="hidden" name="currency" value="USD" />
+    <input type="hidden" name="idempotencyKey" value={`owner-period-${randomUUID()}`} />
+    <Button size="sm" type="submit">Calculate month</Button>
+  </ReportActionForm>;
+}
+
+function prerequisiteRank(code: string) {
+  if (code === "financial_month_not_locked") return 30;
+  if (["owner_balance_period_missing", "owner_balance_period_stale"].includes(code)) return 20;
+  return 10;
+}
+
+function earlierMonthHref(blocker: OwnerCloseBlocker, monthStart: string, propertyId: string, ownerPersonId: string) {
+  if (!["prior_period_not_closed", "earlier_dependent_period_stale", "prior_period_not_ready", "prior_period_missing", "prior_period_continuity_broken"].includes(blocker.code)) return;
+  const previous = new Date(`${monthStart}T00:00:00Z`);
+  previous.setUTCMonth(previous.getUTCMonth() - 1);
+  const month = blocker.expected_month_start ?? blocker.month_start ?? previous.toISOString().slice(0, 10);
+  if (typeof month !== "string" || !/^\d{4}-(0[1-9]|1[0-2])-01$/.test(month) || month >= monthStart) return;
+  const original = new URLSearchParams({ month: monthStart.slice(0, 7), propertyId, ownerPersonId, view: "statements" });
+  const target = new URLSearchParams({ month: month.slice(0, 7), propertyId, ownerPersonId, view: "statements", returnTo: `/balances?${original}` });
+  return `/balances?${target}`;
+}
+
 function CorrectionForm({
   monthStart,
   revisionId,
@@ -429,8 +509,9 @@ function CorrectionForm({
   revisionId: string;
 }) {
   return (
-    <form
-      action={recordOwnerCloseCorrectionAction}
+    <ReportActionForm
+      action={correctReportMonthAction}
+      newCommandLabel="Record another correction"
       className="grid gap-3 rounded-2xl border border-border/80 bg-card p-4 md:grid-cols-2 xl:grid-cols-4"
     >
       <input name="revisionId" type="hidden" value={revisionId} />
@@ -496,7 +577,7 @@ function CorrectionForm({
       >
         Record correction
       </Button>
-    </form>
+    </ReportActionForm>
   );
 }
 
@@ -606,7 +687,16 @@ function blockerLabel(blocker: OwnerCloseBlocker) {
   if (blocker.code === "owner_balance_period_stale") return "Owner balance month must be recalculated";
   if (blocker.code === "pending_owner_opening_or_correction") return "Opening balance review is pending";
   if (blocker.code === "source_allocation_incomplete") return "A transaction has not been assigned to the owner balance";
+  if (blocker.code === "opening_component_unknown") return "Starting balances are not complete";
   if (blocker.code === "pending_financial_idempotency") return "A financial update is still pending";
+  if (["prior_period_not_closed", "prior_period_not_ready", "prior_period_missing", "prior_period_continuity_broken"].includes(blocker.code)) return "The previous month needs preparation";
+  if (blocker.code === "earlier_dependent_period_stale") return "An earlier month has changed";
+  if (blocker.code === "source_fingerprint_changed") return "Recorded source activity has changed";
+  if (blocker.code === "source_evidence_unreadable") return "Source evidence could not be read";
+  if (blocker.code === "opening_evidence_integrity_changed") return "Opening balance evidence has changed";
+  if (blocker.code === "owner_statement_artifacts_incomplete") return "Saved statement files are incomplete";
+  if (blocker.code === "owner_statement_revision_not_closed") return "Close the owner month before publishing";
+  if (blocker.code === "owner_statement_revision_not_current") return "The current closed revision must be published";
   return "This month needs review";
 }
 

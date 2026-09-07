@@ -1,7 +1,13 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/features/reports/remediation-actions", () => ({
+  closeReportMonthAction: vi.fn(), reopenReportMonthAction: vi.fn(), correctReportMonthAction: vi.fn(), publishReportStatementAction: vi.fn(), resumeReportStatementAction: vi.fn(), calculateReportMonthAction: vi.fn(), assignReportSourceAction: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 vi.mock("@/features/owner-close/actions", () => ({
   closeOwnerMonthAction: vi.fn(),
@@ -26,6 +32,32 @@ const publicationId = "00000000-0000-4000-8000-000000000019";
 const amount = canonicalizeSignedOwnerOpeningAmount;
 
 describe("OwnerCloseScreen", () => {
+  it.each([true, false])("offers scoped calculation and locking only with close authority (%s)", (allowed) => {
+    const data = closedData(); data.series = null; data.revisions = [];
+    data.readiness = { ...data.readiness!, blockers: [{ code: "owner_balance_period_missing" }, { code: "financial_month_not_locked" }], seriesState: null };
+    const { container } = render(<OwnerCloseScreen canClose={allowed} canLockMonth={allowed} canReopen={false} data={data} monthStart="2026-08-01" ownerPersonId={ownerId} propertyId={propertyId} />);
+    expect(Boolean(screen.queryByRole("button", { name: "Calculate month" }))).toBe(allowed);
+    expect(screen.queryByRole("button", { name: "Lock financial month" })).toBeNull();
+    if (allowed) {
+      const form = screen.getByRole("button", { name: "Calculate month" }).closest("form")!;
+      expect(new FormData(form).get("propertyId")).toBe(propertyId);
+      expect(new FormData(form).get("ownerPersonId")).toBe(ownerId);
+      expect(new FormData(form).get("monthStart")).toBe("2026-08-01");
+    } else {
+      expect(container.textContent).toContain("Finance close-period permission");
+    }
+  });
+
+  it("keeps an already published current statement quiet without another publish or reopen prompt", () => {
+    const data = closedData();
+    data.publicationReadiness = { blockers: [{ code: "owner_statement_already_published" }], isReady: false, revisionId: revisionOneId, existingPublicationId: publicationId };
+    render(<OwnerCloseScreen canClose canPublish canReopen data={data} monthStart="2026-08-01" ownerPersonId={ownerId} propertyId={propertyId} presentation="statements" />);
+    expect(screen.queryByText("Publication blocked")).toBeNull();
+    expect(screen.queryByText("Close readiness blocked")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reopen month" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Publish owner statement" })).toBeNull();
+  });
+
   it("summarizes identical publication blockers once without changing authority or source blockers", () => {
     const data = closedData();
     data.publicationReadiness = {
@@ -136,8 +168,8 @@ describe("OwnerCloseScreen", () => {
 
     expect(screen.getByRole("heading", { name: "Close owner month" })).toBeTruthy();
     expect(screen.getByText("Close the selected owner month only after every balance and source check passes.")).toBeTruthy();
-    expect(screen.getByText("Reopen is required before another close")).toBeTruthy();
-    expect(screen.getByText("owner_close_reopen_required")).toBeTruthy();
+    expect(screen.getByText("Owner month closed")).toBeTruthy();
+    expect(screen.queryByText("owner_close_reopen_required")).toBeNull();
     expect(screen.getByText("Revision 1 - Closed")).toBeTruthy();
     expect(screen.getByText("Content hash")).toBeTruthy();
     expect(screen.getByText("e".repeat(64))).toBeTruthy();
@@ -159,6 +191,7 @@ describe("OwnerCloseScreen", () => {
       propertyId={propertyId}
     />);
 
+    fireEvent.click(screen.getByRole("button", { name: "Prepare a corrected statement" }));
     expect(screen.getByRole("button", { name: "Reopen month" })).toBeTruthy();
     expect(screen.getByLabelText("Reopen reason")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /close owner month/i })).toBeNull();
@@ -238,7 +271,7 @@ describe("OwnerCloseScreen", () => {
       propertyId={propertyId}
     />);
 
-    expect(screen.getByText("Close readiness blocked")).toBeTruthy();
+    expect(screen.getByText("Closed month has changed")).toBeTruthy();
     expect(screen.queryByText(/Ready to close owner month/)).toBeNull();
     expect(screen.queryByRole("button", { name: /close owner month/i })).toBeNull();
   });

@@ -3,6 +3,7 @@
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { ReportCommandValidationError } from "@/features/reports/report-command-result";
 import { canonicalizeSignedOwnerOpeningAmount } from "@/features/owner-balances/owner-balance.money";
 import { OWNER_BALANCE_COMPONENTS } from "@/features/owner-balances/owner-balance.types";
 import {
@@ -364,7 +365,7 @@ function parse<Schema extends z.ZodType>(
 ): z.output<Schema> {
   const result = schema.safeParse(Object.fromEntries(formData));
   if (!result.success) {
-    throw new Error(result.error.issues[0]?.message ?? "Invalid owner close command.");
+    throw new ReportCommandValidationError(result.error.issues);
   }
   return result.data;
 }

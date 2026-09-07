@@ -54,6 +54,7 @@ vi.mock("@/features/reports/data/excel", () => ({
   buildOwnerStatementXlsx: mocks.buildXlsx,
 }));
 
+import { closeReportMonthAction } from "@/features/reports/remediation-actions";
 import * as ownerCloseActions from "@/features/owner-close/actions";
 import {
   closeOwnerMonthAction,
@@ -120,6 +121,30 @@ describe("owner close checked actions", () => {
       propertyLabel: "CTR-RES / Central Residence",
     });
     mocks.rpc.mockResolvedValue({ data: { status: "completed" }, error: null });
+  });
+
+  it("returns field guidance from the real close validator without a write", async () => {
+    const result = await closeReportMonthAction(form({ closeReason: "x", currency: "USD", monthStart: "2026-08-01", ownerPersonId: ownerId, propertyId, idempotencyKey: "report-close-validation" }));
+    expect(result).toMatchObject({ status: "error", fieldErrors: { closeReason: ["Close reason: enter at least 3 characters."] } });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("returns a safe changed-prerequisite message from the real checked command", async () => {
+    mocks.rpc.mockResolvedValueOnce({ error: { message: "owner_close_blocked" } });
+    const result = await closeReportMonthAction(form({ closeReason: "Reviewed month", currency: "USD", monthStart: "2026-08-01", ownerPersonId: ownerId, propertyId, idempotencyKey: "report-close-stale" }));
+    expect(result).toEqual({ status: "error", message: "The month cannot close yet. Recheck and resolve the remaining preparation checks." });
+    expect(mocks.requireClose).toHaveBeenCalledOnce();
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it("preserves authorization denial and leaves unknown command failures unconfirmed", async () => {
+    const command = form({ closeReason: "Reviewed month", currency: "USD", monthStart: "2026-08-01", ownerPersonId: ownerId, propertyId, idempotencyKey: "report-close-denied" });
+    const denied = Object.assign(new Error("NEXT_REDIRECT"), { digest: "NEXT_REDIRECT;replace;/no-access;307;" });
+    mocks.requireClose.mockRejectedValueOnce(denied);
+    await expect(closeReportMonthAction(command)).rejects.toBe(denied);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValueOnce({ error: { message: "private DB detail" } });
+    await expect(closeReportMonthAction(command)).rejects.toThrow("private DB detail");
   });
 
   it.each([

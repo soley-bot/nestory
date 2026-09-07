@@ -22,6 +22,7 @@ export function OwnerAccountScopeForm({
   selectedOwnerPersonId,
   selectedPropertyId,
   selectedView = "summary",
+  returnTo,
 }: {
   ownerOptions: OwnerBalanceOption[];
   propertyOptions: OwnerBalanceOption[];
@@ -29,6 +30,7 @@ export function OwnerAccountScopeForm({
   selectedOwnerPersonId?: string;
   selectedPropertyId?: string;
   selectedView?: OwnerAccountView;
+  returnTo?: string;
 }) {
   const [propertyId, setPropertyId] = useState(selectedPropertyId ?? "");
   const [ownerPersonId, setOwnerPersonId] = useState(
@@ -57,6 +59,7 @@ export function OwnerAccountScopeForm({
       method="get"
     >
       <input name="view" type="hidden" value={selectedView} />
+      {returnTo ? <input name="returnTo" type="hidden" value={returnTo} /> : null}
       <label className="grid gap-1 text-sm font-medium">
         Property
         <SelectControl

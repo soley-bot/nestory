@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { ReportCommandValidationError } from "@/features/reports/report-command-result";
 import { canonicalizeOwnerOpeningAmount } from "@/features/owner-balances/owner-balance.money";
 import { OWNER_BALANCE_COMPONENTS } from "@/features/owner-balances/owner-balance.types";
 import {
@@ -214,7 +215,7 @@ export async function transferOwnerBalanceComponentAction(formData: FormData): P
 
 function parse<Schema extends z.ZodType>(schema: Schema, formData: FormData): z.output<Schema> {
   const result = schema.safeParse(Object.fromEntries(formData));
-  if (!result.success) throw new Error(result.error.issues[0]?.message ?? "Invalid owner balance command.");
+  if (!result.success) throw new ReportCommandValidationError(result.error.issues);
   return result.data;
 }
 

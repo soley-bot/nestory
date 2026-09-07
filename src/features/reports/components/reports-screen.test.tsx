@@ -12,6 +12,8 @@ import type {
   TrustedReport,
 } from "@/features/reports/reports.types";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+
 afterEach(cleanup);
 
 beforeAll(() => {

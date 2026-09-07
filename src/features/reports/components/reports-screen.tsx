@@ -16,6 +16,7 @@ import type {
   ReportsViewQuery,
 } from "@/features/reports/reports.types";
 import { cn } from "@/lib/utils";
+import { RecheckReport } from "@/features/reports/components/report-remediation-controls";
 
 type ReportsScreenProps = ReportsScreenData & {
   organizationName: string;
@@ -42,7 +43,7 @@ export function ReportBuilderScreen({
 
   return (
     <WorkspacePage
-      actions={validation ? undefined : <ExportMenu viewQuery={viewQuery} />}
+      actions={<div className="flex items-center gap-2"><RecheckReport />{validation ? null : <ExportMenu viewQuery={viewQuery} />}</div>}
       breadcrumbItems={[{ href: "/reports", label: "Reports" }]}
       title={selectedReport.title}
     >
