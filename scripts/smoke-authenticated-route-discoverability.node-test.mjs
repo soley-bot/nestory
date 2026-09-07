@@ -47,14 +47,19 @@ for (const [entryId, route, expected] of [
   ["finance-accounts", "/finance/funding-sources", ["Advanced", "Chart of Accounts"]],
   ["finance-account-detail", "/finance/accounts/[accountId]", ["Advanced", "Chart of Accounts", "Activity for Operating bank"]],
   ["settings-roles", "/settings/roles", ["Settings", "Roles"]],
+  ["property-detail", "/properties/[propertyId]", ["Properties", "Central Residence"]],
+  ["units-list", "/units", ["Properties", "Units"]],
+  ["unit-detail", "/units/[unitId]", ["Properties", "Units", "View unit 1A details"]],
 ]) {
   test(`${entryId} ${route} follows visible links without direct navigation`, async () => {
     let pathname = "/overview";
     const pages = {
-      "/overview": [{ name: "Advanced", href: "/finance/advanced" }, { name: "Settings", href: "/settings" }],
+      "/overview": [{ name: "Advanced", href: "/finance/advanced" }, { name: "Settings", href: "/settings" }, { name: "Properties", href: "/properties" }],
       "/finance/advanced": [{ name: "Chart of Accounts", href: "/finance/accounts" }],
       "/finance/accounts": [{ name: "Activity for Operating bank", href: "/finance/accounts/account-1" }],
       "/settings": [{ name: "Roles", href: "/settings/roles" }],
+      "/properties": [{ name: "Central Residence", href: "/properties/property-1" }, { name: "Units", href: "/units" }],
+      "/units": [{ name: "View unit 1A details", href: "/units/unit-1", role: "button" }],
     };
     const locate = (predicate) => {
       const link = pages[pathname]?.find(predicate);
@@ -71,11 +76,11 @@ for (const [entryId, route, expected] of [
     const page = {
       locator(selector) {
         const href = selector.match(/\[href="([^"]+)"\]/)?.[1];
-        return locate((link) => link.href === href);
+        const prefix = selector.match(/\[href\^="([^"]+)"\]/)?.[1];
+        return locate((link) => href ? link.href === href : prefix && link.href.startsWith(prefix));
       },
       getByRole(role, { name }) {
-        assert.equal(role, "link");
-        return locate((link) => typeof name === "string" ? link.name === name : name.test(link.name));
+        return locate((link) => (link.role ?? "link") === role && (typeof name === "string" ? link.name === name : name.test(link.name)));
       },
       async waitForURL(predicate) {
         await new Promise((resolve) => setTimeout(resolve, 0));

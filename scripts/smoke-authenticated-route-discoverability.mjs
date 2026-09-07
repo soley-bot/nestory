@@ -264,40 +264,25 @@ async function openContextJourney(page, journey, chain) {
       chain.push("Set up property (empty-state entry)");
     },
     "property-detail": async () => {
-      await openPropertyInspector(page, chain);
-      await clickAndWait(
-        page,
-        page.getByText("Open property", { exact: true }),
-        journey.route,
-      );
-      chain.push("Open property");
-    },
-    "units-list": async () => {
-      await openPropertyInspector(page, chain);
-      await clickAndWait(
-        page,
-        page.locator('[data-slot="property-preview-record-pill"][href^="/units"]'),
-        journey.route,
-      );
-      chain.push("Units");
-    },
-    "unit-detail": async () => {
-      await openPropertyInspector(page, chain, "Central Residence");
-      await clickAndWait(
-        page,
-        page.locator('[data-slot="property-preview-record-pill"][href^="/units"]'),
-        "/units",
-      );
-      chain.push("Units");
-      const unitPreview = page
-        .locator('[data-slot="app-shell-content"] [aria-label^="Preview unit "]:visible')
+      await fromGlobal(page, chain, "/properties", "Properties");
+      const propertyLink = page
+        .locator('[data-slot="app-shell-content"] a[href^="/properties/"]:visible')
         .first();
-      await unitPreview.click();
-      const unitLink = page.getByText("Open unit", { exact: true });
-      await unitLink.waitFor({ state: "visible", timeout: 20_000 });
-      const unitLabel = (await unitPreview.getAttribute("aria-label")) || "Preview unit";
-      await clickAndWait(page, unitLink, journey.route);
-      chain.push(unitLabel, "Open unit");
+      await propertyLink.waitFor({ state: "visible", timeout: 20_000 });
+      const label = (await propertyLink.textContent())?.trim() || "Property record";
+      await clickAndWait(page, propertyLink, journey.route);
+      chain.push(label);
+    },
+    "units-list": () => openUnitsRegister(page, chain),
+    "unit-detail": async () => {
+      await openUnitsRegister(page, chain);
+      const unitButton = page
+        .getByRole("button", { name: /^View unit .+ details$/ })
+        .first();
+      await unitButton.waitFor({ state: "visible", timeout: 20_000 });
+      const label = await unitButton.getAttribute("aria-label");
+      await clickAndWait(page, unitButton, journey.route);
+      chain.push(label || "Unit record");
     },
     "property-account": async () => {
       await openAdvancedFinanceTool(page, chain, "/ledger", "Ledger");
@@ -383,17 +368,14 @@ async function openSettingsTab(page, chain, route, label) {
   chain.push(label);
 }
 
-async function openPropertyInspector(page, chain, propertyName) {
+async function openUnitsRegister(page, chain) {
   await fromGlobal(page, chain, "/properties", "Properties");
-  const preview = propertyName
-    ? page.getByRole("row", { name: `Preview ${propertyName}` })
-    : page.locator('[aria-label^="Preview "]:visible').first();
-  await preview.click();
-  await page.getByText("Open property", { exact: true }).waitFor({
-    state: "visible",
-    timeout: 30_000,
-  });
-  chain.push((await preview.getAttribute("aria-label")) || "Preview property");
+  await clickAndWait(
+    page,
+    page.locator('nav[aria-label="Portfolio summary"] a[href="/units"]:visible'),
+    "/units",
+  );
+  chain.push("Units");
 }
 
 async function fromGlobal(page, chain, route, label) {
