@@ -239,6 +239,7 @@ describe("OwnerBalanceLedger", () => {
     expect(screen.getByRole("button", { name: "Apply filters" })).toBeTruthy();
 
     const register = screen.getByRole("table", { name: "Owner account register" });
+    expect(screen.queryByText(/Open an account (for balances|to view its saved statements)/)).toBeNull();
     expect(within(register).getByRole("columnheader", { name: "Owner" })).toBeTruthy();
     expect(within(register).getByRole("columnheader", { name: "Property" })).toBeTruthy();
     expect(within(register).getByRole("columnheader", { name: "Available" })).toBeTruthy();

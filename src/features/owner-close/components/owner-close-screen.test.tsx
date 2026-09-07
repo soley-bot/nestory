@@ -73,6 +73,13 @@ describe("OwnerCloseScreen", () => {
       propertyId={propertyId} presentation="statements" />);
 
     expect(screen.getByText(status)).toBeTruthy();
+    expect(screen.queryByText("Download a saved statement for the selected owner and month.")).toBeNull();
+    const generatedDate = container.querySelector('time[datetime="2026-09-01T05:00:00Z"]');
+    expect(generatedDate?.textContent).toBe("01 Sept 2026");
+    const exactTimestamp = screen.getByText("2026-09-01T05:00:00Z");
+    expect(exactTimestamp.closest("details")?.open).toBe(false);
+    expect(exactTimestamp.closest("details")?.textContent).toContain("Content hash");
+    expect(exactTimestamp.closest("details")?.textContent).toContain("f".repeat(64));
     expect(screen.getByRole("link", { name: "Download PDF" }).getAttribute("href"))
       .toBe("/api/reports/pdf?artifactId=saved-pdf");
     if (complete) {
@@ -128,6 +135,7 @@ describe("OwnerCloseScreen", () => {
     />);
 
     expect(screen.getByRole("heading", { name: "Close owner month" })).toBeTruthy();
+    expect(screen.getByText("Close the selected owner month only after every balance and source check passes.")).toBeTruthy();
     expect(screen.getByText("Reopen is required before another close")).toBeTruthy();
     expect(screen.getByText("owner_close_reopen_required")).toBeTruthy();
     expect(screen.getByText("Revision 1 - Closed")).toBeTruthy();

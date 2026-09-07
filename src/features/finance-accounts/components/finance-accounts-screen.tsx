@@ -166,7 +166,6 @@ export function FinanceAccountsScreen({
                   <th className="px-4 py-2.5" scope="col">Account</th>
                   <th className="px-3 py-2.5" scope="col">Type</th>
                   <th className="px-3 py-2.5" scope="col">Default for</th>
-                  <th className="px-3 py-2.5" scope="col">Description</th>
                   <th className="px-3 py-2.5" scope="col">Status</th>
                   <th className="px-4 py-2.5 text-right" scope="col">Action</th>
                 </tr>
@@ -263,7 +262,7 @@ function AccountGroupRows({
   return (
     <>
       <tr className="block border-y border-border bg-muted/55 first:border-t-0 md:table-row">
-        <th className="block px-4 py-2 text-left md:table-cell" colSpan={6} scope="rowgroup">
+        <th className="block px-4 py-2 text-left md:table-cell" colSpan={5} scope="rowgroup">
           <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-foreground">{label}</h2>
         </th>
       </tr>
@@ -305,9 +304,6 @@ function AccountGroupRows({
           </StackedCell>
           <StackedCell label="Default for">
             {defaultLabels(account).length > 0 ? defaultLabels(account).join(", ") : "—"}
-          </StackedCell>
-          <StackedCell label="Description">
-            <span className="text-muted-foreground">{account.description ?? "—"}</span>
           </StackedCell>
           <StackedCell label="Status">
             <Badge tone={account.archivedAt ? "warning" : "success"}>

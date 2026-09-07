@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SelectControl } from "@/components/ui/select-control";
+import { formatDate } from "@/lib/dates/format";
 import {
   closeOwnerMonthAction,
   publishOwnerStatementAction,
@@ -61,11 +62,11 @@ export function OwnerCloseScreen({
         <h2 className="text-lg font-semibold" id="owner-close-heading">
           {presentation === "statements" ? "Official owner statements" : "Close owner month"}
         </h2>
-        <p className="text-sm text-muted-foreground">
-          {presentation === "statements"
-            ? "Download a saved statement for the selected owner and month."
-            : "Close the selected owner month only after every balance and source check passes."}
-        </p>
+        {presentation === "close" ? (
+          <p className="text-sm text-muted-foreground">
+            Close the selected owner month only after every balance and source check passes.
+          </p>
+        ) : null}
       </header>
 
       {!hasExactScope || !data.readiness ? (
@@ -228,11 +229,14 @@ function PublicationAuthority({
                 <div>
                   <p className="font-mono text-sm font-semibold">{publication.statementNumber}</p>
                   <p className="text-xs text-muted-foreground">
-                    Revision {publication.revisionNumber} · {publication.generatedAt}
+                    Revision {publication.revisionNumber} · <time dateTime={publication.generatedAt}>{formatDate(publication.generatedAt)}</time>
                   </p>
                   <AuditDetails
                     className="mt-1"
-                    entries={[{ label: "Content hash", value: publication.contentHash }]}
+                    entries={[
+                      { label: "Generated at", value: publication.generatedAt },
+                      { label: "Content hash", value: publication.contentHash },
+                    ]}
                   />
                 </div>
                 <Badge tone={superseded ? "neutral" : needsReview || !filesComplete ? "warning" : "success"}>

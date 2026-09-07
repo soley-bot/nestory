@@ -166,6 +166,20 @@ describe("FinanceAccountsScreen", () => {
     expect(within(drawer).queryByLabelText("Parent account")).toBeNull();
   });
 
+  it("keeps descriptions off the scannable list while retaining search and on-demand account details", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<FinanceAccountsScreen {...fixture()} canManageAccounts={false} />);
+    expect(screen.queryByRole("columnheader", { name: "Description" })).toBeNull();
+    expect(screen.queryByText("Day-to-day upkeep")).toBeNull();
+    expect(container.querySelector('th[scope="rowgroup"]')?.getAttribute("colspan")).toBe("5");
+    await user.type(screen.getByRole("searchbox"), "Day-to-day upkeep");
+    expect(screen.getByText("Repairs and maintenance")).toBeTruthy();
+    expect(screen.queryByText("Operating account")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "View Repairs and maintenance" }));
+    const details = screen.getByRole("dialog", { name: "Account details" });
+    expect(within(details).getByText("Day-to-day upkeep")).toBeTruthy();
+  });
+
   it("filters accounts by search, type, and status", async () => {
     // Break caught: wiring only the visual controls leaves the dense chart
     // impossible to narrow during ordinary account maintenance.

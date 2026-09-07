@@ -567,9 +567,6 @@ function OwnerAccountRegister({
             Showing {firstVisible}–{lastVisible} of {data.accountTotal} for {selectedMonth}
           </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {selectedView === "statements" ? "Open an account to view its saved statements." : "Open an account for balances, activity, and controls."}
-        </p>
       </div>
 
       <div className="overflow-x-auto border-y border-border">
