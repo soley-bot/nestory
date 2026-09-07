@@ -38,10 +38,10 @@ describe("permission-first AppShell navigation", () => {
     expect(screen.queryByRole("link", { name: /Settings/ })).toBeNull();
     expect(screen.queryByRole("link", { name: "Quick Create" })).toBeNull();
     expect(screen.getByText("Finance Contributor")).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Advanced" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Advanced" }).getAttribute("href")).toBe("/finance/advanced");
   });
 
-  it("shows Advanced finance only with correction or period-close authority", () => {
+  it("keeps Advanced navigation available to Finance controllers", () => {
     render(
       <AppShell
         permissionKeys={["finance.view", "finance.correct_records"]}
@@ -67,6 +67,7 @@ describe("permission-first AppShell navigation", () => {
     );
 
     expect(screen.getByRole("button", { name: "Search or jump" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Advanced" })).toBeNull();
   });
 
   it("uses the permission-first workspace entry for a branch-scoped role", () => {
