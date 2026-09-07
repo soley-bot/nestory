@@ -224,14 +224,6 @@ export function OwnerBalanceLedger({
                           </span>
                         </p>
                       </div>
-                      <div className="text-right text-sm">
-                        <p className="font-semibold">
-                          Available owner cash:{" "}
-                          {period.availableWithdrawal === null
-                            ? "Unavailable"
-                            : formatExactMoney(period.availableWithdrawal)}
-                        </p>
-                      </div>
                     </div>
                     {period.components.length > 0 ? (
                       <div className="overflow-x-auto">
@@ -733,6 +725,13 @@ function registerStatus(account: OwnerAccountRegisterRecord) {
     return {
       label: "Month closed",
       priority: "Complete",
+      priorityClassName: "mt-0.5 text-xs text-muted-foreground",
+    };
+  }
+  if (account.withdrawalStatus !== "available" || account.availableAmount === null) {
+    return {
+      label: "Distribution unavailable",
+      priority: "Review availability",
       priorityClassName: "mt-0.5 text-xs text-muted-foreground",
     };
   }
@@ -1712,7 +1711,7 @@ function periodStatusLabel(status: OwnerAccountRegisterRecord["periodStatus"]) {
   if (status === "blocked") return "Action required";
   if (status === "stale") return "Needs recalculation";
   if (status === "closed") return "Month closed";
-  if (status === "ready") return "Ready to distribute";
+  if (status === "ready") return "Calculated";
   return "Not calculated";
 }
 

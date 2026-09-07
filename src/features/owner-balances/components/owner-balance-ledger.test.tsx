@@ -157,9 +157,7 @@ describe("OwnerBalanceLedger", () => {
     expect(within(period).getByText("USD 900,719,925,474.09")).toBeTruthy();
     expect(within(period).getByText("USD 0.09")).toBeTruthy();
     expect(within(period).getByText("USD 2.00")).toBeTruthy();
-    expect(
-      within(period).getByText(/Available owner cash: USD 900,719,925,474.09/),
-    ).toBeTruthy();
+    expect(within(period).queryByText(/Available owner cash/)).toBeNull();
     expect(within(period).queryByText(/Available withdrawal/)).toBeNull();
     expect(within(period).getByText("Input watermark")).toBeTruthy();
     expect(within(period).getByText("2026-08-31T00:00:00Z")).toBeTruthy();
@@ -183,7 +181,7 @@ describe("OwnerBalanceLedger", () => {
       within(source).getByText("Owner funds held by IPS +USD 100.01"),
     ).toBeTruthy();
 
-    expect(within(period).getByText("Ready to distribute")).toBeTruthy();
+    expect(within(period).getByText("Calculated")).toBeTruthy();
     expect(within(period).getByText("Owner funds held by IPS")).toBeTruthy();
     expect(within(period).getByText("Owner owes IPS")).toBeTruthy();
     expect(screen.getByText("Items to resolve")).toBeTruthy();
@@ -426,12 +424,12 @@ describe("OwnerBalanceLedger", () => {
     expect(within(dialog).getByRole("button", { name: "Generate month" })).toBeTruthy();
   });
 
-  it.each(["historical_not_eligible", "period_stale"])(
+  it.each(["blocked", "unavailable", "historical_not_eligible", "period_stale"])(
     "does not present %s closing cash as current withdrawal capacity",
     (status) => {
-      const blocked = data() as unknown as {
-        withdrawalCapacity: Record<string, unknown>;
-      };
+      const blocked = data();
+      blocked.periods[0]!.components[0]!.closingAmount = "975.00" as never;
+      blocked.periods[0]!.availableWithdrawal = "975.00" as never;
       blocked.withdrawalCapacity = {
         asOfDate: "2026-07-31",
         authoritativeHeldCash: "500.00",
@@ -439,14 +437,14 @@ describe("OwnerBalanceLedger", () => {
         committedReserved: "25.00",
         periodStatus: status === "period_stale" ? "stale" : "ready",
         status,
-      };
+      } as OwnerBalanceData["withdrawalCapacity"];
 
       render(
         <OwnerBalanceLedger
           canAllocate
           canCorrect
           canTransfer={false}
-          data={blocked as unknown as OwnerBalanceData}
+          data={blocked}
           organizationName="IPS"
           selectedMonth="2026-07"
           selectedOwnerPersonId={ownerId}
@@ -459,8 +457,32 @@ describe("OwnerBalanceLedger", () => {
         within(capacity).getByText("Distribution amount unavailable"),
       ).toBeTruthy();
       expect(within(capacity).queryByText("USD 500.00")).toBeNull();
+      const period = screen.getByTestId("owner-period-2026-08-01");
+      expect(within(period).getByText("Calculated")).toBeTruthy();
+      expect(within(period).getByText("USD 975.00")).toBeTruthy();
+      expect(within(period).queryByText(/Available owner cash/)).toBeNull();
+      expect(screen.queryByText("Ready to distribute")).toBeNull();
     },
   );
+
+  it.each(["blocked", "unavailable", "available"])("register distribution wording follows %s capacity, not a calculated month alone", (withdrawalStatus) => {
+    const input = data();
+    input.accounts = [{
+      availableAmount: withdrawalStatus === "available" ? "975.00" : null,
+      issueCodes: [], issueCount: 0, lastActivityDate: "2026-08-31", lastActivityDetail: null,
+      ownerLabel: "Nora Owner", ownerPersonId: ownerId, periodStatus: "ready",
+      propertyId, propertyLabel: "Riverside", remediationPath: null, withdrawalStatus,
+    }] as OwnerBalanceData["accounts"];
+    input.accountTotal = 1;
+    render(<OwnerBalanceLedger canAllocate={false} canCorrect={false} canTransfer={false}
+      data={input} organizationName="IPS" selectedMonth="2026-08" />);
+    if (withdrawalStatus === "available") {
+      expect(screen.getByText("Ready to distribute")).toBeTruthy();
+    } else {
+      expect(screen.queryByText("Ready to distribute")).toBeNull();
+      expect(screen.getByText("Distribution unavailable")).toBeTruthy();
+    }
+  });
 });
 
 function data(): OwnerBalanceData {
