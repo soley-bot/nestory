@@ -50,16 +50,26 @@ for (const [entryId, route, expected] of [
   ["property-detail", "/properties/[propertyId]", ["Properties", "Central Residence"]],
   ["units-list", "/units", ["Properties", "Units"]],
   ["unit-detail", "/units/[unitId]", ["Properties", "Units", "View unit 1A details"]],
+  ["maintenance-recurring", "/recurring-tasks", ["Cases", "Mobile viewport 390x844", "Maintenance workspace menu", "Recurring work"]],
+  ["maintenance-inspections", "/inspections", ["Cases", "Mobile viewport 390x844", "Maintenance workspace menu", "Inspections"]],
+  ["maintenance-work-orders", "/work-orders", ["Cases", "Mobile viewport 390x844", "Maintenance workspace menu", "Work orders"]],
 ]) {
   test(`${entryId} ${route} follows visible links without direct navigation`, async () => {
     let pathname = "/overview";
+    let viewport = { width: 1440, height: 900 };
+    let maintenanceMenuOpen = false;
     const pages = {
-      "/overview": [{ name: "Advanced", href: "/finance/advanced" }, { name: "Settings", href: "/settings" }, { name: "Properties", href: "/properties" }],
+      "/overview": [{ name: "Advanced", href: "/finance/advanced" }, { name: "Settings", href: "/settings" }, { name: "Properties", href: "/properties" }, { name: "Cases", href: "/maintenance" }],
       "/finance/advanced": [{ name: "Chart of Accounts", href: "/finance/accounts" }],
       "/finance/accounts": [{ name: "Activity for Operating bank", href: "/finance/accounts/account-1" }],
       "/settings": [{ name: "Roles", href: "/settings/roles" }],
       "/properties": [{ name: "Central Residence", href: "/properties/property-1" }, { name: "Units", href: "/units" }],
       "/units": [{ name: "View unit 1A details", href: "/units/unit-1", role: "button" }],
+      "/maintenance": [
+        { name: "Recurring work", href: "/recurring-tasks", role: "menuitem" },
+        { name: "Inspections", href: "/inspections", role: "menuitem" },
+        { name: "Work orders", href: "/work-orders", role: "menuitem" },
+      ],
     };
     const locate = (predicate) => {
       const link = pages[pathname]?.find(predicate);
@@ -80,8 +90,15 @@ for (const [entryId, route, expected] of [
         return locate((link) => href ? link.href === href : prefix && link.href.startsWith(prefix));
       },
       getByRole(role, { name }) {
+        if (role === "navigation" && name === "Maintenance workspace") {
+          assert.equal(viewport.width, 390, "the existing menu is mobile-only");
+          return { getByRole: () => ({ click: async () => { maintenanceMenuOpen = true; } }) };
+        }
+        if (role === "menuitem") assert.equal(maintenanceMenuOpen, true);
         return locate((link) => (link.role ?? "link") === role && (typeof name === "string" ? link.name === name : name.test(link.name)));
       },
+      viewportSize() { return viewport; },
+      async setViewportSize(next) { viewport = next; },
       async waitForURL(predicate) {
         await new Promise((resolve) => setTimeout(resolve, 0));
         assert.ok(predicate(new URL(`http://localhost:3000${pathname}`)), `unexpected destination ${pathname}`);
@@ -95,11 +112,25 @@ for (const [entryId, route, expected] of [
     await openContextJourney(page, { entryId, route, role: "super_admin" }, chain);
     assert.deepEqual(chain, expected);
     assert.equal(matchesContractPath(pathname, route), true);
+    assert.deepEqual(viewport, { width: 1440, height: 900 });
   });
 }
 
 test("the Advanced entry expands the Finance sidebar group", () => {
   assert.equal(loadJourneys().routeGroup("/finance/advanced"), "Finance");
+});
+
+test("the Leases entry expands Properties rather than Finance", () => {
+  assert.equal(loadJourneys().routeGroup("/leases"), "Properties");
+});
+
+test("maintenance readers get truthful read journeys while Finance remains denied", () => {
+  const plan = buildDiscoverabilityPlan(contract).filter((journey) => journey.role === "operations_member");
+  for (const route of ["/maintenance", "/recurring-tasks", "/inspections", "/work-orders"]) {
+    assert.ok(plan.some((journey) => journey.route === route), `${route} read journey missing`);
+  }
+  assert.deepEqual(findForbiddenGlobalEntries(contract, "operations_member", ["/maintenance"]), []);
+  assert.equal(findForbiddenGlobalEntries(contract, "operations_member", ["/finance"]).length, 1);
 });
 
 test("builds one shell-start visible-link journey for every authorized role and route", () => {
@@ -126,7 +157,7 @@ test("keeps direct denial checks separate from discoverability evidence", () => 
     finance_manager: "/properties",
     finance_member: "/reports",
     operations_manager: "/finance",
-    operations_member: "/maintenance",
+    operations_member: "/finance",
     super_admin: null,
   });
 });

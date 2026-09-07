@@ -33,6 +33,7 @@ const capabilityRoles = {
   canReadFinance: ["super_admin", "finance_manager", "finance_member"],
   canReadFinanceReports: ["super_admin", "finance_manager"],
   canManageOperations: ["super_admin", "operations_manager"],
+  "maintenance.view": ["super_admin", "operations_manager", "operations_member"],
   canExecuteOperations: [
     "super_admin",
     "operations_manager",

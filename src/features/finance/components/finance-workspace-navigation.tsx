@@ -45,7 +45,6 @@ export function FinanceWorkspaceNavigation({
   activeRoute,
   canCorrectFinance = false,
   canReadFinanceReports = false,
-  canRecordPayments = false,
   canReviewExpense = false,
   canSubmitExpense = false,
 }: {
@@ -60,7 +59,7 @@ export function FinanceWorkspaceNavigation({
   const destinations: Array<
     (typeof financeDestinations)[keyof typeof financeDestinations]
   > = [financeDestinations.finance];
-  if (canRecordPayments) destinations.push(financeDestinations.rent);
+  destinations.push(financeDestinations.rent);
   if (canSubmitExpense || canReviewExpense || canCorrectFinance) {
     destinations.push(financeDestinations.expenses);
   }

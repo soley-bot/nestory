@@ -226,6 +226,12 @@ async function openContextJourney(page, journey, chain) {
       openAdvancedFinanceTool(page, chain, journey.route, "Ledger"),
     "advanced-petty-cash": () =>
       openAdvancedFinanceTool(page, chain, journey.route, "Petty cash"),
+    "maintenance-recurring": () =>
+      openMobileMaintenanceTool(page, chain, journey.route, "Recurring work"),
+    "maintenance-inspections": () =>
+      openMobileMaintenanceTool(page, chain, journey.route, "Inspections"),
+    "maintenance-work-orders": () =>
+      openMobileMaintenanceTool(page, chain, journey.route, "Work orders"),
     "finance-accounts": () =>
       openAdvancedFinanceTool(page, chain, "/finance/accounts", "Chart of Accounts"),
     "finance-account-detail": async () => {
@@ -378,6 +384,21 @@ async function openUnitsRegister(page, chain) {
   chain.push("Units");
 }
 
+async function openMobileMaintenanceTool(page, chain, route, label) {
+  await fromGlobal(page, chain, "/maintenance", "Cases");
+  const previousViewport = page.viewportSize();
+  await page.setViewportSize({ width: 390, height: 844 });
+  chain.push("Mobile viewport 390x844");
+  try {
+    await page.getByRole("navigation", { name: "Maintenance workspace" })
+      .getByRole("button", { name: "Cases", exact: true }).click();
+    await clickAndWait(page, page.getByRole("menuitem", { name: label, exact: true }), route);
+    chain.push("Maintenance workspace menu", label);
+  } finally {
+    await page.setViewportSize(previousViewport ?? { width: 1440, height: 900 });
+  }
+}
+
 async function fromGlobal(page, chain, route, label) {
   await clickGlobalRoute(page, route);
   chain.push(label);
@@ -385,8 +406,11 @@ async function fromGlobal(page, chain, route, label) {
 
 async function clickGlobalRoute(page, route) {
   const href = staticRoute(route);
+  // The lease-only Properties parent also points at /leases. Select the actual
+  // named child so the recorded Leases entry matches the visible click.
+  const childOnly = route === "/leases" ? '[data-sidebar="menu-sub-button"]' : "";
   const link = page
-    .locator(`nav[aria-label="Global navigation"] a[href="${href}"]:visible`)
+    .locator(`nav[aria-label="Global navigation"] a${childOnly}[href="${href}"]:visible`)
     .first();
   const group = routeGroup(route);
   if (group && !(await link.isVisible())) {
@@ -468,7 +492,8 @@ function entryLabel(entryId) {
 }
 
 function routeGroup(route) {
-  if (["/finance", "/finance/advanced", "/rent-income", "/bills-expenses", "/balances", "/leases", "/ledger", "/petty-cash"].includes(route)) {
+  if (route === "/leases") return "Properties";
+  if (["/finance", "/finance/advanced", "/rent-income", "/bills-expenses", "/balances", "/ledger", "/petty-cash"].includes(route)) {
     return "Finance";
   }
   if (["/maintenance", "/tasks", "/recurring-tasks", "/inspections", "/work-orders"].includes(route)) {

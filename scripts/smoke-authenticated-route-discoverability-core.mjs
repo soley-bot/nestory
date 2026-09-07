@@ -10,7 +10,7 @@ export const directDenialRoutes = Object.freeze({
   finance_manager: "/properties",
   finance_member: "/reports",
   operations_manager: "/finance",
-  operations_member: "/maintenance",
+  operations_member: "/finance",
   super_admin: null,
 });
 

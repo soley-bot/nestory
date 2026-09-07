@@ -264,6 +264,7 @@ function getGlobalDestinations({
   if (has("properties.view") || has("leases.view")) {
     destinations.push({
       ...ADMIN_GLOBAL_DESTINATIONS[1],
+      href: has("properties.view") ? "/properties" : "/leases",
       children: PROPERTIES_CHILDREN.filter((child) =>
         child.href === "/leases" ? has("leases.view") : has("properties.view"),
       ),
@@ -278,7 +279,6 @@ function getGlobalDestinations({
     destinations.push({
       ...ADMIN_GLOBAL_DESTINATIONS[3],
       children: FINANCE_CHILDREN.filter((child) => {
-        if (child.href === "/rent-income") return has("finance.record_payments");
         if (child.href === "/bills-expenses") {
           return (
             has("finance.submit_expenses") ||

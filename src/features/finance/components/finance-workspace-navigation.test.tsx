@@ -90,6 +90,7 @@ describe("FinanceWorkspaceNavigation", () => {
         .map((link) => link.textContent),
     ).toEqual([
       "Portfolio review",
+      "Rent & collections",
       "Expenses",
       "Owner accounts",
       "Chart of Accounts",

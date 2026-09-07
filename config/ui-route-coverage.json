@@ -1057,7 +1057,7 @@
     "source": "src/app/(dashboard)/maintenance/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["super_admin", "operations_manager"],
+    "roles": ["super_admin", "operations_manager", "operations_member"],
     "states": [
       "loading",
       "populated",
@@ -1111,7 +1111,7 @@
         "finance_manager": "permission-blocked",
         "finance_member": "permission-blocked",
         "operations_manager": "accessible",
-        "operations_member": "permission-blocked",
+        "operations_member": "accessible",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -1205,7 +1205,7 @@
     "source": "src/app/(dashboard)/recurring-tasks/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["super_admin", "operations_manager"],
+    "roles": ["super_admin", "operations_manager", "operations_member"],
     "states": [
       "loading",
       "populated",
@@ -1259,7 +1259,7 @@
         "finance_manager": "permission-blocked",
         "finance_member": "permission-blocked",
         "operations_manager": "accessible",
-        "operations_member": "permission-blocked",
+        "operations_member": "accessible",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -1279,7 +1279,7 @@
     "source": "src/app/(dashboard)/inspections/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["super_admin", "operations_manager"],
+    "roles": ["super_admin", "operations_manager", "operations_member"],
     "states": [
       "loading",
       "populated",
@@ -1333,7 +1333,7 @@
         "finance_manager": "permission-blocked",
         "finance_member": "permission-blocked",
         "operations_manager": "accessible",
-        "operations_member": "permission-blocked",
+        "operations_member": "accessible",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -1353,7 +1353,7 @@
     "source": "src/app/(dashboard)/work-orders/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["super_admin", "operations_manager"],
+    "roles": ["super_admin", "operations_manager", "operations_member"],
     "states": [
       "loading",
       "populated",
@@ -1407,7 +1407,7 @@
         "finance_manager": "permission-blocked",
         "finance_member": "permission-blocked",
         "operations_manager": "accessible",
-        "operations_member": "permission-blocked",
+        "operations_member": "accessible",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
