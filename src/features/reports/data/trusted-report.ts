@@ -27,6 +27,10 @@ import {
   type ReportDocumentClient,
 } from "@/features/reports/data/report-documents";
 import { loadEffectiveRentPolicyCalendarDate } from "@/features/leases/data/leases";
+import {
+  loadScopedFinanceContext,
+  type ScopedFinanceContext,
+} from "@/features/finance-operations/data/scoped-finance-context";
 import type {
   ReportKind,
   ReportSourceLink,
@@ -255,14 +259,23 @@ const trustedReportSourceRequirements = {
 } satisfies Record<ReportKind, TrustedReportSourceRequirements>;
 
 export async function getTrustedReport({
+  financeContext: suppliedFinanceContext,
   organizationId,
+  supabase: suppliedSupabase,
   viewQuery,
 }: {
+  financeContext?: ScopedFinanceContext;
   organizationId: string;
+  supabase?: SupabaseServerClient;
   viewQuery: ReportsViewQuery;
 }): Promise<TrustedReport> {
   if (viewQuery.report === "monthly-owner-activity") {
-    return getMonthlyOwnerActivityReport({ organizationId, viewQuery });
+    return getMonthlyOwnerActivityReport({
+      financeContext: suppliedFinanceContext,
+      organizationId,
+      supabase: suppliedSupabase,
+      viewQuery,
+    });
   }
 
   if (viewQuery.report === "people-readiness") {
@@ -273,8 +286,76 @@ export async function getTrustedReport({
     });
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = suppliedSupabase ?? (await createSupabaseServerClient());
   const period = getReportMonthRange(viewQuery.month);
+
+  if (viewQuery.report === "unit-profit-loss") {
+    const financeContext =
+      suppliedFinanceContext ??
+      (await loadScopedFinanceContext(
+        supabase,
+        organizationId,
+        viewQuery.propertyId === "all" ? undefined : viewQuery.propertyId,
+      ));
+    const properties: PropertyRow[] = financeContext.properties
+      .filter(
+        (property) =>
+          property.archived_at === null &&
+          (viewQuery.propertyId === "all" || property.id === viewQuery.propertyId),
+      )
+      .map((property) => ({
+        code: property.code,
+        id: property.id,
+        name: property.name,
+        owner: null,
+        property_type: "",
+        status: "active",
+      }));
+    const propertyIds = properties.map((property) => property.id);
+    const visiblePropertyIds = new Set(propertyIds);
+    const units: UnitRow[] = financeContext.units
+      .filter(
+        (unit) =>
+          unit.archived_at === null && visiblePropertyIds.has(unit.property_id),
+      )
+      .map((unit) => ({
+        current_rent_amount: null,
+        current_rent_currency: null,
+        floor: null,
+        id: unit.id,
+        property_id: unit.property_id,
+        size_sqm: null,
+        status: "active",
+        unit_number: unit.unit_number,
+      }));
+    const ownerProfitLossEvents =
+      propertyIds.length === 0
+        ? []
+        : await loadReportOwnerProfitLossEvents({
+            organizationId,
+            period,
+            propertyIds,
+            supabase,
+          });
+
+    return buildTrustedReport({
+      documents: [],
+      ledgerEntries: [],
+      leases: [],
+      maintenanceTasks: [],
+      owners: [],
+      ownerProfitLossEvents,
+      people: [],
+      periodEnd: period.end,
+      periodStart: period.start,
+      properties,
+      propertyCashEvents: [],
+      timelineEvents: [],
+      units,
+      viewQuery,
+    });
+  }
+
   const properties = await loadReportProperties(supabase, organizationId, viewQuery);
   const propertyIds = properties.map((property) => property.id);
   const sources = getTrustedReportSourceRequirements(viewQuery.report);

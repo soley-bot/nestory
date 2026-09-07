@@ -13,7 +13,6 @@ import {
   type LeaseOccupancyRow,
   type LeasePartyRow,
   type LeasePropertyRow,
-  type LeaseReadinessRow,
   type LeaseRow,
   type LeaseTermRow,
   type LeaseTimelineRow,
@@ -34,16 +33,15 @@ import {
 } from "@/lib/entity-option-labels";
 import { getPersonSelectOptions } from "@/features/people/data/person-options";
 import { documentDownloadUrl } from "@/lib/uploads/document-download";
-import type { Database } from "@/types/database";
 import {
   getCalendarDateInTimeZone,
   getLeaseBillingRuleState,
 } from "@/features/leases/lease-billing-rule-state";
+import { loadScopedLeaseContext, parseScopedLeaseReadiness, parseScopedLeaseRows } from "@/features/leases/data/scoped-lease-context";
+import type { ScopedBillingTerm } from "@/features/finance-operations/data/scoped-finance-context";
 
 export { getCalendarDateInTimeZone } from "@/features/leases/lease-billing-rule-state";
 
-const propertySelect = "id, code, name, rental_structure, archived_at";
-const unitSelect = "id, property_id, unit_number, floor, status, archived_at";
 type SupabaseServerClient = Awaited<
   ReturnType<typeof createSupabaseServerClient>
 >;
@@ -56,8 +54,7 @@ type RentPolicyCalendarDateRow = {
   rent_calculation_timezone: string | null;
   version_number: number;
 };
-type LeaseBillingTermRow =
-  Database["public"]["Tables"]["lease_billing_terms"]["Row"];
+type LeaseBillingTermRow = ScopedBillingTerm;
 type LeaseBillingRuleRow = LeaseBillingRule & { lease_id: string };
 type LeaseAvailabilityLeaseRow = {
   archived_at: string | null;
@@ -80,28 +77,12 @@ export async function getLeasesScreenData(
 ) {
   const supabase = await createSupabaseServerClient();
   const [
-    propertiesResult,
-    unitsResult,
-    availabilityLeasesResult,
+    readContext,
     tenantOptions,
     billingFormConfig,
   ] =
     await Promise.all([
-      supabase
-        .from("properties")
-        .select(propertySelect)
-        .eq("organization_id", organizationId)
-        .order("code", { ascending: true }),
-      supabase
-        .from("units")
-        .select(unitSelect)
-        .eq("organization_id", organizationId)
-        .order("unit_number", { ascending: true }),
-      supabase
-        .from("leases")
-        .select("id, unit_id, archived_at")
-        .eq("organization_id", organizationId)
-        .not("unit_id", "is", null),
+      loadScopedLeaseContext(supabase, organizationId),
       getPersonSelectOptions({ organizationId, roles: ["tenant"] }),
       loadLeaseBillingFormConfig(supabase, organizationId),
     ]);
@@ -111,51 +92,12 @@ export async function getLeasesScreenData(
     billingFormConfig.operationalTimezone,
   );
 
-  if (propertiesResult.error) {
-    throw new Error(
-      `Could not load lease properties: ${propertiesResult.error.message}`,
-    );
-  }
-
-  if (unitsResult.error) {
-    throw new Error(`Could not load lease units: ${unitsResult.error.message}`);
-  }
-
-  if (availabilityLeasesResult.error) {
-    throw new Error(
-      `Could not load lease availability: ${availabilityLeasesResult.error.message}`,
-    );
-  }
-
-  const properties = (propertiesResult.data ?? []) as Array<
-    LeasePropertyRow & { archived_at: string | null }
-  >;
-  const units = (unitsResult.data ?? []) as Array<
-    LeaseUnitRow & { archived_at: string | null }
-  >;
-  const availabilityLeases = (availabilityLeasesResult.data ?? []) as
-    LeaseAvailabilityLeaseRow[];
-  const availabilityLeaseIds = availabilityLeases
-    .filter((lease) => !lease.archived_at && lease.unit_id)
-    .map((lease) => lease.id);
-  const availabilityTermsResult = availabilityLeaseIds.length
-    ? await supabase
-        .from("lease_terms")
-        .select("lease_id, start_date, end_date, status, archived_at")
-        .eq("organization_id", organizationId)
-        .in("lease_id", availabilityLeaseIds)
-        .in("status", [...BLOCKING_LEASE_TERM_STATUSES])
-    : { data: [], error: null };
-
-  if (availabilityTermsResult.error) {
-    throw new Error(
-      `Could not load lease availability terms: ${availabilityTermsResult.error.message}`,
-    );
-  }
+  const properties = readContext.properties;
+  const units = readContext.units;
 
   const reservationsByUnitId = buildLeaseUnitReservations(
-    availabilityLeases,
-    (availabilityTermsResult.data ?? []) as LeaseAvailabilityTermRow[],
+    readContext.availability_leases,
+    readContext.availability_terms,
   );
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
@@ -186,7 +128,7 @@ export async function getLeasesScreenData(
     }
 
     let leasesQuery = supabase.rpc(
-      "get_leases_with_effective_rent",
+      "get_scoped_leases_with_effective_rent",
       {
         p_effective_date: readinessDate,
         p_organization_id: organizationId,
@@ -335,7 +277,7 @@ export async function getLeasesScreenData(
 
     const sortedLeases = sortLeaseSummaries(
       toLeaseSummaries(
-        rentResults.flatMap((result) => (result.data ?? []) as LeaseRow[]),
+        rentResults.flatMap((result) => parseScopedLeaseRows(result.data)),
       ),
       "rent_desc",
     );
@@ -394,7 +336,7 @@ export async function getLeasesScreenData(
     });
   }
 
-  const leases = toLeaseSummaries((leasesResult.data ?? []) as LeaseRow[]);
+  const leases = toLeaseSummaries(parseScopedLeaseRows(leasesResult.data));
 
   return {
     billingFormConfig,
@@ -446,11 +388,7 @@ async function enrichLeaseSummaries({
   );
   const propertyIds = new Set(leases.map((lease) => lease.propertyId));
   const [
-    partiesResult,
-    termsResult,
-    billingTermsResult,
-    occupanciesResult,
-    depositsResult,
+    readContext,
     documentsResult,
     timelineResult,
     activityResult,
@@ -458,45 +396,7 @@ async function enrichLeaseSummaries({
     activationSchedulesResult,
     readinessResults,
   ] = await Promise.all([
-    supabase
-      .from("lease_parties")
-      .select(
-        "id, lease_id, person_id, party_role, is_primary, started_on, ended_on, archived_at",
-      )
-      .eq("organization_id", organizationId)
-      .in("lease_id", detailLeaseIds)
-      .order("is_primary", { ascending: false })
-      .order("party_role", { ascending: true }),
-    supabase
-      .from("lease_terms")
-      .select(
-        "id, lease_id, term_sequence, start_date, end_date, rent_amount, rent_currency, rent_due_day, payment_frequency, status, archived_at",
-      )
-      .eq("organization_id", organizationId)
-      .in("lease_id", detailLeaseIds)
-      .order("term_sequence", { ascending: false }),
-    supabase
-      .from("lease_billing_terms")
-      .select("*")
-      .eq("organization_id", organizationId)
-      .in("lease_id", detailLeaseIds)
-      .order("effective_from", { ascending: false }),
-    supabase
-      .from("lease_occupancies")
-      .select(
-        "id, lease_id, unit_id, status, business_lifecycle, evidence_state, scheduled_move_in_date, scheduled_move_in_kind, scheduled_move_in_confidence, actual_move_in_date, actual_move_in_kind, actual_move_in_confidence, scheduled_move_out_date, scheduled_move_out_kind, scheduled_move_out_confidence, actual_move_out_date, actual_move_out_kind, actual_move_out_confidence, archived_at, participants:lease_occupancy_participants(id, business_lifecycle, evidence_state)",
-      )
-      .eq("organization_id", organizationId)
-      .in("lease_id", detailLeaseIds)
-      .order("updated_at", { ascending: false }),
-    supabase
-      .from("lease_deposits")
-      .select(
-        "id, lease_id, deposit_type, amount, currency, status, archived_at",
-      )
-      .eq("organization_id", organizationId)
-      .in("lease_id", detailLeaseIds)
-      .order("updated_at", { ascending: false }),
+    loadScopedLeaseContext(supabase, organizationId, detailLeaseIds),
     supabase
       .from("documents")
       .select(
@@ -535,7 +435,7 @@ async function enrichLeaseSummaries({
       ? Promise.all(
           leases.map(async (lease) => ({
             leaseId: lease.id,
-            result: await supabase.rpc("resolve_lease_rent_readiness", {
+            result: await supabase.rpc("get_scoped_lease_rent_readiness", {
               p_effective_date: readinessDate,
               p_lease_id: lease.id,
               p_organization_id: organizationId,
@@ -545,31 +445,11 @@ async function enrichLeaseSummaries({
       : Promise.resolve([]),
   ]);
 
-  const partyData = getOptionalLeaseBackboneRows(
-    partiesResult,
-    "lease parties",
-    "lease_parties",
-  );
-  const termData = getOptionalLeaseBackboneRows(
-    termsResult,
-    "lease terms",
-    "lease_terms",
-  );
-  const billingTermData = getOptionalLeaseBackboneRows(
-    billingTermsResult,
-    "lease billing rules",
-    "lease_billing_terms",
-  ) as LeaseBillingTermRow[];
-  const occupancyData = getOptionalLeaseBackboneRows(
-    occupanciesResult,
-    "lease occupancies",
-    "lease_occupancies",
-  );
-  const depositData = getOptionalLeaseBackboneRows(
-    depositsResult,
-    "lease deposits",
-    "lease_deposits",
-  );
+  const partyData = readContext.parties;
+  const termData = readContext.terms;
+  const billingTermData = readContext.billing_terms;
+  const occupancyData = readContext.occupancies;
+  const depositData: LeaseDepositRow[] = readContext.deposits;
   const depositIds = (depositData as LeaseDepositRow[]).map((deposit) => deposit.id);
   const depositEventsResult = depositIds.length
     ? await supabase.from("lease_deposit_events").select("id, lease_deposit_id, event_type, event_date, amount, currency, reference, reversal_of_id").eq("organization_id", organizationId).in("lease_deposit_id", depositIds).order("event_date", { ascending: false })
@@ -593,7 +473,13 @@ async function enrichLeaseSummaries({
       .filter((sourceId): sourceId is string => Boolean(sourceId)),
   );
   const eventsByDepositId = new Map<string, Array<{ id: string; event_type: string; event_date: string; amount: number; currency: CurrencyCode; reference: string | null; reversal_of_id: string | null }>>();
-  for (const event of depositEventsResult.data ?? []) {
+  // Scoped amounts supply the complete permitted history. Independently
+  // authorized direct rows retain references without counting an event twice.
+  const depositEvents = [...new Map(
+    [...readContext.deposit_events, ...(depositEventsResult.data ?? [])]
+      .map((event) => [event.id, event]),
+  ).values()].sort((left, right) => right.event_date.localeCompare(left.event_date));
+  for (const event of depositEvents) {
     const rows = eventsByDepositId.get(event.lease_deposit_id) ?? [];
     rows.push(event as typeof rows[number]); eventsByDepositId.set(event.lease_deposit_id, rows);
   }
@@ -632,10 +518,7 @@ async function enrichLeaseSummaries({
   for (const { result } of readinessResults) {
     if (
       result.error &&
-      !isStrictPostgrestTransportFailure(result) &&
-      !isMissingSchemaObjectMessage(result.error.message, [
-        "resolve_lease_rent_readiness",
-      ])
+      !isStrictPostgrestTransportFailure(result)
     ) {
       throw new Error(
         `Could not resolve lease rent readiness: ${result.error.message}`,
@@ -647,12 +530,14 @@ async function enrichLeaseSummaries({
     partyData,
     organizationId,
     supabase,
+    readContext.people,
   );
   const billingRules = await addLeaseBillingRecipientLabels(
     billingTermData,
     organizationId,
     readinessClock,
     supabase,
+    readContext.people,
   );
   const documents = addDocumentDownloadUrls(documentsResult.data ?? []);
   const partiesByLeaseId = groupByLeaseId(partyRows);
@@ -673,7 +558,7 @@ async function enrichLeaseSummaries({
       leaseId,
       result.error
         ? null
-        : ((result.data?.[0] ?? null) as LeaseReadinessRow | null),
+        : parseScopedLeaseReadiness(result.data),
     ]),
   );
   const activationScheduleByLeaseId = new Map(
@@ -888,6 +773,7 @@ async function addLeasePartyPeople(
   }>,
   organizationId: string,
   supabase: SupabaseServerClient,
+  scopedPeople: Array<{ id: string; display_name: string }>,
 ): Promise<LeasePartyRow[]> {
   const personIds = new Set(rows.map((row) => row.person_id));
 
@@ -925,7 +811,7 @@ async function addLeasePartyPeople(
 
     return {
       ...row,
-      person_name: person?.display_name ?? "Linked person",
+      person_name: person?.display_name ?? scopedPeople.find((entry) => entry.id === row.person_id)?.display_name ?? "Linked person",
       primary_email: person?.primary_email ?? null,
       primary_phone: person?.primary_phone ?? null,
     };
@@ -937,6 +823,7 @@ async function addLeaseBillingRecipientLabels(
   organizationId: string,
   readinessClock: Date,
   supabase: SupabaseServerClient,
+  scopedPeople: Array<{ id: string; display_name: string }>,
 ): Promise<LeaseBillingRuleRow[]> {
   const personIds = [
     ...new Set(
@@ -962,7 +849,7 @@ async function addLeaseBillingRecipientLabels(
   }
 
   const recipientById = new Map(
-    (peopleResult.data ?? []).map((person) => [person.id, person.display_name]),
+    [...scopedPeople, ...(peopleResult.data ?? [])].map((person) => [person.id, person.display_name]),
   );
   const billingRowsByLeaseId = groupByLeaseId(
     rows.filter((row) => row.archived_at === null),

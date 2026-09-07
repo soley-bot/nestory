@@ -3,6 +3,10 @@ import { formatDate } from "@/lib/dates/format";
 import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
 import { formatMoney } from "@/lib/money/format";
 import { getReportMonthRange } from "@/features/reports/reports.filters";
+import {
+  loadScopedFinanceContext,
+  type ScopedFinanceContext,
+} from "@/features/finance-operations/data/scoped-finance-context";
 import type {
   ReportsViewQuery,
   TraceableReportMetric,
@@ -32,32 +36,32 @@ type Property = {
 };
 
 export async function getMonthlyOwnerActivityReport({
+  financeContext: suppliedFinanceContext,
   organizationId,
+  supabase: suppliedSupabase,
   viewQuery,
 }: {
+  financeContext?: ScopedFinanceContext;
   organizationId: string;
+  supabase?: Awaited<ReturnType<typeof createSupabaseServerClient>>;
   viewQuery: ReportsViewQuery;
 }): Promise<TrustedReport> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = suppliedSupabase ?? (await createSupabaseServerClient());
   const period = getReportMonthRange(viewQuery.month);
-  let propertiesQuery = supabase
-    .from("properties")
-    .select("id, code, name")
-    .eq("organization_id", organizationId)
-    .is("archived_at", null);
-
-  if (viewQuery.propertyId !== "all") {
-    propertiesQuery = propertiesQuery.eq("id", viewQuery.propertyId);
-  }
-
-  const propertiesResult = await propertiesQuery.order("code");
-  if (propertiesResult.error) {
-    throw new Error(
-      `Could not load owner activity properties: ${propertiesResult.error.message}`,
-    );
-  }
-
-  const properties = (propertiesResult.data ?? []) as Property[];
+  const financeContext =
+    suppliedFinanceContext ??
+    (await loadScopedFinanceContext(
+      supabase,
+      organizationId,
+      viewQuery.propertyId === "all" ? undefined : viewQuery.propertyId,
+    ));
+  const properties = financeContext.properties
+    .filter(
+      (property) =>
+        property.archived_at === null &&
+        (viewQuery.propertyId === "all" || property.id === viewQuery.propertyId),
+    )
+    .map(({ code, id, name }) => ({ code, id, name }));
   const propertyIds = properties.map(({ id }) => id);
   if (propertyIds.length === 0) {
     return buildMonthlyOwnerActivityReport({
@@ -69,68 +73,43 @@ export async function getMonthlyOwnerActivityReport({
     });
   }
 
-  const [entriesResult, ownersResult] = await Promise.all([
-    supabase
-      .from("property_account_entries")
-      .select(
-        "property_id, event_date, category, label, amount, balance_effect, source_type, source_id",
-      )
-      .eq("organization_id", organizationId)
-      .in("property_id", propertyIds)
-      .gte("event_date", period.start)
-      .lte("event_date", period.end),
-    supabase
-      .from("property_owners")
-      .select("property_id, person_id")
-      .eq("organization_id", organizationId)
-      .in("property_id", propertyIds)
-      .eq("is_primary", true)
-      .is("archived_at", null)
-      .or(`started_on.is.null,started_on.lte.${period.end}`)
-      .or(`ended_on.is.null,ended_on.gte.${period.end}`),
-  ]);
+  const entriesResult = await supabase
+    .from("property_account_entries")
+    .select(
+      "property_id, event_date, category, label, amount, balance_effect, source_type, source_id",
+    )
+    .eq("organization_id", organizationId)
+    .in("property_id", propertyIds)
+    .gte("event_date", period.start)
+    .lte("event_date", period.end);
 
   if (entriesResult.error) {
     throw new Error(
       `Could not load owner activity entries: ${entriesResult.error.message}`,
     );
   }
-  if (ownersResult.error) {
-    throw new Error(
-      `Could not load owner activity owners: ${ownersResult.error.message}`,
-    );
-  }
-
-  const personIds = [
-    ...new Set((ownersResult.data ?? []).map(({ person_id }) => person_id)),
-  ];
-  const peopleResult =
-    personIds.length === 0
-      ? { data: [], error: null }
-      : await supabase
-          .from("people")
-          .select("id, display_name")
-          .eq("organization_id", organizationId)
-          .in("id", personIds)
-          .is("archived_at", null);
-
-  if (peopleResult.error) {
-    throw new Error(
-      `Could not load owner activity names: ${peopleResult.error.message}`,
-    );
-  }
-
   const peopleById = new Map(
-    (peopleResult.data ?? []).map((person) => [person.id, person.display_name]),
+    financeContext.people
+      .filter((person) => person.archived_at === null)
+      .map((person) => [person.id, person.display_name]),
   );
   const ownerAssignments = new Map<string, OwnerAssignment>(
-    (ownersResult.data ?? []).map((owner) => [
-      owner.property_id,
-      {
-        name: peopleById.get(owner.person_id) ?? "Owner needed",
-        personId: owner.person_id,
-      },
-    ]),
+    financeContext.owner_assignments
+      .filter(
+        (owner) =>
+          owner.archived_at === null &&
+          owner.is_primary &&
+          propertyIds.includes(owner.property_id) &&
+          (owner.started_on === null || owner.started_on <= period.end) &&
+          (owner.ended_on === null || owner.ended_on >= period.end),
+      )
+      .map((owner) => [
+        owner.property_id,
+        {
+          name: peopleById.get(owner.person_id) ?? "Owner needed",
+          personId: owner.person_id,
+        },
+      ]),
   );
 
   return buildMonthlyOwnerActivityReport({

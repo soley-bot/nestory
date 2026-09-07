@@ -1051,6 +1051,15 @@ describe("Lease payment resolution data", () => {
     ]);
   });
 
+  it("retains focused invoice and owner labels while direct related-domain reads are denied", async () => {
+    const client = createLeasePaymentResolutionClient({ invoiceId, leaseId, organizationId, propertyId });
+    client.respond("properties", { data: null, error: null });
+    client.respond("units", { data: null, error: null });
+    client.respond("property_owners", { data: null, error: null });
+    const result = await loadLeasePaymentResolutionData(client.client, input, payFromAccounts());
+    expect(result).toMatchObject({ ownerLabel: "Sokha Vannak", invoice: { id: invoiceId, propertyLabel: "Palm House — P-1", unitLabel: "Unit A-01 — P-1" } });
+  });
+
   function payFromAccounts() {
     return [
       { accountClass: "asset" as const, accountSubtype: "bank", displayName: "Operating", id: "account-bank", propertyId },
@@ -1241,6 +1250,18 @@ function createLeasePaymentResolutionClient({
   };
 
   const client = {
+    rpc(name: string, args: Record<string, unknown>) {
+      if (name !== "get_finance_read_context" || args.p_organization_id !== organizationId || args.p_requested_property_id !== propertyId) {
+        throw new Error("Unexpected finance context request");
+      }
+      return Promise.resolve({ data: {
+        properties: [{ id: propertyId, code: "P-1", name: "Palm House", archived_at: null }],
+        units: [{ id: "unit-1", property_id: propertyId, unit_number: "A-01", archived_at: null }],
+        people: [{ id: "owner-1", display_name: "Sokha Vannak", party_type: "individual", archived_at: null }],
+        owner_assignments: [{ id: "assignment-1", property_id: propertyId, person_id: "owner-1", is_primary: true, started_on: null, ended_on: null, archived_at: null }],
+        leases: [], terms: [], billing_terms: [],
+      }, error: null });
+    },
     from(table: LeasePaymentResolutionTable) {
       tables.push(table);
       const filters: Array<{

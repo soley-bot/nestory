@@ -10905,6 +10905,10 @@ export type Database = {
           unposted_count: number
         }[]
       }
+      get_finance_read_context: {
+        Args: { p_organization_id: string; p_requested_property_id?: string }
+        Returns: Json
+      }
       get_finance_submission_actor_labels: {
         Args: { p_organization_id: string; p_user_ids: string[] }
         Returns: {
@@ -10928,6 +10932,10 @@ export type Database = {
           p_property_id: string
           p_unit_id: string
         }
+        Returns: Json
+      }
+      get_lease_read_context: {
+        Args: { p_lease_ids?: string[]; p_organization_id: string }
         Returns: Json
       }
       get_leases_with_effective_rent: {
@@ -11347,6 +11355,48 @@ export type Database = {
       get_report_documents_snapshot: {
         Args: { p_organization_id: string }
         Returns: Json
+      }
+      get_scoped_lease_rent_readiness: {
+        Args: {
+          p_effective_date: string
+          p_lease_id: string
+          p_organization_id: string
+        }
+        Returns: {
+          effective_date: string
+          lease_id: string
+          organization_id: string
+          payment_frequency: string
+          policy_id: string
+          policy_version: number
+          property_id: string
+          readiness_status: string
+          reason_code: string
+          rent_amount: number
+          rent_currency: Database["public"]["Enums"]["currency_code"]
+          rent_due_day: number
+          repair_context: Json
+          term_id: string
+          unit_id: string
+        }[]
+      }
+      get_scoped_leases_with_effective_rent: {
+        Args: { p_effective_date: string; p_organization_id: string }
+        Returns: {
+          archived_at: string
+          deposit_amount: number
+          deposit_currency: Database["public"]["Enums"]["currency_code"]
+          id: string
+          lease_end_date: string
+          lease_start_date: string
+          monthly_rent_amount: number
+          monthly_rent_currency: Database["public"]["Enums"]["currency_code"]
+          primary_tenant_person_id: string
+          property_id: string
+          status: string
+          tenant_name: string
+          unit_id: string
+        }[]
       }
       get_tenant_commercial_document_artifact_download: {
         Args: { p_artifact_id: string; p_organization_id: string }

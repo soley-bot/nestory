@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { loadScopedFinanceContext, type ScopedBillingTerm } from "@/features/finance-operations/data/scoped-finance-context";
 import {
   getExpenseAccountOptions,
   getFinanceAccountsData,
@@ -59,8 +60,7 @@ type AccountEntryRow =
   Database["public"]["Views"]["property_account_entries"]["Row"];
 type ExpenseSubmissionRow =
   Database["public"]["Tables"]["expense_submissions"]["Row"];
-type LeaseBillingTermRow =
-  Database["public"]["Tables"]["lease_billing_terms"]["Row"];
+type LeaseBillingTermRow = ScopedBillingTerm;
 type LeaseTermPreviewRow = Pick<
   Database["public"]["Tables"]["lease_terms"]["Row"],
   "end_date" | "lease_id" | "rent_amount" | "start_date"
@@ -110,12 +110,6 @@ type FinanceUnitRow = {
   id: string;
   property_id: string;
   unit_number: string;
-};
-type PrimaryOwnerLabelRow = {
-  person:
-    | { display_name: string }
-    | Array<{ display_name: string }>
-    | null;
 };
 type RentGenerationExceptionRow =
   Database["public"]["Tables"]["rent_generation_exceptions"]["Row"];
@@ -328,13 +322,8 @@ export async function getFinanceOperationsData(
   const supabase = await createSupabaseServerClient();
   const [
     organizationResult,
-    propertiesResult,
-    unitsResult,
+    readContext,
     peopleResult,
-    ownersResult,
-    leasesResult,
-    leaseTermsResult,
-    billingResult,
     tenantInvoicesResult,
     rentGenerationExceptionsResult,
     ownerInvoicesResult,
@@ -349,48 +338,12 @@ export async function getFinanceOperationsData(
       .select("operational_timezone")
       .eq("id", organizationId)
       .single(),
-    () => supabase
-      .from("properties")
-      .select("id, code, name, archived_at")
-      .eq("organization_id", organizationId)
-      .order("code"),
-    () => supabase
-      .from("units")
-      .select("id, property_id, unit_number, archived_at")
-      .eq("organization_id", organizationId)
-      .order("unit_number"),
+    () => loadScopedFinanceContext(supabase, organizationId),
     () => supabase
       .from("people")
       .select("id, display_name, party_type, archived_at")
       .eq("organization_id", organizationId)
       .order("display_name"),
-    () => supabase
-      .from("property_owners")
-      .select("property_id, person_id")
-      .eq("organization_id", organizationId)
-      .eq("is_primary", true)
-      .is("ended_on", null)
-      .is("archived_at", null),
-    () => supabase
-      .from("current_leases")
-      .select(
-        "id, property_id, unit_id, primary_tenant_person_id, tenant_name, status, lease_start_date, lease_end_date, monthly_rent_amount",
-      )
-      .eq("organization_id", organizationId)
-      .is("archived_at", null)
-      .in("status", ["active", "notice_given", "ended", "terminated"])
-      .order("lease_start_date", { ascending: false }),
-    () => supabase
-      .from("lease_terms")
-      .select("lease_id, start_date, end_date, rent_amount")
-      .eq("organization_id", organizationId)
-      .eq("authority_kind", "authoritative")
-      .is("archived_at", null)
-      .neq("status", "superseded"),
-    () => supabase
-      .from("lease_billing_terms")
-      .select("*")
-      .eq("organization_id", organizationId),
     () => getTenantInvoiceBalanceRows(supabase, organizationId, propertyId),
     () => getUnresolvedRentGenerationExceptions(supabase, organizationId),
     () => getOwnerInvoiceBalanceRows(supabase, organizationId, propertyId),
@@ -419,13 +372,7 @@ export async function getFinanceOperationsData(
 
   const results = [
     organizationResult,
-    propertiesResult,
-    unitsResult,
     peopleResult,
-    ownersResult,
-    leasesResult,
-    leaseTermsResult,
-    billingResult,
     tenantInvoicesResult,
     rentGenerationExceptionsResult,
     ownerInvoicesResult,
@@ -441,6 +388,12 @@ export async function getFinanceOperationsData(
       `Could not load finance operations: ${failed.error.message}`,
     );
   }
+
+  const leasesResult = { data: readContext.leases.filter((lease) =>
+    lease.archived_at === null && ["active", "notice_given", "ended", "terminated"].includes(lease.status),
+  ).sort((left, right) => right.lease_start_date.localeCompare(left.lease_start_date)) };
+  const leaseTermsResult = { data: readContext.terms };
+  const billingResult = { data: readContext.billing_terms };
 
   const financeAccountsData = await getFinanceAccountsData(organizationId);
   const financeAccounts = financeAccountsData.groups.flatMap(
@@ -497,10 +450,16 @@ export async function getFinanceOperationsData(
     ipsPaymentIds,
   );
 
-  const properties = propertiesResult.data ?? [];
-  const units = unitsResult.data ?? [];
-  const people = peopleResult.data ?? [];
-  const owners = ownersResult.data ?? [];
+  const properties = readContext.properties;
+  const units = readContext.units;
+  // Keep separately authorized selector choices (for example, an unlinked
+  // vendor). Scoped labels supply context when the People domain is denied.
+  const people = [...new Map(
+    [...readContext.people, ...(peopleResult.data ?? [])].map((person) => [person.id, person]),
+  ).values()].sort((left, right) => left.display_name.localeCompare(right.display_name));
+  const owners = readContext.owner_assignments.filter((assignment) =>
+    assignment.is_primary && assignment.ended_on === null && assignment.archived_at === null,
+  );
   const activePropertyIds = new Set(
     properties
       .filter((property) => property.archived_at === null)
@@ -866,41 +825,16 @@ export async function loadLeasePaymentResolutionData(
   }
 
   const [
-    propertyResult,
-    unitResult,
+    readContext,
     linesResult,
     generationResult,
     settlementsResult,
-    ownerResult,
     nextInvoiceResult,
   ] = await Promise.all([
-    supabase
-      .from("properties")
-      .select("id, code, name")
-      .eq("organization_id", organizationId)
-      .eq("id", row.property_id)
-      .maybeSingle(),
-    row.unit_id
-      ? supabase
-          .from("units")
-          .select("id, property_id, unit_number")
-          .eq("organization_id", organizationId)
-          .eq("property_id", row.property_id)
-          .eq("id", row.unit_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
+    loadScopedFinanceContext(supabase, organizationId, row.property_id),
     getTenantInvoiceLineRows(supabase, organizationId, [invoiceId]),
     getTenantInvoiceGenerationRows(supabase, organizationId, [invoiceId]),
     getTenantInvoiceSettlementRows(supabase, organizationId, [invoiceId]),
-    supabase
-      .from("property_owners")
-      .select("person:people!property_owners_person_fk(display_name)")
-      .eq("organization_id", organizationId)
-      .eq("property_id", row.property_id)
-      .eq("is_primary", true)
-      .is("archived_at", null)
-      .is("ended_on", null)
-      .maybeSingle(),
     supabase
       .from("tenant_invoice_balances")
       .select("id, due_date")
@@ -914,12 +848,9 @@ export async function loadLeasePaymentResolutionData(
   ]);
 
   const supportingError = [
-    propertyResult,
-    unitResult,
     linesResult,
     generationResult,
     settlementsResult,
-    ownerResult,
     nextInvoiceResult,
   ].find((result) => result.error)?.error;
   if (supportingError) {
@@ -947,12 +878,10 @@ export async function loadLeasePaymentResolutionData(
   }
 
   const properties = new Map(
-    propertyResult.data
-      ? [[propertyResult.data.id, propertyResult.data] as const]
-      : [],
+    readContext.properties.filter((property) => property.id === row.property_id).map((property) => [property.id, property]),
   );
   const units = new Map(
-    unitResult.data ? [[unitResult.data.id, unitResult.data] as const] : [],
+    readContext.units.filter((unit) => unit.id === row.unit_id && unit.property_id === row.property_id).map((unit) => [unit.id, unit]),
   );
   const linesByInvoiceId = new Map<string, TenantInvoiceLine[]>();
   for (const line of linesResult.data ?? []) {
@@ -995,10 +924,10 @@ export async function loadLeasePaymentResolutionData(
     commercialDocuments.invoicePublicationSnapshots,
   )[0];
   if (!invoice) return null;
-  const ownerRow = ownerResult.data as PrimaryOwnerLabelRow | null;
-  const ownerPerson = Array.isArray(ownerRow?.person)
-    ? ownerRow.person[0]
-    : ownerRow?.person;
+  const owner = readContext.owner_assignments.find((assignment) =>
+    assignment.property_id === row.property_id && assignment.is_primary && assignment.archived_at === null && assignment.ended_on === null,
+  );
+  const ownerPerson = readContext.people.find((person) => person.id === owner?.person_id);
 
   return {
     invoice,
@@ -1572,7 +1501,7 @@ function buildAccountEntryQuery(
 }
 
 function toBilling(
-  row: Database["public"]["Tables"]["lease_billing_terms"]["Row"],
+  row: ScopedBillingTerm,
 ): LeaseBillingSummary {
   return {
     billingRecipientKind: row.billing_recipient_kind as
