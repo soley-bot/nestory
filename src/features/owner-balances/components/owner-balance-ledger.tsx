@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { ReactNode } from "react";
+import type { OwnerAccountView } from "@/features/owner-balances/owner-account-view";
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { PageHeader } from "@/components/layout/page-header";
 import { AuditDetails } from "@/components/ui/audit-details";
@@ -51,6 +53,7 @@ type OwnerBalanceLedgerProps = {
   selectedMonth: string;
   selectedOwnerPersonId?: string;
   selectedPropertyId?: string;
+  selectedView?: OwnerAccountView;
 };
 
 export function OwnerBalanceLedger({
@@ -65,6 +68,7 @@ export function OwnerBalanceLedger({
   selectedMonth,
   selectedOwnerPersonId,
   selectedPropertyId,
+  selectedView = "summary",
 }: OwnerBalanceLedgerProps) {
   if (propertyAccount && selectedPropertyId) {
     return (
@@ -135,12 +139,32 @@ export function OwnerBalanceLedger({
       />
 
       <OwnerAccountScopeForm
+        key={`${selectedPropertyId ?? ""}:${selectedOwnerPersonId ?? ""}:${selectedMonth}:${selectedView}`}
         ownerOptions={data.ownerOptions}
         propertyOptions={data.propertyOptions}
         selectedMonth={selectedMonth}
         selectedOwnerPersonId={selectedOwnerPersonId}
         selectedPropertyId={selectedPropertyId}
+        selectedView={selectedView}
       />
+
+      <nav aria-label="Owner account views" className="flex gap-6 border-b border-border">
+        {(["summary", "activity", "statements"] as const).map((view) => {
+          const params = new URLSearchParams({ month: selectedMonth, view });
+          if (selectedPropertyId) params.set("propertyId", selectedPropertyId);
+          if (selectedOwnerPersonId) params.set("ownerPersonId", selectedOwnerPersonId);
+          return (
+            <Link
+              aria-current={selectedView === view ? "page" : undefined}
+              className={`border-b-2 px-1 py-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedView === view ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+              href={`/balances?${params.toString()}`}
+              key={view}
+            >
+              {view === "summary" ? "Summary" : view === "activity" ? "Activity" : "Statements"}
+            </Link>
+          );
+        })}
+      </nav>
 
       {!hasExactScope ? (
         <OwnerAccountRegister
@@ -148,310 +172,324 @@ export function OwnerBalanceLedger({
           selectedMonth={selectedMonth}
           selectedOwnerPersonId={selectedOwnerPersonId}
           selectedPropertyId={selectedPropertyId}
+          selectedView={selectedView}
         />
       ) : (
         <>
-          <OwnerAccountOperations
-            closingAuthority={closingAuthority}
-            generationAuthority={generationAuthority}
-            openingAuthority={openingAuthority}
-          />
+          {selectedView === "statements" ? closingAuthority : null}
 
-          <WithdrawalCapacityCard capacity={data.withdrawalCapacity} />
+          <div className="space-y-4" hidden={selectedView !== "summary"}>
+            {selectedView === "summary" ? <OwnerAccountOperations
+              closingAuthority={closingAuthority}
+              generationAuthority={generationAuthority}
+              openingAuthority={openingAuthority}
+            /> : null}
 
-          <section
-            aria-labelledby="owner-periods-heading"
-            className="space-y-3"
-          >
-            <h2 className="text-base font-semibold" id="owner-periods-heading">
-              Monthly balances
-            </h2>
-            {data.periods.length === 0 ? (
-              <p className="border-y border-border py-5 text-sm text-muted-foreground">
-                No monthly balance exists. Approve the opening balances and
-                resolve the items that need attention, then calculate the month.
-              </p>
-            ) : (
-              data.periods.map((period) => (
-                <article
-                  className="overflow-hidden border-y border-border"
-                  data-testid={`owner-period-${period.monthStart}`}
-                  key={period.id}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 py-3">
-                    <div>
-                      <h3 className="font-semibold">
-                        {formatMonth(period.monthStart)}
-                      </h3>
-                      <p className="text-xs text-muted-foreground">
-                        Status:{" "}
-                        <span className="font-medium uppercase">
-                          {periodStatusLabel(period.status)}
-                        </span>
-                      </p>
+            <WithdrawalCapacityCard capacity={data.withdrawalCapacity} />
+
+            <section
+              aria-labelledby="owner-periods-heading"
+              className="space-y-3"
+            >
+              <h2 className="text-base font-semibold" id="owner-periods-heading">
+                Monthly balances
+              </h2>
+              {data.periods.length === 0 ? (
+                <p className="border-y border-border py-5 text-sm text-muted-foreground">
+                  No monthly balance exists. Approve the opening balances and
+                  resolve the items that need attention, then calculate the month.
+                </p>
+              ) : (
+                data.periods.map((period) => (
+                  <article
+                    className="overflow-hidden border-y border-border"
+                    data-testid={`owner-period-${period.monthStart}`}
+                    key={period.id}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 py-3">
+                      <div>
+                        <h3 className="font-semibold">
+                          {formatMonth(period.monthStart)}
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          Status:{" "}
+                          <span className="font-medium uppercase">
+                            {periodStatusLabel(period.status)}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="text-right text-sm">
+                        <p className="font-semibold">
+                          Available owner cash:{" "}
+                          {period.availableWithdrawal === null
+                            ? "Unavailable"
+                            : formatExactMoney(period.availableWithdrawal)}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right text-sm">
-                      <p className="font-semibold">
-                        Available owner cash:{" "}
-                        {period.availableWithdrawal === null
-                          ? "Unavailable"
-                          : formatExactMoney(period.availableWithdrawal)}
-                      </p>
-                    </div>
-                  </div>
-                  {period.components.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[42rem] text-left text-sm">
-                        <thead className="bg-[var(--table-header-bg)] text-xs uppercase tracking-wide text-muted-foreground">
-                          <tr>
-                            <th className="py-2 pr-4" scope="col">
-                              Component
-                            </th>
-                            <th className="px-4 py-2 text-right" scope="col">
-                              Opening
-                            </th>
-                            <th className="px-4 py-2 text-right" scope="col">
-                              Movement
-                            </th>
-                            <th className="px-4 py-2 text-right" scope="col">
-                              Closing
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/60">
-                          {period.components.map((component) => (
-                            <tr key={component.component}>
-                              <th
-                                className="py-2.5 pr-4 font-medium"
-                                scope="row"
-                              >
-                                {
-                                  ownerComponentLabel(
-                                    component.component,
-                                    organizationName,
-                                  )
-                                }
+                    {period.components.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[42rem] text-left text-sm">
+                          <thead className="bg-[var(--table-header-bg)] text-xs uppercase tracking-wide text-muted-foreground">
+                            <tr>
+                              <th className="py-2 pr-4" scope="col">
+                                Component
                               </th>
-                              <td className="px-4 py-2.5 text-right tabular-nums">
-                                {formatExactMoney(component.openingAmount)}
-                              </td>
-                              <td className="px-4 py-2.5 text-right tabular-nums">
-                                {formatExactMoney(component.movementAmount)}
-                              </td>
-                              <td className="px-4 py-2.5 text-right font-semibold tabular-nums">
-                                {formatExactMoney(component.closingAmount)}
-                              </td>
+                              <th className="px-4 py-2 text-right" scope="col">
+                                Opening
+                              </th>
+                              <th className="px-4 py-2 text-right" scope="col">
+                                Movement
+                              </th>
+                              <th className="px-4 py-2 text-right" scope="col">
+                                Closing
+                              </th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="bg-amber-50/70 px-4 py-4 text-sm text-amber-950">
-                      <p className="font-semibold">
-                        {remediationLabel(period.blockedReasonCode)}
-                      </p>
-                      <AuditDetails
-                        className="mt-2"
-                        entries={[
-                          {
-                            label: "Reason code",
-                            value: period.blockedReasonCode,
-                          },
-                          ...auditEntries(period.blockedReasonDetail),
-                        ]}
-                        label="Technical details"
-                      />
-                    </div>
-                  )}
-                  <AuditDetails
-                    className="border-t border-border/60 py-2"
-                    entries={[
-                      {
-                        label: "Period status",
-                        value: period.status,
-                      },
-                      {
-                        label: "Component codes",
-                        value: period.components
-                          .map((component) => component.component)
-                          .join(", "),
-                      },
-                      {
-                        label: "Input watermark",
-                        value: period.inputWatermark,
-                      },
-                      { label: "Input hash", value: period.inputHash },
-                    ]}
-                  />
-                </article>
-              ))
-            )}
-          </section>
-
-          <details className="border-y border-border">
-            <summary className="flex cursor-pointer items-center justify-between py-3 font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-              <span id="owner-remediation-heading">Items to resolve</span>
-              <span className="text-sm font-normal text-muted-foreground">
-                {data.queue.length}
-              </span>
-            </summary>
-            {data.queue.length === 0 ? (
-              <p className="border-t border-border py-4 text-sm text-muted-foreground">
-                No account items need attention in this month.
-              </p>
-            ) : (
-              <div className="overflow-x-auto border-t border-border">
-                <table className="w-full min-w-[56rem] text-left text-sm">
-                  <thead className="bg-[var(--table-header-bg)] text-xs uppercase tracking-wide text-muted-foreground">
-                    <tr>
-                      <th className="px-4 py-2" scope="col">
-                        Event
-                      </th>
-                      <th className="px-4 py-2" scope="col">
-                        Source
-                      </th>
-                      <th className="px-4 py-2 text-right" scope="col">
-                        Amount
-                      </th>
-                      <th className="px-4 py-2" scope="col">
-                        Status
-                      </th>
-                      <th className="px-4 py-2" scope="col">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {data.queue.map((item) => (
-                      <RemediationRow
-                        canAllocate={canAllocate}
-                        item={item}
-                        key={`${item.sourceType}:${item.sourceLineId}`}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </details>
-
-          <details className="border-y border-border">
-            <summary className="flex cursor-pointer items-center justify-between py-3 font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-              <span id="owner-sources-heading">Recorded activity</span>
-              <span className="text-sm font-normal text-muted-foreground">
-                {data.sources.length}
-              </span>
-            </summary>
-            <div className="divide-y divide-border border-t border-border">
-              {data.sources.map((source) => (
-                <details
-                  data-testid={`owner-source-${source.allocationSetId}`}
-                  key={source.allocationSetId}
-                >
-                  <summary className="cursor-pointer list-none px-4 py-3">
-                    <div className="flex flex-wrap justify-between gap-2">
-                      <span className="font-semibold">
-                        {sourceTypeLabel(source.sourceType)}
-                      </span>
-                      <span className="tabular-nums">
-                        {source.eventDate} ·{" "}
-                        {formatExactMoney(source.allocatedGrossSignedAmount)}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Ownership at event {source.ownershipPercentSnapshot}% ·{" "}
-                      {source.allocationBasis.replaceAll("_", " ")}
-                    </p>
-                  </summary>
-                  <div className="space-y-2 border-t border-border/60 px-4 py-3 text-xs">
-                    {source.reversalOfAllocationSetId ? (
-                      <p className="font-medium text-warning">
-                        Reverses an earlier balance assignment.
-                      </p>
-                    ) : null}
-                    <ul className="space-y-1">
-                      {source.movements.length === 0 ? (
-                        <li className="text-muted-foreground">
-                          Activity only — no owner component movement.
-                        </li>
-                      ) : (
-                        source.movements.map((movement) => (
-                          <li
-                            className="flex flex-wrap justify-between gap-2"
-                            key={movement.id}
-                          >
-                            <span>
-                              {
-                                ownerComponentLabel(
-                                  movement.component,
-                                  organizationName,
-                                )
-                              }{" "}
-                              {formatSignedExactMoney(movement.signedAmount)}
-                            </span>
-                            {movement.reversalOfMovementId ? (
-                              <span>Reversal</span>
-                            ) : null}
-                          </li>
-                        ))
-                      )}
-                    </ul>
+                          </thead>
+                          <tbody className="divide-y divide-border/60">
+                            {period.components.map((component) => (
+                              <tr key={component.component}>
+                                <th
+                                  className="py-2.5 pr-4 font-medium"
+                                  scope="row"
+                                >
+                                  {
+                                    ownerComponentLabel(
+                                      component.component,
+                                      organizationName,
+                                    )
+                                  }
+                                </th>
+                                <td className="px-4 py-2.5 text-right tabular-nums">
+                                  {formatExactMoney(component.openingAmount)}
+                                </td>
+                                <td className="px-4 py-2.5 text-right tabular-nums">
+                                  {formatExactMoney(component.movementAmount)}
+                                </td>
+                                <td className="px-4 py-2.5 text-right font-semibold tabular-nums">
+                                  {formatExactMoney(component.closingAmount)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="bg-amber-50/70 px-4 py-4 text-sm text-amber-950">
+                        <p className="font-semibold">
+                          {remediationLabel(period.blockedReasonCode)}
+                        </p>
+                        <AuditDetails
+                          className="mt-2"
+                          entries={[
+                            {
+                              label: "Reason code",
+                              value: period.blockedReasonCode,
+                            },
+                            ...auditEntries(period.blockedReasonDetail),
+                          ]}
+                          label="Technical details"
+                        />
+                      </div>
+                    )}
                     <AuditDetails
+                      className="border-t border-border/60 py-2"
                       entries={[
-                        { label: "Source type", value: source.sourceType },
+                        {
+                          label: "Period status",
+                          value: period.status,
+                        },
                         {
                           label: "Component codes",
-                          value: source.movements
-                            .map((movement) => movement.component)
+                          value: period.components
+                            .map((component) => component.component)
                             .join(", "),
                         },
-                        { label: "Source line", value: source.sourceLineId },
                         {
-                          label: "Source fingerprint",
-                          value: source.sourceFingerprint,
+                          label: "Input watermark",
+                          value: period.inputWatermark,
                         },
-                        {
-                          label: "Ownership hash",
-                          value: source.ownershipRosterHash,
-                        },
-                        {
-                          label: "Reversed assignment",
-                          value: source.reversalOfAllocationSetId,
-                        },
+                        { label: "Input hash", value: period.inputHash },
                       ]}
                     />
-                  </div>
-                </details>
-              ))}
-            </div>
-          </details>
+                  </article>
+                ))
+              )}
+            </section>
 
-          {canCorrect || canTransfer ? (
             <details className="border-y border-border">
-              <summary className="cursor-pointer py-3 font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-                Balance operations
+              <summary className="flex cursor-pointer items-center justify-between py-3 font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                <span id="owner-remediation-heading">Items to resolve</span>
+                <span className="text-sm font-normal text-muted-foreground">
+                  {data.queue.length}
+                </span>
               </summary>
-              <div className="space-y-4 border-t border-border py-4">
-                {canCorrect ? (
-                  <OwnerCashActions
-                    scopedHiddenFields={scopedHiddenFields}
-                    selectedMonth={selectedMonth}
-                  />
-                ) : null}
+              {data.queue.length === 0 ? (
+                <p className="border-t border-border py-4 text-sm text-muted-foreground">
+                  No account items need attention in this month.
+                </p>
+              ) : (
+                <div className="overflow-x-auto border-t border-border">
+                  <table className="w-full min-w-[56rem] text-left text-sm">
+                    <thead className="bg-[var(--table-header-bg)] text-xs uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="px-4 py-2" scope="col">
+                          Event
+                        </th>
+                        <th className="px-4 py-2" scope="col">
+                          Source
+                        </th>
+                        <th className="px-4 py-2 text-right" scope="col">
+                          Amount
+                        </th>
+                        <th className="px-4 py-2" scope="col">
+                          Status
+                        </th>
+                        <th className="px-4 py-2" scope="col">
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {data.queue.map((item) => (
+                        <RemediationRow
+                          canAllocate={canAllocate}
+                          item={item}
+                          key={`${item.sourceType}:${item.sourceLineId}`}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </details>
 
-                {canTransfer ? (
-                  <TransferAction
-                    organizationName={organizationName}
-                    ownerOptions={data.ownerOptions}
-                    scopedHiddenFields={scopedHiddenFields}
-                    selectedMonth={selectedMonth}
-                    selectedOwnerPersonId={selectedOwnerPersonId!}
-                  />
+          </div>
+          <div hidden={selectedView !== "activity"}>
+            <details className="border-y border-border" open>
+              <summary className="flex cursor-pointer items-center justify-between py-3 font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                <span id="owner-sources-heading">Recorded activity</span>
+                <span className="text-sm font-normal text-muted-foreground">
+                  {data.sources.length}
+                </span>
+              </summary>
+              <div className="divide-y divide-border border-t border-border">
+                {data.sources.length === 0 ? (
+                  <p className="py-4 text-sm text-muted-foreground">No recorded activity for this month.</p>
                 ) : null}
+                {data.sources.map((source) => (
+                  <details
+                    className="group"
+                    data-testid={`owner-source-${source.allocationSetId}`}
+                    key={source.allocationSetId}
+                  >
+                    <summary className="cursor-pointer list-none px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                      <div className="flex flex-wrap justify-between gap-2">
+                        <span className="inline-flex items-center gap-2 font-semibold">
+                          <ChevronRight aria-hidden="true" size={14} className="shrink-0 group-open:rotate-90" />
+                          {sourceTypeLabel(source.sourceType)}
+                        </span>
+                        <span className="tabular-nums">
+                          {source.eventDate} ·{" "}
+                          {formatExactMoney(source.allocatedGrossSignedAmount)}
+                        </span>
+                      </div>
+                    </summary>
+                    <div className="space-y-2 border-t border-border/60 px-4 py-3 text-xs">
+                      <p className="text-muted-foreground">
+                        Ownership at event {source.ownershipPercentSnapshot}% ·{" "}
+                        {source.allocationBasis.replaceAll("_", " ")}
+                      </p>
+                      {source.reversalOfAllocationSetId ? (
+                        <p className="font-medium text-warning">
+                          Reverses an earlier balance assignment.
+                        </p>
+                      ) : null}
+                      <ul className="space-y-1">
+                        {source.movements.length === 0 ? (
+                          <li className="text-muted-foreground">
+                            Activity only — no owner component movement.
+                          </li>
+                        ) : (
+                          source.movements.map((movement) => (
+                            <li
+                              className="flex flex-wrap justify-between gap-2"
+                              key={movement.id}
+                            >
+                              <span>
+                                {
+                                  ownerComponentLabel(
+                                    movement.component,
+                                    organizationName,
+                                  )
+                                }{" "}
+                                {formatSignedExactMoney(movement.signedAmount)}
+                              </span>
+                              {movement.reversalOfMovementId ? (
+                                <span>Reversal</span>
+                              ) : null}
+                            </li>
+                          ))
+                        )}
+                      </ul>
+                      <AuditDetails
+                        entries={[
+                          { label: "Source type", value: source.sourceType },
+                          {
+                            label: "Component codes",
+                            value: source.movements
+                              .map((movement) => movement.component)
+                              .join(", "),
+                          },
+                          { label: "Source line", value: source.sourceLineId },
+                          {
+                            label: "Source fingerprint",
+                            value: source.sourceFingerprint,
+                          },
+                          {
+                            label: "Ownership hash",
+                            value: source.ownershipRosterHash,
+                          },
+                          {
+                            label: "Reversed assignment",
+                            value: source.reversalOfAllocationSetId,
+                          },
+                        ]}
+                      />
+                    </div>
+                  </details>
+                ))}
               </div>
             </details>
-          ) : null}
+          </div>
+
+          <div hidden={selectedView !== "summary"}>
+            {canCorrect || canTransfer ? (
+              <details className="border-y border-border">
+                <summary className="cursor-pointer py-3 font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                  Balance operations
+                </summary>
+                <div className="space-y-4 border-t border-border py-4">
+                  {canCorrect ? (
+                    <OwnerCashActions
+                      scopedHiddenFields={scopedHiddenFields}
+                      selectedMonth={selectedMonth}
+                    />
+                  ) : null}
+
+                  {canTransfer ? (
+                    <TransferAction
+                      organizationName={organizationName}
+                      ownerOptions={data.ownerOptions}
+                      scopedHiddenFields={scopedHiddenFields}
+                      selectedMonth={selectedMonth}
+                      selectedOwnerPersonId={selectedOwnerPersonId!}
+                    />
+                  ) : null}
+                </div>
+              </details>
+            ) : null}
+          </div>
         </>
       )}
     </main>
@@ -463,15 +501,18 @@ function OwnerAccountRegister({
   selectedMonth,
   selectedOwnerPersonId,
   selectedPropertyId,
+  selectedView,
 }: {
   data: OwnerBalanceData;
   selectedMonth: string;
   selectedOwnerPersonId?: string;
   selectedPropertyId?: string;
+  selectedView: OwnerAccountView;
 }) {
   const hasFilters = Boolean(selectedOwnerPersonId || selectedPropertyId);
   const registerHref = (page: number) => {
     const params = new URLSearchParams({ month: selectedMonth });
+    if (selectedView !== "summary") params.set("view", selectedView);
     if (selectedPropertyId) params.set("propertyId", selectedPropertyId);
     if (selectedOwnerPersonId) params.set("ownerPersonId", selectedOwnerPersonId);
     if (page > 1) params.set("page", String(page));
@@ -485,7 +526,7 @@ function OwnerAccountRegister({
           hasFilters ? (
             <Link
               className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-medium hover:bg-muted"
-              href={`/balances?month=${selectedMonth}`}
+              href={`/balances?month=${selectedMonth}${selectedView === "summary" ? "" : `&view=${selectedView}`}`}
             >
               Clear filters
             </Link>
@@ -519,30 +560,32 @@ function OwnerAccountRegister({
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="text-base font-semibold" id="owner-account-register-heading">
-            Owner account register
+            {selectedView === "statements" ? "Choose an owner account" : "Owner account register"}
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Showing {firstVisible}–{lastVisible} of {data.accountTotal} for {selectedMonth}
           </p>
         </div>
         <p className="text-xs text-muted-foreground">
-          Open an account for balances, activity, and controls.
+          {selectedView === "statements" ? "Open an account to view its saved statements." : "Open an account for balances, activity, and controls."}
         </p>
       </div>
 
       <div className="overflow-x-auto border-y border-border">
         <table
           aria-label="Owner account register"
-          className="w-full min-w-[68rem] text-left text-sm"
+          className={`w-full ${selectedView === "statements" ? "min-w-[32rem]" : "min-w-[68rem]"} text-left text-sm`}
         >
           <thead className="bg-[var(--table-header-bg)] text-xs font-medium text-muted-foreground">
             <tr>
               <th className="px-3 py-2" scope="col">Owner</th>
               <th className="px-3 py-2" scope="col">Property</th>
+              {selectedView !== "statements" ? <>
               <th className="px-3 py-2 text-right" scope="col">Available</th>
               <th className="px-3 py-2" scope="col">Status</th>
               <th className="px-3 py-2" scope="col">Issues</th>
               <th className="px-3 py-2" scope="col">Activity</th>
+              </> : null}
               <th className="px-3 py-2 text-right" scope="col">Next action</th>
             </tr>
           </thead>
@@ -552,6 +595,7 @@ function OwnerAccountRegister({
                 account={account}
                 key={`${account.propertyId}:${account.ownerPersonId}`}
                 selectedMonth={selectedMonth}
+                selectedView={selectedView}
               />
             ))}
           </tbody>
@@ -593,9 +637,11 @@ function OwnerAccountRegister({
 function OwnerAccountRegisterRow({
   account,
   selectedMonth,
+  selectedView,
 }: {
   account: OwnerAccountRegisterRecord;
   selectedMonth: string;
+  selectedView: OwnerAccountView;
 }) {
   const status = registerStatus(account);
   const detailParams = new URLSearchParams({
@@ -603,13 +649,17 @@ function OwnerAccountRegisterRow({
     ownerPersonId: account.ownerPersonId,
     propertyId: account.propertyId,
   });
+  if (selectedView !== "summary") detailParams.set("view", selectedView);
   const detailHref = `/balances?${detailParams.toString()}`;
-  const nextAction = registerNextAction(account, detailHref);
+  const nextAction = selectedView === "statements"
+    ? { href: detailHref, label: "View statements" }
+    : registerNextAction(account, detailHref);
 
   return (
     <tr>
       <th className="px-3 py-3 font-semibold" scope="row">{account.ownerLabel}</th>
       <td className="px-3 py-3">{account.propertyLabel}</td>
+      {selectedView !== "statements" ? <>
       <td className="px-3 py-3 text-right font-semibold tabular-nums">
         {account.availableAmount === null
           ? "Unavailable"
@@ -632,6 +682,7 @@ function OwnerAccountRegisterRow({
         <p className={status.priorityClassName}>{status.priority}</p>
       </td>
       <td className="px-3 py-3 tabular-nums">{account.lastActivityDate}</td>
+      </> : null}
       <td className="px-3 py-3 text-right">
         <Link
           className="font-semibold text-primary underline-offset-4 hover:underline"

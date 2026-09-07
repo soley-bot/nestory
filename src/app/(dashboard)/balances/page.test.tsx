@@ -27,6 +27,7 @@ vi.mock("@/features/owner-close/components/owner-close-screen", () => ({
     <div
       data-can-close={String(props.canClose)}
       data-can-reopen={String(props.canReopen)}
+      data-presentation={String(props.presentation)}
       data-testid="owner-close-authority"
     >
       Close owner month
@@ -47,12 +48,14 @@ vi.mock("@/features/owner-balances/components/owner-balance-ledger", () => ({
     canTransfer?: boolean;
     closingAuthority?: React.ReactNode;
     openingAuthority?: React.ReactNode;
+    selectedView?: string;
   }) => (
     <main
       data-can-allocate={String(props.canAllocate)}
       data-can-correct={String(props.canCorrect)}
       data-can-transfer={String(props.canTransfer)}
       data-testid="authoritative-ledger"
+      data-selected-view={props.selectedView}
     >
       <h1>Authoritative owner balance</h1>
       {props.openingAuthority}
@@ -117,6 +120,7 @@ describe("BalancesPage opening balance integration", () => {
           month: "2026-08",
           ownerPersonId: ownerId,
           propertyId,
+          view: "statements",
         }),
       }),
     );
@@ -143,6 +147,10 @@ describe("BalancesPage opening balance integration", () => {
     });
     expect(screen.getByTestId("opening-authority").getAttribute("data-can-review"))
       .toBe("true");
+    expect(screen.getByTestId("authoritative-ledger").getAttribute("data-selected-view"))
+      .toBe("statements");
+    expect(screen.getByTestId("owner-close-authority").getAttribute("data-presentation"))
+      .toBe("statements");
     expect(screen.getByRole("heading", { name: "Authoritative owner balance" }))
       .toBeTruthy();
     expect(screen.queryByText(/current balance projection/i)).toBeNull();

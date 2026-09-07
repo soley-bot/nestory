@@ -26,6 +26,72 @@ const publicationId = "00000000-0000-4000-8000-000000000019";
 const amount = canonicalizeSignedOwnerOpeningAmount;
 
 describe("OwnerCloseScreen", () => {
+  it.each([
+    { state: "closed", latestRevision: revisionOneId, complete: true, status: "Current" },
+    { state: "closed", latestRevision: revisionOneId, complete: false, status: "Files incomplete" },
+    { state: "preparing", latestRevision: revisionOneId, complete: true, status: "Needs review" },
+    { state: "closed", latestRevision: revisionTwoId, complete: true, status: "Needs review" },
+  ] as const)("labels saved revision one $status for $state with latest close $latestRevision", ({ state, latestRevision, complete, status }) => {
+    const data = closedData();
+    data.series = { ...data.series!, state, currentClosedRevisionId: latestRevision };
+    data.publications = [{
+      artifacts: complete
+        ? [{ format: "pdf", id: "saved-pdf" }, { format: "xlsx", id: "saved-excel" }]
+        : [{ format: "pdf", id: "saved-pdf" }],
+      contentHash: "f".repeat(64), generatedAt: "2026-09-01T05:00:00Z",
+      id: publicationId, revisionId: revisionOneId, revisionNumber: 1,
+      statementNumber: "OS-202608-000000000000", supersededByPublicationId: null,
+      supersedesPublicationId: null,
+    }];
+    const { container } = render(<OwnerCloseScreen canClose={false} canReopen={false}
+      canPublish={false} data={data} monthStart="2026-08-01" ownerPersonId={ownerId}
+      propertyId={propertyId} presentation="statements" />);
+
+    expect(screen.getByText(status)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Download PDF" }).getAttribute("href"))
+      .toBe("/api/reports/pdf?artifactId=saved-pdf");
+    if (complete) {
+      expect(screen.getByRole("link", { name: "Download Excel" }).getAttribute("href"))
+        .toBe("/api/reports/excel?artifactId=saved-excel");
+    } else {
+      expect(screen.queryByRole("link", { name: "Download Excel" })).toBeNull();
+    }
+    expect(container.querySelector('button[type="submit"]')).toBeNull();
+  });
+
+  it("puts saved downloads before preparation and keeps a stale statement clearly marked", () => {
+    const data = closedData();
+    data.series!.state = "stale";
+    data.publications = [{
+      artifacts: [{ format: "pdf", id: "saved-pdf" }, { format: "xlsx", id: "saved-excel" }],
+      contentHash: "f".repeat(64), generatedAt: "2026-09-01T05:00:00Z",
+      id: publicationId, revisionId: revisionOneId, revisionNumber: 1,
+      statementNumber: "OS-202608-000000000000", supersededByPublicationId: null,
+      supersedesPublicationId: null,
+    }];
+    const { container } = render(<OwnerCloseScreen canClose={false} canReopen={false}
+      canPublish={false} data={data} monthStart="2026-08-01" ownerPersonId={ownerId}
+      propertyId={propertyId} presentation="statements" />);
+    const download = screen.getByRole("link", { name: "Download PDF" });
+    expect(download.getAttribute("href")).toBe("/api/reports/pdf?artifactId=saved-pdf");
+    expect(screen.getByText("Needs review")).toBeTruthy();
+    expect(screen.getByText(/Review it before sharing/)).toBeTruthy();
+    const preparation = screen.getByText("Prepare or correct a statement").closest("details")!;
+    expect(preparation.open).toBe(false);
+    expect(download.compareDocumentPosition(preparation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("Revision history and source details").closest("details")?.open).toBe(false);
+    expect(container.querySelector('button[type="submit"]')).toBeNull();
+  });
+
+  it("shows preparation when there is no saved statement without offering a blocked close", () => {
+    render(<OwnerCloseScreen canClose canReopen={false} canPublish={false}
+      data={closedData()} monthStart="2026-08-01" ownerPersonId={ownerId}
+      propertyId={propertyId} presentation="statements" />);
+    expect(screen.getByText("Prepare or correct a statement").closest("details")?.open).toBe(true);
+    expect(screen.queryByRole("link", { name: "Download PDF" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Close owner month" })).toBeNull();
+  });
+
   it("gives Finance typed readiness and frozen source drill-through without mutation controls", () => {
     render(<OwnerCloseScreen
       canClose={false}
@@ -111,6 +177,8 @@ describe("OwnerCloseScreen", () => {
     expect(screen.getByLabelText("Close reason")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Record correction" })).toBeTruthy();
     expect(screen.getByLabelText("Signed correction amount")).toBeTruthy();
+    expect(screen.getByLabelText("Evidence file fingerprint").closest("details:not([open])"))
+      .toBeNull();
     expect(screen.getByText("Revision 1 - Closed")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Reopen month" })).toBeNull();
   });

@@ -27,6 +27,80 @@ const allocationSetId = "00000000-0000-4000-8000-000000000006";
 const movementId = "00000000-0000-4000-8000-000000000007";
 
 describe("OwnerBalanceLedger", () => {
+  it("updates displayed filters when route navigation selects an exact statement account", () => {
+    const props = {
+      canAllocate: false, canCorrect: false, canTransfer: false,
+      data: data(), organizationName: "IPS", selectedMonth: "2026-08",
+      selectedView: "statements" as const,
+    };
+    const { container, rerender } = render(<OwnerBalanceLedger {...props} />);
+    rerender(<OwnerBalanceLedger {...props} selectedMonth="2026-09"
+      selectedOwnerPersonId={ownerId} selectedPropertyId={propertyId} />);
+
+    const form = container.querySelector('input[name="view"]')!.closest("form")!;
+    const scope = new FormData(form);
+    expect(scope.get("ownerPersonId")).toBe(ownerId);
+    expect(scope.get("propertyId")).toBe(propertyId);
+    expect(scope.get("month")).toBe("2026-09");
+    expect(scope.get("view")).toBe("statements");
+  });
+
+  it("unmounts a summary operation dialog when navigation switches to statements", async () => {
+    const user = userEvent.setup();
+    const props = {
+      canAllocate: false, canCorrect: false, canTransfer: false,
+      closingAuthority: <section aria-label="Saved statements">Saved PDF and Excel</section>,
+      data: data(), organizationName: "IPS", selectedMonth: "2026-08",
+      selectedOwnerPersonId: ownerId, selectedPropertyId: propertyId,
+    };
+    const { rerender } = render(<OwnerBalanceLedger {...props} selectedView="summary" />);
+    await user.click(screen.getByRole("button", { name: "Account actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Close month" }));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+
+    rerender(<OwnerBalanceLedger {...props} selectedView="statements" />);
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getAllByRole("region", { name: "Saved statements" })).toHaveLength(1);
+  });
+
+  it("opens statements directly and carries the selected scope through every view", () => {
+    const { container } = render(<OwnerBalanceLedger
+      canAllocate={false} canCorrect={false} canTransfer={false}
+      closingAuthority={<section aria-label="Saved statements">Saved PDF and Excel</section>}
+      data={data()} organizationName="IPS" selectedMonth="2026-08"
+      selectedOwnerPersonId={ownerId} selectedPropertyId={propertyId} selectedView="statements"
+    />);
+    expect(screen.getByRole("region", { name: "Saved statements" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Monthly balances" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Account actions" })).toBeNull();
+    expect(container.querySelector('input[name="view"]')?.getAttribute("value")).toBe("statements");
+    for (const [name, view] of [["Summary", "summary"], ["Activity", "activity"], ["Statements", "statements"]]) {
+      const link = within(screen.getByRole("navigation", { name: "Owner account views" })).getByRole("link", { name });
+      const url = new URL(link.getAttribute("href")!, "http://localhost");
+      expect(Object.fromEntries(url.searchParams)).toEqual({ month: "2026-08", ownerPersonId: ownerId, propertyId, view });
+      expect(link.getAttribute("aria-current")).toBe(view === "statements" ? "page" : null);
+    }
+  });
+
+  it("keeps the statement task when opening a row that has accounting issues", () => {
+    const registerData = data();
+    registerData.accounts = [{
+      availableAmount: null, issueCodes: ["owner_roster_missing"], issueCount: 1,
+      lastActivityDate: "2026-08-28", lastActivityDetail: "sources=1",
+      ownerLabel: "Nora Owner", ownerPersonId: ownerId, periodStatus: "stale",
+      propertyId, propertyLabel: "Riverside", remediationPath: `/properties/${propertyId}`,
+      withdrawalStatus: "stale",
+    }];
+    registerData.accountTotal = 1;
+    render(<OwnerBalanceLedger canAllocate={false} canCorrect={false} canTransfer={false}
+      data={registerData} organizationName="IPS" selectedMonth="2026-08" selectedView="statements" />);
+    expect(screen.getByRole("link", { name: "View statements" }).getAttribute("href"))
+      .toContain("view=statements");
+    expect(screen.queryByRole("columnheader", { name: "Available" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Resolve ownership" })).toBeNull();
+  });
+
   it("renders exact authoritative components, source lineage, and typed remediation", () => {
     const { container } = render(
       <OwnerBalanceLedger

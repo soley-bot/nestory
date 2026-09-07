@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { ReactNode } from "react";
 import { AuditDetails } from "@/components/ui/audit-details";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ type OwnerCloseScreenProps = {
   monthStart: string;
   ownerPersonId?: string;
   propertyId?: string;
+  presentation?: "close" | "statements";
 };
 
 export function OwnerCloseScreen({
@@ -40,6 +42,7 @@ export function OwnerCloseScreen({
   monthStart,
   ownerPersonId,
   propertyId,
+  presentation = "close",
 }: OwnerCloseScreenProps) {
   const hasExactScope = Boolean(propertyId && ownerPersonId);
   const preparingRevision = data.revisions.find(
@@ -56,10 +59,12 @@ export function OwnerCloseScreen({
     <section aria-labelledby="owner-close-heading" className="space-y-4">
       <header>
         <h2 className="text-lg font-semibold" id="owner-close-heading">
-          Close owner month
+          {presentation === "statements" ? "Official owner statements" : "Close owner month"}
         </h2>
         <p className="text-sm text-muted-foreground">
-          Close the selected owner month only after every balance and source check passes.
+          {presentation === "statements"
+            ? "Download a saved statement for the selected owner and month."
+            : "Close the selected owner month only after every balance and source check passes."}
         </p>
       </header>
 
@@ -69,94 +74,128 @@ export function OwnerCloseScreen({
         </div>
       ) : (
         <>
-          <ReadinessCard data={data} closeRevisionNumber={closeRevisionNumber} />
+          {presentation === "statements" ? (
+            <PublicationAuthority canPublish={canPublish} data={data} compact />
+          ) : null}
 
-          {mayClose ? (
-            <form
-              action={closeOwnerMonthAction}
-              className="grid gap-3 rounded-lg border border-success/30 bg-success-soft/50 p-4 md:grid-cols-[1fr_auto]"
-            >
-              <input name="currency" type="hidden" value="USD" />
-              <input name="monthStart" type="hidden" value={monthStart} />
-              <input name="ownerPersonId" type="hidden" value={ownerPersonId} />
-              <input name="propertyId" type="hidden" value={propertyId} />
-              <input
-                name="idempotencyKey"
-                type="hidden"
-                value={`owner-close-r${closeRevisionNumber}-${randomUUID()}`}
-              />
-              <label className="grid gap-1 text-sm font-medium">
-                Close reason
-                <Input
-                  className="h-10"
-                  minLength={3}
-                  name="closeReason"
-                  required
-                />
-              </label>
-              <Button
-                className="h-10 self-end px-4"
-                type="submit"
+          <StatementDisclosure
+            enabled={presentation === "statements"}
+            label="Prepare or correct a statement"
+            open={presentation === "statements" && (data.publications ?? []).length === 0 && data.publicationReadiness?.isReady !== true}
+          >
+            <ReadinessCard data={data} closeRevisionNumber={closeRevisionNumber} />
+
+            {mayClose ? (
+              <form
+                action={closeOwnerMonthAction}
+                className="grid gap-3 rounded-lg border border-success/30 bg-success-soft/50 p-4 md:grid-cols-[1fr_auto]"
               >
-                Close owner month
-              </Button>
-            </form>
-          ) : null}
-
-          {mayReopen ? (
-            <form
-              action={reopenOwnerMonthAction}
-              className="grid gap-3 rounded-lg border border-warning/30 bg-warning-soft/50 p-4 md:grid-cols-[1fr_auto]"
-            >
-              <input name="seriesId" type="hidden" value={data.series!.id} />
-              <input
-                name="idempotencyKey"
-                type="hidden"
-                value={`owner-reopen-${randomUUID()}`}
-              />
-              <label className="grid gap-1 text-sm font-medium">
-                Reopen reason
-                <Input
-                  className="h-10"
-                  minLength={3}
-                  name="reopenReason"
-                  required
+                <input name="currency" type="hidden" value="USD" />
+                <input name="monthStart" type="hidden" value={monthStart} />
+                <input name="ownerPersonId" type="hidden" value={ownerPersonId} />
+                <input name="propertyId" type="hidden" value={propertyId} />
+                <input
+                  name="idempotencyKey"
+                  type="hidden"
+                  value={`owner-close-r${closeRevisionNumber}-${randomUUID()}`}
                 />
-              </label>
-              <Button
-                className="h-10 self-end px-4"
-                type="submit"
-                variant="outline"
+                <label className="grid gap-1 text-sm font-medium">
+                  Close reason
+                  <Input
+                    className="h-10"
+                    minLength={3}
+                    name="closeReason"
+                    required
+                  />
+                </label>
+                <Button
+                  className="h-10 self-end px-4"
+                  type="submit"
+                >
+                  Close owner month
+                </Button>
+              </form>
+            ) : null}
+
+            {mayReopen ? (
+              <form
+                action={reopenOwnerMonthAction}
+                className="grid gap-3 rounded-lg border border-warning/30 bg-warning-soft/50 p-4 md:grid-cols-[1fr_auto]"
               >
-                Reopen month
-              </Button>
-            </form>
+                <input name="seriesId" type="hidden" value={data.series!.id} />
+                <input
+                  name="idempotencyKey"
+                  type="hidden"
+                  value={`owner-reopen-${randomUUID()}`}
+                />
+                <label className="grid gap-1 text-sm font-medium">
+                  Reopen reason
+                  <Input
+                    className="h-10"
+                    minLength={3}
+                    name="reopenReason"
+                    required
+                  />
+                </label>
+                <Button
+                  className="h-10 self-end px-4"
+                  type="submit"
+                  variant="outline"
+                >
+                  Reopen month
+                </Button>
+              </form>
+            ) : null}
+
+            {canReopen && preparingRevision ? (
+              <CorrectionForm monthStart={monthStart} revisionId={preparingRevision.id} />
+            ) : null}
+          </StatementDisclosure>
+
+          {presentation !== "statements" ? (
+            <PublicationAuthority canPublish={canPublish} data={data} />
           ) : null}
 
-          {canReopen && preparingRevision ? (
-            <CorrectionForm monthStart={monthStart} revisionId={preparingRevision.id} />
-          ) : null}
-
-          <PublicationAuthority canPublish={canPublish} data={data} />
-
-          <RevisionHistory data={data} />
+          <StatementDisclosure enabled={presentation === "statements"} label="Revision history and source details">
+            <RevisionHistory data={data} />
+          </StatementDisclosure>
         </>
       )}
     </section>
   );
 }
 
+function StatementDisclosure({ children, enabled, label, open = false }: {
+  children: ReactNode;
+  enabled: boolean;
+  label: string;
+  open?: boolean;
+}) {
+  if (!enabled) return children;
+  return (
+    <details className="border-y border-border" open={open}>
+      <summary className="cursor-pointer py-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        {label}
+      </summary>
+      <div className="space-y-4 border-t border-border py-4">{children}</div>
+    </details>
+  );
+}
+
 function PublicationAuthority({
   canPublish,
   data,
+  compact = false,
 }: {
   canPublish: boolean;
   data: OwnerCloseData;
+  compact?: boolean;
 }) {
   const readiness = data.publicationReadiness;
   const publications = data.publications ?? [];
   return (
-    <section aria-labelledby="owner-statement-publication-heading" className="space-y-3">
+    <section aria-label={compact ? "Saved statements" : undefined} aria-labelledby={compact ? undefined : "owner-statement-publication-heading"} className="space-y-3">
+      {!compact ? (
       <div>
         <h3 className="font-semibold" id="owner-statement-publication-heading">
           Official owner statements
@@ -165,6 +204,60 @@ function PublicationAuthority({
           Numbered PDF and Excel statements saved from a closed owner month.
         </p>
       </div>
+      ) : null}
+
+      {publications.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+          No official Owner Statement has been published for this owner month.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {publications.map((publication) => {
+            const filesComplete = publication.artifacts.some((artifact) => artifact.format === "pdf") &&
+              publication.artifacts.some((artifact) => artifact.format === "xlsx");
+            const needsReview = data.series?.state !== "closed" ||
+              data.series?.currentClosedRevisionId !== publication.revisionId;
+            const superseded = Boolean(publication.supersededByPublicationId);
+            const status = superseded ? "Superseded" : !filesComplete ? "Files incomplete" : needsReview ? "Needs review" : "Current";
+            return (
+            <article
+              className="rounded-2xl border border-border/80 bg-card p-4"
+              key={publication.id}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-mono text-sm font-semibold">{publication.statementNumber}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Revision {publication.revisionNumber} · {publication.generatedAt}
+                  </p>
+                  <AuditDetails
+                    className="mt-1"
+                    entries={[{ label: "Content hash", value: publication.contentHash }]}
+                  />
+                </div>
+                <Badge tone={superseded ? "neutral" : needsReview || !filesComplete ? "warning" : "success"}>
+                  {status}
+                </Badge>
+              </div>
+              {!superseded && needsReview ? (
+                <p className="mt-2 text-sm text-warning">This month has changed or is being corrected. Review it before sharing.</p>
+              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {publication.artifacts.map((artifact) => (
+                  <a
+                    className="rounded-lg border border-border px-3 py-2 text-sm font-semibold"
+                    href={`/api/reports/${artifact.format === "pdf" ? "pdf" : "excel"}?artifactId=${artifact.id}`}
+                    key={artifact.id}
+                  >
+                    Download {artifact.format === "pdf" ? "PDF" : "Excel"}
+                  </a>
+                ))}
+              </div>
+            </article>
+            );
+          })}
+        </div>
+      )}
 
       {canPublish && readiness?.isReady ? (
         <form
@@ -228,48 +321,6 @@ function PublicationAuthority({
           </ul>
         </div>
       ) : null}
-
-      {publications.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-          No official Owner Statement has been published for this owner month.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {publications.map((publication) => (
-            <article
-              className="rounded-2xl border border-border/80 bg-card p-4"
-              key={publication.id}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-mono text-sm font-semibold">{publication.statementNumber}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Revision {publication.revisionNumber} · {publication.generatedAt}
-                  </p>
-                  <AuditDetails
-                    className="mt-1"
-                    entries={[{ label: "Content hash", value: publication.contentHash }]}
-                  />
-                </div>
-                <Badge tone={publication.supersededByPublicationId ? "neutral" : "success"}>
-                  {publication.supersededByPublicationId ? "Superseded" : "Current"}
-                </Badge>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {publication.artifacts.map((artifact) => (
-                  <a
-                    className="rounded-lg border border-border px-3 py-2 text-sm font-semibold"
-                    href={`/api/reports/${artifact.format === "pdf" ? "pdf" : "excel"}?artifactId=${artifact.id}`}
-                    key={artifact.id}
-                  >
-                    Download {artifact.format === "pdf" ? "PDF" : "Excel"}
-                  </a>
-                ))}
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
     </section>
   );
 }
@@ -430,13 +481,10 @@ function CorrectionForm({
         Reason
         <Input className="h-10" minLength={3} name="reason" required />
       </label>
-      <details className="md:col-span-2">
-        <summary className="w-fit cursor-pointer text-sm font-medium">Audit evidence</summary>
-        <label className="mt-3 grid gap-1 text-sm font-medium">
-          Evidence file fingerprint
-          <Input className="h-10 font-mono" minLength={64} name="evidenceSha256" required />
-        </label>
-      </details>
+      <label className="grid gap-1 text-sm font-medium md:col-span-2">
+        Evidence file fingerprint
+        <Input className="h-10 font-mono" minLength={64} name="evidenceSha256" required />
+      </label>
       <Button
         className="h-10 px-4 md:col-span-2 xl:col-span-4"
         type="submit"

@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { SelectControl } from "@/components/ui/select-control";
 import type { OwnerBalanceOption } from "@/features/owner-balances/owner-balance.types";
+import type { OwnerAccountView } from "@/features/owner-balances/owner-account-view";
 
 export function OwnerAccountScopeForm({
   ownerOptions,
@@ -20,12 +21,14 @@ export function OwnerAccountScopeForm({
   selectedMonth,
   selectedOwnerPersonId,
   selectedPropertyId,
+  selectedView = "summary",
 }: {
   ownerOptions: OwnerBalanceOption[];
   propertyOptions: OwnerBalanceOption[];
   selectedMonth: string;
   selectedOwnerPersonId?: string;
   selectedPropertyId?: string;
+  selectedView?: OwnerAccountView;
 }) {
   const [propertyId, setPropertyId] = useState(selectedPropertyId ?? "");
   const [ownerPersonId, setOwnerPersonId] = useState(
@@ -53,6 +56,7 @@ export function OwnerAccountScopeForm({
       className="grid gap-3 border-b border-border pb-4 md:grid-cols-[1.25fr_1.25fr_11rem_auto]"
       method="get"
     >
+      <input name="view" type="hidden" value={selectedView} />
       <label className="grid gap-1 text-sm font-medium">
         Property
         <SelectControl
@@ -106,7 +110,9 @@ export function OwnerAccountScopeForm({
         className="h-10 self-end px-4"
         type="submit"
       >
-        {propertyId && effectiveOwnerPersonId ? "View account" : "Apply filters"}
+        {propertyId && effectiveOwnerPersonId
+          ? selectedView === "statements" ? "View statements" : "View account"
+          : "Apply filters"}
       </Button>
     </form>
   );

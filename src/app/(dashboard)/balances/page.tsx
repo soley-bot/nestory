@@ -6,6 +6,7 @@ import { OwnerCloseScreen } from "@/features/owner-close/components/owner-close-
 import { getOwnerCloseData } from "@/features/owner-close/data/owner-close";
 import { requireFinanceContext } from "@/lib/auth/context";
 import { getBusinessMonthValue } from "@/lib/dates/business-date";
+import { parseOwnerAccountView } from "@/features/owner-balances/owner-account-view";
 
 type BalancesPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -19,6 +20,7 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
   const selectedMonth = validMonth(first(query.month)) ?? getBusinessMonthValue();
   const selectedPropertyId = validUuid(first(query.propertyId));
   const selectedOwnerPersonId = validUuid(first(query.ownerPersonId));
+  const selectedView = parseOwnerAccountView(first(query.view));
   const registerPage = positiveInteger(first(query.page)) ?? 1;
   const periodStart = `${selectedMonth}-01`;
   const [data, openingData, closeData] = await Promise.all([
@@ -57,6 +59,7 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
           monthStart={periodStart}
           ownerPersonId={selectedOwnerPersonId}
           propertyId={selectedPropertyId}
+          presentation={selectedView === "statements" ? "statements" : "close"}
         />
       }
       data={data}
@@ -79,6 +82,7 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
       selectedMonth={selectedMonth}
       selectedOwnerPersonId={selectedOwnerPersonId}
       selectedPropertyId={selectedPropertyId}
+      selectedView={selectedView}
     />
   );
 }
