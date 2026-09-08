@@ -31,7 +31,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
     workflowMode: context.isSuperAdmin ? "coordinator" as const : "assigned" as const,
   };
   const [data, reminders] = await Promise.all([
-    getMaintenanceScreenData(context.organizationId, viewQuery, actor),
+    getMaintenanceScreenData(context.organizationId, viewQuery, actor, capabilities),
     getMaintenanceReminderNotifications(context.organizationId, actor),
   ]);
   const initialTaskId = viewQuery.taskId === "all" ? undefined : viewQuery.taskId;

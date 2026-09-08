@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { SelectControl } from "@/components/ui/select-control";
+import { formatCalendarDate } from "@/lib/dates/format";
 import {
   OwnerAccountOperations,
   OwnerAccountScopeForm,
@@ -697,7 +698,11 @@ function OwnerAccountRegisterRow({
         <p className="font-semibold tabular-nums">{account.issueCount}</p>
         <p className={status.priorityClassName}>{status.priority}</p>
       </td>
-      <td className="px-3 py-3 tabular-nums">{account.lastActivityDate}</td>
+      <td className="px-3 py-3 tabular-nums">
+        {account.lastActivityDate === "unknown"
+          ? account.lastActivityDate
+          : formatCalendarDate(account.lastActivityDate)}
+      </td>
       </> : null}
       <td className="px-3 py-3 text-right">
         <Link
@@ -1344,7 +1349,7 @@ export function OwnerSourceResolution({ data, canAllocate, canResolveOwnership, 
   return data.queue.length === 0 ? <p>No unresolved sources were returned. Recheck before closing.</p> : (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[36rem] text-left text-sm">
-        <thead><tr>{["Date", "Source", "Amount", "Status", "Action"].map(label => <th key={label} scope="col" className="px-4 py-2">{label}</th>)}</tr></thead>
+        <thead className="bg-[var(--table-header-bg)]"><tr>{["Date", "Source", "Amount", "Status", "Action"].map(label => <th key={label} scope="col" className="px-4 py-2">{label}</th>)}</tr></thead>
         <tbody>{data.queue.map(item => <RemediationRow returnTo={returnTo} key={`${item.sourceType}:${item.sourceLineId}`} item={item} canAllocate={canAllocate} canResolveOwnership={canResolveOwnership} />)}</tbody>
       </table>
     </div>

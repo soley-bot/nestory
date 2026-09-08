@@ -10,12 +10,19 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LeaseDetailScreen } from "@/features/leases/components/lease-detail-screen";
+import {
+  LeaseDetailScreen,
+  type LeaseActionPermissions,
+} from "@/features/leases/components/lease-detail-screen";
 import { buildLeaseSummary } from "@/features/leases/data/lease-summary";
 import type { LeasePaymentResolutionData } from "@/features/finance-operations/finance-operations.types";
 import type { LeaseRecordSection } from "@/features/leases/lease-detail-route";
-import type { LeaseBillingFormConfig } from "@/features/leases/lease.types";
+import type {
+  HistoricalRentCorrectionCandidate,
+  LeaseBillingFormConfig,
+} from "@/features/leases/lease.types";
 
+const historicalCorrectionMocks = vi.hoisted(() => ({ apply: vi.fn(), preview: vi.fn() }));
 const actionMocks = vi.hoisted(() => ({
   confirmOwnerCollectionAction: vi.fn(),
   recordTenantInvoicePaymentAction: vi.fn(),
@@ -61,6 +68,11 @@ vi.mock("@/features/leases/actions", () => ({
   updateLeaseAction: async () => ({}),
 }));
 
+vi.mock("@/features/leases/historical-rent-correction-actions", () => ({
+  applyHistoricalRentCorrectionAction: (...args: unknown[]) => historicalCorrectionMocks.apply(...args),
+  previewHistoricalRentCorrectionAction: (...args: unknown[]) => historicalCorrectionMocks.preview(...args),
+}));
+
 vi.mock("@/features/finance-operations/actions", () => actionMocks);
 
 vi.mock("next/navigation", () => ({
@@ -68,6 +80,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 beforeEach(() => {
+  historicalCorrectionMocks.apply.mockReset();
+  historicalCorrectionMocks.preview.mockReset();
   actionMocks.confirmOwnerCollectionAction.mockReset();
   actionMocks.recordTenantInvoicePaymentAction.mockReset();
   actionMocks.retryTenantReceiptPdfAction.mockReset();
@@ -417,6 +431,98 @@ describe("LeaseDetailScreen", () => {
     expect(screen.getByRole("menuitem", { name: "Change rent" })).not.toBeNull();
     expect(screen.getByRole("menuitem", { name: "Record notice" })).not.toBeNull();
     expect(screen.getByRole("menuitem", { name: "Complete move-out" })).not.toBeNull();
+  });
+
+  it("keeps historical correction distinct from future Change rent for Super Admin", async () => {
+    const user = userEvent.setup();
+    renderDetail(
+      "rent",
+      makeLease(),
+      { ...allLeasePermissions, canCorrectHistoricalRent: true },
+      {
+        historicalRentCorrectionCandidates: [
+          {
+            billingPeriodEnd: "2026-08-31",
+            billingPeriodStart: "2026-08-01",
+            currency: "USD",
+            invoiceId: "11111111-1111-4111-8111-111111111111",
+            invoiceNumber: "INV-202608-001",
+            originalDueDate: "2026-08-05",
+            originalDueDay: 5,
+            originalRentAmount: 900,
+            paymentStatus: "paid",
+            settledAmount: 900,
+          },
+        ],
+      },
+    );
+
+    await user.click(screen.getByRole("button", { name: "Manage lease" }));
+    expect(screen.getByRole("menuitem", { name: "Change rent" })).not.toBeNull();
+    await user.click(
+      screen.getByRole("menuitem", { name: "Correct historical rent" }),
+    );
+
+    const dialog = screen.getByRole("dialog", {
+      name: "Correct historical rent",
+    });
+    expect(within(dialog).getByText(/separate from Change rent/)).not.toBeNull();
+    expect(
+      within(dialog).getByRole("combobox", { name: "Issued rent period" }),
+    ).not.toBeNull();
+    expect(within(dialog).getByLabelText("Corrected rent amount")).not.toBeNull();
+    expect(within(dialog).getByLabelText("Corrected due day")).not.toBeNull();
+    expect(within(dialog).getByLabelText("Reason")).not.toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Preview correction" }),
+    ).not.toBeNull();
+    expect(
+      within(dialog).queryByRole("button", { name: "Apply historical correction" }),
+    ).toBeNull();
+  });
+
+  it.each([false, true])("describes correction cash honestly without promising tenant credit (blocked: %s)", async (blocked) => {
+    const user = userEvent.setup();
+    const invoiceId = "11111111-1111-4111-8111-111111111111";
+    historicalCorrectionMocks.preview.mockResolvedValue({
+      status: "success",
+      preview: {
+        invoiceId,
+        correctedDueDay: 5,
+        correctedDueDate: "2026-08-05",
+        correctedRentAmount: 800,
+        originalDueDate: "2026-08-05",
+        originalRentAmount: 900,
+        managementFeeDelta: -10,
+        projectedTenantCreditAmount: blocked ? 100 : 0,
+        previewHash: "a".repeat(64),
+        blockers: blocked ? [{ code: "historical_rent_tenant_credit_unsupported" }] : [],
+      },
+    });
+    renderDetail("rent", makeLease(), { ...allLeasePermissions, canCorrectHistoricalRent: true }, {
+      historicalRentCorrectionCandidates: [{
+        billingPeriodEnd: "2026-08-31", billingPeriodStart: "2026-08-01", currency: "USD",
+        invoiceId, invoiceNumber: "INV-202608-001", originalDueDate: "2026-08-05",
+        originalDueDay: 5, originalRentAmount: 900, paymentStatus: blocked ? "paid" : "partial",
+        settledAmount: blocked ? 900 : 400,
+      }],
+    });
+    await user.click(screen.getByRole("button", { name: "Manage lease" }));
+    await user.click(screen.getByRole("menuitem", { name: "Correct historical rent" }));
+    fireEvent.change(screen.getByLabelText("Corrected rent amount"), { target: { value: "800" } });
+    await user.type(screen.getByLabelText("Reason"), "Signed lease amount correction");
+    await user.click(screen.getByRole("button", { name: "Preview correction" }));
+    expect(await screen.findByRole("heading", { name: "Review correction" })).not.toBeNull();
+    expect(screen.getByText("Management fee change")).not.toBeNull();
+    expect(screen.getByText("Excess collected (unsupported)")).not.toBeNull();
+    expect(screen.queryByText(/Any excess becomes|Tenant credit liability|Append-only preview/)).toBeNull();
+    if (blocked) {
+      expect(screen.getByText(/No refund or tenant credit has been recorded/)).not.toBeNull();
+      expect(screen.queryByRole("button", { name: "Apply historical correction" })).toBeNull();
+    } else {
+      expect(screen.getByText(/Collected cash stays unchanged/)).not.toBeNull();
+      expect(screen.getByRole("button", { name: "Apply historical correction" })).not.toBeNull();
+    }
   });
 
   it("offers Activate today or a scheduled date without asking for an explanation", async () => {
@@ -1050,7 +1156,7 @@ describe("LeaseDetailScreen", () => {
   });
 });
 
-const allLeasePermissions = {
+const allLeasePermissions: LeaseActionPermissions = {
   canActivate: true,
   canArchive: true,
   canChangeTerms: true,
@@ -1065,6 +1171,7 @@ function renderDetail(
   focus: {
     canViewPropertyRecords?: boolean;
     billingFormConfig?: LeaseBillingFormConfig;
+    historicalRentCorrectionCandidates?: HistoricalRentCorrectionCandidate[];
     paymentResolution?: LeasePaymentResolutionData;
     routeNotice?: {
       href?: string;
@@ -1083,6 +1190,7 @@ function detailElement(
   focus: {
     canViewPropertyRecords?: boolean;
     billingFormConfig?: LeaseBillingFormConfig;
+    historicalRentCorrectionCandidates?: HistoricalRentCorrectionCandidate[];
     paymentResolution?: LeasePaymentResolutionData;
     routeNotice?: {
       href?: string;
@@ -1098,6 +1206,7 @@ function detailElement(
       canRecordPayments
       canViewFinance
       canViewPropertyRecords={focus.canViewPropertyRecords}
+      historicalRentCorrectionCandidates={focus.historicalRentCorrectionCandidates}
       lease={lease}
       leaseDepositAccounts={[
         {

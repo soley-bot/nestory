@@ -30,6 +30,7 @@ vi.mock("@/features/owner-close/components/owner-close-screen", () => ({
       data-can-close={String(props.canClose)}
       data-can-reopen={String(props.canReopen)}
       data-presentation={String(props.presentation)}
+      data-has-source-authority={String(Boolean(props.sourceAuthority))}
       data-testid="owner-close-authority"
     >
       Close owner month
@@ -44,6 +45,7 @@ vi.mock("@/features/owner-balances/components/opening-balance-screen", () => ({
   ),
 }));
 vi.mock("@/features/owner-balances/components/owner-balance-ledger", () => ({
+  OwnerSourceResolution: () => <div>Resolve owner sources</div>,
   OwnerBalanceLedger: (props: {
     canAllocate?: boolean;
     canCorrect?: boolean;
@@ -173,6 +175,8 @@ describe("BalancesPage opening balance integration", () => {
       .toBe("statements");
     expect(screen.getByTestId("owner-close-authority").getAttribute("data-presentation"))
       .toBe("statements");
+    expect(screen.getByTestId("owner-close-authority").getAttribute("data-has-source-authority"))
+      .toBe("true");
     expect(screen.getByRole("heading", { name: "Authoritative owner balance" }))
       .toBeTruthy();
     expect(screen.queryByText(/current balance projection/i)).toBeNull();

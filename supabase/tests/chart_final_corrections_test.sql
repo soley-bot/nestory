@@ -183,6 +183,13 @@ WHERE invoice.organization_id = '00000000-0000-0000-0000-000000000001'
   AND NOT app_private.is_financial_month_locked(invoice.organization_id, fee.fee_date)
   AND NOT EXISTS (SELECT 1 FROM public.tenant_invoice_payments AS payment
     WHERE payment.invoice_id = invoice.id)
+  AND NOT EXISTS (
+    SELECT 1 FROM public.owner_collection_confirmation_allocations AS allocation
+    WHERE allocation.organization_id = invoice.organization_id
+      AND allocation.invoice_id = invoice.id
+    GROUP BY allocation.invoice_line_id
+    HAVING sum(allocation.signed_amount) <> 0
+  )
   AND NOT EXISTS (SELECT 1 FROM public.management_fee_occurrences AS reversal
     WHERE reversal.reversal_of_id = fee.id)
 ORDER BY fee.fee_date DESC, invoice.id LIMIT 1;

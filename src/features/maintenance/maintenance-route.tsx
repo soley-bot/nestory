@@ -56,7 +56,7 @@ export async function renderMaintenanceRoute({
     workflowMode: "coordinator" as const,
   };
   const [data, reminders] = await Promise.all([
-    getMaintenanceScreenData(context.organizationId, viewQuery, actor),
+    getMaintenanceScreenData(context.organizationId, viewQuery, actor, capabilities),
     getMaintenanceReminderNotifications(context.organizationId, actor),
   ]);
   const initialTaskId = viewQuery.taskId === "all" ? undefined : viewQuery.taskId;

@@ -113,6 +113,8 @@ const evidenceDocumentId = "00000000-0000-4000-8000-000000000008";
 const evidenceObjectId = "00000000-0000-4000-8000-000000000009";
 const foreignOrganizationId = "00000000-0000-4000-8000-000000000012";
 const foreignInvoiceId = "00000000-0000-4000-8000-000000000013";
+const secondPropertyId = "00000000-0000-4000-8000-000000000014";
+const vendorPersonId = "00000000-0000-4000-8000-000000000015";
 
 describe("rent generation recovery action", () => {
   beforeEach(() => {
@@ -986,6 +988,121 @@ describe("expense approval actions", () => {
     );
   });
 
+  it("submits one reviewed transaction with exact ordered property expense lines", async () => {
+    rpc.mockResolvedValue({
+      data: { transaction_id: submissionId },
+      error: null,
+    });
+    const formData = new FormData();
+    formData.set("expenseDate", "2026-08-08");
+    formData.set("idempotencyKey", "expense-transaction-1");
+    formData.set("payeeMode", "person");
+    formData.set("payeePersonId", vendorPersonId);
+    formData.set("externalPayeeLabel", "");
+    formData.set("payFromAccountId", sourceId);
+    formData.set("reference", "Receipt 84");
+    formData.set("responsibility", "owner");
+    formData.set(
+      "lines",
+      JSON.stringify([
+        {
+          amount: "125",
+          categoryAccountId: sourceId,
+          description: "Lobby deep clean",
+          ownerCashAmount: "50",
+          propertyId,
+          unitId: null,
+        },
+        {
+          amount: "75.25",
+          categoryAccountId: sourceId,
+          description: "Replace unit lock",
+          ownerCashAmount: null,
+          propertyId: secondPropertyId,
+          unitId: null,
+        },
+      ]),
+    );
+    formData.set("evidenceFile", validPdfFile("receipt-84.pdf"));
+
+    await expect(submitExpenseAction({}, formData)).resolves.toEqual({
+      message: "Paid cost submitted for Finance review.",
+      status: "success",
+    });
+    expect(adminRpc).toHaveBeenCalledWith(
+      "register_paid_cost_evidence_verified",
+      expect.objectContaining({ p_property_id: propertyId }),
+    );
+    expect(rpc).toHaveBeenCalledWith("submit_expense_transaction", {
+      p_currency: "USD",
+      p_expense_date: "2026-08-08",
+      p_external_payee_label: null,
+      p_idempotency_key: "expense-transaction-1",
+      p_lines: [
+        {
+          amount: "125.00",
+          category_account_id: sourceId,
+          description: "Lobby deep clean",
+          internal_markup_amount: "0.00",
+          owner_cash_amount: "50.00",
+          property_id: propertyId,
+          tenant_invoice_id: null,
+          unit_id: null,
+        },
+        {
+          amount: "75.25",
+          category_account_id: sourceId,
+          description: "Replace unit lock",
+          internal_markup_amount: "0.00",
+          owner_cash_amount: null,
+          property_id: secondPropertyId,
+          tenant_invoice_id: null,
+          unit_id: null,
+        },
+      ],
+      p_organization_id: organizationId,
+      p_payee_person_id: vendorPersonId,
+      p_pay_from_account_id: sourceId,
+      p_reference: "Receipt 84",
+      p_responsibility: "owner",
+      p_supporting_document_id: evidenceDocumentId,
+    });
+  });
+
+  it("rejects explicit owner cash above its expense line before authorization", async () => {
+    const formData = new FormData();
+    formData.set("expenseDate", "2026-08-08");
+    formData.set("idempotencyKey", "expense-owner-cash-over-line");
+    formData.set("payeeMode", "external");
+    formData.set("payeePersonId", "");
+    formData.set("externalPayeeLabel", "One-time locksmith");
+    formData.set("payFromAccountId", sourceId);
+    formData.set("reference", "Receipt 85");
+    formData.set("responsibility", "owner");
+    formData.set(
+      "lines",
+      JSON.stringify([
+        {
+          amount: "25.00",
+          categoryAccountId: sourceId,
+          description: "Emergency lockout",
+          ownerCashAmount: "25.01",
+          propertyId,
+          unitId: null,
+        },
+      ]),
+    );
+    formData.set("evidenceFile", validPdfFile("receipt-85.pdf"));
+
+    await expect(submitExpenseAction({}, formData)).resolves.toEqual({
+      message: "Owner cash cannot exceed the expense line amount.",
+      status: "error",
+    });
+    expect(requireFinanceSubmissionContext).not.toHaveBeenCalled();
+    expect(adminUpload).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it("preserves a revoked-session sign-in redirect from the privileged guard", async () => {
     requirePrivilegedStepUp.mockRejectedValue(redirectInterrupt);
     const formData = new FormData();
@@ -1145,6 +1262,68 @@ describe("expense approval actions", () => {
     );
   });
 
+  it("reviews a grouped expense through the transaction authority", async () => {
+    rpc.mockResolvedValue({ data: { status: "approved" }, error: null });
+    const formData = expenseDecisionForm("approve", "Reviewed both lines");
+    formData.delete("submissionId");
+    formData.set("transactionId", submissionId);
+
+    await expect(reviewExpenseAction({}, formData)).resolves.toMatchObject({
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith("review_expense_transaction", {
+      p_decision: "approve",
+      p_idempotency_key: "expense-review-1",
+      p_organization_id: organizationId,
+      p_reason: "Reviewed both lines",
+      p_transaction_id: submissionId,
+    });
+  });
+
+  it("requires confirmation of the immutable paid-from account for a transaction approval", async () => {
+    const formData = expenseDecisionForm("approve", "Complete review");
+    formData.delete("submissionId");
+    formData.set("transactionId", submissionId);
+    formData.delete("fundingSourceConfirmed");
+    await expect(reviewExpenseAction({}, formData)).resolves.toMatchObject({
+      status: "error", message: "Confirm the paid-from account before approval.",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+    expect(requireFinanceReviewContext).not.toHaveBeenCalled();
+  });
+
+  it("rejects a request naming both parent and child review authorities", async () => {
+    const formData = expenseDecisionForm("approve", "Complete review");
+    formData.set("transactionId", submissionId);
+    await expect(reviewExpenseAction({}, formData)).resolves.toMatchObject({ status: "error" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it.each(["malformed-json", "empty", "too-many", "raw-category", "raw-source", "tenant-multiline"])(
+    "rejects invalid transaction %s before evidence upload",
+    async (kind) => {
+      const formData = new FormData();
+      formData.set("expenseDate", "2026-08-08");
+      formData.set("idempotencyKey", "invalid-transaction");
+      formData.set("payeeMode", "external");
+      formData.set("payeePersonId", "");
+      formData.set("externalPayeeLabel", "Cleaner");
+      formData.set(kind === "raw-source" ? "reconciliationSourceId" : "payFromAccountId", sourceId);
+      formData.set("reference", "Receipt 86");
+      formData.set("responsibility", kind === "tenant-multiline" ? "tenant" : "owner");
+      const line = { amount: "10", categoryAccountId: sourceId, description: "Cleaning", propertyId, unitId: null, tenantInvoiceId: foreignInvoiceId };
+      const payload = kind === "empty" ? [] : kind === "too-many" ? Array(21).fill(line)
+        : kind === "tenant-multiline" ? [line, line]
+        : kind === "raw-category" ? [{ ...line, categoryAccountId: undefined, category: "cleaning" }] : [line];
+      formData.set("lines", kind === "malformed-json" ? "[" : JSON.stringify(payload));
+      formData.set("evidenceFile", validPdfFile("receipt-86.pdf"));
+      await expect(submitExpenseAction({}, formData)).resolves.toMatchObject({ status: "error" });
+      expect(requireFinanceSubmissionContext).not.toHaveBeenCalled();
+      expect(adminUpload).not.toHaveBeenCalled();
+      expect(rpc).not.toHaveBeenCalled();
+    },
+  );
+
   it("uses paid-cost language for a completed rejection", async () => {
     rpc.mockResolvedValue({ data: submissionId, error: null });
     const formData = expenseDecisionForm("reject", "Receipt does not match");
@@ -1197,6 +1376,26 @@ describe("expense approval actions", () => {
       p_reason: "Duplicate payment",
       p_reversal_date: "2026-08-08",
       p_submission_id: submissionId,
+    });
+  });
+
+  it("reverses a grouped expense through the transaction authority", async () => {
+    rpc.mockResolvedValue({ data: { status: "reversed" }, error: null });
+    const formData = new FormData();
+    formData.set("idempotencyKey", "expense-reverse-grouped");
+    formData.set("reason", "Duplicate grouped payment");
+    formData.set("reversalDate", "2026-08-08");
+    formData.set("transactionId", submissionId);
+
+    await expect(reverseExpenseAction({}, formData)).resolves.toMatchObject({
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith("reverse_expense_transaction", {
+      p_idempotency_key: "expense-reverse-grouped",
+      p_organization_id: organizationId,
+      p_reason: "Duplicate grouped payment",
+      p_reversal_date: "2026-08-08",
+      p_transaction_id: submissionId,
     });
   });
 });

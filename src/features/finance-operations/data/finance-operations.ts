@@ -315,6 +315,131 @@ export function toExpenseSubmissionSummary(
   };
 }
 
+export type ExpenseTransactionSnapshot = {
+  payFromAccountId?: string;
+  expenseDate: string;
+  externalPayeeLabel: string | null;
+  id: string;
+  payeeLabel: string;
+  reference: string | null;
+  status: ExpenseSubmissionSummary["status"];
+};
+
+export type ExpenseTransactionLineSnapshot = {
+  description: string;
+  ownerCashAmount: number | null;
+  sortOrder: number;
+  submissionId: string;
+  transactionId: string;
+};
+
+export function groupExpenseTransactionSummaries(
+  submissions: readonly ExpenseSubmissionSummary[],
+  transactions: readonly ExpenseTransactionSnapshot[],
+  transactionLines: readonly ExpenseTransactionLineSnapshot[],
+  childLinks: readonly { submission_id: string; transaction_id: string }[] = [],
+): ExpenseSubmissionSummary[] {
+  const submissionById = new Map(
+    submissions.map((submission) => [submission.id, submission]),
+  );
+  const linkedSubmissionIds = new Set(
+    transactionLines.map((line) => line.submissionId),
+  );
+  const transactionBySubmissionId = new Map(childLinks.map((link) => [link.submission_id, link.transaction_id]));
+  const grouped: ExpenseSubmissionSummary[] = [];
+
+  for (const transaction of transactions) {
+    const expectedLines = transactionLines
+      .filter((line) => line.transactionId === transaction.id)
+      .sort((left, right) => left.sortOrder - right.sortOrder);
+    const lines = expectedLines
+      .flatMap((line) => {
+        const submission = submissionById.get(line.submissionId);
+        return submission ? [{ line, submission }] : [];
+      });
+    if (lines.length === 0 || lines.length !== expectedLines.length) {
+      throw new Error("Expense transaction children are incomplete. Reload before reviewing.");
+    }
+
+    const first = lines[0].submission;
+    const propertyIds = new Set(lines.map(({ submission }) => submission.propertyId));
+    const unitIds = new Set(lines.map(({ submission }) => submission.unitId));
+    grouped.push({
+      ...first,
+      category: lines.length === 1 ? first.category : "multiple",
+      categoryLabel:
+        lines.length === 1 ? first.categoryLabel : `${lines.length} expense lines`,
+      customerTotal: lines.reduce(
+        (total, { submission }) => total + Math.round(submission.customerTotal * 100),
+        0,
+      ) / 100,
+      date: transaction.expenseDate,
+      id: transaction.id,
+      internalCost: lines.reduce(
+        (total, { submission }) => total + Math.round(submission.internalCost * 100),
+        0,
+      ) / 100,
+      internalMarkup: lines.reduce(
+        (total, { submission }) => total + Math.round(submission.internalMarkup * 100),
+        0,
+      ) / 100,
+      lines: lines.map(({ line, submission }) => ({
+        amount: submission.internalCost,
+        customerTotal: submission.customerTotal,
+        internalMarkup: submission.internalMarkup,
+        category: submission.category,
+        categoryLabel: submission.categoryLabel,
+        description: line.description,
+        ownerCashAmount: line.ownerCashAmount,
+        propertyId: submission.propertyId,
+        propertyLabel: submission.propertyLabel,
+        submissionId: submission.id,
+        unitId: submission.unitId,
+        unitLabel: submission.unitLabel,
+      })),
+      propertyId: propertyIds.size === 1 ? first.propertyId : "multiple",
+      propertyLabel:
+        propertyIds.size === 1
+          ? first.propertyLabel
+          : `${propertyIds.size} properties`,
+      reference: transaction.reference,
+      status: transaction.status,
+      transactionId: transaction.id,
+      unitId: unitIds.size === 1 ? first.unitId : null,
+      unitLabel: unitIds.size === 1 ? first.unitLabel : "Multiple units",
+      vendorLabel: transaction.payeeLabel,
+    });
+  }
+
+  for (const submission of submissions) {
+    if (linkedSubmissionIds.has(submission.id)) continue;
+    grouped.push({
+      ...submission,
+      lines: [{
+        amount: submission.internalCost,
+        customerTotal: submission.customerTotal,
+        internalMarkup: submission.internalMarkup,
+        category: submission.category,
+        categoryLabel: submission.categoryLabel,
+        description:
+          submission.reference ?? submission.categoryLabel ?? submission.category,
+        ownerCashAmount: null,
+        propertyId: submission.propertyId,
+        propertyLabel: submission.propertyLabel,
+        submissionId: submission.id,
+        unitId: submission.unitId,
+        unitLabel: submission.unitLabel,
+      }],
+      transactionId: transactionBySubmissionId.get(submission.id) ?? null,
+      transactionReviewBlocked: transactionBySubmissionId.has(submission.id),
+    });
+  }
+
+  return grouped.sort((left, right) =>
+    right.submittedAt.localeCompare(left.submittedAt),
+  );
+}
+
 export async function getFinanceOperationsData(
   organizationId: string,
   propertyId?: string | null,
@@ -324,6 +449,7 @@ export async function getFinanceOperationsData(
     organizationResult,
     readContext,
     peopleResult,
+    personRolesResult,
     tenantInvoicesResult,
     rentGenerationExceptionsResult,
     ownerInvoicesResult,
@@ -344,6 +470,8 @@ export async function getFinanceOperationsData(
       .select("id, display_name, party_type, archived_at")
       .eq("organization_id", organizationId)
       .order("display_name"),
+    () => supabase.from("person_roles").select("person_id, role")
+      .eq("organization_id", organizationId).eq("status", "active").is("archived_at", null),
     () => getTenantInvoiceBalanceRows(supabase, organizationId, propertyId),
     () => getUnresolvedRentGenerationExceptions(supabase, organizationId),
     () => getOwnerInvoiceBalanceRows(supabase, organizationId, propertyId),
@@ -373,6 +501,7 @@ export async function getFinanceOperationsData(
   const results = [
     organizationResult,
     peopleResult,
+    personRolesResult,
     tenantInvoicesResult,
     rentGenerationExceptionsResult,
     ownerInvoicesResult,
@@ -388,6 +517,11 @@ export async function getFinanceOperationsData(
       `Could not load finance operations: ${failed.error.message}`,
     );
   }
+
+  const expenseTransactions = await loadExpenseTransactions(
+    supabase, organizationId, expenseSubmissionsResult.data ?? [],
+  );
+  expenseSubmissionsResult.data = expenseTransactions.submissions;
 
   const leasesResult = { data: readContext.leases.filter((lease) =>
     lease.archived_at === null && ["active", "notice_given", "ended", "terminated"].includes(lease.status),
@@ -627,7 +761,7 @@ export async function getFinanceOperationsData(
       ),
     ),
     expenseAccounts: getExpenseAccountOptions(financeAccounts),
-    expenseSubmissions: (expenseSubmissionsResult.data ?? []).map(
+    expenseSubmissions: groupExpenseTransactionSummaries((expenseSubmissionsResult.data ?? []).map(
       (submission) =>
         toExpenseSubmissionSummary(
           submission,
@@ -639,7 +773,7 @@ export async function getFinanceOperationsData(
           submitterLabelByUserId,
           financeCategories,
         ),
-    ),
+    ), expenseTransactions.transactions, expenseTransactions.lines, expenseTransactions.childLinks),
     financeCategories,
     leaseChargeAccounts: getLeaseChargeAccountOptions(financeAccounts),
     leaseDepositAccounts: getLeaseDepositAccountOptions(financeAccounts),
@@ -685,6 +819,9 @@ export async function getFinanceOperationsData(
         id: person.id,
         label: person.display_name,
         partyType: person.party_type,
+        ...((personRolesResult.data ?? []).some((role) => role.person_id === person.id) ? {
+          roles: (personRolesResult.data ?? []).filter((role) => role.person_id === person.id).map((role) => role.role),
+        } : {}),
       })),
     positions: (positionsResult.data ?? []).flatMap((row) =>
       toPosition(row as PositionRow, personById),
@@ -984,9 +1121,28 @@ export function scopeFinanceOperationsData(
       (entry) => entry.propertyId === scope.propertyId,
     ),
     expenseAccounts: data.expenseAccounts,
-    expenseSubmissions: data.expenseSubmissions.filter((submission) =>
-      inScope(submission.propertyId, submission.unitId),
-    ),
+    expenseSubmissions: data.expenseSubmissions.flatMap((submission) => {
+      if (!submission.transactionId || !submission.lines) {
+        return inScope(submission.propertyId, submission.unitId) ? [submission] : [];
+      }
+      const scopedLines = submission.lines.filter((line) => inScope(line.propertyId, line.unitId));
+      if (scopedLines.length === 0) return [];
+      const subtotal = Math.round(scopedLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0)) / 100;
+      return [{
+        ...submission,
+        lines: scopedLines,
+        scopedSubtotal: subtotal,
+        fullTransactionTotal: submission.transactionReviewBlocked ? undefined : submission.fullTransactionTotal ?? submission.internalCost,
+        transactionReviewBlocked: submission.transactionReviewBlocked || scopedLines.length !== submission.lines.length,
+        internalCost: subtotal,
+        customerTotal: scopedLines.reduce((sum, line) => sum + Math.round(line.customerTotal * 100), 0) / 100,
+        internalMarkup: scopedLines.reduce((sum, line) => sum + Math.round(line.internalMarkup * 100), 0) / 100,
+        propertyId: scope.propertyId,
+        propertyLabel: scopedLines[0].propertyLabel,
+        unitId: scope.unitId ?? submission.unitId,
+        unitLabel: scope.unitId ? scopedLines[0].unitLabel : submission.unitLabel,
+      }];
+    }),
     financeCategories: data.financeCategories,
     leaseChargeAccounts: data.leaseChargeAccounts,
     leaseDepositAccounts: data.leaseDepositAccounts,
@@ -1457,6 +1613,65 @@ async function getExpenseSubmissionRows(
   return {
     data: [...(pending.data ?? []), ...(history.data ?? [])],
     error: history.error,
+  };
+}
+
+export async function loadExpenseTransactions(
+  supabase: FinanceServerClient,
+  organizationId: string,
+  initialSubmissions: ExpenseSubmissionRow[],
+) {
+  const pending = await fetchAllActionableRows(async (from, to) => {
+    return await supabase.from("expense_transactions").select("*")
+      .eq("organization_id", organizationId).eq("status", "submitted")
+      .order("submitted_at", { ascending: false }).order("id").range(from, to);
+  });
+  const history = await supabase.from("expense_transactions").select("*")
+    .eq("organization_id", organizationId).neq("status", "submitted")
+    .order("submitted_at", { ascending: false }).order("id").limit(250);
+  if (pending.error || history.error) throw new Error("Could not load expense transactions.");
+  const parents = mergeRowsById(pending.data ?? [], history.data ?? []);
+  const lines = await fetchRowsByIdBatches(parents.map((parent) => parent.id), async (ids, from, to) => {
+    return await supabase.from("expense_transaction_lines")
+      .select("transaction_id, submission_id, sort_order, description, owner_cash_amount")
+      .eq("organization_id", organizationId).in("transaction_id", [...ids])
+      .order("transaction_id").order("sort_order").range(from, to);
+  });
+  if (lines.error) throw new Error("Could not load complete expense transaction lines.");
+  const children = await fetchRowsByIdBatches((lines.data ?? []).map((line) => line.submission_id), async (ids, from, to) => {
+    return await supabase.from("expense_submissions").select("*")
+      .eq("organization_id", organizationId).in("id", [...ids]).order("id").range(from, to);
+  });
+  if (children.error) throw new Error("Could not load complete expense transaction children.");
+  const submissions = mergeRowsById(initialSubmissions, children.data ?? []);
+  const childLinks: { submission_id: string; transaction_id: string }[] = [];
+  for (let offset = 0; offset < submissions.length; offset += 500) {
+    const links = await supabase.rpc("get_expense_transaction_child_links", {
+      p_organization_id: organizationId,
+      p_submission_ids: submissions.slice(offset, offset + 500).map((submission) => submission.id),
+    });
+    if (links.error) throw new Error("Could not verify expense transaction membership.");
+    childLinks.push(...(links.data ?? []));
+  }
+  return {
+    submissions,
+    childLinks,
+    transactions: parents.map((parent) => ({
+      expenseDate: parent.expense_date,
+      externalPayeeLabel: parent.external_payee_label,
+      id: parent.id,
+      payeeLabel: parent.payee_label,
+      payFromAccountId: parent.pay_from_account_id,
+      reference: parent.reference,
+      status: parent.status as ExpenseSubmissionSummary["status"],
+    })),
+    lines: (lines.data ?? []).map((line) => ({
+      description: line.description,
+      ownerCashAmount: line.owner_cash_amount === null ? null : Number(line.owner_cash_amount),
+      sortOrder: line.sort_order,
+      submissionId: line.submission_id,
+      transactionId: line.transaction_id,
+    })),
   };
 }
 

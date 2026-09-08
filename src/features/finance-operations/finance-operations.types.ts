@@ -5,6 +5,7 @@ export type FinanceOption = {
   label: string;
   partyType?: string | null;
   propertyId?: string | null;
+  roles?: string[];
 };
 
 export type FinanceCategory = {
@@ -174,6 +175,23 @@ export type ExpenseSubmissionSummary = {
   id: string;
   internalCost: number;
   internalMarkup: number;
+  transactionReviewBlocked?: boolean;
+  scopedSubtotal?: number;
+  fullTransactionTotal?: number;
+  lines?: Array<{
+    amount: number;
+    customerTotal: number;
+    internalMarkup: number;
+    category: string;
+    categoryLabel?: string | null;
+    description: string;
+    ownerCashAmount: number | null;
+    propertyId: string;
+    propertyLabel: string;
+    submissionId: string;
+    unitId: string | null;
+    unitLabel: string;
+  }>;
   maintenanceTask?: {
     completedAt: string | null;
     description: string | null;
@@ -196,6 +214,7 @@ export type ExpenseSubmissionSummary = {
   submittedAt: string;
   submittedByLabel: string;
   submittedByUserId: string;
+  transactionId?: string | null;
   unitId: string | null;
   unitLabel: string;
   vendorLabel: string;

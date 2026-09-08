@@ -3,6 +3,7 @@ import {
   buildSettlementsByInvoiceId,
   fetchAllActionableRows,
   fetchRowsByIdBatches,
+  groupExpenseTransactionSummaries,
   isRentGenerationSource,
   loadLeasePaymentResolutionData,
   loadCommercialDocumentLinks,
@@ -531,6 +532,121 @@ describe("toExpenseSubmissionSummary", () => {
       propertyLabel: "Property unavailable",
       unitLabel: "Unit unavailable",
     });
+  });
+});
+
+describe("groupExpenseTransactionSummaries", () => {
+  it("collapses ordered transaction lines into one review summary and preserves legacy rows", () => {
+    const baseSummary = {
+      adjustsSubmissionId: null,
+      category: "cleaning",
+      categoryLabel: "Cleaning",
+      customerTotal: 125,
+      date: "2026-09-01",
+      fundingSourceLabel: "BANK · Operating",
+      id: "submission-1",
+      internalCost: 125,
+      internalMarkup: 0,
+      propertyId: "property-1",
+      propertyLabel: "P-001 · Garden Court",
+      previouslyApproved: null,
+      recordedTotal: null,
+      reference: "BILL-42",
+      responsibility: "owner" as const,
+      reviewedAt: null,
+      reviewReason: null,
+      reversalReason: null,
+      sourceId: null,
+      sourceType: "general" as const,
+      status: "submitted" as const,
+      submittedAt: "2026-09-01T08:00:00Z",
+      submittedByLabel: "finance@example.com",
+      submittedByUserId: "user-1",
+      unitId: null,
+      unitLabel: "All units",
+      vendorLabel: "Khmer Home Services",
+    };
+    const secondSummary = {
+      ...baseSummary,
+      category: "repairs_maintenance",
+      categoryLabel: "Repairs & maintenance",
+      customerTotal: 75.25,
+      id: "submission-2",
+      internalCost: 75.25,
+      propertyId: "property-2",
+      propertyLabel: "P-002 · Riverside",
+      unitId: "unit-2",
+      unitLabel: "2A",
+    };
+    const legacySummary = {
+      ...baseSummary,
+      id: "legacy-submission",
+      internalCost: 20,
+      customerTotal: 20,
+    };
+
+    const grouped = groupExpenseTransactionSummaries(
+      [baseSummary, secondSummary, legacySummary],
+      [
+        {
+          expenseDate: "2026-09-01",
+          externalPayeeLabel: null,
+          id: "transaction-1",
+          payeeLabel: "Khmer Home Services",
+          reference: "BILL-42",
+          status: "submitted" as const,
+        },
+      ],
+      [
+        {
+          description: "Replace unit lock",
+          ownerCashAmount: null,
+          sortOrder: 2,
+          submissionId: "submission-2",
+          transactionId: "transaction-1",
+        },
+        {
+          description: "Lobby deep clean",
+          ownerCashAmount: 50,
+          sortOrder: 1,
+          submissionId: "submission-1",
+          transactionId: "transaction-1",
+        },
+      ],
+    );
+
+    expect(grouped).toHaveLength(2);
+    expect(grouped[0]).toMatchObject({
+      customerTotal: 200.25,
+      id: "transaction-1",
+      internalCost: 200.25,
+      transactionId: "transaction-1",
+      vendorLabel: "Khmer Home Services",
+    });
+    expect(grouped[0].lines).toEqual([
+      expect.objectContaining({
+        amount: 125,
+        description: "Lobby deep clean",
+        ownerCashAmount: 50,
+        submissionId: "submission-1",
+      }),
+      expect.objectContaining({
+        amount: 75.25,
+        description: "Replace unit lock",
+        ownerCashAmount: null,
+        submissionId: "submission-2",
+      }),
+    ]);
+    expect(grouped[1]).toMatchObject({
+      id: "legacy-submission",
+      transactionId: null,
+    });
+    expect(grouped[1].lines).toEqual([
+      expect.objectContaining({
+        amount: 20,
+        submissionId: "legacy-submission",
+      }),
+    ]);
   });
 });
 

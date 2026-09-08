@@ -681,24 +681,37 @@ BEGIN;
 SELECT set_config('app.people_leases_skip_sync', 'on', true);
 DELETE FROM public.activity_logs
 WHERE organization_id = '${ids.organization}'::uuid;
-DELETE FROM app_private.financial_idempotency_requests
-WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM public.financial_month_locks
 WHERE organization_id = '${ids.organization}'::uuid;
 -- Simplified Lease creation writes an immutable billing snapshot. Remove only
--- this isolated fixture's snapshot with triggers disabled before its org row.
+-- this isolated fixture's snapshots and seeded Chart dependencies. Disable
+-- triggers only in this cleanup transaction, never at the shared table level.
 SET LOCAL session_replication_role = replica;
+DELETE FROM app_private.finance_chart_workflow_idempotency_bindings
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM app_private.financial_idempotency_requests
+WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM public.lease_billing_terms
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM app_private.finance_account_activity_authority_history
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM app_private.finance_account_generated_categories
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM public.finance_account_category_links
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM public.finance_account_source_links
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM app_private.finance_account_internal_sources
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM public.finance_account_roles
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM public.finance_accounts
 WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM public.finance_categories
 WHERE organization_id = '${ids.organization}'::uuid;
-SET LOCAL session_replication_role = origin;
-ALTER TABLE public.financial_reconciliation_sources
-  DISABLE TRIGGER enforce_financial_reconciliation_source_mutation;
 DELETE FROM public.financial_reconciliation_sources
 WHERE organization_id = '${ids.organization}'::uuid;
-ALTER TABLE public.financial_reconciliation_sources
-  ENABLE TRIGGER enforce_financial_reconciliation_source_mutation;
+SET LOCAL session_replication_role = origin;
 DELETE FROM public.organizations
 WHERE id = '${ids.organization}'::uuid;
 DELETE FROM auth.users

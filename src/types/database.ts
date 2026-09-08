@@ -809,6 +809,19 @@ type RpcFunctionOverrides = {
     }
   >;
   update_unit: UpdateUnitRpc;
+  submit_expense_transaction: WithArgs<
+    "submit_expense_transaction",
+    Omit<GeneratedFunctions["submit_expense_transaction"]["Args"], "p_external_payee_label" | "p_payee_person_id"> & {
+      p_external_payee_label: string | null;
+      p_payee_person_id: string | null;
+    }
+  >;
+  review_expense_transaction: WithArgs<
+    "review_expense_transaction",
+    Omit<GeneratedFunctions["review_expense_transaction"]["Args"], "p_reason"> & {
+      p_reason: string | null;
+    }
+  >;
   submit_expense_with_accounts: {
     Args: {
       p_category_account_id: string;

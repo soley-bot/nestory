@@ -143,6 +143,15 @@ jobs:
       - name: Test lease-term authority concurrency
         run: npm run leases:test-term-authority
 
+      - name: Test paid-cost transaction concurrency
+        run: npm run paid-cost:test-concurrency
+
+      - name: Test legacy deposit default concurrency
+        run: npm run leases:test-deposit-default
+
+      - name: Test historical rent correction concurrency
+        run: npm run rent:test-correction-concurrency
+
       - name: Stop local Supabase
         if: always()
         run: npm run supabase:stop

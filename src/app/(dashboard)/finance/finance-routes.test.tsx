@@ -38,6 +38,19 @@ import PropertyFinancePage from "@/app/(dashboard)/properties/[propertyId]/finan
 import UnitFinancePage from "@/app/(dashboard)/units/[unitId]/finance/page";
 
 describe("finance routes", () => {
+  it.each([
+    [[], false],
+    [["people.view"], false],
+    [["people.write"], false],
+    [["people.view", "people.write"], true],
+  ] as const)("gates the expense vendor-create link with People access (%j)", async (permissions, canCreateVendor) => {
+    requireFinanceContext.mockResolvedValue({
+      capabilities: {}, organizationId: "organization-1", organizationName: "IPS",
+      permissionKeys: new Set(permissions),
+    });
+    renderToStaticMarkup(await BillsExpensesPage());
+    expect(screenSpy).toHaveBeenCalledWith(expect.objectContaining({ canCreateVendor }));
+  });
   beforeEach(() => {
     getFinanceOperationsData.mockReset();
     requireFinanceContext.mockReset();

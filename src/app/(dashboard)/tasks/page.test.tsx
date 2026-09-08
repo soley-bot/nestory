@@ -89,6 +89,7 @@ describe("TasksPage", () => {
         personId: "person-1",
         workflowMode: "assigned",
       },
+      expect.objectContaining({ canAssignCase: false }),
     );
   });
 });

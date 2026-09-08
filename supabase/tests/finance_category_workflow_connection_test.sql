@@ -160,9 +160,14 @@ SELECT ok(
 );
 
 SELECT ok(
-  NOT has_function_privilege(
+  has_function_privilege(
     'authenticated',
     'public.record_lease_deposit_event(uuid,uuid,text,date,numeric,text)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'authenticated',
+    'app_private.record_lease_deposit_event_legacy_checked_core(uuid,uuid,text,date,numeric,text)',
     'EXECUTE'
   )
   AND has_function_privilege(

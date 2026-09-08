@@ -415,7 +415,7 @@ BEGIN
 END;
 $$;
 
--- The account-aware function is the only authenticated deposit activity path.
+-- Revoke the raw path; install its checked compatibility adapter below before commit.
 REVOKE EXECUTE ON FUNCTION public.record_lease_deposit_event(
   uuid,uuid,text,date,numeric,text
 ) FROM PUBLIC, anon, authenticated;
@@ -430,3 +430,145 @@ REVOKE ALL ON FUNCTION app_private.resolve_chart_lease_charge_category(uuid,uuid
   FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION app_private.bind_chart_workflow_accounts(uuid,text,text,uuid,uuid,text,uuid)
   FROM PUBLIC,anon,authenticated,service_role;
+
+-- Unreleased migration amendment: install rolling-application compatibility in
+-- the same transaction as revoking the raw signature above. See the provenance
+-- and prefix-rehearsal requirements in the compatibility amendment runbook.
+-- Keep the released application's deposit signature usable during DB-first
+-- rollout and app-only rollback, without bypassing Chart liability selection.
+-- Preserve the exact checked Ledger/money implementation as a private core.
+DO $$
+BEGIN
+  IF encode(extensions.digest(pg_get_functiondef(
+    'public.record_lease_deposit_event(uuid,uuid,text,date,numeric,text)'::regprocedure
+  ),'sha256'),'hex') <> '0ac627eebbe787cfb2349275e8dd2449ea2d4721468ec3aba72e5f22859a376a' THEN
+    RAISE EXCEPTION 'Unexpected legacy deposit implementation; compatibility migration refused';
+  END IF;
+END;
+$$;
+
+ALTER FUNCTION public.record_lease_deposit_event(uuid,uuid,text,date,numeric,text)
+  RENAME TO record_lease_deposit_event_legacy_checked_core;
+ALTER FUNCTION public.record_lease_deposit_event_legacy_checked_core(uuid,uuid,text,date,numeric,text)
+  SET SCHEMA app_private;
+REVOKE ALL ON FUNCTION app_private.record_lease_deposit_event_legacy_checked_core(uuid,uuid,text,date,numeric,text)
+  FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE OR REPLACE FUNCTION public.record_lease_deposit_event_with_account(
+  p_organization_id uuid,p_lease_deposit_id uuid,p_liability_account_id uuid,
+  p_event_type text,p_event_date date,p_amount numeric,p_reference text
+)
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_account_id uuid; v_event_id uuid; v_property_id uuid;
+BEGIN
+  IF (SELECT auth.uid()) IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated' USING ERRCODE='28000';
+  END IF;
+  SELECT lease.property_id INTO v_property_id
+  FROM public.lease_deposits AS deposit
+  JOIN public.leases AS lease
+    ON lease.organization_id=deposit.organization_id AND lease.id=deposit.lease_id
+  WHERE deposit.organization_id=p_organization_id AND deposit.id=p_lease_deposit_id
+    AND deposit.archived_at IS NULL AND lease.archived_at IS NULL;
+  IF v_property_id IS NULL OR NOT app_private.can_access_property(
+    p_organization_id,v_property_id,'leases.change_terms'::public.organization_permission_key
+  ) THEN RAISE EXCEPTION 'Not authorized' USING ERRCODE='42501'; END IF;
+  v_account_id:=app_private.resolve_chart_deposit_liability(
+    p_organization_id,p_liability_account_id,v_property_id
+  );
+  v_event_id:=app_private.record_lease_deposit_event_legacy_checked_core(
+    p_organization_id,p_lease_deposit_id,p_event_type,p_event_date,p_amount,p_reference
+  );
+  UPDATE public.lease_deposit_events SET liability_account_id=v_account_id
+  WHERE organization_id=p_organization_id AND id=v_event_id;
+  RETURN v_event_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION app_private.record_lease_deposit_event_legacy_adapter(
+  p_organization_id uuid,
+  p_lease_deposit_id uuid,
+  p_event_type text,
+  p_event_date date,
+  p_amount numeric,
+  p_reference text
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_property_id uuid;
+  v_account_id uuid;
+  v_locked_account_id uuid;
+BEGIN
+  IF (SELECT auth.uid()) IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '28000';
+  END IF;
+
+  SELECT lease.property_id INTO v_property_id
+  FROM public.lease_deposits AS deposit
+  JOIN public.leases AS lease
+    ON lease.organization_id = deposit.organization_id
+   AND lease.id = deposit.lease_id
+  WHERE deposit.organization_id = p_organization_id
+    AND deposit.id = p_lease_deposit_id
+    AND deposit.archived_at IS NULL
+    AND lease.archived_at IS NULL;
+
+  IF v_property_id IS NULL OR NOT app_private.can_access_property(
+    p_organization_id, v_property_id,
+    'leases.change_terms'::public.organization_permission_key
+  ) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT role.account_id INTO v_account_id
+  FROM public.finance_account_roles AS role
+  WHERE role.organization_id = p_organization_id
+    AND role.role_code = 'security_deposits';
+
+  -- This checked resolver obtains SHARE on the account and validates its
+  -- organization, active status, liability class/subtype and deposit capability.
+  v_account_id := app_private.resolve_chart_deposit_liability(
+    p_organization_id, v_account_id, v_property_id
+  );
+
+  SELECT role.account_id INTO v_locked_account_id
+  FROM public.finance_account_roles AS role
+  WHERE role.organization_id = p_organization_id
+    AND role.role_code = 'security_deposits'
+  FOR SHARE;
+
+  IF NOT FOUND OR v_locked_account_id IS DISTINCT FROM v_account_id THEN
+    RAISE EXCEPTION 'Security deposit default changed. Retry the deposit recording.'
+      USING ERRCODE = '40001';
+  END IF;
+
+  -- Both authority rows are now stable. Preserve the checked event writer,
+  -- month lock, held-balance checks, Ledger projection and liability lineage.
+  RETURN public.record_lease_deposit_event_with_account(
+    p_organization_id, p_lease_deposit_id, v_account_id,
+    p_event_type, p_event_date, p_amount, p_reference
+  );
+END;
+$$;
+
+CREATE FUNCTION public.record_lease_deposit_event(
+  p_organization_id uuid,p_lease_deposit_id uuid,p_event_type text,
+  p_event_date date,p_amount numeric,p_reference text
+)
+RETURNS uuid LANGUAGE sql SECURITY INVOKER SET search_path = '' AS $$
+  SELECT app_private.record_lease_deposit_event_legacy_adapter(
+    p_organization_id,p_lease_deposit_id,p_event_type,p_event_date,p_amount,p_reference
+  );
+$$;
+REVOKE ALL ON FUNCTION public.record_lease_deposit_event(uuid,uuid,text,date,numeric,text)
+  FROM PUBLIC,anon,authenticated,service_role;
+REVOKE ALL ON FUNCTION app_private.record_lease_deposit_event_legacy_adapter(uuid,uuid,text,date,numeric,text)
+  FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.record_lease_deposit_event(uuid,uuid,text,date,numeric,text) TO authenticated;
+GRANT EXECUTE ON FUNCTION app_private.record_lease_deposit_event_legacy_adapter(uuid,uuid,text,date,numeric,text) TO authenticated;
+COMMENT ON FUNCTION public.record_lease_deposit_event(uuid,uuid,text,date,numeric,text)
+ IS 'Checked rolling-deploy compatibility adapter: resolves the organization security-deposit default and preserves Chart liability, property, month and cash authority.';

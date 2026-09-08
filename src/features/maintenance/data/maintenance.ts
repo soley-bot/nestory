@@ -24,6 +24,7 @@ import {
   type MaintenanceMemberIdentity,
 } from "@/features/maintenance/maintenance.execution";
 import { buildMaintenanceHrefs } from "@/features/maintenance/maintenance.hrefs";
+import type { MaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
 import { getMaintenanceTaskFacts } from "@/features/maintenance/maintenance.facts";
 import { getLatestMaintenanceReviewInstruction } from "@/features/maintenance/maintenance.workflow";
 import type {
@@ -176,6 +177,7 @@ export async function getMaintenanceScreenData(
   organizationId: string,
   viewQuery: MaintenanceViewQuery = parseMaintenanceSearchParams({}),
   actor?: MaintenanceActor,
+  capabilities: Pick<MaintenanceCapabilities, "canAssignCase"> = { canAssignCase: false },
 ): Promise<MaintenanceScreenData> {
   const supabase = await createSupabaseServerClient();
   const now = new Date();
@@ -197,7 +199,9 @@ export async function getMaintenanceScreenData(
     ...summaryTaskRows,
   ]);
   const isMember = actor?.workflowMode === "assigned";
-  const memberIdentities = isMember
+  // A coordinator read surface does not grant assignment-directory authority.
+  const loadAssignmentOptions = !isMember && capabilities.canAssignCase;
+  const memberIdentities = !loadAssignmentOptions
     ? actor?.personId
       ? [{ branchId: actor.branchId, personId: actor.personId }]
       : []
@@ -211,7 +215,7 @@ export async function getMaintenanceScreenData(
       supabase,
       visiblePersonTasks: pagedTasks.rows,
     }),
-    isMember
+    !loadAssignmentOptions
       ? Promise.resolve([] as MaintenanceVendorOption[])
       : getMaintenanceVendorOptions(supabase, organizationId),
   ]);
@@ -223,7 +227,7 @@ export async function getMaintenanceScreenData(
     dataScope: "organization" as const,
     workflowMode: "coordinator" as const,
   };
-  const eligibleVendorPersonIds = isMember
+  const eligibleVendorPersonIds = !loadAssignmentOptions
     ? undefined
     : new Set(vendorOptions.map((vendor) => vendor.id));
   const pageCases = pagedTasks.rows.map((task) =>
@@ -298,7 +302,7 @@ export async function getMaintenanceScreenData(
   const staffPersonIds = new Set(
     references.staffRoles.map((role) => role.person_id),
   );
-  const staffOptions = isMember
+  const staffOptions = !loadAssignmentOptions
     ? []
     : memberIdentities.flatMap((identity) =>
         getExecutableMaintenanceAssigneeOptions({

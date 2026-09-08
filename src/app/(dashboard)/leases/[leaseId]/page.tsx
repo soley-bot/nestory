@@ -5,7 +5,10 @@ import {
 } from "@/features/finance-accounts/data/finance-accounts";
 import { getLeasePaymentResolutionData } from "@/features/finance-operations/data/finance-operations";
 import type { LeasePaymentResolutionData } from "@/features/finance-operations/finance-operations.types";
-import { getLeasesScreenData } from "@/features/leases/data/leases";
+import {
+  getHistoricalRentCorrectionCandidates,
+  getLeasesScreenData,
+} from "@/features/leases/data/leases";
 import { parseLeaseSearchParams } from "@/features/leases/lease.filters";
 import { parseLeaseDetailQuery } from "@/features/leases/lease-detail-route";
 import { requirePermission } from "@/lib/auth/context";
@@ -49,6 +52,14 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
     return <LeaseNotFound />;
   }
 
+  const historicalRentCorrectionCandidates =
+    context.roleKind === "super_admin"
+      ? await getHistoricalRentCorrectionCandidates(
+          context.organizationId,
+          lease.id,
+        )
+      : [];
+
   const eligiblePaymentResolution =
     paymentResolution &&
     paymentResolution.invoice.leaseId === lease.id &&
@@ -82,7 +93,9 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
         canChangeTerms: context.permissionKeys.has("leases.change_terms"),
         canClose: context.permissionKeys.has("leases.close"),
         canPrepare: context.permissionKeys.has("leases.prepare"),
+        canCorrectHistoricalRent: context.roleKind === "super_admin",
       }}
+      historicalRentCorrectionCandidates={historicalRentCorrectionCandidates}
       lease={lease}
       leaseDepositAccounts={getLeaseDepositAccountOptions(
         financeAccountData.groups.flatMap((group) => group.accounts),

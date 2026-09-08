@@ -22,7 +22,7 @@ const contract = JSON.parse(
 const runner = await readFile("scripts/smoke-authenticated-route-discoverability.mjs", "utf8");
 const journeyFunctions = runner.slice(runner.indexOf("async function openJourney("));
 function loadJourneys(boundary = {}) {
-  return runInNewContext(`${journeyFunctions}\n({ openContextJourney, assertSettledAuthorizedDestination, matchesContractPath, routeGroup })`, {
+  return runInNewContext(`${journeyFunctions}\n({ openJourney, openContextJourney, assertSettledAuthorizedDestination, matchesContractPath, routeGroup })`, {
     URL, contract, baseUrl: "http://localhost:3000", ...boundary,
   });
 }
@@ -87,6 +87,12 @@ for (const [entryId, route, expected] of [
   ["finance-accounts", "/finance/accounts", ["Advanced", "Chart of Accounts"]],
   ["finance-accounts", "/finance/funding-sources", ["Advanced", "Chart of Accounts"]],
   ["finance-account-detail", "/finance/accounts/[accountId]", ["Advanced", "Chart of Accounts", "Activity for Operating bank"]],
+  ["shell-settings", "/settings", ["Settings"]],
+  ["settings-organization", "/settings/organization", ["Settings", "Organization"]],
+  ["settings-appearance", "/settings/appearance", ["Settings", "Appearance"]],
+  ["settings-branches", "/settings/branches", ["Settings", "Branches"]],
+  ["settings-teams", "/settings/teams", ["Settings", "Teams"]],
+  ["settings-access", "/settings/access", ["Settings", "Access"]],
   ["settings-roles", "/settings/roles", ["Settings", "Roles"]],
   ["property-detail", "/properties/[propertyId]", ["Properties", "Central Residence"]],
   ["units-list", "/units", ["Properties", "Units"]],
@@ -103,7 +109,14 @@ for (const [entryId, route, expected] of [
       "/overview": [{ name: "Advanced", href: "/finance/advanced" }, { name: "Settings", href: "/settings" }, { name: "Properties", href: "/properties" }, { name: "Cases", href: "/maintenance" }],
       "/finance/advanced": [{ name: "Chart of Accounts", href: "/finance/accounts" }],
       "/finance/accounts": [{ name: "Activity for Operating bank", href: "/finance/accounts/account-1" }],
-      "/settings": [{ name: "Roles", href: "/settings/roles" }],
+      "/settings/organization": [
+        { name: "Organization", href: "/settings/organization" },
+        { name: "Appearance", href: "/settings/appearance" },
+        { name: "Branches", href: "/settings/branches" },
+        { name: "Teams", href: "/settings/teams" },
+        { name: "Access", href: "/settings/access" },
+        { name: "Roles", href: "/settings/roles" },
+      ],
       "/properties": [{ name: "Central Residence", href: "/properties/property-1" }, { name: "Units", href: "/units" }],
       "/units": [{ name: "View unit 1A details", href: "/units/unit-1", role: "button" }],
       "/maintenance": [
@@ -119,7 +132,7 @@ for (const [entryId, route, expected] of [
         first() { return this; },
         async isVisible() { return true; },
         async waitFor() {},
-        async click() { pathname = link.href; },
+        async click() { pathname = link.href === "/settings" ? "/settings/organization" : link.href; },
         async textContent() { return link.name; },
         async getAttribute(name) { return name === "aria-label" ? link.name : link.href; },
       };
@@ -151,14 +164,54 @@ for (const [entryId, route, expected] of [
       url() { return `http://localhost:3000${pathname}`; },
       goto() { assert.fail("discoverability must use visible links, not goto"); },
     };
-    const { openContextJourney, matchesContractPath } = loadJourneys();
-    const chain = [];
-    await openContextJourney(page, { entryId, route, role: "super_admin" }, chain);
-    assert.deepEqual(chain, expected);
+    const { openJourney, matchesContractPath } = loadJourneys();
+    const chain = await openJourney(page, {
+      classification: entryId === "shell-settings" ? "global" : "context",
+      entryId, route, role: "super_admin",
+    });
+    assert.deepEqual([...chain], expected);
     assert.equal(matchesContractPath(pathname, route), true);
     assert.deepEqual(viewport, { width: 1440, height: 900 });
   });
 }
+
+test("Settings entry rejects unrelated destinations and authentication denials", async () => {
+  for (const pathname of ["/settings/access", "/settings/appearance", "/settings/organization/unknown", "/settings/unknown", "/login", "/no-access"]) {
+    const page = { url: () => `http://localhost:3000${pathname}` };
+    await assert.rejects(
+      loadJourneys().assertSettledAuthorizedDestination(page, "/settings"),
+      /\/settings ended at/,
+    );
+  }
+});
+
+test("Settings canonical landing still rejects a rendered error", async () => {
+  const page = {
+    url: () => "http://localhost:3000/settings/organization",
+    locator(selector) {
+      return {
+        first() { return this; },
+        async waitFor() {},
+        async isVisible() { return selector === '[data-kind="error"]:visible'; },
+        async textContent() { return "Organization could not be loaded"; },
+      };
+    },
+  };
+  await assert.rejects(
+    loadJourneys().assertSettledAuthorizedDestination(page, "/settings"),
+    /rendered an error: Organization could not be loaded/,
+  );
+});
+
+test("Settings remains undiscoverable to every non-admin fixture role", () => {
+  const plan = buildDiscoverabilityPlan(contract);
+  for (const role of ["finance_manager", "finance_member", "operations_manager", "operations_member"]) {
+    assert.equal(plan.some((journey) => journey.role === role && journey.route.startsWith("/settings")), false);
+    assert.deepEqual(findForbiddenGlobalEntries(contract, role, ["/settings"]), [
+      { entryId: "shell-settings", href: "/settings", route: "/settings" },
+    ]);
+  }
+});
 
 test("the Advanced entry expands the Finance sidebar group", () => {
   assert.equal(loadJourneys().routeGroup("/finance/advanced"), "Finance");

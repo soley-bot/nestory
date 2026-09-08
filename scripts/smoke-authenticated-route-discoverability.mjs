@@ -478,6 +478,10 @@ function assertAuthorizedDestination(page, route) {
 }
 
 function matchesContractPath(pathname, route) {
+  // The authorized Settings shell entry redirects to its canonical first tab.
+  if (route === "/settings" && pathname === "/settings/organization") {
+    return true;
+  }
   // Legacy bookmarks share the visible canonical entry. This journey proves
   // discoverability of Chart, not a direct navigation to the retired URL.
   if (route === "/finance/funding-sources" && pathname === "/finance/accounts") {

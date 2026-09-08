@@ -378,6 +378,109 @@ test("approve versus reject serializes to one Finance decision", async () => {
   );
 });
 
+function transactionRaceScope() {
+  const result = run(`SELECT jsonb_build_object(
+    'propertyA', '10000000-0000-0000-0000-000000000001',
+    'propertyB', '10000000-0000-0000-0000-000000000002',
+    'payFrom', (SELECT account.id FROM public.finance_accounts AS account
+      JOIN public.finance_account_source_links AS link ON link.account_id=account.id
+      JOIN public.financial_reconciliation_sources AS source ON source.id=link.source_id
+      WHERE account.organization_id='${organizationId}' AND account.property_id IS NULL
+        AND account.account_class='asset' AND account.account_subtype='bank'
+        AND account.archived_at IS NULL AND source.archived_at IS NULL ORDER BY account.id LIMIT 1),
+    'category', (SELECT account.id FROM public.finance_accounts AS account
+      JOIN public.finance_account_category_links AS link ON link.account_id=account.id
+      JOIN public.finance_categories AS category ON category.id=link.category_id
+      WHERE account.organization_id='${organizationId}' AND account.property_id IS NULL
+        AND account.account_class='expense' AND category.namespace='owner_expense'
+        AND account.archived_at IS NULL AND category.archived_at IS NULL ORDER BY account.id LIMIT 1));`);
+  const scope = JSON.parse(result);
+  assert.ok(scope.payFrom && scope.category, "transaction race requires real Chart choices");
+  return scope;
+}
+
+function submitRaceTransaction(label, propertyIds, scope, ownerCashAmount = null) {
+  const documentId = registerRaceEvidence(label, propertyIds[0]);
+  const lines = propertyIds.map((propertyId, index) => ({
+    property_id: propertyId, unit_id: null, category_account_id: scope.category,
+    description: `Transaction race line ${index + 1}`, amount: "12.00",
+    internal_markup_amount: "0.00", owner_cash_amount: ownerCashAmount,
+  }));
+  const output = run(actorSql(financeMemberId, `SELECT public.submit_expense_transaction(
+    '${organizationId}', NULL, 'Transaction race vendor', current_date, 'USD',
+    '${scope.payFrom}', 'TRANSACTION-${label}', '${documentId}', 'owner',
+    '${JSON.stringify(lines)}'::jsonb, 'transaction-race-${label}');`));
+  return JSON.parse(output.split(/\r?\n/).findLast((line) => line.startsWith("{"))).transaction_id;
+}
+
+test("transaction approval versus rejection preserves the entire parent", async () => {
+  const scope = transactionRaceScope();
+  const id = submitRaceTransaction("review", [scope.propertyA, scope.propertyB], scope, "0.00");
+  const first = spawnSession(actorSql(financeManagerId, `SELECT public.review_expense_transaction(
+    '${organizationId}', '${id}', 'approve', 'Whole parent reviewed', 'transaction-race-approve');`, "review_update"));
+  await waitForMarker(first, "paid_cost_review_update_ready");
+  const second = spawnSession(actorSql(financeManagerId, `SELECT public.review_expense_transaction(
+    '${organizationId}', '${id}', 'reject', 'Whole parent rejected', 'transaction-race-reject');`));
+  const [approved, rejected] = await Promise.all([first.done, second.done]);
+  assert.equal(approved.status, 0, approved.stderr);
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /Only a submitted expense transaction can be reviewed/);
+  assert.doesNotMatch(`${approved.stderr}\n${rejected.stderr}`, /40P01|deadlock detected/i);
+  assert.equal(run(`SELECT transaction.status || '|' || count(*)::text || '|' ||
+    bool_and(submission.status='approved')::text FROM public.expense_transactions AS transaction
+    JOIN public.expense_transaction_lines AS line ON line.transaction_id=transaction.id
+    JOIN public.expense_submissions AS submission ON submission.id=line.submission_id
+    WHERE transaction.id='${id}' GROUP BY transaction.status;`), "approved|2|true");
+});
+
+test("direct child commands reject before waiting for parent-held financial and row locks", async () => {
+  const scope = transactionRaceScope();
+  const id = submitRaceTransaction("early-child-denial", [scope.propertyA, scope.propertyB], scope, "0.00");
+  const childId = run(`SELECT submission_id FROM public.expense_transaction_lines
+    WHERE transaction_id='${id}' ORDER BY sort_order LIMIT 1;`);
+  const parent = spawnSession(actorSql(financeManagerId, `SELECT public.review_expense_transaction(
+    '${organizationId}', '${id}', 'approve', 'Parent owns every line', 'transaction-race-parent-lock');`, "review_update"));
+  await waitForMarker(parent, "paid_cost_review_update_ready");
+  const direct = spawnSession(actorSql(financeManagerId, `SELECT public.review_expense_with_account(
+    '${organizationId}', '${childId}', 'reject', 'Direct child is forbidden',
+    'transaction-race-direct-child', '${scope.payFrom}');`));
+  const denied = await direct.done;
+  assert.notEqual(denied.status, 0);
+  assert.match(denied.stderr, /Review or reverse the complete expense transaction/);
+  assert.equal(parent.closed, false, "child command waited for the parent lock instead of rejecting at entry");
+  const approved = await parent.done;
+  assert.equal(approved.status, 0, approved.stderr);
+  assert.doesNotMatch(`${approved.stderr}\n${denied.stderr}`, /40P01|deadlock detected/i);
+});
+
+test("opposite multi-property line orders cannot deadlock automatic transaction approvals", async () => {
+  const scope = transactionRaceScope();
+  const firstId = submitRaceTransaction("order-ab", [scope.propertyA, scope.propertyB], scope);
+  const secondId = submitRaceTransaction("order-ba", [scope.propertyB, scope.propertyA], scope);
+  const first = spawnSession(actorSql(financeManagerId, `SELECT public.review_expense_transaction(
+    '${organizationId}', '${firstId}', 'approve', 'AB properties reviewed', 'transaction-race-ab-approve');`, "review_update"));
+  await waitForMarker(first, "paid_cost_review_update_ready");
+  const second = spawnSession(actorSql(financeManagerId, `SELECT public.review_expense_transaction(
+    '${organizationId}', '${secondId}', 'approve', 'BA properties reviewed', 'transaction-race-ba-approve');`));
+  const results = await Promise.all([first.done, second.done]);
+  for (const result of results) {
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(result.stderr, /40P01|deadlock detected/i);
+  }
+  assert.equal(run(`SELECT count(*)::text FROM public.expense_transactions
+    WHERE id IN ('${firstId}', '${secondId}') AND status='approved';`), "2");
+
+  const reverseA = spawnSession(actorSql(superAdminId, `SELECT public.reverse_expense_transaction(
+    '${organizationId}', '${firstId}', current_date, 'Reverse AB transaction', 'transaction-race-ab-reverse');`, "reversal_insert"));
+  await waitForMarker(reverseA, "paid_cost_reversal_insert_ready");
+  const reverseB = spawnSession(actorSql(superAdminId, `SELECT public.reverse_expense_transaction(
+    '${organizationId}', '${secondId}', current_date, 'Reverse BA transaction', 'transaction-race-ba-reverse');`));
+  for (const result of await Promise.all([reverseA.done, reverseB.done])) {
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(result.stderr, /40P01|deadlock detected/i);
+  }
+});
+
 test("approve versus reversal does not reverse an uncommitted approval", async () => {
   const scope = submissionScope();
   const approve = `SELECT public.review_expense('${organizationId}', '${scope.submissionId}',

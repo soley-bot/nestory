@@ -22,6 +22,7 @@ const financeActionMocks = vi.hoisted(() => ({
   publishTenantInvoicePdfAction: vi.fn(),
   recordTenantInvoicePaymentAction: vi.fn(),
   retryTenantReceiptPdfAction: vi.fn(),
+  submitExpenseAction: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -38,6 +39,7 @@ vi.mock("../actions", async (importOriginal) => {
     recordTenantInvoicePaymentAction:
       financeActionMocks.recordTenantInvoicePaymentAction,
     retryTenantReceiptPdfAction: financeActionMocks.retryTenantReceiptPdfAction,
+    submitExpenseAction: financeActionMocks.submitExpenseAction,
   };
 });
 
@@ -75,6 +77,7 @@ afterEach(() => {
   financeActionMocks.publishTenantInvoicePdfAction.mockReset();
   financeActionMocks.recordTenantInvoicePaymentAction.mockReset();
   financeActionMocks.retryTenantReceiptPdfAction.mockReset();
+  financeActionMocks.submitExpenseAction.mockReset();
 });
 
 class ResizeObserverStub {
@@ -84,6 +87,169 @@ class ResizeObserverStub {
 }
 
 describe("FinanceOperationsScreen", () => {
+  it("preserves automatic and explicit owner cash allocations when details are collapsed", async () => {
+    const user = userEvent.setup();
+    render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canSubmitExpense: true })}
+      initialExpenseIntent="owner" organizationName="IPS" view="expenses" />);
+    const form = screen.getByRole("form", { name: "Record property expense form" });
+    const allocation = screen.getByLabelText("Apply from IPS-held owner cash");
+    const disclosure = allocation.closest("details");
+    expect(disclosure).not.toBeNull();
+    expect(disclosure?.hasAttribute("open")).toBe(false);
+    const originalLines = JSON.parse(valueOfNamedInput(form, "lines")!);
+    expect(originalLines[0].ownerCashAmount).toBeNull();
+    const summary = within(disclosure!).getByText(/Owner cash allocation/);
+    await user.click(summary);
+    expect(disclosure?.hasAttribute("open")).toBe(true);
+    await user.type(screen.getByLabelText("Line amount"), "100");
+    await user.type(allocation, "25.50");
+    expect(allocation.getAttribute("min")).toBe("0");
+    expect(allocation.getAttribute("max")).toBe("100");
+    await user.click(summary);
+    expect(disclosure?.hasAttribute("open")).toBe(false);
+    expect(summary.textContent).toContain("USD 25.50");
+    expect(JSON.parse(valueOfNamedInput(form, "lines")!)).toEqual([
+      { ...originalLines[0], amount: "100", ownerCashAmount: "25.50" },
+    ]);
+    await user.click(screen.getByRole("button", { name: "Add line" }));
+    expect(JSON.parse(valueOfNamedInput(form, "lines")!)[1].ownerCashAmount).toBeNull();
+    await user.click(summary);
+    await user.clear(allocation);
+    await user.click(summary);
+    expect(summary.textContent).toContain("Automatic");
+    expect(JSON.parse(valueOfNamedInput(form, "lines")!)[0].ownerCashAmount).toBeNull();
+  });
+
+  it("reopens a collapsed invalid cash override after each failed submission", async () => {
+    const user = userEvent.setup();
+    financeActionMocks.submitExpenseAction.mockResolvedValue({
+      status: "error", message: "Owner cash cannot exceed the expense line amount.",
+      fieldErrors: { lines: ["Owner cash cannot exceed the expense line amount."] },
+    });
+    render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canSubmitExpense: true })}
+      initialExpenseIntent="owner" organizationName="IPS" view="expenses" />);
+    const form = screen.getByRole("form", { name: "Record property expense form" });
+    const allocation = screen.getByLabelText<HTMLInputElement>("Apply from IPS-held owner cash");
+    const disclosure = allocation.closest("details")!;
+    const summary = within(disclosure).getByText(/Owner cash allocation/);
+    await user.type(screen.getByLabelText("Line amount"), "100");
+    await user.click(summary);
+    await user.type(allocation, "150");
+    await user.click(summary);
+    expect(disclosure.open).toBe(false);
+    // NumberInput is decimal text: the server, not native min/max, validates allocation.
+    expect(allocation.type).toBe("text");
+    fireEvent.submit(form);
+    await waitFor(() => expect(disclosure.open).toBe(true));
+    expect(screen.getAllByRole("alert").some((alert) => alert.textContent?.includes("Owner cash cannot exceed"))).toBe(true);
+    expect(allocation.value).toBe("150");
+    expect(JSON.parse(financeActionMocks.submitExpenseAction.mock.calls[0][1].get("lines"))[0])
+      .toMatchObject({ amount: "100", ownerCashAmount: "150" });
+    await user.click(summary);
+    fireEvent.submit(form);
+    await waitFor(() => expect(disclosure.open).toBe(true));
+    await user.clear(allocation);
+    await user.type(allocation, "75");
+    expect(JSON.parse(valueOfNamedInput(form, "lines")!)[0].ownerCashAmount).toBe("75");
+  });
+
+  it("preserves the configured paid-from account for a scoped transaction", () => {
+    const input = data();
+    input.payFromAccounts = [
+      { accountClass: "asset", accountSubtype: "bank", displayName: "First bank", id: "first", propertyId: null },
+      { accountClass: "asset", accountSubtype: "bank", displayName: "Configured bank", id: "configured", propertyId: "property-1", defaultRoleCodes: ["operating_bank"] },
+    ];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canSubmitExpense: true })}
+      initialExpenseIntent="owner" organizationName="IPS" view="expenses"
+      scope={{ id: "property-1", kind: "property", label: "Riverside", propertyId: "property-1", propertyLabel: "Riverside" }} />);
+    expect(valueOfNamedInput(screen.getByRole("form", { name: "Record property expense form" }), "payFromAccountId")).toBe("configured");
+  });
+  it.each(["submitted", "approved"] as const)("keeps a partial %s transaction read-only even for reviewers", async (status) => {
+    const user = userEvent.setup();
+    const input = data();
+    input.expenseSubmissions = [{
+      ...expenseSubmission(status), transactionId: "parent", transactionReviewBlocked: true,
+      scopedSubtotal: 40, fullTransactionTotal: 100,
+    }];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canReviewExpense: true, canReverseExpense: true })}
+      organizationName="IPS" view="expenses" />);
+    if (status === "approved") await user.click(screen.getByRole("tab", { name: "Approved (1)" }));
+    await user.click(screen.getByRole("button", { name: "View Sokha Repairs" }));
+    const dialog = screen.getByRole("dialog", { name: "Paid cost details" });
+    expect(within(dialog).getByText(/Scoped subtotal:/).textContent).toContain("USD 40.00");
+    expect(within(dialog).getByText(/Full transaction total:/).textContent).toContain("USD 100.00");
+    expect(within(dialog).queryByRole("button", { name: /Approve|Reject|Reverse/ })).toBeNull();
+    expect(within(dialog).getByText(/require the complete transaction/)).not.toBeNull();
+  });
+
+  it("shows vendor creation only when its checked capability is supplied", async () => {
+    const user = userEvent.setup();
+    render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canSubmitExpense: true })}
+      canCreateVendor organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("button", { name: "Record property expense" }));
+    expect(screen.getByRole("link", { name: "Create vendor" }).getAttribute("href")).toBe("/vendors?action=create");
+  });
+
+  it("uses existing People authority for payees and supports ordered expense lines", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.peopleOptions = [
+      {
+        id: "person-vendor",
+        label: "Khmer Home Services",
+        partyType: "company",
+        roles: ["vendor"],
+      },
+      {
+        id: "person-staff",
+        label: "Dara Staff",
+        partyType: "individual",
+        roles: ["staff"],
+      },
+    ];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canSubmitExpense: true })}
+        organizationName="Sokha Property Services"
+        view="expenses"
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Record property expense" }),
+    );
+    await user.click(screen.getByRole("combobox", { name: "Paid to" }));
+    expect(
+      screen.getByRole("option", { name: "Vendor · Khmer Home Services" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("option", { name: "Person · Dara Staff" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("option", { name: "One-time external payee" }),
+    ).not.toBeNull();
+    expect(screen.queryByRole("link", { name: "Create vendor" })).toBeNull();
+    await user.click(
+      screen.getByRole("option", { name: "Vendor · Khmer Home Services" }),
+    );
+
+    expect(screen.getAllByLabelText("Expense description")).toHaveLength(1);
+    expect(screen.getAllByLabelText("Line amount")).toHaveLength(1);
+    expect(
+      screen.getAllByLabelText("Apply from IPS-held owner cash"),
+    ).toHaveLength(1);
+    expect(screen.getByText("Automatic when left blank")).not.toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Add line" }));
+    expect(screen.getAllByLabelText("Expense description")).toHaveLength(2);
+    expect(screen.getAllByLabelText("Line amount")).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: "Remove expense line 2" }),
+    ).not.toBeNull();
+  });
+
   it.each(["property", "unit"] as const)("keeps %s finance navigation usable without property record access", (kind) => {
     const { container } = render(<FinanceOperationsScreen
       {...data()} {...financeCapabilities({})} canViewPropertyRecords={false}
@@ -1733,13 +1899,13 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByText("Owner account after approval")).not.toBeNull();
     expect(screen.queryByText("Tenant or company")).toBeNull();
     expect(screen.getByLabelText("Category")).not.toBeNull();
-    expect(screen.getByLabelText("Amount paid")).not.toBeNull();
+    expect(screen.getByLabelText("Line amount")).not.toBeNull();
     expect(screen.getByLabelText("Paid date")).not.toBeNull();
     expect(screen.getByLabelText("Pay from")).not.toBeNull();
     expect(screen.queryByText("Who paid?")).toBeNull();
     expect(
       screen.getByText(
-        "After approval, available owner-held cash is applied automatically. Any remainder becomes an amount due from the owner.",
+        "Available owner cash is applied; the remainder is due from the owner.",
       ),
     ).not.toBeNull();
     expect(screen.queryByText(/funding source/i)).toBeNull();
@@ -1783,8 +1949,7 @@ describe("FinanceOperationsScreen", () => {
       name: "Record property expense form",
     });
 
-    expect(valueOfNamedInput(form, "propertyId")).toBe("");
-    expect(valueOfNamedInput(form, "categoryAccountId")).toBe("");
+    expect(JSON.parse(valueOfNamedInput(form, "lines")!)[0]).toMatchObject({ propertyId: "", categoryAccountId: "" });
     expect(valueOfNamedInput(form, "payFromAccountId")).toBe("");
     expect(within(form).getByRole("combobox", { name: "Property" }).textContent).toContain(
       "Choose property",
@@ -1829,8 +1994,7 @@ describe("FinanceOperationsScreen", () => {
     const form = screen.getByRole("form", {
       name: "Record property expense form",
     });
-    expect(valueOfNamedInput(form, "propertyId")).toBe("");
-    expect(valueOfNamedInput(form, "categoryAccountId")).toBe("");
+    expect(JSON.parse(valueOfNamedInput(form, "lines")!)[0]).toMatchObject({ propertyId: "", categoryAccountId: "" });
     expect(valueOfNamedInput(form, "payFromAccountId")).toBe("");
   });
 

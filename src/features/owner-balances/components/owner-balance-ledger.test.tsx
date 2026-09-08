@@ -25,6 +25,7 @@ vi.mock("@/features/owner-balances/lifecycle-actions", () => ({
 import { calculateReportMonthAction, assignReportSourceAction } from "@/features/reports/remediation-actions";
 import { OwnerBalanceLedger } from "@/features/owner-balances/components/owner-balance-ledger";
 import type { OwnerBalanceData } from "@/features/owner-balances/owner-balance.types";
+import { canonicalizeSignedOwnerOpeningAmount } from "@/features/owner-balances/owner-balance.money";
 
 const propertyId = "00000000-0000-4000-8000-000000000002";
 const ownerId = "00000000-0000-4000-8000-000000000003";
@@ -34,6 +35,26 @@ const allocationSetId = "00000000-0000-4000-8000-000000000006";
 const movementId = "00000000-0000-4000-8000-000000000007";
 
 describe("OwnerBalanceLedger", () => {
+  it.each([
+    ["2026-08-28", "28 Aug 2026"],
+    ["2026-01-01", "01 Jan 2026"],
+    ["unknown", "unknown"],
+  ])("shows readable register activity dates without changing the %s value", (lastActivityDate, label) => {
+    const input = data();
+    input.accounts = [{
+      availableAmount: canonicalizeSignedOwnerOpeningAmount("975.00"), issueCodes: [], issueCount: 0,
+      lastActivityDate, lastActivityDetail: null,
+      ownerLabel: "Nora Owner", ownerPersonId: ownerId, periodStatus: "ready",
+      propertyId, propertyLabel: "Riverside", remediationPath: null,
+      withdrawalStatus: "available",
+    }];
+    input.accountTotal = 1;
+    render(<OwnerBalanceLedger canAllocate={false} canCorrect={false} canTransfer={false}
+      data={input} organizationName="IPS" selectedMonth="2026-08" />);
+    expect(screen.getByRole("cell", { name: label })).toBeTruthy();
+    expect(input.accounts[0].lastActivityDate).toBe(lastActivityDate);
+  });
+
   it.each(["success", "error"])("resets inline calculation state when month changes after %s", async (status) => {
     const user = userEvent.setup();
     vi.mocked(calculateReportMonthAction).mockResolvedValueOnce(status === "success" ? { status: "success" } : { status: "error", message: "Earlier month needs review." });
@@ -287,7 +308,7 @@ describe("OwnerBalanceLedger", () => {
       .closest("tr")!;
     expect(within(account).getByText("Action required")).toBeTruthy();
     expect(within(account).getByText("High priority")).toBeTruthy();
-    expect(account.children[5]?.textContent).toBe("2026-08-28");
+    expect(account.children[5]?.textContent).toBe("28 Aug 2026");
     expect(
       within(account).getByText("sources=13").closest("details"),
     ).not.toBeNull();

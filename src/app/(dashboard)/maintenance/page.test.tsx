@@ -60,5 +60,11 @@ describe("MaintenancePage", () => {
     expect(requirePermission).toHaveBeenCalledWith("maintenance.view");
     expect(requireOperationsManagementContext).not.toHaveBeenCalled();
     expect(getMaintenanceScreenData).toHaveBeenCalledOnce();
+    expect(getMaintenanceScreenData).toHaveBeenCalledWith(
+      "organization-1",
+      expect.any(Object),
+      expect.objectContaining({ dataScope: "branch", workflowMode: "coordinator" }),
+      expect.objectContaining({ canAssignCase: false }),
+    );
   });
 });
