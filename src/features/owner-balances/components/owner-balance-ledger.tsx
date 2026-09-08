@@ -1,5 +1,5 @@
 import { assignReportSourceAction, calculateReportMonthAction } from "@/features/reports/remediation-actions";
-import { withReportReturn } from "@/features/reports/report-return";
+import { reportReturnHref, withReportReturn } from "@/features/reports/report-return";
 import { randomUUID } from "node:crypto";
 import { ReportActionForm, ReportRemediation } from "@/features/reports/components/report-remediation-controls";
 import type { ReactNode } from "react";
@@ -59,6 +59,7 @@ type OwnerBalanceLedgerProps = {
   selectedMonth: string;
   selectedOwnerPersonId?: string;
   selectedPropertyId?: string;
+  selectedSourceLineId?: string;
   selectedView?: OwnerAccountView;
 };
 
@@ -78,6 +79,7 @@ export function OwnerBalanceLedger({
   selectedMonth,
   selectedOwnerPersonId,
   selectedPropertyId,
+  selectedSourceLineId,
   selectedView = "summary",
 }: OwnerBalanceLedgerProps) {
   if (propertyAccount && selectedPropertyId) {
@@ -330,7 +332,10 @@ export function OwnerBalanceLedger({
               )}
             </section>
 
-            <details className="border-y border-border">
+            <details
+              className="border-y border-border"
+              open={Boolean(selectedSourceLineId && data.queue.some((item) => item.sourceLineId === selectedSourceLineId))}
+            >
               <summary className="flex cursor-pointer items-center justify-between py-3 font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
                 <span id="owner-remediation-heading">Items to resolve</span>
                 <span className="text-sm font-normal text-muted-foreground">
@@ -1350,26 +1355,30 @@ export function OwnerSourceResolution({ data, canAllocate, canResolveOwnership, 
     <div className="overflow-x-auto">
       <table className="w-full min-w-[36rem] text-left text-sm">
         <thead className="bg-[var(--table-header-bg)]"><tr>{["Date", "Source", "Amount", "Status", "Action"].map(label => <th key={label} scope="col" className="px-4 py-2">{label}</th>)}</tr></thead>
-        <tbody>{data.queue.map(item => <RemediationRow returnTo={returnTo} key={`${item.sourceType}:${item.sourceLineId}`} item={item} canAllocate={canAllocate} canResolveOwnership={canResolveOwnership} />)}</tbody>
+        <tbody>{data.queue.map(item => <RemediationRow rowIdPrefix="owner-close-source" returnTo={returnTo} key={`${item.sourceType}:${item.sourceLineId}`} item={item} canAllocate={canAllocate} canResolveOwnership={canResolveOwnership} />)}</tbody>
       </table>
     </div>
   );
 }
 
 function RemediationRow({
+  rowIdPrefix = "owner-source",
   returnTo,
   canAllocate,
   canResolveOwnership,
   item,
 }: {
+  rowIdPrefix?: "owner-source" | "owner-close-source";
   canAllocate: boolean;
   canResolveOwnership: boolean;
   item: OwnerEventAllocationQueueRecord;
   returnTo?: string;
 }) {
   const setupPath = remediationSetupPath(item.remediationDetail);
+  const originalRequired = item.remediationCode === "original_deposit_allocation_required";
+  const originalDeposit = originalRequired ? originalDepositPrerequisite(item.remediationDetail, returnTo) : null;
   return (
-    <tr data-testid={`owner-remediation-${item.sourceLineId}`}>
+    <tr id={`${rowIdPrefix}-${item.sourceType}-${item.sourceLineId}`} data-testid={`owner-remediation-${item.sourceLineId}`}>
       <td className="px-4 py-3">{item.eventDate}</td>
       <td className="px-4 py-3">
         <p className="font-medium">{sourceTypeLabel(item.sourceType)}</p>
@@ -1395,6 +1404,14 @@ function RemediationRow({
         />
       </td>
       <td className="px-4 py-3">
+        {originalDeposit ? (
+          <Link
+            className="text-sm font-semibold text-primary underline-offset-4 hover:underline"
+            href={originalDeposit.href}
+          >
+            {originalDeposit.label}
+          </Link>
+        ) : null}
         {canResolveOwnership && setupPath ? (
           <Link
             className="text-sm font-semibold text-primary underline-offset-4 hover:underline"
@@ -1421,8 +1438,11 @@ function RemediationRow({
             </Button>
           </ReportActionForm>
         ) : null}
-        {!canAllocate && !setupPath ? <p className="text-xs">Finance must review this source.</p> : null}
-        {canAllocate && !setupPath && item.allocationState === "blocked" ? <p className="text-xs">Correct the source prerequisite, then recheck its assignment.</p> : null}
+        {originalRequired ? <p className="text-xs">{originalDeposit
+          ? "Assign the original deposit first, then recheck this reversal."
+          : "Finance must locate and allocate the original deposit before rechecking this reversal."}</p> : null}
+        {!canAllocate && !setupPath && !originalRequired ? <p className="text-xs">Finance must review this source.</p> : null}
+        {canAllocate && !setupPath && !originalRequired && item.allocationState === "blocked" ? <p className="text-xs">Correct the source prerequisite, then recheck its assignment.</p> : null}
         {setupPath && !canResolveOwnership ? <p className="text-xs">A property administrator must resolve ownership.</p> : null}
       </td>
     </tr>
@@ -1718,6 +1738,32 @@ function MoneyAndDateFields({
   );
 }
 
+function originalDepositPrerequisite(value: unknown, returnTo?: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const detail = value as Record<string, unknown>;
+  const sourceType = detail.original_source_type;
+  const sourceLineId = detail.original_source_line_id;
+  const eventDate = detail.original_event_date;
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if ((sourceType !== "security_deposit_receipt" && sourceType !== "security_deposit_refund")
+    || typeof sourceLineId !== "string" || !uuid.test(sourceLineId)
+    || typeof eventDate !== "string" || !/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(eventDate)
+    || new Date(`${eventDate}T00:00:00Z`).toISOString().slice(0, 10) !== eventDate) return null;
+  const safeReturn = reportReturnHref(returnTo);
+  if (!safeReturn) return null;
+  const current = new URL(safeReturn, "https://nestory.invalid");
+  const propertyId = current.searchParams.get("propertyId");
+  const ownerPersonId = current.searchParams.get("ownerPersonId");
+  if (current.pathname !== "/balances" || !propertyId || !uuid.test(propertyId)
+    || !ownerPersonId || !uuid.test(ownerPersonId)) return null;
+  const query = new URLSearchParams({ month: eventDate.slice(0, 7), view: "summary", propertyId, ownerPersonId, sourceLineId });
+  const fragment = encodeURIComponent(`owner-source-${sourceType}-${sourceLineId}`);
+  return {
+    href: `/balances?${query}#${fragment}`,
+    label: `Review original ${sourceType === "security_deposit_receipt" ? "receipt" : "refund"} · ${formatCalendarDate(eventDate).slice(3)}`,
+  };
+}
+
 function remediationSetupPath(value: unknown) {
   if (!value || typeof value !== "object" || !("setup_path" in value))
     return null;
@@ -1728,6 +1774,7 @@ function remediationSetupPath(value: unknown) {
 }
 
 function remediationLabel(code: string | null) {
+  if (code === "original_deposit_allocation_required") return "Original deposit needs allocation";
   if (
     code?.startsWith("owner_roster_") ||
     code === "ambiguous_event_ownership"

@@ -22,6 +22,7 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
   const selectedMonth = validMonth(first(query.month)) ?? getBusinessMonthValue();
   const selectedPropertyId = validUuid(first(query.propertyId));
   const selectedOwnerPersonId = validUuid(first(query.ownerPersonId));
+  const selectedSourceLineId = validUuid(first(query.sourceLineId));
   const selectedView = parseOwnerAccountView(first(query.view));
   const originReportHref = reportReturnHref(first(query.returnTo));
   const accountReturnHref = withReportReturn(`/balances?${new URLSearchParams({ month: selectedMonth, view: selectedView, propertyId: selectedPropertyId ?? "", ownerPersonId: selectedOwnerPersonId ?? "" })}`, originReportHref);
@@ -105,6 +106,7 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
       selectedOwnerPersonId={selectedOwnerPersonId}
       selectedPropertyId={selectedPropertyId}
       selectedView={selectedView}
+      selectedSourceLineId={selectedSourceLineId}
     />
     </>
   );

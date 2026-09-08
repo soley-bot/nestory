@@ -55,6 +55,7 @@ vi.mock("@/features/owner-balances/components/owner-balance-ledger", () => ({
     closingAuthority?: React.ReactNode;
     openingAuthority?: React.ReactNode;
     selectedView?: string;
+    selectedSourceLineId?: string;
   }) => (
     <main
       data-can-allocate={String(props.canAllocate)}
@@ -64,6 +65,7 @@ vi.mock("@/features/owner-balances/components/owner-balance-ledger", () => ({
       data-can-view-property-records={String(props.canViewPropertyRecords)}
       data-testid="authoritative-ledger"
       data-selected-view={props.selectedView}
+      data-selected-source-line-id={props.selectedSourceLineId}
     >
       <h1>Authoritative owner balance</h1>
       {props.openingAuthority}
@@ -120,6 +122,34 @@ describe("BalancesPage opening balance integration", () => {
       readiness: null,
       revisions: [],
       series: null,
+    });
+  });
+
+  it.each([
+    ["00000000-0000-4000-8000-000000000005", "00000000-0000-4000-8000-000000000005"],
+    [["00000000-0000-4000-8000-000000000005", "invalid"], "00000000-0000-4000-8000-000000000005"],
+    [undefined, null],
+    ["not-a-source", null],
+    ["00000000-0000-4000-8000-000000000005/foreign", null],
+  ])("uses source hint %j only for validated disclosure targeting", async (sourceLineId, expected) => {
+    const context = await mocks.requireFinanceContext();
+    mocks.requireFinanceContext.mockResolvedValue({ ...context, role: "custom",
+      capabilities: { ...context.capabilities, canOperateFinance: false } });
+    render(await BalancesPage({ searchParams: Promise.resolve({
+      month: "2025-12", propertyId, ownerPersonId: ownerId, sourceLineId,
+    }) }));
+    const ledger = screen.getByTestId("authoritative-ledger");
+    expect(ledger.getAttribute("data-selected-source-line-id")).toBe(expected);
+    expect(ledger.getAttribute("data-can-allocate")).toBe("false");
+    expect(mocks.balanceData).toHaveBeenCalledExactlyOnceWith({
+      currency: "USD", ownerPersonId: ownerId, propertyId, periodStart: "2025-12-01",
+      periodEnd: "2025-12-01", registerPage: 1,
+    });
+    expect(mocks.openingData).toHaveBeenCalledExactlyOnceWith({
+      currency: "USD", ownerPersonId: ownerId, propertyId, effectiveDate: "2025-12-01",
+    });
+    expect(mocks.closeData).toHaveBeenCalledExactlyOnceWith({
+      currency: "USD", ownerPersonId: ownerId, propertyId, monthStart: "2025-12-01",
     });
   });
 
