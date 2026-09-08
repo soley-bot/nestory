@@ -1,10 +1,17 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { FinanceAccountActivityScreen } from "@/features/finance-accounts/components/finance-account-activity-screen";
 import type { FinanceAccountActivity } from "@/features/finance-accounts/data/finance-account-activity";
+
+afterEach(cleanup);
+
+afterAll(() => {
+  // Mounted roots must not outlive the jsdom window during scheduled React work.
+  expect(document.body).toBeEmptyDOMElement();
+});
 
 describe("FinanceAccountActivityScreen", () => {
   it("shows identity, status, filters, basis total, and source-linked activity", () => {
