@@ -23,7 +23,7 @@ vi.mock("@/features/owner-balances/lifecycle-actions", () => ({
 }));
 
 import { calculateReportMonthAction, assignReportSourceAction } from "@/features/reports/remediation-actions";
-import { OwnerBalanceLedger } from "@/features/owner-balances/components/owner-balance-ledger";
+import { OwnerBalanceLedger, OwnerSourceResolution } from "@/features/owner-balances/components/owner-balance-ledger";
 import type { OwnerBalanceData } from "@/features/owner-balances/owner-balance.types";
 import { canonicalizeSignedOwnerOpeningAmount } from "@/features/owner-balances/owner-balance.money";
 
@@ -35,6 +35,124 @@ const allocationSetId = "00000000-0000-4000-8000-000000000006";
 const movementId = "00000000-0000-4000-8000-000000000007";
 
 describe("OwnerBalanceLedger", () => {
+  it.each([
+    [undefined, false], ["invalid", false], [sourceId, false], [sourceLineId, true],
+  ])("opens source disclosure only for loaded source hint %s", (selectedSourceLineId, open) => {
+    render(<OwnerBalanceLedger canAllocate={false} canCorrect={false} canTransfer={false}
+      data={data()} organizationName="IPS" selectedMonth="2026-08"
+      selectedPropertyId={propertyId} selectedOwnerPersonId={ownerId} selectedSourceLineId={selectedSourceLineId} />);
+    const details = screen.getByText("Items to resolve").closest("details")!;
+    expect(details.open).toBe(open);
+    expect(screen.queryByRole("button", { name: "Recheck and assign source" })).toBeNull();
+  });
+
+  it("opens an authorized matching source without expanding a different month after navigation", () => {
+    const input = data();
+    input.queue[0] = { ...input.queue[0], allocationState: "pending", remediationCode: null, remediationDetail: null };
+    const props = { canAllocate: true, canCorrect: false, canTransfer: false,
+      data: input, organizationName: "IPS", selectedMonth: "2026-08",
+      selectedPropertyId: propertyId, selectedOwnerPersonId: ownerId, selectedSourceLineId: sourceLineId };
+    const { rerender } = render(<OwnerBalanceLedger {...props} />);
+    expect(screen.getByText("Items to resolve").closest("details")!.open).toBe(true);
+    expect(screen.getByRole("button", { name: "Assign to owner balance" })).toBeTruthy();
+    rerender(<OwnerBalanceLedger {...props} selectedMonth="2026-09" data={{ ...input, queue: [] }} />);
+    expect(screen.getByText("Items to resolve").closest("details")!.open).toBe(false);
+  });
+
+  it.each(["security_deposit_receipt", "security_deposit_refund"])("links a blocked reversal to its original %s month without changing reversal authority", (originalType) => {
+    const input = data();
+    input.queue[0] = { ...input.queue[0], sourceType: "reversal",
+      remediationCode: "original_deposit_allocation_required", remediationDetail: {
+        original_source_type: originalType, original_source_line_id: sourceId,
+        original_event_date: "2025-12-15", lease_id: propertyId, lease_deposit_id: ownerId,
+      } };
+    const props = { canAllocate: true, canCorrect: false, canTransfer: false,
+      data: input, organizationName: "IPS", selectedMonth: "2026-08",
+      selectedPropertyId: propertyId, selectedOwnerPersonId: ownerId };
+    const { rerender } = render(<OwnerBalanceLedger {...props} />);
+    const row = screen.getByTestId(`owner-remediation-${sourceLineId}`);
+    const link = within(row).getByRole("link", { name: /Review original (receipt|refund).*Dec 2025/ });
+    const target = new URL(link.getAttribute("href")!, "https://nestory.invalid");
+    expect(target.pathname).toBe("/balances");
+    expect(Object.fromEntries(target.searchParams)).toEqual({
+      month: "2025-12", view: "summary", propertyId, ownerPersonId: ownerId, sourceLineId: sourceId,
+    });
+    expect(target.hash).toBe(`#owner-source-${originalType}-${sourceId}`);
+    const form = within(row).getByRole("button", { name: "Recheck and assign source" }).closest("form")!;
+    expect(new FormData(form).get("sourceType")).toBe("reversal");
+    expect(new FormData(form).get("sourceLineId")).toBe(sourceLineId);
+    expect(within(row).getByText("Assign the original deposit first, then recheck this reversal.")).toBeTruthy();
+
+    rerender(<OwnerBalanceLedger {...props} canAllocate={false} />);
+    expect(within(screen.getByTestId(`owner-remediation-${sourceLineId}`))
+      .getByRole("link", { name: /Review original/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Recheck and assign source" })).toBeNull();
+
+    const original = { ...input.queue[0], sourceType: originalType, sourceLineId: sourceId,
+      eventDate: "2025-12-15", remediationCode: null, remediationDetail: null, allocationState: "pending" };
+    rerender(<OwnerBalanceLedger {...props} selectedMonth="2025-12" data={{ ...input, queue: [original] }} />);
+    const originalRow = screen.getByTestId(`owner-remediation-${sourceId}`);
+    expect(originalRow.id).toBe(target.hash.slice(1));
+    const originalForm = within(originalRow).getByRole("button", { name: "Assign to owner balance" }).closest("form")!;
+    expect(new FormData(originalForm).get("sourceType")).toBe(originalType);
+    expect(new FormData(originalForm).get("sourceLineId")).toBe(sourceId);
+    rerender(<OwnerBalanceLedger {...props} selectedMonth="2025-12" data={{ ...input, queue: [{
+      ...original, allocationState: "blocked", remediationCode: "period_closed",
+      remediationDetail: { message: "Original month is closed." },
+    }] }} />);
+    const blockedOriginal = screen.getByTestId(`owner-remediation-${sourceId}`);
+    expect(within(blockedOriginal).getByText("Original month is closed.")).toBeTruthy();
+    expect(within(blockedOriginal).getByText("Correct the source prerequisite, then recheck its assignment.")).toBeTruthy();
+    expect(new FormData(within(blockedOriginal).getByRole("button", { name: "Recheck and assign source" }).closest("form")!).get("sourceType")).toBe(originalType);
+  });
+
+  it.each([null, { original_source_type: "owner_distribution" }, {
+    original_source_type: "security_deposit_receipt", original_source_line_id: sourceId,
+    original_event_date: "2025-02-30",
+  }])("does not invent prerequisite navigation from malformed deposit metadata %j", (remediationDetail) => {
+    const input = data();
+    input.queue[0] = { ...input.queue[0], sourceType: "reversal",
+      remediationCode: "original_deposit_allocation_required", remediationDetail };
+    render(<OwnerBalanceLedger canAllocate canCorrect={false} canTransfer={false}
+      data={input} organizationName="IPS" selectedMonth="2026-08"
+      selectedPropertyId={propertyId} selectedOwnerPersonId={ownerId} />);
+    const row = screen.getByTestId(`owner-remediation-${sourceLineId}`);
+    expect(within(row).queryByRole("link", { name: /Review original/ })).toBeNull();
+    expect(within(row).getByText("Finance must locate and allocate the original deposit before rechecking this reversal.")).toBeTruthy();
+  });
+
+  it("keeps the close-workflow prerequisite link scoped and its fragment distinct from the account queue", () => {
+    const input = data();
+    input.queue[0] = { ...input.queue[0], sourceType: "reversal",
+      remediationCode: "original_deposit_allocation_required", remediationDetail: {
+        original_source_type: "security_deposit_refund", original_source_line_id: sourceId,
+        original_event_date: "2025-12-15", lease_id: propertyId, lease_deposit_id: ownerId,
+      } };
+    render(<OwnerSourceResolution data={input} canAllocate={false} canResolveOwnership={false}
+      returnTo={`/balances?month=2026-08&view=statements&propertyId=${propertyId}&ownerPersonId=${ownerId}`} />);
+    const row = screen.getByTestId(`owner-remediation-${sourceLineId}`);
+    expect(row.id).toBe(`owner-close-source-reversal-${sourceLineId}`);
+    const target = new URL(within(row).getByRole("link", { name: /Review original refund/ }).getAttribute("href")!, "https://nestory.invalid");
+    expect(target.searchParams.get("month")).toBe("2025-12");
+    expect(target.searchParams.get("view")).toBe("summary");
+    expect(target.searchParams.get("propertyId")).toBe(propertyId);
+    expect(within(row).queryByRole("button")).toBeNull();
+  });
+
+  it.each([undefined, "https://example.com/balances", "/balances?month=2026-08", `/leases?propertyId=${propertyId}&ownerPersonId=${ownerId}`])(
+    "does not broaden an unavailable or invalid prerequisite account scope %s", (returnTo) => {
+      const input = data();
+      input.queue[0] = { ...input.queue[0], sourceType: "reversal",
+        remediationCode: "original_deposit_allocation_required", remediationDetail: {
+          original_source_type: "security_deposit_receipt", original_source_line_id: sourceId,
+          original_event_date: "2025-12-15", lease_id: propertyId, lease_deposit_id: ownerId,
+        } };
+      render(<OwnerSourceResolution data={input} canAllocate={false} canResolveOwnership={false} returnTo={returnTo} />);
+      expect(screen.queryByRole("link", { name: /Review original/ })).toBeNull();
+      expect(screen.getByText("Finance must locate and allocate the original deposit before rechecking this reversal.")).toBeTruthy();
+    },
+  );
+
   it.each([
     ["2026-08-28", "28 Aug 2026"],
     ["2026-01-01", "01 Jan 2026"],
