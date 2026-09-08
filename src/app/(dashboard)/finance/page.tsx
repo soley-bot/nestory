@@ -24,6 +24,7 @@ export default async function FinancePage(_props: {
       canRetryCurrentRent={context.capabilities.canRetryCurrentRent}
       canSubmitExpense={context.capabilities.canSubmitExpense}
       canViewLeases={context.permissionKeys.has("leases.view")}
+      canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       organizationName={context.organizationName}
       view="work"
     />

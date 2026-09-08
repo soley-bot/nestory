@@ -49,6 +49,7 @@ export default async function UnitPage({ params, searchParams }: UnitPageProps) 
       unitId: unit.id,
     }),
     maintenanceActor,
+    getMaintenanceCapabilities(context),
   );
 
   return (

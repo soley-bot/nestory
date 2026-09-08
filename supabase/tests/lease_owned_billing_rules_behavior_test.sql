@@ -468,13 +468,15 @@ FROM lease_billing_state AS state;
 
 SELECT lives_ok(
   format(
-    'SELECT public.record_lease_deposit_event(%L,%L,%L,DATE %L,100,%L)',
+    'SELECT public.record_lease_deposit_event_with_account(%L,%L,%L,%L,DATE %L,100,%L)',
     state.organization_id,
     (
       SELECT deposit.id
       FROM public.lease_deposits AS deposit
       WHERE deposit.lease_id = (state.receipt_result ->> 'leaseId')::uuid
     ),
+    (SELECT id FROM public.finance_accounts WHERE organization_id = state.organization_id
+      AND system_role = 'security_deposits'),
     'refunded', '2026-08-04', 'Partial refund after creation'
   ),
   'a later refund remains available after the creation-time receipt'
@@ -483,13 +485,15 @@ FROM lease_billing_state AS state;
 
 SELECT lives_ok(
   format(
-    'SELECT public.record_lease_deposit_event(%L,%L,%L,DATE %L,100,%L)',
+    'SELECT public.record_lease_deposit_event_with_account(%L,%L,%L,%L,DATE %L,100,%L)',
     state.organization_id,
     (
       SELECT deposit.id
       FROM public.lease_deposits AS deposit
       WHERE deposit.lease_id = (state.receipt_result ->> 'leaseId')::uuid
     ),
+    (SELECT id FROM public.finance_accounts WHERE organization_id = state.organization_id
+      AND system_role = 'security_deposits'),
     'received', '2026-08-05', 'Top up after partial refund'
   ),
   'receipt can top the deposit back up after current held cash falls below the obligation'

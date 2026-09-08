@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { SelectControl } from "@/components/ui/select-control";
 import type { OwnerBalanceOption } from "@/features/owner-balances/owner-balance.types";
+import type { OwnerAccountView } from "@/features/owner-balances/owner-account-view";
 
 export function OwnerAccountScopeForm({
   ownerOptions,
@@ -20,12 +21,16 @@ export function OwnerAccountScopeForm({
   selectedMonth,
   selectedOwnerPersonId,
   selectedPropertyId,
+  selectedView = "summary",
+  returnTo,
 }: {
   ownerOptions: OwnerBalanceOption[];
   propertyOptions: OwnerBalanceOption[];
   selectedMonth: string;
   selectedOwnerPersonId?: string;
   selectedPropertyId?: string;
+  selectedView?: OwnerAccountView;
+  returnTo?: string;
 }) {
   const [propertyId, setPropertyId] = useState(selectedPropertyId ?? "");
   const [ownerPersonId, setOwnerPersonId] = useState(
@@ -38,7 +43,7 @@ export function OwnerAccountScopeForm({
             (option) =>
               !option.propertyIds || option.propertyIds.includes(propertyId),
           )
-        : [],
+        : ownerOptions,
     [ownerOptions, propertyId],
   );
   const selectedOwnerIsAvailable = matchingOwners.some(
@@ -53,6 +58,8 @@ export function OwnerAccountScopeForm({
       className="grid gap-3 border-b border-border pb-4 md:grid-cols-[1.25fr_1.25fr_11rem_auto]"
       method="get"
     >
+      <input name="view" type="hidden" value={selectedView} />
+      {returnTo ? <input name="returnTo" type="hidden" value={returnTo} /> : null}
       <label className="grid gap-1 text-sm font-medium">
         Property
         <SelectControl
@@ -64,7 +71,7 @@ export function OwnerAccountScopeForm({
             setOwnerPersonId("");
           }}
           options={[
-            { label: "Select property", value: "" },
+            { label: "All properties", value: "" },
             ...propertyOptions.map((option) => ({
               label: option.label,
               value: option.id,
@@ -78,12 +85,11 @@ export function OwnerAccountScopeForm({
         <SelectControl
           ariaLabel="Owner"
           className="h-10"
-          disabled={!propertyId}
           name="ownerPersonId"
           onValueChange={setOwnerPersonId}
           options={[
             {
-              label: propertyId ? "Select owner" : "Select property first",
+              label: "All owners",
               value: "",
             },
             ...matchingOwners.map((option) => ({
@@ -105,10 +111,11 @@ export function OwnerAccountScopeForm({
       </label>
       <Button
         className="h-10 self-end px-4"
-        disabled={!propertyId || !effectiveOwnerPersonId}
         type="submit"
       >
-        View account
+        {propertyId && effectiveOwnerPersonId
+          ? selectedView === "statements" ? "View statements" : "View account"
+          : "Apply filters"}
       </Button>
     </form>
   );

@@ -1,14 +1,113 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { getFinanceAccountsData } from "@/features/finance-accounts/data/finance-accounts";
 import { getFinanceOperationsData } from "@/features/finance-operations/data/finance-operations";
 
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(),
 }));
 
+vi.mock("@/features/finance-accounts/data/finance-accounts", () => ({
+  getFinanceAccountsData: vi.fn(),
+  getExpenseAccountOptions: vi.fn((accounts) =>
+    accounts.filter((account: { accountClass: string }) => account.accountClass === "expense"),
+  ),
+  getLeaseChargeAccountOptions: vi.fn((accounts) =>
+    accounts.filter((account: { useForLeaseCharges: boolean }) => account.useForLeaseCharges),
+  ),
+  getLeaseDepositAccountOptions: vi.fn((accounts) =>
+    accounts.filter((account: { useForLeaseDeposits: boolean }) => account.useForLeaseDeposits),
+  ),
+  getPayFromAccountOptions: vi.fn((accounts) =>
+    accounts.filter((account: { accountSubtype: string }) =>
+      ["bank", "cash", "petty_cash", "credit_card"].includes(account.accountSubtype),
+    ),
+  ),
+}));
+
 describe("finance operations initial reads", () => {
+  it("keeps a readable historical rent invoice when direct property reads are denied", async () => {
+    // Break caught: toTenantInvoice drops permitted money rows because the property map is domain-filtered.
+    const harness = createFinanceReadHarness({
+      scoped_context: { data: { ...emptyContext(), properties: [{ id: "property-1", code: "OLD", name: "Old House", archived_at: "2026-08-01" }] } },
+      tenant_invoice_balances: { data: [{ id: "invoice-1", property_id: "property-1", lease_id: "lease-1", invoice_number: "INV-01", issue_date: "2026-07-01", due_date: "2026-07-05", total_amount: 500, balance_due: 125, unit_id: null }] },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getFinanceOperationsData("organization-1");
+    expect(result.tenantInvoices).toEqual([expect.objectContaining({ id: "invoice-1", propertyLabel: "Old House — OLD", balanceDue: 125 })]);
+    expect(result.propertyOptions).toEqual([]);
+  });
+
+  it.each([null, {}, { ...emptyContext(), properties: [{ id: "bad" }] }])("fails on malformed finance read context %j", async (data) => {
+    const harness = createFinanceReadHarness({ scoped_context: { data } });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    await expect(getFinanceOperationsData("organization-1")).rejects.toThrow(/finance read context/i);
+  });
+
+  it("preserves separately authorized People choices beyond the related finance labels", async () => {
+    // Break caught: a narrow read projection removes legitimate existing vendor choices for People-authorized staff.
+    const harness = createFinanceReadHarness({
+      scoped_context: { data: emptyContext() },
+      people: { data: [{ id: "vendor-1", display_name: "Independent cleaner", party_type: "company", archived_at: null }] },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getFinanceOperationsData("organization-1");
+    expect(result.peopleOptions).toEqual([{ id: "vendor-1", label: "Independent cleaner", partyType: "company" }]);
+  });
+
   beforeEach(() => {
     vi.mocked(createSupabaseServerClient).mockReset();
+    vi.mocked(getFinanceAccountsData).mockReset();
+    vi.mocked(getFinanceAccountsData).mockResolvedValue({
+      groups: [],
+      properties: [],
+    });
+  });
+
+  it("loads compatible account choices for daily finance work", async () => {
+    // Break caught: exposing legacy reconciliation/category identities instead
+    // of the customer-facing Chart accounts used by operational forms.
+    const accounts = [
+      account("asset", "bank", "Operating account"),
+      account("liability", "credit_card", "Company card"),
+      account("expense", "expense", "Cleaning"),
+      account("income", "income", "Rental income", {
+        useForLeaseCharges: true,
+      }),
+      account("liability", "current_liability", "Security deposits", {
+        useForLeaseDeposits: true,
+      }),
+    ];
+    vi.mocked(getFinanceAccountsData).mockResolvedValue({
+      groups: [
+        { accountClass: "asset", accounts: [accounts[0]] },
+        { accountClass: "liability", accounts: [accounts[1], accounts[4]] },
+        { accountClass: "equity", accounts: [] },
+        { accountClass: "income", accounts: [accounts[3]] },
+        { accountClass: "expense", accounts: [accounts[2]] },
+      ],
+      properties: [],
+    } as never);
+    const harness = createFinanceReadHarness();
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+
+    const result = await getFinanceOperationsData("organization-1");
+
+    expect(result.payFromAccounts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ displayName: "Operating account" }),
+        expect.objectContaining({ displayName: "Company card" }),
+      ]),
+    );
+    expect(result.expenseAccounts).toContainEqual(
+      expect.objectContaining({ displayName: "Cleaning" }),
+    );
+    expect(result.leaseChargeAccounts).toContainEqual(
+      expect.objectContaining({ displayName: "Rental income" }),
+    );
+    expect(result.leaseDepositAccounts).toContainEqual(
+      expect.objectContaining({ displayName: "Security deposits" }),
+    );
   });
 
   it("caps database concurrency while preserving declared result order", async () => {
@@ -131,6 +230,13 @@ type QueryResult = {
 function createFinanceReadHarness(
   overrides: Record<string, QueryResult> = {},
 ) {
+  overrides = { ...overrides, scoped_context: overrides.scoped_context ?? { data: {
+    ...emptyContext(),
+    properties: overrides.properties?.data ?? [], units: overrides.units?.data ?? [], people: overrides.people?.data ?? [],
+    owner_assignments: overrides.property_owners?.data ?? [],
+    leases: ((overrides.current_leases?.data ?? []) as Record<string, unknown>[]).map((row) => ({ archived_at: null, ...row })),
+    terms: overrides.lease_terms?.data ?? [], billing_terms: overrides.lease_billing_terms?.data ?? [],
+  } } };
   let active = 0;
   let peak = 0;
 
@@ -212,8 +318,39 @@ function createFinanceReadHarness(
   return {
     client: {
       from: (table: string) => new Query(table),
-      rpc: () => new Query("rpc"),
+      rpc: (name: string) => new Query(name === "get_finance_read_context" ? "scoped_context" : "rpc"),
     },
     maxInFlight: () => peak,
   };
+}
+
+function account(
+  accountClass: string,
+  accountSubtype: string,
+  displayName: string,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    accountClass,
+    accountNumber: null,
+    accountSubtype,
+    archivedAt: null,
+    defaultFor: [],
+    depth: 0,
+    description: null,
+    displayName,
+    id: `${displayName.toLowerCase().replaceAll(" ", "-")}-id`,
+    parentAccountId: null,
+    propertyId: null,
+    propertyLabel: null,
+    systemRole: null,
+    useForLeaseCharges: false,
+    useForLeaseCredits: false,
+    useForLeaseDeposits: false,
+    ...overrides,
+  };
+}
+
+function emptyContext() {
+  return { properties: [], units: [], people: [], owner_assignments: [], leases: [], terms: [], billing_terms: [] };
 }

@@ -90,31 +90,6 @@ const KNOWN_SELECT = [
   "latest_entry_at",
 ].join(",");
 
-const READINESS_SELECT = [
-  "organization_id",
-  "property_id",
-  "boundary_date",
-  "next_boundary_date",
-  "issue_code",
-  "active_owner_count",
-  "ownership_percent_total_text:ownership_percent_total::text",
-  "ownership_roster_hash",
-  "property_owner_ids",
-  "canonical_roster",
-  "setup_path",
-].join(",");
-
-const ASSIGNMENT_SELECT = [
-  "id",
-  "organization_id",
-  "property_id",
-  "person_id",
-  "ownership_percent_text:ownership_percent::text",
-  "started_on",
-  "ended_on",
-  "archived_at",
-].join(",");
-
 type RawRequest = {
   id: string;
   organization_id: string;
@@ -212,20 +187,6 @@ type RawAssignment = {
   started_on: string;
 };
 
-type RawScopedRecord = {
-  archived_at: string | null;
-  id: string;
-  organization_id: string;
-};
-
-type RawOwnerRole = {
-  archived_at: string | null;
-  organization_id: string;
-  person_id: string;
-  role: string;
-  status: string;
-};
-
 export async function getOpeningBalanceAuthorityData(
   input: z.input<typeof inputSchema>,
 ): Promise<OpeningBalanceAuthorityData> {
@@ -248,26 +209,16 @@ export async function getOpeningBalanceAuthorityData(
     .select(KNOWN_SELECT)
     .eq("organization_id", context.organizationId)
     .eq("effective_date", scope.effectiveDate);
-  let readinessQuery = supabase
-    .rpc("get_owner_roster_readiness", {
-      p_cutover_date: scope.effectiveDate,
-      p_organization_id: context.organizationId,
-    })
-    .select(READINESS_SELECT);
-  let assignmentQuery = supabase
-    .from("property_owners")
-    .select(ASSIGNMENT_SELECT)
-    .eq("organization_id", context.organizationId)
-    .is("archived_at", null)
-    .lte("started_on", scope.effectiveDate)
-    .or(`ended_on.is.null,ended_on.gt.${scope.effectiveDate}`);
+  const rosterQuery = supabase.rpc("get_owner_opening_roster_scope", {
+    p_cutover_date: scope.effectiveDate,
+    p_organization_id: context.organizationId,
+    p_property_id: scope.propertyId ?? undefined,
+  });
 
   if (scope.propertyId) {
     requestQuery = requestQuery.eq("property_id", scope.propertyId);
     entryQuery = entryQuery.eq("property_id", scope.propertyId);
     knownQuery = knownQuery.eq("property_id", scope.propertyId);
-    readinessQuery = readinessQuery.eq("property_id", scope.propertyId);
-    assignmentQuery = assignmentQuery.eq("property_id", scope.propertyId);
   }
   if (scope.ownerPersonId) {
     requestQuery = requestQuery.eq("owner_person_id", scope.ownerPersonId);
@@ -280,7 +231,7 @@ export async function getOpeningBalanceAuthorityData(
     knownQuery = knownQuery.eq("currency", scope.currency);
   }
 
-  const [requestResult, entryResult, knownResult, readinessResult, assignmentResult] = await Promise.all([
+  const [requestResult, entryResult, knownResult, rosterResult] = await Promise.all([
     requestQuery.order("submitted_at", { ascending: false }).order("id", {
       ascending: false,
     }),
@@ -288,23 +239,23 @@ export async function getOpeningBalanceAuthorityData(
       ascending: true,
     }),
     knownQuery.order("property_id", { ascending: true }),
-    readinessQuery,
-    assignmentQuery.order("property_id", { ascending: true }).order("id", {
-      ascending: true,
-    }),
+    rosterQuery,
   ]);
 
   assertQuerySucceeded(requestResult.error);
   assertQuerySucceeded(entryResult.error);
   assertQuerySucceeded(knownResult.error);
-  assertQuerySucceeded(readinessResult.error);
-  assertQuerySucceeded(assignmentResult.error);
+  assertQuerySucceeded(rosterResult.error);
+  const projection = rosterResult.data as unknown as { readiness: RawReadiness[]; assignments: RawAssignment[] } | null;
+  if (!projection || !Array.isArray(projection.readiness) || !Array.isArray(projection.assignments)) {
+    throw new Error("Unable to load opening-balance authority: Invalid roster projection.");
+  }
 
   const rawRequests = (requestResult.data ?? []) as unknown as RawRequest[];
   const rawEntries = (entryResult.data ?? []) as unknown as RawEntry[];
   const rawKnown = (knownResult.data ?? []) as unknown as RawKnown[];
-  const rawReadiness = (readinessResult.data ?? []) as unknown as RawReadiness[];
-  const rawAssignments = (assignmentResult.data ?? []) as unknown as RawAssignment[];
+  const rawReadiness = projection.readiness;
+  const rawAssignments = projection.assignments;
   assertOrganization(context.organizationId, [
     ...rawRequests,
     ...rawEntries,
@@ -319,13 +270,12 @@ export async function getOpeningBalanceAuthorityData(
   const scopedBlockers = scopedReadiness.filter(
     (row): row is RawReadiness & { issue_code: string } => row.issue_code !== null,
   );
-  const validAssignments = await filterValidAssignments({
+  const validAssignments = filterValidAssignments({
     assignments: rawAssignments,
     blockedPropertyIds: new Set(scopedBlockers.map((row) => row.property_id)),
     effectiveDate: scope.effectiveDate,
     organizationId: context.organizationId,
     selectedOwnerPersonId: scope.ownerPersonId,
-    supabase,
   });
 
   const documentIds = [
@@ -436,21 +386,19 @@ function assignmentIdentity(row: RawAssignment, effectiveDate: string): GroupIde
   };
 }
 
-async function filterValidAssignments({
+function filterValidAssignments({
   assignments,
   blockedPropertyIds,
   effectiveDate,
   organizationId,
   selectedOwnerPersonId,
-  supabase,
 }: {
   assignments: RawAssignment[];
   blockedPropertyIds: Set<string>;
   effectiveDate: string;
   organizationId: string;
   selectedOwnerPersonId?: string;
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
-}): Promise<RawAssignment[]> {
+}): RawAssignment[] {
   const effectiveAssignments = assignments.filter(
     (assignment) =>
       assignment.organization_id === organizationId &&
@@ -460,54 +408,8 @@ async function filterValidAssignments({
   );
   if (effectiveAssignments.length === 0) return [];
 
-  const propertyIds = [...new Set(effectiveAssignments.map((row) => row.property_id))]
-    .sort(compareText);
-  const personIds = [...new Set(effectiveAssignments.map((row) => row.person_id))]
-    .sort(compareText);
-  const [propertyResult, peopleResult, roleResult] = await Promise.all([
-    supabase
-      .from("properties")
-      .select("id,organization_id,archived_at")
-      .eq("organization_id", organizationId)
-      .in("id", propertyIds)
-      .is("archived_at", null),
-    supabase
-      .from("people")
-      .select("id,organization_id,archived_at")
-      .eq("organization_id", organizationId)
-      .in("id", personIds)
-      .is("archived_at", null),
-    supabase
-      .from("person_roles")
-      .select("organization_id,person_id,role,status,archived_at")
-      .eq("organization_id", organizationId)
-      .in("person_id", personIds)
-      .eq("role", "owner")
-      .eq("status", "active")
-      .is("archived_at", null),
-  ]);
-  assertQuerySucceeded(propertyResult.error);
-  assertQuerySucceeded(peopleResult.error);
-  assertQuerySucceeded(roleResult.error);
-
-  const properties = (propertyResult.data ?? []) as unknown as RawScopedRecord[];
-  const people = (peopleResult.data ?? []) as unknown as RawScopedRecord[];
-  const roles = (roleResult.data ?? []) as unknown as RawOwnerRole[];
-  assertOrganization(organizationId, [...properties, ...people, ...roles]);
-  const activeProperties = new Set(
-    properties.filter((row) => row.archived_at === null).map((row) => row.id),
-  );
-  const activePeople = new Set(
-    people.filter((row) => row.archived_at === null).map((row) => row.id),
-  );
-  const activeOwners = new Set(
-    roles
-      .filter(
-        (row) =>
-          row.archived_at === null && row.role === "owner" && row.status === "active",
-      )
-      .map((row) => row.person_id),
-  );
+  // Property/person/role validity is checked by the branch-scoped database
+  // projection. Keep exact share and interval checks as defense in depth.
   const byProperty = new Map<string, RawAssignment[]>();
   for (const assignment of effectiveAssignments) {
     const rows = byProperty.get(assignment.property_id) ?? [];
@@ -521,13 +423,9 @@ async function filterValidAssignments({
     const uniqueOwners = new Set(rows.map((row) => row.person_id));
     const rosterReady =
       !blockedPropertyIds.has(propertyId) &&
-      activeProperties.has(propertyId) &&
       uniqueOwners.size === rows.length &&
       shares.every((share) => share !== null && share > 0) &&
-      shares.reduce<number>((total, share) => total + (share ?? 0), 0) === 100000 &&
-      rows.every(
-        (row) => activePeople.has(row.person_id) && activeOwners.has(row.person_id),
-      );
+      shares.reduce<number>((total, share) => total + (share ?? 0), 0) === 100000;
     if (!rosterReady) continue;
     valid.push(
       ...rows.filter(

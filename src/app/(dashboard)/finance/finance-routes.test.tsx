@@ -5,16 +5,22 @@ const {
   getFinanceOperationsData,
   requireFinanceContext,
   screenSpy,
+  scopeFinanceOperationsData,
+  getUnitDetail,
 } = vi.hoisted(() => ({
     getFinanceOperationsData: vi.fn(),
     requireFinanceContext: vi.fn(),
     screenSpy: vi.fn(),
+    scopeFinanceOperationsData: vi.fn((data) => data),
+    getUnitDetail: vi.fn(),
   }));
 
 vi.mock("@/lib/auth/context", () => ({ requireFinanceContext }));
 vi.mock("@/features/finance-operations/data/finance-operations", () => ({
   getFinanceOperationsData,
+  scopeFinanceOperationsData,
 }));
+vi.mock("@/features/units/data/units", () => ({ getUnitDetail }));
 vi.mock(
   "@/features/finance-operations/components/finance-operations-screen",
   () => ({
@@ -28,8 +34,23 @@ vi.mock(
 import FinancePage from "@/app/(dashboard)/finance/page";
 import BillsExpensesPage from "@/app/(dashboard)/bills-expenses/page";
 import RentIncomePage from "@/app/(dashboard)/rent-income/page";
+import PropertyFinancePage from "@/app/(dashboard)/properties/[propertyId]/finance/page";
+import UnitFinancePage from "@/app/(dashboard)/units/[unitId]/finance/page";
 
 describe("finance routes", () => {
+  it.each([
+    [[], false],
+    [["people.view"], false],
+    [["people.write"], false],
+    [["people.view", "people.write"], true],
+  ] as const)("gates the expense vendor-create link with People access (%j)", async (permissions, canCreateVendor) => {
+    requireFinanceContext.mockResolvedValue({
+      capabilities: {}, organizationId: "organization-1", organizationName: "IPS",
+      permissionKeys: new Set(permissions),
+    });
+    renderToStaticMarkup(await BillsExpensesPage());
+    expect(screenSpy).toHaveBeenCalledWith(expect.objectContaining({ canCreateVendor }));
+  });
   beforeEach(() => {
     getFinanceOperationsData.mockReset();
     requireFinanceContext.mockReset();
@@ -38,6 +59,18 @@ describe("finance routes", () => {
       rentGenerationExceptions: [],
       tenantInvoices: [],
     });
+  });
+
+  it.each([false, true])("delegates property record navigation for scoped finance only when readable (%s)", async (canViewPropertyRecords) => {
+    requireFinanceContext.mockResolvedValue({ capabilities: {}, organizationId: "organization-1", organizationName: "IPS",
+      permissionKeys: new Set(["finance.view", "leases.view", ...(canViewPropertyRecords ? ["properties.view"] : [])]),
+    });
+    getFinanceOperationsData.mockResolvedValue({ propertyOptions: [{ id: "property-1", label: "Riverside" }], tenantInvoices: [], rentGenerationExceptions: [] });
+    getUnitDetail.mockResolvedValue({ propertyId: "property-1", propertyName: "Riverside", unitNumber: "2A" });
+    renderToStaticMarkup(await PropertyFinancePage({ params: Promise.resolve({ propertyId: "property-1" }) }));
+    renderToStaticMarkup(await UnitFinancePage({ params: Promise.resolve({ unitId: "unit-1" }) }));
+    expect(screenSpy).toHaveBeenCalledTimes(2);
+    for (const [props] of screenSpy.mock.calls) expect(props).toMatchObject({ canViewPropertyRecords });
   });
 
   it.each([

@@ -3,11 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   detailSpy,
+  getHistoricalRentCorrectionCandidates,
+  getFinanceAccountsData,
+  getLeaseDepositAccountOptions,
   getLeasePaymentResolutionData,
   getLeasesScreenData,
   requirePermission,
 } = vi.hoisted(() => ({
     detailSpy: vi.fn(),
+    getHistoricalRentCorrectionCandidates: vi.fn(),
+    getFinanceAccountsData: vi.fn(),
+    getLeaseDepositAccountOptions: vi.fn(),
     getLeasePaymentResolutionData: vi.fn(),
     getLeasesScreenData: vi.fn(),
     requirePermission: vi.fn(),
@@ -17,7 +23,14 @@ vi.mock("@/lib/auth/context", () => ({ requirePermission }));
 vi.mock("@/features/finance-operations/data/finance-operations", () => ({
   getLeasePaymentResolutionData,
 }));
-vi.mock("@/features/leases/data/leases", () => ({ getLeasesScreenData }));
+vi.mock("@/features/finance-accounts/data/finance-accounts", () => ({
+  getFinanceAccountsData,
+  getLeaseDepositAccountOptions,
+}));
+vi.mock("@/features/leases/data/leases", () => ({
+  getHistoricalRentCorrectionCandidates,
+  getLeasesScreenData,
+}));
 vi.mock("@/features/leases/components/lease-detail-screen", () => ({
   LeaseDetailScreen: (props: Record<string, unknown>) => {
     detailSpy(props);
@@ -33,11 +46,15 @@ describe("lease detail route", () => {
 
   beforeEach(() => {
     detailSpy.mockReset();
+    getHistoricalRentCorrectionCandidates.mockReset();
+    getFinanceAccountsData.mockReset();
+    getLeaseDepositAccountOptions.mockReset();
     getLeasePaymentResolutionData.mockReset();
     getLeasesScreenData.mockReset();
     requirePermission.mockReset();
     requirePermission.mockResolvedValue({
       organizationId: "organization-1",
+      roleKind: "finance_manager",
       permissionKeys: new Set([
         "leases.view",
         "leases.activate",
@@ -50,12 +67,52 @@ describe("lease detail route", () => {
       ]),
     });
     getLeasePaymentResolutionData.mockResolvedValue(paymentResolution());
+    getFinanceAccountsData.mockResolvedValue({ groups: [] });
+    getLeaseDepositAccountOptions.mockReturnValue([]);
     getLeasesScreenData.mockResolvedValue({
       leases: [{ id: leaseId, isArchived: false }],
       propertyOptions: [{ id: "property-1" }],
       tenantOptions: [{ id: "tenant-1" }],
       unitOptions: [{ id: "unit-1" }],
     });
+    getHistoricalRentCorrectionCandidates.mockResolvedValue([]);
+  });
+
+  it("loads historical candidates only for a Super Admin", async () => {
+    requirePermission.mockResolvedValue({
+      organizationId: "organization-1",
+      permissionKeys: new Set(["leases.view"]),
+      roleKind: "super_admin",
+    });
+    getHistoricalRentCorrectionCandidates.mockResolvedValue([
+      { invoiceId, invoiceNumber: "INV-202608-TEST" },
+    ]);
+
+    await renderPage({ section: "rent" });
+
+    expect(getHistoricalRentCorrectionCandidates).toHaveBeenCalledWith(
+      "organization-1",
+      leaseId,
+    );
+    expect(detailSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        historicalRentCorrectionCandidates: [
+          { invoiceId, invoiceNumber: "INV-202608-TEST" },
+        ],
+        permissions: expect.objectContaining({
+          canCorrectHistoricalRent: true,
+        }),
+      }),
+    );
+  });
+
+  it.each([false, true])("delegates property navigation only with properties.view (%s)", async (canViewPropertyRecords) => {
+    requirePermission.mockResolvedValue({ organizationId: "organization-1", permissionKeys: new Set([
+      "leases.view", "finance.view", ...(canViewPropertyRecords ? ["properties.view"] : []),
+    ]) });
+    renderToStaticMarkup(await LeaseDetailPage({ params: Promise.resolve({ leaseId }), searchParams: Promise.resolve({}) }));
+    expect(requirePermission).toHaveBeenCalledWith("leases.view");
+    expect(detailSpy).toHaveBeenCalledWith(expect.objectContaining({ canViewPropertyRecords, canViewFinance: true, canRecordPayments: false }));
   });
 
   it("loads one lease and preserves the selected operating-record section", async () => {
@@ -86,6 +143,7 @@ describe("lease detail route", () => {
           canArchive: true,
           canChangeTerms: true,
           canClose: true,
+          canCorrectHistoricalRent: false,
           canPrepare: true,
         },
       }),
@@ -358,8 +416,14 @@ function paymentResolution(
     invoice: invoice(),
     nextInvoiceDueDate: "2026-09-05",
     ownerLabel: "Sokha Vannak",
-    reconciliationSources: [
-      { id: "source-1", label: "BANK - Operating", propertyId: null },
+    payFromAccounts: [
+      {
+        accountClass: "asset",
+        accountSubtype: "bank",
+        displayName: "Operating",
+        id: "account-bank",
+        propertyId: null,
+      },
     ],
     ...overrides,
   };

@@ -13,6 +13,7 @@ import type {
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
 import type { LeaseSummary } from "@/features/leases/lease.types";
+import { isTenantPaymentReceivingAccount } from "@/features/finance-accounts/finance-account-selection";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
@@ -47,7 +48,9 @@ export function LeasePaymentResolutionView({
   });
   const upcoming = getUpcoming(lease, resolution.nextInvoiceDueDate);
   const canSubmit =
-    canRecordPayments && resolution.reconciliationSources.length > 0;
+    canRecordPayments && resolution.payFromAccounts.some((account) =>
+      isTenantPaymentReceivingAccount(account, invoice.propertyId),
+    );
 
   return (
     <div className="workspace-gutter-x pb-8">
@@ -92,7 +95,7 @@ export function LeasePaymentResolutionView({
               onReceiptResult={onReceiptResult}
               onSuccess={onPaymentSuccess}
               ownerLabel={resolution.ownerLabel}
-              reconciliationSources={resolution.reconciliationSources}
+              payFromAccounts={resolution.payFromAccounts}
               submitLabel={`Record ${balanceDisplay} payment`}
             />
           ) : (

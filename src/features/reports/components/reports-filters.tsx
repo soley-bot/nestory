@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { SelectControl } from "@/components/ui/select-control";
 import type {
+  ReportOwnerOption,
   ReportPropertyOption,
   ReportsViewQuery,
   ReportUnitOption,
@@ -13,6 +14,7 @@ import type {
 
 type ReportsFiltersProps = {
   action: string;
+  ownerOptions: ReportOwnerOption[];
   propertyOptions: ReportPropertyOption[];
   unitOptions: ReportUnitOption[];
   viewQuery: ReportsViewQuery;
@@ -20,11 +22,13 @@ type ReportsFiltersProps = {
 
 export function ReportsFilters({
   action,
+  ownerOptions,
   propertyOptions,
   unitOptions,
   viewQuery,
 }: ReportsFiltersProps) {
   const showUnit = viewQuery.report === "unit-profit-loss";
+  const showOwner = viewQuery.report === "monthly-owner-activity";
   const visibleUnits =
     viewQuery.propertyId === "all"
       ? unitOptions
@@ -32,6 +36,7 @@ export function ReportsFilters({
           ({ propertyId }) => propertyId === viewQuery.propertyId,
         );
   const showReset =
+    (showOwner && viewQuery.ownerPersonId !== "all") ||
     viewQuery.propertyId !== "all" ||
     (showUnit && viewQuery.unitId !== "all");
 
@@ -47,6 +52,24 @@ export function ReportsFilters({
           className="flex min-w-0 flex-1 flex-wrap items-end gap-2"
           method="get"
         >
+          {showOwner ? (
+            <ScopeField label="Owner">
+              <SelectControl
+                ariaLabel="Filter report by owner"
+                className="h-8 w-[190px] px-2.5 text-sm"
+                defaultValue={viewQuery.ownerPersonId}
+                name="ownerPersonId"
+                options={[
+                  { label: "All owners", value: "all" },
+                  ...ownerOptions.map((owner) => ({
+                    label: owner.label,
+                    value: owner.id,
+                  })),
+                ]}
+              />
+            </ScopeField>
+          ) : null}
+
           <ScopeField label="Property">
             <SelectControl
               ariaLabel="Filter report by property"

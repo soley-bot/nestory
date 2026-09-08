@@ -12,9 +12,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type {
   FinanceOperationsActionState,
-  FinanceOption,
   TenantInvoiceSummary,
 } from "../finance-operations.types";
+import type { FinanceAccountOption } from "@/features/finance-accounts/finance-accounts.types";
 
 const actionMocks = vi.hoisted(() => ({
   confirmOwnerCollectionAction: vi.fn(),
@@ -58,7 +58,7 @@ describe("TenantInvoicePaymentForm", () => {
       screen.getByRole("combobox", { name: "Received into" }),
     ).not.toBeNull();
     expect(
-      container.querySelector('[name="reconciliationSourceId"]'),
+      container.querySelector('[name="receivingAccountId"]'),
     ).not.toBeNull();
     expect(
       (
@@ -71,21 +71,25 @@ describe("TenantInvoicePaymentForm", () => {
 
   it("keeps multiple receiving accounts explicit and shows automatic owner allocation", () => {
     const { container } = renderForm({
-      reconciliationSources: [
+      payFromAccounts: [
         {
-          id: "source-bank",
-          label: "OPS-USD · Operating bank account",
+          accountClass: "asset",
+          accountSubtype: "bank",
+          displayName: "Operating bank account",
+          id: "account-bank",
           propertyId: null,
         },
         {
-          id: "source-cash",
-          label: "CASH · Front desk cash",
+          accountClass: "asset",
+          accountSubtype: "cash",
+          displayName: "Front desk cash",
+          id: "account-cash",
           propertyId: null,
         },
       ],
     });
 
-    expect(valueOfNamedInput(container, "reconciliationSourceId")).toBe("");
+    expect(valueOfNamedInput(container, "receivingAccountId")).toBe("");
     expect(screen.getByText("Applied to")).not.toBeNull();
     expect(
       screen.getByText(
@@ -97,22 +101,104 @@ describe("TenantInvoicePaymentForm", () => {
     ).not.toBeNull();
   });
 
+  it("selects the configured operating account when several receiving accounts are eligible", () => {
+    const { container } = renderForm({
+      payFromAccounts: [
+        {
+          accountClass: "asset",
+          accountSubtype: "cash",
+          defaultRoleCodes: [],
+          displayName: "Front desk cash",
+          id: "account-cash",
+          propertyId: null,
+          systemRoleCode: null,
+        },
+        {
+          accountClass: "asset",
+          accountSubtype: "bank",
+          defaultRoleCodes: ["operating_bank"],
+          displayName: "Configured operating bank",
+          id: "account-operating",
+          propertyId: null,
+          systemRoleCode: "operating_bank",
+        },
+      ],
+    });
+
+    expect(valueOfNamedInput(container, "receivingAccountId")).toBe(
+      "account-operating",
+    );
+  });
+
   it("selects the only eligible receiving account", () => {
     const { container } = renderForm({
-      reconciliationSources: [
+      payFromAccounts: [
         {
-          id: "source-bank",
-          label: "OPS-USD · Operating bank account",
+          accountClass: "asset",
+          accountSubtype: "bank",
+          displayName: "Operating bank account",
+          id: "account-bank",
           propertyId: null,
         },
       ],
     });
 
-    expect(valueOfNamedInput(container, "reconciliationSourceId")).toBe(
-      "source-bank",
+    expect(valueOfNamedInput(container, "receivingAccountId")).toBe(
+      "account-bank",
     );
     expect(screen.getAllByText("Operating bank account").length).toBeGreaterThan(0);
     expect(screen.queryByText(/OPS-USD/)).toBeNull();
+  });
+
+  it("prefers the invoice property's configured receiving account and allows override", () => {
+    const { container } = renderForm({
+      payFromAccounts: [
+        {
+          accountClass: "asset",
+          accountSubtype: "bank",
+          displayName: "Main company account",
+          id: "account-global",
+          propertyId: null,
+        },
+        {
+          accountClass: "asset",
+          accountSubtype: "bank",
+          displayName: "Riverside operating account",
+          id: "account-property",
+          propertyId: "property-1",
+        },
+      ],
+    });
+
+    expect(valueOfNamedInput(container, "receivingAccountId")).toBe(
+      "account-property",
+    );
+    expect(
+      screen.getAllByText("Riverside operating account").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("Main company account").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/Defaulted from this property; choose another account if needed/i),
+    ).not.toBeNull();
+  });
+
+  it("explains automatic allocation, payment reference, and receipt consequences", () => {
+    renderForm({
+      invoice: invoice({
+        lines: [openLine("Rent", 200), openLine("Parking", 58)],
+      }),
+    });
+
+    expect(
+      screen.getByText(/Rent first, then other charges in invoice order/i),
+    ).not.toBeNull();
+    expect(screen.getByLabelText("Payment method or reference")).not.toBeNull();
+    expect(
+      screen.getByText(/A PDF receipt is created after the payment is recorded/i),
+    ).not.toBeNull();
+    expect(
+      screen.getByText(/If the receipt cannot be created, the payment stays recorded/i),
+    ).not.toBeNull();
   });
 
   it("resets submission state and idempotency when the invoice identity changes", async () => {
@@ -313,7 +399,7 @@ describe("TenantInvoicePaymentForm", () => {
     });
     const { container } = renderForm();
     const amount = screen.getByLabelText("Amount");
-    const reference = screen.getByLabelText("Reference");
+    const reference = screen.getByLabelText("Payment method or reference");
 
     await user.clear(amount);
     await user.type(amount, "125.50");
@@ -343,7 +429,9 @@ describe("TenantInvoicePaymentForm", () => {
       });
     const { container } = renderForm();
     const amount = screen.getByLabelText("Amount") as HTMLInputElement;
-    const reference = screen.getByLabelText("Reference") as HTMLInputElement;
+    const reference = screen.getByLabelText(
+      "Payment method or reference",
+    ) as HTMLInputElement;
     const form = container.querySelector("form")!;
 
     await user.clear(amount);
@@ -406,14 +494,14 @@ function renderForm({
   onReceiptResult = vi.fn(),
   onSuccess = vi.fn(),
   ownerLabel = "Sokha Vannak",
-  reconciliationSources = [source()],
+  payFromAccounts = [account()],
   submitLabel,
 }: {
   invoice?: TenantInvoiceSummary;
   onReceiptResult?: (result: TenantPaymentReceiptResult) => void;
   onSuccess?: (message: string) => void;
   ownerLabel?: string;
-  reconciliationSources?: FinanceOption[];
+  payFromAccounts?: FinanceAccountOption[];
   submitLabel?: string;
 } = {}) {
   return render(
@@ -422,7 +510,7 @@ function renderForm({
       onReceiptResult,
       onSuccess,
       ownerLabel,
-      reconciliationSources,
+      payFromAccounts,
       submitLabel,
     }),
   );
@@ -433,14 +521,14 @@ function paymentForm({
   onReceiptResult = vi.fn(),
   onSuccess = vi.fn(),
   ownerLabel = "Sokha Vannak",
-  reconciliationSources = [source()],
+  payFromAccounts = [account()],
   submitLabel,
 }: {
   invoice: TenantInvoiceSummary;
   onReceiptResult?: (result: TenantPaymentReceiptResult) => void;
   onSuccess?: (message: string) => void;
   ownerLabel?: string;
-  reconciliationSources?: FinanceOption[];
+  payFromAccounts?: FinanceAccountOption[];
   submitLabel?: string;
 }) {
   return (
@@ -449,7 +537,7 @@ function paymentForm({
       onReceiptResult={onReceiptResult}
       onSuccess={onSuccess}
       ownerLabel={ownerLabel}
-      reconciliationSources={reconciliationSources}
+      payFromAccounts={payFromAccounts}
       submitLabel={submitLabel}
     />
   );
@@ -514,10 +602,12 @@ function openLine(label: string, balanceDue: number) {
   };
 }
 
-function source(): FinanceOption {
+function account(): FinanceAccountOption {
   return {
-    id: "source-1",
-    label: "BANK · Operating",
+    accountClass: "asset",
+    accountSubtype: "bank",
+    displayName: "Operating",
+    id: "account-1",
     propertyId: "property-1",
   };
 }

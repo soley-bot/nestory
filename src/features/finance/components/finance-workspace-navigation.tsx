@@ -23,6 +23,11 @@ const financeDestinations = {
     label: "Portfolio review",
     route: "/finance",
   },
+  accounts: {
+    href: "/finance/accounts",
+    label: "Chart of Accounts",
+    route: "/finance/accounts",
+  },
   rent: {
     href: "/rent-income",
     label: "Rent & collections",
@@ -38,10 +43,8 @@ export type FinanceWorkspaceRoute =
 
 export function FinanceWorkspaceNavigation({
   activeRoute,
-  canClosePeriods = false,
   canCorrectFinance = false,
   canReadFinanceReports = false,
-  canRecordPayments = false,
   canReviewExpense = false,
   canSubmitExpense = false,
 }: {
@@ -56,14 +59,13 @@ export function FinanceWorkspaceNavigation({
   const destinations: Array<
     (typeof financeDestinations)[keyof typeof financeDestinations]
   > = [financeDestinations.finance];
-  if (canRecordPayments) destinations.push(financeDestinations.rent);
+  destinations.push(financeDestinations.rent);
   if (canSubmitExpense || canReviewExpense || canCorrectFinance) {
     destinations.push(financeDestinations.expenses);
   }
   destinations.push(financeDestinations.balances);
-  if (canCorrectFinance || canClosePeriods) {
-    destinations.push(financeDestinations.advanced);
-  }
+  destinations.push(financeDestinations.accounts);
+  destinations.push(financeDestinations.advanced);
 
   const visibleDestinations = canReadFinanceReports
     ? [

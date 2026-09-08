@@ -244,8 +244,8 @@ describe("LedgerScreen finance workspace contract", () => {
       name: "Finance workspace",
     });
     expect(
-      within(financeNav).queryByRole("link", { name: "Advanced" }),
-    ).toBeNull();
+      within(financeNav).getByRole("link", { name: "Advanced" }).getAttribute("href"),
+    ).toBe("/finance/advanced");
 
     await user.click(screen.getByRole("button", { name: "Preview Rent" }));
     const inspector = screen.getByRole("dialog", {

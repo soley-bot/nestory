@@ -48,7 +48,18 @@ describe("manager maintenance routes", () => {
     mocks.getMaintenanceReminderNotifications.mockResolvedValue([]);
   });
 
-  it("allows branch-scoped maintenance readers onto recurring, inspection, and work-order surfaces", async () => {
+  it.each([false, true])("passes assignment authority (%s) through recurring, inspection, and work-order surfaces", async (canAssignCase) => {
+    mocks.requirePermission.mockResolvedValue({
+      branchId: "branch-1",
+      isSuperAdmin: false,
+      organizationId: "organization-1",
+      permissionKeys: new Set([
+        "maintenance.view",
+        ...(canAssignCase ? ["maintenance.create_assign"] : []),
+      ]),
+      personId: "person-1",
+      role: "custom",
+    });
     const html = renderToStaticMarkup(await renderMaintenanceRoute({
       emptyLabel: "No work",
       flowLabel: "Manager queue",
@@ -61,5 +72,11 @@ describe("manager maintenance routes", () => {
     expect(html).toContain("Manager maintenance route");
     expect(mocks.requirePermission).toHaveBeenCalledWith("maintenance.view");
     expect(mocks.requireOperationsManagementContext).not.toHaveBeenCalled();
+    expect(mocks.getMaintenanceScreenData).toHaveBeenCalledWith(
+      "organization-1",
+      expect.any(Object),
+      expect.objectContaining({ dataScope: "branch", workflowMode: "coordinator" }),
+      expect.objectContaining({ canAssignCase }),
+    );
   });
 });

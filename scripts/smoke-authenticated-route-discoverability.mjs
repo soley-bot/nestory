@@ -63,7 +63,7 @@ try {
 
       for (const journey of plan.filter((candidate) => candidate.role === role)) {
         const chain = await openJourney(page, journey);
-        assertAuthorizedDestination(page, journey.route);
+        await assertSettledAuthorizedDestination(page, journey.route);
         journeys.push(createPassedJourneyEvidence(journey.id, chain));
         process.stdout.write(`PASS ${journey.id} ${chain.join(" -> ")}\n`);
       }
@@ -130,7 +130,7 @@ async function openWorkspaceArrival(page) {
     (url) => !["/login", "/workspace"].includes(url.pathname),
     { timeout: 30_000 },
   );
-  assertAuthorizedDestination(page);
+  await assertSettledAuthorizedDestination(page);
   return new URL(page.url()).pathname;
 }
 
@@ -212,7 +212,7 @@ async function openContextJourney(page, journey, chain) {
     },
     "lease-detail": async () => {
       await fromGlobal(page, chain, "/leases", "Leases");
-      await page.getByRole("heading", { name: "Leases" }).waitFor({
+      await page.getByRole("heading", { name: "Leases", exact: true }).waitFor({
         state: "visible",
         timeout: 30_000,
       });
@@ -226,6 +226,22 @@ async function openContextJourney(page, journey, chain) {
       openAdvancedFinanceTool(page, chain, journey.route, "Ledger"),
     "advanced-petty-cash": () =>
       openAdvancedFinanceTool(page, chain, journey.route, "Petty cash"),
+    "maintenance-recurring": () =>
+      openMobileMaintenanceTool(page, chain, journey.route, "Recurring work"),
+    "maintenance-inspections": () =>
+      openMobileMaintenanceTool(page, chain, journey.route, "Inspections"),
+    "maintenance-work-orders": () =>
+      openMobileMaintenanceTool(page, chain, journey.route, "Work orders"),
+    "finance-accounts": () =>
+      openAdvancedFinanceTool(page, chain, "/finance/accounts", "Chart of Accounts"),
+    "finance-account-detail": async () => {
+      await openAdvancedFinanceTool(page, chain, "/finance/accounts", "Chart of Accounts");
+      const activityLink = page.getByRole("link", { name: /^Activity for / }).first();
+      await activityLink.waitFor({ state: "visible", timeout: 20_000 });
+      const label = await activityLink.getAttribute("aria-label");
+      await clickAndWait(page, activityLink, journey.route);
+      chain.push(label || "Account activity");
+    },
     "property-finance-invoice": () =>
       openInvoiceFinance(page, chain, journey.route, "Open Property finance"),
     "unit-finance-invoice": () =>
@@ -250,44 +266,29 @@ async function openContextJourney(page, journey, chain) {
         (url) => matchesContractPath(url.pathname, journey.route),
         { timeout: 30_000 },
       );
-      assertAuthorizedDestination(page, journey.route);
+      await assertSettledAuthorizedDestination(page, journey.route);
       chain.push("Set up property (empty-state entry)");
     },
     "property-detail": async () => {
-      await openPropertyInspector(page, chain);
-      await clickAndWait(
-        page,
-        page.getByText("Open property", { exact: true }),
-        journey.route,
-      );
-      chain.push("Open property");
-    },
-    "units-list": async () => {
-      await openPropertyInspector(page, chain);
-      await clickAndWait(
-        page,
-        page.locator('[data-slot="property-preview-record-pill"][href^="/units"]'),
-        journey.route,
-      );
-      chain.push("Units");
-    },
-    "unit-detail": async () => {
-      await openPropertyInspector(page, chain, "Central Residence");
-      await clickAndWait(
-        page,
-        page.locator('[data-slot="property-preview-record-pill"][href^="/units"]'),
-        "/units",
-      );
-      chain.push("Units");
-      const unitPreview = page
-        .locator('[data-slot="app-shell-content"] [aria-label^="Preview unit "]:visible')
+      await fromGlobal(page, chain, "/properties", "Properties");
+      const propertyLink = page
+        .locator('[data-slot="app-shell-content"] a[href^="/properties/"]:visible')
         .first();
-      await unitPreview.click();
-      const unitLink = page.getByText("Open unit", { exact: true });
-      await unitLink.waitFor({ state: "visible", timeout: 20_000 });
-      const unitLabel = (await unitPreview.getAttribute("aria-label")) || "Preview unit";
-      await clickAndWait(page, unitLink, journey.route);
-      chain.push(unitLabel, "Open unit");
+      await propertyLink.waitFor({ state: "visible", timeout: 20_000 });
+      const label = (await propertyLink.textContent())?.trim() || "Property record";
+      await clickAndWait(page, propertyLink, journey.route);
+      chain.push(label);
+    },
+    "units-list": () => openUnitsRegister(page, chain),
+    "unit-detail": async () => {
+      await openUnitsRegister(page, chain);
+      const unitButton = page
+        .getByRole("button", { name: /^View unit .+ details$/ })
+        .first();
+      await unitButton.waitFor({ state: "visible", timeout: 20_000 });
+      const label = await unitButton.getAttribute("aria-label");
+      await clickAndWait(page, unitButton, journey.route);
+      chain.push(label || "Unit record");
     },
     "property-account": async () => {
       await openAdvancedFinanceTool(page, chain, "/ledger", "Ledger");
@@ -317,6 +318,8 @@ async function openContextJourney(page, journey, chain) {
       openSettingsTab(page, chain, journey.route, "Branches"),
     "settings-teams": () =>
       openSettingsTab(page, chain, journey.route, "Teams"),
+    "settings-roles": () =>
+      openSettingsTab(page, chain, journey.route, "Roles"),
     "settings-access": async () => {
       await openSettingsTab(page, chain, "/settings/access", "Access");
       if (journey.route !== "/users-roles") return;
@@ -371,17 +374,29 @@ async function openSettingsTab(page, chain, route, label) {
   chain.push(label);
 }
 
-async function openPropertyInspector(page, chain, propertyName) {
+async function openUnitsRegister(page, chain) {
   await fromGlobal(page, chain, "/properties", "Properties");
-  const preview = propertyName
-    ? page.getByRole("row", { name: `Preview ${propertyName}` })
-    : page.locator('[aria-label^="Preview "]:visible').first();
-  await preview.click();
-  await page.getByText("Open property", { exact: true }).waitFor({
-    state: "visible",
-    timeout: 30_000,
-  });
-  chain.push((await preview.getAttribute("aria-label")) || "Preview property");
+  await clickAndWait(
+    page,
+    page.locator('nav[aria-label="Portfolio summary"] a[href="/units"]:visible'),
+    "/units",
+  );
+  chain.push("Units");
+}
+
+async function openMobileMaintenanceTool(page, chain, route, label) {
+  await fromGlobal(page, chain, "/maintenance", "Cases");
+  const previousViewport = page.viewportSize();
+  await page.setViewportSize({ width: 390, height: 844 });
+  chain.push("Mobile viewport 390x844");
+  try {
+    await page.getByRole("navigation", { name: "Maintenance workspace" })
+      .getByRole("button", { name: "Cases", exact: true }).click();
+    await clickAndWait(page, page.getByRole("menuitem", { name: label, exact: true }), route);
+    chain.push("Maintenance workspace menu", label);
+  } finally {
+    await page.setViewportSize(previousViewport ?? { width: 1440, height: 900 });
+  }
 }
 
 async function fromGlobal(page, chain, route, label) {
@@ -391,8 +406,11 @@ async function fromGlobal(page, chain, route, label) {
 
 async function clickGlobalRoute(page, route) {
   const href = staticRoute(route);
+  // The lease-only Properties parent also points at /leases. Select the actual
+  // named child so the recorded Leases entry matches the visible click.
+  const childOnly = route === "/leases" ? '[data-sidebar="menu-sub-button"]' : "";
   const link = page
-    .locator(`nav[aria-label="Global navigation"] a[href="${href}"]:visible`)
+    .locator(`nav[aria-label="Global navigation"] a${childOnly}[href="${href}"]:visible`)
     .first();
   const group = routeGroup(route);
   if (group && !(await link.isVisible())) {
@@ -419,6 +437,23 @@ async function clickAndWait(page, locator, route) {
     locator.click(),
   ]);
   await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
+  await assertSettledAuthorizedDestination(page, route);
+}
+
+async function assertSettledAuthorizedDestination(page, route) {
+  assertAuthorizedDestination(page, route);
+  // URL changes precede streamed route content. Neither a loading shell nor a
+  // same-URL ErrorState is evidence that the authorized workspace loaded.
+  await page.locator('[aria-busy="true"][data-loading-kind]:visible').waitFor({
+    state: "hidden", timeout: 30_000,
+  });
+  await page.locator('h1:visible, [data-kind="error"]:visible').first().waitFor({
+    state: "visible", timeout: 30_000,
+  });
+  const error = page.locator('[data-kind="error"]:visible').first();
+  if (await error.isVisible()) {
+    throw new Error(`${route ?? "workspace arrival"} rendered an error: ${(await error.textContent())?.trim()}`);
+  }
   assertAuthorizedDestination(page, route);
 }
 
@@ -443,6 +478,15 @@ function assertAuthorizedDestination(page, route) {
 }
 
 function matchesContractPath(pathname, route) {
+  // The authorized Settings shell entry redirects to its canonical first tab.
+  if (route === "/settings" && pathname === "/settings/organization") {
+    return true;
+  }
+  // Legacy bookmarks share the visible canonical entry. This journey proves
+  // discoverability of Chart, not a direct navigation to the retired URL.
+  if (route === "/finance/funding-sources" && pathname === "/finance/accounts") {
+    return true;
+  }
   if (route === "/users-roles" && pathname === "/settings/access") {
     return true;
   }
@@ -469,7 +513,8 @@ function entryLabel(entryId) {
 }
 
 function routeGroup(route) {
-  if (["/finance", "/rent-income", "/bills-expenses", "/balances", "/leases", "/ledger", "/petty-cash"].includes(route)) {
+  if (route === "/leases") return "Properties";
+  if (["/finance", "/finance/advanced", "/rent-income", "/bills-expenses", "/balances", "/ledger", "/petty-cash"].includes(route)) {
     return "Finance";
   }
   if (["/maintenance", "/tasks", "/recurring-tasks", "/inspections", "/work-orders"].includes(route)) {

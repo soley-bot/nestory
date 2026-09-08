@@ -3,6 +3,17 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SELECT plan(35);
 
+CREATE FUNCTION pg_temp.fixture_recognition_date()
+RETURNS date
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT greatest(
+    current_date - 1,
+    date_trunc('month', current_date)::date
+  )
+$$;
+
 SELECT has_function(
   'public',
   'correct_tenant_invoice',
@@ -238,7 +249,7 @@ SET invoice_id = app_private.generate_simple_lease_rent_invoice(
   organization_id,
   lease_id,
   (date_trunc('month', current_date) + interval '1 month')::date,
-  current_date - 1,
+  pg_temp.fixture_recognition_date(),
   'manual_recovery',
   admin_id
 );
@@ -377,11 +388,11 @@ SELECT results_eq(
       ON allocation_set.id = state.owner_allocation_set_id
   $$,
   $$VALUES (
-    current_date - 1,
-    current_date - 1,
-    current_date - 1,
-    current_date - 1,
-    current_date - 1
+    pg_temp.fixture_recognition_date(),
+    pg_temp.fixture_recognition_date(),
+    pg_temp.fixture_recognition_date(),
+    pg_temp.fixture_recognition_date(),
+    pg_temp.fixture_recognition_date()
   )$$,
   'issued rent, management fee, owner charge, and owner balance use one recognition date'
 );
@@ -411,7 +422,7 @@ SELECT
   property_id,
   owner_person_id,
   'USD',
-  date_trunc('month', current_date - 1)::date,
+  date_trunc('month', pg_temp.fixture_recognition_date())::date,
   'open',
   admin_id,
   admin_id
@@ -443,7 +454,7 @@ SELECT
   property_id,
   owner_person_id,
   'USD',
-  date_trunc('month', current_date - 1)::date,
+  date_trunc('month', pg_temp.fixture_recognition_date())::date,
   1,
   'closed',
   admin_id,
@@ -472,11 +483,11 @@ SELECT set_config('app.owner_balance_period_write_context', 'checked-rollforward
 UPDATE public.owner_balance_periods AS period
 SET
   status = CASE
-    WHEN period.month_start = date_trunc('month', current_date - 1)::date THEN 'closed'
+    WHEN period.month_start = date_trunc('month', pg_temp.fixture_recognition_date())::date THEN 'closed'
     ELSE 'ready'
   END,
   closed_revision_id = CASE
-    WHEN period.month_start = date_trunc('month', current_date - 1)::date
+    WHEN period.month_start = date_trunc('month', pg_temp.fixture_recognition_date())::date
       THEN state.closed_revision_id
     ELSE NULL
   END,
@@ -490,8 +501,8 @@ WHERE period.organization_id = state.organization_id
   AND period.owner_person_id = state.owner_person_id
   AND period.currency = 'USD'
   AND period.month_start IN (
-    date_trunc('month', current_date - 1)::date,
-    (date_trunc('month', current_date - 1) + interval '1 month')::date
+    date_trunc('month', pg_temp.fixture_recognition_date())::date,
+    (date_trunc('month', pg_temp.fixture_recognition_date()) + interval '1 month')::date
   );
 
 SELECT set_config(
@@ -625,8 +636,8 @@ WHERE period.organization_id = state.organization_id
   AND period.owner_person_id = state.owner_person_id
   AND period.currency = 'USD'
   AND period.month_start IN (
-    date_trunc('month', current_date - 1)::date,
-    (date_trunc('month', current_date - 1) + interval '1 month')::date
+    date_trunc('month', pg_temp.fixture_recognition_date())::date,
+    (date_trunc('month', pg_temp.fixture_recognition_date()) + interval '1 month')::date
   );
 
 SELECT set_config(
@@ -756,7 +767,7 @@ SELECT results_eq(
     JOIN public.management_fee_occurrences AS original ON original.id = state.management_fee_id
     JOIN public.management_fee_occurrences AS reversal ON reversal.reversal_of_id = original.id
   $$,
-  $$VALUES (-85.00::numeric, current_date - 1, true, true, true)$$,
+  $$VALUES (-85.00::numeric, pg_temp.fixture_recognition_date(), true, true, true)$$,
   'void appends one exact management-fee reversal on the issued recognition date'
 );
 
@@ -774,7 +785,7 @@ SELECT results_eq(
     JOIN public.management_fee_occurrences AS fee_reversal
       ON fee_reversal.reversal_of_id = state.management_fee_id
   $$,
-  $$VALUES (-85.00::numeric, current_date - 1, true, true, true)$$,
+  $$VALUES (-85.00::numeric, pg_temp.fixture_recognition_date(), true, true, true)$$,
   'void appends the matching owner-invoice reversal with source lineage'
 );
 
@@ -805,7 +816,7 @@ SELECT results_eq(
   $$,
   $$VALUES (
     -85.00::numeric,
-    current_date - 1,
+    pg_temp.fixture_recognition_date(),
     true,
     'owner_due_to_ips'::text,
     -85.00::numeric,
@@ -824,14 +835,14 @@ SELECT results_eq(
      AND period.owner_person_id = state.owner_person_id
      AND period.currency = 'USD'
     WHERE period.month_start IN (
-      date_trunc('month', current_date - 1)::date,
-      (date_trunc('month', current_date - 1) + interval '1 month')::date
+      date_trunc('month', pg_temp.fixture_recognition_date())::date,
+      (date_trunc('month', pg_temp.fixture_recognition_date()) + interval '1 month')::date
     )
     ORDER BY period.month_start
   $$,
   $$VALUES
-    (date_trunc('month', current_date - 1)::date, 'stale'::text),
-    ((date_trunc('month', current_date - 1) + interval '1 month')::date, 'stale'::text)
+    (date_trunc('month', pg_temp.fixture_recognition_date())::date, 'stale'::text),
+    ((date_trunc('month', pg_temp.fixture_recognition_date()) + interval '1 month')::date, 'stale'::text)
   $$,
   'a permitted prior-evidence correction stales the affected and downstream owner periods'
 );

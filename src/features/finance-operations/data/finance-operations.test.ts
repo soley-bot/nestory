@@ -3,6 +3,7 @@ import {
   buildSettlementsByInvoiceId,
   fetchAllActionableRows,
   fetchRowsByIdBatches,
+  groupExpenseTransactionSummaries,
   isRentGenerationSource,
   loadLeasePaymentResolutionData,
   loadCommercialDocumentLinks,
@@ -534,6 +535,121 @@ describe("toExpenseSubmissionSummary", () => {
   });
 });
 
+describe("groupExpenseTransactionSummaries", () => {
+  it("collapses ordered transaction lines into one review summary and preserves legacy rows", () => {
+    const baseSummary = {
+      adjustsSubmissionId: null,
+      category: "cleaning",
+      categoryLabel: "Cleaning",
+      customerTotal: 125,
+      date: "2026-09-01",
+      fundingSourceLabel: "BANK · Operating",
+      id: "submission-1",
+      internalCost: 125,
+      internalMarkup: 0,
+      propertyId: "property-1",
+      propertyLabel: "P-001 · Garden Court",
+      previouslyApproved: null,
+      recordedTotal: null,
+      reference: "BILL-42",
+      responsibility: "owner" as const,
+      reviewedAt: null,
+      reviewReason: null,
+      reversalReason: null,
+      sourceId: null,
+      sourceType: "general" as const,
+      status: "submitted" as const,
+      submittedAt: "2026-09-01T08:00:00Z",
+      submittedByLabel: "finance@example.com",
+      submittedByUserId: "user-1",
+      unitId: null,
+      unitLabel: "All units",
+      vendorLabel: "Khmer Home Services",
+    };
+    const secondSummary = {
+      ...baseSummary,
+      category: "repairs_maintenance",
+      categoryLabel: "Repairs & maintenance",
+      customerTotal: 75.25,
+      id: "submission-2",
+      internalCost: 75.25,
+      propertyId: "property-2",
+      propertyLabel: "P-002 · Riverside",
+      unitId: "unit-2",
+      unitLabel: "2A",
+    };
+    const legacySummary = {
+      ...baseSummary,
+      id: "legacy-submission",
+      internalCost: 20,
+      customerTotal: 20,
+    };
+
+    const grouped = groupExpenseTransactionSummaries(
+      [baseSummary, secondSummary, legacySummary],
+      [
+        {
+          expenseDate: "2026-09-01",
+          externalPayeeLabel: null,
+          id: "transaction-1",
+          payeeLabel: "Khmer Home Services",
+          reference: "BILL-42",
+          status: "submitted" as const,
+        },
+      ],
+      [
+        {
+          description: "Replace unit lock",
+          ownerCashAmount: null,
+          sortOrder: 2,
+          submissionId: "submission-2",
+          transactionId: "transaction-1",
+        },
+        {
+          description: "Lobby deep clean",
+          ownerCashAmount: 50,
+          sortOrder: 1,
+          submissionId: "submission-1",
+          transactionId: "transaction-1",
+        },
+      ],
+    );
+
+    expect(grouped).toHaveLength(2);
+    expect(grouped[0]).toMatchObject({
+      customerTotal: 200.25,
+      id: "transaction-1",
+      internalCost: 200.25,
+      transactionId: "transaction-1",
+      vendorLabel: "Khmer Home Services",
+    });
+    expect(grouped[0].lines).toEqual([
+      expect.objectContaining({
+        amount: 125,
+        description: "Lobby deep clean",
+        ownerCashAmount: 50,
+        submissionId: "submission-1",
+      }),
+      expect.objectContaining({
+        amount: 75.25,
+        description: "Replace unit lock",
+        ownerCashAmount: null,
+        submissionId: "submission-2",
+      }),
+    ]);
+    expect(grouped[1]).toMatchObject({
+      id: "legacy-submission",
+      transactionId: null,
+    });
+    expect(grouped[1].lines).toEqual([
+      expect.objectContaining({
+        amount: 20,
+        submissionId: "legacy-submission",
+      }),
+    ]);
+  });
+});
+
 describe("commercial document links", () => {
   const organizationId = "11111111-1111-4111-8111-111111111111";
   const invoiceId = "22222222-2222-4222-8222-222222222222";
@@ -962,7 +1078,7 @@ describe("Lease payment resolution data", () => {
       propertyId,
     });
 
-    const result = await loadLeasePaymentResolutionData(client.client, input);
+    const result = await loadLeasePaymentResolutionData(client.client, input, payFromAccounts());
 
     expect(result?.invoice).toMatchObject({
       generationSource: "lease_rules_v1",
@@ -1004,7 +1120,7 @@ describe("Lease payment resolution data", () => {
     client.respond("tenant_invoice_balances", { data: null, error: null });
 
     await expect(
-      loadLeasePaymentResolutionData(client.client, input),
+      loadLeasePaymentResolutionData(client.client, input, payFromAccounts()),
     ).resolves.toBeNull();
     expect(client.tables()).toEqual(["tenant_invoice_balances"]);
   });
@@ -1028,7 +1144,7 @@ describe("Lease payment resolution data", () => {
     });
 
     await expect(
-      loadLeasePaymentResolutionData(client.client, input),
+      loadLeasePaymentResolutionData(client.client, input, payFromAccounts()),
     ).resolves.toBeNull();
     expect(client.tables()).toEqual(["tenant_invoice_balances"]);
   });
@@ -1042,14 +1158,30 @@ describe("Lease payment resolution data", () => {
       propertyId,
     });
 
-    const result = await loadLeasePaymentResolutionData(client.client, input);
+    const result = await loadLeasePaymentResolutionData(client.client, input, payFromAccounts());
 
     expect(result).toMatchObject({ nextInvoiceDueDate: "2026-09-01" });
-    expect(result?.reconciliationSources).toEqual([
-      { id: "source-1", label: "ABA · Operating", propertyId },
-      { id: "source-global", label: "CASH · General", propertyId: null },
+    expect(result?.payFromAccounts).toEqual([
+      expect.objectContaining({ id: "account-bank", displayName: "Operating" }),
+      expect.objectContaining({ id: "account-card", displayName: "Company card" }),
     ]);
   });
+
+  it("retains focused invoice and owner labels while direct related-domain reads are denied", async () => {
+    const client = createLeasePaymentResolutionClient({ invoiceId, leaseId, organizationId, propertyId });
+    client.respond("properties", { data: null, error: null });
+    client.respond("units", { data: null, error: null });
+    client.respond("property_owners", { data: null, error: null });
+    const result = await loadLeasePaymentResolutionData(client.client, input, payFromAccounts());
+    expect(result).toMatchObject({ ownerLabel: "Sokha Vannak", invoice: { id: invoiceId, propertyLabel: "Palm House — P-1", unitLabel: "Unit A-01 — P-1" } });
+  });
+
+  function payFromAccounts() {
+    return [
+      { accountClass: "asset" as const, accountSubtype: "bank", displayName: "Operating", id: "account-bank", propertyId },
+      { accountClass: "liability" as const, accountSubtype: "credit_card", displayName: "Company card", id: "account-card", propertyId: null },
+    ];
+  }
 });
 
 type LeasePaymentResolutionTable =
@@ -1234,6 +1366,18 @@ function createLeasePaymentResolutionClient({
   };
 
   const client = {
+    rpc(name: string, args: Record<string, unknown>) {
+      if (name !== "get_finance_read_context" || args.p_organization_id !== organizationId || args.p_requested_property_id !== propertyId) {
+        throw new Error("Unexpected finance context request");
+      }
+      return Promise.resolve({ data: {
+        properties: [{ id: propertyId, code: "P-1", name: "Palm House", archived_at: null }],
+        units: [{ id: "unit-1", property_id: propertyId, unit_number: "A-01", archived_at: null }],
+        people: [{ id: "owner-1", display_name: "Sokha Vannak", party_type: "individual", archived_at: null }],
+        owner_assignments: [{ id: "assignment-1", property_id: propertyId, person_id: "owner-1", is_primary: true, started_on: null, ended_on: null, archived_at: null }],
+        leases: [], terms: [], billing_terms: [],
+      }, error: null });
+    },
     from(table: LeasePaymentResolutionTable) {
       tables.push(table);
       const filters: Array<{

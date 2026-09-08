@@ -31,10 +31,12 @@ const movementId = "00000000-0000-4000-8000-000000000010";
 const reversalSetId = "00000000-0000-4000-8000-000000000011";
 const reversalAllocationId = "00000000-0000-4000-8000-000000000012";
 const reversalMovementId = "00000000-0000-4000-8000-000000000013";
+let readyPeriodInputWatermark = "2026-08-31T00:00:00Z";
 
 describe("authoritative owner balance loader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    readyPeriodInputWatermark = "2026-08-31T00:00:00Z";
     mocks.requireReadContext.mockResolvedValue({ organizationId });
 
     const tableResults = {
@@ -129,6 +131,9 @@ describe("authoritative owner balance loader", () => {
       query(tableResults[table]),
     );
     mocks.rpc.mockImplementation((name: string) => {
+      if (name === "get_owner_account_read_context") {
+        return query({ data: { properties: tableResults.properties.data, people: tableResults.people.data, assignments: tableResults.property_owners.data }, error: null });
+      }
       if (name === "get_owner_balance_ledger") {
         return query({ data: ledgerRows(), error: null });
       }
@@ -306,21 +311,164 @@ describe("authoritative owner balance loader", () => {
     ]);
   });
 
-  it("builds choices from explicit owner assignments and never guesses a primary owner", async () => {
+  it("populates authorized account selectors when admin property and people tables are invisible", async () => {
+    const existingRpc = mocks.rpc.getMockImplementation()!;
+    mocks.from.mockReturnValue(query({ data: [], error: null }));
+    mocks.rpc.mockImplementation((name: string, args: unknown) => name === "get_owner_account_read_context"
+      ? query({ data: {
+        properties: [{ id: propertyId, code: "RS-01", name: "Riverside" }],
+        people: [{ id: ownerId, display_name: "Nora Owner" }],
+        assignments: [{ id: propertyOwnerId, property_id: propertyId, person_id: ownerId, started_on: "2026-07-01", ended_on: null }],
+      }, error: null }) : existingRpc(name, args));
+    const result = await getOwnerBalanceData({ currency: "USD", periodStart: "2026-08-01", periodEnd: "2026-08-01" });
+    expect(result.propertyOptions).toEqual([{ id: propertyId, label: "Riverside — RS-01" }]);
+    expect(result.ownerOptions).toEqual([{ id: ownerId, label: "Nora Owner", propertyIds: [propertyId] }]);
+    expect(result.accountTotal).toBe(1);
+    expect(result.accounts[0]?.availableAmount).toBe("900719925374.09");
+    expect(mocks.from).not.toHaveBeenCalledWith("properties");
+    expect(mocks.from).not.toHaveBeenCalledWith("people");
+    expect(mocks.from).not.toHaveBeenCalledWith("property_owners");
+  });
+
+  it("builds an authoritative owner-account register without requiring an exact scope", async () => {
     const result = await getOwnerBalanceData({
       currency: "USD",
       periodEnd: "2026-08-01",
       periodStart: "2026-08-01",
     });
 
-    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith("get_owner_balance_ledger", {
+      p_currency: "USD",
+      p_organization_id: organizationId,
+      p_owner_person_id: ownerId,
+      p_period_end: "2026-08-01",
+      p_period_start: "2026-08-01",
+      p_property_id: propertyId,
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith("get_owner_event_allocation_queue", {
+      p_currency: "USD",
+      p_organization_id: organizationId,
+      p_period_end: "2026-08-31",
+      p_period_start: "2026-08-01",
+      p_property_id: propertyId,
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith("get_owner_available_withdrawal", {
+      p_as_of_date: "2026-08-31",
+      p_currency: "USD",
+      p_organization_id: organizationId,
+      p_owner_person_id: ownerId,
+      p_property_id: propertyId,
+    });
     expect(result.propertyOptions).toEqual([{ id: propertyId, label: "Riverside — RS-01" }]);
     expect(result.ownerOptions).toEqual([
       { id: ownerId, label: "Nora Owner", propertyIds: [propertyId] },
     ]);
+    expect(result).toMatchObject({
+      accountPage: 1,
+      accountPageCount: 1,
+      accountPageSize: 12,
+      accountTotal: 1,
+      accounts: [
+        {
+          availableAmount: "900719925374.09",
+          issueCodes: ["owner_roster_missing"],
+          issueCount: 1,
+          lastActivityDate: "2026-08-31",
+          ownerLabel: "Nora Owner",
+          ownerPersonId: ownerId,
+          periodStatus: "ready",
+          propertyId,
+          propertyLabel: "Riverside — RS-01",
+          remediationPath: `/properties/${propertyId}`,
+          withdrawalStatus: "available",
+        },
+      ],
+    });
     expect(result.periods).toEqual([]);
     expect(result.queue).toEqual([]);
     expect(result.sources).toEqual([]);
+  });
+
+  it("keeps a diagnostic activity watermark out of the register date", async () => {
+    readyPeriodInputWatermark = "sources=13";
+
+    const result = await getOwnerBalanceData({
+      currency: "USD",
+      periodEnd: "2026-08-01",
+      periodStart: "2026-08-01",
+    });
+
+    expect(result.accounts[0]).toMatchObject({
+      lastActivityDate: "2026-09-30",
+      lastActivityDetail: "sources=13",
+    });
+  });
+
+  it("bounds default register fan-out to one twelve-account page", async () => {
+    const owners = Array.from({ length: 30 }, (_, index) => ({
+      archived_at: null,
+      display_name: `Owner ${String(index + 1).padStart(2, "0")}`,
+      id: `00000000-0000-4000-8001-${String(index + 1).padStart(12, "0")}`,
+    }));
+    const properties = Array.from({ length: 30 }, (_, index) => ({
+      archived_at: null,
+      code: `P-${String(index + 1).padStart(2, "0")}`,
+      id: `00000000-0000-4000-8002-${String(index + 1).padStart(12, "0")}`,
+      name: `Property ${String(index + 1).padStart(2, "0")}`,
+    }));
+    const assignments = owners.map((owner, index) => ({
+      archived_at: null,
+      ended_on: null,
+      id: `00000000-0000-4000-8003-${String(index + 1).padStart(12, "0")}`,
+      person_id: owner.id,
+      property_id: properties[index]!.id,
+      started_on: "2026-01-01",
+    }));
+    const tableResults = {
+      people: { data: owners, error: null },
+      properties: { data: properties, error: null },
+      property_owners: { data: assignments, error: null },
+    };
+    mocks.from.mockImplementation((table: keyof typeof tableResults) =>
+      query(tableResults[table]),
+    );
+    mocks.rpc.mockImplementation((name: string) => {
+      if (name === "get_owner_account_read_context") {
+        return query({ data: { properties, people: owners, assignments }, error: null });
+      }
+      if (name === "get_owner_balance_ledger") {
+        return query({ data: [], error: null });
+      }
+      if (name === "get_owner_event_allocation_queue") {
+        return query({ data: [], error: null });
+      }
+      if (name === "get_owner_available_withdrawal") {
+        return query({
+          data: {
+            as_of_date: "2026-08-31",
+            authoritative_held_cash: "0.00",
+            available_withdrawal: "0.00",
+            committed_reserved: "0.00",
+            period_status: null,
+            status: "available",
+          },
+          error: null,
+        });
+      }
+      throw new Error(`Unexpected RPC ${name}`);
+    });
+
+    const result = await getOwnerBalanceData({
+      currency: "USD",
+      periodEnd: "2026-08-01",
+      periodStart: "2026-08-01",
+      registerPage: 1,
+    });
+
+    expect(result.accounts).toHaveLength(12);
+    expect(result.accountTotal).toBe(30);
+    expect(result.accountPageCount).toBe(3);
+    expect(mocks.rpc).toHaveBeenCalledTimes(37);
   });
 
   it("fails closed on database errors", async () => {
@@ -334,7 +482,25 @@ describe("authoritative owner balance loader", () => {
       periodEnd: "2026-08-01",
       periodStart: "2026-08-01",
       propertyId,
-    })).rejects.toThrow("Unable to load authoritative owner balances");
+    })).rejects.toThrow("Unable to load authoritative owner balance scope");
+  });
+
+  it("retains historical ownership choices while applying the original selected-period overlap", async () => {
+    const existingRpc = mocks.rpc.getMockImplementation()!;
+    const projection = await existingRpc("get_owner_account_read_context");
+    projection.data.assignments[0].ended_on = "2026-08-01";
+    mocks.rpc.mockImplementation((name: string, args: unknown) => name === "get_owner_account_read_context"
+      ? query(projection) : existingRpc(name, args));
+    const historical = await getOwnerBalanceData({ currency: "USD", periodStart: "2026-07-01", periodEnd: "2026-07-01" });
+    expect(historical.accountTotal).toBe(1);
+    const later = await getOwnerBalanceData({ currency: "USD", periodStart: "2026-09-01", periodEnd: "2026-09-01" });
+    expect(later.accountTotal).toBe(0);
+    expect(later.ownerOptions).toEqual([{ id: ownerId, label: "Nora Owner", propertyIds: [propertyId] }]);
+  });
+
+  it.each([null, {}, { properties: [], people: [], assignments: null }])("rejects malformed account projection %j without an empty successful register", async (data) => {
+    mocks.rpc.mockReturnValue(query({ data, error: null }));
+    await expect(getOwnerBalanceData({ currency: "USD", periodStart: "2026-08-01", periodEnd: "2026-08-01" })).rejects.toThrow("Invalid account projection");
   });
 });
 
@@ -344,7 +510,7 @@ function ledgerRows() {
     blocked_reason_code: null,
     blocked_reason_detail: null,
     input_hash: "a".repeat(64),
-    input_watermark: "2026-08-31T00:00:00Z",
+    input_watermark: readyPeriodInputWatermark,
     month_start: "2026-08-01",
     period_id: periodId,
     period_status: "ready",

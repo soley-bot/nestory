@@ -36,6 +36,7 @@ import {
   type OwnerOpeningRequestRecord,
 } from "@/features/owner-balances/owner-balance.types";
 import { cn } from "@/lib/utils";
+import { withReportReturn } from "@/features/reports/report-return";
 
 type Option = { id: string; label: string };
 
@@ -51,6 +52,7 @@ type OpeningBalanceScreenProps = {
   selectedMonth: string;
   selectedOwnerPersonId?: string;
   selectedPropertyId?: string;
+  returnTo?: string;
 };
 
 type OpeningIntent = {
@@ -166,7 +168,7 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
               {props.isSuperAdmin ? (
                 <Link
                   className="font-medium text-primary underline-offset-4 hover:underline"
-                  href={`/properties/${blocker.propertyId}#property-ownership`}
+                  href={withReportReturn(`/properties/${blocker.propertyId}#property-ownership`, props.returnTo)}
                 >
                   Resolve ownership
                 </Link>
@@ -199,6 +201,13 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
           }
         />
       ))}
+
+      {groups.flatMap(group => group.components.filter(component => component.requests[0]?.status === "submitted").map(component => (
+        <div key={`${group.propertyId}:${group.ownerPersonId}:${component.component}`} className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 text-sm sm:px-6">
+          <div><p className="font-medium">{OWNER_BALANCE_COMPONENT_LABELS[component.component]}</p><p className="text-muted-foreground">Opening balance review pending</p></div>
+          <Button size="sm" variant="outline" onClick={() => setDetailsIntent({ group, component })}>Review {OWNER_BALANCE_COMPONENT_LABELS[component.component]}</Button>
+        </div>
+      )))}
 
       <details className="group border-b border-border">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground sm:px-6">
@@ -644,7 +653,14 @@ function OpeningDetailsModal({
               {group.effectiveDate} · {group.currency}
             </p>
           </div>
-          {component.authority.state === "known" ? (
+          {currentSubmitted ? (
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">Proposed {currentSubmitted.requestKind === "correction" ? "replacement" : "opening"} balance</p>
+              <p className="font-semibold tabular-nums">{formatUsd(currentSubmitted.proposedAmount)}</p>
+              <StatusPill tone="neutral">Awaiting review</StatusPill>
+              {component.authority.state === "known" ? <p className="mt-1 text-xs text-muted-foreground">Currently approved: {formatUsd(component.authority.amount)}</p> : null}
+            </div>
+          ) : component.authority.state === "known" ? (
             <div className="text-right">
               <p className="font-mono font-semibold tabular-nums">
                 {formatUsd(component.authority.amount)}
@@ -658,10 +674,10 @@ function OpeningDetailsModal({
           )}
         </div>
 
-        <section className="border-y border-border py-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <details className="border-y border-border py-3">
+          <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
             Request history
-          </h3>
+          </summary>
           <div className="mt-2 space-y-3 text-sm">
             {component.requests.length === 0 ? (
               <p className="text-muted-foreground">No request</p>
@@ -692,7 +708,7 @@ function OpeningDetailsModal({
               ))
             )}
           </div>
-        </section>
+        </details>
 
         {currentRequest ? (
           <section className="space-y-2 text-sm">

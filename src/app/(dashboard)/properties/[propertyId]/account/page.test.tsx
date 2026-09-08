@@ -1,7 +1,9 @@
 /* @vitest-environment jsdom */
 
-import { render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+afterEach(cleanup);
 
 const mocks = vi.hoisted(() => ({
   financeData: vi.fn(),
@@ -50,6 +52,8 @@ describe("PropertyAccountPage", () => {
       },
       organizationId: "30000000-0000-0000-0000-000000000001",
       organizationName: "IPS Property Management",
+      isSuperAdmin: true,
+      permissionKeys: new Set(["properties.view", "properties.write", "finance.view"]),
       role: "super_admin",
     });
     mocks.financeData.mockResolvedValue({
@@ -162,12 +166,43 @@ describe("PropertyAccountPage", () => {
     });
   });
 
+  it.each(["Finance Manager", "Finance Member"])("keeps %s property accounts readable without property record links", async (roleName) => {
+    const context = await mocks.requireFinanceContext();
+    mocks.requireFinanceContext.mockResolvedValue({ ...context, isSuperAdmin: false, role: "custom", roleName,
+      capabilities: { canCorrectFinance: roleName === "Finance Manager", canOperateFinance: roleName === "Finance Manager" },
+      permissionKeys: new Set(roleName === "Finance Manager" ? [
+        "leases.view", "leases.prepare", "leases.activate", "leases.change_terms", "leases.close", "leases.archive",
+        "finance.view", "finance.record_payments", "finance.approve_expenses", "finance.correct_records", "finance.close_periods", "finance.publish",
+      ] : ["leases.view", "finance.view", "finance.submit_expenses"]),
+    });
+    const { container } = render(await PropertyAccountPage({ params: Promise.resolve({ propertyId }), searchParams: Promise.resolve({ month: "2026-08" }) }));
+    expect(container.querySelectorAll('a[href="/properties"], a[href^="/properties/"]:not([href*="/account"]):not([href*="/finance"]), a[href^="/units/"]')).toHaveLength(0);
+    expect(screen.queryByRole("navigation", { name: "Property record sections" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Owner cash position" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Balance operations" }).getAttribute("href")).toContain("/balances?");
+  });
+
   it("uses the authoritative balance model for the property account", async () => {
     render(
       await PropertyAccountPage({
         params: Promise.resolve({ propertyId }),
+        searchParams: Promise.resolve({ month: "2026-08" }),
       }),
     );
+
+    expect(mocks.ownerBalanceData).toHaveBeenNthCalledWith(1, {
+      currency: "USD",
+      periodEnd: "2026-08-01",
+      periodStart: "2026-08-01",
+      propertyId,
+    });
+    expect(mocks.ownerBalanceData).toHaveBeenNthCalledWith(2, {
+      currency: "USD",
+      ownerPersonId: ownerId,
+      periodEnd: "2026-08-01",
+      periodStart: "2026-08-01",
+      propertyId,
+    });
 
     expect(screen.queryByRole("heading", { name: "Legacy property account" })).toBeNull();
     const heading = screen.getByRole("heading", { name: "Property account" });
@@ -232,6 +267,57 @@ describe("PropertyAccountPage", () => {
     expect(within(activity).getAllByText("Held by Nestory").length).toBeGreaterThan(0);
     expect(within(activity).getAllByText("Collected by owner")).toHaveLength(2);
   });
+
+  it("consumes an exact allocation focus within the requested activity filter", async () => {
+    const focusAllocationSetId = "50000000-0000-0000-0000-000000000010";
+
+    render(
+      await PropertyAccountPage({
+        params: Promise.resolve({ propertyId }),
+        searchParams: Promise.resolve({
+          activity: "owner_cash",
+          focusAllocationSetId,
+          month: "2026-08",
+          ownerPersonId: ownerId,
+          page: "1",
+        }),
+      }),
+    );
+
+    const focusedRow = document.getElementById(`owner-source-${focusAllocationSetId}`);
+    expect(focusedRow).not.toBeNull();
+    expect(focusedRow?.getAttribute("aria-current")).toBe("true");
+    expect(within(focusedRow!).getByText("2026-08-01")).toBeTruthy();
+    expect(screen.getByText("1–6 of 6")).toBeTruthy();
+  });
+
+  it("reveals an exact reversal focus on its corrections page and anchor", async () => {
+    const currentData = await mocks.ownerBalanceData.getMockImplementation()!();
+    const focusAllocationSetId = "a0000000-0000-0000-0000-000000000001";
+    mocks.ownerBalanceData.mockResolvedValue({
+      ...currentData,
+      sources: Array.from({ length: 9 }, (_, index) => reversalActivitySource(index)),
+    });
+
+    render(
+      await PropertyAccountPage({
+        params: Promise.resolve({ propertyId }),
+        searchParams: Promise.resolve({
+          activity: "corrections",
+          focusAllocationSetId,
+          month: "2026-08",
+          ownerPersonId: ownerId,
+          page: "1",
+        }),
+      }),
+    );
+
+    const focusedRow = document.getElementById(`owner-source-${focusAllocationSetId}`);
+    expect(focusedRow).not.toBeNull();
+    expect(focusedRow?.getAttribute("aria-current")).toBe("true");
+    expect(within(focusedRow!).getByText("2026-08-01")).toBeTruthy();
+    expect(screen.getByText("9–9 of 9")).toBeTruthy();
+  });
 });
 
 function extraActivitySource(index: number) {
@@ -255,5 +341,15 @@ function extraActivitySource(index: number) {
     sourceId: `70000000-0000-0000-0000-${suffix}`,
     sourceLineId: `80000000-0000-0000-0000-${suffix}`,
     sourceType: "owner_contribution",
+  };
+}
+
+function reversalActivitySource(index: number) {
+  const suffix = String(index + 1).padStart(12, "0");
+  return {
+    ...extraActivitySource(index),
+    allocationSetId: `a0000000-0000-0000-0000-${suffix}`,
+    reversalOfAllocationSetId: `b0000000-0000-0000-0000-${suffix}`,
+    sourceType: "reversal",
   };
 }

@@ -1,7 +1,9 @@
 /* @vitest-environment jsdom */
 
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+afterEach(cleanup);
 
 const mocks = vi.hoisted(() => ({
   balanceData: vi.fn(),
@@ -27,6 +29,8 @@ vi.mock("@/features/owner-close/components/owner-close-screen", () => ({
     <div
       data-can-close={String(props.canClose)}
       data-can-reopen={String(props.canReopen)}
+      data-presentation={String(props.presentation)}
+      data-has-source-authority={String(Boolean(props.sourceAuthority))}
       data-testid="owner-close-authority"
     >
       Close owner month
@@ -41,18 +45,25 @@ vi.mock("@/features/owner-balances/components/opening-balance-screen", () => ({
   ),
 }));
 vi.mock("@/features/owner-balances/components/owner-balance-ledger", () => ({
+  OwnerSourceResolution: () => <div>Resolve owner sources</div>,
   OwnerBalanceLedger: (props: {
     canAllocate?: boolean;
     canCorrect?: boolean;
     canTransfer?: boolean;
+    canResolveOwnership?: boolean;
+    canViewPropertyRecords?: boolean;
     closingAuthority?: React.ReactNode;
     openingAuthority?: React.ReactNode;
+    selectedView?: string;
   }) => (
     <main
       data-can-allocate={String(props.canAllocate)}
       data-can-correct={String(props.canCorrect)}
       data-can-transfer={String(props.canTransfer)}
+      data-can-resolve-ownership={String(props.canResolveOwnership)}
+      data-can-view-property-records={String(props.canViewPropertyRecords)}
       data-testid="authoritative-ledger"
+      data-selected-view={props.selectedView}
     >
       <h1>Authoritative owner balance</h1>
       {props.openingAuthority}
@@ -88,6 +99,8 @@ describe("BalancesPage opening balance integration", () => {
       },
       organizationId,
       organizationName: "IPS",
+      isSuperAdmin: true,
+      permissionKeys: new Set(["properties.view", "properties.write", "finance.view"]),
       role: "super_admin",
       userId: "00000000-0000-4000-8000-000000000004",
     });
@@ -110,6 +123,20 @@ describe("BalancesPage opening balance integration", () => {
     });
   });
 
+  it.each([
+    ["finance reader", ["finance.view", "leases.view"], false, false],
+    ["property reader", ["finance.view", "properties.view"], true, false],
+    ["write without destination read", ["finance.view", "properties.write"], false, false],
+    ["property editor", ["finance.view", "properties.view", "properties.write"], true, true],
+  ])("delegates only usable ownership repair links to %s", async (_label, keys, canView, canResolve) => {
+    const context = await mocks.requireFinanceContext();
+    mocks.requireFinanceContext.mockResolvedValue({ ...context, role: "custom", isSuperAdmin: false, permissionKeys: new Set(keys as string[]) });
+    render(await BalancesPage({ searchParams: Promise.resolve({ month: "2026-08" }) }));
+    const ledger = screen.getByTestId("authoritative-ledger");
+    expect(ledger.getAttribute("data-can-view-property-records")).toBe(String(canView));
+    expect(ledger.getAttribute("data-can-resolve-ownership")).toBe(String(canResolve));
+  });
+
   it("loads exact authoritative scope and retires the current-primary projection", async () => {
     render(
       await BalancesPage({
@@ -117,6 +144,7 @@ describe("BalancesPage opening balance integration", () => {
           month: "2026-08",
           ownerPersonId: ownerId,
           propertyId,
+          view: "statements",
         }),
       }),
     );
@@ -133,6 +161,7 @@ describe("BalancesPage opening balance integration", () => {
       periodEnd: "2026-08-01",
       periodStart: "2026-08-01",
       propertyId,
+      registerPage: 1,
     });
     expect(mocks.closeData).toHaveBeenCalledWith({
       currency: "USD",
@@ -141,6 +170,12 @@ describe("BalancesPage opening balance integration", () => {
       propertyId,
     });
     expect(screen.getByTestId("opening-authority").getAttribute("data-can-review"))
+      .toBe("true");
+    expect(screen.getByTestId("authoritative-ledger").getAttribute("data-selected-view"))
+      .toBe("statements");
+    expect(screen.getByTestId("owner-close-authority").getAttribute("data-presentation"))
+      .toBe("statements");
+    expect(screen.getByTestId("owner-close-authority").getAttribute("data-has-source-authority"))
       .toBe("true");
     expect(screen.getByRole("heading", { name: "Authoritative owner balance" }))
       .toBeTruthy();
@@ -171,5 +206,6 @@ describe("BalancesPage opening balance integration", () => {
     expect(scope.ownerPersonId).toBeUndefined();
     expect(scope.periodStart).toMatch(/^\d{4}-\d{2}-01$/);
     expect(scope.periodEnd).toBe(scope.periodStart);
+    expect(scope.registerPage).toBe(1);
   });
 });

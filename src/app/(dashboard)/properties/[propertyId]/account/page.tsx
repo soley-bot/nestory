@@ -20,6 +20,7 @@ export default async function PropertyAccountPage({
   const query = (await searchParams) ?? {};
   const selectedMonth = validMonth(first(query.month)) ?? getBusinessMonthValue();
   const requestedOwnerId = validUuid(first(query.ownerPersonId));
+  const focusAllocationSetId = validUuid(first(query.focusAllocationSetId));
   const activityFilter = validActivityFilter(first(query.activity));
   const activityPage = positiveInteger(first(query.page));
   const periodStart = `${selectedMonth}-01`;
@@ -57,10 +58,12 @@ export default async function PropertyAccountPage({
       canAllocate={context.capabilities.canOperateFinance}
       canCorrect={context.capabilities.canCorrectFinance}
       canTransfer={context.role === "super_admin"}
+      canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       data={data}
       organizationName={context.organizationName}
       propertyAccount={{
         activityFilter,
+        focusAllocationSetId,
         page: activityPage,
         propertyLabel: property.label,
       }}

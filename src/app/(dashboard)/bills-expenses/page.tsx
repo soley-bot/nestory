@@ -22,6 +22,7 @@ export default async function BillsExpensesPage({
     <FinanceOperationsScreen
       {...data}
       canConfigureRent={context.permissionKeys.has("leases.change_terms")}
+      canCreateVendor={context.permissionKeys.has("people.view") && context.permissionKeys.has("people.write")}
       canCorrectFinance={context.capabilities.canCorrectFinance}
       canRecordOwnerCash={context.capabilities.canOperateFinance}
       canRecordPayments={context.capabilities.canOperateFinance}
@@ -31,6 +32,7 @@ export default async function BillsExpensesPage({
       canReverseExpense={context.capabilities.canReverseExpense}
       canRetryCurrentRent={context.capabilities.canRetryCurrentRent}
       canSubmitExpense={context.capabilities.canSubmitExpense}
+      canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       initialExpenseIntent={initialExpenseIntent}
       organizationName={context.organizationName}
       view="expenses"

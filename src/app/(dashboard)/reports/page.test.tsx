@@ -16,12 +16,29 @@ vi.mock("next/navigation", () => ({
 
 import ReportsPage from "@/app/(dashboard)/reports/page";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("ReportsPage", () => {
+  it("does not offer official statements to report-only staff without finance access", async () => {
+    auth.requireFinanceReportContext.mockResolvedValue({
+      organizationName: "Nestory",
+      capabilities: { canReadFinance: false },
+    });
+
+    render(await ReportsPage());
+
+    expect(screen.queryByRole("link", { name: /Official owner statements/ })).toBeNull();
+    expect(screen.getByRole("link", { name: /Owner activity/ }).getAttribute("href"))
+      .toBe("/reports/monthly-owner-activity");
+  });
+
   it("renders the two supported report builders as canonical links", async () => {
     auth.requireFinanceReportContext.mockResolvedValue({
       organizationName: "Nestory",
+      capabilities: { canReadFinance: true },
     });
 
     render(await ReportsPage());
@@ -35,6 +52,7 @@ describe("ReportsPage", () => {
       ),
     ).toBe("/reports/unit-profit-loss");
     expect(auth.requireFinanceReportContext).toHaveBeenCalledOnce();
-    expect(screen.queryByText(/Owner Statement/i)).toBeNull();
+    expect(screen.getByRole("link", { name: /Official owner statements/ }).getAttribute("href"))
+      .toBe("/balances?view=statements");
   });
 });

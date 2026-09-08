@@ -1,8 +1,8 @@
 # Authenticated route discoverability
 
-<!-- contract-sha256:441a91d5b1ea6e8b82a1eff554797d3fe8cb7cbabea6c90a7e359b683387eac5 -->
+<!-- contract-sha256:d2a60bf99906132fbe7e09093a6fab4ab689d4233193c592f8a8bac73df87ab3 -->
 
-This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 47 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
+This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 50 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
 
 Classifications are `global`, `context`, `profile`, or `intentionally inaccessible`. An authorized page is incomplete unless its visible entry and browser journey from the current shell or contextual origin both exist.
 
@@ -20,12 +20,18 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 | `/finance` | `requireFinanceContext` / `canReadFinance` | global via shell-finance; pending sa:finance | global via shell-finance; pending fm:finance | global via shell-finance; pending fmem:finance | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
 <!-- authenticated-route:/finance/advanced -->
 | `/finance/advanced` | `requireFinanceContext` / `canReadFinance` | global via shell-advanced-finance; pending sa:finance-advanced | global via shell-advanced-finance; pending fm:finance-advanced | global via shell-advanced-finance; pending fmem:finance-advanced | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
+<!-- authenticated-route:/finance/accounts -->
+| `/finance/accounts` | `requireFinanceContext` / `canReadFinance` | context via finance-accounts; pending sa:finance-accounts | context via finance-accounts; pending fm:finance-accounts | context via finance-accounts; pending fmem:finance-accounts | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
+<!-- authenticated-route:/finance/accounts/[accountId] -->
+| `/finance/accounts/[accountId]` | `requireFinanceContext` / `canReadFinance` | context via finance-account-detail; pending sa:finance-account-detail | context via finance-account-detail; pending fm:finance-account-detail | context via finance-account-detail; pending fmem:finance-account-detail | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
+<!-- authenticated-route:/finance/funding-sources -->
+| `/finance/funding-sources` | `permanentRedirect` / `canReadFinance` | context via finance-accounts; pending sa:finance-funding-sources-redirect | context via finance-accounts; pending fm:finance-funding-sources-redirect | context via finance-accounts; pending fmem:finance-funding-sources-redirect | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
 <!-- authenticated-route:/financial-timeline -->
 | `/financial-timeline` | `requireSuperAdminContext` / `canManageAccess` | global via shell-financial-timeline; pending sa:financial-timeline | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/import -->
 | `/import` | `requireSuperAdminContext` / `canManageAccess` | global via shell-import; pending sa:import | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/inspections -->
-| `/inspections` | `requirePermission` / `canManageOperations` | global via shell-inspections; pending sa:inspections | Intentionally inaccessible — Requires canManageOperations. | Intentionally inaccessible — Requires canManageOperations. | global via shell-inspections; pending om:inspections | Intentionally inaccessible — Requires canManageOperations. | none |
+| `/inspections` | `requirePermission("maintenance.view")` / `maintenance.view` | global via shell-inspections; pending sa:inspections | Intentionally inaccessible — Requires maintenance.view. | Intentionally inaccessible — Requires maintenance.view. | global via shell-inspections; pending om:inspections | context via maintenance-inspections; pending omem:inspections | none |
 <!-- authenticated-route:/leases -->
 | `/leases` | `requirePermission` / `canReadFinance` | global via shell-leases; pending sa:leases | global via shell-leases; pending fm:leases | global via shell-leases; pending fmem:leases | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account, no-admin-unit-link |
 <!-- authenticated-route:/leases/[leaseId] -->
@@ -33,7 +39,7 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 <!-- authenticated-route:/ledger -->
 | `/ledger` | `requireFinanceContext` / `canReadFinance` | context via advanced-ledger; pending sa:ledger | context via advanced-ledger; pending fm:ledger | context via advanced-ledger; pending fmem:ledger | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account, no-admin-unit-link |
 <!-- authenticated-route:/maintenance -->
-| `/maintenance` | `requirePermission` / `canManageOperations` | global via shell-maintenance; pending sa:maintenance | Intentionally inaccessible — Requires canManageOperations. | Intentionally inaccessible — Requires canManageOperations. | global via shell-maintenance; pending om:maintenance | Intentionally inaccessible — Requires canManageOperations. | none |
+| `/maintenance` | `requirePermission("maintenance.view")` / `maintenance.view` | global via shell-maintenance; pending sa:maintenance | Intentionally inaccessible — Requires maintenance.view. | Intentionally inaccessible — Requires maintenance.view. | global via shell-maintenance; pending om:maintenance | global via shell-maintenance; pending omem:maintenance | none |
 <!-- authenticated-route:/maintenance-timeline -->
 | `/maintenance-timeline` | `requireSuperAdminContext` / `canManageAccess` | global via shell-maintenance-timeline; pending sa:maintenance-timeline | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/overview/[view] -->
@@ -61,7 +67,7 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 <!-- authenticated-route:/property-timeline -->
 | `/property-timeline` | `requireSuperAdminContext` / `canManageAccess` | global via shell-property-timeline; pending sa:property-timeline | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/recurring-tasks -->
-| `/recurring-tasks` | `requirePermission` / `canManageOperations` | global via shell-recurring; pending sa:recurring | Intentionally inaccessible — Requires canManageOperations. | Intentionally inaccessible — Requires canManageOperations. | global via shell-recurring; pending om:recurring | Intentionally inaccessible — Requires canManageOperations. | none |
+| `/recurring-tasks` | `requirePermission("maintenance.view")` / `maintenance.view` | global via shell-recurring; pending sa:recurring | Intentionally inaccessible — Requires maintenance.view. | Intentionally inaccessible — Requires maintenance.view. | global via shell-recurring; pending om:recurring | context via maintenance-recurring; pending omem:recurring | none |
 <!-- authenticated-route:/rent-income -->
 | `/rent-income` | `requireFinanceContext` / `canReadFinance` | global via shell-rent; pending sa:rent | global via shell-rent; pending fm:rent | global via shell-rent; pending fmem:rent | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
 <!-- authenticated-route:/reports/[reportKind] -->
@@ -101,7 +107,7 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 <!-- authenticated-route:/vendors -->
 | `/vendors` | `requirePermission` / `canManageAccess` | context via people-vendors; pending sa:vendors | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/work-orders -->
-| `/work-orders` | `requirePermission` / `canManageOperations` | global via shell-work-orders; pending sa:work-orders | Intentionally inaccessible — Requires canManageOperations. | Intentionally inaccessible — Requires canManageOperations. | global via shell-work-orders; pending om:work-orders | Intentionally inaccessible — Requires canManageOperations. | none |
+| `/work-orders` | `requirePermission("maintenance.view")` / `maintenance.view` | global via shell-work-orders; pending sa:work-orders | Intentionally inaccessible — Requires maintenance.view. | Intentionally inaccessible — Requires maintenance.view. | global via shell-work-orders; pending om:work-orders | context via maintenance-work-orders; pending omem:work-orders | none |
 
 ## Browser evidence
 
@@ -111,4 +117,6 @@ Browser evidence pending the exact-HEAD local fixture run.
 
 - Public, authentication, invitation, API, and error routes are outside this authenticated dashboard inventory.
 - Direct-denial checks prove authorization only; they are not counted as discoverability evidence.
+- Chart of Accounts and account activity are Finance-readable; account lifecycle mutations remain Super Admin-only.
+- Operations Member discovery of Recurring work, Inspections, and Work orders uses the existing mobile Maintenance workspace menu at 390x844; it does not certify desktop discovery. Their existing `maintenance.view` guards and mutation permissions are unchanged.
 - Hosted Supabase, Vercel, email, real IPS data, and production deployment remain unchanged.

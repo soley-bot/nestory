@@ -11,6 +11,44 @@ vi.mock("@/lib/db/server", () => ({
 }));
 
 describe("getMaintenanceScreenData reference loading", () => {
+  it.each([false, undefined])("loads branch-readable cases without assignment RPC authority (%s)", async (canAssignCase) => {
+    const supabase = createMaintenanceSupabaseStub({ assignmentDenied: true });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+
+    const result = await getMaintenanceScreenData(
+      "org-1",
+      makeViewQuery(),
+      { branchId: "branch-visible", dataScope: "branch", personId: "visible-assignee", workflowMode: "coordinator" },
+      canAssignCase === undefined ? undefined : { canAssignCase },
+    );
+
+    expect(result.cases[0]).toMatchObject({
+      id: "task-visible",
+      assigneeLabel: "Former Assignee",
+      vendorLabel: "Former Vendor",
+    });
+    expect(result.summary.total).toBe(2);
+    expect(result.staffOptions).toEqual([]);
+    expect(result.vendorOptions).toEqual([]);
+    expect(supabase.client.rpc).not.toHaveBeenCalledWith("get_maintenance_execution_members", expect.anything());
+    expect(supabase.client.rpc).not.toHaveBeenCalledWith("get_maintenance_vendor_options", expect.anything());
+    expect(supabase.eqCalls.filter((call) => call.table === "tasks").every(
+      (call) => call.filters.some(([column, value]) => column === "branch_id" && value === "branch-visible"),
+    )).toBe(true);
+  });
+
+  it("does not swallow assignment authorization failures for an authorized caller", async () => {
+    const supabase = createMaintenanceSupabaseStub({ assignmentDenied: true });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+
+    await expect(getMaintenanceScreenData(
+      "org-1",
+      makeViewQuery(),
+      { branchId: "branch-visible", dataScope: "branch", workflowMode: "coordinator" },
+      { canAssignCase: true },
+    )).rejects.toThrow("Could not load executable maintenance members: Not authorized");
+  });
+
   it("loads people only for visible cases and executable member identities", async () => {
     const supabase = createMaintenanceSupabaseStub();
     vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
@@ -19,6 +57,7 @@ describe("getMaintenanceScreenData reference loading", () => {
       "org-1",
       makeViewQuery(),
       { dataScope: "organization", workflowMode: "coordinator" },
+      { canAssignCase: true },
     );
 
     expect(
@@ -65,6 +104,7 @@ describe("getMaintenanceScreenData reference loading", () => {
       "org-1",
       makeViewQuery(),
       { dataScope: "organization", workflowMode: "coordinator" },
+      { canAssignCase: true },
     );
 
     const peopleIdCalls = supabase.inCalls.filter(
@@ -308,9 +348,11 @@ type EqCall = {
 };
 
 function createMaintenanceSupabaseStub({
+  assignmentDenied = false,
   documentRows = [],
   memberIdentityCount = 1,
 }: {
+  assignmentDenied?: boolean;
   documentRows?: Array<Record<string, unknown>>;
   memberIdentityCount?: number;
 } = {}) {
@@ -381,6 +423,9 @@ function createMaintenanceSupabaseStub({
       return createQuery(table, rowsByTable, inCalls, eqCalls);
     }),
     rpc: vi.fn(async (name: string) => {
+      if (assignmentDenied && ["get_maintenance_execution_members", "get_maintenance_vendor_options"].includes(name)) {
+        return { data: null, error: { code: "42501", message: "Not authorized" } };
+      }
       if (name === "get_maintenance_task_documents") {
         return { data: documentRows, error: null };
       }

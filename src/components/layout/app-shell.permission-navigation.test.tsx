@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "@/components/layout/app-shell";
@@ -21,6 +21,29 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("permission-first AppShell navigation", () => {
+  it.each(["Finance Manager", "Finance Member"])("keeps %s lease navigation out of the denied property register", (roleName) => {
+    render(
+      <AppShell permissionKeys={["leases.view", "finance.view"]} roleKind="custom" roleName={roleName}>
+        <div>Workspace content</div>
+      </AppShell>,
+    );
+    const globalNav = screen.getByRole("navigation", { name: "Global navigation" });
+    expect(within(globalNav).getByRole("link", { name: "Properties" }).getAttribute("href")).toBe("/leases");
+    fireEvent.click(screen.getByRole("button", { name: "Expand Properties navigation" }));
+    expect(within(globalNav).getByRole("link", { name: "Leases" }).getAttribute("href")).toBe("/leases");
+    expect(globalNav.querySelector('a[href="/properties"]')).toBeNull();
+    expect(globalNav.querySelector('a[href="/units"]')).toBeNull();
+  });
+
+  it("retains the property register parent when property read authority exists", () => {
+    render(
+      <AppShell permissionKeys={["properties.view", "leases.view"]} roleKind="custom" roleName="Property Reader">
+        <div>Workspace content</div>
+      </AppShell>,
+    );
+    expect(screen.getByRole("link", { name: "Properties" }).getAttribute("href")).toBe("/properties");
+  });
+
   it("shows only Finance navigation for a custom role with Finance view", () => {
     render(
       <AppShell
@@ -38,10 +61,10 @@ describe("permission-first AppShell navigation", () => {
     expect(screen.queryByRole("link", { name: /Settings/ })).toBeNull();
     expect(screen.queryByRole("link", { name: "Quick Create" })).toBeNull();
     expect(screen.getByText("Finance Contributor")).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Advanced" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Advanced" }).getAttribute("href")).toBe("/finance/advanced");
   });
 
-  it("shows Advanced finance only with correction or period-close authority", () => {
+  it("keeps Advanced navigation available to Finance controllers", () => {
     render(
       <AppShell
         permissionKeys={["finance.view", "finance.correct_records"]}
@@ -67,6 +90,8 @@ describe("permission-first AppShell navigation", () => {
     );
 
     expect(screen.getByRole("button", { name: "Search or jump" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Advanced" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Rent & collections" })).toBeNull();
   });
 
   it("uses the permission-first workspace entry for a branch-scoped role", () => {

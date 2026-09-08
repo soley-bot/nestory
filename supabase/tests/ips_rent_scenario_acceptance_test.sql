@@ -4,6 +4,22 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
 SELECT plan(28);
 
+CREATE FUNCTION pg_temp.next_period_start()
+RETURNS date
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT (date_trunc('month', current_date) + interval '1 month')::date
+$$;
+
+CREATE FUNCTION pg_temp.following_period_start()
+RETURNS date
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT (date_trunc('month', current_date) + interval '2 months')::date
+$$;
+
 SELECT has_table(
   'public',
   'tenant_invoice_rent_segments',
@@ -117,11 +133,15 @@ JOIN public.property_owners AS central_owner
  AND central_owner.property_id = central_property.id
  AND central_owner.is_primary
  AND central_owner.archived_at IS NULL
- AND central_owner.started_on <= '2026-08-31'
- AND (central_owner.ended_on IS NULL OR central_owner.ended_on > '2026-08-01')
+ AND central_owner.started_on <=
+   (date_trunc('month', current_date) + interval '1 month - 1 day')::date
+ AND (
+   central_owner.ended_on IS NULL
+   OR central_owner.ended_on > date_trunc('month', current_date)::date
+ )
 WHERE full_invoice.organization_id = '00000000-0000-0000-0000-000000000001'
   AND full_property.code = 'RIV-SHP'
-  AND full_invoice.billing_period_start = '2026-08-01'
+  AND full_invoice.billing_period_start = date_trunc('month', current_date)::date
   AND central_property.code = 'CTR-RES'
   AND ips_partial_unit.unit_number = 'A-01'
   AND direct_partial_invoice.property_id = central_property.id
@@ -221,7 +241,8 @@ VALUES
     '89000000-0000-0000-0000-000000000051',
     '00000000-0000-0000-0000-000000000001',
     '88000000-0000-0000-0000-000000000051',
-    1, '2026-09-15', '2026-11-15', 900.00, 'USD', 5, 'monthly',
+    1, pg_temp.next_period_start() + 14, pg_temp.following_period_start() + 14,
+    900.00, 'USD', 5, 'monthly',
     'active', 'authoritative', pg_catalog.now(),
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000101',
@@ -231,7 +252,9 @@ VALUES
     '89000000-0000-0000-0000-000000000052',
     '00000000-0000-0000-0000-000000000001',
     '88000000-0000-0000-0000-000000000052',
-    1, '2026-10-01', '2026-11-30', 1000.00, 'USD', 5, 'monthly',
+    1, pg_temp.following_period_start(),
+    (pg_temp.following_period_start() + interval '1 month - 1 day')::date,
+    1000.00, 'USD', 5, 'monthly',
     'active', 'authoritative', pg_catalog.now(),
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000101',
@@ -251,7 +274,8 @@ VALUES
     '00000000-0000-0000-0000-000000000001',
     '88000000-0000-0000-0000-000000000051',
     '10000000-0000-0000-0000-000000000002',
-    '2026-09-15', '2026-11-15', 'through_ips', 'percentage', 0,
+    pg_temp.next_period_start() + 14, pg_temp.following_period_start() + 14,
+    'through_ips', 'percentage', 0,
     false, false, 'individual',
     '85000000-0000-0000-0000-000000000051',
     480.00, 450.00, pg_catalog.now(),
@@ -263,7 +287,9 @@ VALUES
     '00000000-0000-0000-0000-000000000001',
     '88000000-0000-0000-0000-000000000052',
     '10000000-0000-0000-0000-000000000002',
-    '2026-10-01', '2027-01-31', 'through_ips', 'percentage', 0,
+    pg_temp.following_period_start(),
+    (pg_temp.following_period_start() + interval '3 months - 1 day')::date,
+    'through_ips', 'percentage', 0,
     false, false, 'individual',
     '85000000-0000-0000-0000-000000000052',
     NULL, NULL, pg_catalog.now(),
@@ -289,7 +315,8 @@ SELECT results_eq(
     JOIN public.properties AS property ON property.id = invoice.property_id
     WHERE invoice.id = (SELECT full_invoice_id FROM ips_rent_runtime)
   $$,
-  $$ VALUES ('RIV-SHP'::text, 1450.00::numeric, current_date,
+  $$ VALUES ('RIV-SHP'::text, 1450.00::numeric,
+    greatest(current_date, date_trunc('month', current_date)::date + 4),
     'unpaid'::text, 1450.00::numeric) $$,
   'the full-month scenario retains one exact unpaid obligation with a due date no earlier than issuance'
 );
@@ -362,7 +389,9 @@ WITH scheduled AS (
   SELECT public.schedule_authoritative_lease_term(
     '00000000-0000-0000-0000-000000000001',
     (SELECT rent_change_lease_id FROM ips_rent_runtime),
-    '2026-09-15', '2027-11-30', 1550.00, 'USD', 5, 'monthly',
+    pg_temp.next_period_start() + 14,
+    (pg_temp.next_period_start() + interval '14 months - 1 day')::date,
+    1550.00, 'USD', 5, 'monthly',
     (
       SELECT id FROM public.lease_terms
       WHERE organization_id = '00000000-0000-0000-0000-000000000001'
@@ -398,14 +427,14 @@ RESET ROLE;
 SELECT app_private.generate_lease_rent_invoice(
   '00000000-0000-0000-0000-000000000001',
   (SELECT move_lease_id FROM ips_rent_runtime),
-  '2026-09-01', '2026-09-01', 'scheduled',
+  pg_temp.next_period_start(), pg_temp.next_period_start(), 'scheduled',
   '00000000-0000-0000-0000-000000000101'
 );
 
 SELECT app_private.generate_lease_rent_invoice(
   '00000000-0000-0000-0000-000000000001',
   (SELECT move_lease_id FROM ips_rent_runtime),
-  '2026-11-01', '2026-11-01', 'scheduled',
+  pg_temp.following_period_start(), pg_temp.following_period_start(), 'scheduled',
   '00000000-0000-0000-0000-000000000101'
 );
 
@@ -421,9 +450,9 @@ SELECT results_eq(
     ORDER BY invoice.billing_period_start
   $$,
   $$ VALUES
-    ('2026-09-01'::date, 480.00::numeric, true, 480.00::numeric,
+    (pg_temp.next_period_start(), 480.00::numeric, true, 480.00::numeric,
       'billing_override'::text),
-    ('2026-11-01'::date, 450.00::numeric, true, 450.00::numeric,
+    (pg_temp.following_period_start(), 450.00::numeric, true, 450.00::numeric,
       'billing_override'::text)
   $$,
   'mid-month move-in and move-out retain their exact agreed billing amounts'
@@ -464,7 +493,7 @@ SELECT lives_ok(
     SELECT app_private.generate_lease_rent_invoice(
       '00000000-0000-0000-0000-000000000001',
       (SELECT rent_change_lease_id FROM ips_rent_runtime),
-      '2026-09-01', '2026-09-01', 'scheduled',
+      pg_temp.next_period_start(), pg_temp.next_period_start(), 'scheduled',
       '00000000-0000-0000-0000-000000000101'
     )
   $$,
@@ -495,7 +524,7 @@ BEGIN
      AND segment.invoice_id = invoice.id
     WHERE invoice.organization_id = '00000000-0000-0000-0000-000000000001'
       AND invoice.lease_id = (SELECT rent_change_lease_id FROM ips_rent_runtime)
-      AND invoice.billing_period_start = '2026-09-01'
+      AND invoice.billing_period_start = pg_temp.next_period_start()
     GROUP BY invoice.total_amount, invoice.is_prorated
   $query$ INTO v_result;
   RETURN coalesce(v_result, 'missing');
@@ -513,7 +542,7 @@ SELECT is(
 SELECT app_private.generate_lease_rent_invoice(
   '00000000-0000-0000-0000-000000000001',
   (SELECT rent_change_lease_id FROM ips_rent_runtime),
-  '2026-10-01', '2026-10-01', 'scheduled',
+  pg_temp.following_period_start(), pg_temp.following_period_start(), 'scheduled',
   '00000000-0000-0000-0000-000000000101'
 );
 
@@ -530,14 +559,15 @@ SELECT results_eq(
       ON invoice.organization_id = new_term.organization_id
      AND invoice.lease_id = new_term.lease_id
      AND invoice.lease_term_id = new_term.id
-     AND invoice.billing_period_start = '2026-10-01'
+     AND invoice.billing_period_start = pg_temp.following_period_start()
     JOIN public.tenant_invoice_rent_segments AS segment
       ON segment.organization_id = invoice.organization_id
      AND segment.invoice_id = invoice.id
     WHERE new_term.id = (SELECT replacement_term_id FROM ips_rent_runtime)
   $$,
   $$ VALUES (
-    '2026-09-14'::date, '2026-09-15'::date, 1550.00::numeric, true,
+    pg_temp.next_period_start() + 13, pg_temp.next_period_start() + 14,
+    1550.00::numeric, true,
     1550.00::numeric, 1550.00::numeric
   ) $$,
   'the superseding rent term keeps an unbroken chain and applies next full period'
@@ -552,7 +582,7 @@ WITH paid AS (
   SELECT public.record_tenant_invoice_payment(
     '00000000-0000-0000-0000-000000000001',
     (SELECT ips_partial_invoice_id FROM ips_rent_runtime),
-    25.00, '2026-08-11',
+    25.00, date_trunc('month', current_date)::date + 10,
     (SELECT reconciliation_source_id FROM ips_rent_runtime),
     'Track 5 late settlement',
     pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
@@ -574,7 +604,12 @@ SELECT results_eq(
       ON payment.id = (SELECT payment_id FROM ips_rent_runtime)
     WHERE balance.id = (SELECT ips_partial_invoice_id FROM ips_rent_runtime)
   $$,
-  $$ VALUES ('paid'::text, 0.00::numeric, '2026-08-11'::date, false) $$,
+  $$ VALUES (
+    'paid'::text,
+    0.00::numeric,
+    date_trunc('month', current_date)::date + 10,
+    true
+  ) $$,
   'payment closes the exact tenant balance while preserving its settlement date and issuance-floor timing'
 );
 
@@ -601,7 +636,9 @@ SELECT is(
     FROM public.get_property_cash_events_page(
       '00000000-0000-0000-0000-000000000001',
       (SELECT central_property_id FROM ips_rent_runtime),
-      'USD', '2026-08-01', '2026-08-31', NULL, NULL, NULL, 200
+      'USD', date_trunc('month', current_date)::date,
+      (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
+      NULL, NULL, NULL, 200
     ) AS cash
     WHERE cash.source_type = 'receipt_allocation'
       AND cash.source_parent_id = (
@@ -661,7 +698,7 @@ SELECT lives_ok(
       '00000000-0000-0000-0000-000000000001',
       (SELECT central_property_id FROM ips_rent_runtime),
       (SELECT central_owner_id FROM ips_rent_runtime),
-      'USD', '2026-08-01', 'track-5-owner-period'
+      'USD', date_trunc('month', current_date)::date, 'track-5-owner-period'
     )
   $$,
   'the changed rent source rerolls the authoritative owner period'
@@ -675,7 +712,9 @@ SELECT lives_ok(
   $$
     SELECT public.set_financial_month_lock(
       '00000000-0000-0000-0000-000000000001',
-      '2026-08-01', true, 'Track 5 rent lifecycle close'
+      date_trunc('month', current_date)::date,
+      true,
+      'Track 5 rent lifecycle close'
     )
   $$,
   'Super Admin locks the reconciled rent month before close'
@@ -699,7 +738,8 @@ WITH closed AS (
     '00000000-0000-0000-0000-000000000001',
     (SELECT central_property_id FROM ips_rent_runtime),
     (SELECT central_owner_id FROM ips_rent_runtime),
-    'USD', '2026-08-01', 'Track 5 rent-to-statement acceptance',
+    'USD', date_trunc('month', current_date)::date,
+    'Track 5 rent-to-statement acceptance',
     'track-5-owner-close'
   ) AS result
 )
@@ -761,7 +801,8 @@ SELECT throws_ok(
     SELECT public.schedule_authoritative_lease_term(
       '00000000-0000-0000-0000-000000000001',
       (SELECT move_lease_id FROM ips_rent_runtime),
-      '2026-09-20', '2026-11-15', 950.00, 'USD', 5, 'monthly',
+      pg_temp.next_period_start() + 19, pg_temp.following_period_start() + 14,
+      950.00, 'USD', 5, 'monthly',
       (SELECT move_term_id FROM ips_rent_runtime),
       'track-5-generated-obligation-drift'
     )

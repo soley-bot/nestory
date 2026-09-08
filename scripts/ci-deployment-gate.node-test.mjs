@@ -7,6 +7,10 @@ const pilotSnapshotPath = new URL(
   "./pilot-preservation-snapshot.sql",
   import.meta.url,
 );
+const pilotChartPostflightPath = new URL(
+  "./verify-pilot-chart-of-accounts-postflight.sql",
+  import.meta.url,
+);
 const newlineRecoveryPath = new URL(
   "./normalize-hosted-function-newlines.sql",
   import.meta.url,
@@ -267,6 +271,10 @@ test("production database release is serialized and runs only from exact merged 
     ],
     ["Verify hosted migration postflight", "npm run db:hosted-postflight"],
     ["Verify Pilot preservation postflight", "diff --unified=0"],
+    [
+      "Verify Pilot Chart of Accounts postflight",
+      "scripts/verify-pilot-chart-of-accounts-postflight.sql",
+    ],
     [
       "Lint linked database",
       "npm exec -- supabase db lint --linked --level error --fail-on error",
@@ -602,8 +610,64 @@ test("production release compares an aggregate-only Pilot preservation snapshot"
   assert.match(query, /'leaseLifecycleEventCount'/);
   assert.match(query, /'ownerComponentMovementCount'/);
   assert.match(query, /'activityLogCount'/);
+  assert.match(query, /'privilegedStepUpPolicyCount'/);
+  assert.match(query, /'privilegedStepUpEnabledPolicyCount'/);
   assert.match(query, /'membershipCount'\)::integer = 4/);
   assert.match(query, /'superAdminMembershipCount'\)::integer = 4/);
+  assert.doesNotMatch(query, /finance_account/i);
+  assert.doesNotMatch(
+    query,
+    /\b(?:insert|update|delete|truncate|alter|drop|create|grant|revoke)\b/i,
+  );
+});
+
+test("production release runs a fail-closed aggregate Pilot Chart postflight", async () => {
+  const [workflow, query] = await Promise.all([
+    readFile(workflowPath, "utf8"),
+    readFile(pilotChartPostflightPath, "utf8"),
+  ]);
+  const release = getJob(workflow, "production_database");
+  const step = getStep(release, "Verify Pilot Chart of Accounts postflight");
+
+  assertStepHasSecret(step, "SUPABASE_ACCESS_TOKEN");
+  assertStepHasSecret(step, "SUPABASE_DB_PASSWORD");
+  assert.match(
+    step,
+    /db query --linked --file scripts\/verify-pilot-chart-of-accounts-postflight\.sql/,
+  );
+  assert.match(step, /\.rows \| select\(length == 1\)/);
+
+  const hostedPostflight = release.indexOf(
+    "      - name: Verify hosted migration postflight\n",
+  );
+  const chartPostflight = release.indexOf(
+    "      - name: Verify Pilot Chart of Accounts postflight\n",
+  );
+  const linkedLint = release.indexOf("      - name: Lint linked database\n");
+  const finalDryRun = release.indexOf(
+    "      - name: Confirm no pending production migrations\n",
+  );
+  assert.ok(hostedPostflight < chartPostflight);
+  assert.ok(chartPostflight < linkedLint);
+  assert.ok(chartPostflight < finalDryRun);
+
+  assert.match(query, /organization\.slug = 'pilot'/);
+  assert.match(query, /'organizationCount'/);
+  assert.match(query, /'requiredStarterAccountCount'/);
+  assert.match(query, /'requiredDefaultCount'/);
+  assert.match(query, /'activeSourceMappingViolationCount'/);
+  assert.match(query, /'activeCategoryMappingViolationCount'/);
+  assert.match(query, /'privilegedTriggerCount'/);
+  assert.match(query, /'enabledPolicyCount'/);
+  assert.match(query, /privileged_email_step_up_enforcement/);
+  assert.match(query, /trigger_record\.tgenabled IN \('O', 'A'\)/);
+  assert.match(query, /trigger_record\.tgtype = 31/);
+  assert.match(query, /trigger_record\.tgfoid = 'app_private\.enforce_privileged_email_step_up_on_organization_mutation\(\)'::regprocedure/);
+  assert.match(query, /account\.use_for_lease_charges/);
+  assert.match(query, /account\.use_for_lease_deposits/);
+  assert.match(query, /finance_account_source_links/);
+  assert.match(query, /finance_account_category_links/);
+  assert.doesNotMatch(query, /organization\.id\s+AS|user_id\s+AS/i);
   assert.doesNotMatch(
     query,
     /\b(?:insert|update|delete|truncate|alter|drop|create|grant|revoke)\b/i,

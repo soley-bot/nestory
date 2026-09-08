@@ -16,12 +16,14 @@ import type {
   ReportsViewQuery,
 } from "@/features/reports/reports.types";
 import { cn } from "@/lib/utils";
+import { RecheckReport } from "@/features/reports/components/report-remediation-controls";
 
 type ReportsScreenProps = ReportsScreenData & {
   organizationName: string;
 };
 
 export function ReportBuilderScreen({
+  ownerOptions = [],
   propertyOptions,
   trustedReport,
   unitOptions,
@@ -41,13 +43,14 @@ export function ReportBuilderScreen({
 
   return (
     <WorkspacePage
-      actions={validation ? undefined : <ExportMenu viewQuery={viewQuery} />}
+      actions={<div className="flex items-center gap-2"><RecheckReport />{validation ? null : <ExportMenu viewQuery={viewQuery} />}</div>}
       breadcrumbItems={[{ href: "/reports", label: "Reports" }]}
       title={selectedReport.title}
     >
       <div className="flex min-w-0 flex-col bg-background">
         <ReportsFilters
           action={`/reports/${viewQuery.report}`}
+          ownerOptions={ownerOptions}
           propertyOptions={propertyOptions}
           unitOptions={unitOptions}
           viewQuery={viewQuery}
@@ -136,10 +139,12 @@ function ExportMenu({ viewQuery }: { viewQuery: ReportsViewQuery }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-40">
         <DropdownMenuItem asChild>
-          <a href={buildExportHref("/api/reports/pdf", viewQuery)}>PDF</a>
+          <a href={buildExportHref("/api/reports/pdf", viewQuery)}>PDF report</a>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <a href={buildExportHref("/api/reports/excel", viewQuery)}>Excel</a>
+          <a href={buildExportHref("/api/reports/excel", viewQuery)}>
+            Excel workbook
+          </a>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -153,6 +158,12 @@ function buildExportHref(path: string, viewQuery: ReportsViewQuery) {
   });
   if (viewQuery.propertyId !== "all") {
     params.set("propertyId", viewQuery.propertyId);
+  }
+  if (
+    viewQuery.report === "monthly-owner-activity" &&
+    viewQuery.ownerPersonId !== "all"
+  ) {
+    params.set("ownerPersonId", viewQuery.ownerPersonId);
   }
   if (viewQuery.report === "unit-profit-loss" && viewQuery.unitId !== "all") {
     params.set("unitId", viewQuery.unitId);

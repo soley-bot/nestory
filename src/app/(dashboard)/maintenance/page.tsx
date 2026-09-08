@@ -24,7 +24,7 @@ export default async function MaintenancePage({
     dataScope: context.isSuperAdmin ? "organization" : "branch",
     personId: context.personId,
     workflowMode: "coordinator",
-  });
+  }, capabilities);
   const initialTaskId = viewQuery.taskId === "all" ? undefined : viewQuery.taskId;
 
   return (

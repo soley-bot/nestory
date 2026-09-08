@@ -25,6 +25,7 @@ export default async function RentIncomePage({
       canReverseExpense={context.capabilities.canReverseExpense}
       canRetryCurrentRent={context.capabilities.canRetryCurrentRent}
       canSubmitExpense={context.capabilities.canSubmitExpense}
+      canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       initialBillingLeaseId={initialBillingLeaseId}
       initialRentLeaseId={query.leaseId}
       organizationName={context.organizationName}

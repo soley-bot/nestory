@@ -242,10 +242,14 @@ function financeData(
 ): FinanceOperationsData {
   return {
     accountEntries: [],
+    expenseAccounts: [],
     expenseSubmissions: [],
     financeCategories: [],
+    leaseChargeAccounts: [],
+    leaseDepositAccounts: [],
     leases: [],
     ownerInvoices: [],
+    payFromAccounts: [],
     peopleOptions: [],
     positions: [],
     propertyOptions: [],

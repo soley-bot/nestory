@@ -217,14 +217,14 @@ VALUES
     'd4400000-0000-4000-8000-000000000001',
     'd4400000-0000-4000-8000-000000000002',
     'd4400000-0000-4000-8000-000000000003',
-    100.000, '2026-01-01', '2026-09-01'
+    100.000, '2026-01-01', current_date + 1
   ),
   (
     'd4400000-0000-4000-8000-000000000006',
     'd4400000-0000-4000-8000-000000000001',
     'd4400000-0000-4000-8000-000000000002',
     'd4400000-0000-4000-8000-000000000005',
-    100.000, '2026-09-01', NULL
+    100.000, current_date + 1, NULL
   );
 
 INSERT INTO public.organization_members (organization_id, user_id, role)
@@ -401,7 +401,7 @@ BEGIN
     'd4400000-0000-4000-8000-000000000001',
     'd4400000-0000-4000-8000-000000000002',
     'd4400000-0000-4000-8000-000000000003',
-    'USD', '2026-08-31'
+    'USD', current_date
   );
   RETURN v_result->>'available_withdrawal';
 EXCEPTION WHEN OTHERS THEN
@@ -659,7 +659,7 @@ BEGIN
     'd4400000-0000-4000-8000-000000000002',
     'd4400000-0000-4000-8000-000000000003',
     'd4400000-0000-4000-8000-000000000005',
-    'USD', '2026-09-01', 'ips_held_owner_cash', 30.00,
+    'USD', current_date + 1, 'ips_held_owner_cash', 30.00,
     'Ownership changed at September boundary',
     'signed-transfer-instruction-2026-09', repeat('7', 64),
     'owner-component-transfer-0001'
@@ -696,7 +696,7 @@ SELECT results_eq(
       owner_person_id,
       to_char(sum(signed_amount), 'FM999999999990.00')
     FROM public.owner_component_movements
-    WHERE event_date = '2026-09-01'
+    WHERE event_date = current_date + 1
       AND component = 'ips_held_owner_cash'
     GROUP BY owner_person_id
     ORDER BY owner_person_id

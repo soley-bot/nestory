@@ -20,9 +20,13 @@ import {
 } from "@/features/finance-operations/actions";
 import type {
   FinanceOperationsActionState,
-  FinanceOption,
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
+import type { FinanceAccountOption } from "@/features/finance-accounts/finance-accounts.types";
+import {
+  findConfiguredAccountId,
+  isTenantPaymentReceivingAccount,
+} from "@/features/finance-accounts/finance-account-selection";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatMoneyDisplay } from "@/lib/money/format";
 
@@ -38,7 +42,7 @@ type TenantInvoicePaymentFormProps = {
   onReceiptResult: (result: TenantPaymentReceiptResult) => void;
   onSuccess: (message: string) => void;
   ownerLabel: string;
-  reconciliationSources: FinanceOption[];
+  payFromAccounts: FinanceAccountOption[];
   submitLabel?: string;
 };
 
@@ -59,7 +63,7 @@ function TenantInvoicePaymentFormStateful({
   onReceiptResult,
   onSuccess,
   ownerLabel,
-  reconciliationSources,
+  payFromAccounts,
   submitLabel,
 }: TenantInvoicePaymentFormProps) {
   const idempotencyKey = useStableActionId(
@@ -75,10 +79,16 @@ function TenantInvoicePaymentFormStateful({
   const formRef = useRef<HTMLFormElement | null>(null);
   const deliveredSuccessRef = useRef<FinanceOperationsActionState | null>(null);
   const submittedSafeValuesRef = useRef<Map<string, string>>(new Map());
-  const sources = reconciliationSources.filter(
-    (source) => !source.propertyId || source.propertyId === invoice.propertyId,
+  const receivingAccounts = payFromAccounts.filter(
+    (account) => isTenantPaymentReceivingAccount(account, invoice.propertyId),
   );
-  const defaultReceivingSourceId = getDefaultReceivingSourceId(sources);
+  const defaultReceivingAccountId = getDefaultReceivingAccountId(
+    receivingAccounts,
+    invoice.propertyId,
+  );
+  const defaultReceivingAccount = receivingAccounts.find(
+    (account) => account.id === defaultReceivingAccountId,
+  );
   const outstandingLines = invoice.lines.filter((line) => line.balanceDue > 0);
   const settlementDateLabel =
     invoice.collectionRoute === "through_ips"
@@ -163,25 +173,45 @@ function TenantInvoicePaymentFormStateful({
             <div className="space-y-1.5">
               <SelectControl
                 ariaLabel="Received into"
-                defaultValue={defaultReceivingSourceId}
-                name="reconciliationSourceId"
-                options={sources.map((source) => ({
-                  label: getReceivingSourceDisplayLabel(source.label),
-                  value: source.id,
+                defaultValue={defaultReceivingAccountId}
+                name="receivingAccountId"
+                options={receivingAccounts.map((account) => ({
+                  label: account.displayName,
+                  value: account.id,
                 }))}
                 placeholder="Choose receiving account"
                 required
               />
               <p className="text-xs leading-4 text-muted-foreground">
                 Where the payment actually arrived.
+                {defaultReceivingAccount?.propertyId === invoice.propertyId
+                  ? " Defaulted from this property; choose another account if needed."
+                  : ""}
               </p>
             </div>
           </Field>
         ) : null}
-        <Field label="Reference">
-          <Input name="reference" placeholder="Optional" />
+        <Field label="Payment method or reference">
+          <Input
+            name="reference"
+            placeholder="e.g. bank transfer · ABA 1234"
+          />
         </Field>
       </div>
+      {invoice.collectionRoute === "through_ips" ? (
+        <div className="space-y-1 text-xs leading-4 text-muted-foreground">
+          <p>
+            Automatic allocation applies Rent first, then other charges in
+            invoice order. Expand below to override when several charges are
+            outstanding.
+          </p>
+          <p>
+            A PDF receipt is created after the payment is recorded. If the
+            receipt cannot be created, the payment stays recorded and the
+            receipt can be retried.
+          </p>
+        </div>
+      ) : null}
       {outstandingLines.length > 1 ? (
         <details className="rounded-md border border-border">
           <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
@@ -236,17 +266,21 @@ function useStableActionId(prefix: string) {
   return id;
 }
 
-const FINANCE_SOURCE_LABEL_SEPARATOR = " · ";
-
-function getDefaultReceivingSourceId(sources: FinanceOption[]) {
-  return sources.length === 1 ? sources[0]?.id : undefined;
-}
-
-function getReceivingSourceDisplayLabel(label: string) {
-  const separatorIndex = label.indexOf(FINANCE_SOURCE_LABEL_SEPARATOR);
-  return separatorIndex < 0
-    ? label
-    : label.slice(separatorIndex + FINANCE_SOURCE_LABEL_SEPARATOR.length);
+function getDefaultReceivingAccountId(
+  accounts: FinanceAccountOption[],
+  propertyId: string,
+) {
+  const configuredAccountId = findConfiguredAccountId(
+    accounts,
+    "operating_bank",
+    propertyId,
+  );
+  if (configuredAccountId) return configuredAccountId;
+  const propertyAccounts = accounts.filter(
+    (account) => account.propertyId === propertyId,
+  );
+  if (propertyAccounts.length === 1) return propertyAccounts[0]?.id;
+  return accounts.length === 1 ? accounts[0]?.id : undefined;
 }
 
 function captureSafeUncontrolledValues(form: HTMLFormElement) {

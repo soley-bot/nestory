@@ -556,21 +556,24 @@ describe("Lease occupancy evidence input", () => {
 
   it("records deposit activity with a deterministic PostgreSQL fixture identifier", async () => {
     const leaseDepositId = "50000000-0000-0000-0000-000000000001";
+    const liabilityAccountId = "70000000-0000-0000-0000-000000000001";
     const formData = new FormData();
     formData.set("amount", "500");
     formData.set("eventDate", "2027-05-03");
     formData.set("eventType", "received");
     formData.set("leaseDepositId", leaseDepositId);
+    formData.set("liabilityAccountId", liabilityAccountId);
     formData.set("reference", "Receipt 1001");
 
     await expect(
       recordLeaseDepositEventAction({}, formData),
     ).resolves.toMatchObject({ status: "success" });
-    expect(rpc).toHaveBeenCalledWith("record_lease_deposit_event", {
+    expect(rpc).toHaveBeenCalledWith("record_lease_deposit_event_with_account", {
       p_amount: 500,
       p_event_date: "2027-05-03",
       p_event_type: "received",
       p_lease_deposit_id: leaseDepositId,
+      p_liability_account_id: liabilityAccountId,
       p_organization_id: organizationId,
       p_reference: "Receipt 1001",
     });

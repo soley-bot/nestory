@@ -40,6 +40,81 @@ describe("lease screen data readiness", () => {
     getPersonSelectOptions.mockClear();
   });
 
+  it("loads named leases and term history when whole-domain related reads are denied", async () => {
+    // Break caught: joining domain-filtered People/Properties/terms hides a permitted Lease.
+    const rows = leaseRows(1);
+    const { client } = leaseLoaderStub({ rows, scopedOnly: true });
+    createSupabaseServerClient.mockResolvedValue(client);
+
+    const result = await getLeasesScreenData(organizationId, parseLeaseSearchParams({}));
+
+    expect(result.pagination.totalCount).toBe(1);
+    expect(result.leases[0]).toMatchObject({
+      tenantName: "Tenant 1", propertyName: "Pilot Property", unitLabel: "Whole property",
+      terms: [expect.objectContaining({ id: "term-1" })],
+      parties: [expect.objectContaining({ label: "Tenant 1" })],
+    });
+  });
+
+  it("uses scoped readiness for a focused lease without finance authority context", async () => {
+    // Break caught: the legacy readiness resolver throws 42501 after the list starts working.
+    const rows = leaseRows(1);
+    const { client } = leaseLoaderStub({ rows, scopedOnly: true });
+    createSupabaseServerClient.mockResolvedValue(client);
+    const result = await getLeasesScreenData(organizationId, parseLeaseSearchParams({ leaseId: rows[0].id }));
+    expect(result.leases[0]?.rentReadiness.status).toBe("ready");
+  });
+
+  it("shows 60 held after 100 received and 40 refunded when direct deposit events are denied", async () => {
+    // Break caught: populated deposit metadata plus RLS-empty direct events fabricates a zero held balance.
+    const rows = leaseRows(1);
+    rows[0].id = "9603a15b-8b35-47e1-90f5-f10f647ebba5";
+    const { client } = leaseLoaderStub({ rows, scopedOnly: true, fundedDeposit: true });
+    createSupabaseServerClient.mockResolvedValue(client);
+    const result = await getLeasesScreenData(organizationId, parseLeaseSearchParams({ leaseId: rows[0].id }));
+    expect(result.leases[0]?.deposits).toEqual([expect.objectContaining({
+      id: "e57c9acf-a035-4ac9-a858-236d9709d5c1", amount: 850,
+      receivedAmount: 100, heldBalance: 60, heldBalanceCents: 6000, statusLabel: "Partially held",
+      events: [
+        expect.objectContaining({ eventType: "refunded", amountDisplay: { primary: "USD 40.00" } }),
+        expect.objectContaining({ eventType: "received", amountDisplay: { primary: "USD 100.00" } }),
+      ],
+    })]);
+  });
+
+  it("merges duplicate deposit event IDs once and preserves independently authorized references", async () => {
+    const rows = leaseRows(1);
+    const { client } = leaseLoaderStub({ rows, fundedDeposit: true, directDepositEvents: [
+      { id: "receipt-1", lease_deposit_id: "e57c9acf-a035-4ac9-a858-236d9709d5c1", event_type: "received", event_date: "2026-09-01", amount: 100, currency: "USD", reference: "Authorized receipt reference", reversal_of_id: null },
+    ] });
+    createSupabaseServerClient.mockResolvedValue(client);
+    const result = await getLeasesScreenData(organizationId);
+    expect(result.leases[0]?.deposits[0]).toMatchObject({
+      heldBalance: 60, receivedAmount: 100,
+      events: [expect.objectContaining({ id: "refund-1" }), expect.objectContaining({ id: "receipt-1", reference: "Authorized receipt reference" })],
+    });
+  });
+
+  it.each([null, {}, { properties: null }])("rejects malformed scoped context %j", async (context) => {
+    const { client } = leaseLoaderStub({ rows: leaseRows(1), contextResult: ok(context) });
+    createSupabaseServerClient.mockResolvedValue(client);
+    await expect(getLeasesScreenData(organizationId)).rejects.toThrow(/lease read context/i);
+  });
+
+  it.each([null, {}, [{ id: "missing-term-fields" }]])("rejects malformed lease list %j", async (data) => {
+    const { client } = leaseLoaderStub({ rows: leaseRows(1), listResult: ok(data, 1) });
+    createSupabaseServerClient.mockResolvedValue(client);
+    await expect(getLeasesScreenData(organizationId)).rejects.toThrow(/leases.*malformed/i);
+  });
+
+  it("keeps a missing scoped RPC fatal", async () => {
+    const { client } = leaseLoaderStub({ rows: leaseRows(1), contextResult: {
+      ...ok(null), error: { code: "PGRST202", details: "", hint: "", message: "Could not find get_lease_read_context" },
+    } });
+    createSupabaseServerClient.mockResolvedValue(client);
+    await expect(getLeasesScreenData(organizationId)).rejects.toThrow(/Could not find get_lease_read_context/);
+  });
+
   it("keeps a 50-row register neutral without launching readiness RPCs", async () => {
     const rows = leaseRows(50);
     const { client, readinessRpc } = leaseLoaderStub({ rows });
@@ -71,7 +146,7 @@ describe("lease screen data readiness", () => {
     expect(result.leases[0]?.rentReadiness.status).toBe("ready");
     expect(readinessRpc).toHaveBeenCalledTimes(1);
     expect(readinessRpc).toHaveBeenCalledWith(
-      "resolve_lease_rent_readiness",
+      "get_scoped_lease_rent_readiness",
       expect.objectContaining({
         p_lease_id: lease.id,
         p_organization_id: organizationId,
@@ -108,6 +183,13 @@ describe("lease screen data readiness", () => {
       status: "unknown",
       tone: "neutral",
     });
+  });
+
+  it.each([null, [], [{}]])("rejects malformed successful readiness %j", async (data) => {
+    const rows = leaseRows(1);
+    const { client } = leaseLoaderStub({ rows, readinessResult: ok(data) });
+    createSupabaseServerClient.mockResolvedValue(client);
+    await expect(getLeasesScreenData(organizationId, parseLeaseSearchParams({ leaseId: rows[0].id }))).rejects.toThrow(/readiness.*malformed/i);
   });
 
   it.each([
@@ -148,9 +230,19 @@ describe("lease screen data readiness", () => {
 function leaseLoaderStub({
   readinessResult,
   rows,
+  scopedOnly = false,
+  contextResult,
+  listResult,
+  fundedDeposit = false,
+  directDepositEvents = [],
 }: {
   readinessResult?: QueryResult;
   rows: ReturnType<typeof leaseRows>;
+  scopedOnly?: boolean;
+  contextResult?: QueryResult;
+  listResult?: QueryResult;
+  fundedDeposit?: boolean;
+  directDepositEvents?: Array<Record<string, unknown>>;
 }) {
   const readinessRpc = vi.fn(
     (name: string, args: Record<string, unknown>) => {
@@ -174,8 +266,25 @@ function leaseLoaderStub({
     },
   );
   const rpc = vi.fn((name: string, args: Record<string, unknown>) => {
+    if (name === "get_lease_read_context") {
+      return query(contextResult ?? ok({
+        properties: [{ archived_at: null, code: "PILOT", id: propertyId, name: "Pilot Property", rental_structure: "single_space" }],
+        units: [], availability_leases: [], availability_terms: [],
+        people: [{ id: tenantId, display_name: "Tenant 1" }],
+        parties: scopedOnly ? [{ id: "party-1", lease_id: rows[0].id, person_id: tenantId, party_role: "tenant", is_primary: true, started_on: "2026-08-01", ended_on: null, archived_at: null }] : [],
+        terms: scopedOnly ? [{ id: "term-1", lease_id: rows[0].id, term_sequence: 1, start_date: "2026-08-01", end_date: "2027-07-31", rent_amount: 500, rent_currency: "USD", rent_due_day: 1, payment_frequency: "monthly", status: "active", archived_at: null }] : [],
+        billing_terms: [], occupancies: [],
+        deposits: fundedDeposit ? [{ id: "e57c9acf-a035-4ac9-a858-236d9709d5c1", lease_id: rows[0].id, deposit_type: "security", amount: 850, currency: "USD", status: "partially_returned", archived_at: null }] : [],
+        deposit_events: fundedDeposit ? [
+          { id: "refund-1", lease_deposit_id: "e57c9acf-a035-4ac9-a858-236d9709d5c1", event_type: "refunded", event_date: "2026-09-02", amount: 40, currency: "USD", reference: null, reversal_of_id: null },
+          { id: "receipt-1", lease_deposit_id: "e57c9acf-a035-4ac9-a858-236d9709d5c1", event_type: "received", event_date: "2026-09-01", amount: 100, currency: "USD", reference: null, reversal_of_id: null },
+        ] : [],
+      }));
+    }
+    if (name === "get_scoped_leases_with_effective_rent") return query(listResult ?? ok(rows, rows.length));
+    if (name === "get_scoped_lease_rent_readiness") return readinessRpc(name, args);
     if (name === "get_leases_with_effective_rent") {
-      return query(ok(rows, rows.length));
+      return query(ok(scopedOnly ? [] : rows, scopedOnly ? 0 : rows.length));
     }
     if (name === "resolve_lease_rent_readiness") {
       return readinessRpc(name, args);
@@ -188,6 +297,7 @@ function leaseLoaderStub({
     lease_activation_schedules: ok([]),
     lease_billing_terms: ok([]),
     lease_deposits: ok([]),
+    lease_deposit_events: ok(directDepositEvents),
     lease_occupancies: ok([]),
     lease_parties: ok([]),
     lease_terms: ok([]),
@@ -211,7 +321,7 @@ function leaseLoaderStub({
     units: ok([]),
   };
   const from = vi.fn((table: string) =>
-    query(tableResults[table] ?? ok([])),
+    query(scopedOnly && ["properties", "units", "people", "lease_terms"].includes(table) ? ok([]) : tableResults[table] ?? ok([])),
   );
 
   return {

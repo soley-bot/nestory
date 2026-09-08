@@ -56,7 +56,9 @@ function serializeForm(form: HTMLFormElement) {
     Array.from(new FormData(form).entries()).map(([name, value]) => [
       name,
       value instanceof File
-        ? [value.name, value.size, value.type, value.lastModified]
+        ? value.name === "" && value.size === 0
+          ? ["", 0, value.type]
+          : [value.name, value.size, value.type, value.lastModified]
         : value,
     ]),
   );

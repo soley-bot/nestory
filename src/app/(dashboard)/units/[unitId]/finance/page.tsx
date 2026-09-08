@@ -46,6 +46,7 @@ export default async function UnitFinancePage({
       canReverseExpense={context.capabilities.canReverseExpense}
       canRetryCurrentRent={context.capabilities.canRetryCurrentRent}
       canSubmitExpense={context.capabilities.canSubmitExpense}
+      canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       organizationName={context.organizationName}
       scope={{
         id: unitId,

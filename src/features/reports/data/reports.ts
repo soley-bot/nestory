@@ -7,6 +7,10 @@ import {
   selectCurrentLease,
 } from "@/features/units/data/unit-summary";
 import { getTrustedReport } from "@/features/reports/data/trusted-report";
+import {
+  loadScopedFinanceContext,
+  type ScopedFinanceContext,
+} from "@/features/finance-operations/data/scoped-finance-context";
 import type {
   OccupancyReport,
   OccupancyReportRow,
@@ -81,19 +85,50 @@ export async function getReportsScreenData(
   organizationId: string,
   viewQuery: ReportsViewQuery,
 ): Promise<ReportsScreenData> {
-  const { propertyOptions, unitOptions } =
-    await getReportBaseData(organizationId);
-  const trustedReport = await getTrustedReport({
+  const supabase = await createSupabaseServerClient();
+  const financeContext = await loadScopedFinanceContext(
+    supabase,
     organizationId,
+    viewQuery.propertyId === "all" ? undefined : viewQuery.propertyId,
+  );
+  const { propertyOptions, unitOptions } = getReportSelectorData(financeContext);
+  const trustedReport = await getTrustedReport({
+    financeContext,
+    organizationId,
+    supabase,
     viewQuery,
   });
 
   return {
+    ownerOptions: trustedReport.ownerOptions ?? [],
     propertyOptions,
     trustedReport: prepareTrustedReportForScreen(trustedReport),
     unitOptions,
     viewQuery,
   };
+}
+
+function getReportSelectorData(financeContext: ScopedFinanceContext) {
+  const properties = financeContext.properties.filter(
+    (property) => property.archived_at === null,
+  ).toSorted((first, second) => first.name.localeCompare(second.name));
+  const propertiesById = indexById(properties);
+  const propertyOptions = toPropertyOptions(properties);
+  const unitOptions = financeContext.units
+    .filter(
+      (unit) =>
+        unit.archived_at === null && propertiesById.has(unit.property_id),
+    )
+    .map((unit) => {
+      const property = propertiesById.get(unit.property_id);
+      return {
+        id: unit.id,
+        label: `${property?.code ?? "Unknown"} / Unit ${unit.unit_number}`,
+        propertyId: unit.property_id,
+      };
+    });
+
+  return { propertyOptions, unitOptions };
 }
 
 export function prepareTrustedReportForScreen(
@@ -123,6 +158,10 @@ function makeReportRecordsFinanceSafe(report: TrustedReport): TrustedReport {
 function toFinanceSafeRecordHref(href?: string) {
   if (!href) return undefined;
 
+  if (/^\/properties\/[^/?]+\/account(?:\?[^#]*)?$/.test(href)) {
+    return href;
+  }
+
   const propertyMatch = href.match(/^\/properties\/([^/?]+)(?:[/?]|$)/);
   if (propertyMatch) {
     return `/properties/${propertyMatch[1]}/account`;
@@ -150,7 +189,10 @@ function trimTrustedReportForScreen(report: TrustedReport): TrustedReport {
     ...report,
     rows: report.rows.slice(0, maxScreenReportRows).map((row) => ({
       ...row,
-      sourceLinks: row.sourceLinks.slice(0, maxScreenSourceLinks),
+      sourceLinks:
+        report.kind === "monthly-owner-activity"
+          ? row.sourceLinks
+          : row.sourceLinks.slice(0, maxScreenSourceLinks),
     })),
     totalRowCount: report.rows.length,
   };

@@ -163,9 +163,10 @@ SELECT is(
     WHERE organization_id = (
       SELECT organization_id FROM finance_category_state
     )
+      AND is_default
   ),
   8::bigint,
-  'every organization receives four defaults in each Finance namespace'
+  'every organization retains four legacy defaults in each Finance namespace'
 );
 
 SELECT results_eq(
@@ -175,6 +176,7 @@ SELECT results_eq(
     WHERE organization_id = (
       SELECT organization_id FROM finance_category_state
     )
+      AND is_default
     ORDER BY namespace, sort_order, code
   $$,
   $$VALUES
@@ -294,6 +296,7 @@ SELECT is(
     'Utilities',
     'Repairs and maintenance',
     'Other',
+    'Management fees',
     'Groundskeeping',
     'Insurance'
   ]::text[],

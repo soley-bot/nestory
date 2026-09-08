@@ -173,8 +173,11 @@ approval, reversal, or petty-cash source.
 
 `financial_month_locks` is the only financial time gate. Super Admin may lock
 or unlock one organization-month to pause operational financial mutations.
-This is not accounting period close: Nestory has no accounting books, chart of
-accounts, journals, or trial balance. Owner-month close revisions freeze the
+This is not accounting period close. Nestory has an organization-owned Chart
+of Accounts catalog for operational account selection and read-only activity,
+but no accounting books, arbitrary journals, editable Ledger, trial balance,
+bank reconciliation, accounts-payable scheduling, treasury, tax engine, or
+multi-currency launch. Owner-month close revisions freeze the
 operational source evidence for one exact property, owner, currency, and month;
 official Owner Statement publication retains numbered PDF and Excel artifacts
 from that immutable evidence without creating accounting-book authority.

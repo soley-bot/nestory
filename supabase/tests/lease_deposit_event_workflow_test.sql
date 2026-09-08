@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(16);
+SELECT plan(17);
 
 SELECT has_column(
   'public',
@@ -52,11 +52,11 @@ SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101
 SET LOCAL ROLE authenticated;
 
 SELECT lives_ok(
-  $$SELECT public.record_lease_deposit_event('00000000-0000-0000-0000-000000000001','88000000-0000-0000-0000-000000000001','received','2026-07-10',500,'DEP-RECEIPT')$$,
+  $$SELECT public.record_lease_deposit_event_with_account('00000000-0000-0000-0000-000000000001','88000000-0000-0000-0000-000000000001',(SELECT id FROM public.finance_accounts WHERE organization_id='00000000-0000-0000-0000-000000000001' AND system_role='security_deposits'),'received','2026-07-10',500,'DEP-RECEIPT')$$,
   'admin records a deposit receipt through the public wrapper'
 );
 SELECT lives_ok(
-  $$SELECT public.record_lease_deposit_event('00000000-0000-0000-0000-000000000001','88000000-0000-0000-0000-000000000001','applied','2026-07-11',100,'DEP-APPLY')$$,
+  $$SELECT public.record_lease_deposit_event_with_account('00000000-0000-0000-0000-000000000001','88000000-0000-0000-0000-000000000001',(SELECT id FROM public.finance_accounts WHERE organization_id='00000000-0000-0000-0000-000000000001' AND system_role='security_deposits'),'applied','2026-07-11',100,'DEP-APPLY')$$,
   'admin applies held deposit funds'
 );
 SELECT is((SELECT sum(CASE WHEN event_type='received' THEN amount WHEN event_type='reversed' THEN 0 ELSE -amount END) FROM public.lease_deposit_events WHERE lease_deposit_id='88000000-0000-0000-0000-000000000001' AND reversal_of_id IS NULL),400::numeric,'signed deposit semantics expose held balance separately from income');
@@ -66,7 +66,7 @@ SELECT throws_matching(
 );
 SELECT is((SELECT sum(CASE WHEN event_type='received' THEN amount ELSE -amount END) FROM public.lease_deposit_events WHERE lease_deposit_id='88000000-0000-0000-0000-000000000001' AND reversal_of_id IS NULL),400::numeric,'rejected reversal preserves held balance');
 SELECT throws_matching(
-  $$SELECT public.record_lease_deposit_event('00000000-0000-0000-0000-000000000001','88000000-0000-0000-0000-000000000001','refunded','2026-07-12',401,'TOO-MUCH')$$,
+  $$SELECT public.record_lease_deposit_event_with_account('00000000-0000-0000-0000-000000000001','88000000-0000-0000-0000-000000000001',(SELECT id FROM public.finance_accounts WHERE organization_id='00000000-0000-0000-0000-000000000001' AND system_role='security_deposits'),'refunded','2026-07-12',401,'TOO-MUCH')$$,
   'exceeds held deposit balance','refund beyond held balance is rejected'
 );
 SELECT lives_ok(
@@ -82,7 +82,7 @@ SELECT throws_matching(
   'Reversal chains are not allowed','chained reversal is rejected'
 );
 SELECT throws_matching(
-  $$SELECT public.record_lease_deposit_event('00000000-0000-0000-0000-000000000002','88000000-0000-0000-0000-000000000001','received','2026-07-10',1,'CROSS-ORG')$$,
+  $$SELECT public.record_lease_deposit_event_with_account('00000000-0000-0000-0000-000000000002','88000000-0000-0000-0000-000000000001',(SELECT id FROM public.finance_accounts WHERE organization_id='00000000-0000-0000-0000-000000000001' AND system_role='security_deposits'),'received','2026-07-10',1,'CROSS-ORG')$$,
   'Not authorized|not found','cross-organization recording is rejected'
 );
 SELECT ok(
@@ -93,7 +93,8 @@ SELECT ok(
   ),
   'authenticated cannot execute the private deposit writer'
 );
-SELECT ok(has_function_privilege('authenticated','public.record_lease_deposit_event(uuid,uuid,text,date,numeric,text)','EXECUTE') AND has_function_privilege('authenticated','public.reverse_lease_deposit_event(uuid,uuid,date,text)','EXECUTE'),'authenticated can execute checked public wrappers');
+SELECT ok(has_function_privilege('authenticated','public.record_lease_deposit_event(uuid,uuid,text,date,numeric,text)','EXECUTE') AND NOT has_function_privilege('authenticated','app_private.record_lease_deposit_event_legacy_checked_core(uuid,uuid,text,date,numeric,text)','EXECUTE') AND has_function_privilege('authenticated','public.record_lease_deposit_event_with_account(uuid,uuid,uuid,text,date,numeric,text)','EXECUTE') AND has_function_privilege('authenticated','public.reverse_lease_deposit_event(uuid,uuid,date,text)','EXECUTE'),'authenticated can execute checked legacy and account-aware deposit adapters and reversal, but not the private core');
+SELECT is((SELECT count(*) FROM public.lease_deposit_events WHERE lease_deposit_id='88000000-0000-0000-0000-000000000001' AND liability_account_id IS NULL),0::bigint,'recording and reversal preserve deposit liability lineage');
 SELECT ok(strpos(pg_get_functiondef('app_private.reverse_lease_deposit_event(uuid,uuid,date,text)'::regprocedure),'FROM public.lease_deposits deposit') < strpos(pg_get_functiondef('app_private.reverse_lease_deposit_event(uuid,uuid,date,text)'::regprocedure),'SELECT * INTO target FROM public.lease_deposit_events'),'reversal locks the shared lease deposit parent before the target event');
 
 SELECT * FROM finish();

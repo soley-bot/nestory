@@ -1,8 +1,11 @@
+import type { FinanceAccountOption } from "@/features/finance-accounts/finance-accounts.types";
+
 export type FinanceOption = {
   id: string;
   label: string;
   partyType?: string | null;
   propertyId?: string | null;
+  roles?: string[];
 };
 
 export type FinanceCategory = {
@@ -172,6 +175,23 @@ export type ExpenseSubmissionSummary = {
   id: string;
   internalCost: number;
   internalMarkup: number;
+  transactionReviewBlocked?: boolean;
+  scopedSubtotal?: number;
+  fullTransactionTotal?: number;
+  lines?: Array<{
+    amount: number;
+    customerTotal: number;
+    internalMarkup: number;
+    category: string;
+    categoryLabel?: string | null;
+    description: string;
+    ownerCashAmount: number | null;
+    propertyId: string;
+    propertyLabel: string;
+    submissionId: string;
+    unitId: string | null;
+    unitLabel: string;
+  }>;
   maintenanceTask?: {
     completedAt: string | null;
     description: string | null;
@@ -194,6 +214,7 @@ export type ExpenseSubmissionSummary = {
   submittedAt: string;
   submittedByLabel: string;
   submittedByUserId: string;
+  transactionId?: string | null;
   unitId: string | null;
   unitLabel: string;
   vendorLabel: string;
@@ -229,10 +250,14 @@ export type PropertyAccountEntry = {
 
 export type FinanceOperationsData = {
   accountEntries: PropertyAccountEntry[];
+  expenseAccounts: FinanceAccountOption[];
   expenseSubmissions: ExpenseSubmissionSummary[];
   financeCategories: FinanceCategory[];
+  leaseChargeAccounts: FinanceAccountOption[];
+  leaseDepositAccounts: FinanceAccountOption[];
   leases: FinanceLease[];
   ownerInvoices: OwnerInvoiceSummary[];
+  payFromAccounts: FinanceAccountOption[];
   operationalTimezone?: string;
   peopleOptions: FinanceOption[];
   positions: PropertyFinancePosition[];
@@ -247,7 +272,7 @@ export type LeasePaymentResolutionData = {
   invoice: TenantInvoiceSummary;
   nextInvoiceDueDate: string | null;
   ownerLabel: string;
-  reconciliationSources: FinanceOption[];
+  payFromAccounts: FinanceAccountOption[];
 };
 
 export type FinanceOperationsActionState = {

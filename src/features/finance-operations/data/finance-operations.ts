@@ -1,4 +1,12 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { loadScopedFinanceContext, type ScopedBillingTerm } from "@/features/finance-operations/data/scoped-finance-context";
+import {
+  getExpenseAccountOptions,
+  getFinanceAccountsData,
+  getLeaseChargeAccountOptions,
+  getLeaseDepositAccountOptions,
+  getPayFromAccountOptions,
+} from "@/features/finance-accounts/data/finance-accounts";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { selectCurrentLeaseBillingRulesByLeaseId } from "@/features/leases/lease-billing-rule-state";
 import {
@@ -52,8 +60,7 @@ type AccountEntryRow =
   Database["public"]["Views"]["property_account_entries"]["Row"];
 type ExpenseSubmissionRow =
   Database["public"]["Tables"]["expense_submissions"]["Row"];
-type LeaseBillingTermRow =
-  Database["public"]["Tables"]["lease_billing_terms"]["Row"];
+type LeaseBillingTermRow = ScopedBillingTerm;
 type LeaseTermPreviewRow = Pick<
   Database["public"]["Tables"]["lease_terms"]["Row"],
   "end_date" | "lease_id" | "rent_amount" | "start_date"
@@ -103,12 +110,6 @@ type FinanceUnitRow = {
   id: string;
   property_id: string;
   unit_number: string;
-};
-type PrimaryOwnerLabelRow = {
-  person:
-    | { display_name: string }
-    | Array<{ display_name: string }>
-    | null;
 };
 type RentGenerationExceptionRow =
   Database["public"]["Tables"]["rent_generation_exceptions"]["Row"];
@@ -264,7 +265,7 @@ export function toExpenseSubmissionSummary(
       (submission.source_type === "maintenance_task" &&
       submission.status === "submitted"
         ? "Choose at approval"
-        : "Funding source unavailable"),
+        : "Pay-from account unavailable"),
     id: submission.id,
     internalCost: Number(submission.internal_cost_amount),
     internalMarkup: Number(submission.internal_markup_amount),
@@ -314,6 +315,131 @@ export function toExpenseSubmissionSummary(
   };
 }
 
+export type ExpenseTransactionSnapshot = {
+  payFromAccountId?: string;
+  expenseDate: string;
+  externalPayeeLabel: string | null;
+  id: string;
+  payeeLabel: string;
+  reference: string | null;
+  status: ExpenseSubmissionSummary["status"];
+};
+
+export type ExpenseTransactionLineSnapshot = {
+  description: string;
+  ownerCashAmount: number | null;
+  sortOrder: number;
+  submissionId: string;
+  transactionId: string;
+};
+
+export function groupExpenseTransactionSummaries(
+  submissions: readonly ExpenseSubmissionSummary[],
+  transactions: readonly ExpenseTransactionSnapshot[],
+  transactionLines: readonly ExpenseTransactionLineSnapshot[],
+  childLinks: readonly { submission_id: string; transaction_id: string }[] = [],
+): ExpenseSubmissionSummary[] {
+  const submissionById = new Map(
+    submissions.map((submission) => [submission.id, submission]),
+  );
+  const linkedSubmissionIds = new Set(
+    transactionLines.map((line) => line.submissionId),
+  );
+  const transactionBySubmissionId = new Map(childLinks.map((link) => [link.submission_id, link.transaction_id]));
+  const grouped: ExpenseSubmissionSummary[] = [];
+
+  for (const transaction of transactions) {
+    const expectedLines = transactionLines
+      .filter((line) => line.transactionId === transaction.id)
+      .sort((left, right) => left.sortOrder - right.sortOrder);
+    const lines = expectedLines
+      .flatMap((line) => {
+        const submission = submissionById.get(line.submissionId);
+        return submission ? [{ line, submission }] : [];
+      });
+    if (lines.length === 0 || lines.length !== expectedLines.length) {
+      throw new Error("Expense transaction children are incomplete. Reload before reviewing.");
+    }
+
+    const first = lines[0].submission;
+    const propertyIds = new Set(lines.map(({ submission }) => submission.propertyId));
+    const unitIds = new Set(lines.map(({ submission }) => submission.unitId));
+    grouped.push({
+      ...first,
+      category: lines.length === 1 ? first.category : "multiple",
+      categoryLabel:
+        lines.length === 1 ? first.categoryLabel : `${lines.length} expense lines`,
+      customerTotal: lines.reduce(
+        (total, { submission }) => total + Math.round(submission.customerTotal * 100),
+        0,
+      ) / 100,
+      date: transaction.expenseDate,
+      id: transaction.id,
+      internalCost: lines.reduce(
+        (total, { submission }) => total + Math.round(submission.internalCost * 100),
+        0,
+      ) / 100,
+      internalMarkup: lines.reduce(
+        (total, { submission }) => total + Math.round(submission.internalMarkup * 100),
+        0,
+      ) / 100,
+      lines: lines.map(({ line, submission }) => ({
+        amount: submission.internalCost,
+        customerTotal: submission.customerTotal,
+        internalMarkup: submission.internalMarkup,
+        category: submission.category,
+        categoryLabel: submission.categoryLabel,
+        description: line.description,
+        ownerCashAmount: line.ownerCashAmount,
+        propertyId: submission.propertyId,
+        propertyLabel: submission.propertyLabel,
+        submissionId: submission.id,
+        unitId: submission.unitId,
+        unitLabel: submission.unitLabel,
+      })),
+      propertyId: propertyIds.size === 1 ? first.propertyId : "multiple",
+      propertyLabel:
+        propertyIds.size === 1
+          ? first.propertyLabel
+          : `${propertyIds.size} properties`,
+      reference: transaction.reference,
+      status: transaction.status,
+      transactionId: transaction.id,
+      unitId: unitIds.size === 1 ? first.unitId : null,
+      unitLabel: unitIds.size === 1 ? first.unitLabel : "Multiple units",
+      vendorLabel: transaction.payeeLabel,
+    });
+  }
+
+  for (const submission of submissions) {
+    if (linkedSubmissionIds.has(submission.id)) continue;
+    grouped.push({
+      ...submission,
+      lines: [{
+        amount: submission.internalCost,
+        customerTotal: submission.customerTotal,
+        internalMarkup: submission.internalMarkup,
+        category: submission.category,
+        categoryLabel: submission.categoryLabel,
+        description:
+          submission.reference ?? submission.categoryLabel ?? submission.category,
+        ownerCashAmount: null,
+        propertyId: submission.propertyId,
+        propertyLabel: submission.propertyLabel,
+        submissionId: submission.id,
+        unitId: submission.unitId,
+        unitLabel: submission.unitLabel,
+      }],
+      transactionId: transactionBySubmissionId.get(submission.id) ?? null,
+      transactionReviewBlocked: transactionBySubmissionId.has(submission.id),
+    });
+  }
+
+  return grouped.sort((left, right) =>
+    right.submittedAt.localeCompare(left.submittedAt),
+  );
+}
+
 export async function getFinanceOperationsData(
   organizationId: string,
   propertyId?: string | null,
@@ -321,13 +447,9 @@ export async function getFinanceOperationsData(
   const supabase = await createSupabaseServerClient();
   const [
     organizationResult,
-    propertiesResult,
-    unitsResult,
+    readContext,
     peopleResult,
-    ownersResult,
-    leasesResult,
-    leaseTermsResult,
-    billingResult,
+    personRolesResult,
     tenantInvoicesResult,
     rentGenerationExceptionsResult,
     ownerInvoicesResult,
@@ -342,48 +464,14 @@ export async function getFinanceOperationsData(
       .select("operational_timezone")
       .eq("id", organizationId)
       .single(),
-    () => supabase
-      .from("properties")
-      .select("id, code, name, archived_at")
-      .eq("organization_id", organizationId)
-      .order("code"),
-    () => supabase
-      .from("units")
-      .select("id, property_id, unit_number, archived_at")
-      .eq("organization_id", organizationId)
-      .order("unit_number"),
+    () => loadScopedFinanceContext(supabase, organizationId),
     () => supabase
       .from("people")
       .select("id, display_name, party_type, archived_at")
       .eq("organization_id", organizationId)
       .order("display_name"),
-    () => supabase
-      .from("property_owners")
-      .select("property_id, person_id")
-      .eq("organization_id", organizationId)
-      .eq("is_primary", true)
-      .is("ended_on", null)
-      .is("archived_at", null),
-    () => supabase
-      .from("current_leases")
-      .select(
-        "id, property_id, unit_id, primary_tenant_person_id, tenant_name, status, lease_start_date, lease_end_date, monthly_rent_amount",
-      )
-      .eq("organization_id", organizationId)
-      .is("archived_at", null)
-      .in("status", ["active", "notice_given", "ended", "terminated"])
-      .order("lease_start_date", { ascending: false }),
-    () => supabase
-      .from("lease_terms")
-      .select("lease_id, start_date, end_date, rent_amount")
-      .eq("organization_id", organizationId)
-      .eq("authority_kind", "authoritative")
-      .is("archived_at", null)
-      .neq("status", "superseded"),
-    () => supabase
-      .from("lease_billing_terms")
-      .select("*")
-      .eq("organization_id", organizationId),
+    () => supabase.from("person_roles").select("person_id, role")
+      .eq("organization_id", organizationId).eq("status", "active").is("archived_at", null),
     () => getTenantInvoiceBalanceRows(supabase, organizationId, propertyId),
     () => getUnresolvedRentGenerationExceptions(supabase, organizationId),
     () => getOwnerInvoiceBalanceRows(supabase, organizationId, propertyId),
@@ -412,13 +500,8 @@ export async function getFinanceOperationsData(
 
   const results = [
     organizationResult,
-    propertiesResult,
-    unitsResult,
     peopleResult,
-    ownersResult,
-    leasesResult,
-    leaseTermsResult,
-    billingResult,
+    personRolesResult,
     tenantInvoicesResult,
     rentGenerationExceptionsResult,
     ownerInvoicesResult,
@@ -434,6 +517,22 @@ export async function getFinanceOperationsData(
       `Could not load finance operations: ${failed.error.message}`,
     );
   }
+
+  const expenseTransactions = await loadExpenseTransactions(
+    supabase, organizationId, expenseSubmissionsResult.data ?? [],
+  );
+  expenseSubmissionsResult.data = expenseTransactions.submissions;
+
+  const leasesResult = { data: readContext.leases.filter((lease) =>
+    lease.archived_at === null && ["active", "notice_given", "ended", "terminated"].includes(lease.status),
+  ).sort((left, right) => right.lease_start_date.localeCompare(left.lease_start_date)) };
+  const leaseTermsResult = { data: readContext.terms };
+  const billingResult = { data: readContext.billing_terms };
+
+  const financeAccountsData = await getFinanceAccountsData(organizationId);
+  const financeAccounts = financeAccountsData.groups.flatMap(
+    (group) => group.accounts,
+  );
 
   const tenantInvoiceIds = (tenantInvoicesResult.data ?? []).flatMap(
     (invoice) => (invoice.id ? [invoice.id] : []),
@@ -485,10 +584,16 @@ export async function getFinanceOperationsData(
     ipsPaymentIds,
   );
 
-  const properties = propertiesResult.data ?? [];
-  const units = unitsResult.data ?? [];
-  const people = peopleResult.data ?? [];
-  const owners = ownersResult.data ?? [];
+  const properties = readContext.properties;
+  const units = readContext.units;
+  // Keep separately authorized selector choices (for example, an unlinked
+  // vendor). Scoped labels supply context when the People domain is denied.
+  const people = [...new Map(
+    [...readContext.people, ...(peopleResult.data ?? [])].map((person) => [person.id, person]),
+  ).values()].sort((left, right) => left.display_name.localeCompare(right.display_name));
+  const owners = readContext.owner_assignments.filter((assignment) =>
+    assignment.is_primary && assignment.ended_on === null && assignment.archived_at === null,
+  );
   const activePropertyIds = new Set(
     properties
       .filter((property) => property.archived_at === null)
@@ -655,7 +760,8 @@ export async function getFinanceOperationsData(
         toAccountEntry(row as AccountEntryRow),
       ),
     ),
-    expenseSubmissions: (expenseSubmissionsResult.data ?? []).map(
+    expenseAccounts: getExpenseAccountOptions(financeAccounts),
+    expenseSubmissions: groupExpenseTransactionSummaries((expenseSubmissionsResult.data ?? []).map(
       (submission) =>
         toExpenseSubmissionSummary(
           submission,
@@ -667,8 +773,10 @@ export async function getFinanceOperationsData(
           submitterLabelByUserId,
           financeCategories,
         ),
-    ),
+    ), expenseTransactions.transactions, expenseTransactions.lines, expenseTransactions.childLinks),
     financeCategories,
+    leaseChargeAccounts: getLeaseChargeAccountOptions(financeAccounts),
+    leaseDepositAccounts: getLeaseDepositAccountOptions(financeAccounts),
     leases: (leasesResult.data ?? []).flatMap((lease) => {
       const property = propertyById.get(lease.property_id);
       if (!property) return [];
@@ -703,6 +811,7 @@ export async function getFinanceOperationsData(
     ownerInvoices: (ownerInvoicesResult.data ?? []).flatMap((row) =>
       toOwnerInvoice(row as OwnerInvoiceBalanceRow, propertyById, personById),
     ),
+    payFromAccounts: getPayFromAccountOptions(financeAccounts),
     operationalTimezone,
     peopleOptions: people
       .filter((person) => person.archived_at === null)
@@ -710,6 +819,9 @@ export async function getFinanceOperationsData(
         id: person.id,
         label: person.display_name,
         partyType: person.party_type,
+        ...((personRolesResult.data ?? []).some((role) => role.person_id === person.id) ? {
+          roles: (personRolesResult.data ?? []).filter((role) => role.person_id === person.id).map((role) => role.role),
+        } : {}),
       })),
     positions: (positionsResult.data ?? []).flatMap((row) =>
       toPosition(row as PositionRow, personById),
@@ -811,15 +923,18 @@ function toFinanceLeaseBillingPreview(
 export async function getLeasePaymentResolutionData(
   input: LeasePaymentResolutionInput,
 ): Promise<LeasePaymentResolutionData | null> {
+  const accountData = await getFinanceAccountsData(input.organizationId);
   return loadLeasePaymentResolutionData(
     await createSupabaseServerClient(),
     input,
+    getPayFromAccountOptions(accountData.groups.flatMap((group) => group.accounts)),
   );
 }
 
 export async function loadLeasePaymentResolutionData(
   supabase: FinanceServerClient,
   { invoiceId, leaseId, organizationId }: LeasePaymentResolutionInput,
+  payFromAccounts: LeasePaymentResolutionData["payFromAccounts"] = [],
 ): Promise<LeasePaymentResolutionData | null> {
   const selectedResult = await supabase
     .from("tenant_invoice_balances")
@@ -847,49 +962,16 @@ export async function loadLeasePaymentResolutionData(
   }
 
   const [
-    propertyResult,
-    unitResult,
+    readContext,
     linesResult,
     generationResult,
     settlementsResult,
-    ownerResult,
-    sourcesResult,
     nextInvoiceResult,
   ] = await Promise.all([
-    supabase
-      .from("properties")
-      .select("id, code, name")
-      .eq("organization_id", organizationId)
-      .eq("id", row.property_id)
-      .maybeSingle(),
-    row.unit_id
-      ? supabase
-          .from("units")
-          .select("id, property_id, unit_number")
-          .eq("organization_id", organizationId)
-          .eq("property_id", row.property_id)
-          .eq("id", row.unit_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
+    loadScopedFinanceContext(supabase, organizationId, row.property_id),
     getTenantInvoiceLineRows(supabase, organizationId, [invoiceId]),
     getTenantInvoiceGenerationRows(supabase, organizationId, [invoiceId]),
     getTenantInvoiceSettlementRows(supabase, organizationId, [invoiceId]),
-    supabase
-      .from("property_owners")
-      .select("person:people!property_owners_person_fk(display_name)")
-      .eq("organization_id", organizationId)
-      .eq("property_id", row.property_id)
-      .eq("is_primary", true)
-      .is("archived_at", null)
-      .is("ended_on", null)
-      .maybeSingle(),
-    supabase
-      .from("financial_reconciliation_sources")
-      .select("id, property_id, code, display_name, archived_at")
-      .eq("organization_id", organizationId)
-      .is("archived_at", null)
-      .or(`property_id.is.null,property_id.eq.${row.property_id}`)
-      .order("code"),
     supabase
       .from("tenant_invoice_balances")
       .select("id, due_date")
@@ -903,13 +985,9 @@ export async function loadLeasePaymentResolutionData(
   ]);
 
   const supportingError = [
-    propertyResult,
-    unitResult,
     linesResult,
     generationResult,
     settlementsResult,
-    ownerResult,
-    sourcesResult,
     nextInvoiceResult,
   ].find((result) => result.error)?.error;
   if (supportingError) {
@@ -937,12 +1015,10 @@ export async function loadLeasePaymentResolutionData(
   }
 
   const properties = new Map(
-    propertyResult.data
-      ? [[propertyResult.data.id, propertyResult.data] as const]
-      : [],
+    readContext.properties.filter((property) => property.id === row.property_id).map((property) => [property.id, property]),
   );
   const units = new Map(
-    unitResult.data ? [[unitResult.data.id, unitResult.data] as const] : [],
+    readContext.units.filter((unit) => unit.id === row.unit_id && unit.property_id === row.property_id).map((unit) => [unit.id, unit]),
   );
   const linesByInvoiceId = new Map<string, TenantInvoiceLine[]>();
   for (const line of linesResult.data ?? []) {
@@ -985,20 +1061,18 @@ export async function loadLeasePaymentResolutionData(
     commercialDocuments.invoicePublicationSnapshots,
   )[0];
   if (!invoice) return null;
-  const ownerRow = ownerResult.data as PrimaryOwnerLabelRow | null;
-  const ownerPerson = Array.isArray(ownerRow?.person)
-    ? ownerRow.person[0]
-    : ownerRow?.person;
+  const owner = readContext.owner_assignments.find((assignment) =>
+    assignment.property_id === row.property_id && assignment.is_primary && assignment.archived_at === null && assignment.ended_on === null,
+  );
+  const ownerPerson = readContext.people.find((person) => person.id === owner?.person_id);
 
   return {
     invoice,
     nextInvoiceDueDate: nextInvoiceResult.data?.[0]?.due_date ?? null,
     ownerLabel: ownerPerson?.display_name ?? "Owner needed",
-    reconciliationSources: (sourcesResult.data ?? []).map((source) => ({
-      id: source.id,
-      label: `${source.code} · ${source.display_name}`,
-      propertyId: source.property_id,
-    })),
+    payFromAccounts: payFromAccounts.filter(
+      (account) => account.propertyId === null || account.propertyId === row.property_id,
+    ),
   };
 }
 
@@ -1046,15 +1120,40 @@ export function scopeFinanceOperationsData(
     accountEntries: data.accountEntries.filter(
       (entry) => entry.propertyId === scope.propertyId,
     ),
-    expenseSubmissions: data.expenseSubmissions.filter((submission) =>
-      inScope(submission.propertyId, submission.unitId),
-    ),
+    expenseAccounts: data.expenseAccounts,
+    expenseSubmissions: data.expenseSubmissions.flatMap((submission) => {
+      if (!submission.transactionId || !submission.lines) {
+        return inScope(submission.propertyId, submission.unitId) ? [submission] : [];
+      }
+      const scopedLines = submission.lines.filter((line) => inScope(line.propertyId, line.unitId));
+      if (scopedLines.length === 0) return [];
+      const subtotal = Math.round(scopedLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0)) / 100;
+      return [{
+        ...submission,
+        lines: scopedLines,
+        scopedSubtotal: subtotal,
+        fullTransactionTotal: submission.transactionReviewBlocked ? undefined : submission.fullTransactionTotal ?? submission.internalCost,
+        transactionReviewBlocked: submission.transactionReviewBlocked || scopedLines.length !== submission.lines.length,
+        internalCost: subtotal,
+        customerTotal: scopedLines.reduce((sum, line) => sum + Math.round(line.customerTotal * 100), 0) / 100,
+        internalMarkup: scopedLines.reduce((sum, line) => sum + Math.round(line.internalMarkup * 100), 0) / 100,
+        propertyId: scope.propertyId,
+        propertyLabel: scopedLines[0].propertyLabel,
+        unitId: scope.unitId ?? submission.unitId,
+        unitLabel: scope.unitId ? scopedLines[0].unitLabel : submission.unitLabel,
+      }];
+    }),
     financeCategories: data.financeCategories,
+    leaseChargeAccounts: data.leaseChargeAccounts,
+    leaseDepositAccounts: data.leaseDepositAccounts,
     leases: data.leases.filter((lease) =>
       inScope(lease.propertyId, lease.unitId),
     ),
     ownerInvoices: data.ownerInvoices.filter(
       (invoice) => invoice.propertyId === scope.propertyId,
+    ),
+    payFromAccounts: data.payFromAccounts.filter(
+      (account) => !account.propertyId || account.propertyId === scope.propertyId,
     ),
     operationalTimezone: data.operationalTimezone,
     peopleOptions: data.peopleOptions,
@@ -1517,6 +1616,65 @@ async function getExpenseSubmissionRows(
   };
 }
 
+export async function loadExpenseTransactions(
+  supabase: FinanceServerClient,
+  organizationId: string,
+  initialSubmissions: ExpenseSubmissionRow[],
+) {
+  const pending = await fetchAllActionableRows(async (from, to) => {
+    return await supabase.from("expense_transactions").select("*")
+      .eq("organization_id", organizationId).eq("status", "submitted")
+      .order("submitted_at", { ascending: false }).order("id").range(from, to);
+  });
+  const history = await supabase.from("expense_transactions").select("*")
+    .eq("organization_id", organizationId).neq("status", "submitted")
+    .order("submitted_at", { ascending: false }).order("id").limit(250);
+  if (pending.error || history.error) throw new Error("Could not load expense transactions.");
+  const parents = mergeRowsById(pending.data ?? [], history.data ?? []);
+  const lines = await fetchRowsByIdBatches(parents.map((parent) => parent.id), async (ids, from, to) => {
+    return await supabase.from("expense_transaction_lines")
+      .select("transaction_id, submission_id, sort_order, description, owner_cash_amount")
+      .eq("organization_id", organizationId).in("transaction_id", [...ids])
+      .order("transaction_id").order("sort_order").range(from, to);
+  });
+  if (lines.error) throw new Error("Could not load complete expense transaction lines.");
+  const children = await fetchRowsByIdBatches((lines.data ?? []).map((line) => line.submission_id), async (ids, from, to) => {
+    return await supabase.from("expense_submissions").select("*")
+      .eq("organization_id", organizationId).in("id", [...ids]).order("id").range(from, to);
+  });
+  if (children.error) throw new Error("Could not load complete expense transaction children.");
+  const submissions = mergeRowsById(initialSubmissions, children.data ?? []);
+  const childLinks: { submission_id: string; transaction_id: string }[] = [];
+  for (let offset = 0; offset < submissions.length; offset += 500) {
+    const links = await supabase.rpc("get_expense_transaction_child_links", {
+      p_organization_id: organizationId,
+      p_submission_ids: submissions.slice(offset, offset + 500).map((submission) => submission.id),
+    });
+    if (links.error) throw new Error("Could not verify expense transaction membership.");
+    childLinks.push(...(links.data ?? []));
+  }
+  return {
+    submissions,
+    childLinks,
+    transactions: parents.map((parent) => ({
+      expenseDate: parent.expense_date,
+      externalPayeeLabel: parent.external_payee_label,
+      id: parent.id,
+      payeeLabel: parent.payee_label,
+      payFromAccountId: parent.pay_from_account_id,
+      reference: parent.reference,
+      status: parent.status as ExpenseSubmissionSummary["status"],
+    })),
+    lines: (lines.data ?? []).map((line) => ({
+      description: line.description,
+      ownerCashAmount: line.owner_cash_amount === null ? null : Number(line.owner_cash_amount),
+      sortOrder: line.sort_order,
+      submissionId: line.submission_id,
+      transactionId: line.transaction_id,
+    })),
+  };
+}
+
 async function getExpenseEvidenceRows(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   organizationId: string,
@@ -1558,7 +1716,7 @@ function buildAccountEntryQuery(
 }
 
 function toBilling(
-  row: Database["public"]["Tables"]["lease_billing_terms"]["Row"],
+  row: ScopedBillingTerm,
 ): LeaseBillingSummary {
   return {
     billingRecipientKind: row.billing_recipient_kind as
