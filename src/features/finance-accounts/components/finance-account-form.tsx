@@ -151,21 +151,13 @@ export function FinanceAccountForm({
           />
         </RecordField>
 
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            checked={!account?.archivedAt}
-            className="mt-0.5 size-4 accent-primary"
-            disabled
-            onChange={() => undefined}
-            type="checkbox"
-          />
-          <span>
-            <span className="font-medium">Active account</span>
-            <span className="mt-0.5 block text-xs text-muted-foreground">
-              {mode === "create" ? "New accounts start active." : "Change status from the account row."}
-            </span>
-          </span>
-        </label>
+        <dl className="flex items-baseline justify-between gap-3 text-sm">
+          <dt className="text-muted-foreground">Status</dt>
+          <dd className="font-medium">{account?.archivedAt ? "Archived" : "Active"}</dd>
+        </dl>
+        {mode === "edit" ? (
+          <p className="text-xs text-muted-foreground">Change status from the account row.</p>
+        ) : null}
 
         <label className="flex items-center gap-2 text-sm font-medium">
           <input
@@ -208,7 +200,7 @@ export function FinanceAccountForm({
       {accountClass === "income" || accountClass === "expense" ||
       (accountClass === "liability" && accountSubtype === "current_liability") ||
       supportsAvailability ? (
-        <FormSection title="Use this account for">
+        <FormSection title={supportsAvailability ? "Availability" : "Use this account for"}>
           {accountClass === "income" ? (
             <WorkflowCheckbox
               defaultChecked={account?.useForLeaseCharges}

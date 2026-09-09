@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
 import { ModuleLoading } from "@/components/layout/module-loading";
 import { BoardSurface } from "@/features/maintenance/components/maintenance-board-surface";
-import { MaintenanceScreen } from "@/features/maintenance/components/maintenance-screen";
+import { MaintenanceForm, MaintenanceScreen } from "@/features/maintenance/components/maintenance-screen";
 import {
   MaintenanceWorkflowSurface,
   type MaintenanceSurfaceVariant,
@@ -276,6 +276,29 @@ describe("maintenance workspace redesign contract", () => {
     const emptyState = screen.getByText("No cases yet").closest("section");
     expect(emptyState?.getAttribute("data-kind")).toBe("empty");
     expect(screen.queryByRole("button", { name: "New case" })).toBeNull();
+  });
+
+  it("preserves default status and priority when opening the grouped create form", () => {
+    const { container } = render(
+      <MaintenanceForm
+        actor={{ dataScope: "organization", workflowMode: "coordinator" }}
+        branches={[]}
+        canRecordActualCost
+        mode="create"
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+        properties={[{ id: "property-1", label: "Property One" }]}
+        staff={[]}
+        units={[]}
+        vendors={[]}
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: "Status" }).textContent).toBe("Pending");
+    expect(screen.getByRole("combobox", { name: "Priority" }).textContent).toBe("Normal");
+    const form = container.querySelector("form")!;
+    expect(new FormData(form).get("status")).toBe("pending");
+    expect(new FormData(form).get("priority")).toBe("normal");
   });
 
   it("keeps one primary create action for an authorized true-empty workspace", () => {

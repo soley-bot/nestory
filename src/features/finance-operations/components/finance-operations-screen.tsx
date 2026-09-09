@@ -3174,10 +3174,8 @@ function OwnerExpenseTransactionForm({
       <input name="responsibility" type="hidden" value="owner" />
 
       <FormSection
-        className="rounded-xl border border-border/80 bg-card p-4 shadow-sm last:border-b last:pb-4"
         indentContent={false}
-        step="01"
-        title="Cost record"
+        title="Expense"
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Paid to">
@@ -3205,13 +3203,7 @@ function OwnerExpenseTransactionForm({
               </Link>
             ) : null}
           </Field>
-          <Field label="Paid date">
-            <Input
-              onChange={(event) => setExpenseDate(event.target.value)}
-              type="date"
-              value={expenseDate}
-            />
-          </Field>
+
           {payeeValue === "external" ? (
             <Field label="External payee name">
               <Input
@@ -3223,24 +3215,17 @@ function OwnerExpenseTransactionForm({
             </Field>
           ) : null}
         </div>
-      </FormSection>
 
-      <FormSection
-        className="rounded-xl border border-border/80 bg-card p-4 shadow-sm last:border-b last:pb-4"
-        indentContent={false}
-        step="02"
-        title="Payment"
-      >
         <div className="space-y-4">
           {lines.map((line, index) => {
             const heldCash = positions.find(
               (position) => position.propertyId === line.propertyId,
             )?.cashHeldByIps;
             return (
-              <div className="rounded-xl border border-border/80 p-3" key={line.key}>
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium">Expense line {index + 1}</p>
-                  {lines.length > 1 ? (
+              <div className={lines.length > 1 ? "border-t border-border/70 pt-4" : ""} key={line.key}>
+                {lines.length > 1 ? (
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">Expense line {index + 1}</p>
                     <Button
                       aria-label={`Remove expense line ${index + 1}`}
                       onClick={() => setLines((current) => current.filter((item) => item.key !== line.key))}
@@ -3250,8 +3235,8 @@ function OwnerExpenseTransactionForm({
                     >
                       Remove
                     </Button>
-                  ) : null}
-                </div>
+                  </div>
+                ) : null}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Property">
                     {fixedScope ? (
@@ -3301,7 +3286,7 @@ function OwnerExpenseTransactionForm({
                       value={line.categoryAccountId}
                     />
                   </Field>
-                  <Field label="Expense description">
+                  <Field label="Description">
                     <Input
                       aria-label="Expense description"
                       onChange={(event) => updateLine(line.key, { description: event.target.value })}
@@ -3314,6 +3299,7 @@ function OwnerExpenseTransactionForm({
                     <NumberInput
                       aria-label="Line amount"
                       onChange={(event) => updateLine(line.key, { amount: event.target.value })}
+                      className="h-10 text-lg font-semibold tabular-nums md:text-lg"
                       required
                       value={line.amount}
                     />
@@ -3326,7 +3312,7 @@ function OwnerExpenseTransactionForm({
                     }}
                   >
                     <summary className="cursor-pointer rounded-sm text-xs font-medium text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
-                      Owner cash allocation (optional) · {line.ownerCashAmount === ""
+                      Owner cash · {line.ownerCashAmount === ""
                         ? "Automatic"
                         : formatMoneyDisplay(Number(line.ownerCashAmount)).primary}
                     </summary>
@@ -3377,12 +3363,17 @@ function OwnerExpenseTransactionForm({
       </FormSection>
 
       <FormSection
-        className="rounded-xl border border-border/80 bg-card p-4 shadow-sm last:border-b last:pb-4"
         indentContent={false}
-        step="04"
-        title="Payment evidence"
+        title="Payment"
       >
         <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Paid date">
+            <Input
+              onChange={(event) => setExpenseDate(event.target.value)}
+              type="date"
+              value={expenseDate}
+            />
+          </Field>
           <Field label="Pay from">
             <SelectControl
               ariaLabel="Pay from"
@@ -3393,7 +3384,7 @@ function OwnerExpenseTransactionForm({
               value={effectivePayFromAccountId}
             />
           </Field>
-          <Field label="Receipt or payment reference (optional)">
+          <Field label="Reference (optional)">
             <Input
               onChange={(event) => setReference(event.target.value)}
               placeholder="Receipt number or transfer note"
@@ -3403,19 +3394,23 @@ function OwnerExpenseTransactionForm({
           <div className="sm:col-span-2">
             <ReceiptEvidenceField />
           </div>
-          <div className="rounded-xl border border-border/80 sm:col-span-2">
-            <h3 className="sr-only">Financial preview</h3>
-            <DefinitionRows rows={[
-              ["Expense lines", String(lines.length)],
-              ["Total paid", formatMoneyDisplay(total).primary],
-              ["Cost charged to owner", formatMoneyDisplay(total).primary],
-              ["Payment made by", "Management company"],
-              ["Owner account after approval", "Available owner cash is applied; the remainder is due from the owner."],
-              ["Approval", "The whole transaction is reviewed together"],
-            ]} />
-          </div>
+
         </div>
       </FormSection>
+      <section aria-label="Financial preview" className="space-y-2">
+        <dl className="space-y-2 text-sm">
+          <div className="flex items-baseline justify-between gap-4">
+            <dt>Total paid</dt><dd className="text-xl font-semibold tabular-nums">{formatMoneyDisplay(total).primary}</dd>
+          </div>
+          <div className="flex justify-between gap-4 text-muted-foreground">
+            <dt>Cost charged to owner</dt><dd className="font-medium tabular-nums">{formatMoneyDisplay(total).primary}</dd>
+          </div>
+        </dl>
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer py-1 focus-visible:outline-2 focus-visible:outline-ring">How owner cash is applied</summary>
+          <p className="mt-1">Available owner cash is applied; the remainder is due from the owner.</p>
+        </details>
+      </section>
       <ActionMessage state={state} />
     </RecordForm>
   );
@@ -3563,10 +3558,8 @@ function SingleLineExpenseForm({
       />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
       <FormSection
-        className="rounded-xl border border-border/80 bg-card p-4 shadow-sm last:border-b last:pb-4"
         indentContent={false}
-        step="01"
-        title="Cost record"
+        title="Expense"
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Property">
@@ -3661,9 +3654,7 @@ function SingleLineExpenseForm({
       </FormSection>
 
       <FormSection
-        className="rounded-xl border border-border/80 bg-card p-4 shadow-sm last:border-b last:pb-4"
         indentContent={false}
-        step="02"
         title="Payment"
       >
         <div className="grid gap-4 sm:grid-cols-2">
@@ -3704,10 +3695,8 @@ function SingleLineExpenseForm({
       </FormSection>
 
       <FormSection
-        className="rounded-xl border border-border/80 bg-card p-4 shadow-sm last:border-b last:pb-4"
         indentContent={false}
-        step="03"
-        title="Financial preview"
+        title="Tenant charge"
       >
         {effectiveResponsibility === "tenant" ? (
           <div className="grid gap-4 sm:grid-cols-2">
@@ -3734,14 +3723,14 @@ function SingleLineExpenseForm({
                 value={tenantInvoiceId}
               />
             </Field>
-            <Field label="Optional service fee">
+            <Field label="Service fee (optional)">
               <NumberInput
                 onChange={(event) => setMarkup(event.target.value)}
                 required
                 value={markup}
               />
             </Field>
-            <div className="rounded-xl border border-border/80 sm:col-span-2">
+            <div className="sm:col-span-2">
               <DefinitionRows
                 rows={[
                   [
@@ -3760,16 +3749,12 @@ function SingleLineExpenseForm({
                 ]}
               />
             </div>
-            {!tenantInvoiceId ? (
-              <div className="space-y-1 rounded-xl border border-warning/40 bg-warning/5 p-3 text-sm sm:col-span-2">
-                <p>
-                  Choose a property and an open tenant invoice. If no invoice
-                  is available, create it in Rent &amp; collections first.
-                </p>
-                <Link
-                  className="inline-block font-medium text-primary underline-offset-2 hover:underline"
-                  href="/rent-income"
-                >
+            {!propertyId ? (
+              <p className="text-xs text-muted-foreground sm:col-span-2">Choose a property to see its open invoices.</p>
+            ) : matchingInvoices.length === 0 ? (
+              <div className="space-y-1 text-sm sm:col-span-2">
+                <p>No open invoice for this property and unit.</p>
+                <Link className="font-medium text-primary underline-offset-2 hover:underline" href="/rent-income">
                   Open Rent &amp; collections
                 </Link>
               </div>
@@ -3806,13 +3791,11 @@ function SingleLineExpenseForm({
       </FormSection>
 
       <FormSection
-        className="rounded-xl border border-border/80 bg-card p-4 shadow-sm last:border-b last:pb-4"
         indentContent={false}
-        step="04"
-        title="Payment evidence"
+        title="Receipt"
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Receipt or payment reference (optional)">
+          <Field label="Reference (optional)">
             <Input
               onChange={(event) => setReference(event.target.value)}
               placeholder="Receipt number or transfer note"
@@ -4801,7 +4784,7 @@ function ReceiptEvidenceField() {
   const [hasFile, setHasFile] = useState(false);
   return (
     <div className="space-y-2">
-      <Field label="Receipt evidence (optional)">
+      <Field label="Receipt (optional)">
         <Input
           accept="application/pdf,image/jpeg,image/png,image/webp"
           name="evidenceFile"

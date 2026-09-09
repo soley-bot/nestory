@@ -84,7 +84,7 @@ export function UnitForm({
         <input name="unitId" type="hidden" value={unit.id} />
       ) : null}
 
-      <FormSection step="01" title="Placement">
+      <FormSection title="Placement">
         <div className="grid gap-4 sm:grid-cols-2">
           <RecordField
             className="sm:col-span-2"
@@ -157,8 +157,8 @@ export function UnitForm({
 
       </FormSection>
 
-      <FormSection step="02" title="Unit details">
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]">
+      <FormSection title="Unit details">
+        <div className="grid gap-4 sm:grid-cols-2">
           <RecordField
             error={state.fieldErrors?.unitNumber?.[0]}
             label="Unit number"
@@ -187,6 +187,8 @@ export function UnitForm({
             />
           </RecordField>
 
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
           <RecordField
             error={state.fieldErrors?.sizeSqm?.[0]}
             label="Size sqm"

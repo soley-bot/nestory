@@ -54,6 +54,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FilterPopover } from "@/components/ui/filter-popover";
+import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { NumberInput } from "@/components/ui/number-input";
@@ -1490,11 +1491,11 @@ function getDrawerTitle(drawer: DrawerState) {
 
 function getDrawerDescription(drawer: DrawerState) {
   if (drawer.mode === "create") {
-    return "Create a maintenance case and schedule the operating record.";
+    return undefined;
   }
 
   if (drawer.mode === "edit") {
-    return "Update status, checklist, cost, and linked operating records.";
+    return undefined;
   }
 
   return drawer.mode === "archive"
@@ -1709,308 +1710,313 @@ export function MaintenanceForm({
           <input name="taskId" type="hidden" value={maintenanceCase.id} />
         ) : null}
 
-        <Field label="Title" error={state.fieldErrors?.title?.[0]}>
-          <Input defaultValue={defaults.title} name="title" required />
-        </Field>
+        <FormSection title="Task details">
+          <Field label="Title" error={state.fieldErrors?.title?.[0]}>
+            <Input defaultValue={defaults.title} name="title" required />
+          </Field>
 
-        <Field label="Category" error={state.fieldErrors?.category?.[0]}>
-          <Input defaultValue={defaults.category} name="category" required />
-        </Field>
+          <Field label="Category" error={state.fieldErrors?.category?.[0]}>
+            <Input defaultValue={defaults.category} name="category" required />
+          </Field>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
+              {costScopeLocked ? (
+                <input name="propertyId" type="hidden" value={propertyId} />
+              ) : null}
+              <SelectControl
+                ariaLabel="Property"
+                disabled={costScopeLocked}
+                name={costScopeLocked ? undefined : "propertyId"}
+                onValueChange={(value) => {
+                  setPropertyId(value);
+                  setUnitId("");
+                }}
+                options={[
+                  { label: "Select property", value: "" },
+                  ...properties.map((property) => ({
+                    label: property.label,
+                    value: property.id,
+                  })),
+                ]}
+                required={!costScopeLocked}
+                value={propertyId}
+              />
+            </Field>
+            <Field label="Unit" error={state.fieldErrors?.unitId?.[0]}>
+              {costScopeLocked ? (
+                <input name="unitId" type="hidden" value={unitId} />
+              ) : null}
+              <SelectControl
+                ariaLabel="Unit"
+                disabled={!propertyId || costScopeLocked}
+                name={costScopeLocked ? undefined : "unitId"}
+                onValueChange={setUnitId}
+                options={[
+                  { label: "Property level", value: "" },
+                  ...visibleUnits.map((unit) => ({
+                    label: unit.label,
+                    value: unit.id,
+                  })),
+                ]}
+                value={unitId}
+              />
+            </Field>
+          </div>
+
+        </FormSection>
+        <FormSection title="Assignment">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Branch" error={state.fieldErrors?.branchId?.[0]}>
+              {branchControlMode === "fixed" && actor.branchId ? (
+                <>
+                  <input name="branchId" type="hidden" value={actor.branchId} />
+                  <div className="flex h-8 items-center rounded-md border border-border bg-muted px-2.5 text-sm">
+                    {managerBranch?.label ??
+                      maintenanceCase?.branchLabel ??
+                      "Assigned branch"}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {branchControlMode === "all_branches" ? (
+                    <p className="mb-1.5 text-xs text-muted-foreground">
+                      All branches access
+                    </p>
+                  ) : null}
+                  <SelectControl
+                    ariaLabel="Branch"
+                    name="branchId"
+                    onValueChange={(value) => {
+                      setBranchId(value);
+                      if (
+                        !staff.some(
+                          (person) =>
+                            person.id === assigneePersonId &&
+                            (person.branchId ?? "") === value,
+                        )
+                      ) {
+                        setAssigneePersonId("");
+                      }
+                    }}
+                    options={[
+                      { label: "No branch", value: "" },
+                      ...branches.map((branch) => ({
+                        label: branch.label,
+                        value: branch.id,
+                      })),
+                    ]}
+                    value={branchId}
+                  />
+                </>
+              )}
+            </Field>
+            <Field
+              label="Assignee"
+              error={state.fieldErrors?.assigneePersonId?.[0]}
+            >
+              <SelectControl
+                ariaLabel="Assignee"
+                name="assigneePersonId"
+                onValueChange={setAssigneePersonId}
+                options={[
+                  { label: "Unassigned", value: "" },
+                  ...(existingAssignee
+                    ? [
+                        {
+                          disabled: true,
+                          label: existingAssignee.label,
+                          value: existingAssignee.id,
+                        },
+                      ]
+                    : []),
+                  ...compatibleStaff.map((person) => ({
+                    label: person.label,
+                    value: person.id,
+                  })),
+                ]}
+                value={assigneePersonId}
+              />
+              {existingAssignee ? (
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  A manager must coordinate this task until it is reassigned to a current team member.
+                </p>
+              ) : null}
+            </Field>
+          </div>
+
+          <Field label="Vendor" error={state.fieldErrors?.vendorPersonId?.[0]}>
             {costScopeLocked ? (
-              <input name="propertyId" type="hidden" value={propertyId} />
+              <input
+                name="vendorPersonId"
+                type="hidden"
+                value={defaults.vendorPersonId ?? ""}
+              />
             ) : null}
             <SelectControl
-              ariaLabel="Property"
+              ariaLabel="Vendor"
+              defaultValue={defaults.vendorPersonId ?? ""}
               disabled={costScopeLocked}
-              name={costScopeLocked ? undefined : "propertyId"}
-              onValueChange={(value) => {
-                setPropertyId(value);
-                setUnitId("");
-              }}
-              options={[
-                { label: "Select property", value: "" },
-                ...properties.map((property) => ({
-                  label: property.label,
-                  value: property.id,
-                })),
-              ]}
-              required={!costScopeLocked}
-              value={propertyId}
+              name={costScopeLocked ? undefined : "vendorPersonId"}
+              options={vendorSelect.options}
             />
-          </Field>
-          <Field label="Unit" error={state.fieldErrors?.unitId?.[0]}>
-            {costScopeLocked ? (
-              <input name="unitId" type="hidden" value={unitId} />
-            ) : null}
-            <SelectControl
-              ariaLabel="Unit"
-              disabled={!propertyId || costScopeLocked}
-              name={costScopeLocked ? undefined : "unitId"}
-              onValueChange={setUnitId}
-              options={[
-                { label: "Property level", value: "" },
-                ...visibleUnits.map((unit) => ({
-                  label: unit.label,
-                  value: unit.id,
-                })),
-              ]}
-              value={unitId}
-            />
-          </Field>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Branch" error={state.fieldErrors?.branchId?.[0]}>
-            {branchControlMode === "fixed" && actor.branchId ? (
-              <>
-                <input name="branchId" type="hidden" value={actor.branchId} />
-                <div className="flex h-8 items-center rounded-md border border-border bg-muted px-2.5 text-sm">
-                  {managerBranch?.label ??
-                    maintenanceCase?.branchLabel ??
-                    "Assigned branch"}
-                </div>
-              </>
-            ) : (
-              <>
-                {branchControlMode === "all_branches" ? (
-                  <p className="mb-1.5 text-xs text-muted-foreground">
-                    All branches access
-                  </p>
-                ) : null}
-                <SelectControl
-                  ariaLabel="Branch"
-                  name="branchId"
-                  onValueChange={(value) => {
-                    setBranchId(value);
-                    if (
-                      !staff.some(
-                        (person) =>
-                          person.id === assigneePersonId &&
-                          (person.branchId ?? "") === value,
-                      )
-                    ) {
-                      setAssigneePersonId("");
-                    }
-                  }}
-                  options={[
-                    { label: "No branch", value: "" },
-                    ...branches.map((branch) => ({
-                      label: branch.label,
-                      value: branch.id,
-                    })),
-                  ]}
-                  value={branchId}
-                />
-              </>
-            )}
-          </Field>
-          <Field
-            label="Assignee"
-            error={state.fieldErrors?.assigneePersonId?.[0]}
-          >
-            <SelectControl
-              ariaLabel="Assignee"
-              name="assigneePersonId"
-              onValueChange={setAssigneePersonId}
-              options={[
-                { label: "Unassigned", value: "" },
-                ...(existingAssignee
-                  ? [
-                      {
-                        disabled: true,
-                        label: existingAssignee.label,
-                        value: existingAssignee.id,
-                      },
-                    ]
-                  : []),
-                ...compatibleStaff.map((person) => ({
-                  label: person.label,
-                  value: person.id,
-                })),
-              ]}
-              value={assigneePersonId}
-            />
-            {existingAssignee ? (
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                This historical assignee has no executable Nestory member
-                identity. The task remains manager-coordinated until reassigned.
+            {vendorSelect.hasHistoricalVendor ? (
+              <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
+                Keep the current vendor, choose an active vendor, or select &quot;No vendor&quot; to remove the link.
               </p>
             ) : null}
           </Field>
-        </div>
 
-        <Field label="Vendor" error={state.fieldErrors?.vendorPersonId?.[0]}>
-          {costScopeLocked ? (
-            <input
-              name="vendorPersonId"
-              type="hidden"
-              value={defaults.vendorPersonId ?? ""}
-            />
-          ) : null}
-          <SelectControl
-            ariaLabel="Vendor"
-            defaultValue={defaults.vendorPersonId ?? ""}
-            disabled={costScopeLocked}
-            name={costScopeLocked ? undefined : "vendorPersonId"}
-            options={vendorSelect.options}
-          />
-          {vendorSelect.hasHistoricalVendor ? (
-            <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
-              This historical vendor remains linked for this edit. Keep it
-              unchanged, or choose an active vendor or &quot;No vendor&quot; to
-              clear the link.
-            </p>
-          ) : null}
-        </Field>
-
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Status" error={state.fieldErrors?.status?.[0]}>
-            <SelectControl
-              ariaLabel="Status"
-              defaultValue={defaults.status}
-              name="status"
-              options={
-                mode === "create"
-                  ? [
-                      { label: "Pending", value: "pending" },
-                      { label: "Scheduled", value: "scheduled" },
-                    ]
-                  : MAINTENANCE_STATUS_OPTIONS.filter((option) =>
-                      canTransitionMaintenanceStatus(
-                        defaults.status,
-                        option.value,
-                        {
-                          actorMode: actor.workflowMode,
-                          executionMode:
-                            maintenanceCase?.executionMode ??
-                            "manager_coordinated",
-                        },
-                      ),
-                    )
-              }
-            />
-          </Field>
-          <Field label="Priority" error={state.fieldErrors?.priority?.[0]}>
-            <SelectControl
-              ariaLabel="Priority"
-              defaultValue={defaults.priority}
-              name="priority"
-              options={[
-                { label: "Low", value: "low" },
-                { label: "Normal", value: "normal" },
-                { label: "High", value: "high" },
-                { label: "Urgent", value: "urgent" },
-              ]}
-            />
-          </Field>
-          <Field
-            label="Recurrence"
-            error={state.fieldErrors?.recurrenceFrequency?.[0]}
-          >
-            <SelectControl
-              ariaLabel="Recurrence"
-              defaultValue={defaults.recurrenceFrequency}
-              name="recurrenceFrequency"
-              options={[
-                { label: "One-time", value: "none" },
-                { label: "Weekly", value: "weekly" },
-                { label: "Monthly", value: "monthly" },
-                { label: "Quarterly", value: "quarterly" },
-                { label: "Semi-annual", value: "semi_annual" },
-                { label: "Annual", value: "annual" },
-              ]}
-            />
-          </Field>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Due date" error={state.fieldErrors?.dueDate?.[0]}>
-            <DatePickerField
-              ariaLabel="Due date"
-              defaultValue={defaults.dueDate ?? ""}
-              name="dueDate"
-            />
-          </Field>
-          <Field label="Due time" error={state.fieldErrors?.dueTime?.[0]}>
-            <TimePickerField
-              ariaLabel="Due time"
-              defaultValue={defaults.dueTime ?? ""}
-              name="dueTime"
-            />
-          </Field>
-          <Field
-            label="Reminder date"
-            error={state.fieldErrors?.reminderDate?.[0]}
-          >
-            <DatePickerField
-              ariaLabel="Reminder date"
-              defaultValue={defaults.reminderDate ?? ""}
-              name="reminderDate"
-            />
-          </Field>
-          <Field
-            label="Reminder time"
-            error={state.fieldErrors?.reminderTime?.[0]}
-          >
-            <TimePickerField
-              ariaLabel="Reminder time"
-              defaultValue={defaults.reminderTime ?? ""}
-              name="reminderTime"
-            />
-          </Field>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            label="Cost estimate"
-            error={state.fieldErrors?.costEstimateAmount?.[0]}
-          >
-            <NumberInput
-              defaultValue={defaults.costEstimateAmount ?? ""}
-              min="0"
-              name="costEstimateAmount"
-              step="0.01"
-            />
-          </Field>
-          {mode === "edit" && canRecordActualCost ? (
+        </FormSection>
+        <FormSection title="Schedule">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Status" error={state.fieldErrors?.status?.[0]}>
+              <SelectControl
+                ariaLabel="Status"
+                defaultValue={defaults.status}
+                name="status"
+                options={
+                  mode === "create"
+                    ? [
+                        { label: "Pending", value: "pending" },
+                        { label: "Scheduled", value: "scheduled" },
+                      ]
+                    : MAINTENANCE_STATUS_OPTIONS.filter((option) =>
+                        canTransitionMaintenanceStatus(
+                          defaults.status,
+                          option.value,
+                          {
+                            actorMode: actor.workflowMode,
+                            executionMode:
+                              maintenanceCase?.executionMode ??
+                              "manager_coordinated",
+                          },
+                        ),
+                      )
+                }
+              />
+            </Field>
+            <Field label="Priority" error={state.fieldErrors?.priority?.[0]}>
+              <SelectControl
+                ariaLabel="Priority"
+                defaultValue={defaults.priority}
+                name="priority"
+                options={[
+                  { label: "Low", value: "low" },
+                  { label: "Normal", value: "normal" },
+                  { label: "High", value: "high" },
+                  { label: "Urgent", value: "urgent" },
+                ]}
+              />
+            </Field>
             <Field
-              label="Actual cost"
-              error={state.fieldErrors?.actualCostAmount?.[0]}
+              label="Recurrence"
+              error={state.fieldErrors?.recurrenceFrequency?.[0]}
+            >
+              <SelectControl
+                ariaLabel="Recurrence"
+                defaultValue={defaults.recurrenceFrequency}
+                name="recurrenceFrequency"
+                options={[
+                  { label: "One-time", value: "none" },
+                  { label: "Weekly", value: "weekly" },
+                  { label: "Monthly", value: "monthly" },
+                  { label: "Quarterly", value: "quarterly" },
+                  { label: "Semi-annual", value: "semi_annual" },
+                  { label: "Annual", value: "annual" },
+                ]}
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Due date" error={state.fieldErrors?.dueDate?.[0]}>
+              <DatePickerField
+                ariaLabel="Due date"
+                defaultValue={defaults.dueDate ?? ""}
+                name="dueDate"
+              />
+            </Field>
+            <Field label="Due time" error={state.fieldErrors?.dueTime?.[0]}>
+              <TimePickerField
+                ariaLabel="Due time"
+                defaultValue={defaults.dueTime ?? ""}
+                name="dueTime"
+              />
+            </Field>
+            <Field
+              label="Reminder date"
+              error={state.fieldErrors?.reminderDate?.[0]}
+            >
+              <DatePickerField
+                ariaLabel="Reminder date"
+                defaultValue={defaults.reminderDate ?? ""}
+                name="reminderDate"
+              />
+            </Field>
+            <Field
+              label="Reminder time"
+              error={state.fieldErrors?.reminderTime?.[0]}
+            >
+              <TimePickerField
+                ariaLabel="Reminder time"
+                defaultValue={defaults.reminderTime ?? ""}
+                name="reminderTime"
+              />
+            </Field>
+          </div>
+
+        </FormSection>
+        <FormSection title="Cost and notes">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Cost estimate"
+              error={state.fieldErrors?.costEstimateAmount?.[0]}
             >
               <NumberInput
-                defaultValue={defaults.actualCostAmount ?? ""}
+                defaultValue={defaults.costEstimateAmount ?? ""}
                 min="0"
-                name="actualCostAmount"
-                readOnly={costFieldsLocked}
+                name="costEstimateAmount"
                 step="0.01"
               />
             </Field>
+            {mode === "edit" && canRecordActualCost ? (
+              <Field
+                label="Actual cost"
+                error={state.fieldErrors?.actualCostAmount?.[0]}
+              >
+                <NumberInput
+                  defaultValue={defaults.actualCostAmount ?? ""}
+                  min="0"
+                  name="actualCostAmount"
+                  readOnly={costFieldsLocked}
+                  step="0.01"
+                />
+              </Field>
+            ) : null}
+          </div>
+
+          {mode === "edit" && costScopeLocked ? (
+            <p className="rounded-md border border-border bg-muted/70 px-3 py-2 text-xs leading-5 text-muted-foreground">
+              {costFieldsLocked
+                ? "The property, unit, actual cost, and vendor are locked while Finance reviews this submission. Other maintenance details remain editable."
+                : "The property, unit, and vendor are locked to the approved financial history. Update the actual cost only when submitting a new adjustment."}
+            </p>
           ) : null}
-        </div>
 
-        {mode === "edit" && costScopeLocked ? (
-          <p className="rounded-md border border-border bg-muted/70 px-3 py-2 text-xs leading-5 text-muted-foreground">
-            {costFieldsLocked
-              ? "The property, unit, actual cost, and vendor are locked while Finance reviews this submission. Other maintenance details remain editable."
-              : "The property, unit, and vendor are locked to the approved financial history. Update the actual cost only when submitting a new adjustment."}
-          </p>
-        ) : null}
+          <Field label="Description" error={state.fieldErrors?.description?.[0]}>
+            <Textarea
+              defaultValue={defaults.description ?? ""}
+              name="description"
+            />
+          </Field>
 
-        <Field label="Description" error={state.fieldErrors?.description?.[0]}>
-          <Textarea
-            defaultValue={defaults.description ?? ""}
-            name="description"
+          <ChecklistEditor
+            error={state.fieldErrors?.checklistText?.[0]}
+            value={defaults.checklistText}
           />
-        </Field>
 
-        <ChecklistEditor
-          error={state.fieldErrors?.checklistText?.[0]}
-          value={defaults.checklistText}
-        />
-
+        </FormSection>
         {state.message ? (
           <p
             className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
@@ -2022,7 +2028,7 @@ export function MaintenanceForm({
       </div>
       <div className="border-t border-border px-4 py-4 sm:px-5">
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button className="w-full sm:w-auto" onClick={onClose} type="button">
+          <Button className="w-full sm:w-auto" onClick={onClose} type="button" variant="ghost">
             Cancel
           </Button>
           <Button

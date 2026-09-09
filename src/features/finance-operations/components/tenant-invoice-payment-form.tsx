@@ -86,9 +86,7 @@ function TenantInvoicePaymentFormStateful({
     receivingAccounts,
     invoice.propertyId,
   );
-  const defaultReceivingAccount = receivingAccounts.find(
-    (account) => account.id === defaultReceivingAccountId,
-  );
+
   const outstandingLines = invoice.lines.filter((line) => line.balanceDue > 0);
   const settlementDateLabel =
     invoice.collectionRoute === "through_ips"
@@ -144,7 +142,10 @@ function TenantInvoicePaymentFormStateful({
             ? ([
                 [
                   "Applied to",
-                  `${ownerLabel} · ${invoice.propertyLabel} — Automatic`,
+                  <span key="allocation-target" className="block space-y-0.5">
+                    <span className="block">{ownerLabel}</span>
+                    <span className="block font-normal text-muted-foreground">{invoice.propertyLabel}</span>
+                  </span>,
                 ],
               ] satisfies [string, ReactNode][])
             : []),
@@ -155,6 +156,7 @@ function TenantInvoicePaymentFormStateful({
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Amount">
           <NumberInput
+            className="h-10 text-lg font-semibold tabular-nums md:text-lg"
             defaultValue={invoice.balanceDue}
             name="amount"
             required
@@ -182,16 +184,11 @@ function TenantInvoicePaymentFormStateful({
                 placeholder="Choose receiving account"
                 required
               />
-              <p className="text-xs leading-4 text-muted-foreground">
-                Where the payment actually arrived.
-                {defaultReceivingAccount?.propertyId === invoice.propertyId
-                  ? " Defaulted from this property; choose another account if needed."
-                  : ""}
-              </p>
+
             </div>
           </Field>
         ) : null}
-        <Field label="Payment method or reference">
+        <Field label="Reference (optional)">
           <Input
             name="reference"
             placeholder="e.g. bank transfer · ABA 1234"
@@ -199,36 +196,29 @@ function TenantInvoicePaymentFormStateful({
         </Field>
       </div>
       {invoice.collectionRoute === "through_ips" ? (
-        <div className="space-y-1 text-xs leading-4 text-muted-foreground">
-          <p>
-            Automatic allocation applies Rent first, then other charges in
-            invoice order. Expand below to override when several charges are
-            outstanding.
-          </p>
-          <p>
-            A PDF receipt is created after the payment is recorded. If the
-            receipt cannot be created, the payment stays recorded and the
-            receipt can be retried.
-          </p>
-        </div>
+        <p className="text-xs text-muted-foreground">Receipt issued after recording.</p>
       ) : null}
-      {outstandingLines.length > 1 ? (
-        <details className="rounded-md border border-border">
-          <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
-            Change how payment is applied
+      {invoice.collectionRoute === "through_ips" || outstandingLines.length > 1 ? (
+        <details className="border-t border-border pt-3">
+          <summary className="cursor-pointer rounded-sm py-1 text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">
+            {invoice.collectionRoute === "through_ips" ? "Allocation and receipt details" : "Change how payment is applied"}
           </summary>
-          <div className="grid gap-3 border-t border-border p-3 sm:grid-cols-2">
-            {outstandingLines.map((line) => (
-              <Field
-                key={line.id}
-                label={`${line.label} · ${formatMoneyDisplay(line.balanceDue).primary}`}
-              >
-                <NumberInput
-                  name={`allocation:${line.id}`}
-                  placeholder="Leave blank for Rent first"
-                />
-              </Field>
-            ))}
+          <div className="mt-3 space-y-3">
+            <p className="text-xs text-muted-foreground">Rent first, then other charges in invoice order.{outstandingLines.length > 1 ? " Enter amounts below to change the allocation." : ""}</p>
+            {outstandingLines.length > 1 ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {outstandingLines.map((line) => (
+                  <Field key={line.id} label={`${line.label} · ${formatMoneyDisplay(line.balanceDue).primary}`}>
+                    <NumberInput name={`allocation:${line.id}`} placeholder="Leave blank for Rent first" />
+                  </Field>
+                ))}
+              </div>
+            ) : null}
+            {invoice.collectionRoute === "through_ips" ? (
+              <p className="text-xs text-muted-foreground">
+                A PDF receipt is created after the payment is recorded. If the receipt cannot be created, the payment stays recorded and the receipt can be retried.
+              </p>
+            ) : null}
           </div>
         </details>
       ) : null}
@@ -320,7 +310,7 @@ function Field({ children, label }: { children: ReactNode; label: string }) {
 
 function FormFooter({ children }: { children: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-t border-border pt-4">
+    <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex items-center justify-between gap-2 border-t border-border bg-background px-4 py-3">
       {children}
     </div>
   );
@@ -337,14 +327,14 @@ function SubmitButton({ label }: { label: string }) {
 
 function DefinitionRows({ rows }: { rows: [string, ReactNode][] }) {
   return (
-    <dl className="overflow-hidden rounded-md border border-border">
+    <dl className="border-b border-border pb-3">
       {rows.map(([label, value]) => (
         <div
-          className="grid grid-cols-[minmax(120px,0.4fr)_1fr] gap-3 border-b border-border px-3 py-2 last:border-b-0"
+          className="grid grid-cols-[minmax(80px,0.35fr)_1fr] gap-3 py-1.5"
           key={label}
         >
           <dt className="text-sm text-muted-foreground">{label}</dt>
-          <dd className="text-sm font-medium">{value}</dd>
+          <dd className="min-w-0 break-words text-sm font-medium">{value}</dd>
         </div>
       ))}
     </dl>

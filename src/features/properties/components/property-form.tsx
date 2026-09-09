@@ -246,7 +246,7 @@ export function PropertyForm({
       ) : null}
 
       {!isOwnerScope ? (
-      <FormSection step="01" title="Property details">
+      <FormSection title="Property details">
         {!isEditMode && creationBranchOptions !== undefined ? (
           <RecordField
             error={state.fieldErrors?.branchId?.[0]}
@@ -363,7 +363,7 @@ export function PropertyForm({
       ) : null}
 
       {showsOwnership ? (
-      <FormSection step="02" title="Ownership">
+      <FormSection title="Ownership">
         <div className="grid gap-4">
           <RecordField
             label="Property owner"
@@ -474,7 +474,7 @@ export function PropertyForm({
       ) : null}
 
       {!isOwnerScope ? (
-      <FormSection step={showsOwnership ? "03" : "02"} title="Photo">
+      <FormSection title="Photo">
         <RecordField
           error={state.fieldErrors?.photo?.[0]}
           label="Property photo"
@@ -493,7 +493,7 @@ export function PropertyForm({
       ) : null}
 
       {isEditMode && !isOwnerScope ? (
-      <FormSection step="04" title="Notes">
+      <FormSection title="Notes">
         <RecordField
           className="[&>div]:mt-0 [&>span:first-child]:sr-only"
           error={state.fieldErrors?.notes?.[0]}

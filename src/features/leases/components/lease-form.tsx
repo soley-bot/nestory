@@ -398,7 +398,6 @@ export function LeaseForm({
 
         <div hidden={!isEditMode && createStep !== 2}>
           <FormSection
-            step={isEditMode ? "01" : undefined}
             title={isEditMode ? "Lease period" : "Lease terms"}
           >
             {!isEditMode ? (
@@ -486,7 +485,6 @@ export function LeaseForm({
 
         <div hidden={!isEditMode && createStep !== 3}>
           <FormSection
-            step={isEditMode ? "02" : undefined}
             title="Rent and deposit"
           >
             <div className="grid gap-4 sm:grid-cols-2">
@@ -643,7 +641,6 @@ export function LeaseForm({
 
         <div hidden={!isEditMode && createStep !== 4}>
           <FormSection
-            step={isEditMode ? "03" : undefined}
             title={isEditMode ? "Rent collection and billing" : "Billing setup"}
           >
             {isEditMode ? (
