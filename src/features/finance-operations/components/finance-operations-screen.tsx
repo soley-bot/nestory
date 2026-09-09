@@ -3337,15 +3337,18 @@ function OwnerExpenseTransactionForm({
             onClick={() => {
               const key = nextLineKey.current;
               nextLineKey.current += 1;
-              setLines((current) => [...current, {
+              setLines((current) => {
+                const propertyId = current.at(-1)?.propertyId ?? defaultPropertyId;
+                return [...current, {
                 amount: "",
-                categoryAccountId: activeCategories.find((account) => account.propertyId === null || account.propertyId === defaultPropertyId)?.id ?? "",
+                categoryAccountId: activeCategories.find((account) => account.propertyId === null || account.propertyId === propertyId)?.id ?? "",
                 description: "",
                 key,
                 ownerCashAmount: "",
-                propertyId: current.at(-1)?.propertyId ?? defaultPropertyId,
+                propertyId,
                 unitId: "",
-              }]);
+              }];
+              });
             }}
             type="button"
             variant="outline"

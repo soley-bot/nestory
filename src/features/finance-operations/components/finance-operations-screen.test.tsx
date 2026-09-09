@@ -180,6 +180,10 @@ describe("FinanceOperationsScreen", () => {
   it("allows a scoped expense to switch property and clears the old unit", async () => {
     const user = userEvent.setup();
     const input = data();
+    input.expenseAccounts = [
+      { id: "category-1", displayName: "First cleaning", accountClass: "expense", accountSubtype: "expense", propertyId: "property-1" },
+      { id: "category-2", displayName: "Second cleaning", accountClass: "expense", accountSubtype: "expense", propertyId: "property-2" },
+    ];
     input.expenseEntryOptions = {
       propertyOptions: [{id:"property-1",label:"Riverside"},{id:"property-2",label:"Garden House"}],
       unitOptions: [{id:"unit-1",label:"Unit 1",propertyId:"property-1"}],
@@ -194,6 +198,8 @@ describe("FinanceOperationsScreen", () => {
     await user.click(screen.getByRole("combobox", {name:"Property"}));
     await user.click(screen.getByRole("option", {name:"Garden House"}));
     expect(JSON.parse(valueOfNamedInput(form,"lines")!)[0]).toMatchObject({propertyId:"property-2",unitId:null});
+    await user.click(screen.getByRole("button", { name: "Add line" }));
+    expect(JSON.parse(valueOfNamedInput(form,"lines")!)[1]).toMatchObject({propertyId:"property-2",categoryAccountId:"category-2"});
   });
 
   it("preserves the configured paid-from account for a scoped transaction", () => {
