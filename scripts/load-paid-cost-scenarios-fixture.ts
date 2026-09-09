@@ -71,7 +71,6 @@ async function main() {
     "petty-cash source",
   );
   const closeMonth = monthOffset(24);
-  const closePaidDate = `${closeMonth.slice(0, 8)}10`;
   const closeDate = (day: number) =>
     `${closeMonth.slice(0, 8)}${String(day).padStart(2, "0")}`;
 

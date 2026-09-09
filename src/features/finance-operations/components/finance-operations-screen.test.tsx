@@ -1926,9 +1926,11 @@ describe("FinanceOperationsScreen", () => {
       "application/pdf,image/jpeg,image/png,image/webp",
     );
     const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Line amount"), "30");
     await user.upload(evidence, new File(["receipt"], "receipt.pdf", { type: "application/pdf" }));
     await user.click(screen.getByRole("button", { name: "Remove receipt" }));
     expect((evidence as HTMLInputElement).files).toHaveLength(0);
+    expect(screen.getByLabelText("Line amount")).toHaveProperty("value", "30");
     expect(screen.queryByRole("button", { name: "Remove receipt" })).toBeNull();
     expect(screen.queryByText("Service fee")).toBeNull();
     expect(
