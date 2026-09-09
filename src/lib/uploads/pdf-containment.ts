@@ -57,7 +57,6 @@ const ACTIVE_TYPES = new Set([
   "FileAttachment",
   "Filespec",
   "Movie",
-  "ObjStm",
   "PS",
   "RichMedia",
   "RichMediaAnnotation",
@@ -84,9 +83,11 @@ type XrefEntry = {
   generation: number;
   objectId: number;
   offset: number;
+  objectStream?: { id: number; index: number };
 };
 
 type ParsedObject = {
+  compressed?: boolean;
   end: number;
   generation: number;
   objectId: number;
@@ -104,7 +105,7 @@ type ResourceBudget = {
 /**
  * Local containment profile for evidence PDFs. This is deliberately narrower
  * than the full PDF grammar: one classic xref table or fully enumerated xref
- * stream, no incremental revisions, object streams, encryption, repair, or
+ * stream, no incremental revisions, encryption, repair, or
  * unsupported stream filters.
  * Every declared indirect object is parsed at its xref offset and every stream
  * is bounded by its direct or indirect Length. Semantic inspection happens on
@@ -132,6 +133,8 @@ export function isContainedPdf(bytes: Uint8Array) {
     if (size <= highestObjectId) return false;
 
     const cache = new Map<string, ParsedObject>();
+    const decodedObjectStreams = new Set<number>();
+    let remainingObjectStreamBytes = MAX_TOTAL_DECODED_STREAM_BYTES;
     const parsing = new Set<string>();
     const parseObject = (entry: XrefEntry): ParsedObject | null => {
       const key = referenceKey(entry.objectId, entry.generation);
@@ -139,6 +142,14 @@ export function isContainedPdf(bytes: Uint8Array) {
       if (cached) return cached;
       if (parsing.has(key)) return null;
       parsing.add(key);
+      if (entry.objectStream) {
+        const containerEntry = xref.entries.get(referenceKey(entry.objectStream.id, 0));
+        if (!containerEntry || containerEntry.objectStream) return null;
+        const container = parseObject(containerEntry);
+        if (!container || !readObjectStream(container)) return null;
+        parsing.delete(key);
+        return cache.get(key) ?? null;
+      }
       const parsed = parseIndirectObject(
         bytes,
         entry,
@@ -152,8 +163,55 @@ export function isContainedPdf(bytes: Uint8Array) {
       return parsed;
     };
 
+    const readObjectStream = (container: ParsedObject): boolean => {
+      if (decodedObjectStreams.has(container.objectId)) return true;
+      if (container.value.kind !== "dictionary" || !container.stream
+        || nameValue(container.value.entries.get("Type")) !== "ObjStm"
+        || hasAnyKey(container.value, ["Extends", "DecodeParms", "DP"])) return false;
+      const count = integerValue(container.value.entries.get("N"));
+      const first = integerValue(container.value.entries.get("First"));
+      if (count === null || count <= 0 || count > MAX_OBJECTS || first === null || first < 0) return false;
+      const decoded = decodeXrefStream(container.stream, container.value);
+      if (!decoded || first > decoded.length || decoded.length > remainingObjectStreamBytes) return false;
+      remainingObjectStreamBytes -= decoded.length;
+      const header = new PdfParser(decoded, 0, first, parseBudget);
+      const members: { id: number; offset: number }[] = [];
+      const seen = new Set<number>();
+      for (let index = 0; index < count; index += 1) {
+        const id = header.readUnsignedInteger();
+        const offset = header.readUnsignedInteger();
+        if (id === null || offset === null || seen.has(id)) return false;
+        const member = xref.entries.get(referenceKey(id, 0));
+        if (!member?.objectStream || member.objectStream.id !== container.objectId
+          || member.objectStream.index !== index) return false;
+        if ((index === 0 && offset !== 0) || (index > 0 && offset <= members[index - 1].offset)) return false;
+        seen.add(id);
+        members.push({ id, offset });
+      }
+      header.skipWhitespaceAndComments();
+      if (header.position !== first) return false;
+      for (let index = 0; index < members.length; index += 1) {
+        const member = members[index];
+        const start = first + member.offset;
+        const end = index + 1 < members.length ? first + members[index + 1].offset : decoded.length;
+        if (start >= end || end > decoded.length) return false;
+        const parser = new PdfParser(decoded, start, end, parseBudget);
+        const value = parser.parseValue();
+        parser.skipWhitespaceAndComments();
+        if (!value || value.kind === "reference" || parser.position !== end) return false;
+        cache.set(referenceKey(member.id, 0), {
+          compressed: true, start: 0, end: 0, generation: 0, objectId: member.id, value,
+        });
+      }
+      decodedObjectStreams.add(container.objectId);
+      return true;
+    };
+
     for (const entry of xref.entries.values()) {
-      if (!parseObject(entry)) return false;
+      const object = parseObject(entry);
+      if (!object) return false;
+      if (object.value.kind === "dictionary" && nameValue(object.value.entries.get("Type")) === "ObjStm"
+        && !readObjectStream(object)) return false;
     }
 
     const rootObject = cache.get(referenceKey(root.objectId, root.generation));
@@ -346,7 +404,7 @@ function parseXrefStream(
 }
 
 function decodeXrefStream(encoded: Uint8Array, dictionary: PdfDictionary) {
-  if (hasAnyKey(dictionary, ["DecodeParms", "DP"])) return null;
+  if (dictionary.entries.has("DP")) return null;
   const filters = readFilters(dictionary.entries.get("Filter"));
   if (!filters) return null;
   const normalized = filters.map(normalizeFilter);
@@ -370,9 +428,45 @@ function decodeXrefStream(encoded: Uint8Array, dictionary: PdfDictionary) {
     decoded = asciiDecoded;
   }
   if (supported.at(-1) === "FlateDecode") {
-    return decodeBoundedZlib(decoded, decoded.byteLength);
+    const inflated = decodeBoundedZlib(decoded, decoded.byteLength);
+    if (!inflated) return null;
+    const parameters = dictionary.entries.get("DecodeParms");
+    return parameters ? decodeXrefPredictor(inflated, parameters, dictionary) : inflated;
   }
-  return decoded.byteLength <= MAX_DECODED_STREAM_BYTES ? decoded : null;
+  return !dictionary.entries.has("DecodeParms") && decoded.byteLength <= MAX_DECODED_STREAM_BYTES ? decoded : null;
+}
+
+// Xref PNG predictors operate on bounded byte rows, not image data.
+function decodeXrefPredictor(bytes: Uint8Array, parameters: PdfValue, dictionary: PdfDictionary) {
+  if (parameters.kind !== "dictionary") return null;
+  if ([...parameters.entries.keys()].some((key) => !["Predictor", "Columns", "Colors", "BitsPerComponent"].includes(key))) return null;
+  const predictor = integerValue(parameters.entries.get("Predictor"));
+  const columns = parameters.entries.has("Columns") ? integerValue(parameters.entries.get("Columns")) : 1;
+  const colors = parameters.entries.has("Colors") ? integerValue(parameters.entries.get("Colors")) : 1;
+  const bits = parameters.entries.has("BitsPerComponent") ? integerValue(parameters.entries.get("BitsPerComponent")) : 8;
+  const widths = integerArray(dictionary.entries.get("W"));
+  if (predictor === null || predictor < 10 || predictor > 15 || colors !== 1 || bits !== 8
+    || !widths || widths.length !== 3 || columns !== widths.reduce((a, b) => a + b, 0)
+    || columns === null || columns <= 0 || columns > 18 || bytes.length % (columns + 1) !== 0) return null;
+  const rows = bytes.length / (columns + 1);
+  if (rows > MAX_OBJECTS + 1) return null;
+  const result = new Uint8Array(rows * columns);
+  for (let row = 0; row < rows; row += 1) {
+    const filter = bytes[row * (columns + 1)];
+    if (filter > 4 || (predictor !== 15 && filter !== predictor - 10)) return null;
+    for (let col = 0; col < columns; col += 1) {
+      const position = row * columns + col;
+      const left = col > 0 ? result[position - 1] : 0;
+      const up = row > 0 ? result[position - columns] : 0;
+      const upperLeft = row > 0 && col > 0 ? result[position - columns - 1] : 0;
+      const estimate = left + up - upperLeft;
+      const distances = [Math.abs(estimate - left), Math.abs(estimate - up), Math.abs(estimate - upperLeft)];
+      const paeth = distances[0] <= distances[1] && distances[0] <= distances[2] ? left : distances[1] <= distances[2] ? up : upperLeft;
+      const adjustment = [0, left, up, Math.floor((left + up) / 2), paeth][filter];
+      result[position] = (bytes[row * (columns + 1) + col + 1] + adjustment) & 255;
+    }
+  }
+  return result;
 }
 
 function parseXrefStreamEntries(
@@ -440,6 +534,13 @@ function parseXrefStreamEntries(
       if (declaredObjectIds.has(objectId)) return null;
       declaredObjectIds.add(objectId);
       if (type === 0) continue;
+      if (type === 2) {
+        if (objectId <= 0 || field2 <= 0 || field2 >= size || field2 === objectId || field3 >= MAX_OBJECTS) return null;
+        entries.set(referenceKey(objectId, 0), {
+          generation: 0, objectId, offset: 0, objectStream: { id: field2, index: field3 },
+        });
+        continue;
+      }
       if (type !== 1) return null;
       if (
         objectId <= 0
@@ -963,7 +1064,7 @@ function objectsCoverBody(
   bodyEnd: number,
   objects: ParsedObject[],
 ) {
-  const sorted = objects.toSorted((left, right) => left.start - right.start);
+  const sorted = objects.filter((object) => !object.compressed).toSorted((left, right) => left.start - right.start);
   let cursor = headerEnd;
   for (const object of sorted) {
     if (object.start < cursor || !isWhitespaceOrComments(bytes, cursor, object.start)) {

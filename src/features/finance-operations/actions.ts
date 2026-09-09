@@ -764,8 +764,13 @@ export async function submitExpenseAction(
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
   const evidenceFile = formData.get("evidenceFile");
-  const hasEvidence = evidenceFile !== null &&
-    !(evidenceFile instanceof File && evidenceFile.name === "" && evidenceFile.size === 0);
+  // React's multipart decoder gives an unselected file input the default
+  // Blob filename. Accept both representations of that empty browser part.
+  const isEmptyFileInput = evidenceFile instanceof File && evidenceFile.size === 0 && (
+    evidenceFile.name === "" ||
+    (evidenceFile.name === "blob" && evidenceFile.type === "application/octet-stream")
+  );
+  const hasEvidence = evidenceFile !== null && !isEmptyFileInput;
   const evidenceError = hasEvidence ? validatePaidCostEvidenceFile(evidenceFile) : null;
   if (evidenceError) return actionError(evidenceError);
   if (formData.has("lines")) {
