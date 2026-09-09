@@ -10,6 +10,7 @@ import {
   WorkspaceSplitView,
 } from "@/components/layout/workspace-split-view";
 import { Button } from "@/components/ui/button";
+import { TransientFeedback } from "@/components/ui/transient-feedback";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
@@ -219,14 +220,10 @@ export function UnitScreen({
       <div className="flex min-w-0 flex-col">
 
       {statusMessage ? (
-        <div className="shrink-0 px-4 py-2 sm:px-6">
-          <p
-            className="rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm text-success"
-            role="status"
-          >
-            {statusMessage}
-          </p>
-        </div>
+        <TransientFeedback
+          message={statusMessage}
+          onDismiss={() => setStatusMessage(null)}
+        />
       ) : null}
 
       {activeReview ? (

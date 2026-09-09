@@ -601,7 +601,19 @@ describe("modal workflow slots", () => {
 
     expect(dialog.className).toContain("grid-rows-[auto_minmax(0,1fr)]");
     expect(dialog.className).toContain("overflow-hidden");
+    expect(dialog.getAttribute("aria-describedby")).toBeNull();
     expect(content?.className).toContain("min-h-0");
     expect(content?.className).toContain("overflow-y-auto");
+  });
+
+  it("keeps supplied modal guidance associated with the dialog", () => {
+    render(
+      <Modal description="Review the linked record before continuing." onClose={vi.fn()} open title="Document details">
+        <button type="button">Done</button>
+      </Modal>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Document details" });
+    const description = document.getElementById(dialog.getAttribute("aria-describedby")!);
+    expect(description?.textContent).toBe("Review the linked record before continuing.");
   });
 });

@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Building2, CheckCircle2, Circle, CircleAlert, ListChecks, Plus } from "lucide-react";
+import { Building2, Circle, CircleAlert, ListChecks, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
 import { Button } from "@/components/ui/button";
+import { TransientFeedback } from "@/components/ui/transient-feedback";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { removeSearchParams } from "@/lib/url/href";
@@ -251,15 +252,10 @@ export function PropertyScreen({
         <PropertyPortfolioSummaryNav summary={portfolioSummary} />
 
       {statusMessage ? (
-        <div className="shrink-0 px-4 py-2 sm:px-6">
-          <div
-            className="flex items-start gap-2 rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm text-success"
-            role="status"
-          >
-            <CheckCircle2 className="mt-0.5 shrink-0" size={16} />
-            <p className="font-medium text-foreground">{statusMessage}</p>
-          </div>
-        </div>
+        <TransientFeedback
+          message={statusMessage}
+          onDismiss={() => setStatusMessage(null)}
+        />
       ) : null}
 
       {reviewContext ? (

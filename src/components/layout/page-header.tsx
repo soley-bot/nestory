@@ -39,7 +39,7 @@ export function PageHeader({
             navigation ? "lg:flex-none" : ""
           }`}
         >
-          <h1 className="shrink-0 text-xl font-semibold tracking-tight text-foreground">
+          <h1 className="min-w-0 break-words text-xl font-semibold tracking-tight text-foreground">
             {title}
           </h1>
           {description || context ? (
@@ -54,7 +54,7 @@ export function PageHeader({
         </div>
         {actions ? (
           <div
-            className="order-1 ml-auto flex shrink-0 flex-wrap items-center gap-2 lg:order-2"
+            className="order-1 flex w-full min-w-0 flex-wrap items-center gap-2 sm:ml-auto sm:w-auto lg:order-2"
             data-slot="page-header-actions"
           >
             {actions}

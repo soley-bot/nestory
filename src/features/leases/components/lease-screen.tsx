@@ -120,9 +120,16 @@ export function LeaseScreen({
               >
                 Clear filters
               </Link>
+            ) : canPrepare ? (
+              <Link
+                className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                href="/properties?notice=choose-lease-context"
+              >
+                Choose a property
+              </Link>
             ) : undefined
           }
-          body={hasFilters ? "No lease records match the active filters." : "No lease records are available in this workspace."}
+          body={!hasFilters && canPrepare ? "Choose a property and unit to prepare a lease." : undefined}
           className="h-full"
           kind={hasFilters ? "filtered" : "empty"}
           title={hasFilters ? "No matching leases" : "No leases yet"}
