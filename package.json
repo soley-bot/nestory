@@ -103,7 +103,7 @@
     "react-dom": "^19.2.7",
     "react-dropzone": "^15.0.0",
     "recharts": "^3.10.1",
-    "resend": "6.22.1",
+    "resend": "6.26.0",
     "server-only": "0.0.1",
     "sharp": "^0.35.4",
     "tailwind-merge": "^3.6.0",
