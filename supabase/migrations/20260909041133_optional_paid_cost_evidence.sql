@@ -211,10 +211,16 @@ BEGIN
     SELECT person.display_name
     INTO v_payee_label
     FROM public.people AS person
+    JOIN public.person_roles AS vendor_role
+      ON vendor_role.organization_id = person.organization_id
+      AND vendor_role.person_id = person.id
+      AND vendor_role.role = 'vendor'
+      AND vendor_role.status = 'active'
+      AND vendor_role.archived_at IS NULL
     WHERE person.organization_id = p_organization_id
       AND person.id = p_payee_person_id
       AND person.archived_at IS NULL
-    FOR KEY SHARE;
+    FOR SHARE OF person, vendor_role;
     IF NOT FOUND THEN
       RAISE EXCEPTION 'Selected payee is unavailable' USING ERRCODE = '23503';
     END IF;
@@ -222,7 +228,7 @@ BEGIN
     AND length(v_external_payee_label) BETWEEN 2 AND 120 THEN
     v_payee_label := v_external_payee_label;
   ELSE
-    RAISE EXCEPTION 'Choose one existing person or one-time external payee'
+    RAISE EXCEPTION 'Choose one vendor or one-time external payee'
       USING ERRCODE = '22023';
   END IF;
 
