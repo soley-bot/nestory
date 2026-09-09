@@ -28,6 +28,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { removeSearchParams } from "@/lib/url/href";
 import { Button } from "@/components/ui/button";
+import { TransientFeedback } from "@/components/ui/transient-feedback";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   DOCUMENT_FILE_ACCEPT,
@@ -279,14 +280,10 @@ export function DocumentScreen({
     >
       <div className="flex min-w-0 flex-col">
         {statusMessage ? (
-          <div className="shrink-0 px-4 pt-3 sm:px-6">
-            <p
-              className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
-              role="status"
-            >
-              {statusMessage}
-            </p>
-          </div>
+          <TransientFeedback
+            message={statusMessage}
+            onDismiss={() => setStatusMessage(null)}
+          />
         ) : null}
 
         {reviewContext ? (
