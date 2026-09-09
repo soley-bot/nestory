@@ -246,6 +246,34 @@ SELECT lives_ok(format('SELECT public.review_expense_with_account(%L,%L,%L,%L,%L
   'standalone submissions preserve the existing review workflow')
 FROM tx_state AS state JOIN tx_extra AS extra ON extra.kind='legacy';
 RESET ROLE;
+-- Receipt evidence and reference can be independently absent.
+SELECT set_config('request.jwt.claim.sub',maker::text,true) FROM tx_state;
+SET LOCAL ROLE authenticated;
+INSERT INTO tx_extra SELECT 'optional',(public.submit_expense_transaction(
+  state.org,NULL,'Vendor without receipt',CURRENT_DATE,'USD',state.pay_from,NULL,
+  NULL,'owner',lines.payload,'transaction-optional-submit')->>'transaction_id')::uuid
+FROM tx_state AS state CROSS JOIN tx_lines AS lines;
+SELECT is((public.submit_expense_transaction(
+  state.org,NULL,'Vendor without receipt',CURRENT_DATE,'USD',state.pay_from,NULL,
+  NULL,'owner',lines.payload,'transaction-optional-submit')->>'transaction_id')::uuid,
+  (SELECT id FROM tx_extra WHERE kind='optional'),'receipt-free submission replays')
+FROM tx_state AS state CROSS JOIN tx_lines AS lines;
+RESET ROLE;
+SELECT ok((SELECT supporting_document_id IS NULL AND reference IS NULL
+  FROM public.expense_transactions WHERE id=(SELECT id FROM tx_extra WHERE kind='optional')),
+  'absent evidence and reference are stored as null');
+SELECT set_config('request.jwt.claim.sub',checker::text,true) FROM tx_state;
+SET LOCAL ROLE authenticated;
+SELECT lives_ok(format('SELECT public.review_expense_transaction(%L,%L,%L,%L,%L)',
+  state.org,extra.id,'approve','Expense reviewed without receipt','transaction-optional-review'),
+  'receipt-free transaction can be approved')
+FROM tx_state AS state JOIN tx_extra AS extra ON extra.kind='optional';
+RESET ROLE;
+SELECT is((SELECT count(*) FROM public.expense_submissions AS submission
+  JOIN public.expense_transaction_lines AS line ON line.submission_id=submission.id
+  WHERE line.transaction_id=(SELECT id FROM tx_extra WHERE kind='optional')
+    AND submission.status='approved' AND submission.supporting_document_id IS NULL),2::bigint,
+  'all receipt-free lines are approved');
 SET CONSTRAINTS ALL IMMEDIATE;
 SELECT is((SELECT count(*) FROM app_private.financial_idempotency_requests WHERE status='pending'),
   0::bigint,'transaction operations leave no pending child idempotency state');

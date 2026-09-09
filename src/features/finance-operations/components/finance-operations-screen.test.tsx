@@ -190,7 +190,7 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByRole("link", { name: "Create vendor" }).getAttribute("href")).toBe("/vendors?action=create");
   });
 
-  it("uses existing People authority for payees and supports ordered expense lines", async () => {
+  it("offers only vendors and external payees and supports ordered expense lines", async () => {
     const user = userEvent.setup();
     const input = data();
     input.peopleOptions = [
@@ -206,6 +206,10 @@ describe("FinanceOperationsScreen", () => {
         partyType: "individual",
         roles: ["staff"],
       },
+      { id: "tenant", label: "Tenant Only", roles: ["tenant"] },
+      { id: "owner", label: "Owner Only", roles: ["owner"] },
+      { id: "unclassified", label: "Unclassified Person" },
+      { id: "tenant-vendor", label: "Tenant Vendor", roles: ["tenant", "vendor"] },
     ];
 
     render(
@@ -225,8 +229,12 @@ describe("FinanceOperationsScreen", () => {
       screen.getByRole("option", { name: "Vendor · Khmer Home Services" }),
     ).not.toBeNull();
     expect(
-      screen.getByRole("option", { name: "Person · Dara Staff" }),
-    ).not.toBeNull();
+      screen.queryByRole("option", { name: "Person · Dara Staff" }),
+    ).toBeNull();
+    expect(screen.queryByRole("option", { name: /Tenant Only/ })).toBeNull();
+    expect(screen.queryByRole("option", { name: /Owner Only/ })).toBeNull();
+    expect(screen.queryByRole("option", { name: /Unclassified Person/ })).toBeNull();
+    expect(screen.getByRole("option", { name: "Vendor · Tenant Vendor" })).not.toBeNull();
     expect(
       screen.getByRole("option", { name: "One-time external payee" }),
     ).not.toBeNull();
@@ -1910,10 +1918,10 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
     expect(screen.queryByText(/funding source/i)).toBeNull();
     expect(
-      screen.getByLabelText("Receipt or payment reference"),
-    ).toHaveProperty("required", true);
-    const evidence = screen.getByLabelText("Receipt evidence");
-    expect(evidence).toHaveProperty("required", true);
+      screen.getByLabelText("Receipt or payment reference (optional)"),
+    ).toHaveProperty("required", false);
+    const evidence = screen.getByLabelText("Receipt evidence (optional)");
+    expect(evidence).toHaveProperty("required", false);
     expect(evidence.getAttribute("accept")).toBe(
       "application/pdf,image/jpeg,image/png,image/webp",
     );

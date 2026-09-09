@@ -2089,7 +2089,7 @@ SELECT set_config(
   true
 );
 
-SELECT throws_ok(
+SELECT lives_ok(
   format(
     $sql$
       SELECT public.submit_expense(
@@ -2104,9 +2104,7 @@ SELECT throws_ok(
     unit_id,
     source_id
   ),
-  '23514',
-  'Paid cost evidence document is required',
-  'a human-entered paid cost cannot use a reference in place of immutable evidence'
+  'a paid cost can be submitted with a reference and no receipt file'
 )
 FROM expense_approval_state;
 
@@ -2116,8 +2114,8 @@ SELECT is(
     FROM public.expense_submissions
     WHERE idempotency_key = 'paid-cost-submit-no-document-0001'
   ),
-  0::bigint,
-  'an evidence-free submission creates no review record'
+  1::bigint,
+  'an evidence-free submission creates a review record'
 );
 
 SELECT * FROM finish();
