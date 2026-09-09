@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import type { PrivilegedStepUpRequestClient } from "@/lib/auth/privileged-step-up-guard";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
+import {
+  isPrivilegedStepUpRequiredError,
+  privilegedStepUpRequiredActionMessage,
+} from "@/lib/auth/privileged-step-up-error";
 import { validateUploadedFileContent } from "@/lib/uploads/upload-content";
 
 const ALLOWED_PAID_COST_EVIDENCE_TYPES = new Set([
@@ -10,6 +14,19 @@ const ALLOWED_PAID_COST_EVIDENCE_TYPES = new Set([
   "image/webp",
 ]);
 const MAX_PAID_COST_EVIDENCE_BYTES = 10 * 1024 * 1024;
+
+export function paidCostEvidenceActionMessage(error: unknown) {
+  if (isPrivilegedStepUpRequiredError(error)) {
+    return privilegedStepUpRequiredActionMessage;
+  }
+  if (error instanceof Error && error.message === "Receipt evidence content does not match its file type.") {
+    return "This receipt file cannot be verified. Choose another PDF or a JPG, PNG, or WebP image, or remove the receipt to submit without it.";
+  }
+  if (error instanceof Error && error.message === "Receipt evidence upload failed.") {
+    return "Receipt upload failed. Try again, or remove the receipt to submit without it.";
+  }
+  return "Receipt evidence could not be verified. Try another file, or remove the receipt to submit without it.";
+}
 
 type PaidCostEvidenceInput = {
   actorId: string;

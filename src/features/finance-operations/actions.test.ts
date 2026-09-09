@@ -988,7 +988,7 @@ describe("expense approval actions", () => {
     );
   });
 
-  it("submits one reviewed transaction with exact ordered property expense lines", async () => {
+  it.each([true, false])("submits ordered property expense lines with optional evidence (%s)", async (withEvidence) => {
     rpc.mockResolvedValue({
       data: { transaction_id: submissionId },
       error: null,
@@ -1000,7 +1000,7 @@ describe("expense approval actions", () => {
     formData.set("payeePersonId", vendorPersonId);
     formData.set("externalPayeeLabel", "");
     formData.set("payFromAccountId", sourceId);
-    formData.set("reference", "Receipt 84");
+    formData.set("reference", withEvidence ? "Receipt 84" : "   ");
     formData.set("responsibility", "owner");
     formData.set(
       "lines",
@@ -1023,16 +1023,22 @@ describe("expense approval actions", () => {
         },
       ]),
     );
-    formData.set("evidenceFile", validPdfFile("receipt-84.pdf"));
+    if (withEvidence) formData.set("evidenceFile", validPdfFile("receipt-84.pdf"));
+    else formData.set("evidenceFile", new File([], ""));
 
     await expect(submitExpenseAction({}, formData)).resolves.toEqual({
       message: "Paid cost submitted for Finance review.",
       status: "success",
     });
-    expect(adminRpc).toHaveBeenCalledWith(
-      "register_paid_cost_evidence_verified",
-      expect.objectContaining({ p_property_id: propertyId }),
-    );
+    if (withEvidence) {
+      expect(adminRpc).toHaveBeenCalledWith(
+        "register_paid_cost_evidence_verified",
+        expect.objectContaining({ p_property_id: propertyId }),
+      );
+    } else {
+      expect(adminUpload).not.toHaveBeenCalled();
+      expect(adminRpc).not.toHaveBeenCalled();
+    }
     expect(rpc).toHaveBeenCalledWith("submit_expense_transaction", {
       p_currency: "USD",
       p_expense_date: "2026-08-08",
@@ -1063,9 +1069,9 @@ describe("expense approval actions", () => {
       p_organization_id: organizationId,
       p_payee_person_id: vendorPersonId,
       p_pay_from_account_id: sourceId,
-      p_reference: "Receipt 84",
+      p_reference: withEvidence ? "Receipt 84" : null,
       p_responsibility: "owner",
-      p_supporting_document_id: evidenceDocumentId,
+      p_supporting_document_id: withEvidence ? evidenceDocumentId : null,
     });
   });
 
@@ -1161,7 +1167,29 @@ describe("expense approval actions", () => {
     );
   });
 
-  it("rejects a paid cost without a retained evidence file before authorization", async () => {
+  it.each(["transaction", "legacy"])("explains expired session verification without evidence (%s)", async (path) => {
+    rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "Privileged email verification required" } });
+    const formData = new FormData();
+    for (const [key, value] of Object.entries({
+      expenseDate: "2026-08-08", idempotencyKey: "expense-step-up-expired",
+      categoryAccountId: sourceId, internalCost: "30", internalMarkup: "0",
+      propertyId, payFromAccountId: sourceId, reference: "", responsibility: "owner",
+      tenantInvoiceId: "", unitId: "", vendorLabel: "Sokha Repairs",
+    })) formData.set(key, value);
+    if (path === "transaction") {
+      formData.set("payeeMode", "external");
+      formData.set("externalPayeeLabel", "Sokha Repairs");
+      formData.set("lines", JSON.stringify([{ amount: "30", categoryAccountId: sourceId,
+        description: "Repair", propertyId, unitId: null, ownerCashAmount: null }]));
+    }
+    await expect(submitExpenseAction({}, formData)).resolves.toEqual({
+      message: "Verify this signed-in session by email, then retry saving.", status: "error",
+    });
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(adminUpload).not.toHaveBeenCalled();
+  });
+
+  it("submits a paid cost without an evidence file", async () => {
     rpc.mockResolvedValue({ data: submissionId, error: null });
     const formData = new FormData();
     formData.set("category", "cleaning");
@@ -1179,14 +1207,16 @@ describe("expense approval actions", () => {
     formData.set("unitId", "");
     formData.set("vendorLabel", "Sokha Repairs");
     await expect(submitExpenseAction({}, formData)).resolves.toEqual({
-      message: "Choose a receipt evidence file.",
-      status: "error",
+      message: "Paid cost submitted for Finance review.",
+      status: "success",
     });
-    expect(requireFinanceSubmissionContext).not.toHaveBeenCalled();
-    expect(rpc).not.toHaveBeenCalled();
+    expect(requireFinanceSubmissionContext).toHaveBeenCalledOnce();
+    expect(adminUpload).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith("submit_expense_with_accounts", expect.objectContaining({ p_supporting_document_id: null }));
   });
 
-  it("rejects an expense without a receipt reference before authorization", async () => {
+  it("submits an expense without a receipt reference", async () => {
+    rpc.mockResolvedValue({ data: submissionId, error: null });
     const formData = new FormData();
     formData.set("category", "cleaning");
     formData.set("expenseDate", "2026-08-08");
@@ -1208,11 +1238,11 @@ describe("expense approval actions", () => {
     );
 
     await expect(submitExpenseAction({}, formData)).resolves.toEqual({
-      message: "Enter a receipt or payment reference.",
-      status: "error",
+      message: "Paid cost submitted for Finance review.",
+      status: "success",
     });
-    expect(requireFinanceSubmissionContext).not.toHaveBeenCalled();
-    expect(rpc).not.toHaveBeenCalled();
+    expect(requireFinanceSubmissionContext).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledWith("submit_expense_with_accounts", expect.objectContaining({ p_reference: null, p_supporting_document_id: evidenceDocumentId }));
   });
 
   it("uses Finance Manager review authority for approval", async () => {

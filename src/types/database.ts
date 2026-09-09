@@ -811,9 +811,11 @@ type RpcFunctionOverrides = {
   update_unit: UpdateUnitRpc;
   submit_expense_transaction: WithArgs<
     "submit_expense_transaction",
-    Omit<GeneratedFunctions["submit_expense_transaction"]["Args"], "p_external_payee_label" | "p_payee_person_id"> & {
+    Omit<GeneratedFunctions["submit_expense_transaction"]["Args"], "p_external_payee_label" | "p_payee_person_id" | "p_reference" | "p_supporting_document_id"> & {
       p_external_payee_label: string | null;
       p_payee_person_id: string | null;
+      p_reference: string | null;
+      p_supporting_document_id: string | null;
     }
   >;
   review_expense_transaction: WithArgs<
@@ -837,7 +839,7 @@ type RpcFunctionOverrides = {
       p_responsibility: string;
       p_source_id: string | null;
       p_source_type: string;
-      p_supporting_document_id: string;
+      p_supporting_document_id: string | null;
       p_tenant_invoice_id: string | null;
       p_unit_id: string | null;
       p_vendor_label: string;

@@ -83,12 +83,12 @@
     {
       "id": "missing_evidence",
       "reference": "TRACK6-MISSING-EVIDENCE",
-      "status": "rejected_before_persistence",
+      "status": "submitted",
       "internalCost": "10.00",
       "responsibility": "owner",
       "fundingSourceKind": "bank",
-      "evidenceAuthority": "verified_storage_bytes",
-      "downstream": ["payment", "ledger", "responsibility", "owner_or_tenant_effect", "close_readiness", "owner_statement_source"]
+      "evidenceAuthority": "none",
+      "downstream": []
     }
   ],
   "closeOracle": {

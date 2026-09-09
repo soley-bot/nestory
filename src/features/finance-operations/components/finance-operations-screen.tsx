@@ -3119,11 +3119,9 @@ function OwnerExpenseTransactionForm({
     : findConfiguredAccountId(eligibleSources, "operating_bank", distinctPropertyIds.length === 1 ? distinctPropertyIds[0] : null) ?? eligibleSources[0]?.id ?? "";
   useSuccess(state, onSuccess);
 
-  const orderedPayees = [...peopleOptions].sort((left, right) => {
-    const leftVendor = left.roles?.includes("vendor") ? 0 : 1;
-    const rightVendor = right.roles?.includes("vendor") ? 0 : 1;
-    return leftVendor - rightVendor || left.label.localeCompare(right.label);
-  });
+  const orderedPayees = peopleOptions
+    .filter((person) => person.roles?.includes("vendor"))
+    .sort((left, right) => left.label.localeCompare(right.label));
   const payeePersonId = payeeValue.startsWith("person:")
     ? payeeValue.slice("person:".length)
     : "";
@@ -3188,12 +3186,12 @@ function OwnerExpenseTransactionForm({
               onValueChange={setPayeeValue}
               options={[
                 ...orderedPayees.map((person) => ({
-                  label: `${person.roles?.includes("vendor") ? "Vendor" : "Person"} · ${person.label}`,
+                  label: `Vendor · ${person.label}`,
                   value: `person:${person.id}`,
                 })),
                 { label: "One-time external payee", value: "external" },
               ]}
-              placeholder="Choose vendor or person"
+              placeholder="Choose vendor or external payee"
               required
               value={payeeValue}
             />
@@ -3395,23 +3393,15 @@ function OwnerExpenseTransactionForm({
               value={effectivePayFromAccountId}
             />
           </Field>
-          <Field label="Receipt or payment reference">
+          <Field label="Receipt or payment reference (optional)">
             <Input
               onChange={(event) => setReference(event.target.value)}
               placeholder="Receipt number or transfer note"
-              required
               value={reference}
             />
           </Field>
           <div className="sm:col-span-2">
-            <Field label="Receipt evidence">
-              <Input
-                accept="application/pdf,image/jpeg,image/png,image/webp"
-                name="evidenceFile"
-                required
-                type="file"
-              />
-            </Field>
+            <ReceiptEvidenceField />
           </div>
           <div className="rounded-xl border border-border/80 sm:col-span-2">
             <h3 className="sr-only">Financial preview</h3>
@@ -3822,23 +3812,15 @@ function SingleLineExpenseForm({
         title="Payment evidence"
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Receipt or payment reference">
+          <Field label="Receipt or payment reference (optional)">
             <Input
               onChange={(event) => setReference(event.target.value)}
               placeholder="Receipt number or transfer note"
-              required
               value={reference}
             />
           </Field>
           <div className="sm:col-span-2">
-            <Field label="Receipt evidence">
-              <Input
-                accept="application/pdf,image/jpeg,image/png,image/webp"
-                name="evidenceFile"
-                required
-                type="file"
-              />
-            </Field>
+            <ReceiptEvidenceField />
           </div>
         </div>
       </FormSection>
@@ -4813,6 +4795,40 @@ function StatusBadge({
     status,
   });
   return <Badge tone={presentation.tone}>{presentation.label}</Badge>;
+}
+function ReceiptEvidenceField() {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [hasFile, setHasFile] = useState(false);
+  return (
+    <div className="space-y-2">
+      <Field label="Receipt evidence (optional)">
+        <Input
+          accept="application/pdf,image/jpeg,image/png,image/webp"
+          name="evidenceFile"
+          onChange={(event) => setHasFile(Boolean(event.currentTarget.files?.length))}
+          ref={inputRef}
+          type="file"
+        />
+      </Field>
+      {hasFile ? (
+        <Button
+          onClick={() => {
+            const input = inputRef.current;
+            if (!input) return;
+            input.value = "";
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            setHasFile(false);
+            input.focus();
+          }}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          Remove receipt
+        </Button>
+      ) : null}
+    </div>
+  );
 }
 function Field({ children, label }: { children: ReactNode; label: string }) {
   return (

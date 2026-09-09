@@ -20,6 +20,7 @@ vi.mock("@/lib/auth/privileged-step-up-guard", () => ({
 }));
 
 import {
+  paidCostEvidenceActionMessage,
   preparePaidCostEvidence,
   preparePaidCostEvidenceForFixture,
 } from "@/features/finance-operations/paid-cost-evidence";
@@ -38,6 +39,21 @@ const taskId = "00000000-0000-4000-8000-000000000010";
 const retainedHash =
   "50dc246b4ff9509811a23d9fcf7d6c8465ed2b4eed08aa049d9feae8e8afd526";
 const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+describe("receipt upload errors", () => {
+  it("explains an unsupported file without suggesting an identical retry", () => {
+    expect(paidCostEvidenceActionMessage(new Error("Receipt evidence content does not match its file type.")))
+      .toBe("This receipt file cannot be verified. Choose another PDF or a JPG, PNG, or WebP image, or remove the receipt to submit without it.");
+  });
+  it("preserves the session verification recovery action", () => {
+    expect(paidCostEvidenceActionMessage(new Error("Privileged email verification required.")))
+      .toBe("Verify this signed-in session by email, then retry saving.");
+  });
+  it("does not expose backend details", () => {
+    expect(paidCostEvidenceActionMessage(new Error("private database details")))
+      .toBe("Receipt evidence could not be verified. Try another file, or remove the receipt to submit without it.");
+  });
+});
 
 describe("verified paid-cost evidence", () => {
   beforeEach(() => {

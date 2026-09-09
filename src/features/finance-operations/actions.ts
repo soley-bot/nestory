@@ -17,6 +17,11 @@ import {
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
+  isPrivilegedStepUpRequiredError,
+  privilegedStepUpRequiredActionMessage,
+} from "@/lib/auth/privileged-step-up-error";
+import {
+  paidCostEvidenceActionMessage,
   preparePaidCostEvidence,
   validatePaidCostEvidenceFile,
 } from "@/features/finance-operations/paid-cost-evidence";
@@ -204,7 +209,6 @@ const legacyExpenseSchema = z.object({
   reference: z
     .string()
     .trim()
-    .min(1, "Enter a receipt or payment reference.")
     .max(160),
   responsibility: z.enum(["owner", "tenant"]),
   tenantInvoiceId: z.preprocess((value) => value || null, uuid.nullable()),
@@ -261,7 +265,7 @@ const expenseTransactionSchema = z
     payeeMode: z.enum(["person", "external"]),
     payeePersonId: z.preprocess((value) => value || null, uuid.nullable()),
     payFromAccountId: uuid,
-    reference: z.string().trim().min(1).max(160),
+    reference: z.string().trim().max(160),
     responsibility: z.enum(["owner", "tenant"]),
   })
   .superRefine((value, context) => {
@@ -760,7 +764,9 @@ export async function submitExpenseAction(
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
   const evidenceFile = formData.get("evidenceFile");
-  const evidenceError = validatePaidCostEvidenceFile(evidenceFile);
+  const hasEvidence = evidenceFile !== null &&
+    !(evidenceFile instanceof File && evidenceFile.name === "" && evidenceFile.size === 0);
+  const evidenceError = hasEvidence ? validatePaidCostEvidenceFile(evidenceFile) : null;
   if (evidenceError) return actionError(evidenceError);
   if (formData.has("lines")) {
     const parsed = expenseTransactionSchema.safeParse(Object.fromEntries(formData));
@@ -768,20 +774,22 @@ export async function submitExpenseAction(
 
     const context = await requireFinanceSubmissionContext();
     const supabase = await createSupabaseServerClient();
-    let evidenceDocumentId: string;
+    let evidenceDocumentId: string | null = null;
     try {
-      const evidence = await preparePaidCostEvidence({
-        actorId: context.userId,
-        file: evidenceFile as File,
-        idempotencyKey: parsed.data.idempotencyKey,
-        organizationId: context.organizationId,
-        propertyId: parsed.data.lines[0].propertyId,
-        requestClient: supabase,
-      });
-      evidenceDocumentId = evidence.documentId;
+      if (hasEvidence) {
+        const evidence = await preparePaidCostEvidence({
+          actorId: context.userId,
+          file: evidenceFile as File,
+          idempotencyKey: parsed.data.idempotencyKey,
+          organizationId: context.organizationId,
+          propertyId: parsed.data.lines[0].propertyId,
+          requestClient: supabase,
+        });
+        evidenceDocumentId = evidence.documentId;
+      }
     } catch (error) {
       unstable_rethrow(error);
-      return actionError("Receipt evidence could not be verified. Try again.");
+      return actionError(paidCostEvidenceActionMessage(error));
     }
 
     const { error } = await supabase.rpc("submit_expense_transaction", {
@@ -806,10 +814,13 @@ export async function submitExpenseAction(
       p_payee_person_id:
         parsed.data.payeeMode === "person" ? parsed.data.payeePersonId : null,
       p_pay_from_account_id: parsed.data.payFromAccountId,
-      p_reference: parsed.data.reference,
+      p_reference: parsed.data.reference || null,
       p_responsibility: parsed.data.responsibility,
       p_supporting_document_id: evidenceDocumentId,
     });
+    if (isPrivilegedStepUpRequiredError(error)) {
+      return actionError(privilegedStepUpRequiredActionMessage);
+    }
     if (error) return expenseWorkflowError(error.message);
     revalidateFinance();
     return {
@@ -825,20 +836,22 @@ export async function submitExpenseAction(
   }
   const context = await requireFinanceSubmissionContext();
   const supabase = await createSupabaseServerClient();
-  let evidenceDocumentId: string;
+  let evidenceDocumentId: string | null = null;
   try {
-    const evidence = await preparePaidCostEvidence({
-      actorId: context.userId,
-      file: evidenceFile as File,
-      idempotencyKey: parsed.data.idempotencyKey,
-      organizationId: context.organizationId,
-      propertyId: parsed.data.propertyId,
-      requestClient: supabase,
-    });
-    evidenceDocumentId = evidence.documentId;
+    if (hasEvidence) {
+      const evidence = await preparePaidCostEvidence({
+        actorId: context.userId,
+        file: evidenceFile as File,
+        idempotencyKey: parsed.data.idempotencyKey,
+        organizationId: context.organizationId,
+        propertyId: parsed.data.propertyId,
+        requestClient: supabase,
+      });
+      evidenceDocumentId = evidence.documentId;
+    }
   } catch (error) {
     unstable_rethrow(error);
-    return actionError("Receipt evidence could not be verified. Try again.");
+    return actionError(paidCostEvidenceActionMessage(error));
   }
   const { error } = await supabase.rpc("submit_expense_with_accounts", {
     p_currency: "USD",
@@ -860,6 +873,9 @@ export async function submitExpenseAction(
     p_vendor_label: parsed.data.vendorLabel,
     p_vendor_person_id: null,
   });
+  if (isPrivilegedStepUpRequiredError(error)) {
+    return actionError(privilegedStepUpRequiredActionMessage);
+  }
   if (error) return backendActionError();
   revalidateFinance();
   return {
