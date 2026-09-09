@@ -17,6 +17,10 @@ import {
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
+  isPrivilegedStepUpRequiredError,
+  privilegedStepUpRequiredActionMessage,
+} from "@/lib/auth/privileged-step-up-error";
+import {
   paidCostEvidenceActionMessage,
   preparePaidCostEvidence,
   validatePaidCostEvidenceFile,
@@ -814,6 +818,9 @@ export async function submitExpenseAction(
       p_responsibility: parsed.data.responsibility,
       p_supporting_document_id: evidenceDocumentId,
     });
+    if (isPrivilegedStepUpRequiredError(error)) {
+      return actionError(privilegedStepUpRequiredActionMessage);
+    }
     if (error) return expenseWorkflowError(error.message);
     revalidateFinance();
     return {
@@ -866,6 +873,9 @@ export async function submitExpenseAction(
     p_vendor_label: parsed.data.vendorLabel,
     p_vendor_person_id: null,
   });
+  if (isPrivilegedStepUpRequiredError(error)) {
+    return actionError(privilegedStepUpRequiredActionMessage);
+  }
   if (error) return backendActionError();
   revalidateFinance();
   return {

@@ -1167,6 +1167,28 @@ describe("expense approval actions", () => {
     );
   });
 
+  it.each(["transaction", "legacy"])("explains expired session verification without evidence (%s)", async (path) => {
+    rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "Privileged email verification required" } });
+    const formData = new FormData();
+    for (const [key, value] of Object.entries({
+      expenseDate: "2026-08-08", idempotencyKey: "expense-step-up-expired",
+      categoryAccountId: sourceId, internalCost: "30", internalMarkup: "0",
+      propertyId, payFromAccountId: sourceId, reference: "", responsibility: "owner",
+      tenantInvoiceId: "", unitId: "", vendorLabel: "Sokha Repairs",
+    })) formData.set(key, value);
+    if (path === "transaction") {
+      formData.set("payeeMode", "external");
+      formData.set("externalPayeeLabel", "Sokha Repairs");
+      formData.set("lines", JSON.stringify([{ amount: "30", categoryAccountId: sourceId,
+        description: "Repair", propertyId, unitId: null, ownerCashAmount: null }]));
+    }
+    await expect(submitExpenseAction({}, formData)).resolves.toEqual({
+      message: "Verify this signed-in session by email, then retry saving.", status: "error",
+    });
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(adminUpload).not.toHaveBeenCalled();
+  });
+
   it("submits a paid cost without an evidence file", async () => {
     rpc.mockResolvedValue({ data: submissionId, error: null });
     const formData = new FormData();
