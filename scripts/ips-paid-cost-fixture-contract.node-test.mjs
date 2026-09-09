@@ -34,6 +34,12 @@ test("Track 6 retains the complete paid-cost lifecycle oracle", () => {
     ],
   );
   for (const scenario of manifest.scenarios) {
+    if (scenario.id === "missing_evidence") {
+      assert.equal(scenario.status, "submitted");
+      assert.equal(scenario.evidenceAuthority, "none");
+      assert.deepEqual(scenario.downstream, []);
+      continue;
+    }
     assert.equal(scenario.evidenceAuthority, "verified_storage_bytes");
     assert.deepEqual(scenario.downstream, [
       "payment",

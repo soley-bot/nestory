@@ -354,16 +354,16 @@ async function main() {
     unitId: gardenUnitId,
   });
 
-  fixturePhase = "missing evidence denial";
+  fixturePhase = "optional evidence submission";
   const missing = await member.rpc("submit_expense", {
     p_currency: "USD",
     p_customer_category: "other",
-    p_expense_date: closePaidDate,
+    p_expense_date: dateOffset(-2),
     p_idempotency_key: "fixture-track6-submit-missing-evidence",
     p_internal_cost_amount: "10.00",
     p_internal_markup_amount: "0.00",
     p_organization_id: organizationId,
-    p_property_id: closePropertyId,
+    p_property_id: gardenPropertyId,
     p_reconciliation_source_id: bankSourceId,
     p_reference: "TRACK6-MISSING-EVIDENCE",
     p_responsibility: "owner",
@@ -375,8 +375,9 @@ async function main() {
     p_vendor_label: "Missing Evidence Vendor",
     p_vendor_person_id: vendorId,
   });
-  if (!missing.error || !/Paid cost evidence document is required/i.test(missing.error.message)) {
-    throw missing.error ?? new Error("Missing evidence paid cost unexpectedly persisted");
+  if (missing.error) throw missing.error;
+  if (!missing.data || typeof missing.data !== "object" || !("submission_id" in missing.data)) {
+    throw new Error("Optional-evidence paid cost did not create a review record");
   }
 
   fixturePhase = "allocate owner paid-cost sources and reversals";

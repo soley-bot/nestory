@@ -17,6 +17,7 @@ import {
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
+  paidCostEvidenceActionMessage,
   preparePaidCostEvidence,
   validatePaidCostEvidenceFile,
 } from "@/features/finance-operations/paid-cost-evidence";
@@ -784,7 +785,7 @@ export async function submitExpenseAction(
       }
     } catch (error) {
       unstable_rethrow(error);
-      return actionError("Receipt evidence could not be verified. Try again.");
+      return actionError(paidCostEvidenceActionMessage(error));
     }
 
     const { error } = await supabase.rpc("submit_expense_transaction", {
@@ -843,7 +844,7 @@ export async function submitExpenseAction(
     }
   } catch (error) {
     unstable_rethrow(error);
-    return actionError("Receipt evidence could not be verified. Try again.");
+    return actionError(paidCostEvidenceActionMessage(error));
   }
   const { error } = await supabase.rpc("submit_expense_with_accounts", {
     p_currency: "USD",

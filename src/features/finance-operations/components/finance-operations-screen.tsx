@@ -3401,13 +3401,7 @@ function OwnerExpenseTransactionForm({
             />
           </Field>
           <div className="sm:col-span-2">
-            <Field label="Receipt evidence (optional)">
-              <Input
-                accept="application/pdf,image/jpeg,image/png,image/webp"
-                name="evidenceFile"
-                type="file"
-              />
-            </Field>
+            <ReceiptEvidenceField />
           </div>
           <div className="rounded-xl border border-border/80 sm:col-span-2">
             <h3 className="sr-only">Financial preview</h3>
@@ -3826,13 +3820,7 @@ function SingleLineExpenseForm({
             />
           </Field>
           <div className="sm:col-span-2">
-            <Field label="Receipt evidence (optional)">
-              <Input
-                accept="application/pdf,image/jpeg,image/png,image/webp"
-                name="evidenceFile"
-                type="file"
-              />
-            </Field>
+            <ReceiptEvidenceField />
           </div>
         </div>
       </FormSection>
@@ -4807,6 +4795,40 @@ function StatusBadge({
     status,
   });
   return <Badge tone={presentation.tone}>{presentation.label}</Badge>;
+}
+function ReceiptEvidenceField() {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [hasFile, setHasFile] = useState(false);
+  return (
+    <div className="space-y-2">
+      <Field label="Receipt evidence (optional)">
+        <Input
+          accept="application/pdf,image/jpeg,image/png,image/webp"
+          name="evidenceFile"
+          onChange={(event) => setHasFile(Boolean(event.currentTarget.files?.length))}
+          ref={inputRef}
+          type="file"
+        />
+      </Field>
+      {hasFile ? (
+        <Button
+          onClick={() => {
+            const input = inputRef.current;
+            if (!input) return;
+            input.value = "";
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            setHasFile(false);
+            input.focus();
+          }}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          Remove receipt
+        </Button>
+      ) : null}
+    </div>
+  );
 }
 function Field({ children, label }: { children: ReactNode; label: string }) {
   return (

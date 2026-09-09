@@ -1872,7 +1872,7 @@ describe("FinanceOperationsScreen", () => {
     ).toBe("lease-1");
   });
 
-  it("previews the owner-borne expense before review", () => {
+  it("previews the owner-borne expense before review", async () => {
     const input = data();
     input.reconciliationSources = [];
     render(
@@ -1925,6 +1925,11 @@ describe("FinanceOperationsScreen", () => {
     expect(evidence.getAttribute("accept")).toBe(
       "application/pdf,image/jpeg,image/png,image/webp",
     );
+    const user = userEvent.setup();
+    await user.upload(evidence, new File(["receipt"], "receipt.pdf", { type: "application/pdf" }));
+    await user.click(screen.getByRole("button", { name: "Remove receipt" }));
+    expect((evidence as HTMLInputElement).files).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Remove receipt" })).toBeNull();
     expect(screen.queryByText("Service fee")).toBeNull();
     expect(
       screen.getByRole("button", { name: "Submit for review" }),

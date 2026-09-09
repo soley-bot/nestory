@@ -65,6 +65,7 @@ assert.equal(
     "GDN-PUMP-2088:submitted",
     "TRACK6-APPROVED-REVERSED:reversed",
     "TRACK6-CORRECTED-50:approved",
+    "TRACK6-MISSING-EVIDENCE:submitted",
     "TRACK6-OWNER-APPROVED:approved",
     "TRACK6-PETTY-APPROVED:approved",
     "TRACK6-REJECTED:rejected",
@@ -173,10 +174,14 @@ assert.equal(
     SELECT count(*)::text
     FROM public.expense_submissions
     WHERE organization_id = '${organizationId}'
-      AND reference = 'TRACK6-MISSING-EVIDENCE';
+      AND reference = 'TRACK6-MISSING-EVIDENCE'
+      AND status = 'submitted'
+      AND supporting_document_id IS NULL
+      AND approved_payment_id IS NULL
+      AND approved_ledger_entry_id IS NULL;
   `),
-  "0",
-  "missing evidence must leave no submission residue",
+  "1",
+  "optional evidence permits submission without recording money before review",
 );
 
 assert.equal(
