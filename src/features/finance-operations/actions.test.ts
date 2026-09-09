@@ -988,7 +988,19 @@ describe("expense approval actions", () => {
     );
   });
 
-  it.each([true, false])("submits ordered property expense lines with optional evidence (%s)", async (withEvidence) => {
+  it.each(["receipt.pdf", "blob"])("rejects a selected empty PDF named %s", async (name) => {
+    const formData = new FormData();
+    formData.set("evidenceFile", new File([], name, { type: "application/pdf" }));
+    await expect(submitExpenseAction({}, formData)).resolves.toMatchObject({
+      status: "error",
+      message: "Choose a receipt evidence file.",
+    });
+    expect(adminUpload).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it.each(["receipt", "empty-input", "multipart-empty-input", "omitted"])("submits ordered property expense lines with optional evidence (%s)", async (evidenceKind) => {
+    const withEvidence = evidenceKind === "receipt";
     rpc.mockResolvedValue({
       data: { transaction_id: submissionId },
       error: null,
@@ -1024,7 +1036,12 @@ describe("expense approval actions", () => {
       ]),
     );
     if (withEvidence) formData.set("evidenceFile", validPdfFile("receipt-84.pdf"));
-    else formData.set("evidenceFile", new File([], ""));
+    else if (evidenceKind === "empty-input") formData.set("evidenceFile", new File([], ""));
+    else if (evidenceKind === "multipart-empty-input") {
+      // React's multipart decoder appends the empty Busboy part as a Blob:
+      // filename="" becomes undefined, so FormData assigns the name "blob".
+      formData.append("evidenceFile", new Blob([], { type: "application/octet-stream" }));
+    }
 
     await expect(submitExpenseAction({}, formData)).resolves.toEqual({
       message: "Paid cost submitted for Finance review.",

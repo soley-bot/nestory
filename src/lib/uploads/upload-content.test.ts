@@ -968,3 +968,71 @@ function findSequence(bytes: Uint8Array, sequence: Uint8Array) {
   }
   throw new Error("Sequence not found.");
 }
+
+
+describe("scanner PDF compression", () => {
+  it.each([10, 11, 12, 13, 14, 15])("accepts bounded xref PNG predictor %s", async (predictor) => {
+    const bytes = scannerPdfBytes({ predictor });
+    expect(await validateUploadedFileContent(new File([bytes], "scan.pdf", { type: "application/pdf" }), ["application/pdf"]))
+      .toMatchObject({ ok: true });
+  });
+  it.each([
+    { member: "<< /S /JavaScript /JS (unsafe) >>" },
+    { member: "<< /Type /EmbeddedFile >>" },
+    { member: "<< /OpenAction 1 0 R >>" },
+    { member: "<< /Length 1 >> stream\nx\nendstream" },
+    { member: "1 0 R" },
+    { member: "<< /Parent 99 0 R >>" },
+    { index: 1 },
+    { headerId: 2 },
+    { first: 2 },
+    { count: 2 },
+    { columns: 6 },
+    { columns: "null" },
+    { predictor: 9 },
+    { filter: 5 },
+  ])("rejects unsafe or inconsistent compressed objects (%j)", async (options) => {
+    expect(await validateUploadedFileContent(new File([scannerPdfBytes(options)], "scan.pdf", { type: "application/pdf" }), ["application/pdf"]))
+      .toMatchObject({ ok: false });
+  });
+});
+
+function scannerPdfBytes(options: {
+  member?: string; index?: number; headerId?: number; first?: number;
+  count?: number; columns?: number | string; predictor?: number; filter?: number;
+} = {}) {
+  const encode = (text: string) => new TextEncoder().encode(text);
+  const parts: Uint8Array[] = [encode("%PDF-1.6\n")];
+  const offsets = [0];
+  const add = (part: Uint8Array) => { offsets.push(parts.reduce((n, p) => n + p.length, 0)); parts.push(part); };
+  add(encode("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"));
+  add(encode("2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"));
+  const packed = new Uint8Array(deflateSync(encode(`${options.headerId ?? 3} 0 ${options.member ?? "<< /Label (scanned receipt) >>"}`)));
+  add(concatenate(encode(`4 0 obj\n<< /Type /ObjStm /N ${options.count ?? 1} /First ${options.first ?? 4} /Filter /FlateDecode /Length ${packed.length} >>\nstream\n`), packed, encode("\nendstream\nendobj\n")));
+  const xrefOffset = parts.reduce((n, p) => n + p.length, 0);
+  const entries = new Uint8Array(6 * 7);
+  writeXrefEntry(entries, 0, 0, 0, 65535);
+  writeXrefEntry(entries, 7, 1, offsets[1], 0);
+  writeXrefEntry(entries, 14, 1, offsets[2], 0);
+  writeXrefEntry(entries, 21, 2, 4, options.index ?? 0);
+  writeXrefEntry(entries, 28, 1, offsets[3], 0);
+  writeXrefEntry(entries, 35, 1, xrefOffset, 0);
+  const predictor = options.predictor ?? 12;
+  const filter = options.filter ?? (predictor === 15 ? 2 : predictor - 10);
+  const predicted = new Uint8Array(6 * 8);
+  for (let row = 0; row < 6; row += 1) {
+    predicted[row * 8] = filter;
+    for (let col = 0; col < 7; col += 1) {
+      const pos = row * 7 + col;
+      const left = col > 0 ? entries[pos - 1] : 0;
+      const up = row > 0 ? entries[pos - 7] : 0;
+      const corner = row > 0 && col > 0 ? entries[pos - 8] : 0;
+      const estimate = left + up - corner;
+      const a = Math.abs(estimate - left), b = Math.abs(estimate - up), c = Math.abs(estimate - corner);
+      const paeth = a <= b && a <= c ? left : b <= c ? up : corner;
+      predicted[row * 8 + col + 1] = (entries[pos] - ([0, left, up, Math.floor((left + up) / 2), paeth][filter] ?? 0)) & 255;
+    }
+  }
+  const compressed = new Uint8Array(deflateSync(predicted));
+  return concatenate(...parts, encode(`5 0 obj\n<< /Type /XRef /Size 6 /Root 1 0 R /W [1 4 2] /Filter /FlateDecode /DecodeParms << /Predictor ${predictor} /Columns ${options.columns ?? 7} >> /Length ${compressed.length} >>\nstream\n`), compressed, encode(`\nendstream\nendobj\nstartxref\n${xrefOffset}\n%%EOF\n`));
+}
