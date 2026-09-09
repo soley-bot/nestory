@@ -1117,6 +1117,12 @@ export function scopeFinanceOperationsData(
     (!scope.unitId || unitId === scope.unitId);
 
   return {
+    expenseEntryOptions: data.expenseEntryOptions ?? {
+      propertyOptions: data.propertyOptions,
+      unitOptions: data.unitOptions,
+      positions: data.positions,
+      payFromAccounts: data.payFromAccounts,
+    },
     accountEntries: data.accountEntries.filter(
       (entry) => entry.propertyId === scope.propertyId,
     ),

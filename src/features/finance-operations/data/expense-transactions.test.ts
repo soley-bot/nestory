@@ -4,6 +4,17 @@ import type { ExpenseSubmissionSummary, FinanceOperationsData } from "../finance
 
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: vi.fn() }));
 
+it("keeps authorized expense choices while scoping the displayed property records", () => {
+  const input = data([]);
+  input.propertyOptions = [{ id: "p1", label: "First" }, { id: "p2", label: "Second" }];
+  input.unitOptions = [{ id: "u1", label: "Unit 1", propertyId: "p1" }, { id: "u2", label: "Unit 2", propertyId: "p2" }];
+  const scoped = scopeFinanceOperationsData(input, { propertyId: "p1", unitId: "u1" });
+  expect(scoped.propertyOptions.map((item) => item.id)).toEqual(["p1"]);
+  expect(scoped.unitOptions.map((item) => item.id)).toEqual(["u1"]);
+  expect(scoped.expenseEntryOptions?.propertyOptions).toEqual(input.propertyOptions);
+  expect(scoped.expenseEntryOptions?.unitOptions).toEqual(input.unitOptions);
+});
+
 function submission(id: string, propertyId = "p1", unitId: string | null = "u1", amount = 10): ExpenseSubmissionSummary {
   return {
     id, propertyId, unitId, internalCost: amount, customerTotal: amount, internalMarkup: 0,

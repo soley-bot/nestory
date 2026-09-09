@@ -137,6 +137,9 @@ describe("FinanceOperationsScreen", () => {
     await user.type(allocation, "150");
     await user.click(summary);
     expect(disclosure.open).toBe(false);
+    await user.click(screen.getByRole("combobox", { name: /^Paid to/ }));
+    await user.click(screen.getByRole("option", { name: "One-time external payee" }));
+    await user.type(screen.getByPlaceholderText("One-time payee"), "Cleaner");
     // NumberInput is decimal text: the server, not native min/max, validates allocation.
     expect(allocation.type).toBe("text");
     fireEvent.submit(form);
@@ -151,6 +154,52 @@ describe("FinanceOperationsScreen", () => {
     await user.clear(allocation);
     await user.type(allocation, "75");
     expect(JSON.parse(valueOfNamedInput(form, "lines")!)[0].ownerCashAmount).toBe("75");
+  });
+
+  it("focuses an inline payee error and preserves the expense draft", async () => {
+    const user = userEvent.setup();
+    render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canSubmitExpense: true })}
+      initialExpenseIntent="owner" organizationName="IPS" view="expenses" />);
+    const form = screen.getByRole("form", { name: "Record property expense form" });
+    await user.type(screen.getByLabelText("Line amount"), "30");
+    fireEvent.submit(form);
+    await screen.findByText("Choose a vendor or one-time payee.");
+    expect(financeActionMocks.submitExpenseAction).not.toHaveBeenCalled();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("combobox", { name: /^Paid to/ })));
+    expect((screen.getByLabelText("Line amount") as HTMLInputElement).value).toBe("30");
+    await user.click(screen.getByRole("combobox", { name: /^Paid to/ }));
+    await user.click(screen.getByRole("option", { name: "One-time external payee" }));
+    expect(screen.queryByText("Choose a vendor or one-time payee.")).toBeNull();
+    await user.type(screen.getByPlaceholderText("One-time payee"), "Cleaner");
+    financeActionMocks.submitExpenseAction.mockResolvedValue({ status: "success", message: "Submitted." });
+    fireEvent.submit(form);
+    await waitFor(() => expect(financeActionMocks.submitExpenseAction).toHaveBeenCalledOnce());
+    expect(JSON.parse(financeActionMocks.submitExpenseAction.mock.calls[0][1].get("lines"))[0].amount).toBe("30");
+  });
+
+  it("allows a scoped expense to switch property and clears the old unit", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.expenseAccounts = [
+      { id: "category-1", displayName: "First cleaning", accountClass: "expense", accountSubtype: "expense", propertyId: "property-1" },
+      { id: "category-2", displayName: "Second cleaning", accountClass: "expense", accountSubtype: "expense", propertyId: "property-2" },
+    ];
+    input.expenseEntryOptions = {
+      propertyOptions: [{id:"property-1",label:"Riverside"},{id:"property-2",label:"Garden House"}],
+      unitOptions: [{id:"unit-1",label:"Unit 1",propertyId:"property-1"}],
+      positions: input.positions,
+      payFromAccounts: input.payFromAccounts,
+    };
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canSubmitExpense: true })}
+      initialExpenseIntent="owner" organizationName="IPS" view="expenses"
+      scope={{id:"unit-1",kind:"unit",label:"Unit 1",propertyId:"property-1",propertyLabel:"Riverside"}} />);
+    const form = screen.getByRole("form", { name: "Record property expense form" });
+    expect(JSON.parse(valueOfNamedInput(form,"lines")!)[0].unitId).toBe("unit-1");
+    await user.click(screen.getByRole("combobox", {name:"Property"}));
+    await user.click(screen.getByRole("option", {name:"Garden House"}));
+    expect(JSON.parse(valueOfNamedInput(form,"lines")!)[0]).toMatchObject({propertyId:"property-2",unitId:null});
+    await user.click(screen.getByRole("button", { name: "Add line" }));
+    expect(JSON.parse(valueOfNamedInput(form,"lines")!)[1]).toMatchObject({propertyId:"property-2",categoryAccountId:"category-2"});
   });
 
   it("preserves the configured paid-from account for a scoped transaction", () => {
@@ -224,7 +273,7 @@ describe("FinanceOperationsScreen", () => {
     await user.click(
       screen.getByRole("button", { name: "Record property expense" }),
     );
-    await user.click(screen.getByRole("combobox", { name: "Paid to" }));
+    await user.click(screen.getByRole("combobox", { name: /^Paid to/ }));
     expect(
       screen.getByRole("option", { name: "Vendor · Khmer Home Services" }),
     ).not.toBeNull();
@@ -2128,8 +2177,8 @@ describe("FinanceOperationsScreen", () => {
     ).toBeNull();
     expect(
       within(form).queryByRole("combobox", { name: "Property" }),
-    ).toBeNull();
-    expect(within(form).getByText("HOME — Riverside Home")).not.toBeNull();
+    ).not.toBeNull();
+    expect(within(form).getByRole("combobox", { name: "Property" }).textContent).toContain("Riverside");
     expect(
       within(form).getByRole("heading", { name: "Expense" }),
     ).not.toBeNull();

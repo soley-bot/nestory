@@ -249,6 +249,7 @@ export type PropertyAccountEntry = {
 };
 
 export type FinanceOperationsData = {
+  expenseEntryOptions?: Pick<FinanceOperationsData, "propertyOptions" | "unitOptions" | "positions" | "payFromAccounts">;
   accountEntries: PropertyAccountEntry[];
   expenseAccounts: FinanceAccountOption[];
   expenseSubmissions: ExpenseSubmissionSummary[];
@@ -276,6 +277,7 @@ export type LeasePaymentResolutionData = {
 };
 
 export type FinanceOperationsActionState = {
+  fieldErrors?: Record<string, string[] | undefined>;
   artifactHref?: string;
   artifactId?: string;
   message?: string;
