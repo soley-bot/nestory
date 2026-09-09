@@ -264,6 +264,15 @@ describe("TimelineScreen workspace contract", () => {
     expect(screen.getAllByRole("button", { name: "Add event" })).toHaveLength(1);
   });
 
+  it("shows one record selector section and keeps the non-ledger cost hint visible", async () => {
+    const user = userEvent.setup();
+    renderTimeline();
+    await user.click(screen.getByRole("button", { name: "Add event" }));
+    const drawer = screen.getByRole("dialog");
+    expect(within(drawer).getAllByRole("heading", { name: "Record link" })).toHaveLength(1);
+    expect(within(drawer).getByText("Cost is for reference only. Not posted to the ledger.")).not.toBeNull();
+  });
+
   it("keeps URL-backed filters stable and clears focus-only parameters", async () => {
     navigation.pathname = "/maintenance-timeline";
     navigation.searchParams = new URLSearchParams(

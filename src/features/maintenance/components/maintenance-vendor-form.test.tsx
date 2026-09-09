@@ -94,8 +94,8 @@ describe("maintenance vendor form", () => {
         { label: "Active Vendor", value: "active-vendor" },
       ],
     });
-    expect(html).toContain("This historical vendor remains linked");
-    expect(html).toContain('or choose an active vendor or &quot;No vendor&quot;');
+    expect(html).toContain("Keep the current vendor");
+    expect(html).toContain('choose an active vendor, or select &quot;No vendor&quot;');
   });
 
   it("keeps vendor assignment available to managers without exposing ledger posting", () => {

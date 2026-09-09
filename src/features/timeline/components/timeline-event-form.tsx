@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useId, useMemo, useState } from "react";
 import {
   createTimelineEventAction,
   type TimelineActionState,
@@ -12,7 +12,6 @@ import type {
   TimelinePropertyOption,
   TimelineUnitOption,
 } from "@/features/timeline/timeline.types";
-import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
@@ -45,6 +44,7 @@ export function TimelineEventForm({
   units,
 }: TimelineEventFormProps) {
   const isEditMode = mode === "edit";
+  const costHintId = useId();
   const [selectedPropertyId, setSelectedPropertyId] = useState(
     event?.propertyId ?? initialValues?.propertyId ?? "",
   );
@@ -59,10 +59,6 @@ export function TimelineEventForm({
     () => units.filter((unit) => unit.propertyId === selectedPropertyId),
     [selectedPropertyId, units],
   );
-  const selectedProperty = properties.find(
-    (property) => property.id === selectedPropertyId,
-  );
-  const selectedUnit = units.find((unit) => unit.id === selectedUnitId);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -91,21 +87,6 @@ export function TimelineEventForm({
       {isEditMode && event ? (
         <input name="eventId" type="hidden" value={event.id} />
       ) : null}
-
-      <ConsequencePanel
-        rows={[
-          {
-            label: "Property",
-            value: selectedProperty?.label ?? "Select property",
-          },
-          {
-            label: "Unit",
-            value: selectedUnit?.label ?? "Property level",
-          },
-        ]}
-        summary="This selection controls which operating record shows the event. Cost remains timeline context and does not post to the ledger."
-        title="Record link"
-      />
 
       <FormSection title="Record link">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -214,6 +195,7 @@ export function TimelineEventForm({
             name="costAmount"
           >
             <NumberInput
+              aria-describedby={costHintId}
               defaultValue={event?.cost ?? ""}
               min="0"
               name="costAmount"
@@ -222,6 +204,7 @@ export function TimelineEventForm({
             />
           </RecordField>
         </div>
+        <p className="text-xs text-muted-foreground" id={costHintId}>Cost is for reference only. Not posted to the ledger.</p>
       </FormSection>
 
       <FormSection title="Notes">

@@ -56,6 +56,9 @@ describe("FinanceAccountsScreen", () => {
 
     await user.click(screen.getByRole("button", { name: "New account" }));
     const drawer = screen.getByRole("dialog");
+    expect(within(drawer).queryByRole("checkbox", { name: /Active account/ })).toBeNull();
+    expect(within(drawer).getByText("Status")).not.toBeNull();
+    expect(within(drawer).getByText("Active", { exact: true })).not.toBeNull();
     await user.selectOptions(within(drawer).getByLabelText("Account type"), "expense:expense");
     expect(within(drawer).getByLabelText("Use for lease credits")).toBeTruthy();
     expect(within(drawer).queryByLabelText("Use for lease charges")).toBeNull();

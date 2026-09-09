@@ -28,7 +28,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { removeSearchParams } from "@/lib/url/href";
 import { Button } from "@/components/ui/button";
-import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   DOCUMENT_FILE_ACCEPT,
@@ -751,11 +750,6 @@ export function DocumentForm({
   const [propertyId, setPropertyId] = useState(defaults.propertyId);
   const [unitId, setUnitId] = useState(defaults.unitId ?? "");
   const visibleUnits = units.filter((unit) => unit.propertyId === propertyId);
-  const propertyLabel =
-    properties.find((property) => property.id === propertyId)?.label ??
-    "Select a property";
-  const unitLabel =
-    units.find((unit) => unit.id === unitId)?.label ?? "Property level";
   const hiddenLinkError =
     state.fieldErrors?.leaseId?.[0] ?? state.fieldErrors?.taskId?.[0];
   const presentedState = {
@@ -794,27 +788,12 @@ export function DocumentForm({
       ) : null}
       {fixedPropertyId ? (
         <input name="propertyId" type="hidden" value={fixedPropertyId} />
-      ) : (
-        <ConsequencePanel
-          rows={[
-            { label: "File", value: "PDF, JPG, PNG, or WebP up to 10 MB" },
-            { label: "Property", value: propertyLabel },
-            { label: "Unit", value: unitLabel },
-          ]}
-          summary={
-            defaults.leaseId
-              ? "The saved document stays linked to the selected property and lease."
-              : defaults.taskId
-                ? "The saved document stays linked to the selected property and maintenance case."
-                : "The saved document appears in the selected property or unit record."
-          }
-          title="Document link and file limits"
-        >
-          {hiddenLinkError ? (
-            <p className="text-danger">{hiddenLinkError}</p>
-          ) : null}
-        </ConsequencePanel>
-      )}
+      ) : null}
+      {defaults.leaseId || defaults.taskId ? (
+        <p className="text-sm text-muted-foreground">
+          {defaults.leaseId ? "Linked to this lease." : "Linked to this maintenance case."}
+        </p>
+      ) : null}
       {fixedUnitId ? (
         <input name="unitId" type="hidden" value={fixedUnitId} />
       ) : null}

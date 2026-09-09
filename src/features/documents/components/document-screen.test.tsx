@@ -171,9 +171,9 @@ describe("DocumentScreen workspace contract", () => {
 
     expect(screen.queryByRole("region", { name: "Document link and file limits" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Upload document" }));
-    const consequence = screen.getByRole("region", { name: "Document link and file limits" });
-    expect(consequence.textContent).toContain("PDF, JPG, PNG, or WebP up to 10 MB");
-    expect(consequence.textContent).toContain("HOME / Home");
+    expect(screen.queryByRole("region", { name: "Document link and file limits" })).toBeNull();
+    expect(screen.getAllByText("PDF, JPG, PNG, or WebP up to 10 MB.")).toHaveLength(1);
+    expect(screen.getByRole("combobox", { name: /^Property/ })).not.toBeNull();
     expect((document.querySelector('input[name="propertyId"]') as HTMLInputElement | null)?.value ?? (document.querySelector('select[name="propertyId"]') as HTMLSelectElement).value).toBe("property-1");
     const fileInput = document.querySelector('input[name="document"]') as HTMLInputElement;
     await user.upload(
