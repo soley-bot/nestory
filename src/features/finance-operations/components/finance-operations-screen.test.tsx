@@ -98,7 +98,7 @@ describe("FinanceOperationsScreen", () => {
     expect(disclosure?.hasAttribute("open")).toBe(false);
     const originalLines = JSON.parse(valueOfNamedInput(form, "lines")!);
     expect(originalLines[0].ownerCashAmount).toBeNull();
-    const summary = within(disclosure!).getByText(/Owner cash allocation/);
+    const summary = within(disclosure!).getByText(/Owner cash/);
     await user.click(summary);
     expect(disclosure?.hasAttribute("open")).toBe(true);
     await user.type(screen.getByLabelText("Line amount"), "100");
@@ -131,7 +131,7 @@ describe("FinanceOperationsScreen", () => {
     const form = screen.getByRole("form", { name: "Record property expense form" });
     const allocation = screen.getByLabelText<HTMLInputElement>("Apply from IPS-held owner cash");
     const disclosure = allocation.closest("details")!;
-    const summary = within(disclosure).getByText(/Owner cash allocation/);
+    const summary = within(disclosure).getByText(/Owner cash/);
     await user.type(screen.getByLabelText("Line amount"), "100");
     await user.click(summary);
     await user.type(allocation, "150");
@@ -1897,14 +1897,17 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByRole("button", { name: "Close drawer" })).not.toBeNull();
     expect(screen.queryByText("Already paid")).toBeNull();
     const receiptSection = screen.getByRole("group", {
-      name: "Payment evidence",
+      name: "Payment",
     });
     expect(receiptSection).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
     expect(screen.getByText("Cost charged to owner")).not.toBeNull();
-    expect(screen.getByText("Payment made by")).not.toBeNull();
-    expect(screen.getByText("Management company")).not.toBeNull();
-    expect(screen.getByText("Owner account after approval")).not.toBeNull();
+    expect(within(receiptSection).getByLabelText("Pay from")).not.toBeNull();
+    expect(within(receiptSection).getByLabelText("Paid date")).not.toBeNull();
+    expect(screen.queryByText("Expense line 1")).toBeNull();
+    expect(screen.queryByText("Payment made by")).toBeNull();
+    const accountHelp = screen.getByText("How owner cash is applied").closest("details");
+    expect(accountHelp).toHaveProperty("open", false);
     expect(screen.queryByText("Tenant or company")).toBeNull();
     expect(screen.getByLabelText("Category")).not.toBeNull();
     expect(screen.getByLabelText("Line amount")).not.toBeNull();
@@ -1918,9 +1921,9 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
     expect(screen.queryByText(/funding source/i)).toBeNull();
     expect(
-      screen.getByLabelText("Receipt or payment reference (optional)"),
+      screen.getByLabelText("Reference (optional)"),
     ).toHaveProperty("required", false);
-    const evidence = screen.getByLabelText("Receipt evidence (optional)");
+    const evidence = screen.getByLabelText("Receipt (optional)");
     expect(evidence).toHaveProperty("required", false);
     expect(evidence.getAttribute("accept")).toBe(
       "application/pdf,image/jpeg,image/png,image/webp",
@@ -2074,12 +2077,10 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
     expect(
       within(form).getByText(
-        "Choose a property and an open tenant invoice. If no invoice is available, create it in Rent & collections first.",
+        "Choose a property to see its open invoices.",
       ),
     ).not.toBeNull();
-    expect(
-      within(form).getByRole("link", { name: "Open Rent & collections" }),
-    ).toHaveProperty("href", "http://localhost:3000/rent-income");
+    expect(within(form).queryByRole("link", { name: "Open Rent & collections" })).toBeNull();
 
     await user.click(within(form).getByRole("combobox", { name: "Property" }));
     await user.click(screen.getByRole("option", { name: "HOME — Riverside Home" }));
@@ -2130,23 +2131,21 @@ describe("FinanceOperationsScreen", () => {
     ).toBeNull();
     expect(within(form).getByText("HOME — Riverside Home")).not.toBeNull();
     expect(
-      within(form).getByRole("heading", { name: "Cost record" }),
+      within(form).getByRole("heading", { name: "Expense" }),
     ).not.toBeNull();
     expect(
       within(form).getByRole("heading", { name: "Payment" }),
     ).not.toBeNull();
     expect(
-      within(form).getByRole("heading", { name: "Financial preview" }),
+      within(form).getByRole("region", { name: "Financial preview" }),
     ).not.toBeNull();
-    expect(
-      within(form).getByRole("heading", { name: "Payment evidence" }),
-    ).not.toBeNull();
+
     expect(within(form).getByRole("button", { name: "Cancel" })).not.toBeNull();
     expect(within(form).queryByText("No changes")).not.toBeNull();
     for (const section of form.querySelectorAll('[data-slot="form-section"]')) {
       expect(section.lastElementChild?.className).not.toContain("sm:pl-10");
-      expect(section.className).toContain("rounded-xl");
-      expect(section.className).toContain("bg-card");
+      expect(section.className).not.toContain("rounded-xl");
+      expect(section.className).not.toContain("shadow-sm");
     }
 
     await user.click(within(form).getByRole("button", { name: "Cancel" }));

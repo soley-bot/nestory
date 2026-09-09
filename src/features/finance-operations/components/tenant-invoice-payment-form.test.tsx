@@ -91,14 +91,9 @@ describe("TenantInvoicePaymentForm", () => {
 
     expect(valueOfNamedInput(container, "receivingAccountId")).toBe("");
     expect(screen.getByText("Applied to")).not.toBeNull();
-    expect(
-      screen.getByText(
-        "Sokha Vannak · HOME — Riverside Home — Automatic",
-      ),
-    ).not.toBeNull();
-    expect(
-      screen.getByText("Where the payment actually arrived."),
-    ).not.toBeNull();
+    expect(screen.getByText("Sokha Vannak")).not.toBeNull();
+    expect(screen.getByText("HOME — Riverside Home")).not.toBeNull();
+
   });
 
   it("selects the configured operating account when several receiving accounts are eligible", () => {
@@ -177,9 +172,7 @@ describe("TenantInvoicePaymentForm", () => {
       screen.getAllByText("Riverside operating account").length,
     ).toBeGreaterThan(0);
     expect(screen.getAllByText("Main company account").length).toBeGreaterThan(0);
-    expect(
-      screen.getByText(/Defaulted from this property; choose another account if needed/i),
-    ).not.toBeNull();
+
   });
 
   it("explains automatic allocation, payment reference, and receipt consequences", () => {
@@ -189,10 +182,11 @@ describe("TenantInvoicePaymentForm", () => {
       }),
     });
 
-    expect(
-      screen.getByText(/Rent first, then other charges in invoice order/i),
-    ).not.toBeNull();
-    expect(screen.getByLabelText("Payment method or reference")).not.toBeNull();
+    const details = screen.getByText("Allocation and receipt details").closest("details");
+    expect(details).toHaveProperty("open", false);
+    expect(screen.getByText("Receipt issued after recording.")).not.toBeNull();
+    expect(screen.getByText(/Rent first, then other charges in invoice order/i)).not.toBeNull();
+    expect(screen.getByLabelText("Reference (optional)")).not.toBeNull();
     expect(
       screen.getByText(/A PDF receipt is created after the payment is recorded/i),
     ).not.toBeNull();
@@ -325,7 +319,7 @@ describe("TenantInvoicePaymentForm", () => {
       }),
     });
 
-    expect(screen.getByText("Change how payment is applied")).not.toBeNull();
+    expect(screen.getByText("Allocation and receipt details")).not.toBeNull();
     expect(
       view.container.querySelector('[name="allocation:line-rent"]'),
     ).not.toBeNull();
@@ -399,7 +393,7 @@ describe("TenantInvoicePaymentForm", () => {
     });
     const { container } = renderForm();
     const amount = screen.getByLabelText("Amount");
-    const reference = screen.getByLabelText("Payment method or reference");
+    const reference = screen.getByLabelText("Reference (optional)");
 
     await user.clear(amount);
     await user.type(amount, "125.50");
@@ -430,7 +424,7 @@ describe("TenantInvoicePaymentForm", () => {
     const { container } = renderForm();
     const amount = screen.getByLabelText("Amount") as HTMLInputElement;
     const reference = screen.getByLabelText(
-      "Payment method or reference",
+      "Reference (optional)",
     ) as HTMLInputElement;
     const form = container.querySelector("form")!;
 
