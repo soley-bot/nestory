@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { NumberInput } from "@/components/ui/number-input";
-import { RecordForm } from "@/components/ui/record-form";
+import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { Table, TableCell, TableHead } from "@/components/ui/table";
@@ -394,12 +394,12 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
               invoices={props.tenantInvoices}
               onClose={closeDrawer}
               onSuccess={onActionSuccess}
-              propertyOptions={props.propertyOptions}
-              payFromAccounts={props.payFromAccounts}
+              propertyOptions={visibleDrawer.initialResponsibility === "tenant" ? props.propertyOptions : props.expenseEntryOptions?.propertyOptions ?? props.propertyOptions}
+              payFromAccounts={visibleDrawer.initialResponsibility === "tenant" ? props.payFromAccounts : props.expenseEntryOptions?.payFromAccounts ?? props.payFromAccounts}
               peopleOptions={props.peopleOptions}
-              positions={props.positions}
+              positions={visibleDrawer.initialResponsibility === "tenant" ? props.positions : props.expenseEntryOptions?.positions ?? props.positions}
               canCreateVendor={props.canCreateVendor}
-              unitOptions={props.unitOptions}
+              unitOptions={visibleDrawer.initialResponsibility === "tenant" ? props.unitOptions : props.expenseEntryOptions?.unitOptions ?? props.unitOptions}
             />
           ) : null}
         </SideDrawer>
@@ -3077,7 +3077,12 @@ function OwnerExpenseTransactionForm({
   const allocationDetails = useRef(new Map<number, HTMLDetailsElement>());
   const idempotencyKey = useStableActionId("expense-transaction");
   const [state, action, pending] = useActionState(
-    submitExpenseAction,
+    async (previousState: FinanceOperationsActionState, formData: FormData): Promise<FinanceOperationsActionState> => {
+      if (formData.get("payeeMode") === "person" && !formData.get("payeePersonId")) {
+        return { status: "error", fieldErrors: { payeePersonId: ["Choose a vendor or one-time payee."] } };
+      }
+      return submitExpenseAction(previousState, formData);
+    },
     actionInitialState,
   );
   useEffect(() => {
@@ -3178,7 +3183,7 @@ function OwnerExpenseTransactionForm({
         title="Expense"
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Paid to">
+          <RecordField label="Paid to" name="payeePersonId" required error={payeeValue ? undefined : state.fieldErrors?.payeePersonId?.[0]}>
             <SelectControl
               ariaLabel="Paid to"
               onValueChange={setPayeeValue}
@@ -3202,7 +3207,7 @@ function OwnerExpenseTransactionForm({
                 Create vendor
               </Link>
             ) : null}
-          </Field>
+          </RecordField>
 
           {payeeValue === "external" ? (
             <Field label="External payee name">
@@ -3239,11 +3244,6 @@ function OwnerExpenseTransactionForm({
                 ) : null}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Property">
-                    {fixedScope ? (
-                      <div className="flex min-h-8 items-center border-b border-border px-1 text-sm font-medium">
-                        {fixedScope.propertyLabel}
-                      </div>
-                    ) : (
                       <SelectControl
                         ariaLabel={index === 0 ? "Property" : `Expense line ${index + 1} property`}
                         placeholder="Choose property"
@@ -3252,14 +3252,8 @@ function OwnerExpenseTransactionForm({
                         options={propertyOptions.map((property) => ({ label: property.label, value: property.id }))}
                         value={line.propertyId}
                       />
-                    )}
                   </Field>
                   <Field label="Unit">
-                    {fixedScope?.kind === "unit" ? (
-                      <div className="flex min-h-8 items-center border-b border-border px-1 text-sm font-medium">
-                        {fixedScope.label}
-                      </div>
-                    ) : (
                       <SelectControl
                         ariaLabel={`Expense line ${index + 1} unit`}
                         onValueChange={(unitId) => updateLine(line.key, { unitId })}
@@ -3271,7 +3265,6 @@ function OwnerExpenseTransactionForm({
                         ]}
                         value={line.unitId}
                       />
-                    )}
                   </Field>
                   <Field label="Category">
                     <SelectControl
@@ -3350,8 +3343,8 @@ function OwnerExpenseTransactionForm({
                 description: "",
                 key,
                 ownerCashAmount: "",
-                propertyId: fixedScope?.propertyId ?? current.at(-1)?.propertyId ?? defaultPropertyId,
-                unitId: fixedScope?.kind === "unit" ? fixedScope.id : "",
+                propertyId: current.at(-1)?.propertyId ?? defaultPropertyId,
+                unitId: "",
               }]);
             }}
             type="button"
