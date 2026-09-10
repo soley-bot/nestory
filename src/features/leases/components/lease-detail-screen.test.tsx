@@ -1126,7 +1126,7 @@ describe("LeaseDetailScreen", () => {
       within(drawer).getByText(/Current billing rules: 2026-07-01–2026-08-31/),
     ).not.toBeNull();
     expect(
-      within(drawer).getByText(/Use Correct management fee from Manage lease/),
+      within(drawer).getByText(/To change an issued fee, use Manage lease → Correct management fee/),
     ).not.toBeNull();
     const values = new FormData(form as HTMLFormElement);
 
