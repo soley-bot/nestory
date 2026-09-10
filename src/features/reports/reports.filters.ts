@@ -11,6 +11,7 @@ import {
   type SearchParamValue,
 } from "@/lib/validation/search-params";
 import { getBusinessMonthValue } from "@/lib/dates/business-date";
+import { isReportKind } from "@/features/reports/report-catalog";
 
 const monthPattern = /^(\d{4})-(0[1-9]|1[0-2])$/;
 const datePattern = /^(\d{4})-(0[1-9]|1[0-2])-\d{2}$/;
@@ -27,6 +28,18 @@ export function parseReportSearchParams(
   const ownerPersonId = getUuidOrAllSearchParam(params.ownerPersonId);
 
   return {
+    ...(["propertyId", "unitId"].some((key) => {
+      const raw = getFirstSearchParam(params[key]);
+      return raw && raw !== "all" && getUuidOrAllSearchParam(params[key]) === "all";
+    }) ? { scopeInvalid: true } : {}),
+    dateFrom: getFirstSearchParam(params.dateFrom) ?? "",
+    dateTo: getFirstSearchParam(params.dateTo) ?? "",
+    query: (getFirstSearchParam(params.query) ?? "").trim().slice(0, 200),
+    transactionType: getFirstSearchParam(params.transactionType) ?? "all",
+    transactionStatus: getFirstSearchParam(params.transactionStatus) ?? "all",
+    payeeId: getFirstSearchParam(params.payeeId) ?? "all",
+    groupBy: ["property", "unit", "type", "payee", "status"].includes(getFirstSearchParam(params.groupBy) ?? "") ? getFirstSearchParam(params.groupBy) : "none",
+    columns: (getFirstSearchParam(params.columns) ?? "").split(",").filter((key) => /^[a-zA-Z][a-zA-Z0-9]{0,39}$/.test(key)).slice(0, 30).join(","),
     month: parseMonth(params.month, params.date),
     ownerPersonId,
     ...(ownerPersonIdParam &&
@@ -58,10 +71,40 @@ export function getReportMonthRange(month: string) {
 function parseReportKind(value: string | string[] | undefined): ReportKind {
   const candidate = getFirstSearchParam(value);
 
-  return candidate === "monthly-owner-activity" ||
-    candidate === "unit-profit-loss"
-    ? candidate
-    : DEFAULT_REPORT_KIND;
+  return candidate && isReportKind(candidate) ? candidate : DEFAULT_REPORT_KIND;
+}
+
+export function isExtendedReport(kind: ReportKind) {
+  return ["transactions", "management-fees", "rent-roll", "rent-collections"].includes(kind);
+}
+
+export function getReportDateRange(query: ReportsViewQuery) {
+  const month = getReportMonthRange(query.month);
+  const start = query.dateFrom || month.start;
+  const end = query.dateTo || month.end;
+  const validDate = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date;
+  if (!validDate(start) || !validDate(end) || start > end) {
+    throw new Error("Choose a valid date range with the start before the end.");
+  }
+  if ((Date.parse(end) - Date.parse(start)) / 86_400_000 >= 366) {
+    throw new Error("Choose a date range of 366 days or less.");
+  }
+  return { start, end };
+}
+
+export function buildReportQueryParams(query: ReportsViewQuery) {
+  const params = new URLSearchParams({ report: query.report, month: query.month });
+  for (const key of ["propertyId", "unitId", "ownerPersonId"] as const) {
+    if (query[key] && query[key] !== "all") params.set(key, query[key]);
+  }
+  if (isExtendedReport(query.report)) {
+    if (["rent-roll", "rent-collections"].includes(query.report) && query.status !== "all") params.set("status", query.status);
+    for (const key of ["dateFrom", "dateTo", "query", "transactionType", "transactionStatus", "payeeId", "groupBy", "columns"] as const) {
+      const value = query[key];
+      if (value && value !== "all" && value !== "none") params.set(key, value);
+    }
+  }
+  return params;
 }
 
 function parsePeopleArchiveState(

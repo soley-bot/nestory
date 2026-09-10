@@ -5,6 +5,9 @@ import type {
 import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
 
 export type ReportKind =
+  | "transactions"
+  | "management-fees"
+  | "rent-collections"
   | "monthly-owner-activity"
   | "rent-roll"
   | "unit-performance"
@@ -40,6 +43,15 @@ export type ReportUnitOption = {
 };
 
 export type ReportsViewQuery = {
+  scopeInvalid?: boolean;
+  dateFrom?: string;
+  dateTo?: string;
+  query?: string;
+  transactionType?: string;
+  transactionStatus?: string;
+  payeeId?: string;
+  groupBy?: string;
+  columns?: string;
   month: string;
   ownerPersonId: string;
   ownerPersonIdInvalid?: boolean;
@@ -112,12 +124,15 @@ export type ReportEvidenceLine = {
 };
 
 export type TrustedReportColumn = {
+  numeric?: boolean;
   align?: "left" | "right";
   key: string;
   label: string;
 };
 
 export type TrustedReportRow = {
+  amounts?: Record<string, string>;
+  isGroup?: boolean;
   cells: Record<string, string>;
   evidence?: ReportEvidenceLine[];
   href?: string;
@@ -148,6 +163,12 @@ export type UnitProfitLossLine = {
 };
 
 export type TrustedReport = {
+  availableColumns?: TrustedReportColumn[];
+  filterOptions?: {
+    types?: { id: string; label: string }[];
+    statuses?: { id: string; label: string }[];
+    payees?: { id: string; label: string }[];
+  };
   columns: TrustedReportColumn[];
   description: string;
   emptyDescription: string;

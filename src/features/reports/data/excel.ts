@@ -10,6 +10,7 @@ import type {
 } from "@/features/reports/reports.types";
 
 type WorkbookRow = {
+  numericValues?: Record<number, string>;
   style?: number;
   values: string[];
 };
@@ -241,6 +242,7 @@ function ownerStatementAppPropertiesXml() {
 }
 
 function workbookRows(report: TrustedReport): WorkbookRow[] {
+  const grouped = report.rows.some((row) => row.isGroup);
   const rows: WorkbookRow[] = [
     { style: 1, values: [report.title] },
     { values: ["Scope", report.scopeLabel] },
@@ -250,6 +252,7 @@ function workbookRows(report: TrustedReport): WorkbookRow[] {
     {
       style: 2,
       values: [
+        ...(grouped ? ["Group / subtotal"] : []),
         ...report.columns.map(({ label }) => label),
         "Source records",
         "Source IDs",
@@ -265,7 +268,13 @@ function workbookRows(report: TrustedReport): WorkbookRow[] {
   } else {
     for (const row of report.rows) {
       rows.push({
+        style: row.isGroup ? 2 : undefined,
+        numericValues: row.isGroup ? {} : Object.fromEntries(report.columns.flatMap((column, index) => {
+          const value = column.numeric ? row.amounts?.[column.key] : undefined;
+          return value !== undefined && /^-?\d+(?:\.\d{1,2})?$/.test(value) ? [[index + (grouped ? 1 : 0), value]] : [];
+        })),
         values: [
+          ...(grouped ? [row.isGroup ? `Subtotal: ${row.title}` : ""] : []),
           ...report.columns.map(({ key }) => row.cells[key] ?? ""),
           row.sourceLinks
             .map((source) => `${source.recordType}:${source.label}`)
@@ -299,10 +308,12 @@ function worksheetXml(
 ) {
   const widths = columnWidths(rows);
   const rowXml = rows
-    .map(({ style, values }, rowIndex) => {
+    .map(({ style, values, numericValues }, rowIndex) => {
       const cells = values
         .map((value, columnIndex) =>
-          inlineStringCell(columnIndex, rowIndex, value, style),
+          numericValues?.[columnIndex] !== undefined
+            ? `<c r="${columnName(columnIndex)}${rowIndex + 1}" s="${style ?? 0}" t="n"><v>${numericValues[columnIndex]}</v></c>`
+            : inlineStringCell(columnIndex, rowIndex, value, style),
         )
         .join("");
       return `<row r="${rowIndex + 1}">${cells}</row>`;

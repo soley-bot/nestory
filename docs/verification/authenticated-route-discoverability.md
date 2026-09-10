@@ -1,6 +1,6 @@
 # Authenticated route discoverability
 
-<!-- contract-sha256:d2a60bf99906132fbe7e09093a6fab4ab689d4233193c592f8a8bac73df87ab3 -->
+<!-- contract-sha256:ce3ac6326e63d958175e6ae33d633d506190bd0230623d23487a397f7968aa24 -->
 
 This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 50 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
 

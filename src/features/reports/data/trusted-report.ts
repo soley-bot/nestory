@@ -230,6 +230,9 @@ type ReportContext = Omit<
 
 const activeLeaseStatuses = new Set(["active", "notice_given"]);
 const trustedReportSourceRequirements = {
+  transactions: requiresReportSources(),
+  "management-fees": requiresReportSources(),
+  "rent-collections": requiresReportSources(),
   "income-expense": requiresReportSources("ledgerEntries", "units"),
   "lease-expiry": requiresReportSources("leases", "units"),
   "maintenance-cost": requiresReportSources(
@@ -269,6 +272,39 @@ export async function getTrustedReport({
   supabase?: SupabaseServerClient;
   viewQuery: ReportsViewQuery;
 }): Promise<TrustedReport> {
+  if (["transactions", "management-fees", "rent-roll", "rent-collections"].includes(viewQuery.report)) {
+    const { getReportDateRange } = await import("../reports.filters");
+    try {
+      if (viewQuery.scopeInvalid) throw new Error("Choose a valid property and unit for this report.");
+      if (viewQuery.report !== "rent-roll") getReportDateRange(viewQuery);
+    } catch (error) {
+      return {
+        kind: viewQuery.report, title: "Report", columns: [], rows: [], summary: [],
+        description: "", emptyTitle: "Choose a valid date range", emptyDescription: "", exportFilenameBase: viewQuery.report,
+        generatedAt: new Date().toISOString(), periodLabel: "", scopeLabel: "Selected scope", totalsTraceLabel: "",
+        exportValidation: { code: "invalid_report_range", message: error instanceof Error ? error.message : "Choose a valid date range.", status: 400 },
+        scopeValidation: { code: "invalid_report_range", message: error instanceof Error ? error.message : "Choose a valid date range." },
+      };
+    }
+    const options = { organizationId, viewQuery, supabase: suppliedSupabase, financeContext: suppliedFinanceContext };
+    try {
+      const report = viewQuery.report === "transactions" || viewQuery.report === "management-fees"
+        ? await (await import("./transaction-report")).getTransactionReport(options)
+        : await (await import("./rent-reports")).getRentReport(options);
+      const { applyReportPresentation } = await import("../report-presentation");
+      return applyReportPresentation(report, viewQuery);
+    } catch (error) {
+      console.error("Report source loading failed", { report: viewQuery.report, error });
+      const message = "We could not load all records. Try again or choose a smaller date range and property scope.";
+      return {
+        kind: viewQuery.report, title: "Report", columns: [], rows: [], summary: [],
+        description: "", emptyTitle: "Report unavailable", emptyDescription: message, exportFilenameBase: viewQuery.report,
+        generatedAt: new Date().toISOString(), periodLabel: "", scopeLabel: "Selected scope", totalsTraceLabel: "",
+        exportValidation: { code: "report_source_unavailable", message, status: 409 },
+        scopeValidation: { code: "report_source_unavailable", message },
+      };
+    }
+  }
   if (viewQuery.report === "monthly-owner-activity") {
     return getMonthlyOwnerActivityReport({
       financeContext: suppliedFinanceContext,

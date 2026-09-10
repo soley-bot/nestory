@@ -48,7 +48,7 @@
     "property-finance-invoice": { "kind": "context", "source": "src/features/finance-operations/components/finance-operations-screen.tsx", "hrefToken": "href={`/properties/${invoice.propertyId}/finance?view=rent`}", "labelToken": "Open Property finance" },
     "unit-finance-invoice": { "kind": "context", "source": "src/features/finance-operations/components/finance-operations-screen.tsx", "hrefToken": "href={`/units/${invoice.unitId}/finance?view=rent`}", "labelToken": "Open Unit finance" },
     "property-account": { "kind": "context", "source": "src/features/ledger/components/ledger-table.tsx", "hrefToken": "href={`/properties/${entry.propertyId}/account`}", "labelToken": "{entry.propertyName}" },
-    "report-detail": { "kind": "context", "source": "src/app/(dashboard)/reports/page.tsx", "hrefToken": "href={`/reports/${report.kind}`}", "labelToken": "Open report" },
+    "report-detail": { "kind": "context", "source": "src/features/reports/components/reports-directory.tsx", "hrefToken": "href={`/reports/${report.kind}`}", "labelToken": "title={report.title}" },
     "settings-organization": { "kind": "context", "source": "src/features/organization/settings-navigation.ts", "hrefToken": "href: \"/settings/organization\"", "labelToken": "label: \"Organization\"" },
     "settings-appearance": { "kind": "context", "source": "src/features/organization/settings-navigation.ts", "hrefToken": "href: \"/settings/appearance\"", "labelToken": "label: \"Appearance\"" },
     "settings-branches": { "kind": "context", "source": "src/features/organization/settings-navigation.ts", "hrefToken": "href: \"/settings/branches\"", "labelToken": "label: \"Branches\"" },

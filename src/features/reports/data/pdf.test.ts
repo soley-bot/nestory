@@ -9,6 +9,18 @@ import type { TrustedReport } from "@/features/reports/reports.types";
 import { isContainedPdf } from "@/lib/uploads/pdf-containment";
 
 describe("trusted report PDF export", () => {
+  it("keeps wide report columns readable across repeated record panels", () => {
+    const report = monthlyOwnerActivityReport();
+    report.kind = "transactions";
+    report.columns = Array.from({ length: 11 }, (_, index) => ({ key: `field${index}`, label: `Field ${index}` }));
+    report.rows = [{ ...report.rows[0]!, title: "Receipt A", sourceLinks: [], cells: Object.fromEntries(report.columns.map((column, index) => [column.key, `value${index}`])) }];
+    const bytes = buildTrustedReportPdf({ organizationName: "Nestory", report });
+    expect(isContainedPdf(bytes)).toBe(true);
+    const pdf = Buffer.from(bytes).toString("latin1");
+    expect(pdf).toContain("columns 1-5");
+    expect(pdf).toContain("columns 11-11");
+    expect(pdf).toContain("value10");
+  });
   it("renders Owner activity metadata and rows", () => {
     const bytes = buildTrustedReportPdf({
       organizationName: "Sokha Property Services",

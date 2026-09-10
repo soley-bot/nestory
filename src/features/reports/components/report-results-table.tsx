@@ -51,19 +51,27 @@ export function ReportResultsTable({
     null,
   );
   const [showZeroActivity, setShowZeroActivity] = React.useState(false);
+  const [page, setPage] = React.useState(0);
   const zeroActivityRows =
     report.kind === "unit-profit-loss"
       ? report.rows.filter((row) => !hasFinancialActivity(row))
       : [];
-  const rows =
+  const allRows =
     report.kind === "unit-profit-loss" && !showZeroActivity
       ? report.rows.filter(hasFinancialActivity)
       : report.rows;
+  const recordCount = allRows.filter((row) => !row.isGroup).length;
+  const pageCount = Math.max(1, Math.ceil(recordCount / 50));
+  const currentPage = Math.min(page, pageCount - 1);
+  const rows = paginateReportRows(allRows, currentPage, 50);
   const columns = displayColumns(report);
+  const operational = ["transactions", "management-fees", "rent-roll", "rent-collections"].includes(report.kind);
   const countLabel =
     report.kind === "unit-profit-loss"
       ? `${reportRowCount} ${reportRowCount === 1 ? "scope" : "scopes"}`
-      : `${reportRowCount} ${reportRowCount === 1 ? "property" : "properties"}`;
+      : report.kind === "monthly-owner-activity"
+        ? `${reportRowCount} ${reportRowCount === 1 ? "property" : "properties"}`
+        : `${reportRowCount} ${reportRowCount === 1 ? "record" : "records"}`;
 
   return (
     <>
@@ -93,7 +101,8 @@ export function ReportResultsTable({
           role="region"
           tabIndex={0}
         >
-          <Table aria-label={report.title} className="min-w-[600px] text-sm">
+          <Table aria-label={report.title} className={cn("min-w-[600px] text-sm", operational && "table-fixed", operational && columns.length > 7 && "min-w-[1000px]")}>
+            {operational ? <colgroup>{columns.map((column) => <col key={column.key} style={{ width: operationalColumnWidth(column.key, columns.length) }} />)}<col style={{ width: 42 }} /></colgroup> : null}
             <TableHeader className="bg-muted/35 text-xs uppercase tracking-[0.02em] text-muted-foreground">
               <TableRow>
                 {columns.map((column) => (
@@ -128,7 +137,17 @@ export function ReportResultsTable({
                   </TableCell>
                 </TableRow>
               ) : (
-                rows.map((row, index) => (
+                rows.map((row, index) => row.isGroup ? <TableRow key={row.id} className="bg-muted/60">
+                  <TableCell colSpan={columns.length + 1} className="px-3 py-2">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1">
+                      <span className="font-semibold">{row.title}</span>
+                      <span className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span>All matching rows</span>
+                        {report.columns.filter((column) => column.numeric).map((column) => <span key={column.key}>{column.label}: <strong className="font-semibold tabular-nums text-foreground">{row.cells[column.key] || "—"}</strong></span>)}
+                      </span>
+                    </div>
+                  </TableCell>
+                </TableRow> : (
                   <ReportResultRow
                     columns={columns}
                     isLast={index === rows.length - 1}
@@ -142,6 +161,10 @@ export function ReportResultsTable({
             </TableBody>
           </Table>
         </div>
+        {pageCount > 1 ? <nav aria-label="Report pages" className="flex flex-wrap items-center justify-between gap-2 border-t border-border py-3 text-xs text-muted-foreground">
+          <p>{currentPage * 50 + 1}–{Math.min((currentPage + 1) * 50, recordCount)} of {recordCount} records. Totals and exports include all matching rows.</p>
+          <div className="flex items-center gap-2"><Button size="sm" variant="outline" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Previous</Button><span>Page {currentPage + 1} of {pageCount}</span><Button size="sm" variant="outline" disabled={currentPage + 1 === pageCount} onClick={() => setPage(currentPage + 1)}>Next</Button></div>
+        </nav> : null}
       </section>
 
       <ReportRowDetails
@@ -196,7 +219,9 @@ function ReportResultRow({
               </p>
             </div>
           ) : (
-            row.cells[column.key] || "—"
+            ["transactions", "management-fees", "rent-roll", "rent-collections"].includes(report.kind)
+              ? <span className="block truncate" title={row.cells[column.key]}>{row.cells[column.key] || "—"}</span>
+              : row.cells[column.key] || "—"
           )}
         </TableCell>
       ))}
@@ -306,7 +331,7 @@ function ReportRowDetails({
     >
       <div className="space-y-6 px-5 pb-6">
         <dl className="divide-y divide-border border-y border-border">
-          {report.columns.map((column) => (
+          {(report.availableColumns ?? report.columns).map((column) => (
             <div
               className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-2.5"
               key={column.key}
@@ -435,19 +460,42 @@ function displayColumns(report: TrustedReport): DisplayColumn[] {
     ];
   }
 
-  return [
-    { key: "scope", label: "Record", type: "scope" },
-    ...report.columns.slice(1).map((column) => ({
+  return report.columns.map((column) => ({
       ...column,
       type: "value" as const,
-    })),
-  ];
+    }));
+}
+
+/** Paginate records, repeating a group's full-scope subtotal on continued pages. */
+function paginateReportRows(rows: TrustedReportRow[], page: number, pageSize: number) {
+  const selected: TrustedReportRow[] = [];
+  let group: TrustedReportRow | undefined;
+  let includedGroupId: string | undefined;
+  let recordIndex = 0;
+  for (const row of rows) {
+    if (row.isGroup) { group = row; continue; }
+    if (recordIndex >= page * pageSize && recordIndex < (page + 1) * pageSize) {
+      if (group && group.id !== includedGroupId) { selected.push(group); includedGroupId = group.id; }
+      selected.push(row);
+    }
+    recordIndex += 1;
+  }
+  return selected;
 }
 
 function hasFinancialActivity(row: TrustedReportRow) {
   return [row.cells.income, row.cells.expenses, row.cells.netIncome].some(
     (value) => numericValue(value) !== 0,
   );
+}
+
+function operationalColumnWidth(key: string, columnCount: number): number | undefined {
+  // Keep dense defaults readable; expanded column sets scroll within the table.
+  if (["date", "dueDate", "leaseStart", "leaseEnd"].includes(key)) return 112;
+  if (["type", "status"].includes(key)) return 130;
+  if (["amount", "charges", "received", "outstanding", "credit", "rent", "fees"].includes(key)) return 132;
+  if (key === "unit") return 90;
+  return columnCount > 7 ? 155 : undefined;
 }
 
 function numericValue(value?: string) {

@@ -10,6 +10,24 @@ import { ownerStatementPublicationPayload } from "@/features/reports/data/owner-
 import type { TrustedReport } from "@/features/reports/reports.types";
 
 describe("trusted report Excel export", () => {
+  it("labels grouped subtotals even with the group column hidden and avoids SUM duplication", () => {
+    const report = reportFixture();
+    report.columns = [{ key: "amount", label: "Amount", numeric: true }];
+    const detail = { ...report.rows[0]!, cells: { amount: "USD 30.00" }, amounts: { amount: "30.00" } };
+    report.rows = [{ ...detail, id: "group", isGroup: true, title: "Garden Court", sourceLinks: [] }, detail];
+    const worksheet = strFromU8(unzipSync(buildTrustedReportXlsx(report))["xl/worksheets/sheet1.xml"]!);
+    expect(worksheet).toContain("Subtotal: Garden Court");
+    expect(worksheet.match(/t="n"><v>30.00<\/v>/g)).toHaveLength(1);
+  });
+  it("exports exact money as numeric cells while keeping untrusted text inert", () => {
+    const report = reportFixture();
+    report.columns = [{ key: "description", label: "Description" }, { key: "amount", label: "Amount", numeric: true }];
+    report.rows = [{ ...report.rows[0]!, cells: { description: "=HYPERLINK(\"bad\")", amount: "USD 0.30" }, amounts: { amount: "0.30" } }];
+    const worksheet = strFromU8(unzipSync(buildTrustedReportXlsx(report))["xl/worksheets/sheet1.xml"]!);
+    expect(worksheet).toContain('t="n"><v>0.30</v>');
+    expect(worksheet).toContain("=HYPERLINK");
+    expect(worksheet).not.toContain("<f>");
+  });
   it("builds a real XLSX workbook with report metadata, rows, and totals", () => {
     const body = buildTrustedReportXlsx(reportFixture());
     const files = unzipSync(body);

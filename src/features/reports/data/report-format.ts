@@ -49,6 +49,11 @@ export function getReportExportFilename(
   viewQuery: ReportsViewQuery,
   extension: "csv" | "pdf" | "xlsx",
 ) {
+  if (report.kind === "rent-roll") return `${report.exportFilenameBase}-current-${slugifyReportPart(report.scopeLabel)}.${extension}`;
+  if (["transactions", "management-fees", "rent-collections"].includes(report.kind)) {
+    const period = viewQuery.dateFrom || viewQuery.dateTo ? `${viewQuery.dateFrom || viewQuery.month}-${viewQuery.dateTo || viewQuery.month}` : viewQuery.month;
+    return `${report.exportFilenameBase}-${slugifyReportPart(period)}-${slugifyReportPart(report.scopeLabel)}.${extension}`;
+  }
   if (report.kind === "people-readiness") {
     return `${report.exportFilenameBase}-current-${viewQuery.peopleArchiveState}.${extension}`;
   }

@@ -30,7 +30,8 @@ describe("minimal Reports workspace", () => {
   it("keeps drill-down navigation focused on filters and report output", () => {
     renderReport();
 
-    expect(screen.queryByRole("navigation", { name: "Reports" })).toBeNull();
+    const navigation = screen.getByRole("navigation", { name: "Reports" });
+    expect(within(navigation).getByRole("link", { name: "Unit P&L" }).getAttribute("aria-current")).toBe("page");
 
     const filters = screen.getByRole("region", { name: "Report filters" });
     expect(
