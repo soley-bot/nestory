@@ -13,6 +13,110 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("rent reporting", () => {
+  it("includes scoped property-level leases once alongside units, with effective rent and source links", async () => {
+    const scoped = context();
+    scoped.properties.push({
+      id: "single",
+      code: "S",
+      name: "Single space",
+      archived_at: null,
+    });
+    scoped.leases.push({
+      ...scoped.leases[0],
+      id: "property-lease",
+      property_id: "single",
+      unit_id: null,
+      tenant_name: "Property tenant",
+    });
+    scoped.terms.push({
+      lease_id: "property-lease",
+      start_date: "2026-09-01",
+      end_date: "2027-08-31",
+      rent_amount: 1200.1,
+    });
+    // Even a malformed supplied context must not expose a lease outside its property scope.
+    scoped.leases.push({
+      ...scoped.leases[0],
+      id: "outside",
+      property_id: "not-permitted",
+      unit_id: null,
+    });
+    const load = (overrides: Partial<ReportsViewQuery> = {}) =>
+      getRentReport({
+        organizationId: "org",
+        viewQuery: query({ report: "rent-roll", ...overrides }),
+        supabase: harness().client,
+        financeContext: scoped,
+      });
+    const report = await load();
+    expect(report.rows).toHaveLength(3);
+    const propertyRow = report.rows.find(
+      (row) => row.id === "property:single",
+    )!;
+    expect(propertyRow.cells).toMatchObject({
+      unit: "Property level",
+      tenant: "Property tenant",
+      status: "Occupied",
+      rent: "USD 1,200.10",
+    });
+    expect(propertyRow.sourceLinks.map((link) => link.href)).toEqual([
+      "/properties/single",
+      "/leases/property-lease?section=rent",
+    ]);
+    expect(
+      report.summary.find(
+        (metric) => metric.label === "Contracted monthly rent",
+      )?.value,
+    ).toBe("USD 1,700.35");
+    expect(
+      report.summary.find((metric) => metric.label === "With current lease")
+        ?.value,
+    ).toBe("2");
+    expect(
+      (await load({ propertyId: "single" })).rows.map((row) => row.id),
+    ).toEqual(["property:single"]);
+    expect((await load({ unitId: "u1" })).rows.map((row) => row.id)).toEqual([
+      "u1",
+    ]);
+    expect(
+      (
+        await load({ query: "property tenant", transactionStatus: "occupied" })
+      ).rows.map((row) => row.id),
+    ).toEqual(["property:single"]);
+    expect(
+      (await load({ transactionStatus: "no-current-lease" })).rows.map(
+        (row) => row.id,
+      ),
+    ).toEqual(["u2"]);
+    expect(
+      (await load({ status: "vacant" })).rows.map((row) => row.id),
+    ).toEqual(["u2"]);
+  });
+
+  it("excludes inactive and archived property leases and rejects ambiguous property-level occupancy", async () => {
+    const scoped = context();
+    scoped.units = [];
+    scoped.leases[0].unit_id = null;
+    const load = () =>
+      getRentReport({
+        organizationId: "org",
+        viewQuery: query({ report: "rent-roll" }),
+        supabase: harness().client,
+        financeContext: scoped,
+      });
+    scoped.leases[0].status = "ended";
+    expect((await load()).rows).toHaveLength(0);
+    scoped.leases[0].status = "active";
+    scoped.leases[0].archived_at = "2026-09-01";
+    expect((await load()).rows).toHaveLength(0);
+    scoped.leases[0].archived_at = null;
+    scoped.leases.push({ ...scoped.leases[0], id: "second" });
+    scoped.terms.push({ ...scoped.terms[0], lease_id: "second" });
+    await expect(load()).rejects.toThrow(
+      "Multiple current leases occupy one rental space",
+    );
+  });
+
   it("uses the scoped finance context and effective rent, with no asking-rent fallback for units without leases", async () => {
     const h = harness();
     const report = await getRentReport({

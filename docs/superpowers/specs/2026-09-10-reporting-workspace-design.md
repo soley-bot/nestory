@@ -21,3 +21,7 @@ Extend ReportKind with transactions, management-fees, rent-collections (rent-rol
 ## Verification
 
 Source tests cover scoped reads, pagination, exact money, reversal/cancellation handling, split lines, source failure and filtered totals. UI tests cover filters, navigation, saved-view isolation, column controls and export links. Existing owner report outputs and permissions remain compatible. Browser-test local fixture reports and downloads at desktop/mobile widths. Run lint, type check, full application/database CI and review before authorized Pilot release. Production database writes, if needed, only through exact-main protected CI. No hosted financial mutations.
+
+## Bounded reads
+
+Direct receipt, fee and expense metadata reads are constrained to the selected period and referenced records. Cursor-based source streams preserve full-page cursors while limiting matched report rows to 10,000 and scanned source rows to 100,000 per property. Exceeding a bound blocks the report and export; it never returns a partial total. Rent roll includes active property-level leases as well as units.

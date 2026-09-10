@@ -17,16 +17,30 @@ const events = vi.hoisted(() => ({
   fail: false,
 }));
 vi.mock("./owner-profit-loss-events", () => ({
-  iterateOwnerProfitLossEvents: async function* (_: unknown, scope: unknown) {
+  loadOwnerProfitLossEventPage: async (
+    _: unknown,
+    scope: unknown,
+    cursor: { sourceId: string } | null,
+  ) => {
     events.calls.push(scope);
     if (events.fail) throw new Error("RPC denied");
-    yield* events.profit;
+    const offset = cursor
+      ? events.profit.findIndex((row) => row.sourceId === cursor.sourceId) + 1
+      : 0;
+    return { rows: events.profit.slice(offset, offset + 500), pageSize: 500 };
   },
 }));
 vi.mock("@/features/finance/data/property-cash-events", () => ({
-  iteratePropertyCashEvents: async function* (_: unknown, scope: unknown) {
+  loadPropertyCashEventPage: async (
+    _: unknown,
+    scope: unknown,
+    cursor: { sourceId: string } | null,
+  ) => {
     events.calls.push(scope);
-    yield* events.cash;
+    const offset = cursor
+      ? events.cash.findIndex((row) => row.sourceId === cursor.sourceId) + 1
+      : 0;
+    return { rows: events.cash.slice(offset, offset + 500), pageSize: 500 };
   },
 }));
 const context: ScopedFinanceContext = {
@@ -255,6 +269,9 @@ describe("complete bounded source pagination", () => {
 
 type RecordRow = Record<string, unknown>;
 function client(tables: Record<string, RecordRow[]> = {}) {
+  const invoicesById = new Map(
+    (tables.tenant_invoices ?? []).map((row) => [row.id, row]),
+  );
   const calls: { table: string; filters: [string, unknown][] }[] = [];
   const api = {
     from(table: string) {
@@ -284,9 +301,29 @@ function client(tables: Record<string, RecordRow[]> = {}) {
           return chain;
         },
         async range(from: number, to: number) {
+          const matches = (tables[table] ?? []).filter((raw) => {
+            const row: RecordRow = {
+              organization_id: "org",
+              property_id: "p1",
+              ...raw,
+            };
+            return call.filters.every(([key, expected]) => {
+              if (key === "tenant_invoices.property_id")
+                return (
+                  invoicesById.get(row.invoice_id)?.property_id === expected
+                );
+              if (key.startsWith("gte:"))
+                return String(row[key.slice(4)]) >= String(expected);
+              if (key.startsWith("lte:"))
+                return String(row[key.slice(4)]) <= String(expected);
+              return Array.isArray(expected)
+                ? expected.includes(row[key])
+                : row[key] === expected;
+            });
+          });
           return {
-            data: (tables[table] ?? []).slice(from, to + 1),
-            count: (tables[table] ?? []).length,
+            data: matches.slice(from, to + 1),
+            count: matches.length,
             error: null,
           };
         },
@@ -308,6 +345,128 @@ beforeEach(() => {
   events.fail = false;
 });
 describe("transaction loader source authority", () => {
+  it("loads only dated property receipts and their referenced headers despite extensive history", async () => {
+    const invoice = {
+      id: "current",
+      organization_id: "org",
+      property_id: "p1",
+      unit_id: "u1",
+      lease_id: "lease",
+      invoice_number: "INV-1",
+    };
+    const payment = {
+      id: "payment",
+      organization_id: "org",
+      invoice_id: "current",
+      amount: "10.25",
+      currency: "USD",
+      received_date: "2026-09-08",
+      receipt_number: "REC-1",
+      reference: null,
+      reversal_of_id: null,
+    };
+    const { api, calls } = client({
+      tenant_invoices: [
+        invoice,
+        { ...invoice, id: "other-property", property_id: "p2" },
+        ...Array.from({ length: 10001 }, (_, i) => ({
+          ...invoice,
+          id: `old-${i}`,
+        })),
+      ],
+      tenant_invoice_payments: [
+        payment,
+        ...Array.from({ length: 10001 }, (_, i) => ({
+          ...payment,
+          id: `old-payment-${i}`,
+          received_date: "2020-01-01",
+        })),
+        ...Array.from({ length: 10001 }, (_, i) => ({
+          ...payment,
+          id: `other-payment-${i}`,
+          invoice_id: "other-property",
+        })),
+      ],
+    });
+    const report = await getTransactionReport({
+      organizationId: "org",
+      viewQuery: query({ transactionType: "receipt" }),
+      financeContext: context,
+      supabase: api,
+    });
+    expect(report.rows).toHaveLength(1);
+    expect(report.rows[0].amounts?.receipts).toBe("10.25");
+    expect(calls.map((call) => call.table)).toEqual([
+      "tenant_invoice_payments",
+      "tenant_invoices",
+    ]);
+    expect(calls[1].filters).toContainEqual(["id", ["current"]]);
+  });
+  it("bounds expense enrichment by allocation IDs and deduplicates approved/reversal matches", async () => {
+    const cash = {
+      sourceType: "payment_allocation",
+      sourceId: "allocation",
+      categoryCode: "company_cost",
+      economicClass: "adjustment",
+      resolutionState: "resolved",
+      operatingCashEffectCents: BigInt(0),
+      amountCents: BigInt(-100),
+      eventKey: "payment_allocation:allocation",
+      eventDate: "2026-09-08",
+      propertyId: "p1",
+      unitId: "u1",
+      isReversal: false,
+      description: "Paid",
+      vendorPersonId: "missing-vendor",
+    };
+    events.cash = [
+      cash,
+      {
+        ...cash,
+        sourceId: "reversal",
+        eventKey: "payment_allocation:reversal",
+        amountCents: BigInt(100),
+        isReversal: true,
+      },
+    ];
+    const submission = {
+      id: "child",
+      approved_payment_allocation_id: "allocation",
+      reversal_payment_allocation_id: "reversal",
+      vendor_label: "Actual supplier",
+      vendor_person_id: "missing-vendor",
+    };
+    const { api, calls } = client({
+      expense_submissions: [
+        submission,
+        ...Array.from({ length: 10001 }, (_, i) => ({
+          ...submission,
+          id: `old-${i}`,
+          approved_payment_allocation_id: `old-allocation-${i}`,
+          reversal_payment_allocation_id: null,
+        })),
+      ],
+    });
+    const report = await getTransactionReport({
+      organizationId: "org",
+      viewQuery: query({ transactionType: "paid-cost" }),
+      financeContext: context,
+      supabase: api,
+    });
+    expect(report.rows).toHaveLength(2);
+    expect(
+      report.summary.find((metric) => metric.label === "Paid cost")?.value,
+    ).toBe("$0.00");
+    expect(report.filterOptions?.payees).toEqual([
+      { id: "missing-vendor", label: "Actual supplier" },
+    ]);
+    expect(
+      calls.filter((call) => call.table === "expense_submissions"),
+    ).toHaveLength(2);
+    expect(
+      calls.find((call) => call.table === "expense_transaction_lines")?.filters,
+    ).toContainEqual(["submission_id", ["child"]]);
+  });
   it("uses scoped invoice headers only as metadata and counts signed receipts once", async () => {
     const { api, calls } = client({
       tenant_invoices: [
@@ -336,7 +495,7 @@ describe("transaction loader source authority", () => {
           id: "reverse",
           organization_id: "org",
           invoice_id: "invoice",
-          amount: "-0.20",
+          amount: "0.20",
           currency: "USD",
           received_date: "2026-09-09",
           receipt_number: "REC-2",
@@ -355,13 +514,17 @@ describe("transaction loader source authority", () => {
     expect(
       report.summary.find((m) => m.label === "Company receipts")?.value,
     ).toBe("$10.00");
-    expect(calls[0].filters).toContainEqual(["property_id", "p1"]);
+    expect(
+      calls.find((call) => call.table === "tenant_invoice_payments")?.filters,
+    ).toContainEqual(["tenant_invoices.property_id", "p1"]);
     expect(
       calls.every((c) =>
         c.filters.some(([k, v]) => k === "organization_id" && v === "org"),
       ),
     ).toBe(true);
-    expect(calls[1].filters).toContainEqual(["invoice_id", ["invoice"]]);
+    expect(
+      calls.find((call) => call.table === "tenant_invoices")?.filters,
+    ).toContainEqual(["id", ["invoice"]]);
     expect(events.calls[0]).toMatchObject({
       organizationId: "org",
       propertyId: "p1",
@@ -447,8 +610,10 @@ describe("transaction loader source authority", () => {
       financeContext: context,
       supabase: api,
     });
-    expect(events.calls).toHaveLength(1);
-    expect(calls).toEqual([]);
+    expect(events.calls).toHaveLength(0);
+    expect(calls.map((call) => call.table)).toEqual([
+      "management_fee_occurrences",
+    ]);
   });
   it("rejects inaccessible scope and source failures", async () => {
     const { api } = client();
@@ -470,30 +635,115 @@ describe("transaction loader source authority", () => {
       }),
     ).rejects.toThrow("RPC denied");
   });
-  it("does not load cash or invoice parents for fee-only reports", async () => {
-    events.profit = [
-      {
-        sourceType: "management_fee_occurrence",
-        eventKey: "fee:1",
-        recognizedOn: "2026-09-08",
-        propertyId: "p1",
-        unitId: "u1",
-        isReversal: false,
-        description: "Actual fee",
-        signedAmountCents: BigInt(125),
-        leaseId: "lease",
-      },
-    ];
-    const { api, calls } = client();
+  it("reads actual signed fee occurrences without scanning unrelated P&L events", async () => {
+    events.fail = true; // Any use of the unfiltered P&L RPC would fail this test.
+    const fee = {
+      id: "fee",
+      organization_id: "org",
+      property_id: "p1",
+      fee_date: "2026-09-08",
+      amount: "1.25",
+      currency: "USD",
+      reversal_of_id: null,
+      lease_id: "lease",
+      tenant_invoices: { unit_id: "u1" },
+    };
+    const { api, calls } = client({
+      management_fee_occurrences: [
+        fee,
+        { ...fee, id: "reverse", amount: "-0.25", reversal_of_id: "fee" },
+        ...Array.from({ length: 10001 }, (_, i) => ({
+          ...fee,
+          id: `old-fee-${i}`,
+          fee_date: "2020-01-01",
+        })),
+      ],
+    });
     const report = await getTransactionReport({
       organizationId: "org",
       viewQuery: query({ report: "management-fees" }),
       financeContext: context,
       supabase: api,
     });
+    expect(report.summary[0].value).toBe("$1.00");
+    expect(report.rows).toHaveLength(2);
+    expect(events.calls).toHaveLength(0);
+    expect(calls.map((call) => call.table)).toEqual([
+      "management_fee_occurrences",
+    ]);
+  });
+  it("continues past 10,000 unrelated P&L events without losing a later rent charge", async () => {
+    events.profit = [
+      ...Array.from({ length: 10001 }, (_, i) => ({
+        sourceType: "owner_invoice_line",
+        sourceId: `other-${i}`,
+        recognizedOn: "2026-09-08",
+        eventKey: `owner_invoice_line:other-${i}`,
+      })),
+      {
+        sourceType: "tenant_invoice_line",
+        sourceId: "rent",
+        eventKey: "tenant_invoice_line:rent",
+        categoryReportingGroup: "rent",
+        categoryLabel: "Rent",
+        recognizedOn: "2026-09-08",
+        propertyId: "p1",
+        unitId: "u1",
+        isReversal: false,
+        description: "September rent",
+        signedAmountCents: BigInt(125),
+        leaseId: "lease",
+      },
+    ];
+    const { api } = client();
+    const report = await getTransactionReport({
+      organizationId: "org",
+      viewQuery: query({ transactionType: "rent-charge" }),
+      financeContext: context,
+      supabase: api,
+    });
+    expect(report.rows).toHaveLength(1);
     expect(report.summary[0].value).toBe("$1.25");
-    expect(calls).toEqual([]);
-    expect(events.calls).toHaveLength(1);
+    expect(events.calls).toHaveLength(21);
+  });
+  it("continues past 10,000 unrelated cash events without losing a later paid cost", async () => {
+    events.cash = [
+      ...Array.from({ length: 10001 }, (_, i) => ({
+        sourceType: "receipt_allocation",
+        sourceId: `receipt-${i}`,
+        eventDate: "2026-09-08",
+        economicClass: "operating_income",
+        eventKey: `receipt_allocation:receipt-${i}`,
+      })),
+      {
+        sourceType: "payment_allocation",
+        sourceId: "cost",
+        eventKey: "payment_allocation:cost",
+        categoryCode: "company_cost",
+        economicClass: "adjustment",
+        resolutionState: "resolved",
+        operatingCashEffectCents: BigInt(0),
+        amountCents: BigInt(-125),
+        eventDate: "2026-09-08",
+        propertyId: "p1",
+        unitId: "u1",
+        isReversal: false,
+        description: "Cost",
+        vendorPersonId: null,
+      },
+    ];
+    const { api } = client();
+    const report = await getTransactionReport({
+      organizationId: "org",
+      viewQuery: query({ transactionType: "paid-cost" }),
+      financeContext: context,
+      supabase: api,
+    });
+    expect(report.rows).toHaveLength(1);
+    expect(
+      report.summary.find((metric) => metric.label === "Paid cost")?.value,
+    ).toBe("$1.25");
+    expect(events.calls).toHaveLength(21);
   });
   it("preserves cash reversal effects and rejects unresolved paid costs", async () => {
     const { api } = client();

@@ -207,7 +207,7 @@ export async function getRentReport({
     throw new Error(
       "Rent reports support current-lease occupancy filters only.",
     );
-  const activeLeasesForUnit = (unitId: string, propertyId: string) =>
+  const activeLeasesForUnit = (unitId: string | null, propertyId: string) =>
     context.leases.filter((lease) => {
       if (
         lease.unit_id !== unitId ||
@@ -258,12 +258,30 @@ export async function getRentReport({
   };
 
   if (viewQuery.report === "rent-roll") {
-    const rows = filteredUnits
+    const rentalSpaces = [
+      ...filteredUnits.map((unit) => ({
+        ...unit,
+        unitId: unit.id as string | null,
+      })),
+      ...(viewQuery.unitId === "all" && viewQuery.status !== "vacant"
+        ? properties
+            .filter(
+              (property) => activeLeasesForUnit(null, property.id).length > 0,
+            )
+            .map((property) => ({
+              id: `property:${property.id}`,
+              property_id: property.id,
+              unit_number: "Property level",
+              unitId: null,
+            }))
+        : []),
+    ];
+    const rows = rentalSpaces
       .map((unit): TrustedReportRow => {
-        const leases = activeLeasesForUnit(unit.id, unit.property_id);
+        const leases = activeLeasesForUnit(unit.unitId, unit.property_id);
         if (leases.length > 1)
           throw new Error(
-            "Multiple current leases occupy one unit. Resolve the lease scope before reporting.",
+            "Multiple current leases occupy one rental space. Resolve the lease scope before reporting.",
           );
         const lease = leases[0];
         const terms = lease
@@ -279,12 +297,17 @@ export async function getRentReport({
         const rent = terms.length
           ? parseExactMoneyToCents(terms[0].rent_amount)
           : BigInt(0);
+        const spaceHref = unit.unitId
+          ? `/units/${unit.unitId}`
+          : `/properties/${unit.property_id}`;
         const sourceLinks: TrustedReportRow["sourceLinks"] = [
           {
-            recordType: "unit",
-            id: unit.id,
-            label: `Unit ${unit.unit_number}`,
-            href: `/units/${unit.id}`,
+            recordType: unit.unitId ? "unit" : "property",
+            id: unit.unitId ?? unit.property_id,
+            label: unit.unitId
+              ? `Unit ${unit.unit_number}`
+              : propertyLabel(unit.property_id),
+            href: spaceHref,
           },
         ];
         if (lease)
@@ -298,7 +321,7 @@ export async function getRentReport({
           id: unit.id,
           propertyId: unit.property_id,
           title: `${propertyLabel(unit.property_id)} / ${unit.unit_number}`,
-          href: `/units/${unit.id}`,
+          href: spaceHref,
           cells: {
             property: propertyLabel(unit.property_id),
             unit: unit.unit_number,
@@ -312,7 +335,7 @@ export async function getRentReport({
           sourceLinks,
           sourceCount: sourceLinks.length,
           sourceSummary: lease
-            ? "Current unit and effective lease term"
+            ? "Current rental space and effective lease term"
             : "Current unit; no effective lease",
           tone: lease ? "neutral" : "warning",
         };
@@ -329,9 +352,9 @@ export async function getRentReport({
       ...base,
       title: "Rent roll",
       description:
-        "Current snapshot of units and effective lease rent. Units without a current lease carry no contracted rent; date-range filters do not reconstruct historical occupancy.",
+        "Current snapshot of units and property-level leases with effective lease rent. Units without a current lease carry no contracted rent; date-range filters do not reconstruct historical occupancy.",
       periodLabel: `Current snapshot · ${today}`,
-      emptyTitle: "No units match",
+      emptyTitle: "No rental spaces match",
       emptyDescription: "Adjust the property, unit, status or search filters.",
       columns: [
         { key: "property", label: "Property" },
@@ -350,7 +373,7 @@ export async function getRentReport({
         ],
       },
       summary: [
-        metric("Units", String(rows.length), rows.length),
+        metric("Rental spaces", String(rows.length), rows.length),
         metric(
           "With current lease",
           String(rows.filter((row) => row.sourceCount > 1).length),
@@ -363,7 +386,7 @@ export async function getRentReport({
         ),
       ],
       totalsTraceLabel:
-        "Totals include only visible units and their currently effective lease terms.",
+        "Totals include only visible rental spaces and their currently effective lease terms.",
     };
   }
 

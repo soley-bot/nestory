@@ -4,10 +4,18 @@ import {
   loadScopedFinanceContext,
   type ScopedFinanceContext,
 } from "@/features/finance-operations/data/scoped-finance-context";
-import { iterateOwnerProfitLossEvents } from "@/features/reports/data/owner-profit-loss-events";
-import type { OwnerProfitLossEventsRpcClient } from "@/features/reports/data/owner-profit-loss-events.types";
-import { iteratePropertyCashEvents } from "@/features/finance/data/property-cash-events";
-import type { PropertyCashEventsRpcClient } from "@/features/finance/data/property-cash-events.types";
+import { loadOwnerProfitLossEventPage } from "@/features/reports/data/owner-profit-loss-events";
+import type {
+  OwnerProfitLossEventsRpcClient,
+  OwnerProfitLossEventScope,
+  OwnerProfitLossEventCursor,
+} from "@/features/reports/data/owner-profit-loss-events.types";
+import { loadPropertyCashEventPage } from "@/features/finance/data/property-cash-events";
+import type {
+  PropertyCashEventsRpcClient,
+  PropertyCashEventScope,
+  PropertyCashEventCursor,
+} from "@/features/finance/data/property-cash-events.types";
 import {
   formatExactCents,
   parseExactMoneyToCents,
@@ -212,24 +220,58 @@ export async function getTransactionReport({
       periodStart: period.start,
       periodEnd: period.end,
     };
-    if (needs("rent-charge") || needs("management-fee"))
-      for await (const event of iterateOwnerProfitLossEvents(
-        profitClient,
-        scope,
-      )) {
-        const isFee = event.sourceType === "management_fee_occurrence";
+    if (needs("management-fee")) {
+      const fees = await loadTransactionReportPages((from, to) =>
+        supabase
+          .from("management_fee_occurrences")
+          .select(
+            "id, organization_id, property_id, lease_id, fee_date, currency, amount, reversal_of_id, tenant_invoices!inner(unit_id)",
+            { count: "exact" },
+          )
+          .eq("organization_id", organizationId)
+          .eq("property_id", property.id)
+          .gte("fee_date", period.start)
+          .lte("fee_date", period.end)
+          .order("id")
+          .range(from, to),
+      );
+      for (const fee of fees) {
         if (
-          (isFee && !needs("management-fee")) ||
-          (!isFee && !needs("rent-charge"))
+          fee.organization_id !== organizationId ||
+          fee.property_id !== property.id ||
+          fee.currency !== "USD" ||
+          fee.fee_date < period.start ||
+          fee.fee_date > period.end ||
+          !fee.tenant_invoices
         )
-          continue;
+          throw new Error("Management fee source escaped report scope.");
+        const amount = parseExactMoneyToCents(fee.amount);
         if (
-          !isFee &&
-          (viewQuery.report === "management-fees" ||
-            event.sourceType !== "tenant_invoice_line" ||
-            event.categoryReportingGroup !== "rent")
+          (fee.reversal_of_id && amount > BigInt(0)) ||
+          (!fee.reversal_of_id && amount < BigInt(0))
         )
-          continue;
+          throw new Error(
+            "Management fee reversal has inconsistent signed money.",
+          );
+        add({
+          id: `management_fee_occurrence:${fee.id}`,
+          sourceId: fee.id,
+          category: "Management fee",
+          date: fee.fee_date,
+          propertyId: fee.property_id,
+          unitId: fee.tenant_invoices.unit_id,
+          type: "management-fee",
+          status: fee.reversal_of_id ? "reversal" : "incurred",
+          description: "Management fee",
+          amountCents: amount,
+          payeeId: null,
+          href: `/leases/${encodeURIComponent(fee.lease_id)}`,
+          recordType: "property-account-entry",
+        });
+      }
+    }
+    if (needs("rent-charge"))
+      for await (const event of iterateRentChargeEvents(profitClient, scope)) {
         add({
           id: event.eventKey,
           sourceId: event.sourceId,
@@ -237,25 +279,21 @@ export async function getTransactionReport({
           date: event.recognizedOn,
           propertyId: event.propertyId,
           unitId: event.unitId,
-          type: isFee ? "management-fee" : "rent-charge",
-          status: event.isReversal
-            ? "reversal"
-            : isFee
-              ? "incurred"
-              : "recorded",
+          type: "rent-charge",
+          status: event.isReversal ? "reversal" : "recorded",
           description: event.description,
           amountCents: event.signedAmountCents,
           payeeId: null,
           href: event.leaseId
             ? `/leases/${encodeURIComponent(event.leaseId)}`
             : accountHref(property.id, event.recognizedOn),
-          recordType: isFee ? "property-account-entry" : "income-obligation",
+          recordType: "income-obligation",
         });
       }
     if (viewQuery.report === "management-fees") return;
     const costEntries: TransactionReportEntry[] = [];
     if (needs("paid-cost"))
-      for await (const event of iteratePropertyCashEvents(cashClient, scope)) {
+      for await (const event of iteratePaidCostEvents(cashClient, scope)) {
         if (
           event.economicClass !== "operating_expense" &&
           !(
@@ -297,45 +335,57 @@ export async function getTransactionReport({
     if (costEntries.length)
       await enrichPaidCosts(supabase, organizationId, property.id, costEntries);
     if (!needs("receipt")) return;
-    // Invoice headers supply scope only. Their totals are never added to line charges or receipts.
-    const invoices = await loadTransactionReportPages((from, to) =>
+    // Start with dated cash, scoped through its invoice. Lifetime invoice history
+    // must not consume the report row budget for a narrow payment period.
+    const payments = await loadTransactionReportPages((from, to) =>
       supabase
-        .from("tenant_invoices")
+        .from("tenant_invoice_payments")
         .select(
-          "id, organization_id, property_id, unit_id, lease_id, invoice_number",
+          "id, organization_id, invoice_id, amount, currency, received_date, receipt_number, reference, reversal_of_id, tenant_invoices!inner(property_id)",
           { count: "exact" },
         )
         .eq("organization_id", organizationId)
-        .eq("property_id", property.id)
+        .eq("tenant_invoices.property_id", property.id)
+        .gte("received_date", period.start)
+        .lte("received_date", period.end)
         .order("id")
         .range(from, to),
     );
-    if (
-      invoices.some(
-        (i) =>
-          i.organization_id !== organizationId || i.property_id !== property.id,
-      )
-    )
-      throw new Error("Invoice source escaped transaction report scope.");
-    for (let offset = 0; offset < invoices.length; offset += PAGE_SIZE) {
-      const batch = new Map(
-        invoices.slice(offset, offset + PAGE_SIZE).map((i) => [i.id, i]),
-      );
-      const payments = await loadTransactionReportPages((from, to) =>
+    const invoiceIds = [
+      ...new Set(payments.map((payment) => payment.invoice_id)),
+    ];
+    for (let offset = 0; offset < invoiceIds.length; offset += PAGE_SIZE) {
+      const ids = invoiceIds.slice(offset, offset + PAGE_SIZE);
+      const invoices = await loadTransactionReportPages((from, to) =>
         supabase
-          .from("tenant_invoice_payments")
+          .from("tenant_invoices")
           .select(
-            "id, organization_id, invoice_id, amount, currency, received_date, receipt_number, reference, reversal_of_id",
+            "id, organization_id, property_id, unit_id, lease_id, invoice_number",
             { count: "exact" },
           )
           .eq("organization_id", organizationId)
-          .in("invoice_id", [...batch.keys()])
-          .gte("received_date", period.start)
-          .lte("received_date", period.end)
+          .eq("property_id", property.id)
+          .in("id", ids)
           .order("id")
           .range(from, to),
       );
-      for (const payment of payments) {
+      if (
+        invoices.length !== ids.length ||
+        invoices.some(
+          (invoice) =>
+            invoice.organization_id !== organizationId ||
+            invoice.property_id !== property.id ||
+            !ids.includes(invoice.id),
+        )
+      ) {
+        throw new Error(
+          "Invoice source escaped transaction report scope or is incomplete.",
+        );
+      }
+      const batch = new Map(invoices.map((invoice) => [invoice.id, invoice]));
+      for (const payment of payments.filter((payment) =>
+        batch.has(payment.invoice_id),
+      )) {
         const invoice = batch.get(payment.invoice_id);
         if (
           !invoice ||
@@ -345,12 +395,11 @@ export async function getTransactionReport({
           payment.received_date > period.end
         )
           throw new Error("Receipt source escaped transaction report scope.");
-        const amount = parseExactMoneyToCents(payment.amount);
-        if (
-          (payment.reversal_of_id && amount >= BigInt(0)) ||
-          (!payment.reversal_of_id && amount < BigInt(0))
-        )
-          throw new Error("Receipt reversal has inconsistent signed money.");
+        const storedAmount = parseExactMoneyToCents(payment.amount);
+        if (storedAmount <= BigInt(0))
+          throw new Error("Receipt source amount must be positive.");
+        // Payment reversals retain a positive stored amount; lineage determines cash direction.
+        const amount = payment.reversal_of_id ? -storedAmount : storedAmount;
         add({
           id: `tenant_invoice_payment:${payment.id}`,
           sourceId: payment.id,
@@ -485,7 +534,15 @@ export function buildTransactionReport({
       })),
       payees: [
         ...new Set(scoped.flatMap((e) => (e.payeeId ? [e.payeeId] : []))),
-      ].map((id) => ({ id, label: people.get(id) ?? "Unknown payee" })),
+      ].map((id) => ({
+        id,
+        label:
+          scoped
+            .find((entry) => entry.payeeId === id && entry.payeeLabel?.trim())
+            ?.payeeLabel?.trim() ||
+          people.get(id) ||
+          "Unknown payee",
+      })),
     },
     rows: visible.map((e) => ({
       id: e.id,
@@ -558,24 +615,53 @@ async function enrichPaidCosts(
 ) {
   // Child submissions point to the authoritative payment allocation, including reversals.
   // Parent transaction amounts are never used, even for multi-property transactions.
-  const submissions = await loadTransactionReportPages((from, to) =>
-    supabase
-      .from("expense_submissions")
-      .select(
-        "id, approved_payment_allocation_id, reversal_payment_allocation_id, vendor_label, vendor_person_id",
-        { count: "exact" },
+  const entriesBySource = new Map(
+    entries
+      .filter(
+        (entry) => entry.sourceId && entry.recordType === "payment-allocation",
       )
-      .eq("organization_id", organizationId)
-      .eq("property_id", propertyId)
-      .order("id")
-      .range(from, to),
+      .map((entry) => [entry.sourceId!, entry]),
   );
-  const entriesBySource = new Map(entries.map((e) => [e.sourceId, e]));
-  const matched = submissions.filter(
-    (s) =>
-      entriesBySource.has(s.approved_payment_allocation_id ?? "") ||
-      entriesBySource.has(s.reversal_payment_allocation_id ?? ""),
-  );
+  const allocationIds = [...entriesBySource.keys()];
+  const matchedById = new Map<
+    string,
+    {
+      id: string;
+      approved_payment_allocation_id: string | null;
+      reversal_payment_allocation_id: string | null;
+      vendor_label: string;
+      vendor_person_id: string | null;
+    }
+  >();
+  for (let offset = 0; offset < allocationIds.length; offset += PAGE_SIZE) {
+    const ids = allocationIds.slice(offset, offset + PAGE_SIZE);
+    for (const column of [
+      "approved_payment_allocation_id",
+      "reversal_payment_allocation_id",
+    ] as const) {
+      const submissions = await loadTransactionReportPages((from, to) =>
+        supabase
+          .from("expense_submissions")
+          .select(
+            "id, approved_payment_allocation_id, reversal_payment_allocation_id, vendor_label, vendor_person_id",
+            { count: "exact" },
+          )
+          .eq("organization_id", organizationId)
+          .eq("property_id", propertyId)
+          .in(column, ids)
+          .order("id")
+          .range(from, to),
+      );
+      for (const submission of submissions) {
+        if (!ids.includes(submission[column] ?? ""))
+          throw new Error(
+            "Expense metadata escaped the selected allocation scope.",
+          );
+        matchedById.set(submission.id, submission);
+      }
+    }
+  }
+  const matched = [...matchedById.values()];
   for (let offset = 0; offset < matched.length; offset += PAGE_SIZE) {
     const batch = matched.slice(offset, offset + PAGE_SIZE);
     const lines = await loadTransactionReportPages((from, to) =>
@@ -661,5 +747,80 @@ async function enrichPaidCosts(
         }
       }
     }
+  }
+}
+
+async function* iterateRentChargeEvents(
+  client: OwnerProfitLossEventsRpcClient,
+  scope: OwnerProfitLossEventScope,
+) {
+  let cursor: OwnerProfitLossEventCursor | null = null;
+  let scanned = 0;
+  const matched = new Set<string>();
+  for (;;) {
+    const page = await loadOwnerProfitLossEventPage(client, scope, cursor);
+    for (const event of page.rows) {
+      if (++scanned > 100_000)
+        throw new Error(
+          "Rent charge source exceeds 100,000 scanned events; narrow the scope.",
+        );
+      // Cursor and exhaustion use the complete page, including unrelated events.
+      cursor = {
+        recognizedOn: event.recognizedOn,
+        sourceType: event.sourceType,
+        sourceId: event.sourceId,
+      };
+      if (
+        event.sourceType !== "tenant_invoice_line" ||
+        event.categoryReportingGroup !== "rent"
+      )
+        continue;
+      if (matched.has(event.eventKey))
+        throw new Error("Duplicate rent charge source.");
+      matched.add(event.eventKey);
+      if (matched.size > MAX_ROWS)
+        throw new Error("Rent charges exceed 10,000 rows; narrow the scope.");
+      yield event;
+    }
+    if (page.rows.length < page.pageSize) return;
+  }
+}
+
+async function* iteratePaidCostEvents(
+  client: PropertyCashEventsRpcClient,
+  scope: PropertyCashEventScope,
+) {
+  let cursor: PropertyCashEventCursor | null = null;
+  let scanned = 0;
+  const matched = new Set<string>();
+  for (;;) {
+    const page = await loadPropertyCashEventPage(client, scope, cursor);
+    for (const event of page.rows) {
+      if (++scanned > 100_000)
+        throw new Error(
+          "Paid cost source exceeds 100,000 scanned events; narrow the scope.",
+        );
+      cursor = {
+        eventDate: event.eventDate,
+        sourceType: event.sourceType,
+        sourceId: event.sourceId,
+      };
+      if (
+        event.economicClass !== "operating_expense" &&
+        !(
+          ["payment_allocation", "petty_cash_entry"].includes(
+            event.sourceType,
+          ) && event.categoryCode === "company_cost"
+        )
+      )
+        continue;
+      if (matched.has(event.eventKey))
+        throw new Error("Duplicate paid cost source.");
+      matched.add(event.eventKey);
+      if (matched.size > MAX_ROWS)
+        throw new Error("Paid costs exceed 10,000 rows; narrow the scope.");
+      yield event;
+    }
+    if (page.rows.length < page.pageSize) return;
   }
 }
