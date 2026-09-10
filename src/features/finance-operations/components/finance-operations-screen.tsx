@@ -4330,6 +4330,9 @@ function WithdrawalForm({
   position: PropertyFinancePosition;
 }) {
   const idempotencyKey = useStableActionId("withdrawal");
+  const [amount, setAmount] = useState("");
+  const [reference, setReference] = useState("");
+  const [withdrawalDate, setWithdrawalDate] = useState(getBusinessDateValue());
   const [state, action] = useActionState(
     recordWithdrawalAction,
     actionInitialState,
@@ -4342,7 +4345,7 @@ function WithdrawalForm({
           ["Property", position.propertyLabel],
           ["Owner", position.ownerLabel],
           [
-            "Available",
+            "Available now",
             formatMoneyDisplay(position.availableWithdrawal).primary,
           ],
         ]}
@@ -4359,19 +4362,26 @@ function WithdrawalForm({
           <NumberInput
             max={position.availableWithdrawal}
             name="amount"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
             required
           />
         </Field>
         <Field label="Date">
           <DatePickerField
-            defaultValue={getBusinessDateValue()}
+            defaultValue={withdrawalDate}
             name="withdrawalDate"
+            onValueChange={setWithdrawalDate}
+            aria-describedby="distribution-date-help"
             required
           />
+          <p id="distribution-date-help" className="mt-1 text-xs text-muted-foreground">Available now is the current balance. The amount available on your selected date may differ; it is checked when you record the distribution.</p>
         </Field>
         <Field label="Reference">
           <Input
             name="reference"
+            value={reference}
+            onChange={(event) => setReference(event.target.value)}
             placeholder="Bank transfer or note"
             required
           />
