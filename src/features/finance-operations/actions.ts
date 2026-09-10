@@ -776,8 +776,16 @@ export async function submitExpenseAction(
   if (formData.has("lines")) {
     const parsed = expenseTransactionSchema.safeParse(Object.fromEntries(formData));
     if (!parsed.success) return validationError(parsed.error);
+    const replacement = formData.has("replacementTransactionId") ? z.object({
+      replacementTransactionId: uuid,
+      expectedStatus: z.enum(["submitted", "approved"]),
+      replacementReason: z.string().trim().min(3).max(500),
+      reversalDate: date,
+    }).safeParse(Object.fromEntries(formData)) : null;
+    if (replacement && !replacement.success) return validationError(replacement.error);
 
     const context = await requireFinanceSubmissionContext();
+    if (replacement?.success && replacement.data.expectedStatus === "approved") await requireFinanceReversalContext();
     const supabase = await createSupabaseServerClient();
     let evidenceDocumentId: string | null = null;
     try {
@@ -797,8 +805,8 @@ export async function submitExpenseAction(
       return actionError(paidCostEvidenceActionMessage(error));
     }
 
-    const { error } = await supabase.rpc("submit_expense_transaction", {
-      p_currency: "USD",
+    const expensePayload = {
+      p_currency: "USD" as const,
       p_expense_date: parsed.data.expenseDate,
       p_external_payee_label:
         parsed.data.payeeMode === "external"
@@ -822,14 +830,23 @@ export async function submitExpenseAction(
       p_reference: parsed.data.reference || null,
       p_responsibility: parsed.data.responsibility,
       p_supporting_document_id: evidenceDocumentId,
-    });
+    };
+    const { error } = replacement?.success
+      ? await supabase.rpc("replace_expense_transaction", {
+          ...expensePayload,
+          p_transaction_id: replacement.data.replacementTransactionId,
+          p_expected_status: replacement.data.expectedStatus,
+          p_reason: replacement.data.replacementReason,
+          p_reversal_date: replacement.data.reversalDate,
+        })
+      : await supabase.rpc("submit_expense_transaction", expensePayload);
     if (isPrivilegedStepUpRequiredError(error)) {
       return actionError(privilegedStepUpRequiredActionMessage);
     }
     if (error) return expenseWorkflowError(error.message);
     revalidateFinance();
     return {
-      message: "Paid cost submitted for Finance review.",
+      message: replacement?.success ? "Replacement submitted for review. The original is kept in history." : "Paid cost submitted for Finance review.",
       status: "success",
     };
   }
@@ -932,6 +949,23 @@ export async function reviewExpenseAction(
         : "Paid cost rejected.",
     status: "success",
   };
+}
+
+export async function cancelExpenseAction(
+  _state: FinanceOperationsActionState,
+  formData: FormData,
+): Promise<FinanceOperationsActionState> {
+  const parsed = z.object({ transactionId: uuid, reason: z.string().trim().min(3).max(500), idempotencyKey: z.string().min(8).max(160) }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return validationError(parsed.error);
+  const context = await requireFinanceSubmissionContext();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("cancel_expense_transaction", {
+    p_organization_id: context.organizationId, p_transaction_id: parsed.data.transactionId,
+    p_reason: parsed.data.reason, p_idempotency_key: parsed.data.idempotencyKey,
+  });
+  if (error) return expenseWorkflowError(error.message);
+  revalidateFinance();
+  return { status: "success", message: "Expense cancelled. No balance changes were posted." };
 }
 
 export async function reverseExpenseAction(
@@ -1079,6 +1113,9 @@ function revalidateTenantPayment() {
 }
 
 function expenseWorkflowError(message: string) {
+  if (message.includes("Upload a new receipt for the replacement")) return actionError("Upload the receipt again for this replacement. The original attachment stays in history.");
+  if (message.includes("Only the submitter or Super Admin")) return actionError("Only the person who submitted this expense or a Super Admin can edit or cancel it.");
+  if (message.includes("status changed") || message.includes("Conflicting expense") || message.includes("Only a pending expense")) return actionError("This expense has changed. Refresh the page before trying again.");
   if (message.includes("The submitter cannot review the same expense transaction")) {
     return actionError(
       "You submitted this expense. Ask another authorized reviewer to approve or reject it.",

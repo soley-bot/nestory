@@ -53,6 +53,7 @@ import {
   reviewExpenseAction,
   saveLeaseBillingAction,
   submitExpenseAction,
+  cancelExpenseAction,
 } from "@/features/finance-operations/actions";
 import { FinanceCategorySetupEntry } from "@/features/finance-operations/components/finance-category-manager";
 import {
@@ -96,6 +97,7 @@ export type FinanceOperationsView =
   "account" | "balances" | "expenses" | "rent" | "work";
 
 type ModalState =
+  | { mode: "expense-cancel"; submission: ExpenseSubmissionSummary }
   | { lease?: FinanceLease; mode: "manual-charge" }
   | {
       invoice: TenantInvoiceSummary;
@@ -138,6 +140,7 @@ type DrawerState =
       initialInvoiceId?: string;
       initialResponsibility?: "owner" | "tenant";
       mode: "expense";
+      replacement?: ExpenseSubmissionSummary;
     };
 
 type FinanceOperationsScreenProps = FinanceOperationsData & {
@@ -261,6 +264,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
       ? props.canConfigureRent
       : drawer.mode === "expense"
         ? props.canSubmitExpense
+          && (!drawer.replacement || canReplaceExpense(drawer.replacement, props))
         : true)
       ? drawer
       : null;
@@ -404,6 +408,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
           ) : visibleDrawer.mode === "expense" ? (
             <ExpenseForm
               expenseAccounts={props.expenseAccounts}
+              replacement={visibleDrawer.replacement}
               fixedScope={props.scope}
               initialInvoiceId={visibleDrawer.initialInvoiceId}
               initialResponsibility={visibleDrawer.initialResponsibility}
@@ -471,6 +476,16 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
             />
           ) : visibleDetailDrawer.mode === "expense-details" ? (
             <ExpenseDetails
+              originalExpense={visibleDetailDrawer.submission.replacesTransactionId ? props.expenseSubmissions.find((item) => item.transactionId === visibleDetailDrawer.submission.replacesTransactionId) : undefined}
+              replacementExpense={visibleDetailDrawer.submission.replacementTransactionId ? props.expenseSubmissions.find((item) => item.transactionId === visibleDetailDrawer.submission.replacementTransactionId) : undefined}
+              onViewRelated={(submission) => setModal({ mode: "expense-details", submission })}
+              canEdit={canReplaceExpense(visibleDetailDrawer.submission, props)}
+              onEdit={() => {
+                const replacement = visibleDetailDrawer.submission;
+                closeModal();
+                setDrawer({ mode: "expense", replacement });
+              }}
+              onCancelExpense={() => setModal({ mode: "expense-cancel", submission: visibleDetailDrawer.submission })}
               canReview={props.canReviewExpense}
               canReverse={props.canReverseExpense}
               onApprove={() =>
@@ -583,6 +598,8 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
               payFromAccounts={props.payFromAccounts}
               submission={visibleActionModal.submission}
             />
+          ) : visibleActionModal.mode === "expense-cancel" ? (
+            <ExpenseCancellationForm submission={visibleActionModal.submission} onSuccess={onActionSuccess} />
           ) : visibleActionModal.mode === "expense-reversal" ? (
             <ExpenseReversalForm
               onSuccess={onActionSuccess}
@@ -1789,7 +1806,7 @@ function ExpensesView({
           {(["submitted", "approved", "rejected", "reversed"] as const).map(
             (value) => (
               <TabsTrigger key={value} value={value}>
-                {expenseStatusLabel(value)} (
+                {value === "rejected" ? "Cancelled / rejected" : expenseStatusLabel(value)} (
                 {submissions.filter((item) => item.status === value).length})
               </TabsTrigger>
             ),
@@ -1881,7 +1898,7 @@ function ExpenseSubmissionTable({
               <Td>
                 <div className="flex flex-col items-start gap-2">
                   <Badge tone={expenseStatusTone(submission.status)}>
-                    {expenseStatusLabel(submission.status)}
+                    {submission.cancelledAt ? "Cancelled" : expenseStatusLabel(submission.status)}
                   </Badge>
                   <Button
                     aria-label={`${submission.status === "submitted" && canReview && !submission.transactionReviewBlocked && !submission.reviewRequiresAnotherUser ? "Review" : "View"} ${submission.vendorLabel}`}
@@ -2462,6 +2479,12 @@ function ExpenseLines({ submission }: { submission: ExpenseSubmissionSummary }) 
 }
 
 function ExpenseDetails({
+  originalExpense,
+  replacementExpense,
+  onViewRelated,
+  canEdit,
+  onEdit,
+  onCancelExpense,
   canReview,
   canReverse,
   onApprove,
@@ -2470,6 +2493,12 @@ function ExpenseDetails({
   onReverse,
   submission,
 }: {
+  originalExpense?: ExpenseSubmissionSummary;
+  replacementExpense?: ExpenseSubmissionSummary;
+  onViewRelated: (submission: ExpenseSubmissionSummary) => void;
+  canEdit: boolean;
+  onEdit: () => void;
+  onCancelExpense: () => void;
   canReview: boolean;
   canReverse: boolean;
   onApprove: () => void;
@@ -2490,7 +2519,7 @@ function ExpenseDetails({
           </p>
         </div>
         <Badge tone={expenseStatusTone(submission.status)}>
-          {expenseStatusLabel(submission.status)}
+          {submission.cancelledAt ? "Cancelled" : expenseStatusLabel(submission.status)}
         </Badge>
       </div>
       <DefinitionRows
@@ -2530,6 +2559,13 @@ function ExpenseDetails({
         </p>
       ) : null}
       <ExpenseLines submission={submission} />
+      {submission.replacesTransactionId ? <p className="text-sm text-muted-foreground">Replacement for a previous expense. The original remains in history.</p> : null}
+      {originalExpense ? <Button variant="outline" onClick={() => onViewRelated(originalExpense)}>View original expense</Button> : null}
+      {replacementExpense ? <Button variant="outline" onClick={() => onViewRelated(replacementExpense)}>View replacement expense</Button> : null}
+      {canEdit ? <div className="flex gap-2 border-t border-border pt-3">
+        <Button onClick={onEdit} variant="outline">{submission.status === "approved" ? "Correct expense" : "Edit expense"}</Button>
+        {submission.status === "submitted" ? <Button onClick={onCancelExpense} variant="ghost">Cancel expense</Button> : null}
+      </div> : null}
       {submission.scopedSubtotal !== undefined ? <p className="text-sm">
         Scoped subtotal: {formatMoneyDisplay(submission.scopedSubtotal).primary}
         {submission.fullTransactionTotal !== undefined ? <> · Full transaction total: {formatMoneyDisplay(submission.fullTransactionTotal).primary}</> : null}
@@ -3034,6 +3070,7 @@ function PaymentChooser({
 }
 
 type ExpenseFormProps = {
+  replacement?: ExpenseSubmissionSummary;
   expenseAccounts: FinanceOperationsData["expenseAccounts"];
   fixedScope?: FinanceOperationsScreenProps["scope"];
   initialInvoiceId?: string;
@@ -3070,6 +3107,7 @@ function ExpenseForm(props: ExpenseFormProps) {
 }
 
 type OwnerExpenseDraftLine = {
+  internalMarkup?: string;
   amount: string;
   categoryAccountId: string;
   description: string;
@@ -3080,6 +3118,7 @@ type OwnerExpenseDraftLine = {
 };
 
 function OwnerExpenseTransactionForm({
+  replacement,
   canCreateVendor = false,
   expenseAccounts,
   fixedScope,
@@ -3094,7 +3133,7 @@ function OwnerExpenseTransactionForm({
   const activeCategories = expenseAccounts;
   const defaultPropertyId = fixedScope?.propertyId ?? "";
   const defaultUnitId = fixedScope?.kind === "unit" ? fixedScope.id : "";
-  const nextLineKey = useRef(2);
+  const nextLineKey = useRef((replacement?.lines?.length ?? 1) + 1);
   const allocationDetails = useRef(new Map<number, HTMLDetailsElement>());
   const idempotencyKey = useStableActionId("expense-transaction");
   const [state, action, pending] = useActionState(
@@ -3111,11 +3150,16 @@ function OwnerExpenseTransactionForm({
       for (const details of allocationDetails.current.values()) details.open = true;
     }
   }, [pending, state]);
-  const [expenseDate, setExpenseDate] = useState(getBusinessDateValue());
-  const [externalPayeeLabel, setExternalPayeeLabel] = useState("");
-  const [payeeValue, setPayeeValue] = useState("");
-  const [reference, setReference] = useState("");
-  const [lines, setLines] = useState<OwnerExpenseDraftLine[]>([
+  const [expenseDate, setExpenseDate] = useState(replacement?.date ?? getBusinessDateValue());
+  const [externalPayeeLabel, setExternalPayeeLabel] = useState(replacement?.externalPayeeLabel ?? "");
+  const [payeeValue, setPayeeValue] = useState(replacement ? replacement.payeePersonId ? `person:${replacement.payeePersonId}` : "external" : "");
+  const [reference, setReference] = useState(replacement?.reference ?? "");
+  const [lines, setLines] = useState<OwnerExpenseDraftLine[]>(replacement?.lines?.map((line, index) => ({
+    amount: String(line.amount), internalMarkup: String(line.internalMarkup), categoryAccountId: line.categoryAccountId ?? "",
+    description: line.description, key: index + 1,
+    ownerCashAmount: line.ownerCashAmount === null ? "" : String(line.ownerCashAmount),
+    propertyId: line.propertyId, unitId: line.unitId ?? "",
+  })) ?? [
     {
       amount: "",
       categoryAccountId: defaultPropertyId ? activeCategories.find((account) => account.propertyId === null || account.propertyId === defaultPropertyId)?.id ?? "" : "",
@@ -3134,15 +3178,15 @@ function OwnerExpenseTransactionForm({
       (distinctPropertyIds.length === 1 && source.propertyId === distinctPropertyIds[0])),
   );
   const [payFromAccountId, setPayFromAccountId] = useState(
-    defaultPropertyId
+    replacement?.payFromAccountId ?? (defaultPropertyId
       ? findConfiguredAccountId(eligibleSources, "operating_bank", defaultPropertyId) ?? eligibleSources[0]?.id ?? ""
-      : "",
+      : ""),
   );
   const effectivePayFromAccountId = eligibleSources.some(
     (source) => source.id === payFromAccountId,
   )
     ? payFromAccountId
-    : findConfiguredAccountId(eligibleSources, "operating_bank", distinctPropertyIds.length === 1 ? distinctPropertyIds[0] : null) ?? eligibleSources[0]?.id ?? "";
+    : replacement ? "" : findConfiguredAccountId(eligibleSources, "operating_bank", distinctPropertyIds.length === 1 ? distinctPropertyIds[0] : null) ?? eligibleSources[0]?.id ?? "";
   useSuccess(state, onSuccess);
 
   const orderedPayees = peopleOptions
@@ -3166,13 +3210,14 @@ function OwnerExpenseTransactionForm({
     amount: line.amount,
     categoryAccountId: line.categoryAccountId,
     description: line.description,
-    internalMarkupAmount: "0",
+    internalMarkupAmount: line.internalMarkup ?? "0",
     ownerCashAmount: line.ownerCashAmount || null,
     propertyId: line.propertyId,
     tenantInvoiceId: null,
     unitId: line.unitId || null,
   }));
   const total = lines.reduce((sum, line) => sum + Number(line.amount || 0), 0);
+  const chargedTotal = lines.reduce((sum, line) => sum + Number(line.amount || 0) + Number(line.internalMarkup || 0), 0);
 
   return (
     <RecordForm
@@ -3181,7 +3226,7 @@ function OwnerExpenseTransactionForm({
       ariaLabel="Record property expense form"
       onCancel={onClose}
       pending={pending}
-      saveLabel="Submit for review"
+      saveLabel={replacement ? replacement.status === "approved" ? "Reverse and submit correction" : "Save changes for review" : "Submit for review"}
       savingLabel="Submitting expense"
       state={state}
     >
@@ -3198,6 +3243,16 @@ function OwnerExpenseTransactionForm({
       />
       <input name="reference" type="hidden" value={reference} />
       <input name="responsibility" type="hidden" value="owner" />
+      {replacement ? <>
+        <input name="replacementTransactionId" type="hidden" value={replacement.transactionId ?? ""} />
+        <input name="expectedStatus" type="hidden" value={replacement.status} />
+        <p className="text-sm text-muted-foreground">{replacement.status === "approved"
+          ? "The original expense will be reversed when you save. The replacement needs approval before it affects the owner balance."
+          : "Your changes replace the pending submission. The previous version remains in history."}</p>
+        {replacement.status === "approved" ? <Field label="Reversal date"><DatePickerField name="reversalDate" defaultValue={getBusinessDateValue()} required /></Field> : <input name="reversalDate" type="hidden" value={getBusinessDateValue()} />}
+        <Field label="Reason for change"><Input name="replacementReason" minLength={3} maxLength={500} required /></Field>
+        {replacement.evidence ? <p className="text-sm text-muted-foreground">Original receipt: {replacement.evidence.fileName}. Upload the receipt again for this replacement; the original attachment stays in history.</p> : null}
+      </> : null}
 
       <FormSection
         indentContent={false}
@@ -3401,6 +3456,7 @@ function OwnerExpenseTransactionForm({
               value={effectivePayFromAccountId}
             />
           </Field>
+          {replacement && !effectivePayFromAccountId ? <p className="text-sm text-warning sm:col-span-2">Choose a paid-from account. The original account is unavailable for these properties.</p> : null}
           <Field label="Reference (optional)">
             <Input
               onChange={(event) => setReference(event.target.value)}
@@ -3409,7 +3465,7 @@ function OwnerExpenseTransactionForm({
             />
           </Field>
           <div className="sm:col-span-2">
-            <ReceiptEvidenceField />
+            <ReceiptEvidenceField required={Boolean(replacement?.evidence)} />
           </div>
 
         </div>
@@ -3420,7 +3476,7 @@ function OwnerExpenseTransactionForm({
             <dt>Total paid</dt><dd className="text-xl font-semibold tabular-nums">{formatMoneyDisplay(total).primary}</dd>
           </div>
           <div className="flex justify-between gap-4 text-muted-foreground">
-            <dt>Cost charged to owner</dt><dd className="font-medium tabular-nums">{formatMoneyDisplay(total).primary}</dd>
+            <dt>Cost charged to owner</dt><dd className="font-medium tabular-nums">{formatMoneyDisplay(chargedTotal).primary}</dd>
           </div>
         </dl>
         <details className="text-xs text-muted-foreground">
@@ -4038,6 +4094,20 @@ function ExpenseReviewForm({
   );
 }
 
+function ExpenseCancellationForm({ submission, onSuccess }: { submission: ExpenseSubmissionSummary; onSuccess: (message: string) => void }) {
+  const [state, action] = useActionState(cancelExpenseAction, actionInitialState);
+  const idempotencyKey = useStableActionId("cancel-expense");
+  useSuccess(state, onSuccess);
+  return <form action={action} className="space-y-4 p-4">
+    <input name="transactionId" type="hidden" value={submission.transactionId ?? ""} />
+    <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+    <p className="text-sm">Cancel this pending expense? No balance changes will be posted. Its history will be kept.</p>
+    <Field label="Reason"><Input name="reason" minLength={3} maxLength={500} required /></Field>
+    <ActionMessage state={state} />
+    <FormFooter><span /><SubmitButton label="Cancel expense" /></FormFooter>
+  </form>;
+}
+
 function ExpenseReversalForm({
   onSuccess,
   submission,
@@ -4519,6 +4589,7 @@ function ManualTenantChargeForm({
 }
 
 function getModalTitle(modal: ModalState) {
+  if (modal.mode === "expense-cancel") return "Cancel expense";
   if (modal.mode === "manual-charge") return "Bill tenant";
   if (modal.mode === "rent-recovery") return "Generate missing rent";
   if (modal.mode === "invoice-details") return "Invoice details";
@@ -4565,6 +4636,9 @@ function canRenderFinanceModal(
     | "canRecoverRent"
     | "canReviewExpense"
     | "canReverseExpense"
+    | "canSubmitExpense"
+    | "canApproveOwnExpense"
+    | "currentUserId"
   >,
 ) {
   if (
@@ -4575,6 +4649,7 @@ function canRenderFinanceModal(
     return true;
   }
   if (modal.mode === "rent-recovery") return capabilities.canRecoverRent;
+  if (modal.mode === "expense-cancel") return modal.submission.status === "submitted" && canReplaceExpense(modal.submission, capabilities);
   if (modal.mode === "manual-charge") return capabilities.canRecordPayments;
   if (modal.mode === "payment") return capabilities.canRecordPayments;
   if (modal.mode === "settlement-reversal") {
@@ -4598,9 +4673,16 @@ function getDrawerTitle(drawer: DrawerState) {
       ? "Repair lease billing"
       : "Set up lease billing";
   }
+  if (drawer.replacement) return drawer.replacement.status === "approved" ? "Correct expense" : "Edit expense";
   return drawer.initialResponsibility === "tenant"
     ? "Record recoverable cost"
     : "Record property expense";
+}
+
+function canReplaceExpense(submission: ExpenseSubmissionSummary, capabilities: Pick<FinanceOperationsScreenProps, "canSubmitExpense" | "canReverseExpense" | "canApproveOwnExpense" | "currentUserId">) {
+  if (!capabilities.canSubmitExpense || !submission.transactionId || submission.transactionReviewBlocked || submission.responsibility !== "owner" || !submission.lines?.length) return false;
+  if (submission.status === "approved") return capabilities.canReverseExpense;
+  return submission.status === "submitted" && Boolean(capabilities.canApproveOwnExpense || capabilities.currentUserId === submission.submittedByUserId);
 }
 
 function isLeaseBillingRuleComplete(
@@ -4797,17 +4879,18 @@ function StatusBadge({
   });
   return <Badge tone={presentation.tone}>{presentation.label}</Badge>;
 }
-function ReceiptEvidenceField() {
+function ReceiptEvidenceField({ required = false }: { required?: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [hasFile, setHasFile] = useState(false);
   return (
     <div className="space-y-2">
-      <Field label="Receipt (optional)">
+      <Field label={required ? "Replacement receipt" : "Receipt (optional)"}>
         <Input
           accept="application/pdf,image/jpeg,image/png,image/webp"
           name="evidenceFile"
           onChange={(event) => setHasFile(Boolean(event.currentTarget.files?.length))}
           ref={inputRef}
+          required={required}
           type="file"
         />
       </Field>

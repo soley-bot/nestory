@@ -87,6 +87,60 @@ class ResizeObserverStub {
 }
 
 describe("FinanceOperationsScreen", () => {
+  it("prefills a pending expense edit and preserves its original account and markup", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.expenseSubmissions = [editableExpense("submitted")];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canSubmitExpense: true })} currentUserId="finance-member-user-1" organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("button", { name: "View Sokha Repairs" }));
+    expect(screen.getByRole("button", { name: "Cancel expense" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Edit expense" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit expense" });
+    expect((within(dialog).getByLabelText("Reference (optional)") as HTMLInputElement).value).toBe("Receipt 42");
+    expect(within(dialog).getByDisplayValue("Original repair description")).toBeTruthy();
+    const form = within(dialog).getByRole("form");
+    const lines = JSON.parse(valueOfNamedInput(form, "lines")!);
+    expect(lines[0]).toMatchObject({ amount: "200", internalMarkupAmount: "20", categoryAccountId: "account-expense-cleaning", propertyId: "property-1", unitId: "unit-1" });
+    expect(valueOfNamedInput(form, "replacementTransactionId")).toBe("transaction-1");
+    expect(valueOfNamedInput(form, "payFromAccountId")).toBe("");
+    expect(within(dialog).getByText(/original account is unavailable/)).toBeTruthy();
+    expect(within(dialog).getByLabelText("Reason for change").hasAttribute("required")).toBe(true);
+  });
+
+  it("hides edit and cancellation from someone other than the submitter", async () => {
+    const user = userEvent.setup(); const input = data();
+    input.expenseSubmissions = [editableExpense("submitted")];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canSubmitExpense: true })} currentUserId="someone-else" organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("button", { name: "View Sokha Repairs" }));
+    expect(screen.queryByRole("button", { name: "Edit expense" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cancel expense" })).toBeNull();
+  });
+
+  it("opens the original from a replacement and links back to the correction", async () => {
+    const user = userEvent.setup(); const input = data();
+    const original = { ...editableExpense("approved"), status: "reversed" as const, replacementTransactionId: "replacement-1" };
+    const replacement = { ...editableExpense("submitted"), id: "replacement-1", transactionId: "replacement-1", replacesTransactionId: "transaction-1" };
+    input.expenseSubmissions = [original, replacement];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({})} organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("button", { name: "View Sokha Repairs" }));
+    await user.click(screen.getByRole("button", { name: "View original expense" }));
+    expect(within(screen.getByRole("dialog", { name: "Paid cost details" })).getByText("Reversed")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "View replacement expense" }));
+    expect(screen.getByRole("button", { name: "View original expense" })).toBeTruthy();
+  });
+
+  it("explains reversal and approval before saving an approved expense correction", async () => {
+    const user = userEvent.setup(); const input = data();
+    input.expenseSubmissions = [editableExpense("approved")];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canSubmitExpense: true, canReverseExpense: true })} organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("tab", { name: "Approved (1)" }));
+    await user.click(screen.getByRole("button", { name: "View Sokha Repairs" }));
+    await user.click(screen.getByRole("button", { name: "Correct expense" }));
+    expect(screen.getByText(/replacement needs approval before it affects the owner balance/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reverse and submit correction" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Cancel expense" })).toBeNull();
+  });
+
   it("preserves automatic and explicit owner cash allocations when details are collapsed", async () => {
     const user = userEvent.setup();
     render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canSubmitExpense: true })}
@@ -1410,9 +1464,9 @@ describe("FinanceOperationsScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Set up" }));
     const dialog = screen.getByRole("dialog", { name: "Set up lease billing" });
     const preview = within(dialog).getByRole("region", { name: "Rent preview" });
-    expect(within(preview).getByText("First month")).not.toBeNull();
+    expect(within(preview).getByText(/First month/)).not.toBeNull();
     expect(within(preview).getByText("USD 548.39")).not.toBeNull();
-    expect(within(preview).getByText("Final month")).not.toBeNull();
+    expect(within(preview).getByText(/Final month/)).not.toBeNull();
     expect(within(preview).getByText("USD 645.16")).not.toBeNull();
     expect(within(preview).queryByText("Lease month")).toBeNull();
   });
@@ -1921,7 +1975,7 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     expect(
       screen.getByRole("combobox", {
-        name: "First or final month amount",
+        name: "First or final month rent amount",
       }).textContent,
     ).toContain("Calculate automatically");
     expect(
@@ -4122,6 +4176,16 @@ function billing(): NonNullable<
     rentCalculationTimezone: "Asia/Bangkok",
     shortMonthDueDayRule: "last_calendar_day",
   };
+}
+
+function editableExpense(status: "approved" | "submitted") {
+  const base = expenseSubmission(status);
+  return { ...base, transactionId: "transaction-1", externalPayeeLabel: base.vendorLabel, payFromAccountId: "account-operating", lines: [{
+    amount: base.internalCost, internalMarkup: base.internalMarkup, customerTotal: base.customerTotal,
+    category: base.category, categoryAccountId: "account-expense-cleaning", description: "Original repair description",
+    ownerCashAmount: null, propertyId: base.propertyId, propertyLabel: base.propertyLabel,
+    submissionId: base.id, unitId: base.unitId, unitLabel: base.unitLabel,
+  }] };
 }
 
 function expenseSubmission(

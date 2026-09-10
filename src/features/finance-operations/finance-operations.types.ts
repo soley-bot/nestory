@@ -158,6 +158,12 @@ export type OwnerInvoiceSummary = {
 };
 
 export type ExpenseSubmissionSummary = {
+  cancelledAt?: string | null;
+  replacesTransactionId?: string | null;
+  replacementTransactionId?: string | null;
+  payeePersonId?: string | null;
+  externalPayeeLabel?: string | null;
+  payFromAccountId?: string;
   adjustsSubmissionId?: string | null;
   category: string;
   categoryLabel?: string | null;
@@ -181,6 +187,7 @@ export type ExpenseSubmissionSummary = {
   scopedSubtotal?: number;
   fullTransactionTotal?: number;
   lines?: Array<{
+    categoryAccountId?: string;
     amount: number;
     customerTotal: number;
     internalMarkup: number;

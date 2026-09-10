@@ -796,6 +796,8 @@ export type Database = {
       }
       expense_transactions: {
         Row: {
+          cancelled_at: string | null
+          cancelled_by: string | null
           created_at: string
           currency: Database["public"]["Enums"]["currency_code"]
           expense_date: string
@@ -808,6 +810,11 @@ export type Database = {
           payee_person_id: string | null
           reconciliation_source_id: string
           reference: string | null
+          replaced_by: string | null
+          replacement_idempotency_key: string | null
+          replacement_payload_hash: string | null
+          replacement_transaction_id: string | null
+          replaces_transaction_id: string | null
           request_payload_hash: string
           responsibility: string
           reversal_idempotency_key: string | null
@@ -827,6 +834,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           created_at?: string
           currency?: Database["public"]["Enums"]["currency_code"]
           expense_date: string
@@ -839,6 +848,11 @@ export type Database = {
           payee_person_id?: string | null
           reconciliation_source_id: string
           reference?: string | null
+          replaced_by?: string | null
+          replacement_idempotency_key?: string | null
+          replacement_payload_hash?: string | null
+          replacement_transaction_id?: string | null
+          replaces_transaction_id?: string | null
           request_payload_hash: string
           responsibility?: string
           reversal_idempotency_key?: string | null
@@ -858,6 +872,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           created_at?: string
           currency?: Database["public"]["Enums"]["currency_code"]
           expense_date?: string
@@ -870,6 +886,11 @@ export type Database = {
           payee_person_id?: string | null
           reconciliation_source_id?: string
           reference?: string | null
+          replaced_by?: string | null
+          replacement_idempotency_key?: string | null
+          replacement_payload_hash?: string | null
+          replacement_transaction_id?: string | null
+          replaces_transaction_id?: string | null
           request_payload_hash?: string
           responsibility?: string
           reversal_idempotency_key?: string | null
@@ -916,6 +937,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "financial_reconciliation_sources"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_transactions_replacement_fk"
+            columns: ["organization_id", "replacement_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "expense_transactions"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_transactions_replaces_fk"
+            columns: ["organization_id", "replaces_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "expense_transactions"
+            referencedColumns: ["organization_id", "id"]
           },
           {
             foreignKeyName: "expense_transactions_supporting_document_id_fkey"
@@ -10652,6 +10687,15 @@ export type Database = {
         }
         Returns: string
       }
+      cancel_expense_transaction: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+          p_transaction_id: string
+        }
+        Returns: Json
+      }
       cancel_lease_activation: {
         Args: { p_organization_id: string; p_schedule_id: string }
         Returns: Json
@@ -10741,18 +10785,32 @@ export type Database = {
         }
         Returns: string
       }
-      correct_historical_rent: {
-        Args: {
-          p_corrected_due_day: number
-          p_corrected_rent_amount: number
-          p_idempotency_key: string
-          p_invoice_id: string
-          p_organization_id: string
-          p_preview_hash: string
-          p_reason: string
-        }
-        Returns: Json
-      }
+      correct_historical_rent:
+        | {
+            Args: {
+              p_corrected_due_day: number
+              p_corrected_rent_amount: number
+              p_idempotency_key: string
+              p_invoice_id: string
+              p_organization_id: string
+              p_preview_hash: string
+              p_reason: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_corrected_due_day: number
+              p_corrected_management_fee_amount: number
+              p_corrected_rent_amount: number
+              p_idempotency_key: string
+              p_invoice_id: string
+              p_organization_id: string
+              p_preview_hash: string
+              p_reason: string
+            }
+            Returns: Json
+          }
       correct_tenant_invoice: {
         Args: {
           p_action: string
@@ -12041,15 +12099,26 @@ export type Database = {
           resend_available_at: string
         }[]
       }
-      preview_historical_rent_correction: {
-        Args: {
-          p_corrected_due_day: number
-          p_corrected_rent_amount: number
-          p_invoice_id: string
-          p_organization_id: string
-        }
-        Returns: Json
-      }
+      preview_historical_rent_correction:
+        | {
+            Args: {
+              p_corrected_due_day: number
+              p_corrected_rent_amount: number
+              p_invoice_id: string
+              p_organization_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_corrected_due_day: number
+              p_corrected_management_fee_amount: number
+              p_corrected_rent_amount: number
+              p_invoice_id: string
+              p_organization_id: string
+            }
+            Returns: Json
+          }
       process_due_lease_activations: {
         Args: {
           p_limit?: number
@@ -12366,6 +12435,26 @@ export type Database = {
           p_unit_id?: string
         }
         Returns: string
+      }
+      replace_expense_transaction: {
+        Args: {
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_expected_status: string
+          p_expense_date: string
+          p_external_payee_label: string
+          p_idempotency_key: string
+          p_lines: Json
+          p_organization_id: string
+          p_pay_from_account_id: string
+          p_payee_person_id: string
+          p_reason: string
+          p_reference: string
+          p_responsibility: string
+          p_reversal_date: string
+          p_supporting_document_id: string
+          p_transaction_id: string
+        }
+        Returns: Json
       }
       request_lease_activation: {
         Args: {

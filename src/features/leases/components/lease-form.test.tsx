@@ -309,14 +309,14 @@ describe("LeaseForm inline tenant billing recipient", () => {
     expect(screen.queryByText("Calculation timezone")).toBeNull();
     expect(
       screen.getByRole("combobox", {
-        name: "First or final month amount",
+        name: "First or final month rent amount",
       }).textContent,
     ).toContain("Calculate automatically");
     expect(
-      screen.queryByRole("textbox", { name: "First month amount (optional)" }),
+      screen.queryByRole("textbox", { name: "First month rent amount (optional)" }),
     ).toBeNull();
     expect(
-      screen.queryByRole("textbox", { name: "Final month amount (optional)" }),
+      screen.queryByRole("textbox", { name: "Final month rent amount (optional)" }),
     ).toBeNull();
 
     const summary = screen.getByRole("region", {
@@ -386,7 +386,7 @@ describe("LeaseForm inline tenant billing recipient", () => {
         target: { value: "125.50" },
       });
       await chooseOption(/^Charge management fee\?/, "No");
-      await chooseOption("First or final month amount", "Use agreed amounts");
+      await chooseOption("First or final month rent amount", "Use agreed rent amounts");
       fireEvent.change(form.elements.namedItem("firstPeriodProratedAmount")!, {
         target: { value: "321.45" },
       });

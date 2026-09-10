@@ -99,6 +99,43 @@ describe("historical rent correction actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/reports");
   });
 
+  it("applies a one-off management fee through the checked overload", async () => {
+    rpc.mockResolvedValue({ data: {}, error: null });
+    const form = correctionForm();
+    form.set("previewHash", "b".repeat(64));
+    form.set("correctedManagementFeeAmount", "48.33");
+    await expect(applyHistoricalRentCorrectionAction({}, form)).resolves.toMatchObject({
+      status: "success", message: "Management fee corrected for this issued period. The recurring billing rule is unchanged.",
+    });
+    expect(rpc).toHaveBeenCalledWith("correct_historical_rent", expect.objectContaining({
+      p_corrected_management_fee_amount: 48.33, p_corrected_rent_amount: 850,
+      p_corrected_due_day: 10, p_preview_hash: "b".repeat(64),
+    }));
+  });
+
+  it("previews the explicit fee overload and rejects a mismatched fee preview", async () => {
+    const form = correctionForm();
+    form.set("correctedManagementFeeAmount", "48.33");
+    const preview = { blockers: [], canApply: true, correctedDueDate: "2026-08-10",
+      correctedRentAmount: 850, invoiceId, invoiceNumber: "INV-001", originalRentAmount: 850,
+      previewHash: "a".repeat(64), projectedTenantCreditAmount: 0,
+      correctionMode: "management_fee", correctedManagementFeeAmount: 48.33 };
+    rpc.mockResolvedValue({ data: preview, error: null });
+    await expect(previewHistoricalRentCorrectionAction({}, form)).resolves.toMatchObject({ status: "preview" });
+    expect(rpc).toHaveBeenCalledWith("preview_historical_rent_correction", expect.objectContaining({
+      p_corrected_management_fee_amount: 48.33,
+    }));
+    rpc.mockResolvedValue({ data: { ...preview, correctedManagementFeeAmount: 50 }, error: null });
+    await expect(previewHistoricalRentCorrectionAction({}, form)).resolves.toMatchObject({ status: "error" });
+  });
+
+  it.each(["", "-1", "1.001", "NaN", "1000000000000"])("rejects invalid management fee %s before RPC", async (amount) => {
+    const form = correctionForm();
+    form.set("correctedManagementFeeAmount", amount);
+    await expect(previewHistoricalRentCorrectionAction({}, form)).resolves.toMatchObject({ status: "error" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it("returns explicit reopen guidance from database blockers", async () => {
     rpc.mockResolvedValue({
       data: null,

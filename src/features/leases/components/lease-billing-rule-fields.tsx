@@ -23,6 +23,7 @@ type RentSchedule = {
 export function LeaseBillingRuleFields({
   companyOptions = [],
   defaults,
+  effectiveContext,
   fieldErrors,
   operationalTimezone = "UTC",
   organizationName = "our company",
@@ -32,6 +33,7 @@ export function LeaseBillingRuleFields({
 }: {
   companyOptions?: LeaseBillingFormConfig["companyOptions"];
   defaults?: LeaseBillingRule | null;
+  effectiveContext?: string;
   fieldErrors?: LeaseBillingRuleFieldErrors;
   operationalTimezone?: string;
   organizationName?: string;
@@ -158,6 +160,9 @@ export function LeaseBillingRuleFields({
 
   return (
     <div className="space-y-4">
+      {effectiveContext ? (
+        <p className="text-sm text-muted-foreground">{effectiveContext}</p>
+      ) : null}
       <input name="billingRecipientKind" type="hidden" value={recipientKind} />
       <input
         name="billingRecipientPersonId"
@@ -359,11 +364,11 @@ export function LeaseBillingRuleFields({
 
         <div className="border-t border-border pt-4">
           <RecordField
-            label="First or final month amount"
+            label="First or final month rent amount"
             name="specialPeriodAmountMode"
           >
             <SelectControl
-              ariaLabel="First or final month amount"
+              ariaLabel="First or final month rent amount"
               onValueChange={(value) => {
                 const nextMode = value as "agreed" | "automatic";
                 setSpecialPeriodMode(nextMode);
@@ -377,7 +382,7 @@ export function LeaseBillingRuleFields({
                   label: "Calculate automatically",
                   value: "automatic",
                 },
-                { label: "Use agreed amounts", value: "agreed" },
+                { label: "Use agreed rent amounts", value: "agreed" },
               ]}
               value={specialPeriodMode}
             />
@@ -390,7 +395,7 @@ export function LeaseBillingRuleFields({
                   fieldErrors?.firstPeriodProratedAmount?.[0] ??
                   fieldErrors?.finalPeriodProratedAmount?.[0]
                 }
-                label="Lease month amount (optional)"
+                label="Lease month rent amount (optional)"
                 name="firstPeriodProratedAmount"
               >
                 <NumberInput
@@ -411,7 +416,7 @@ export function LeaseBillingRuleFields({
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <RecordField
                 error={fieldErrors?.firstPeriodProratedAmount?.[0]}
-                label="First month amount (optional)"
+                label="First month rent amount (optional)"
                 name="firstPeriodProratedAmount"
               >
                 <NumberInput
@@ -428,7 +433,7 @@ export function LeaseBillingRuleFields({
 
               <RecordField
                 error={fieldErrors?.finalPeriodProratedAmount?.[0]}
-                label="Final month amount (optional)"
+                label="Final month rent amount (optional)"
                 name="finalPeriodProratedAmount"
               >
                 <NumberInput
@@ -452,6 +457,37 @@ export function LeaseBillingRuleFields({
         </div>
       </div>
 
+      <section
+        aria-label="Management fee preview"
+        className="border-y border-border bg-muted/25 px-3 py-3"
+      >
+        <h3 className="text-sm font-medium text-foreground">
+          Management fee preview
+        </h3>
+        <p className="mt-2 text-sm">
+          {formatManagementFee(chargeManagementFee, feeMode, feeValue)}
+        </p>
+        {toFiniteNumber(rentSchedule?.monthlyRentAmount) !== null ? (
+          <p className="mt-1 text-sm text-muted-foreground">
+            Full month fee:{" "}
+            {formatUsd(
+              chargeManagementFee === "no"
+                ? 0
+                : feeMode === "flat"
+                  ? (toFiniteNumber(feeValue) ?? 0)
+                  : roundMoney(
+                      ((toFiniteNumber(rentSchedule?.monthlyRentAmount) ?? 0) *
+                        (toFiniteNumber(feeValue) ?? 0)) /
+                        100,
+                    ),
+            )}{" "}
+            at this rent. Partial-month fees follow the billing rule.
+          </p>
+        ) : null}
+      </section>
+      <p className="text-sm text-muted-foreground">
+        These are rent overrides. Issued invoices stay unchanged.
+      </p>
       <RentCalculationSummary
         finalPeriodAmount={finalPeriodAmount}
         firstPeriodAmount={firstPeriodAmount}
@@ -543,18 +579,21 @@ function RentCalculationSummary({
       <dl className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
         {sameMonthLease ? (
           <SummaryValue
-            label="Lease month"
+            label={`Lease month rent (${rentSchedule?.leaseStartDate}–${rentSchedule?.leaseEndDate})`}
             value={leaseMonth === null ? "—" : formatUsd(leaseMonth)}
           />
         ) : (
           <>
             <SummaryValue
-              label="First month"
+              label={`First month rent (${rentSchedule?.leaseStartDate ?? "date not set"})`}
               value={firstMonth === null ? "—" : formatUsd(firstMonth)}
             />
-            <SummaryValue label="Regular month" value={formatUsd(monthlyRent)} />
             <SummaryValue
-              label="Final month"
+              label="Regular month rent"
+              value={formatUsd(monthlyRent)}
+            />
+            <SummaryValue
+              label={`Final month rent (${rentSchedule?.leaseEndDate ?? "date not set"})`}
               value={finalMonth === null ? "—" : formatUsd(finalMonth)}
             />
           </>

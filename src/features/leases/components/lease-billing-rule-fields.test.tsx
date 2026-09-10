@@ -30,6 +30,35 @@ afterEach(() => {
 });
 
 describe("LeaseBillingRuleFields", () => {
+  it("separates a 10 percent management fee from the first-month rent override", () => {
+    render(
+      <LeaseBillingRuleFields
+        defaults={billingRule({
+          managementFeeValue: 10,
+          firstPeriodProratedAmount: 48.33,
+        })}
+        effectiveContext="Scheduled from 2026-10-01"
+        rentSchedule={{
+          monthlyRentAmount: 500,
+          leaseStartDate: "2026-09-02",
+          leaseEndDate: "2027-09-01",
+        }}
+        tenantRecipient={null}
+      />,
+    );
+    expect(screen.getByText("Scheduled from 2026-10-01")).not.toBeNull();
+    const rent = screen.getByRole("region", { name: "Rent preview" });
+    expect(
+      within(rent).getByText("First month rent (2026-09-02)"),
+    ).not.toBeNull();
+    expect(within(rent).getByText("USD 48.33")).not.toBeNull();
+    const fee = screen.getByRole("region", { name: "Management fee preview" });
+    expect(within(fee).getByText(/Full month fee: USD 50.00/)).not.toBeNull();
+    expect(within(fee).queryByText("USD 48.33")).toBeNull();
+    expect(
+      screen.getByText(/Issued invoices stay unchanged/),
+    ).not.toBeNull();
+  });
   it("summarizes billing and switches between percentage and flat management fees", async () => {
     const user = userEvent.setup();
     render(
@@ -158,12 +187,12 @@ describe("LeaseBillingRuleFields", () => {
 
     expect(
       screen
-        .getByRole("textbox", { name: "First month amount (optional)" })
+        .getByRole("textbox", { name: "First month rent amount (optional)" })
         .getAttribute("placeholder"),
     ).toBe("e.g. 750.00");
     expect(
       screen
-        .getByRole("textbox", { name: "Final month amount (optional)" })
+        .getByRole("textbox", { name: "Final month rent amount (optional)" })
         .getAttribute("placeholder"),
     ).toBe("e.g. 750.00");
   });
@@ -189,19 +218,27 @@ describe("LeaseBillingRuleFields", () => {
     );
 
     await user.click(
-      screen.getByRole("combobox", { name: "First or final month amount" }),
+      screen.getByRole("combobox", {
+        name: "First or final month rent amount",
+      }),
     );
-    await user.click(screen.getByRole("option", { name: "Use agreed amounts" }));
+    await user.click(
+      screen.getByRole("option", { name: "Use agreed rent amounts" }),
+    );
     fireEvent.change(
-      screen.getByRole("textbox", { name: "Lease month amount (optional)" }),
+      screen.getByRole("textbox", {
+        name: "Lease month rent amount (optional)",
+      }),
       { target: { value: "1100" } },
     );
 
     expect(
-      screen.queryByRole("textbox", { name: "Final month amount (optional)" }),
+      screen.queryByRole("textbox", {
+        name: "Final month rent amount (optional)",
+      }),
     ).toBeNull();
     const summary = screen.getByRole("region", { name: "Rent preview" });
-    expect(within(summary).getByText("Lease month")).not.toBeNull();
+    expect(within(summary).getByText(/^Lease month rent/)).not.toBeNull();
     expect(within(summary).getByText("USD 1,100.00")).not.toBeNull();
     expect(within(summary).queryByText("First month")).toBeNull();
     expect(within(summary).queryByText("Final month")).toBeNull();

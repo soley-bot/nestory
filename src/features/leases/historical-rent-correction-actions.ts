@@ -15,6 +15,8 @@ export type HistoricalRentCorrectionBlocker = {
 };
 
 export type HistoricalRentCorrectionPreview = {
+  correctedManagementFeeAmount?: number;
+  correctionMode?: "management_fee";
   blockers: HistoricalRentCorrectionBlocker[];
   canApply: boolean;
   correctedDueDate: string;
@@ -47,6 +49,9 @@ function readString(formData: FormData, key: string) {
 
 function readCorrectionInput(formData: FormData) {
   return {
+    ...(formData.has("correctedManagementFeeAmount")
+      ? { correctedManagementFeeAmount: readString(formData, "correctedManagementFeeAmount") }
+      : {}),
     correctedDueDay: readString(formData, "correctedDueDay"),
     correctedRentAmount: readString(formData, "correctedRentAmount"),
     idempotencyKey: readString(formData, "idempotencyKey"),
@@ -77,6 +82,9 @@ export async function previewHistoricalRentCorrectionAction(
     "preview_historical_rent_correction",
     {
       p_corrected_due_day: parsed.data.correctedDueDay,
+      ...(parsed.data.correctedManagementFeeAmount !== undefined
+        ? { p_corrected_management_fee_amount: parsed.data.correctedManagementFeeAmount }
+        : {}),
       p_corrected_rent_amount: parsed.data.correctedRentAmount,
       p_invoice_id: parsed.data.invoiceId,
       p_organization_id: context.organizationId,
@@ -89,7 +97,10 @@ export async function previewHistoricalRentCorrectionAction(
       status: "error",
     };
   }
-  if (!isHistoricalRentCorrectionPreview(data)) {
+  if (!isHistoricalRentCorrectionPreview(data) ||
+    (parsed.data.correctedManagementFeeAmount !== undefined &&
+      (data.correctionMode !== "management_fee" ||
+        data.correctedManagementFeeAmount !== parsed.data.correctedManagementFeeAmount))) {
     return {
       message: "Nestory could not verify the correction preview.",
       status: "error",
@@ -126,6 +137,9 @@ export async function applyHistoricalRentCorrectionAction(
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("correct_historical_rent", {
     p_corrected_due_day: parsed.data.correctedDueDay,
+    ...(parsed.data.correctedManagementFeeAmount !== undefined
+      ? { p_corrected_management_fee_amount: parsed.data.correctedManagementFeeAmount }
+      : {}),
     p_corrected_rent_amount: parsed.data.correctedRentAmount,
     p_idempotency_key: parsed.data.idempotencyKey,
     p_invoice_id: parsed.data.invoiceId,
@@ -157,7 +171,9 @@ export async function applyHistoricalRentCorrectionAction(
   }
 
   return {
-    message: "Historical rent corrected. Issued evidence was retained.",
+    message: parsed.data.correctedManagementFeeAmount !== undefined
+      ? "Management fee corrected for this issued period. The recurring billing rule is unchanged."
+      : "Historical rent corrected. Issued evidence was retained.",
     status: "success",
   };
 }

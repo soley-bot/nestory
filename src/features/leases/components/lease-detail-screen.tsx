@@ -150,6 +150,7 @@ export function LeaseDetailScreen({
   const [termChange, setTermChange] = useState<LeaseTermChange | null>(null);
   const [historicalRentCorrectionOpen, setHistoricalRentCorrectionOpen] =
     useState(false);
+  const [correctionMode, setCorrectionMode] = useState<"rent" | "management_fee">("rent");
   const [uploadOpen, setUploadOpen] = useState(false);
   const pendingPaymentReceiptRef = useRef<TenantPaymentReceiptResult | null>(
     null,
@@ -227,6 +228,12 @@ export function LeaseDetailScreen({
             onEditDraft={() => openDrawer({ mode: "edit" })}
             onLifecycleChange={setTransition}
             onCorrectHistoricalRent={() => {
+              setCorrectionMode("rent");
+              setStatusMessage(null);
+              setHistoricalRentCorrectionOpen(true);
+            }}
+            onCorrectManagementFee={() => {
+              setCorrectionMode("management_fee");
               setStatusMessage(null);
               setHistoricalRentCorrectionOpen(true);
             }}
@@ -447,7 +454,11 @@ export function LeaseDetailScreen({
 
       {historicalRentCorrectionOpen ? (
         <HistoricalRentCorrectionModal
-          candidates={historicalRentCorrectionCandidates}
+          mode={correctionMode}
+          candidates={historicalRentCorrectionCandidates.filter((candidate) =>
+            correctionMode === "management_fee"
+              ? !candidate.managementFeeCorrected
+              : candidate.billingPeriodEnd < new Date().toISOString().slice(0, 10))}
           lease={lease}
           onClose={() => setHistoricalRentCorrectionOpen(false)}
           onSuccess={(message) => {
@@ -730,6 +741,7 @@ function LeaseHeaderActions({
   lease,
   onArchive,
   onCorrectHistoricalRent,
+  onCorrectManagementFee,
   onEditDraft,
   onLifecycleChange,
   onRestore,
@@ -741,6 +753,7 @@ function LeaseHeaderActions({
   lease: LeaseSummary;
   onArchive: () => void;
   onCorrectHistoricalRent: () => void;
+  onCorrectManagementFee: () => void;
   onEditDraft: () => void;
   onLifecycleChange: (transition: LeaseTransition) => void;
   onRestore: () => void;
@@ -778,9 +791,10 @@ function LeaseHeaderActions({
             </DropdownMenuItem>
           ) : null}
           {permissions.canCorrectHistoricalRent ? (
-            <DropdownMenuItem onSelect={onCorrectHistoricalRent}>
-              Correct historical rent
-            </DropdownMenuItem>
+            <>
+              <DropdownMenuItem onSelect={onCorrectHistoricalRent}>Correct historical rent</DropdownMenuItem>
+              <DropdownMenuItem onSelect={onCorrectManagementFee}>Correct management fee</DropdownMenuItem>
+            </>
           ) : null}
           {permissions.canClose && lease.statusValue === "active" ? (
             <DropdownMenuItem onSelect={() => onLifecycleChange("give_notice")}>
@@ -815,9 +829,10 @@ function LeaseHeaderActions({
     return permissions.canArchive || permissions.canCorrectHistoricalRent ? (
       <>
         {permissions.canCorrectHistoricalRent ? (
-          <Button onClick={onCorrectHistoricalRent} variant="outline">
-            Correct historical rent
-          </Button>
+          <>
+            <Button onClick={onCorrectHistoricalRent} variant="outline">Correct historical rent</Button>
+            <Button onClick={onCorrectManagementFee} variant="outline">Correct management fee</Button>
+          </>
         ) : null}
         {permissions.canArchive ? (
           <Button onClick={onRestore} variant="default">
@@ -862,9 +877,10 @@ function LeaseHeaderActions({
               </DropdownMenuItem>
             ) : null}
             {permissions.canCorrectHistoricalRent ? (
-              <DropdownMenuItem onSelect={onCorrectHistoricalRent}>
-                Correct historical rent
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuItem onSelect={onCorrectHistoricalRent}>Correct historical rent</DropdownMenuItem>
+                <DropdownMenuItem onSelect={onCorrectManagementFee}>Correct management fee</DropdownMenuItem>
+              </>
             ) : null}
             {permissions.canClose && lease.statusValue === "active" ? (
               <DropdownMenuItem onSelect={() => onLifecycleChange("give_notice")}>
@@ -964,7 +980,20 @@ function LeaseBillingRulesForm({
           {lease.propertyName} / {lease.unitLabel}
         </p>
       </div>
+      {predecessorRule ? (
+        <p className="text-sm text-muted-foreground">
+          Current billing rules: {predecessorRule.effectiveFrom}–{predecessorRule.effectiveTo}.
+          {" "}Management fee: {predecessorRule.chargeManagementFeeWhenActive
+            ? `${predecessorRule.managementFeeValue}${predecessorRule.managementFeeMode === "percentage" ? "%" : " flat"}`
+            : "not charged"}.
+        </p>
+      ) : null}
       <LeaseBillingRuleFields
+        effectiveContext={editableRule?.state === "scheduled"
+          ? `Editing scheduled billing rules: ${editableRule.effectiveFrom}–${editableRule.effectiveTo}. These rules apply from ${editableRule.effectiveFrom}; saving is allowed only while the scheduled rule remains unused.`
+          : lease.statusValue === "draft"
+            ? "Billing setup applies when this draft Lease is activated."
+            : "Starts after this month and any already issued months. The start date is confirmed when saved."}
         companyOptions={billingFormConfig?.companyOptions}
         defaults={editableRule}
         fieldErrors={state.fieldErrors}
@@ -998,6 +1027,9 @@ function LeaseBillingRulesForm({
             : "individual",
         }}
       />
+      <p className="text-sm text-muted-foreground">
+        To change an issued fee, use Manage lease → Correct management fee.
+      </p>
       {state.message ? (
         <p
           className={
@@ -1048,18 +1080,22 @@ function getOpeningTermForMonth(
 }
 
 function HistoricalRentCorrectionModal({
+  mode,
   candidates,
   lease,
   onClose,
   onSuccess,
 }: {
+  mode: "rent" | "management_fee";
   candidates: HistoricalRentCorrectionCandidate[];
   lease: LeaseSummary;
   onClose: () => void;
   onSuccess: (message: string) => void;
 }) {
   const router = useRouter();
+  const feeOnly = mode === "management_fee";
   const initialCandidate = candidates[0] ?? null;
+  const [correctedManagementFeeAmount, setCorrectedManagementFeeAmount] = useState(initialCandidate?.originalManagementFeeAmount?.toFixed(2) ?? "0.00");
   const [invoiceId, setInvoiceId] = useState(initialCandidate?.invoiceId ?? "");
   const [correctedRentAmount, setCorrectedRentAmount] = useState(
     initialCandidate ? initialCandidate.originalRentAmount.toFixed(2) : "",
@@ -1083,6 +1119,7 @@ function HistoricalRentCorrectionModal({
     candidates.find((candidate) => candidate.invoiceId === invoiceId) ?? null;
   const preview = previewState.preview;
   const previewMatches = previewMatchesInput(preview, {
+    correctedManagementFeeAmount: feeOnly ? correctedManagementFeeAmount : undefined,
     correctedDueDay,
     correctedRentAmount,
     invoiceId,
@@ -1103,13 +1140,14 @@ function HistoricalRentCorrectionModal({
     );
     setInvoiceId(nextInvoiceId);
     if (nextCandidate) {
+      setCorrectedManagementFeeAmount((nextCandidate.originalManagementFeeAmount ?? 0).toFixed(2));
       setCorrectedRentAmount(nextCandidate.originalRentAmount.toFixed(2));
       setCorrectedDueDay(String(nextCandidate.originalDueDay));
     }
   };
 
   return (
-    <Modal onClose={onClose} open title="Correct historical rent">
+    <Modal onClose={onClose} open title={feeOnly ? "Correct management fee" : "Correct historical rent"}>
       <div className="space-y-5 p-4">
         <div className="border-l-2 border-foreground pl-3">
           <p className="font-medium text-foreground">{lease.tenantName}</p>
@@ -1119,14 +1157,12 @@ function HistoricalRentCorrectionModal({
         </div>
 
         <p className="text-sm text-muted-foreground">
-          This is separate from Change rent. It appends reversal and replacement
-          evidence for one issued period; the original invoice, receipts, Ledger,
-          lease terms, and prior Owner Statements stay unchanged.
+          {feeOnly ? "Set the management fee for this issued period, including a missing fee. This one-off amount updates the owner charge; rent, payments, and the recurring billing rule stay unchanged." : "This is separate from Change rent. It appends reversal and replacement evidence for one issued period; the original invoice, receipts, Ledger, lease terms, and prior Owner Statements stay unchanged."}
         </p>
 
         {candidates.length === 0 ? (
           <div className="border-y border-border py-3 text-sm" role="status">
-            No eligible issued historical rent period is available for this Lease.
+            {feeOnly ? "No eligible issued period is available for management fee correction." : "No eligible issued historical rent period is available for this Lease."}
           </div>
         ) : (
           <form action={previewAction} className="space-y-4">
@@ -1165,7 +1201,14 @@ function HistoricalRentCorrectionModal({
                 </span>
               </div>
             ) : null}
-            <div className="grid gap-4 sm:grid-cols-2">
+            {feeOnly ? (<>
+              <input type="hidden" name="correctedRentAmount" value={correctedRentAmount} />
+              <input type="hidden" name="correctedDueDay" value={correctedDueDay} />
+              <p className="text-sm text-muted-foreground">Current management fee: {formatCorrectionMoney(selectedCandidate?.originalManagementFeeAmount ?? 0, selectedCandidate?.currency ?? "USD")}</p>
+              <label className="grid gap-1.5 text-sm font-medium">Corrected management fee amount
+                <NumberInput min="0" name="correctedManagementFeeAmount" onChange={(event) => setCorrectedManagementFeeAmount(event.target.value)} required value={correctedManagementFeeAmount} />
+              </label>
+            </>) : <div className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-1.5 text-sm font-medium">
                 Corrected rent amount
                 <NumberInput
@@ -1187,7 +1230,7 @@ function HistoricalRentCorrectionModal({
                   value={correctedDueDay}
                 />
               </label>
-            </div>
+            </div>}
             <label className="grid gap-1.5 text-sm font-medium">
               Reason
               <Input
@@ -1225,6 +1268,7 @@ function HistoricalRentCorrectionModal({
 
         {preview && previewMatches ? (
           <HistoricalRentCorrectionPreviewPanel
+            correctedManagementFeeAmount={feeOnly ? correctedManagementFeeAmount : undefined}
             applyAction={applyAction}
             applyMessage={applyState.message}
             applyPending={applyPending}
@@ -1246,6 +1290,7 @@ function HistoricalRentCorrectionModal({
 }
 
 function HistoricalRentCorrectionPreviewPanel({
+  correctedManagementFeeAmount,
   applyAction,
   applyMessage,
   applyPending,
@@ -1256,6 +1301,7 @@ function HistoricalRentCorrectionPreviewPanel({
   preview,
   reason,
 }: {
+  correctedManagementFeeAmount?: string;
   applyAction: (formData: FormData) => void;
   applyMessage?: string;
   applyPending: boolean;
@@ -1276,19 +1322,21 @@ function HistoricalRentCorrectionPreviewPanel({
         <span className="text-muted-foreground">Due date</span>
         <span>{preview.originalDueDate}</span>
         <span>→ {preview.correctedDueDate}</span>
-        <span className="text-muted-foreground">Management fee change</span>
-        <span />
-        <span className="tabular-nums">{preview.managementFeeDelta.toFixed(2)}</span>
-        <span className="text-muted-foreground">Excess collected (unsupported)</span>
-        <span />
-        <span className="tabular-nums">
-          {preview.projectedTenantCreditAmount.toFixed(2)}
-        </span>
+        <span className="text-muted-foreground">{correctedManagementFeeAmount !== undefined ? "Management fee" : "Management fee change"}</span>
+        <span className="tabular-nums">{correctedManagementFeeAmount !== undefined ? (preview.originalManagementFeeAmount ?? 0).toFixed(2) : ""}</span>
+        <span className="tabular-nums">{correctedManagementFeeAmount !== undefined ? `→ ${(preview.correctedManagementFeeAmount ?? 0).toFixed(2)}` : preview.managementFeeDelta.toFixed(2)}</span>
+        {correctedManagementFeeAmount === undefined ? <>
+          <span className="text-muted-foreground">Excess collected (unsupported)</span>
+          <span />
+          <span className="tabular-nums">
+            {preview.projectedTenantCreditAmount.toFixed(2)}
+          </span>
+        </> : null}
       </div>
       <p className="text-xs text-muted-foreground">
         {preview.blockers.length > 0
           ? "This correction cannot be applied. No refund or tenant credit has been recorded."
-          : "Collected cash stays unchanged. This correction adjusts rent and management fees while retaining the original receipts and statements."}
+          : correctedManagementFeeAmount !== undefined ? "Only this period's management fee changes. Rent, payments, and the recurring billing rule stay unchanged." : "Collected cash stays unchanged. This correction adjusts rent and management fees while retaining the original receipts and statements."}
       </p>
       {preview.blockers.length > 0 ? (
         <div className="border-l-2 border-danger pl-3">
@@ -1303,6 +1351,7 @@ function HistoricalRentCorrectionPreviewPanel({
         </div>
       ) : (
         <form action={applyAction} className="space-y-3">
+          {correctedManagementFeeAmount !== undefined ? <input name="correctedManagementFeeAmount" type="hidden" value={correctedManagementFeeAmount} /> : null}
           <input name="invoiceId" type="hidden" value={invoiceId} />
           <input
             name="correctedRentAmount"
@@ -1320,7 +1369,7 @@ function HistoricalRentCorrectionPreviewPanel({
           ) : null}
           <div className="flex justify-end">
             <Button disabled={applyPending} type="submit" variant="destructive">
-              {applyPending ? "Applying..." : "Apply historical correction"}
+              {applyPending ? "Applying..." : correctedManagementFeeAmount !== undefined ? "Apply management fee correction" : "Apply historical correction"}
             </Button>
           </div>
         </form>
@@ -1332,6 +1381,7 @@ function HistoricalRentCorrectionPreviewPanel({
 function previewMatchesInput(
   preview: HistoricalRentCorrectionPreview | undefined,
   input: {
+    correctedManagementFeeAmount?: string;
     correctedDueDay: string;
     correctedRentAmount: string;
     invoiceId: string;
@@ -1341,7 +1391,8 @@ function previewMatchesInput(
     preview &&
       preview.invoiceId === input.invoiceId &&
       preview.correctedDueDay === Number(input.correctedDueDay) &&
-      preview.correctedRentAmount === Number(input.correctedRentAmount),
+      preview.correctedRentAmount === Number(input.correctedRentAmount) &&
+      (input.correctedManagementFeeAmount === undefined ? preview.correctionMode !== "management_fee" : preview.correctionMode === "management_fee" && preview.correctedManagementFeeAmount === Number(input.correctedManagementFeeAmount)),
   );
 }
 
