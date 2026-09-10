@@ -14,6 +14,7 @@ export default async function RentIncomePage({
     query.action === "billing" ? query.leaseId : undefined;
   return (
     <FinanceOperationsScreen
+      currentUserId={context.userId}
       {...data}
       canConfigureRent={context.permissionKeys.has("leases.change_terms")}
       canCorrectFinance={context.capabilities.canCorrectFinance}

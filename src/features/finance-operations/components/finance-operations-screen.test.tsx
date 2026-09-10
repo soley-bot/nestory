@@ -231,6 +231,28 @@ describe("FinanceOperationsScreen", () => {
     expect(within(dialog).getByText(/require the complete transaction/)).not.toBeNull();
   });
 
+  it.each([true, false])("handles a transaction when the current user is its maker: %s", async (isMaker) => {
+    const user = userEvent.setup();
+    const input = data();
+    input.expenseSubmissions = [{
+      ...expenseSubmission("submitted"), transactionId: "parent",
+      submittedByUserId: "maker", fundingSourceLabel: "Operating account",
+    }];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canReviewExpense: true })}
+      currentUserId={isMaker ? "maker" : "checker"} organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("button", { name: `${isMaker ? "View" : "Review"} Sokha Repairs` }));
+    const dialog = screen.getByRole("dialog", { name: "Paid cost details" });
+    expect(within(dialog).getByText("Operating account")).not.toBeNull();
+    if (isMaker) {
+      expect(within(dialog).getByText(/You submitted this expense/)).not.toBeNull();
+      expect(within(dialog).queryByRole("button", { name: /Approve|Reject/ })).toBeNull();
+    } else {
+      expect(within(dialog).queryByText(/You submitted this expense/)).toBeNull();
+      await user.click(within(dialog).getByRole("button", { name: "Approve Sokha Repairs" }));
+      expect(screen.getByRole("checkbox", { name: /I confirm Operating account/ })).not.toBeNull();
+    }
+  });
+
   it("shows vendor creation only when its checked capability is supplied", async () => {
     const user = userEvent.setup();
     render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canSubmitExpense: true })}

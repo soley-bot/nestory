@@ -338,6 +338,7 @@ export function groupExpenseTransactionSummaries(
   transactions: readonly ExpenseTransactionSnapshot[],
   transactionLines: readonly ExpenseTransactionLineSnapshot[],
   childLinks: readonly { submission_id: string; transaction_id: string }[] = [],
+  accountLabels: ReadonlyMap<string, string> = new Map(),
 ): ExpenseSubmissionSummary[] {
   const submissionById = new Map(
     submissions.map((submission) => [submission.id, submission]),
@@ -374,6 +375,9 @@ export function groupExpenseTransactionSummaries(
         0,
       ) / 100,
       date: transaction.expenseDate,
+      fundingSourceLabel: transaction.payFromAccountId
+        ? accountLabels.get(transaction.payFromAccountId) ?? first.fundingSourceLabel
+        : first.fundingSourceLabel,
       id: transaction.id,
       internalCost: lines.reduce(
         (total, { submission }) => total + Math.round(submission.internalCost * 100),
@@ -773,7 +777,8 @@ export async function getFinanceOperationsData(
           submitterLabelByUserId,
           financeCategories,
         ),
-    ), expenseTransactions.transactions, expenseTransactions.lines, expenseTransactions.childLinks),
+    ), expenseTransactions.transactions, expenseTransactions.lines, expenseTransactions.childLinks,
+    new Map(financeAccounts.map((account) => [account.id, account.displayName]))),
     financeCategories,
     leaseChargeAccounts: getLeaseChargeAccountOptions(financeAccounts),
     leaseDepositAccounts: getLeaseDepositAccountOptions(financeAccounts),

@@ -141,6 +141,7 @@ type DrawerState =
     };
 
 type FinanceOperationsScreenProps = FinanceOperationsData & {
+  currentUserId?: string;
   canCreateVendor?: boolean;
   canConfigureRent: boolean;
   canManageFinanceCategories?: boolean;
@@ -178,7 +179,17 @@ const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
-export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
+export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
+  const props = {
+    ...input,
+    expenseSubmissions: input.expenseSubmissions.map((submission) => ({
+      ...submission,
+      reviewRequiresAnotherUser: Boolean(
+        submission.transactionId && input.currentUserId &&
+        submission.submittedByUserId === input.currentUserId,
+      ),
+    })),
+  };
   const organizationName = props.organizationName.trim() || "our company";
   const initialBillingLease = props.initialBillingLeaseId
     ? props.leases.find((lease) => lease.id === props.initialBillingLeaseId)
@@ -1868,14 +1879,14 @@ function ExpenseSubmissionTable({
                     {expenseStatusLabel(submission.status)}
                   </Badge>
                   <Button
-                    aria-label={`${submission.status === "submitted" && canReview && !submission.transactionReviewBlocked ? "Review" : "View"} ${submission.vendorLabel}`}
+                    aria-label={`${submission.status === "submitted" && canReview && !submission.transactionReviewBlocked && !submission.reviewRequiresAnotherUser ? "Review" : "View"} ${submission.vendorLabel}`}
                     onClick={() =>
                       openModal({ mode: "expense-details", submission })
                     }
                     size="sm"
                     variant="outline"
                   >
-                    {submission.status === "submitted" && canReview && !submission.transactionReviewBlocked
+                    {submission.status === "submitted" && canReview && !submission.transactionReviewBlocked && !submission.reviewRequiresAnotherUser
                       ? "Review"
                       : "View"}
                   </Button>
@@ -2508,6 +2519,11 @@ function ExpenseDetails({
             : []),
         ]}
       />
+      {submission.status === "submitted" && submission.reviewRequiresAnotherUser ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          You submitted this expense. Ask another authorized reviewer to approve or reject it.
+        </p>
+      ) : null}
       <ExpenseLines submission={submission} />
       {submission.scopedSubtotal !== undefined ? <p className="text-sm">
         Scoped subtotal: {formatMoneyDisplay(submission.scopedSubtotal).primary}
@@ -2556,7 +2572,7 @@ function ExpenseDetails({
           {submission.reversalReason ?? submission.reviewReason}
         </p>
       ) : null}
-      {submission.status === "submitted" && canReview && !submission.transactionReviewBlocked ? (
+      {submission.status === "submitted" && canReview && !submission.transactionReviewBlocked && !submission.reviewRequiresAnotherUser ? (
         <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
           <section
             aria-label="Reject paid cost"
@@ -2605,7 +2621,7 @@ function ExpenseDetails({
           ) : null}
         </FormFooter>
       )}
-      {submission.status === "submitted" && canReview && !submission.transactionReviewBlocked ? (
+      {submission.status === "submitted" && canReview && !submission.transactionReviewBlocked && !submission.reviewRequiresAnotherUser ? (
         <Button onClick={onClose} variant="ghost">
           Close
         </Button>
@@ -4564,7 +4580,7 @@ function canRenderFinanceModal(
   }
 
   if (modal.mode === "expense-review") {
-    return capabilities.canReviewExpense && !modal.submission.transactionReviewBlocked;
+    return capabilities.canReviewExpense && !modal.submission.transactionReviewBlocked && !modal.submission.reviewRequiresAnotherUser;
   }
 
   return capabilities.canReverseExpense && !modal.submission.transactionReviewBlocked;

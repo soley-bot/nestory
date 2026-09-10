@@ -1079,6 +1079,11 @@ function revalidateTenantPayment() {
 }
 
 function expenseWorkflowError(message: string) {
+  if (message.includes("The submitter cannot review the same expense transaction")) {
+    return actionError(
+      "You submitted this expense. Ask another authorized reviewer to approve or reject it.",
+    );
+  }
   if (message.includes("period is locked")) {
     return actionError(
       "This paid-cost month is locked. Super Admin must unlock it before approval.",

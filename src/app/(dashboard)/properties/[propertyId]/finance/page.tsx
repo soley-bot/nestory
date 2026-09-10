@@ -29,6 +29,7 @@ export default async function PropertyFinancePage({
 
   return (
     <FinanceOperationsScreen
+      currentUserId={context.userId}
       {...data}
       canConfigureRent={context.permissionKeys.has("leases.change_terms")}
       canCorrectFinance={context.capabilities.canCorrectFinance}
