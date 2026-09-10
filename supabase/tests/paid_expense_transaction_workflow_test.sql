@@ -303,6 +303,13 @@ SELECT is((SELECT count(*) FROM public.expense_submissions AS submission
     AND submission.status='approved' AND submission.supporting_document_id IS NULL),2::bigint,
   'all receipt-free lines are approved');
 -- Ordinary reviewers still cannot approve their own submissions.
+-- This fixture's reviewer role normally lacks submission permission. Give
+-- it both permissions only inside the rolled-back test transaction so the
+-- failure proves maker/checker separation, not missing submission authority.
+SELECT set_config('request.jwt.claim.sub',admin::text,true) FROM tx_state;
+INSERT INTO public.organization_role_permissions (organization_id, role_id, permission_key, granted_by)
+SELECT org, '00000000-0000-0000-0000-000000000311'::uuid, 'finance.submit_expenses'::public.organization_permission_key, admin
+FROM tx_state;
 SELECT set_config('request.jwt.claim.sub',checker::text,true) FROM tx_state;
 SET LOCAL ROLE authenticated;
 INSERT INTO tx_extra SELECT 'checker-own',(public.submit_expense_transaction(
