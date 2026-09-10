@@ -39,6 +39,7 @@ export default async function ReportBuilderPage({
     <ReportBuilderScreen
       {...data}
       organizationName={context.organizationName}
+      viewStorageKey={`${context.organizationId}:${context.userId}`}
     />
   );
 }

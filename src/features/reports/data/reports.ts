@@ -91,7 +91,7 @@ export async function getReportsScreenData(
     organizationId,
     viewQuery.propertyId === "all" ? undefined : viewQuery.propertyId,
   );
-  const { propertyOptions, unitOptions } = getReportSelectorData(financeContext);
+  const { propertyOptions, unitOptions } = getReportSelectorData(financeContext, ["transactions", "management-fees", "rent-collections"].includes(viewQuery.report));
   const trustedReport = await getTrustedReport({
     financeContext,
     organizationId,
@@ -108,22 +108,22 @@ export async function getReportsScreenData(
   };
 }
 
-function getReportSelectorData(financeContext: ScopedFinanceContext) {
+function getReportSelectorData(financeContext: ScopedFinanceContext, includeArchived = false) {
   const properties = financeContext.properties.filter(
-    (property) => property.archived_at === null,
+    (property) => includeArchived || property.archived_at === null,
   ).toSorted((first, second) => first.name.localeCompare(second.name));
   const propertiesById = indexById(properties);
-  const propertyOptions = toPropertyOptions(properties);
+  const propertyOptions = toPropertyOptions(properties).map((option) => ({ ...option, label: `${option.label}${propertiesById.get(option.id)?.archived_at ? " (archived)" : ""}` }));
   const unitOptions = financeContext.units
     .filter(
       (unit) =>
-        unit.archived_at === null && propertiesById.has(unit.property_id),
+        (includeArchived || unit.archived_at === null) && propertiesById.has(unit.property_id),
     )
     .map((unit) => {
       const property = propertiesById.get(unit.property_id);
       return {
         id: unit.id,
-        label: `${property?.code ?? "Unknown"} / Unit ${unit.unit_number}`,
+        label: `${property?.code ?? "Unknown"} / Unit ${unit.unit_number}${unit.archived_at ? " (archived)" : ""}`,
         propertyId: unit.property_id,
       };
     });
@@ -185,6 +185,9 @@ function toFinanceSafeRecordHref(href?: string) {
 }
 
 function trimTrustedReportForScreen(report: TrustedReport): TrustedReport {
+  if (["transactions", "management-fees", "rent-roll", "rent-collections"].includes(report.kind)) {
+    return { ...report, totalRowCount: report.rows.filter((row) => !row.isGroup).length };
+  }
   return {
     ...report,
     rows: report.rows.slice(0, maxScreenReportRows).map((row) => ({

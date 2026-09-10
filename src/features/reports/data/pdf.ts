@@ -232,6 +232,22 @@ export function buildTrustedReportPdf({
   if (report.kind === "income-expense") {
     return buildIncomeExpenseStatementPdf({ organizationName, report });
   }
+  if (["transactions", "management-fees", "rent-roll", "rent-collections"].includes(report.kind) && report.columns.length > 6) {
+    // Wide operational tables are split into readable column panels. Every
+    // panel repeats the record identity; no selected column is dropped.
+    const sections = Array.from({ length: Math.ceil(report.columns.length / 5) }, (_, index) => {
+      const panel = { ...report, title: `${report.title} - columns ${index * 5 + 1}-${Math.min(report.columns.length, index * 5 + 5)}`, columns: report.columns.slice(index * 5, index * 5 + 5) };
+      const columns = buildTrustedReportPdfColumns(panel);
+      return paginateRows(buildTrustedReportPdfRows(panel, columns)).map((page) => ({ page, columns, panel }));
+    }).flat();
+    const sourceRows = buildTrustedReportSourceTraceRows(report);
+    const sourcePages = sourceRows.length ? paginateRows(sourceRows) : [];
+    const totalPages = sections.length + sourcePages.length;
+    return createPdfDocument([
+      ...sections.map(({ page, columns, panel }, pageIndex) => renderTrustedReportPage({ organizationName, page, pageIndex, report: panel, reportColumns: columns, totalPages })),
+      ...sourcePages.map((page, index) => renderTrustedReportSourceTracePage({ organizationName, page, pageIndex: sections.length + index, report, totalPages })),
+    ]);
+  }
   const reportColumns = buildTrustedReportPdfColumns(report);
   const rows = buildTrustedReportPdfRows(report, reportColumns);
   const pages = paginateRows(rows);

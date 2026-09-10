@@ -1,6 +1,10 @@
 import type { ReportKind } from "@/features/reports/reports.types";
 
 export const reportKindValues = [
+  "transactions",
+  "management-fees",
+  "rent-roll",
+  "rent-collections",
   "monthly-owner-activity",
   "unit-profit-loss",
 ] as const satisfies readonly ReportKind[];
@@ -23,6 +27,10 @@ export const ownerStatementCatalogItem = {
 } as const;
 
 const reportDefinitions: ReportCatalogItem[] = [
+  { kind: "transactions", title: "Transactions", tabLabel: "Transactions", description: "Rent charges, receipts, paid costs and management fees with source details." },
+  { kind: "management-fees", title: "Management fees", tabLabel: "Management fees", description: "Management fees charged to owners, including corrections and reversals." },
+  { kind: "rent-roll", title: "Rent roll", tabLabel: "Rent roll", description: "Current units, tenants, lease dates and rent." },
+  { kind: "rent-collections", title: "Rent collections", tabLabel: "Rent collections", description: "Issued rent, payments and outstanding balances." },
   {
     description:
       "Rent, management fees, property costs, withdrawals, and net movement for the selected month.",
@@ -63,7 +71,7 @@ export function buildReportBuilderHref(
   params.delete("peopleView");
   params.delete("status");
 
-  if (report !== "unit-profit-loss") {
+  if (report === "monthly-owner-activity") {
     params.delete("unitId");
   }
 

@@ -9,12 +9,20 @@ import {
 } from "@/features/reports/report-catalog";
 
 describe("report catalog", () => {
-  it("keeps two useful reports in the visible workspace", () => {
+  it("exposes transaction, rent and owner reports in the visible workspace", () => {
     expect(reportKindValues).toEqual([
+      "transactions",
+      "management-fees",
+      "rent-roll",
+      "rent-collections",
       "monthly-owner-activity",
       "unit-profit-loss",
     ]);
     expect(reportCatalog.map(({ title }) => title)).toEqual([
+      "Transactions",
+      "Management fees",
+      "Rent roll",
+      "Rent collections",
       "Owner activity",
       "Monthly Unit Profit & Loss",
     ]);

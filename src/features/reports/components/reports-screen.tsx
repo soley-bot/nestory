@@ -1,4 +1,5 @@
 import { AlertTriangle, ChevronDown, Download } from "lucide-react";
+import Link from "next/link";
 
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ReportResultsTable } from "@/features/reports/components/report-results-table";
 import { ReportsFilters } from "@/features/reports/components/reports-filters";
-import { getReportCatalogItem } from "@/features/reports/report-catalog";
+import { getReportCatalogItem, reportCatalog } from "@/features/reports/report-catalog";
+import { buildReportQueryParams } from "@/features/reports/reports.filters";
+import { ReportSavedViews } from "@/features/reports/components/report-saved-views";
+import { ReportColumns } from "@/features/reports/components/report-columns";
 import type {
   ReportsScreenData,
   ReportsViewQuery,
@@ -20,6 +24,7 @@ import { RecheckReport } from "@/features/reports/components/report-remediation-
 
 type ReportsScreenProps = ReportsScreenData & {
   organizationName: string;
+  viewStorageKey?: string;
 };
 
 export function ReportBuilderScreen({
@@ -28,18 +33,21 @@ export function ReportBuilderScreen({
   trustedReport,
   unitOptions,
   viewQuery,
+  viewStorageKey,
 }: ReportsScreenProps) {
   const selectedReport = getReportCatalogItem(viewQuery.report);
   const validation =
     trustedReport.scopeValidation ?? trustedReport.exportValidation;
+  const modern = ["transactions", "management-fees", "rent-roll", "rent-collections"].includes(viewQuery.report);
   const visibleSummary = trustedReport.summary
     .filter(
       (metric) =>
         trustedReport.kind !== "unit-profit-loss" || metric.label !== "Units",
     )
-    .slice(0, trustedReport.kind === "unit-profit-loss" ? 3 : 4);
+    .slice(0, modern ? undefined : trustedReport.kind === "unit-profit-loss" ? 3 : 4);
   const reportRowCount =
     trustedReport.totalRowCount ?? trustedReport.rows.length;
+  const queryKey = buildReportQueryParams(viewQuery).toString();
 
   return (
     <WorkspacePage
@@ -48,8 +56,14 @@ export function ReportBuilderScreen({
       title={selectedReport.title}
     >
       <div className="flex min-w-0 flex-col bg-background">
+        <nav aria-label="Reports" className="workspace-gutter-x flex gap-1 overflow-x-auto border-b border-border py-2">
+          {reportCatalog.map((report) => <Link key={report.kind} aria-current={report.kind === viewQuery.report ? "page" : undefined} href={`/reports/${report.kind}`} className={cn("shrink-0 rounded-md px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", report.kind === viewQuery.report ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>{report.tabLabel}</Link>)}
+        </nav>
         <ReportsFilters
+          key={queryKey}
           action={`/reports/${viewQuery.report}`}
+          availableColumns={trustedReport.availableColumns ?? trustedReport.columns}
+          filterOptions={trustedReport.filterOptions}
           ownerOptions={ownerOptions}
           propertyOptions={propertyOptions}
           unitOptions={unitOptions}
@@ -57,9 +71,17 @@ export function ReportBuilderScreen({
         />
 
         <div className="workspace-gutter-x flex-1 space-y-4 py-4">
-          <p className="text-xs text-muted-foreground">
-            {trustedReport.scopeLabel} · {trustedReport.periodLabel}
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">{trustedReport.scopeLabel} · {trustedReport.periodLabel}</p>
+            <div className="flex items-center gap-1">
+              {modern && trustedReport.availableColumns?.length ? <ReportColumns key={queryKey} columns={trustedReport.availableColumns} selectedColumns={trustedReport.columns} viewQuery={viewQuery} /> : null}
+              {viewStorageKey ? <ReportSavedViews key={`${viewStorageKey}:${viewQuery.report}`} storageKey={viewStorageKey} viewQuery={viewQuery} /> : null}
+            </div>
+          </div>
+          {viewQuery.report === "rent-roll" ? <p className="text-xs text-muted-foreground">Current snapshot. Occupancy and rent reflect the current records, not a historical reconstruction.</p> : null}
+          {viewQuery.report === "transactions" ? <p className="text-xs text-muted-foreground">Company receipts exclude amounts collected directly by owners.</p> : null}
+          {viewQuery.report === "management-fees" ? <p className="text-xs text-muted-foreground">Fees charged to owners; not cash payments.</p> : null}
+          {viewQuery.report === "rent-collections" ? <p className="text-xs text-muted-foreground">Rent invoices issued in this period, with payments and balances as of now.</p> : null}
 
           {validation ? (
             <div
@@ -104,7 +126,7 @@ export function ReportBuilderScreen({
                     className="min-w-0 py-3 sm:px-4 sm:first:pl-0"
                     key={metric.label}
                   >
-                    <dt className="truncate text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+                    <dt className="truncate text-xs font-medium text-muted-foreground">
                       {metric.label}
                     </dt>
                     <dd className="mt-0.5 truncate text-base font-semibold tabular-nums text-foreground">
@@ -117,6 +139,7 @@ export function ReportBuilderScreen({
           ) : null}
 
           <ReportResultsTable
+            key={queryKey}
             report={trustedReport}
             reportRowCount={reportRowCount}
             viewQuery={viewQuery}
@@ -152,21 +175,6 @@ function ExportMenu({ viewQuery }: { viewQuery: ReportsViewQuery }) {
 }
 
 function buildExportHref(path: string, viewQuery: ReportsViewQuery) {
-  const params = new URLSearchParams({
-    report: viewQuery.report,
-    month: viewQuery.month,
-  });
-  if (viewQuery.propertyId !== "all") {
-    params.set("propertyId", viewQuery.propertyId);
-  }
-  if (
-    viewQuery.report === "monthly-owner-activity" &&
-    viewQuery.ownerPersonId !== "all"
-  ) {
-    params.set("ownerPersonId", viewQuery.ownerPersonId);
-  }
-  if (viewQuery.report === "unit-profit-loss" && viewQuery.unitId !== "all") {
-    params.set("unitId", viewQuery.unitId);
-  }
+  const params = buildReportQueryParams(viewQuery);
   return `${path}?${params.toString()}`;
 }
