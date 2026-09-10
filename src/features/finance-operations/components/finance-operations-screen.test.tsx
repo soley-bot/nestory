@@ -23,6 +23,7 @@ const financeActionMocks = vi.hoisted(() => ({
   recordTenantInvoicePaymentAction: vi.fn(),
   retryTenantReceiptPdfAction: vi.fn(),
   submitExpenseAction: vi.fn(),
+  recordWithdrawalAction: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -40,6 +41,7 @@ vi.mock("../actions", async (importOriginal) => {
       financeActionMocks.recordTenantInvoicePaymentAction,
     retryTenantReceiptPdfAction: financeActionMocks.retryTenantReceiptPdfAction,
     submitExpenseAction: financeActionMocks.submitExpenseAction,
+    recordWithdrawalAction: financeActionMocks.recordWithdrawalAction,
   };
 });
 
@@ -78,6 +80,7 @@ afterEach(() => {
   financeActionMocks.recordTenantInvoicePaymentAction.mockReset();
   financeActionMocks.retryTenantReceiptPdfAction.mockReset();
   financeActionMocks.submitExpenseAction.mockReset();
+  financeActionMocks.recordWithdrawalAction.mockReset();
 });
 
 class ResizeObserverStub {
@@ -87,6 +90,30 @@ class ResizeObserverStub {
 }
 
 describe("FinanceOperationsScreen", () => {
+  it("explains current availability and retains a rejected distribution draft", async () => {
+    const user = userEvent.setup();
+    financeActionMocks.recordWithdrawalAction.mockResolvedValue({ status: "error", message: "Earlier owner cash records need reconciliation before this distribution can be recorded." });
+    render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canRecordOwnerCash: true })} organizationName="IPS" view="balances" />);
+    await user.click(screen.getByRole("button", { name: "View balance for Sokha Owner" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Owner balance details" })).getByRole("button", { name: "Record owner distribution" }));
+    const dialog = screen.getByRole("dialog", { name: "Record owner distribution" });
+    expect(within(dialog).getByText("Available now")).toBeTruthy();
+    expect(within(dialog).getByText(/amount available on your selected date may differ/)).toBeTruthy();
+    const amount = within(dialog).getByLabelText("Amount") as HTMLInputElement;
+    const reference = within(dialog).getByLabelText("Reference") as HTMLInputElement;
+    const date = dialog.querySelector<HTMLInputElement>('input[name="withdrawalDate"]')!;
+    const idempotencyKey = dialog.querySelector<HTMLInputElement>('input[name="idempotencyKey"]')!.value;
+    const selectedDate = date.value;
+    await user.type(amount, "454.40");
+    await user.type(reference, "August owner transfer");
+    await user.click(within(dialog).getByRole("button", { name: "Record owner distribution" }));
+    expect(await within(dialog).findByText(/Earlier owner cash records need reconciliation/)).toBeTruthy();
+    expect(amount.value).toBe("454.40");
+    expect(reference.value).toBe("August owner transfer");
+    expect(date.value).toBe(selectedDate);
+    expect(dialog.querySelector<HTMLInputElement>('input[name="idempotencyKey"]')!.value).toBe(idempotencyKey);
+    expect(financeActionMocks.recordWithdrawalAction).toHaveBeenCalledOnce();
+  });
   it("prefills a pending expense edit and preserves its original account and markup", async () => {
     const user = userEvent.setup();
     const input = data();

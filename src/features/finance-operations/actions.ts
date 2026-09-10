@@ -1036,9 +1036,32 @@ export async function recordWithdrawalAction(
     p_property_id: parsed.data.propertyId,
     p_reference: parsed.data.reference,
   });
-  if (error) return backendActionError();
+  if (error) return ownerDistributionError(error.message);
   revalidateFinance();
   return { message: "Owner distribution recorded.", status: "success" };
+}
+
+function ownerDistributionError(message: string): FinanceOperationsActionState {
+  const code = message.split(":", 1)[0].trim();
+  const messages: Record<string, string> = {
+    owner_cash_source_remediation_required:
+      "Earlier owner cash records need reconciliation before this distribution can be recorded. Ask a Super Admin to review this property's owner cash history.",
+    insufficient_authoritative_held_cash:
+      "There is not enough owner cash available on the selected date. Check the amount and distribution date; the balance shown is available now.",
+    backdated_owner_cash_consumer:
+      "Later owner cash transactions prevent recording a distribution on this date. Review those transactions before recording this backdated distribution.",
+    financial_month_locked:
+      "The selected financial month is locked. Ask an authorized administrator to reopen it before recording this distribution.",
+    owner_roster_missing:
+      "No owner is assigned to this property on the selected date. Review the property's ownership dates before recording the distribution.",
+    owner_share_total_not_100:
+      "Ownership shares for the selected date must total 100%. Review the property's ownership records before recording the distribution.",
+    owner_person_inactive:
+      "An owner in this property's ownership records is inactive. Review the ownership records before recording the distribution.",
+    explicit_owner_not_in_effective_roster:
+      "The selected owner is not assigned to this property on the distribution date. Review the property's ownership dates.",
+  };
+  return Object.hasOwn(messages, code) ? actionError(messages[code]) : backendActionError();
 }
 
 function parseAllocations(formData: FormData) {
