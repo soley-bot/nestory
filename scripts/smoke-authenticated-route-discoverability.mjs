@@ -305,10 +305,10 @@ async function openContextJourney(page, journey, chain) {
       await fromGlobal(page, chain, "/reports", "Reports");
       await clickAndWait(
         page,
-        page.getByRole("link", { name: "Open report" }).first(),
+        page.getByRole("link", { name: /^Owner activity/ }),
         journey.route,
       );
-      chain.push("Open report");
+      chain.push("Owner activity");
     },
     "settings-organization": () =>
       openSettingsTab(page, chain, journey.route, "Organization"),
