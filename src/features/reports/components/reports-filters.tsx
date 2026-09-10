@@ -45,14 +45,15 @@ export function ReportsFilters({ action, ownerOptions, propertyOptions, unitOpti
       </> : null}
       {showUnit ? <ScopeField label="Unit"><SelectControl ariaLabel="Filter report by unit" className="h-8 w-[180px] px-2.5 text-sm" name="unitId" value={unitId} onValueChange={setUnitId} options={[{ label: "All units", value: "all" }, ...visibleUnits.map((unit) => ({ label: unit.label, value: unit.id }))]} /></ScopeField> : null}
       {modern ? <ScopeField label="Search"><Input aria-label="Search report" className="h-8 w-[190px] text-sm" name="query" type="search" placeholder="Search this report" defaultValue={viewQuery.query} /></ScopeField> : null}
-      {modern ? <details className="group static sm:relative" open={moreActive || undefined}>
-        <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md border border-border px-3 text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><SlidersHorizontal size={14} aria-hidden="true" />More filters</summary>
+      {modern ? <details className="group static sm:relative">
+        <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md border border-border px-3 text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><SlidersHorizontal size={14} aria-hidden="true" />More filters{moreActive ? <span aria-label="Active filters" className="size-1.5 rounded-full bg-primary" /> : null}</summary>
         <div className="absolute right-4 left-4 z-20 mt-2 flex flex-col gap-3 rounded-md border border-border bg-popover p-3 shadow-md sm:right-0 sm:left-auto sm:w-64">
           {filterOptions?.types?.length ? <ScopeField label="Type"><FilterSelect label="type" name="transactionType" value={viewQuery.transactionType ?? "all"} options={filterOptions.types} /></ScopeField> : null}
           {filterOptions?.statuses?.length ? <ScopeField label="Status"><FilterSelect label="status" name="transactionStatus" value={viewQuery.transactionStatus ?? "all"} options={filterOptions.statuses} /></ScopeField> : null}
           {filterOptions?.payees?.length ? <ScopeField label="Payee"><FilterSelect label="payee" name="payeeId" value={viewQuery.payeeId ?? "all"} options={filterOptions.payees} /></ScopeField> : null}
           {groupOptions.length > 1 ? <ScopeField label="Group by"><SelectControl ariaLabel="Group report by" className="h-8 w-[180px] px-2.5 text-sm" name="groupBy" defaultValue={viewQuery.groupBy ?? "none"} options={groupOptions} /></ScopeField> : null}
           {!filterOptions?.types?.length && !filterOptions?.statuses?.length && !filterOptions?.payees?.length && groupOptions.length <= 1 ? <p className="text-xs text-muted-foreground">No additional filters for this report.</p> : null}
+          <Button className="h-8" type="submit">Apply filters</Button>
         </div>
       </details> : null}
       <Button aria-label="Apply filters" className="h-8 gap-1.5 px-3 text-sm" type="submit">Apply</Button>
