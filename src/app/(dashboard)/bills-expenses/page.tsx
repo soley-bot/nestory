@@ -20,6 +20,7 @@ export default async function BillsExpensesPage({
   const data = await getFinanceOperationsData(context.organizationId);
   return (
     <FinanceOperationsScreen
+      currentUserId={context.userId}
       {...data}
       canConfigureRent={context.permissionKeys.has("leases.change_terms")}
       canCreateVendor={context.permissionKeys.has("people.view") && context.permissionKeys.has("people.write")}

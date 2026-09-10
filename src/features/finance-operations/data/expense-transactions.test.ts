@@ -26,6 +26,16 @@ function submission(id: string, propertyId = "p1", unitId: string | null = "u1",
   };
 }
 const parent = { id: "parent", expenseDate: "2026-09-01", externalPayeeLabel: null, payeeLabel: "Cleaner", reference: "Receipt", status: "submitted" as const };
+it("uses the saved Chart account when its internal reconciliation source is hidden", () => {
+  const children = [{ ...submission("one"), fundingSourceLabel: "Pay-from account unavailable" }];
+  const result = groupExpenseTransactionSummaries(children, [{ ...parent, payFromAccountId: "bank" }],
+    lines(children), [], new Map([["bank", "Operating account"], ["other", "Wrong account"]]));
+  expect(result[0].fundingSourceLabel).toBe("Operating account");
+  expect(groupExpenseTransactionSummaries(children, [{ ...parent, payFromAccountId: "missing" }],
+    lines(children), [], new Map([["bank", "Operating account"]]))[0].fundingSourceLabel)
+    .toBe("Pay-from account unavailable");
+});
+
 function lines(children: ExpenseSubmissionSummary[]) {
   return children.map((child, index) => ({
     description: "Line " + index, ownerCashAmount: null, sortOrder: index + 1,

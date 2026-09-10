@@ -176,6 +176,7 @@ export type ExpenseSubmissionSummary = {
   internalCost: number;
   internalMarkup: number;
   transactionReviewBlocked?: boolean;
+  reviewRequiresAnotherUser?: boolean;
   scopedSubtotal?: number;
   fullTransactionTotal?: number;
   lines?: Array<{

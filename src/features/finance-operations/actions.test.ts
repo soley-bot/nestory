@@ -1309,6 +1309,18 @@ describe("expense approval actions", () => {
     );
   });
 
+  it.each(["approve", "reject"] as const)("explains the maker-checker restriction for %s", async (decision) => {
+    rpc.mockResolvedValue({ data: null, error: { message: "The submitter cannot review the same expense transaction" } });
+    const formData = expenseDecisionForm(decision, "Reviewed expense");
+    formData.delete("submissionId");
+    formData.set("transactionId", submissionId);
+    await expect(reviewExpenseAction({}, formData)).resolves.toEqual({
+      status: "error",
+      message: "You submitted this expense. Ask another authorized reviewer to approve or reject it.",
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
   it("reviews a grouped expense through the transaction authority", async () => {
     rpc.mockResolvedValue({ data: { status: "approved" }, error: null });
     const formData = expenseDecisionForm("approve", "Reviewed both lines");

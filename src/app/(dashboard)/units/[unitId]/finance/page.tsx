@@ -35,6 +35,7 @@ export default async function UnitFinancePage({
 
   return (
     <FinanceOperationsScreen
+      currentUserId={context.userId}
       {...data}
       canConfigureRent={context.permissionKeys.has("leases.change_terms")}
       canCorrectFinance={context.capabilities.canCorrectFinance}
