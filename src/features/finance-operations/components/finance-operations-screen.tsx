@@ -142,6 +142,7 @@ type DrawerState =
 
 type FinanceOperationsScreenProps = FinanceOperationsData & {
   currentUserId?: string;
+  canApproveOwnExpense?: boolean;
   canCreateVendor?: boolean;
   canConfigureRent: boolean;
   canManageFinanceCategories?: boolean;
@@ -184,9 +185,13 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
     ...input,
     expenseSubmissions: input.expenseSubmissions.map((submission) => ({
       ...submission,
+      selfApprovalOnly: Boolean(
+        submission.transactionId && input.currentUserId &&
+        submission.submittedByUserId === input.currentUserId && input.canApproveOwnExpense,
+      ),
       reviewRequiresAnotherUser: Boolean(
         submission.transactionId && input.currentUserId &&
-        submission.submittedByUserId === input.currentUserId,
+        submission.submittedByUserId === input.currentUserId && !input.canApproveOwnExpense,
       ),
     })),
   };
@@ -2574,7 +2579,7 @@ function ExpenseDetails({
       ) : null}
       {submission.status === "submitted" && canReview && !submission.transactionReviewBlocked && !submission.reviewRequiresAnotherUser ? (
         <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
-          <section
+          {!submission.selfApprovalOnly ? <section
             aria-label="Reject paid cost"
             className="flex flex-col items-start gap-3 rounded-xl border border-border p-3"
           >
@@ -2588,7 +2593,7 @@ function ExpenseDetails({
             >
               Reject
             </Button>
-          </section>
+          </section> : null}
           <section
             aria-label="Approve paid cost"
             className="flex flex-col items-start gap-3 rounded-xl border border-border p-3"
@@ -4580,7 +4585,8 @@ function canRenderFinanceModal(
   }
 
   if (modal.mode === "expense-review") {
-    return capabilities.canReviewExpense && !modal.submission.transactionReviewBlocked && !modal.submission.reviewRequiresAnotherUser;
+    return capabilities.canReviewExpense && !modal.submission.transactionReviewBlocked && !modal.submission.reviewRequiresAnotherUser
+      && !(modal.decision === "reject" && modal.submission.selfApprovalOnly);
   }
 
   return capabilities.canReverseExpense && !modal.submission.transactionReviewBlocked;

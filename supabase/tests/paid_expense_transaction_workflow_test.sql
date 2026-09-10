@@ -302,6 +302,51 @@ SELECT is((SELECT count(*) FROM public.expense_submissions AS submission
   WHERE line.transaction_id=(SELECT id FROM tx_extra WHERE kind='optional')
     AND submission.status='approved' AND submission.supporting_document_id IS NULL),2::bigint,
   'all receipt-free lines are approved');
+-- Ordinary reviewers still cannot approve their own submissions.
+SELECT set_config('request.jwt.claim.sub',checker::text,true) FROM tx_state;
+SET LOCAL ROLE authenticated;
+INSERT INTO tx_extra SELECT 'checker-own',(public.submit_expense_transaction(
+  state.org,NULL,'Reviewer own expense',CURRENT_DATE,'USD',state.pay_from,NULL,
+  NULL,'owner',lines.payload,'transaction-checker-own-submit')->>'transaction_id')::uuid
+FROM tx_state AS state CROSS JOIN tx_lines AS lines;
+SELECT throws_ok(format('SELECT public.review_expense_transaction(%L,%L,%L,%L,%L)',
+  state.org,extra.id,'approve','Own expense','transaction-checker-own-review'),
+  '42501','The submitter cannot review the same expense transaction',
+  'ordinary authorized reviewer cannot self-approve')
+FROM tx_state AS state JOIN tx_extra AS extra ON extra.kind='checker-own';
+RESET ROLE;
+
+-- Super Admin may approve their own receipt-free expense, retaining audit and replay.
+SELECT set_config('request.jwt.claim.sub',admin::text,true) FROM tx_state;
+SET LOCAL ROLE authenticated;
+INSERT INTO tx_extra SELECT 'admin-own',(public.submit_expense_transaction(
+  state.org,NULL,'Admin own expense',CURRENT_DATE,'USD',state.pay_from,NULL,
+  NULL,'owner',lines.payload,'transaction-admin-own-submit')->>'transaction_id')::uuid
+FROM tx_state AS state CROSS JOIN tx_lines AS lines;
+SELECT throws_ok(format('SELECT public.review_expense_transaction(%L,%L,%L,%L,%L)',
+  state.org,extra.id,'reject','Own expense rejection','transaction-admin-own-reject'),
+  '42501','The submitter cannot review the same expense transaction',
+  'self-approval exception does not expand self-rejection')
+FROM tx_state AS state JOIN tx_extra AS extra ON extra.kind='admin-own';
+SELECT lives_ok(format('SELECT public.review_expense_transaction(%L,%L,%L,%L,%L)',
+  state.org,extra.id,'approve','Admin approved own expense','transaction-admin-own-review'),
+  'Super Admin can approve their own expense')
+FROM tx_state AS state JOIN tx_extra AS extra ON extra.kind='admin-own';
+SELECT lives_ok(format('SELECT public.review_expense_transaction(%L,%L,%L,%L,%L)',
+  state.org,extra.id,'approve','Admin approved own expense','transaction-admin-own-review'),
+  'Super Admin self-approval replays without duplicate postings')
+FROM tx_state AS state JOIN tx_extra AS extra ON extra.kind='admin-own';
+RESET ROLE;
+SELECT ok((SELECT transaction.status='approved' AND transaction.submitted_by=state.admin
+  AND transaction.reviewed_by=state.admin AND transaction.reviewed_at IS NOT NULL
+  FROM public.expense_transactions AS transaction CROSS JOIN tx_state AS state
+  WHERE transaction.id=(SELECT id FROM tx_extra WHERE kind='admin-own')),
+  'self-approval preserves maker and reviewer audit identities');
+SELECT is((SELECT count(*) FROM public.expense_submissions AS submission
+  JOIN public.expense_transaction_lines AS line ON line.submission_id=submission.id
+  WHERE line.transaction_id=(SELECT id FROM tx_extra WHERE kind='admin-own')
+    AND submission.status='approved'),2::bigint,
+  'self-approval approves every canonical child');
 SET CONSTRAINTS ALL IMMEDIATE;
 SELECT is((SELECT count(*) FROM app_private.financial_idempotency_requests WHERE status='pending'),
   0::bigint,'transaction operations leave no pending child idempotency state');

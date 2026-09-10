@@ -15,6 +15,7 @@ export default async function RentIncomePage({
   return (
     <FinanceOperationsScreen
       currentUserId={context.userId}
+      canApproveOwnExpense={context.isSuperAdmin}
       {...data}
       canConfigureRent={context.permissionKeys.has("leases.change_terms")}
       canCorrectFinance={context.capabilities.canCorrectFinance}
