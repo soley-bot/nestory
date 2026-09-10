@@ -5,6 +5,12 @@ const moneyPattern = /^\d+(?:\.\d{1,2})?$/;
 const previewHashPattern = /^[0-9a-f]{64}$/;
 
 const historicalRentCorrectionSchema = z.object({
+  correctedManagementFeeAmount: z.string().trim()
+    .regex(moneyPattern, "Enter a management fee with no more than two decimal places.")
+    .transform(Number)
+    .refine((value) => Number.isFinite(value) && value >= 0 && value < 1000000000000,
+      "Enter a management fee from 0 to 999999999999.99.")
+    .optional(),
   correctedDueDay: z
     .string()
     .trim()
@@ -50,6 +56,7 @@ export type HistoricalRentCorrectionInput = z.infer<
 >;
 
 export function parseHistoricalRentCorrectionInput(input: {
+  correctedManagementFeeAmount?: string;
   correctedDueDay: string;
   correctedRentAmount: string;
   idempotencyKey: string;
@@ -61,6 +68,7 @@ export function parseHistoricalRentCorrectionInput(input: {
 }
 
 export function parseHistoricalRentCorrectionPreviewInput(input: {
+  correctedManagementFeeAmount?: string;
   correctedDueDay: string;
   correctedRentAmount: string;
   idempotencyKey: string;
@@ -75,6 +83,19 @@ export function historicalRentCorrectionErrorMessage(error: {
   message: string;
 }) {
   const evidence = `${error.message} ${error.details ?? ""}`;
+
+  if (evidence.includes("management_fee_correction_inputs_invalid")) {
+    return "Enter a management fee with up to two decimal places and keep the issued rent and due day unchanged.";
+  }
+  if (evidence.includes("management_fee_correction_authority_required")) {
+    return "Preview the management fee correction again before applying it.";
+  }
+  if (evidence.includes("management_fee_already_corrected")) {
+    return "This issued period already has a management fee correction.";
+  }
+  if (evidence.includes("management_fee_no_change")) {
+    return "Enter a management fee amount different from the current fee.";
+  }
 
   if (evidence.includes("historical_rent_dependent_owner_cash") || evidence.includes("dependent_owner_cash:")) {
     return "Collected rent has already funded another owner charge or distribution. Reverse that dependent transaction through its correction workflow, then preview again.";
@@ -108,7 +129,7 @@ export function historicalRentCorrectionErrorMessage(error: {
     return "Reopen every affected Owner Close month, then preview the correction again. Prior statements stay unchanged.";
   }
   if (evidence.includes("owner_invoice_settlement_active")) {
-    return "The management-fee owner charge is settled. Reverse that owner settlement before correcting rent.";
+    return "The management-fee owner charge is settled. Reverse that owner settlement before correcting this period.";
   }
   if (evidence.includes("historical_rent_owner_custody_changed")) {
     return "The direct-rent owner has changed. Resolve the custody handoff before correcting this period.";

@@ -96,6 +96,7 @@ import {
   retryTenantReceiptPdfAction,
   saveLeaseBillingAction,
   submitExpenseAction,
+  cancelExpenseAction,
   setFinanceCategoryArchivedAction,
   updateFinanceCategoryAction,
 } from "@/features/finance-operations/actions";
@@ -997,6 +998,34 @@ describe("expense approval actions", () => {
     });
     expect(adminUpload).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("routes a correction through one atomic RPC with the expected original status", async () => {
+    rpc.mockResolvedValue({ data: { transaction_id: submissionId }, error: null });
+    const form = new FormData();
+    Object.entries({ expenseDate: "2026-08-08", idempotencyKey: "expense-replacement-1", payeeMode: "external", payeePersonId: "", externalPayeeLabel: "Cleaner", payFromAccountId: sourceId, reference: "", responsibility: "owner", replacementTransactionId: submissionId, expectedStatus: "approved", replacementReason: "Correct wrong amount", reversalDate: "2026-09-10" }).forEach(([key,value]) => form.set(key,value));
+    form.set("lines", JSON.stringify([{ amount: "30", categoryAccountId: sourceId, description: "Cleaning", ownerCashAmount: null, propertyId, unitId: null }]));
+    expect(await submitExpenseAction({}, form)).toMatchObject({ status: "success" });
+    expect(requireFinanceReversalContext).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith("replace_expense_transaction", expect.objectContaining({ p_transaction_id: submissionId, p_expected_status: "approved", p_reason: "Correct wrong amount", p_reversal_date: "2026-09-10", p_supporting_document_id: null }));
+  });
+
+  it("rejects a replacement without a reason before uploading or writing", async () => {
+    const form = new FormData();
+    Object.entries({ expenseDate: "2026-08-08", idempotencyKey: "expense-replacement-1", payeeMode: "external", payeePersonId: "", externalPayeeLabel: "Cleaner", payFromAccountId: sourceId, reference: "", responsibility: "owner", replacementTransactionId: submissionId, expectedStatus: "approved", replacementReason: "", reversalDate: "2026-09-10" }).forEach(([key,value]) => form.set(key,value));
+    form.set("lines", JSON.stringify([{ amount: "30", categoryAccountId: sourceId, description: "Cleaning", ownerCashAmount: null, propertyId, unitId: null }]));
+    expect(await submitExpenseAction({}, form)).toMatchObject({ status: "error" });
+    expect(rpc).not.toHaveBeenCalled(); expect(adminUpload).not.toHaveBeenCalled();
+  });
+
+  it("cancels using the authenticated organization and preserves stale-state feedback", async () => {
+    const form = new FormData();
+    form.set("transactionId", submissionId); form.set("idempotencyKey", "cancel-expense-1"); form.set("reason", "Duplicate expense");
+    rpc.mockResolvedValue({ error: { message: "Expense status changed; refresh before replacing it" } });
+    expect(await cancelExpenseAction({}, form)).toMatchObject({ status: "error", message: "This expense has changed. Refresh the page before trying again." });
+    expect(rpc).toHaveBeenCalledWith("cancel_expense_transaction", expect.objectContaining({ p_organization_id: organizationId, p_transaction_id: submissionId }));
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it.each(["receipt", "empty-input", "multipart-empty-input", "omitted"])("submits ordered property expense lines with optional evidence (%s)", async (evidenceKind) => {

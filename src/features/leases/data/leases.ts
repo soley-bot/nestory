@@ -372,7 +372,7 @@ export async function getHistoricalRentCorrectionCandidates(
     .eq("organization_id", organizationId)
     .eq("lease_id", leaseId)
     .eq("lifecycle", "issued")
-    .lt("billing_period_end", currentDate)
+    .lte("billing_period_start", currentDate)
     .order("billing_period_start", { ascending: false });
 
   if (invoiceError) {
@@ -385,7 +385,7 @@ export async function getHistoricalRentCorrectionCandidates(
     .filter((invoiceId): invoiceId is string => Boolean(invoiceId));
   if (invoiceIds.length === 0) return [];
 
-  const [{ data: lines, error: lineError }, { data: corrections, error: correctionError }] =
+  const [{ data: lines, error: lineError }, { data: corrections, error: correctionError }, { data: fees, error: feeError }] =
     await Promise.all([
       supabase
         .from("tenant_invoice_lines")
@@ -397,15 +397,20 @@ export async function getHistoricalRentCorrectionCandidates(
         .in("invoice_id", invoiceIds),
       supabase
         .from("tenant_invoice_corrections")
-        .select("tenant_invoice_id")
+        .select("tenant_invoice_id, action")
         .eq("organization_id", organizationId)
-        .eq("action", "historical_rent")
+        .in("action", ["historical_rent", "management_fee"])
+        .in("tenant_invoice_id", invoiceIds),
+      supabase.from("management_fee_occurrences")
+        .select("tenant_invoice_id, amount")
+        .eq("organization_id", organizationId)
         .in("tenant_invoice_id", invoiceIds),
     ]);
 
   if (lineError) {
     throw new Error(`Could not load historical rent lines: ${lineError.message}`);
   }
+  if (feeError) throw new Error(`Could not load issued management fees: ${feeError.message}`);
   if (correctionError) {
     throw new Error(
       `Could not load historical rent corrections: ${correctionError.message}`,
@@ -413,7 +418,12 @@ export async function getHistoricalRentCorrectionCandidates(
   }
 
   const correctedInvoiceIds = new Set(
-    (corrections ?? []).map((correction) => correction.tenant_invoice_id),
+    (corrections ?? []).filter((correction) => correction.action === "historical_rent")
+      .map((correction) => correction.tenant_invoice_id),
+  );
+  const feeCorrectedInvoiceIds = new Set(
+    (corrections ?? []).filter((correction) => correction.action === "management_fee")
+      .map((correction) => correction.tenant_invoice_id),
   );
   const linesByInvoiceId = new Map<string, typeof lines>();
   for (const line of lines ?? []) {
@@ -448,6 +458,10 @@ export async function getHistoricalRentCorrectionCandidates(
       originalDueDate: invoice.due_date,
       originalDueDay: Number(invoice.due_date.slice(8, 10)),
       originalRentAmount: Number(rentLine.amount),
+      managementFeeCorrected: feeCorrectedInvoiceIds.has(invoice.id),
+      originalManagementFeeAmount: (fees ?? [])
+        .filter((fee) => fee.tenant_invoice_id === invoice.id)
+        .reduce((total, fee) => total + Number(fee.amount), 0),
       paymentStatus: invoice.payment_status,
       settledAmount:
         Number(invoice.paid_through_ips ?? 0) +

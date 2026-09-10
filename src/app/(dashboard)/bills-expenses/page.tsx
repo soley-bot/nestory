@@ -8,7 +8,7 @@ type BillsExpensesPageProps = {
 
 export default async function BillsExpensesPage({
   searchParams,
-}: BillsExpensesPageProps = {}) {
+}: BillsExpensesPageProps) {
   const params = (await searchParams) ?? {};
   const initialExpenseIntent =
     params.action === "record-recoverable-cost"

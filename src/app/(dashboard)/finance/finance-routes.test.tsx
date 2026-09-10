@@ -48,7 +48,7 @@ describe("finance routes", () => {
       capabilities: {}, organizationId: "organization-1", organizationName: "IPS",
       permissionKeys: new Set(permissions),
     });
-    renderToStaticMarkup(await BillsExpensesPage());
+    renderToStaticMarkup(await BillsExpensesPage({}));
     expect(screenSpy).toHaveBeenCalledWith(expect.objectContaining({ canCreateVendor }));
   });
   beforeEach(() => {
@@ -106,7 +106,7 @@ describe("finance routes", () => {
         role,
       });
 
-      const html = renderToStaticMarkup(await page());
+      const html = renderToStaticMarkup(await page({}));
 
       expect(html).toContain("Finance route");
       expect(requireFinanceContext).toHaveBeenCalledOnce();

@@ -818,6 +818,15 @@ type RpcFunctionOverrides = {
       p_supporting_document_id: string | null;
     }
   >;
+  replace_expense_transaction: WithArgs<
+    "replace_expense_transaction",
+    Omit<GeneratedFunctions["replace_expense_transaction"]["Args"], "p_external_payee_label" | "p_payee_person_id" | "p_reference" | "p_supporting_document_id"> & {
+      p_external_payee_label: string | null;
+      p_payee_person_id: string | null;
+      p_reference: string | null;
+      p_supporting_document_id: string | null;
+    }
+  >;
   review_expense_transaction: WithArgs<
     "review_expense_transaction",
     Omit<GeneratedFunctions["review_expense_transaction"]["Args"], "p_reason"> & {

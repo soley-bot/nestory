@@ -525,6 +525,67 @@ describe("LeaseDetailScreen", () => {
     }
   });
 
+  it("keeps historical rent available after a fee-only correction but prevents a second fee correction", async () => {
+    const user = userEvent.setup();
+    renderDetail("rent", makeLease(), { ...allLeasePermissions, canCorrectHistoricalRent: true }, {
+      historicalRentCorrectionCandidates: [{
+        billingPeriodEnd: "2020-08-31", billingPeriodStart: "2020-08-01", currency: "USD",
+        invoiceId: "11111111-1111-4111-8111-111111111111", invoiceNumber: "INV-FEE-CORRECTED",
+        originalDueDate: "2020-08-05", originalDueDay: 5, originalRentAmount: 1450,
+        originalManagementFeeAmount: 48.33, managementFeeCorrected: true,
+        paymentStatus: "paid", settledAmount: 1450,
+      }],
+    });
+    await user.click(screen.getByRole("button", { name: "Manage lease" }));
+    await user.click(screen.getByRole("menuitem", { name: "Correct historical rent" }));
+    const rentDialog = screen.getByRole("dialog", { name: "Correct historical rent" });
+    expect(within(rentDialog).getByLabelText("Corrected rent amount")).not.toBeNull();
+    expect(within(rentDialog).getByRole("combobox", { name: "Issued rent period" }).textContent).toContain("INV-FEE-CORRECTED");
+    await user.click(within(rentDialog).getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Manage lease" }));
+    await user.click(screen.getByRole("menuitem", { name: "Correct management fee" }));
+    const feeDialog = screen.getByRole("dialog", { name: "Correct management fee" });
+    expect(within(feeDialog).getByText(/No eligible issued period/)).not.toBeNull();
+    expect(within(feeDialog).queryByLabelText("Corrected management fee amount")).toBeNull();
+  });
+
+  it("previews a current-period missing management fee and invalidates changed amounts", async () => {
+    const user = userEvent.setup();
+    const invoiceId = "11111111-1111-4111-8111-111111111111";
+    historicalCorrectionMocks.preview.mockResolvedValue({ status: "preview", preview: {
+      invoiceId, correctedDueDay: 5, correctedDueDate: "2026-09-05", correctedRentAmount: 1450,
+      originalDueDate: "2026-09-05", originalRentAmount: 1450, originalManagementFeeAmount: 0,
+      correctedManagementFeeAmount: 48.33, correctionMode: "management_fee", managementFeeDelta: 48.33,
+      projectedTenantCreditAmount: 0, previewHash: "a".repeat(64), blockers: [], canApply: true,
+    } });
+    renderDetail("rent", makeLease(), { ...allLeasePermissions, canCorrectHistoricalRent: true }, {
+      historicalRentCorrectionCandidates: [{
+        billingPeriodEnd: "2026-09-30", billingPeriodStart: "2026-09-01", currency: "USD",
+        invoiceId, invoiceNumber: "INV-202609-001", originalDueDate: "2026-09-05",
+        originalDueDay: 5, originalRentAmount: 1450, originalManagementFeeAmount: 0,
+        paymentStatus: "paid", settledAmount: 1450,
+      }],
+    });
+    await user.click(screen.getByRole("button", { name: "Manage lease" }));
+    await user.click(screen.getByRole("menuitem", { name: "Correct management fee" }));
+    const dialog = screen.getByRole("dialog", { name: "Correct management fee" });
+    expect(within(dialog).queryByLabelText("Corrected rent amount")).toBeNull();
+    expect(within(dialog).queryByLabelText("Corrected due day")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Corrected management fee amount"), { target: { value: "48.33" } });
+    await user.type(screen.getByLabelText("Reason"), "Missing management fee on issued invoice");
+    await user.click(screen.getByRole("button", { name: "Preview correction" }));
+    expect(await screen.findByRole("button", { name: "Apply management fee correction" })).not.toBeNull();
+    expect(screen.getByText(/Only this period.*management fee changes/)).not.toBeNull();
+    const form = within(dialog).getByRole("button", { name: "Apply management fee correction" }).closest("form");
+    const payload = new FormData(form!);
+    expect(payload.get("correctedRentAmount")).toBe("1450.00");
+    expect(payload.get("correctedDueDay")).toBe("5");
+    expect(payload.get("correctedManagementFeeAmount")).toBe("48.33");
+    fireEvent.change(screen.getByLabelText("Corrected management fee amount"), { target: { value: "50" } });
+    expect(screen.queryByRole("button", { name: "Apply management fee correction" })).toBeNull();
+    expect(screen.getByText(/inputs changed after preview/)).not.toBeNull();
+  });
+
   it("offers Activate today or a scheduled date without asking for an explanation", async () => {
     const user = userEvent.setup();
     const lease = makeLease();
@@ -991,9 +1052,9 @@ describe("LeaseDetailScreen", () => {
 
     const drawer = screen.getByRole("dialog", { name: "Change billing rules" });
     const preview = within(drawer).getByRole("region", { name: "Rent preview" });
-    expect(within(preview).getByText("First month")).not.toBeNull();
+    expect(within(preview).getByText(/^First month rent/)).not.toBeNull();
     expect(within(preview).getByText("USD 548.39")).not.toBeNull();
-    expect(within(preview).getByText("Final month")).not.toBeNull();
+    expect(within(preview).getByText(/^Final month rent/)).not.toBeNull();
     expect(within(preview).getByText("USD 645.16")).not.toBeNull();
     expect(within(preview).queryByText("Lease month")).toBeNull();
   });
@@ -1056,6 +1117,17 @@ describe("LeaseDetailScreen", () => {
     const drawer = screen.getByRole("dialog", { name: "Change billing rules" });
     const form = drawer.querySelector("form");
     expect(form).not.toBeNull();
+    expect(
+      within(drawer).getByText(
+        /Editing scheduled billing rules: 2026-09-01–2027-06-30/,
+      ),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByText(/Current billing rules: 2026-07-01–2026-08-31/),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByText(/To change an issued fee, use Manage lease → Correct management fee/),
+    ).not.toBeNull();
     const values = new FormData(form as HTMLFormElement);
 
     expect(values.get("expectedCurrentBillingRuleId")).toBe("billing-current");

@@ -316,6 +316,10 @@ export function toExpenseSubmissionSummary(
 }
 
 export type ExpenseTransactionSnapshot = {
+  cancelledAt?: string | null;
+  replacesTransactionId?: string | null;
+  replacementTransactionId?: string | null;
+  payeePersonId?: string | null;
   payFromAccountId?: string;
   expenseDate: string;
   externalPayeeLabel: string | null;
@@ -326,6 +330,7 @@ export type ExpenseTransactionSnapshot = {
 };
 
 export type ExpenseTransactionLineSnapshot = {
+  categoryAccountId?: string;
   description: string;
   ownerCashAmount: number | null;
   sortOrder: number;
@@ -367,6 +372,12 @@ export function groupExpenseTransactionSummaries(
     const unitIds = new Set(lines.map(({ submission }) => submission.unitId));
     grouped.push({
       ...first,
+      cancelledAt: transaction.cancelledAt,
+      replacesTransactionId: transaction.replacesTransactionId,
+      replacementTransactionId: transaction.replacementTransactionId,
+      payeePersonId: transaction.payeePersonId,
+      externalPayeeLabel: transaction.externalPayeeLabel,
+      payFromAccountId: transaction.payFromAccountId,
       category: lines.length === 1 ? first.category : "multiple",
       categoryLabel:
         lines.length === 1 ? first.categoryLabel : `${lines.length} expense lines`,
@@ -388,6 +399,7 @@ export function groupExpenseTransactionSummaries(
         0,
       ) / 100,
       lines: lines.map(({ line, submission }) => ({
+        categoryAccountId: line.categoryAccountId,
         amount: submission.internalCost,
         customerTotal: submission.customerTotal,
         internalMarkup: submission.internalMarkup,
@@ -1644,7 +1656,7 @@ export async function loadExpenseTransactions(
   const parents = mergeRowsById(pending.data ?? [], history.data ?? []);
   const lines = await fetchRowsByIdBatches(parents.map((parent) => parent.id), async (ids, from, to) => {
     return await supabase.from("expense_transaction_lines")
-      .select("transaction_id, submission_id, sort_order, description, owner_cash_amount")
+      .select("transaction_id, submission_id, sort_order, description, owner_cash_amount, category_account_id")
       .eq("organization_id", organizationId).in("transaction_id", [...ids])
       .order("transaction_id").order("sort_order").range(from, to);
   });
@@ -1668,6 +1680,10 @@ export async function loadExpenseTransactions(
     submissions,
     childLinks,
     transactions: parents.map((parent) => ({
+      cancelledAt: parent.cancelled_at,
+      replacesTransactionId: parent.replaces_transaction_id,
+      replacementTransactionId: parent.replacement_transaction_id,
+      payeePersonId: parent.payee_person_id,
       expenseDate: parent.expense_date,
       externalPayeeLabel: parent.external_payee_label,
       id: parent.id,
@@ -1677,6 +1693,7 @@ export async function loadExpenseTransactions(
       status: parent.status as ExpenseSubmissionSummary["status"],
     })),
     lines: (lines.data ?? []).map((line) => ({
+      categoryAccountId: line.category_account_id,
       description: line.description,
       ownerCashAmount: line.owner_cash_amount === null ? null : Number(line.owner_cash_amount),
       sortOrder: line.sort_order,
