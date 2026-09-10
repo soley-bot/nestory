@@ -21,6 +21,7 @@ export default async function BillsExpensesPage({
   return (
     <FinanceOperationsScreen
       currentUserId={context.userId}
+      canApproveOwnExpense={context.isSuperAdmin}
       {...data}
       canConfigureRent={context.permissionKeys.has("leases.change_terms")}
       canCreateVendor={context.permissionKeys.has("people.view") && context.permissionKeys.has("people.write")}

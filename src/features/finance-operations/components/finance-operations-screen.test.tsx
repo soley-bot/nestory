@@ -253,6 +253,22 @@ describe("FinanceOperationsScreen", () => {
     }
   });
 
+  it("allows a Super Admin to confirm their own expense for approval", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.expenseSubmissions = [{ ...expenseSubmission("submitted"), transactionId: "parent", submittedByUserId: "maker" }];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canReviewExpense: true })}
+      currentUserId="maker" canApproveOwnExpense organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("button", { name: "Review Sokha Repairs" }));
+    expect(screen.queryByText(/You submitted this expense/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reject Sokha Repairs" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Approve Sokha Repairs" }));
+    const dialog = screen.getByRole("dialog", { name: "Approve paid cost" });
+    expect(within(dialog).getByRole("button", { name: "Approve paid cost" }).hasAttribute("disabled")).toBe(true);
+    await user.click(within(dialog).getByRole("checkbox"));
+    expect(within(dialog).getByRole("button", { name: "Approve paid cost" }).hasAttribute("disabled")).toBe(false);
+  });
+
   it("shows vendor creation only when its checked capability is supplied", async () => {
     const user = userEvent.setup();
     render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canSubmitExpense: true })}
