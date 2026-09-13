@@ -83,6 +83,9 @@ SELECT pg_temp.reconciliation_property(2,500,0);
 SELECT pg_temp.reconciliation_property(3,500,400,true);
 SELECT pg_temp.reconciliation_property(4,500,0,false,true);
 SELECT pg_temp.reconciliation_property(5,0,0,false,false,true);
+SELECT pg_temp.reconciliation_property(6,500,0);
+UPDATE public.property_owners SET ended_on = (date_trunc('month',current_date)-interval '1 month')::date+20
+WHERE property_id='d4590000-0000-4000-8001-000000000006';
 
 SELECT is((SELECT count(*) FROM public.owner_component_movements WHERE organization_id='d4590000-0000-4000-8000-000000000001'),0::bigint,
   'legacy fixtures begin without owner component movements');
@@ -96,6 +99,13 @@ LANGUAGE sql AS $$
 $$;
 SELECT set_config('request.jwt.claim.sub','d4590000-0000-4000-8000-000000000010',true);
 SET LOCAL ROLE authenticated;
+
+SELECT lives_ok($$SELECT pg_temp.payout(6,200,'odr-unrelated-future-credit')$$,
+  'an unrelated future credit with an incomplete roster does not block a funded historical payout');
+SELECT is((SELECT count(*) FROM public.owner_event_allocation_sets
+  WHERE property_id='d4590000-0000-4000-8001-000000000006'
+    AND event_date > (date_trunc('month',current_date)-interval '1 month')::date+15),0::bigint,
+  'unrelated future credits remain unallocated');
 
 SELECT throws_ok($$SELECT pg_temp.payout(2,900.01,'odr-historical-overdraw')$$,
   '23514','insufficient_authoritative_held_cash','historical capacity excludes the later 500 credit');

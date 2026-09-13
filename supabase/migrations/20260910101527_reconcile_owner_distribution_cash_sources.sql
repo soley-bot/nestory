@@ -75,6 +75,7 @@ CREATE OR REPLACE FUNCTION public.record_owner_distribution(
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE
   v_queue jsonb; v_locked_queue jsonb; v_month date; v_owner uuid; v_result jsonb; v_source record;
+  v_obligation_end date;
 BEGIN
   IF (SELECT auth.uid()) IS NULL OR NOT app_private.can_access_property(
     p_organization_id, p_property_id, 'finance.record_payments'
@@ -97,6 +98,14 @@ BEGIN
   INTO v_queue FROM public.get_owner_event_allocation_queue(
     p_organization_id, p_property_id, p_currency, DATE '0001-01-01', DATE '9999-12-31'
   ) AS queue;
+
+  -- Future credits and non-cash accruals alone are not obligations of this
+  -- payout. Stop at the last existing source that can consume held cash.
+  SELECT greatest(p_distribution_date, max((item->>'event_date')::date))
+  INTO v_obligation_end FROM pg_catalog.jsonb_array_elements(v_queue) AS item
+  WHERE item->>'source_type' IN (
+    'owner_distribution', 'owner_invoice_payment', 'reversal', 'owner_component_transfer'
+  );
 
   -- All financial-month locks precede all lifecycle locks, including future
   -- obligations which must remain fully funded after a backdated payout.
@@ -158,6 +167,13 @@ BEGIN
     p_organization_id, p_property_id, p_currency, DATE '0001-01-01', DATE '9999-12-31'
   ) AS queue WHERE queue.allocation_state = 'pending'
     AND queue.source_type IN ('management_fee_occurrence', 'owner_paid_cost')
+    AND (queue.event_date <= v_obligation_end OR EXISTS (
+      SELECT 1 FROM public.owner_charge_cash_allocations AS cash
+      JOIN public.owner_invoice_lines AS line
+        ON line.organization_id = cash.organization_id AND line.id = cash.owner_invoice_line_id
+      WHERE cash.organization_id = p_organization_id AND cash.property_id = p_property_id
+        AND cash.allocation_date <= v_obligation_end AND line.source_id = queue.source_line_id
+    ))
     ORDER BY queue.event_date, queue.source_type, queue.source_line_id
   LOOP
     PERFORM public.allocate_owner_event(p_organization_id, v_source.source_type,
@@ -177,7 +193,7 @@ BEGIN
   -- Atomic validation of later source obligations: later cash cannot fund the
   -- payout, and the payout cannot strand an existing later charge or reversal.
   PERFORM app_private.prepare_owner_distribution_sources(
-    p_organization_id, p_property_id, p_currency, p_distribution_date + 1, DATE '9999-12-31');
+    p_organization_id, p_property_id, p_currency, p_distribution_date + 1, v_obligation_end);
   PERFORM app_private.set_finance_branch_authority_context(
     p_organization_id, NULL, 'finance.record_payments', false);
   RETURN v_result;
