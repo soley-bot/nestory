@@ -11,8 +11,7 @@ BEGIN
     RAISE EXCEPTION 'auto_cash_date_predecessor_changed';
   END IF;
   definition := replace(definition, marker,
-    E'      AND invoice.lifecycle = ''issued''\n      AND invoice.issue_date <= p_allocation_date\n      AND line.recognized_on <= p_allocation_date\n      AND app_private.owner_invoice_line_outstanding(');
+    E'      AND invoice.lifecycle = ''issued''\n      AND line.recognized_on <= p_allocation_date\n      AND app_private.owner_invoice_line_outstanding(');
   EXECUTE definition;
 END;
 $patch$;
-

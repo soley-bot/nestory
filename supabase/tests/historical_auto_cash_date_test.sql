@@ -40,6 +40,8 @@ BEGIN
  INSERT INTO public.tenant_invoice_lines(id,organization_id,invoice_id,income_item_id,line_type,customer_label,amount,sort_order,property_id,currency,recognized_on,created_by) VALUES(line,org,invoice,income,'rent','Rent',500,1,prop,'USD',past,actor);
  INSERT INTO public.management_fee_occurrences(organization_id,property_id,lease_id,tenant_invoice_id,billing_term_id,fee_date,amount,fee_mode,fee_value,created_by)
  VALUES(org,prop,lease,invoice,term,past+20,40,'flat',40,actor);
+ -- A later document issue date must not block a charge recognized earlier.
+ UPDATE public.owner_invoices SET issue_date=past+25 WHERE property_id=prop;
  PERFORM set_config('app.financial_reconciliation_source_context','on',true);
  INSERT INTO public.financial_reconciliation_sources(id,organization_id,currency,code,display_name,source_kind,scope_kind) VALUES(source,org,'USD','HAC_BANK','Historical cash bank','bank','organization_pooled');
  INSERT INTO auto_cash_fixture VALUES(prop,invoice,line,source,past+5);
@@ -53,13 +55,11 @@ SELECT lives_ok($$SELECT public.record_tenant_invoice_payment(
  'historical rent can be recorded when a later fee already exists');
 RESET ROLE;
 SELECT is((SELECT count(*) FROM public.owner_charge_cash_allocations WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),0::bigint,
- 'recording historical rent never settles a fee before its issue date');
+ 'recording historical rent never settles a fee before its recognition date');
 SELECT is(app_private.apply_available_owner_cash('d4600000-0000-4000-8000-000000000001',
  (SELECT property_id FROM auto_cash_fixture),(SELECT day+15 FROM auto_cash_fixture),'d4600000-0000-4000-8000-000000000010'),40::numeric,
- 'automatic settlement still works on the fee issue date');
+ 'automatic settlement still works on the recognition date despite a later invoice issue date');
 SELECT is((SELECT min(allocation_date) FROM public.owner_charge_cash_allocations WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),
  (SELECT day+15 FROM auto_cash_fixture),'automatic settlement retains the eligible date');
 SELECT * FROM finish();
 ROLLBACK;
-
-
