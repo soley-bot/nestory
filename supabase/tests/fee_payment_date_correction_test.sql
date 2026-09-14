@@ -205,5 +205,21 @@ SELECT is((SELECT sum(signed_amount) FROM public.owner_component_movements
 SELECT is((SELECT reason FROM public.fee_payment_date_corrections WHERE idempotency_key='fee-date-correct-again'),
  'Second source-backed date correction','staff correction reason remains readable in audit history');
 RESET ROLE;
+SELECT pg_temp.reconciliation_property(5,0,0);
+INSERT INTO public.people(id,organization_id,display_name)
+ VALUES('d4590000-0000-4000-8000-000000000004','d4590000-0000-4000-8000-000000000001','Unrelated owner');
+SELECT set_config('app.owner_balance_write_context','checked-owner-balance-v1',true);
+INSERT INTO public.owner_cash_events(organization_id,property_id,owner_person_id,currency,event_type,event_date,amount,reason,idempotency_key,payload_hash,created_by)
+ VALUES('d4590000-0000-4000-8000-000000000001','d4590000-0000-4000-8001-000000000005',
+ 'd4590000-0000-4000-8000-000000000004','USD','owner_contribution',
+ (date_trunc('month',current_date)-interval '2 months')::date,50,'Unrelated older source','fee-other-owner-source',repeat('c',64),'d4590000-0000-4000-8000-000000000010');
+SET LOCAL ROLE authenticated;
+SELECT public.set_financial_month_lock('d4590000-0000-4000-8000-000000000001',
+ (date_trunc('month',current_date)-interval '2 months')::date,true,'Unrelated owner historical period');
+SELECT ok((public.preview_fee_payment_date_correction('d4590000-0000-4000-8000-000000000001',
+ (SELECT id FROM public.owner_charge_cash_allocations WHERE property_id='d4590000-0000-4000-8001-000000000005'),
+ (date_trunc('month',current_date)-interval '1 month')::date+10)->>'canApply')::boolean,
+ 'another owner pending source in a locked month does not block this correction');
+RESET ROLE;
 SELECT * FROM finish();
 ROLLBACK;

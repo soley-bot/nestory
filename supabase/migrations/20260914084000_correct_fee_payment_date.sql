@@ -212,12 +212,15 @@ BEGIN
     FOR v_month IN SELECT DISTINCT date_trunc('month',d)::date FROM (
       SELECT (q->>'event_date')::date d FROM jsonb_array_elements(v_before->'queue') q
         WHERE q->>'allocation_state'<>'allocated'
+          AND app_private.owner_distribution_source_required(p_organization_id,
+            q->>'source_type',(q->>'source_line_id')::uuid,v_invoice.owner_person_id)
       UNION SELECT p_new_date UNION SELECT v_original.allocation_date) dates ORDER BY 1
     LOOP
       PERFORM app_private.lock_open_property_financial_month(p_organization_id,v_original.property_id,v_invoice.currency,v_month);
     END LOOP;
     IF EXISTS (SELECT 1 FROM public.owner_balance_periods p WHERE p.organization_id=p_organization_id
       AND p.property_id=v_original.property_id AND p.currency=v_invoice.currency AND p.status='closed'
+      AND p.owner_person_id=v_invoice.owner_person_id
       AND p.month_start>=date_trunc('month',least(p_new_date,v_original.allocation_date))::date) THEN
       RAISE EXCEPTION 'fee_payment_date_owner_period_closed' USING ERRCODE='23514';
     END IF;
