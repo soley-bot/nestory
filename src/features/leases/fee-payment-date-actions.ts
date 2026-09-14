@@ -16,7 +16,7 @@ const candidateSchema = z.object({ allocationId: uuid, invoiceNumber: z.string()
 const previewSchema = z.object({
   allocationId: uuid, oldDate: date, newDate: date, amount: z.number().finite().positive(),
   canApply: z.boolean(), blockers: z.array(z.string()), previewHash: z.string().regex(/^[a-f0-9]{64}$/i),
-  cashChangeOnEarlierDate: z.number().finite(), currentBalanceChange: z.literal(0),
+  cashChangeOnEarlierDate: z.number().finite(), currentBalanceChange: z.number().finite(),
 }).refine((value) => !value.canApply || value.blockers.length === 0);
 const applySchema = inputSchema.extend({
   reason: z.string().trim().min(8, "Explain why the payment date needs correcting.").max(500),

@@ -112,6 +112,7 @@ DECLARE
   v_month date; v_owner uuid; v_branch uuid; v_source record;
   v_id uuid := gen_random_uuid(); v_reversal uuid := gen_random_uuid(); v_replacement uuid := gen_random_uuid();
   v_result jsonb; v_error text; v_context text;
+  v_cash_before numeric; v_cash_after numeric; v_business_date date;
 BEGIN
   IF v_actor IS NULL OR NOT app_private.is_org_admin(p_organization_id) THEN
     RAISE EXCEPTION 'fee_payment_date_correction_forbidden' USING ERRCODE='42501';
@@ -143,6 +144,8 @@ BEGIN
       RETURN jsonb_build_object('correctionId',v_existing.id);
     END IF;
   END IF;
+  SELECT (now() AT TIME ZONE operational_timezone)::date INTO v_business_date
+    FROM public.organizations WHERE id=p_organization_id;
   v_before := app_private.fee_payment_date_snapshot(p_organization_id,v_original.property_id,v_invoice.currency,v_original.allocation_date,p_new_date);
   SELECT branch_id INTO v_branch FROM public.properties WHERE organization_id=p_organization_id AND id=v_original.property_id;
   -- Follow the existing global order: every month, then every owner, then rows.
@@ -169,7 +172,7 @@ BEGIN
   PERFORM 1 FROM public.owner_charge_cash_allocations WHERE organization_id=p_organization_id AND id=p_allocation_id FOR UPDATE;
   v_locked := app_private.fee_payment_date_snapshot(p_organization_id,v_original.property_id,v_invoice.currency,v_original.allocation_date,p_new_date);
   IF v_locked IS DISTINCT FROM v_before THEN RAISE EXCEPTION 'fee_payment_date_sources_changed' USING ERRCODE='40001'; END IF;
-  v_hash := app_private.canonical_financial_payload_hash(jsonb_build_object('allocation',p_allocation_id,'newDate',p_new_date,'snapshot',v_locked));
+  v_hash := app_private.canonical_financial_payload_hash(jsonb_build_object('allocation',p_allocation_id,'newDate',p_new_date,'snapshot',v_locked,'businessDate',v_business_date));
   IF NOT p_preview AND v_hash IS DISTINCT FROM p_preview_hash THEN
     RAISE EXCEPTION 'fee_payment_date_preview_stale' USING ERRCODE='40001';
   END IF;
@@ -180,6 +183,16 @@ BEGIN
   -- Preview runs the identical write path in a subtransaction, then deliberately
   -- rolls it back. Local result variables survive; rows, logs and GUCs do not.
   BEGIN
+    SELECT coalesce(sum(amount),0) INTO v_cash_before FROM (
+      SELECT signed_amount amount FROM public.owner_component_movements
+        WHERE organization_id=p_organization_id AND property_id=v_original.property_id
+          AND owner_person_id=v_invoice.owner_person_id AND currency=v_invoice.currency
+          AND component='ips_held_owner_cash' AND event_date<=v_business_date
+      UNION ALL SELECT signed_amount FROM public.owner_opening_balance_entries
+        WHERE organization_id=p_organization_id AND property_id=v_original.property_id
+          AND owner_person_id=v_invoice.owner_person_id AND currency=v_invoice.currency
+          AND component='ips_held_owner_cash' AND effective_date<=v_business_date
+    ) current_cash;
     IF v_line.source_type<>'management_fee' OR v_invoice.lifecycle<>'issued'
       OR v_original.reversal_of_id IS NOT NULL OR EXISTS (SELECT 1 FROM public.owner_charge_cash_allocations
         WHERE organization_id=p_organization_id AND reversal_of_id=p_allocation_id)
@@ -271,6 +284,17 @@ BEGIN
     VALUES(p_organization_id,v_actor,'fee_payment_date_correction',v_id,'corrected',jsonb_build_object(
       'allocationId',p_allocation_id,'replacementAllocationId',v_replacement,'oldDate',v_original.allocation_date,
       'newDate',p_new_date,'amount',v_original.amount,'reason',p_reason));
+    SELECT coalesce(sum(amount),0) INTO v_cash_after FROM (
+      SELECT signed_amount amount FROM public.owner_component_movements
+        WHERE organization_id=p_organization_id AND property_id=v_original.property_id
+          AND owner_person_id=v_invoice.owner_person_id AND currency=v_invoice.currency
+          AND component='ips_held_owner_cash' AND event_date<=v_business_date
+      UNION ALL SELECT signed_amount FROM public.owner_opening_balance_entries
+        WHERE organization_id=p_organization_id AND property_id=v_original.property_id
+          AND owner_person_id=v_invoice.owner_person_id AND currency=v_invoice.currency
+          AND component='ips_held_owner_cash' AND effective_date<=v_business_date
+    ) current_cash;
+    v_result := v_result||jsonb_build_object('currentBalanceChange',v_cash_after-v_cash_before);
     IF p_preview THEN RAISE EXCEPTION 'fee_payment_date_preview_rollback' USING ERRCODE='PFC01'; END IF;
   EXCEPTION
     WHEN SQLSTATE 'PFC01' THEN NULL;

@@ -27,11 +27,16 @@ describe("fee payment date actions", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("rejects an output for another date or a nonzero current balance change", async () => {
-    for (const data of [{ ...preview, newDate: "2026-09-10" }, { ...preview, currentBalanceChange: 48.33 }, { ...preview, canApply: true, blockers: ["closed_period"] }]) {
+  it("rejects an output for another date or a contradictory preview", async () => {
+    for (const data of [{ ...preview, newDate: "2026-09-10" }, { ...preview, currentBalanceChange: Number.NaN }, { ...preview, canApply: true, blockers: ["closed_period"] }]) {
       rpc.mockResolvedValue({ data, error: null });
       expect((await previewFeePaymentDateCorrectionAction(input)).status).toBe("error");
     }
+  });
+
+  it("retains the actual cash reconciliation effect", async () => {
+    rpc.mockResolvedValue({ data: { ...preview, currentBalanceChange: 900 }, error: null });
+    expect((await previewFeePaymentDateCorrectionAction(input)).preview?.currentBalanceChange).toBe(900);
   });
 
   it("retains blockers in a valid rejected preview", async () => {

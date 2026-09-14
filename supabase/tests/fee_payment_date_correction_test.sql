@@ -99,6 +99,8 @@ UPDATE fee_date_state SET preview=public.preview_fee_payment_date_correction(
  'd4590000-0000-4000-8000-000000000001',allocation_id,allocation_date+10);
 SELECT ok((SELECT bool_and((preview->>'canApply')::boolean) FROM fee_date_state),
  'funded later-date correction previews successfully');
+SELECT is((SELECT (preview->>'currentBalanceChange')::numeric FROM fee_date_state LIMIT 1),900::numeric,
+ 'preview discloses the cash ledger effect of reconciling pending original records');
 SELECT is((SELECT count(*) FROM public.owner_charge_cash_allocations
  WHERE organization_id='d4590000-0000-4000-8000-000000000001'),2::bigint,
  'preview never leaves reversal or replacement cash rows');

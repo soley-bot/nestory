@@ -128,9 +128,10 @@ export function FeePaymentDateModal({ leaseId, onClose, onSuccess }: {
               <dl className="grid grid-cols-2 gap-2">
                 <dt className="text-muted-foreground">Payment date</dt><dd className="text-right">{preview.oldDate} → {preview.newDate}</dd>
                 <dt className="text-muted-foreground">Settlement amount</dt><dd className="text-right tabular-nums">{preview.amount.toFixed(2)}</dd>
-                <dt className="text-muted-foreground">Cash change on {preview.oldDate < preview.newDate ? preview.oldDate : preview.newDate}</dt><dd className="text-right tabular-nums">{preview.cashChangeOnEarlierDate > 0 ? "+" : ""}{preview.cashChangeOnEarlierDate.toFixed(2)}</dd>
-                <dt className="text-muted-foreground">Current balance change</dt><dd className="text-right tabular-nums">0.00</dd>
+                <dt className="text-muted-foreground">Payment date effect on {preview.oldDate < preview.newDate ? preview.oldDate : preview.newDate}</dt><dd className="text-right tabular-nums">{preview.cashChangeOnEarlierDate > 0 ? "+" : ""}{preview.cashChangeOnEarlierDate.toFixed(2)}</dd>
+                <dt className="text-muted-foreground">Owner ledger cash change</dt><dd className="text-right tabular-nums">{preview.currentBalanceChange > 0 ? "+" : ""}{preview.currentBalanceChange.toFixed(2)}</dd>
               </dl>
+              {preview.currentBalanceChange !== 0 ? <p className="text-muted-foreground">Includes reconciliation of existing cash records, not a new payment.</p> : null}
               {preview.blockers.length ? <ul className="space-y-1 text-destructive" role="alert">{preview.blockers.map((blocker) => <li key={blocker}>{blockerMessage(blocker)}</li>)}</ul> : null}
               <Button type="button" disabled={pending || !preview.canApply || reason.trim().length < 8} onClick={() => void applyCorrection()}>Confirm payment date correction</Button>
             </div> : null}
