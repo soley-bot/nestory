@@ -4362,12 +4362,16 @@ function WithdrawalForm({
           <NumberInput
             max={position.availableWithdrawal}
             name="amount"
+            aria-describedby="distribution-amount-help"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             required
           />
+          <p id="distribution-amount-help" className="mt-1 text-xs text-muted-foreground">
+            Partial payouts are allowed. The unpaid balance stays in the owner account.
+          </p>
         </Field>
-        <Field label="Date">
+        <Field label="Payment date">
           <DatePickerField
             defaultValue={withdrawalDate}
             name="withdrawalDate"
@@ -4375,14 +4379,16 @@ function WithdrawalForm({
             aria-describedby="distribution-date-help"
             required
           />
-          <p id="distribution-date-help" className="mt-1 text-xs text-muted-foreground">Available now is the current balance. The amount available on your selected date may differ; it is checked when you record the distribution.</p>
+          <p id="distribution-date-help" className="mt-1 text-xs text-muted-foreground">
+            Use the actual payment date, not the rent month. Available cash is checked on this date.
+          </p>
         </Field>
         <Field label="Reference">
           <Input
             name="reference"
             value={reference}
             onChange={(event) => setReference(event.target.value)}
-            placeholder="Bank transfer or note"
+            placeholder="e.g. August rent payout"
             required
           />
         </Field>
