@@ -582,7 +582,8 @@ WITH paid AS (
   SELECT public.record_tenant_invoice_payment(
     '00000000-0000-0000-0000-000000000001',
     (SELECT ips_partial_invoice_id FROM ips_rent_runtime),
-    25.00, date_trunc('month', current_date)::date + 10,
+    -- Issuance floors the due date at today, even after the 11th.
+    25.00, greatest(current_date + 1, date_trunc('month', current_date)::date + 10),
     (SELECT reconciliation_source_id FROM ips_rent_runtime),
     'Track 5 late settlement',
     pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
@@ -607,7 +608,7 @@ SELECT results_eq(
   $$ VALUES (
     'paid'::text,
     0.00::numeric,
-    date_trunc('month', current_date)::date + 10,
+    greatest(current_date + 1, date_trunc('month', current_date)::date + 10),
     true
   ) $$,
   'payment closes the exact tenant balance while preserving its settlement date and issuance-floor timing'
@@ -637,7 +638,8 @@ SELECT is(
       '00000000-0000-0000-0000-000000000001',
       (SELECT central_property_id FROM ips_rent_runtime),
       'USD', date_trunc('month', current_date)::date,
-      (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
+      greatest((date_trunc('month', current_date) + interval '1 month - 1 day')::date,
+        current_date + 1),
       NULL, NULL, NULL, 200
     ) AS cash
     WHERE cash.source_type = 'receipt_allocation'

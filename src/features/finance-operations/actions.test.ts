@@ -425,6 +425,31 @@ describe("ordinary finance operation actions", () => {
     });
   });
 
+  it.each([
+    ["owner_cash_source_remediation_required", "Earlier owner cash records need reconciliation"],
+    ["insufficient_authoritative_held_cash", "not enough owner cash available on the selected date"],
+    ["backdated_owner_cash_consumer", "Later owner cash transactions prevent recording"],
+    ["financial_month_locked", "selected financial month is locked"],
+    ["owner_roster_missing", "No owner is assigned"],
+    ["owner_share_total_not_100", "Ownership shares for the selected date must total 100%"],
+    ["owner_person_inactive", "ownership records is inactive"],
+    ["explicit_owner_not_in_effective_roster", "not assigned to this property on the distribution date"],
+  ])("explains distribution failure %s without exposing database details", async (code, expected) => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: `${code}: private_database_detail`, details: "secret owner cash rows" } });
+    const result = await recordWithdrawalAction({}, withdrawalForm());
+    expect(result.status).toBe("error");
+    expect(result.message).toContain(expected);
+    expect(JSON.stringify(result)).not.toMatch(/private_database_detail|secret owner cash rows/);
+    expect(rpc).toHaveBeenCalledOnce();
+  });
+
+  it.each(["unknown_database_error: private_detail", "constructor"])("keeps unknown distribution failure %s generic", async (message) => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message } });
+    expect(await recordWithdrawalAction({}, withdrawalForm())).toEqual({
+      message: "We could not complete this Finance action. Try again.", status: "error",
+    });
+  });
+
   it("does not serialize backend error details to finance clients", async () => {
     const sentinel = "service_role_secret finance_internal_constraint";
     rpc.mockResolvedValueOnce({ data: null, error: { message: sentinel } });
