@@ -42,13 +42,17 @@ BEGIN
   SELECT pg_get_functiondef('app_private.consume_owner_held_cash(uuid,uuid,uuid,public.currency_code,date,uuid,numeric,uuid)'::regprocedure)
     INTO v_definition;
   v_definition := replace(v_definition,E'\r\n',E'\n');
+  IF encode(sha256(convert_to(v_definition,'UTF8')),'hex') <>
+    'be720e70d816ff71d0978ec6f84a01a80357eecb9f2208c10da2d47cdece7194' THEN
+    RAISE EXCEPTION 'fee_cash_source_predecessor_changed';
+  END IF;
   IF strpos(v_definition,v_marker)=0 THEN RAISE EXCEPTION 'fee_cash_source_patch_contract_changed'; END IF;
   EXECUTE replace(v_definition,v_marker,
     E'        AND movement.signed_amount > 0\n        AND movement.reversal_of_movement_id IS NULL\n        AND movement.event_date <= p_event_date');
 END;
 $patch$;
 
-CREATE FUNCTION app_private.fee_payment_date_snapshot(p_organization_id uuid,p_property_id uuid,p_currency public.currency_code)
+CREATE FUNCTION app_private.fee_payment_date_snapshot(p_organization_id uuid,p_property_id uuid,p_currency public.currency_code,p_old_date date,p_new_date date)
 RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
   SELECT jsonb_build_object(
     'queue',(SELECT coalesce(jsonb_agg(to_jsonb(q) ORDER BY q.event_date,q.source_type,q.source_line_id),'[]')
@@ -58,7 +62,17 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
     'openings',(SELECT coalesce(jsonb_agg(to_jsonb(o) ORDER BY o.id),'[]') FROM public.owner_opening_balance_entries o WHERE o.organization_id=p_organization_id AND o.property_id=p_property_id),
     'owners',(SELECT coalesce(jsonb_agg(to_jsonb(o) ORDER BY o.id),'[]') FROM public.property_owners o WHERE o.organization_id=p_organization_id AND o.property_id=p_property_id),
     'periods',(SELECT coalesce(jsonb_agg(to_jsonb(p) ORDER BY p.id),'[]') FROM public.owner_balance_periods p WHERE p.organization_id=p_organization_id AND p.property_id=p_property_id),
-    'locks',(SELECT coalesce(jsonb_agg(to_jsonb(l) ORDER BY l.month_start,l.branch_id,l.id),'[]') FROM public.financial_month_locks l WHERE l.organization_id=p_organization_id)
+    'branch',(SELECT branch_id FROM public.properties WHERE organization_id=p_organization_id AND id=p_property_id),
+    'locks',(SELECT coalesce(jsonb_agg(to_jsonb(l) ORDER BY l.month_start,l.branch_id,l.id),'[]')
+      FROM public.financial_month_locks l
+      JOIN public.properties p ON p.organization_id=l.organization_id AND p.id=p_property_id
+      WHERE l.organization_id=p_organization_id
+        AND (l.branch_id IS NULL OR p.branch_id IS NULL OR l.branch_id=p.branch_id)
+        AND l.month_start IN (SELECT date_trunc('month',d)::date FROM (
+          SELECT p_old_date d UNION SELECT p_new_date
+          UNION SELECT q.event_date FROM public.get_owner_event_allocation_queue(
+            p_organization_id,p_property_id,p_currency,DATE '0001-01-01',DATE '9999-12-31') q
+        ) affected_dates))
   );
 $$;
 
@@ -129,7 +143,7 @@ BEGIN
       RETURN jsonb_build_object('correctionId',v_existing.id);
     END IF;
   END IF;
-  v_before := app_private.fee_payment_date_snapshot(p_organization_id,v_original.property_id,v_invoice.currency);
+  v_before := app_private.fee_payment_date_snapshot(p_organization_id,v_original.property_id,v_invoice.currency,v_original.allocation_date,p_new_date);
   SELECT branch_id INTO v_branch FROM public.properties WHERE organization_id=p_organization_id AND id=v_original.property_id;
   -- Follow the existing global order: every month, then every owner, then rows.
   FOR v_month IN SELECT DISTINCT date_trunc('month',d)::date FROM (
@@ -153,7 +167,7 @@ BEGIN
   END LOOP;
   PERFORM pg_advisory_xact_lock(hashtextextended(p_organization_id::text||':'||v_original.property_id::text||':owner-cash',0));
   PERFORM 1 FROM public.owner_charge_cash_allocations WHERE organization_id=p_organization_id AND id=p_allocation_id FOR UPDATE;
-  v_locked := app_private.fee_payment_date_snapshot(p_organization_id,v_original.property_id,v_invoice.currency);
+  v_locked := app_private.fee_payment_date_snapshot(p_organization_id,v_original.property_id,v_invoice.currency,v_original.allocation_date,p_new_date);
   IF v_locked IS DISTINCT FROM v_before THEN RAISE EXCEPTION 'fee_payment_date_sources_changed' USING ERRCODE='40001'; END IF;
   v_hash := app_private.canonical_financial_payload_hash(jsonb_build_object('allocation',p_allocation_id,'newDate',p_new_date,'snapshot',v_locked));
   IF NOT p_preview AND v_hash IS DISTINCT FROM p_preview_hash THEN
@@ -278,7 +292,7 @@ CREATE FUNCTION public.correct_fee_payment_date(p_organization_id uuid,p_allocat
 RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path TO '' AS $$
   SELECT app_private.run_fee_payment_date_correction(p_organization_id,p_allocation_id,p_payment_date,p_reason,p_preview_hash,p_idempotency_key,false);
 $$;
-REVOKE ALL ON FUNCTION app_private.fee_payment_date_snapshot(uuid,uuid,public.currency_code) FROM PUBLIC,anon,authenticated,service_role;
+REVOKE ALL ON FUNCTION app_private.fee_payment_date_snapshot(uuid,uuid,public.currency_code,date,date) FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION app_private.run_fee_payment_date_correction(uuid,uuid,date,text,text,text,boolean) FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION public.list_fee_payment_date_candidates(uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION public.preview_fee_payment_date_correction(uuid,uuid,date) FROM PUBLIC,anon,authenticated,service_role;
