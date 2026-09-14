@@ -192,6 +192,30 @@ REVOKE ALL ON FUNCTION app_private.prepare_owner_distribution_sources(
   uuid, uuid, public.currency_code, date, date, uuid
 ) FROM PUBLIC, anon, authenticated, service_role;
 
+-- Distribution authority requires this owner's cash history to be complete.
+-- Keep the property-wide assertion unchanged for its other callers.
+CREATE FUNCTION app_private.assert_owner_distribution_sources_allocated(
+  p_organization_id uuid, p_property_id uuid, p_currency public.currency_code,
+  p_as_of_date date, p_owner_person_id uuid
+) RETURNS void
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.get_owner_event_allocation_queue(
+      p_organization_id, p_property_id, p_currency, DATE '0001-01-01', p_as_of_date
+    ) AS queue
+    WHERE queue.allocation_state <> 'allocated'
+      AND app_private.owner_distribution_source_required(
+        p_organization_id, queue.source_type, queue.source_line_id, p_owner_person_id)
+  ) THEN
+    RAISE EXCEPTION 'owner_cash_source_remediation_required' USING ERRCODE = '23514';
+  END IF;
+END;
+$$;
+REVOKE ALL ON FUNCTION app_private.assert_owner_distribution_sources_allocated(
+  uuid, uuid, public.currency_code, date, uuid
+) FROM PUBLIC, anon, authenticated, service_role;
+
 CREATE OR REPLACE FUNCTION public.record_owner_distribution(
   p_organization_id uuid, p_property_id uuid, p_owner_person_id uuid,
   p_currency public.currency_code, p_amount numeric, p_distribution_date date,
@@ -289,13 +313,14 @@ BEGIN
     RAISE EXCEPTION 'backdated_owner_cash_consumer' USING ERRCODE = '23514';
   END IF;
 
-  -- A legacy payment can predate its invoice/fee. Allocate its non-cash
-  -- original first, at the original date; this never creates held cash.
+  -- A selected-owner legacy payment can predate its invoice/fee. Allocate
+  -- only its required non-cash original, at the original date. Unrelated
+  -- historical or future accruals are not prerequisites of this payout.
   FOR v_source IN SELECT queue.* FROM public.get_owner_event_allocation_queue(
     p_organization_id, p_property_id, p_currency, DATE '0001-01-01', DATE '9999-12-31'
   ) AS queue WHERE queue.allocation_state = 'pending'
     AND queue.source_type IN ('management_fee_occurrence', 'owner_paid_cost')
-    AND (queue.event_date <= p_distribution_date OR EXISTS (
+    AND EXISTS (
       SELECT 1 FROM public.owner_charge_cash_allocations AS cash
       JOIN public.owner_invoice_lines AS line
         ON line.organization_id = cash.organization_id AND line.id = cash.owner_invoice_line_id
@@ -303,12 +328,12 @@ BEGIN
         AND cash.allocation_date <= v_obligation_end AND line.source_id = queue.source_line_id
         AND queue.source_type = CASE line.source_type
           WHEN 'management_fee' THEN 'management_fee_occurrence' WHEN 'owner_expense' THEN 'owner_paid_cost' END
-        AND (cash.allocation_date <= p_distribution_date OR EXISTS (
+        AND EXISTS (
           SELECT 1 FROM public.owner_invoices AS invoice
           WHERE invoice.organization_id = line.organization_id AND invoice.id = line.invoice_id
             AND invoice.owner_person_id = p_owner_person_id
-        ))
-    ))
+        )
+    )
     ORDER BY queue.event_date, queue.source_type, queue.source_line_id
   LOOP
     PERFORM public.allocate_owner_event(p_organization_id, v_source.source_type,
@@ -316,9 +341,9 @@ BEGIN
       'distribution-source:' || v_source.source_type || ':' || v_source.source_line_id::text);
   END LOOP;
   PERFORM app_private.prepare_owner_distribution_sources(
-    p_organization_id, p_property_id, p_currency, DATE '0001-01-01', p_distribution_date);
-  PERFORM app_private.assert_owner_cash_sources_allocated(
-    p_organization_id, p_property_id, p_currency, p_distribution_date);
+    p_organization_id, p_property_id, p_currency, DATE '0001-01-01', p_distribution_date, p_owner_person_id);
+  PERFORM app_private.assert_owner_distribution_sources_allocated(
+    p_organization_id, p_property_id, p_currency, p_distribution_date, p_owner_person_id);
   PERFORM app_private.begin_finance_property_authority(
     p_organization_id, p_property_id, 'finance.record_payments');
   v_result := app_private.record_owner_distribution_baseline(

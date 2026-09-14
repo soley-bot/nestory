@@ -638,7 +638,8 @@ SELECT is(
       '00000000-0000-0000-0000-000000000001',
       (SELECT central_property_id FROM ips_rent_runtime),
       'USD', date_trunc('month', current_date)::date,
-      (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
+      greatest((date_trunc('month', current_date) + interval '1 month - 1 day')::date,
+        current_date + 1),
       NULL, NULL, NULL, 200
     ) AS cash
     WHERE cash.source_type = 'receipt_allocation'

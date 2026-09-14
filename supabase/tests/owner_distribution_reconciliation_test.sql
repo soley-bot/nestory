@@ -89,10 +89,19 @@ WHERE property_id='d4590000-0000-4000-8001-000000000006';
 
 SELECT pg_temp.reconciliation_property(7,0,400);
 SELECT pg_temp.reconciliation_property(8,0,0);
+SELECT pg_temp.reconciliation_property(9,0,0);
 INSERT INTO public.people(id,organization_id,display_name)
 VALUES('d4590000-0000-4000-8000-000000000004','d4590000-0000-4000-8000-000000000001','Other owner');
 INSERT INTO public.person_roles(organization_id,person_id,role,status)
 VALUES('d4590000-0000-4000-8000-000000000001','d4590000-0000-4000-8000-000000000004','owner','active');
+-- B's legacy contribution has no effective ownership on this property. It
+-- cannot fund A and must remain unallocated without blocking A's valid cash.
+INSERT INTO public.owner_cash_events(organization_id,property_id,owner_person_id,currency,event_type,event_date,amount,reason,idempotency_key,payload_hash,created_by)
+VALUES('d4590000-0000-4000-8000-000000000001','d4590000-0000-4000-8001-000000000009',
+  'd4590000-0000-4000-8000-000000000004','USD','owner_contribution',
+  (date_trunc('month',current_date)-interval '1 month')::date+2,9999,
+  'Unrelated invalid historical source','odr-other-owner-historical',repeat('c',64),
+  'd4590000-0000-4000-8000-000000000010');
 -- The original fee and cash settlement precede the ownership change, so their
 -- original single-owner snapshots remain unambiguous.
 UPDATE public.property_owners SET ended_on=(date_trunc('month',current_date)-interval '1 month')::date+9
@@ -121,6 +130,17 @@ LANGUAGE sql AS $$
 $$;
 SELECT set_config('request.jwt.claim.sub','d4590000-0000-4000-8000-000000000010',true);
 SET LOCAL ROLE authenticated;
+
+SELECT lives_ok($$SELECT pg_temp.payout(9,200,'odr-only-other-owner-historical')$$,
+  'another owner invalid historical contribution does not block this owner funded payout');
+SELECT is((SELECT sum(signed_amount) FROM public.owner_component_movements
+  WHERE property_id='d4590000-0000-4000-8001-000000000009'
+    AND owner_person_id='d4590000-0000-4000-8000-000000000003' AND component='ips_held_owner_cash'),700::numeric,
+  'historical payout uses only selected owner genuine cash');
+SELECT is((SELECT count(*) FROM public.owner_component_movements
+  WHERE property_id='d4590000-0000-4000-8001-000000000009'
+    AND owner_person_id='d4590000-0000-4000-8000-000000000004'),0::bigint,
+  'unrelated invalid historical contribution remains untouched');
 
 SELECT lives_ok($$SELECT pg_temp.payout(8,200,'odr-only-other-owner-future')$$,
   'another owner future unfunded payout does not block this owner historical payout');
@@ -203,9 +223,9 @@ SELECT is((SELECT sum(signed_amount) FROM public.owner_component_movements
 SELECT is((SELECT sum(signed_amount) FROM public.owner_component_movements
   WHERE property_id='d4590000-0000-4000-8001-000000000004' AND component='owner_due_to_ips'),0::numeric,
   'later original fee reconciles exactly with its earlier settlement');
-SELECT is((SELECT sum(signed_amount) FROM public.owner_component_movements
-  WHERE property_id='d4590000-0000-4000-8001-000000000004' AND component='security_deposit_custody'),5000::numeric,
-  'deposit receipts are reconciled as custody and never increase payout capacity');
+SELECT is((SELECT coalesce(sum(signed_amount),0) FROM public.owner_component_movements
+  WHERE property_id='d4590000-0000-4000-8001-000000000004' AND component='security_deposit_custody'),0::numeric,
+  'unrelated deposit custody stays untouched and never increases payout capacity');
 
 SELECT lives_ok($$SELECT pg_temp.payout(5,5,'odr-same-day-replacement')$$,
   'same-day reversal restores the original 40 before its replacement consumes the 50 held cash');
