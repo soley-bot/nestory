@@ -98,7 +98,8 @@ describe("FinanceOperationsScreen", () => {
     await user.click(within(screen.getByRole("dialog", { name: "Owner balance details" })).getByRole("button", { name: "Record owner distribution" }));
     const dialog = screen.getByRole("dialog", { name: "Record owner distribution" });
     expect(within(dialog).getByText("Available now")).toBeTruthy();
-    expect(within(dialog).getByText(/amount available on your selected date may differ/)).toBeTruthy();
+    expect(within(dialog).getByText(/actual payment date, not the rent month/)).toBeTruthy();
+    expect(within(dialog).getByText(/Partial payouts are allowed/)).toBeTruthy();
     const amount = within(dialog).getByLabelText("Amount") as HTMLInputElement;
     const reference = within(dialog).getByLabelText("Reference") as HTMLInputElement;
     const date = dialog.querySelector<HTMLInputElement>('input[name="withdrawalDate"]')!;

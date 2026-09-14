@@ -18,7 +18,7 @@ VALUES ('d4590000-0000-4000-8000-000000000001','d4590000-0000-4000-8000-00000000
 INSERT INTO public.person_roles (organization_id,person_id,role,status)
 VALUES ('d4590000-0000-4000-8000-000000000001','d4590000-0000-4000-8000-000000000003','tenant','active');
 
-CREATE FUNCTION pg_temp.reconciliation_property(n integer, future_credit numeric, future_debt numeric, credit_after_debt boolean DEFAULT false, prepaid_fee boolean DEFAULT false, same_day_replacement boolean DEFAULT false)
+CREATE FUNCTION pg_temp.reconciliation_property(n integer, future_credit numeric, future_debt numeric, credit_after_debt boolean DEFAULT false, prepaid_fee boolean DEFAULT false, same_day_replacement boolean DEFAULT false, opening_cash numeric DEFAULT 1000)
 RETURNS uuid LANGUAGE plpgsql AS $$
 DECLARE
   org uuid := 'd4590000-0000-4000-8000-000000000001';
@@ -65,7 +65,7 @@ BEGIN
   -- The legacy source exists, but its owner event has never been allocated.
   PERFORM set_config('app.owner_balance_write_context','checked-owner-balance-v1',true);
   INSERT INTO public.owner_cash_events(organization_id,property_id,owner_person_id,currency,event_type,event_date,amount,reason,idempotency_key,payload_hash,created_by)
-  VALUES(org,property_id,owner_id,'USD','owner_contribution',past,CASE WHEN same_day_replacement THEN 50 ELSE 1000 END,'Historical source','odr-source-'||n,repeat('a',64),actor);
+  VALUES(org,property_id,owner_id,'USD','owner_contribution',past,CASE WHEN same_day_replacement THEN 50 ELSE opening_cash END,'Historical source','odr-source-'||n,repeat('a',64),actor);
   IF future_credit > 0 THEN
     INSERT INTO public.owner_cash_events(organization_id,property_id,owner_person_id,currency,event_type,event_date,amount,reason,idempotency_key,payload_hash,created_by)
     VALUES(org,property_id,owner_id,'USD','owner_contribution',past+CASE WHEN credit_after_debt THEN 24 ELSE 21 END,
@@ -90,6 +90,7 @@ WHERE property_id='d4590000-0000-4000-8001-000000000006';
 SELECT pg_temp.reconciliation_property(7,0,400);
 SELECT pg_temp.reconciliation_property(8,0,0);
 SELECT pg_temp.reconciliation_property(9,0,0);
+SELECT pg_temp.reconciliation_property(10,500,0,false,false,false,514.40);
 INSERT INTO public.people(id,organization_id,display_name)
 VALUES('d4590000-0000-4000-8000-000000000004','d4590000-0000-4000-8000-000000000001','Other owner');
 INSERT INTO public.person_roles(organization_id,person_id,role,status)
@@ -248,6 +249,17 @@ SELECT is((SELECT sum(c.consumed_amount) FROM public.owner_cash_source_consumpti
   JOIN public.owner_event_allocation_sets s ON s.id=a.allocation_set_id
   WHERE s.source_type='owner_invoice_payment' AND s.source_line_id='d4590000-0000-4000-8002-000000000003'),40::numeric,
   'replacement settlement records its own exact 40 cash consumption');
+
+SELECT lives_ok($$SELECT public.record_owner_distribution(
+ 'd4590000-0000-4000-8000-000000000001','d4590000-0000-4000-8001-000000000010',
+ 'd4590000-0000-4000-8000-000000000003','USD',454.40,current_date,
+ 'August earnings paid today','odr-august-partial-paid-today')$$,
+ 'partial payout for earlier earnings can use the actual current payment date');
+SELECT is((SELECT amount FROM public.property_withdrawals WHERE idempotency_key='odr-august-partial-paid-today'),454.40::numeric,
+ 'partial payout records exactly the requested amount');
+SELECT is((SELECT sum(signed_amount) FROM public.owner_component_movements
+ WHERE property_id='d4590000-0000-4000-8001-000000000010' AND component='ips_held_owner_cash'),460::numeric,
+ '914.40 cash less a 454.40 partial payout leaves 460 available');
 
 RESET ROLE;
 SELECT * FROM finish();
