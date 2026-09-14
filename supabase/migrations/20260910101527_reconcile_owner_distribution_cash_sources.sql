@@ -19,12 +19,133 @@ BEGIN
 END;
 $patch$;
 
+-- Classify cash by the same owner/component facts used by the allocator.
+-- Legacy settlements may need classification before their non-cash original
+-- exists; their invoice owner and signed cash allocation are authoritative.
+CREATE FUNCTION app_private.owner_distribution_source_cash(
+  p_organization_id uuid, p_source_type text, p_source_line_id uuid,
+  p_owner_person_id uuid
+) RETURNS numeric
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+DECLARE v_set uuid; v_source record; v_cash numeric; v_owner uuid;
+BEGIN
+  SELECT source.id INTO v_set FROM public.owner_event_allocation_sets AS source
+  WHERE source.organization_id = p_organization_id
+    AND source.source_type = p_source_type AND source.source_line_id = p_source_line_id;
+  IF FOUND THEN
+    SELECT coalesce(sum(movement.signed_amount), 0) INTO v_cash
+    FROM public.owner_component_movements AS movement
+    JOIN public.owner_event_owner_allocations AS allocation
+      ON allocation.organization_id = movement.organization_id
+      AND allocation.id = movement.owner_event_owner_allocation_id
+    WHERE allocation.organization_id = p_organization_id AND allocation.allocation_set_id = v_set
+      AND movement.owner_person_id = p_owner_person_id
+      AND movement.component = 'ips_held_owner_cash';
+    RETURN v_cash;
+  END IF;
+
+  IF p_source_type IN ('owner_invoice_payment', 'reversal') THEN
+    SELECT invoice.owner_person_id, -cash.amount INTO v_owner, v_cash
+    FROM public.owner_charge_cash_allocations AS cash
+    JOIN public.owner_invoice_lines AS line
+      ON line.organization_id = cash.organization_id AND line.id = cash.owner_invoice_line_id
+    JOIN public.owner_invoices AS invoice
+      ON invoice.organization_id = line.organization_id AND invoice.id = line.invoice_id
+    WHERE cash.organization_id = p_organization_id AND cash.id = p_source_line_id
+      AND ((p_source_type = 'owner_invoice_payment' AND cash.reversal_of_id IS NULL)
+        OR (p_source_type = 'reversal' AND cash.reversal_of_id IS NOT NULL));
+    IF FOUND THEN
+      RETURN CASE WHEN v_owner = p_owner_person_id THEN v_cash ELSE 0 END;
+    END IF;
+    -- Expense adjustments reverse owner_due_to_ips, never held cash.
+    IF p_source_type = 'reversal' AND EXISTS (
+      SELECT 1 FROM public.expense_customer_adjustments AS adjustment
+      WHERE adjustment.organization_id = p_organization_id AND adjustment.id = p_source_line_id
+        AND adjustment.responsibility = 'owner'
+    ) THEN RETURN 0; END IF;
+  END IF;
+
+  IF p_source_type IN ('management_fee_occurrence', 'owner_paid_cost',
+    'owner_direct_rent_receipt', 'security_deposit_receipt', 'security_deposit_refund', 'owner_reimbursement') THEN
+    RETURN 0;
+  END IF;
+  -- Queue discovery admits valid legacy deposit reversals whose originals have
+  -- not been allocated yet. Their component is custody, not owner held cash.
+  IF p_source_type = 'reversal' AND EXISTS (
+    SELECT 1 FROM public.lease_deposit_events AS event
+    WHERE event.organization_id = p_organization_id AND event.id = p_source_line_id
+      AND event.reversal_of_id IS NOT NULL
+  ) AND NOT EXISTS (
+    SELECT 1 FROM public.tenant_invoice_payment_allocations WHERE organization_id = p_organization_id AND id = p_source_line_id
+    UNION ALL SELECT 1 FROM public.owner_collection_confirmation_allocations WHERE organization_id = p_organization_id AND id = p_source_line_id
+    UNION ALL SELECT 1 FROM public.owner_payment_allocations WHERE organization_id = p_organization_id AND id = p_source_line_id
+    UNION ALL SELECT 1 FROM public.property_withdrawals WHERE organization_id = p_organization_id AND id = p_source_line_id
+  ) THEN RETURN 0; END IF;
+
+  SELECT source.* INTO STRICT v_source
+  FROM app_private.resolve_owner_event_source(p_organization_id, p_source_type, p_source_line_id) AS source;
+  IF v_source.reversal_of_allocation_set_id IS NOT NULL THEN
+    SELECT coalesce(-sum(movement.signed_amount), 0) INTO v_cash
+    FROM public.owner_component_movements AS movement
+    JOIN public.owner_event_owner_allocations AS allocation
+      ON allocation.organization_id = movement.organization_id
+      AND allocation.id = movement.owner_event_owner_allocation_id
+    WHERE allocation.organization_id = p_organization_id
+      AND allocation.allocation_set_id = v_source.reversal_of_allocation_set_id
+      AND movement.owner_person_id = p_owner_person_id
+      AND movement.component = 'ips_held_owner_cash';
+    RETURN v_cash;
+  END IF;
+  IF v_source.activity_only OR v_source.component IS DISTINCT FROM 'ips_held_owner_cash'::public.owner_balance_component THEN
+    RETURN 0;
+  END IF;
+  IF v_source.allocation_basis = 'explicit_owner' THEN
+    RETURN CASE WHEN v_source.explicit_owner_person_id = p_owner_person_id THEN v_source.gross_signed_amount ELSE 0 END;
+  END IF;
+  -- Membership is sufficient for direction; the allocator performs the exact
+  -- cent split and all roster validation before writing a shared source.
+  IF EXISTS (SELECT 1 FROM public.property_owners AS roster
+    WHERE roster.organization_id = p_organization_id AND roster.property_id = v_source.property_id
+      AND roster.person_id = p_owner_person_id AND roster.ownership_percent > 0
+      AND roster.archived_at IS NULL AND roster.started_on <= v_source.event_date
+      AND (roster.ended_on IS NULL OR v_source.event_date < roster.ended_on)
+  ) THEN RETURN v_source.gross_signed_amount; END IF;
+  RETURN 0;
+END;
+$$;
+REVOKE ALL ON FUNCTION app_private.owner_distribution_source_cash(uuid, text, uuid, uuid)
+  FROM PUBLIC, anon, authenticated, service_role;
+
+-- A transfer is one economic event: retain its counterpart line whenever
+-- either line moves the selected owner's held cash.
+CREATE FUNCTION app_private.owner_distribution_source_required(
+  p_organization_id uuid, p_source_type text, p_source_line_id uuid,
+  p_owner_person_id uuid
+) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+  SELECT app_private.owner_distribution_source_cash(
+    p_organization_id, p_source_type, p_source_line_id, p_owner_person_id) <> 0
+  OR (p_source_type = 'owner_component_transfer' AND EXISTS (
+    SELECT 1 FROM public.owner_component_transfer_lines AS line
+    JOIN public.owner_component_transfer_lines AS counterpart
+      ON counterpart.organization_id = line.organization_id
+      AND counterpart.transfer_instruction_id = line.transfer_instruction_id
+    JOIN public.owner_component_transfer_instructions AS instruction
+      ON instruction.organization_id = line.organization_id AND instruction.id = line.transfer_instruction_id
+    WHERE line.organization_id = p_organization_id AND line.id = p_source_line_id
+      AND instruction.component = 'ips_held_owner_cash'
+      AND counterpart.owner_person_id = p_owner_person_id AND counterpart.signed_amount <> 0
+  ));
+$$;
+REVOKE ALL ON FUNCTION app_private.owner_distribution_source_required(uuid, text, uuid, uuid)
+  FROM PUBLIC, anon, authenticated, service_role;
+
 -- Materialize existing source facts only. Never synthesize an opening balance.
 -- Refresh after every allocation: legacy settlements depend on original costs,
 -- and reversals depend on the original source allocation. Any error is fatal.
 CREATE FUNCTION app_private.prepare_owner_distribution_sources(
   p_organization_id uuid, p_property_id uuid, p_currency public.currency_code,
-  p_start date, p_end date
+  p_start date, p_end date, p_owner_person_id uuid DEFAULT NULL
 ) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE v_day date; v_source record; v_count integer := 0;
@@ -34,7 +155,9 @@ BEGIN
     SELECT min(queue.event_date) INTO v_day
     FROM public.get_owner_event_allocation_queue(
       p_organization_id, p_property_id, p_currency, p_start, p_end
-    ) AS queue WHERE queue.allocation_state <> 'allocated';
+    ) AS queue WHERE queue.allocation_state <> 'allocated'
+      AND (p_owner_person_id IS NULL OR app_private.owner_distribution_source_required(
+        p_organization_id, queue.source_type, queue.source_line_id, p_owner_person_id));
     EXIT WHEN v_day IS NULL;
 
     SELECT queue.* INTO v_source
@@ -42,6 +165,8 @@ BEGIN
       p_organization_id, p_property_id, p_currency, v_day, v_day
     ) AS queue
     WHERE queue.allocation_state = 'pending'
+      AND (p_owner_person_id IS NULL OR app_private.owner_distribution_source_required(
+        p_organization_id, queue.source_type, queue.source_line_id, p_owner_person_id))
     ORDER BY CASE queue.source_type
       WHEN 'management_fee_occurrence' THEN 0 WHEN 'owner_paid_cost' THEN 0
       WHEN 'tenant_rent_receipt' THEN 1 WHEN 'owner_contribution' THEN 1
@@ -64,7 +189,7 @@ BEGIN
 END;
 $$;
 REVOKE ALL ON FUNCTION app_private.prepare_owner_distribution_sources(
-  uuid, uuid, public.currency_code, date, date
+  uuid, uuid, public.currency_code, date, date, uuid
 ) FROM PUBLIC, anon, authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.record_owner_distribution(
@@ -103,9 +228,12 @@ BEGIN
   -- payout. Stop at the last existing source that can consume held cash.
   SELECT greatest(p_distribution_date, max((item->>'event_date')::date))
   INTO v_obligation_end FROM pg_catalog.jsonb_array_elements(v_queue) AS item
-  WHERE item->>'source_type' IN (
-    'owner_distribution', 'owner_invoice_payment', 'reversal', 'owner_component_transfer'
-  );
+  WHERE (item->>'event_date')::date > p_distribution_date
+    AND CASE WHEN item->>'source_type' IN (
+      'owner_distribution', 'owner_invoice_payment', 'reversal', 'owner_component_transfer'
+    ) THEN app_private.owner_distribution_source_cash(p_organization_id,
+      item->>'source_type', (item->>'source_line_id')::uuid, p_owner_person_id) < 0
+      ELSE false END;
 
   -- All financial-month locks precede all lifecycle locks, including future
   -- obligations which must remain fully funded after a backdated payout.
@@ -167,12 +295,19 @@ BEGIN
     p_organization_id, p_property_id, p_currency, DATE '0001-01-01', DATE '9999-12-31'
   ) AS queue WHERE queue.allocation_state = 'pending'
     AND queue.source_type IN ('management_fee_occurrence', 'owner_paid_cost')
-    AND (queue.event_date <= v_obligation_end OR EXISTS (
+    AND (queue.event_date <= p_distribution_date OR EXISTS (
       SELECT 1 FROM public.owner_charge_cash_allocations AS cash
       JOIN public.owner_invoice_lines AS line
         ON line.organization_id = cash.organization_id AND line.id = cash.owner_invoice_line_id
       WHERE cash.organization_id = p_organization_id AND cash.property_id = p_property_id
         AND cash.allocation_date <= v_obligation_end AND line.source_id = queue.source_line_id
+        AND queue.source_type = CASE line.source_type
+          WHEN 'management_fee' THEN 'management_fee_occurrence' WHEN 'owner_expense' THEN 'owner_paid_cost' END
+        AND (cash.allocation_date <= p_distribution_date OR EXISTS (
+          SELECT 1 FROM public.owner_invoices AS invoice
+          WHERE invoice.organization_id = line.organization_id AND invoice.id = line.invoice_id
+            AND invoice.owner_person_id = p_owner_person_id
+        ))
     ))
     ORDER BY queue.event_date, queue.source_type, queue.source_line_id
   LOOP
@@ -193,7 +328,7 @@ BEGIN
   -- Atomic validation of later source obligations: later cash cannot fund the
   -- payout, and the payout cannot strand an existing later charge or reversal.
   PERFORM app_private.prepare_owner_distribution_sources(
-    p_organization_id, p_property_id, p_currency, p_distribution_date + 1, v_obligation_end);
+    p_organization_id, p_property_id, p_currency, p_distribution_date + 1, v_obligation_end, p_owner_person_id);
   PERFORM app_private.set_finance_branch_authority_context(
     p_organization_id, NULL, 'finance.record_payments', false);
   RETURN v_result;

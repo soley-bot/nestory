@@ -87,6 +87,28 @@ SELECT pg_temp.reconciliation_property(6,500,0);
 UPDATE public.property_owners SET ended_on = (date_trunc('month',current_date)-interval '1 month')::date+20
 WHERE property_id='d4590000-0000-4000-8001-000000000006';
 
+SELECT pg_temp.reconciliation_property(7,0,400);
+SELECT pg_temp.reconciliation_property(8,0,0);
+INSERT INTO public.people(id,organization_id,display_name)
+VALUES('d4590000-0000-4000-8000-000000000004','d4590000-0000-4000-8000-000000000001','Other owner');
+INSERT INTO public.person_roles(organization_id,person_id,role,status)
+VALUES('d4590000-0000-4000-8000-000000000001','d4590000-0000-4000-8000-000000000004','owner','active');
+-- The original fee and cash settlement precede the ownership change, so their
+-- original single-owner snapshots remain unambiguous.
+UPDATE public.property_owners SET ended_on=(date_trunc('month',current_date)-interval '1 month')::date+9
+WHERE property_id IN ('d4590000-0000-4000-8001-000000000007','d4590000-0000-4000-8001-000000000008');
+INSERT INTO public.property_owners(organization_id,property_id,person_id,ownership_percent,started_on,is_primary)
+SELECT 'd4590000-0000-4000-8000-000000000001',p.id,o.id,50,
+  (date_trunc('month',current_date)-interval '1 month')::date+10,o.id='d4590000-0000-4000-8000-000000000003'::uuid
+FROM public.properties p CROSS JOIN public.people o
+WHERE p.id IN ('d4590000-0000-4000-8001-000000000007','d4590000-0000-4000-8001-000000000008')
+  AND o.id IN ('d4590000-0000-4000-8000-000000000003','d4590000-0000-4000-8000-000000000004');
+INSERT INTO public.property_withdrawals(organization_id,property_id,owner_person_id,withdrawal_date,amount,currency,reference,idempotency_key,created_by)
+SELECT p.organization_id,p.id,'d4590000-0000-4000-8000-000000000004',
+  (date_trunc('month',current_date)-interval '1 month')::date+21,9999,'USD','Other owner pending payout',
+  'odr-other-owner-'||p.code,'d4590000-0000-4000-8000-000000000010'
+FROM public.properties p WHERE p.id IN ('d4590000-0000-4000-8001-000000000007','d4590000-0000-4000-8001-000000000008');
+
 SELECT is((SELECT count(*) FROM public.owner_component_movements WHERE organization_id='d4590000-0000-4000-8000-000000000001'),0::bigint,
   'legacy fixtures begin without owner component movements');
 
@@ -99,6 +121,19 @@ LANGUAGE sql AS $$
 $$;
 SELECT set_config('request.jwt.claim.sub','d4590000-0000-4000-8000-000000000010',true);
 SET LOCAL ROLE authenticated;
+
+SELECT lives_ok($$SELECT pg_temp.payout(8,200,'odr-only-other-owner-future')$$,
+  'another owner future unfunded payout does not block this owner historical payout');
+SELECT lives_ok($$SELECT pg_temp.payout(7,200,'odr-mixed-owner-future')$$,
+  'another owner intervening unfunded payout is excluded while this owner later obligation stays funded');
+SELECT is((SELECT sum(signed_amount) FROM public.owner_component_movements
+  WHERE property_id='d4590000-0000-4000-8001-000000000007'
+    AND owner_person_id='d4590000-0000-4000-8000-000000000003' AND component='ips_held_owner_cash'),300::numeric,
+  'selected owner cash includes its own later 400 obligation only');
+SELECT is((SELECT count(*) FROM public.owner_component_movements
+  WHERE property_id IN ('d4590000-0000-4000-8001-000000000007','d4590000-0000-4000-8001-000000000008')
+    AND owner_person_id='d4590000-0000-4000-8000-000000000004'),0::bigint,
+  'unrelated owner future payouts remain untouched');
 
 SELECT lives_ok($$SELECT pg_temp.payout(6,200,'odr-unrelated-future-credit')$$,
   'an unrelated future credit with an incomplete roster does not block a funded historical payout');
