@@ -36,6 +36,7 @@ import {
 import { LeaseDetailView } from "@/features/leases/components/lease-detail-view";
 import { LeasePaymentResolutionView } from "@/features/leases/components/lease-payment-resolution-view";
 import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
+import { FeePaymentDateModal } from "@/features/leases/components/fee-payment-date-modal";
 import { LeaseForm } from "@/features/leases/components/lease-form";
 import { findConfiguredAccountId } from "@/features/finance-accounts/finance-account-selection";
 import {
@@ -151,6 +152,7 @@ export function LeaseDetailScreen({
   const [historicalRentCorrectionOpen, setHistoricalRentCorrectionOpen] =
     useState(false);
   const [correctionMode, setCorrectionMode] = useState<"rent" | "management_fee">("rent");
+  const [feePaymentDateOpen, setFeePaymentDateOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const pendingPaymentReceiptRef = useRef<TenantPaymentReceiptResult | null>(
     null,
@@ -237,6 +239,7 @@ export function LeaseDetailScreen({
               setStatusMessage(null);
               setHistoricalRentCorrectionOpen(true);
             }}
+            onCorrectFeePaymentDate={() => { setStatusMessage(null); setFeePaymentDateOpen(true); }}
             onRestore={() => openDrawer({ mode: "restore" })}
             onScheduleTerm={setTermChange}
             permissions={permissions}
@@ -467,6 +470,8 @@ export function LeaseDetailScreen({
           }}
         />
       ) : null}
+
+      {feePaymentDateOpen ? <FeePaymentDateModal leaseId={lease.id} onClose={() => setFeePaymentDateOpen(false)} onSuccess={(message) => { setStatusMessage(message); setFeePaymentDateOpen(false); }} /> : null}
 
       {uploadOpen ? (
         <Modal
@@ -742,6 +747,7 @@ function LeaseHeaderActions({
   onArchive,
   onCorrectHistoricalRent,
   onCorrectManagementFee,
+  onCorrectFeePaymentDate,
   onEditDraft,
   onLifecycleChange,
   onRestore,
@@ -754,6 +760,7 @@ function LeaseHeaderActions({
   onArchive: () => void;
   onCorrectHistoricalRent: () => void;
   onCorrectManagementFee: () => void;
+  onCorrectFeePaymentDate: () => void;
   onEditDraft: () => void;
   onLifecycleChange: (transition: LeaseTransition) => void;
   onRestore: () => void;
@@ -794,6 +801,7 @@ function LeaseHeaderActions({
             <>
               <DropdownMenuItem onSelect={onCorrectHistoricalRent}>Correct historical rent</DropdownMenuItem>
               <DropdownMenuItem onSelect={onCorrectManagementFee}>Correct management fee</DropdownMenuItem>
+              <DropdownMenuItem onSelect={onCorrectFeePaymentDate}>Correct fee payment date</DropdownMenuItem>
             </>
           ) : null}
           {permissions.canClose && lease.statusValue === "active" ? (
@@ -832,6 +840,7 @@ function LeaseHeaderActions({
           <>
             <Button onClick={onCorrectHistoricalRent} variant="outline">Correct historical rent</Button>
             <Button onClick={onCorrectManagementFee} variant="outline">Correct management fee</Button>
+            <Button onClick={onCorrectFeePaymentDate} variant="outline">Correct fee payment date</Button>
           </>
         ) : null}
         {permissions.canArchive ? (
@@ -880,6 +889,7 @@ function LeaseHeaderActions({
               <>
                 <DropdownMenuItem onSelect={onCorrectHistoricalRent}>Correct historical rent</DropdownMenuItem>
                 <DropdownMenuItem onSelect={onCorrectManagementFee}>Correct management fee</DropdownMenuItem>
+              <DropdownMenuItem onSelect={onCorrectFeePaymentDate}>Correct fee payment date</DropdownMenuItem>
               </>
             ) : null}
             {permissions.canClose && lease.statusValue === "active" ? (
