@@ -81,8 +81,19 @@ UPDATE public.properties SET branch_id='d4600000-0000-4000-8000-000000000021' WH
 SELECT set_config('app.property_branch_assignment_context','',true);
 INSERT INTO public.financial_month_locks(organization_id,branch_id,month_start,is_locked,reason,locked_by,locked_at)
 SELECT 'd4600000-0000-4000-8000-000000000001','d4600000-0000-4000-8000-000000000022',date_trunc('month',day)::date,true,'Other branch lock','d4600000-0000-4000-8000-000000000010',now() FROM auto_cash_fixture;
+-- Fixture-only source dates exercise the pooled cash guard independently of UI.
+SELECT app_private.set_finance_settlement_context(true);
+UPDATE public.finance_receipts SET received_date=(SELECT day+40 FROM auto_cash_fixture)
+ WHERE property_id=(SELECT property_id FROM auto_cash_fixture);
+SELECT is((app_private.run_deferred_owner_cash((SELECT (day+16)::timestamp AT TIME ZONE 'UTC' FROM auto_cash_fixture))->>'failed'),'1',
+ 'future active rent cannot fund a scheduled settlement');
+UPDATE public.finance_receipts SET received_date=(SELECT day FROM auto_cash_fixture)
+ WHERE property_id=(SELECT property_id FROM auto_cash_fixture);
+INSERT INTO public.finance_receipts(organization_id,property_id,received_date,amount,payer_label,reconciliation_source_id,settlement_contract_version)
+SELECT 'd4600000-0000-4000-8000-000000000001',property_id,day+40,10,'Non-rent future receipt',source_id,'income_settlement.v1' FROM auto_cash_fixture;
+SELECT app_private.set_finance_settlement_context(false);
 SELECT is((app_private.run_deferred_owner_cash((SELECT (day+16)::timestamp AT TIME ZONE 'UTC' FROM auto_cash_fixture))->>'failed'),'0',
- 'delayed scheduled settlement is not blocked by another branch lock');
+ 'delayed settlement ignores another branch lock and unrelated future non-rent receipts');
 SELECT is((SELECT sum(amount) FROM public.owner_charge_cash_allocations WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),40::numeric,
  'scheduled settlement applies exactly the outstanding fee');
 SELECT is((SELECT min(allocation_date) FROM public.owner_charge_cash_allocations WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),

@@ -68,9 +68,15 @@ BEGIN
    PERFORM app_private.lock_open_property_financial_month(item.organization_id,item.property_id,'USD',business_day);
    -- The legacy pooled balance is not date-scoped. Fail closed if it could
    -- include a receipt that has not occurred at this processing date.
-   IF EXISTS (SELECT 1 FROM public.finance_receipts r
-     WHERE r.organization_id=item.organization_id AND r.property_id=item.property_id
-       AND r.received_date>business_day AND r.amount>0) THEN
+   IF EXISTS (SELECT 1 FROM public.tenant_invoice_payment_allocations a
+     JOIN public.tenant_invoice_lines l ON l.organization_id=a.organization_id AND l.id=a.invoice_line_id
+     JOIN public.tenant_invoices i ON i.organization_id=a.organization_id AND i.id=a.invoice_id
+     JOIN public.finance_receipts r ON r.organization_id=a.organization_id AND r.id=a.finance_receipt_id
+     WHERE a.organization_id=item.organization_id AND i.property_id=item.property_id
+       AND l.line_type='rent' AND r.received_date>business_day
+       AND r.reversal_of_id IS NULL AND NOT EXISTS (
+         SELECT 1 FROM public.finance_receipts reversal
+         WHERE reversal.organization_id=r.organization_id AND reversal.reversal_of_id=r.id)) THEN
     RAISE EXCEPTION 'future_cash_source_requires_review' USING ERRCODE='23514';
    END IF;
    PERFORM set_config('app.deferred_owner_cash_only','on',true);
