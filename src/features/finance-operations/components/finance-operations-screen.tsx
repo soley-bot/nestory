@@ -4358,31 +4358,35 @@ function WithdrawalForm({
       />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Amount">
-          <NumberInput
-            max={position.availableWithdrawal}
-            name="amount"
-            aria-describedby="distribution-amount-help"
-            value={amount}
-            onChange={(event) => setAmount(event.target.value)}
-            required
-          />
+        <div>
+          <Field label="Amount">
+            <NumberInput
+              max={position.availableWithdrawal}
+              name="amount"
+              aria-describedby="distribution-amount-help"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+              required
+            />
+          </Field>
           <p id="distribution-amount-help" className="mt-1 text-xs text-muted-foreground">
             Partial payouts are allowed. The unpaid balance stays in the owner account.
           </p>
-        </Field>
-        <Field label="Payment date">
-          <DatePickerField
-            defaultValue={withdrawalDate}
-            name="withdrawalDate"
-            onValueChange={setWithdrawalDate}
-            aria-describedby="distribution-date-help"
-            required
-          />
+        </div>
+        <div>
+          <Field label="Payment date">
+            <DatePickerField
+              defaultValue={withdrawalDate}
+              name="withdrawalDate"
+              onValueChange={setWithdrawalDate}
+              aria-describedby="distribution-date-help"
+              required
+            />
+          </Field>
           <p id="distribution-date-help" className="mt-1 text-xs text-muted-foreground">
             Use the actual payment date, not the rent month. Available cash is checked on this date.
           </p>
-        </Field>
+        </div>
         <Field label="Reference">
           <Input
             name="reference"
