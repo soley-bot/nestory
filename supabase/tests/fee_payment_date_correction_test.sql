@@ -185,6 +185,23 @@ SELECT ok(NOT (public.preview_fee_payment_date_correction(
 SELECT is((SELECT count(*) FROM public.owner_charge_cash_allocations
  WHERE property_id='d4590000-0000-4000-8001-000000000004'),1::bigint,
  'failed dated balance preview leaves original cash untouched');
+UPDATE fee_date_state SET allocation_id=(SELECT c.replacement_allocation_id
+ FROM public.fee_payment_date_corrections c WHERE c.id=(fee_date_state.result->>'correctionId')::uuid)
+WHERE result IS NOT NULL;
+UPDATE fee_date_state SET preview=public.preview_fee_payment_date_correction(
+ 'd4590000-0000-4000-8000-000000000001',allocation_id,allocation_date+5)
+WHERE result IS NOT NULL;
+SELECT ok((SELECT (preview->>'canApply')::boolean FROM fee_date_state WHERE result IS NOT NULL),
+ 'a corrected settlement can later be moved to another funded earlier date');
+SELECT lives_ok($$SELECT public.correct_fee_payment_date(
+ 'd4590000-0000-4000-8000-000000000001',allocation_id,allocation_date+5,
+ 'Second source-backed date correction',preview->>'previewHash','fee-date-correct-again')
+ FROM fee_date_state WHERE result IS NOT NULL$$,'correction chains preserve reusable settlement history');
+SELECT is((SELECT sum(signed_amount) FROM public.owner_component_movements
+ WHERE property_id='d4590000-0000-4000-8001-000000000001' AND component='ips_held_owner_cash'),900::numeric,
+ 'a second correction does not create additional cash');
+SELECT is((SELECT reason FROM public.fee_payment_date_corrections WHERE idempotency_key='fee-date-correct-again'),
+ 'Second source-backed date correction','staff correction reason remains readable in audit history');
 RESET ROLE;
 SELECT * FROM finish();
 ROLLBACK;
