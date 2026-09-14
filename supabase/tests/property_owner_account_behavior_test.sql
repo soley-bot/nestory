@@ -402,9 +402,9 @@ SELECT results_eq(
   $$,
   $$VALUES (
     850.00::numeric, 85.00::numeric, 0.00::numeric, 0.00::numeric,
-    765.00::numeric, 765.00::numeric, 0.00::numeric, 765.00::numeric
+    765.00::numeric, 850.00::numeric, 85.00::numeric, 850.00::numeric
   )$$,
-  'property position separates owner balance, IPS-held cash, and safe withdrawal'
+  'prepaid rent stays held while the future management fee remains outstanding'
 );
 
 SELECT set_config(
@@ -477,7 +477,7 @@ SELECT results_eq(
     CROSS JOIN owner_account_state AS state
     WHERE position.property_id = state.through_property_id
   $$,
-  $$VALUES (365.00::numeric, 365.00::numeric, 0.00::numeric, 365.00::numeric)$$,
+  $$VALUES (365.00::numeric, 450.00::numeric, 85.00::numeric, 450.00::numeric)$$,
   'withdrawal updates the property running balance and held cash together'
 );
 
@@ -657,7 +657,7 @@ SELECT results_eq(
     CROSS JOIN owner_account_state AS state
     WHERE position.property_id = state.direct_property_id
   $$,
-  $$VALUES (1225.00::numeric, 365.00::numeric, 65.00::numeric, 365.00::numeric)$$,
+  $$VALUES (1225.00::numeric, 450.00::numeric, 150.00::numeric, 450.00::numeric)$$,
   'direct-owner collection adds owner income without adding to IPS-held cash'
 );
 
@@ -723,7 +723,7 @@ SELECT results_eq(
     CROSS JOIN owner_account_state AS state
     WHERE position.property_id = state.direct_property_id
   $$,
-  $$VALUES (365.00::numeric, 0.00::numeric, 365.00::numeric)$$,
+  $$VALUES (450.00::numeric, 85.00::numeric, 450.00::numeric)$$,
   'owner payment settles IPS without pretending IPS holds owner rent cash'
 );
 
