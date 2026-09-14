@@ -56,10 +56,35 @@ SELECT lives_ok($$SELECT public.record_tenant_invoice_payment(
 RESET ROLE;
 SELECT is((SELECT count(*) FROM public.owner_charge_cash_allocations WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),0::bigint,
  'recording historical rent never settles a fee before its recognition date');
-SELECT is(app_private.apply_available_owner_cash('d4600000-0000-4000-8000-000000000001',
- (SELECT property_id FROM auto_cash_fixture),(SELECT day+15 FROM auto_cash_fixture),'d4600000-0000-4000-8000-000000000010'),40::numeric,
- 'automatic settlement still works on the recognition date despite a later invoice issue date');
+SELECT is((SELECT count(*) FROM app_private.deferred_owner_cash WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),1::bigint,
+ 'future charge has a durable deferred settlement request');
+SELECT set_config('request.jwt.claim.sub','',true);
+SELECT is((app_private.run_deferred_owner_cash((SELECT day::timestamp AT TIME ZONE 'UTC' FROM auto_cash_fixture))->>'failed'),'0',
+ 'scheduled worker can run before eligibility without allocating early');
+SELECT is((SELECT count(*) FROM public.owner_charge_cash_allocations WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),0::bigint,
+ 'scheduled worker never pays before recognition');
+SELECT set_config('request.jwt.claim.sub','d4600000-0000-4000-8000-000000000010',true);
+SELECT public.set_financial_month_lock('d4600000-0000-4000-8000-000000000001',(SELECT day FROM auto_cash_fixture),true,'Test deferred settlement lock');
+SELECT set_config('request.jwt.claim.sub','',true);
+SELECT is((app_private.run_deferred_owner_cash((SELECT (day+15)::timestamp AT TIME ZONE 'UTC' FROM auto_cash_fixture))->>'failed'),'1',
+ 'scheduled settlement refuses a locked period');
+SELECT is((SELECT count(*) FROM public.owner_charge_cash_allocations WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),0::bigint,
+ 'locked-period failure leaves financial records unchanged');
+SELECT set_config('request.jwt.claim.sub','d4600000-0000-4000-8000-000000000010',true);
+SELECT public.set_financial_month_lock('d4600000-0000-4000-8000-000000000001',(SELECT day FROM auto_cash_fixture),false,'Unlock deferred settlement test');
+SELECT set_config('request.jwt.claim.sub','',true);
+SELECT is((app_private.run_deferred_owner_cash((SELECT (day+15)::timestamp AT TIME ZONE 'UTC' FROM auto_cash_fixture))->>'failed'),'0',
+ 'scheduled worker settles the due charge without a user transaction');
+SELECT is((SELECT sum(amount) FROM public.owner_charge_cash_allocations WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),40::numeric,
+ 'scheduled settlement applies exactly the outstanding fee');
 SELECT is((SELECT min(allocation_date) FROM public.owner_charge_cash_allocations WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),
- (SELECT day+15 FROM auto_cash_fixture),'automatic settlement retains the eligible date');
+ (SELECT day+15 FROM auto_cash_fixture),'scheduled settlement uses its eligible processing date');
+SELECT is((SELECT count(*) FROM app_private.deferred_owner_cash WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),0::bigint,
+ 'fully settled charge leaves the queue');
+SELECT app_private.run_deferred_owner_cash((SELECT (day+15)::timestamp AT TIME ZONE 'UTC' FROM auto_cash_fixture));
+SELECT is((SELECT count(*) FROM public.owner_charge_cash_allocations WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),1::bigint,
+ 'repeated scheduled run does not duplicate settlement');
+SELECT ok(NOT has_function_privilege('authenticated','app_private.run_deferred_owner_cash(timestamptz)','EXECUTE'),
+ 'browser users cannot invoke the scheduler');
 SELECT * FROM finish();
 ROLLBACK;
