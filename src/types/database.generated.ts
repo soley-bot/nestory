@@ -961,6 +961,103 @@ export type Database = {
           },
         ]
       }
+      fee_payment_date_corrections: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          id: string
+          idempotency_key: string
+          new_date: string
+          old_date: string
+          organization_id: string
+          original_allocation_id: string
+          payload_hash: string
+          preview_hash: string
+          property_id: string
+          reason: string
+          replacement_allocation_id: string
+          reversal_allocation_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by: string
+          id?: string
+          idempotency_key: string
+          new_date: string
+          old_date: string
+          organization_id: string
+          original_allocation_id: string
+          payload_hash: string
+          preview_hash: string
+          property_id: string
+          reason: string
+          replacement_allocation_id: string
+          reversal_allocation_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          id?: string
+          idempotency_key?: string
+          new_date?: string
+          old_date?: string
+          organization_id?: string
+          original_allocation_id?: string
+          payload_hash?: string
+          preview_hash?: string
+          property_id?: string
+          reason?: string
+          replacement_allocation_id?: string
+          reversal_allocation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fee_payment_date_corrections_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fee_payment_date_corrections_organization_id_original_allo_fkey"
+            columns: ["organization_id", "original_allocation_id"]
+            isOneToOne: false
+            referencedRelation: "owner_charge_cash_allocations"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fee_payment_date_corrections_organization_id_property_id_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fee_payment_date_corrections_organization_id_property_id_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "fee_payment_date_corrections_organization_id_replacement_a_fkey"
+            columns: ["organization_id", "replacement_allocation_id"]
+            isOneToOne: false
+            referencedRelation: "owner_charge_cash_allocations"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "fee_payment_date_corrections_organization_id_reversal_allo_fkey"
+            columns: ["organization_id", "reversal_allocation_id"]
+            isOneToOne: false
+            referencedRelation: "owner_charge_cash_allocations"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       finance_account_category_links: {
         Row: {
           account_id: string
@@ -10785,6 +10882,17 @@ export type Database = {
         }
         Returns: string
       }
+      correct_fee_payment_date: {
+        Args: {
+          p_allocation_id: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_payment_date: string
+          p_preview_hash: string
+          p_reason: string
+        }
+        Returns: Json
+      }
       correct_historical_rent:
         | {
             Args: {
@@ -12031,6 +12139,10 @@ export type Database = {
         }
         Returns: Json
       }
+      list_fee_payment_date_candidates: {
+        Args: { p_lease_id: string; p_organization_id: string }
+        Returns: Json
+      }
       list_paid_cost_evidence_orphans: {
         Args: { p_grace_seconds?: number }
         Returns: {
@@ -12098,6 +12210,14 @@ export type Database = {
           expires_at: string
           resend_available_at: string
         }[]
+      }
+      preview_fee_payment_date_correction: {
+        Args: {
+          p_allocation_id: string
+          p_organization_id: string
+          p_payment_date: string
+        }
+        Returns: Json
       }
       preview_historical_rent_correction:
         | {
