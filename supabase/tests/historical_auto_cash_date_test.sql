@@ -73,12 +73,20 @@ SELECT is((SELECT count(*) FROM public.owner_charge_cash_allocations WHERE prope
 SELECT set_config('request.jwt.claim.sub','d4600000-0000-4000-8000-000000000010',true);
 SELECT public.set_financial_month_lock('d4600000-0000-4000-8000-000000000001',(SELECT day FROM auto_cash_fixture),false,'Unlock deferred settlement test');
 SELECT set_config('request.jwt.claim.sub','',true);
-SELECT is((app_private.run_deferred_owner_cash((SELECT (day+15)::timestamp AT TIME ZONE 'UTC' FROM auto_cash_fixture))->>'failed'),'0',
- 'scheduled worker settles the due charge without a user transaction');
+INSERT INTO public.organization_branches(id,organization_id,name,code,status) VALUES
+ ('d4600000-0000-4000-8000-000000000021','d4600000-0000-4000-8000-000000000001','Settlement branch','HAC-A','active'),
+ ('d4600000-0000-4000-8000-000000000022','d4600000-0000-4000-8000-000000000001','Other branch','HAC-B','active');
+SELECT set_config('app.property_branch_assignment_context',(SELECT capability_token FROM app_private.property_branch_assignment_context_capability WHERE singleton),true);
+UPDATE public.properties SET branch_id='d4600000-0000-4000-8000-000000000021' WHERE id=(SELECT property_id FROM auto_cash_fixture);
+SELECT set_config('app.property_branch_assignment_context','',true);
+INSERT INTO public.financial_month_locks(organization_id,branch_id,month_start,is_locked,reason,locked_by,locked_at)
+SELECT 'd4600000-0000-4000-8000-000000000001','d4600000-0000-4000-8000-000000000022',date_trunc('month',day)::date,true,'Other branch lock','d4600000-0000-4000-8000-000000000010',now() FROM auto_cash_fixture;
+SELECT is((app_private.run_deferred_owner_cash((SELECT (day+16)::timestamp AT TIME ZONE 'UTC' FROM auto_cash_fixture))->>'failed'),'0',
+ 'delayed scheduled settlement is not blocked by another branch lock');
 SELECT is((SELECT sum(amount) FROM public.owner_charge_cash_allocations WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),40::numeric,
  'scheduled settlement applies exactly the outstanding fee');
 SELECT is((SELECT min(allocation_date) FROM public.owner_charge_cash_allocations WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),
- (SELECT day+15 FROM auto_cash_fixture),'scheduled settlement uses its eligible processing date');
+ (SELECT day+16 FROM auto_cash_fixture),'delayed settlement records actual processing date rather than inventing past cash movement');
 SELECT is((SELECT count(*) FROM app_private.deferred_owner_cash WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),0::bigint,
  'fully settled charge leaves the queue');
 SELECT app_private.run_deferred_owner_cash((SELECT (day+15)::timestamp AT TIME ZONE 'UTC' FROM auto_cash_fixture));

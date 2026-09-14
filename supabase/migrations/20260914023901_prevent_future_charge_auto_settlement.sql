@@ -62,10 +62,10 @@ BEGIN
  LOOP
   business_day := (p_clock AT TIME ZONE item.operational_timezone)::date;
   BEGIN
-   PERFORM app_private.lock_property_financial_month(item.organization_id,item.property_id,'USD',business_day);
-   IF app_private.is_financial_month_locked(item.organization_id,business_day) THEN
-    RAISE EXCEPTION 'financial_month_locked' USING ERRCODE='55000';
-   END IF;
+   -- Recognition is already recorded on the charge. This is a new cash
+   -- settlement, dated when it runs; never invent a past cash payment after
+   -- an outage or import, or silently reopen an earlier accounting period.
+   PERFORM app_private.lock_open_property_financial_month(item.organization_id,item.property_id,'USD',business_day);
    -- The legacy pooled balance is not date-scoped. Fail closed if it could
    -- include a receipt that has not occurred at this processing date.
    IF EXISTS (SELECT 1 FROM public.finance_receipts r
