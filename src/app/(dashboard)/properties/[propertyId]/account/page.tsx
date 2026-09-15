@@ -57,6 +57,7 @@ export default async function PropertyAccountPage({
     <OwnerBalanceLedger
       canAllocate={context.capabilities.canOperateFinance}
       canCorrect={context.capabilities.canCorrectFinance}
+      canRecordOwnerCash={context.capabilities.canOperateFinance}
       canTransfer={context.role === "super_admin"}
       canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       data={data}

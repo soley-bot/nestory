@@ -246,6 +246,8 @@ export type PropertyFinancePosition = {
 
 export type PropertyAccountEntry = {
   amount: number;
+  balanceEffect?: number;
+  sourceWithdrawalId?: string | null;
   category: string;
   createdAt: string;
   date: string;

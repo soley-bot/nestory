@@ -1,3 +1,4 @@
+import { OwnerContributionControl, OwnerDistributionDateControl } from "@/features/owner-balances/components/owner-cash-controls";
 import { assignReportSourceAction, calculateReportMonthAction } from "@/features/reports/remediation-actions";
 import { reportReturnHref, withReportReturn } from "@/features/reports/report-return";
 import { randomUUID } from "node:crypto";
@@ -40,6 +41,7 @@ const PROPERTY_ACCOUNT_PAGE_SIZE = 8;
 
 type OwnerBalanceLedgerProps = {
   canAllocate: boolean;
+  canRecordOwnerCash?: boolean;
   canGenerate?: boolean;
   canCorrect: boolean;
   canTransfer: boolean;
@@ -65,6 +67,7 @@ type OwnerBalanceLedgerProps = {
 
 export function OwnerBalanceLedger({
   canAllocate,
+  canRecordOwnerCash = false,
   canGenerate = false,
   canCorrect,
   canTransfer,
@@ -85,6 +88,8 @@ export function OwnerBalanceLedger({
   if (propertyAccount && selectedPropertyId) {
     return (
       <PropertyAccountLedger
+        canRecordOwnerCash={canRecordOwnerCash}
+        canCorrect={canCorrect}
         canViewPropertyRecords={canViewPropertyRecords}
         data={data}
         activityFilter={propertyAccount.activityFilter}
@@ -785,6 +790,8 @@ function registerNextAction(
 }
 
 function PropertyAccountLedger({
+  canRecordOwnerCash,
+  canCorrect,
   activityFilter,
   canViewPropertyRecords,
   data,
@@ -796,6 +803,8 @@ function PropertyAccountLedger({
   selectedMonth,
   selectedOwnerPersonId,
 }: {
+  canRecordOwnerCash: boolean;
+  canCorrect: boolean;
   activityFilter: PropertyAccountActivityFilter;
   canViewPropertyRecords: boolean;
   data: OwnerBalanceData;
@@ -956,6 +965,7 @@ function PropertyAccountLedger({
           </section>
         ) : (
           <>
+            {selectedOwnerPersonId ? <OwnerContributionControl canRecordOwnerCash={canRecordOwnerCash} propertyId={propertyId} ownerPersonId={selectedOwnerPersonId} ownerLabel={data.ownerOptions.find(option => option.id === selectedOwnerPersonId)?.label ?? "Selected owner"} /> : null}
             <section
               aria-label="Owner cash position"
               className="grid grid-cols-1 divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0"
@@ -1093,6 +1103,7 @@ function PropertyAccountLedger({
                             </td>
                             <td className="px-3 py-2 font-medium">
                               {propertyAccountSourceLabel(source.sourceType)}
+                              {source.sourceType === "owner_distribution" && !data.sources.some(item => item.reversalOfAllocationSetId === source.allocationSetId) ? <OwnerDistributionDateControl canCorrectFinance={canCorrect} propertyId={propertyId} withdrawalId={source.sourceLineId} originalDate={source.eventDate} amount={source.allocatedGrossSignedAmount.replace(/^-/, "")} /> : null}
                             </td>
                             <td className="px-3 py-2 text-muted-foreground">
                               {propertyAccountImpactLabel(source)}

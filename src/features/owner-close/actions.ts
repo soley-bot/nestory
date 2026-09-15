@@ -193,7 +193,7 @@ async function completeOwnerStatementPublication(
       format: "pdf" as const,
     },
     {
-      bytes: buildOwnerStatementXlsx(model),
+      bytes: buildOwnerStatementXlsx(model, presentation),
       contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       format: "xlsx" as const,
     },

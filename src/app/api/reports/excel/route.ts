@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 
   const searchParams = Object.fromEntries(url.searchParams);
   const viewQuery = parseReportSearchParams(searchParams);
-  const excel = await getReportExcel(membership.organizationId, viewQuery);
+  const excel = await getReportExcel(membership.organizationId, viewQuery, membership.organizationName);
 
   if (excel.validation) {
     return textValidation(excel.validation);

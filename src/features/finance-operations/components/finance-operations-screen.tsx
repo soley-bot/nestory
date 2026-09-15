@@ -84,6 +84,7 @@ import {
   getInvoiceStatusPresentation,
   maintenanceStatusLabel,
 } from "@/features/finance-operations/finance-operations-view-model";
+import { OwnerContributionControl, OwnerDistributionDateControl } from "@/features/owner-balances/components/owner-cash-controls";
 import { sortPropertyAccountEntriesNewestFirst } from "@/features/finance-operations/property-account";
 import {
   getBusinessDateValue,
@@ -853,6 +854,8 @@ function getScreen(
       body: (
         <PropertyAccountView
           entries={props.accountEntries}
+          canRecordOwnerCash={props.canRecordOwnerCash}
+          canCorrectFinance={props.canCorrectFinance}
           onRecordWithdrawal={
             props.canRecordOwnerCash &&
             position?.ownerPersonId &&
@@ -2744,10 +2747,14 @@ function OwnerBalanceDetails({
 }
 
 function PropertyAccountView({
+  canRecordOwnerCash,
+  canCorrectFinance,
   entries,
   onRecordWithdrawal,
   position,
 }: {
+  canRecordOwnerCash: boolean;
+  canCorrectFinance: boolean;
   entries: FinanceOperationsData["accountEntries"];
   onRecordWithdrawal?: () => void;
   position: PropertyFinancePosition | null;
@@ -2769,7 +2776,8 @@ function PropertyAccountView({
         className="grid shrink-0 grid-cols-1 overflow-hidden rounded-xl border border-border/80 bg-card pb-5 pt-5 shadow-sm sm:grid-cols-2"
       >
         <AccountPositionItem
-          description="Income minus owner costs and distributions"
+          action={position.ownerPersonId ? <OwnerContributionControl canRecordOwnerCash={canRecordOwnerCash} propertyId={position.propertyId} ownerPersonId={position.ownerPersonId} ownerLabel={position.ownerLabel} /> : undefined}
+          description="Income and contributions minus owner costs and distributions"
           label="Owner balance"
           value={<Money amount={position.runningBalance} />}
         />
@@ -2835,6 +2843,7 @@ function PropertyAccountView({
                       <p className="font-medium text-foreground">
                         {entry.label}
                       </p>
+                      {entry.sourceWithdrawalId ? <OwnerDistributionDateControl canCorrectFinance={canCorrectFinance} propertyId={position.propertyId} withdrawalId={entry.sourceWithdrawalId} originalDate={entry.date} amount={entry.amount.toFixed(2)} /> : null}
                       {entry.note ? (
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {entry.note}
@@ -2876,7 +2885,7 @@ function PropertyAccountView({
 }
 
 function getAccountEntryBalanceEffect(entry: PropertyAccountEntry) {
-  return entry.category === "rent_income" ? entry.amount : -entry.amount;
+  return entry.balanceEffect ?? (entry.category === "rent_income" || entry.category === "owner_contribution" ? entry.amount : -entry.amount);
 }
 
 function AccountPositionItem({

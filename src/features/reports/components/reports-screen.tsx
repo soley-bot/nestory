@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ReportResultsTable } from "@/features/reports/components/report-results-table";
+import { ProfitLossDetail } from "@/features/reports/components/profit-loss-detail";
 import { ReportsFilters } from "@/features/reports/components/reports-filters";
 import { getReportCatalogItem, reportCatalog } from "@/features/reports/report-catalog";
 import { buildReportQueryParams } from "@/features/reports/reports.filters";
@@ -144,6 +145,7 @@ export function ReportBuilderScreen({
             reportRowCount={reportRowCount}
             viewQuery={viewQuery}
           />
+          {trustedReport.unitProfitLossLines ? <ProfitLossDetail key={`${queryKey}-detail`} lines={trustedReport.unitProfitLossLines} /> : null}
         </div>
       </div>
     </WorkspacePage>

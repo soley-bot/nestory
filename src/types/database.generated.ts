@@ -10919,6 +10919,16 @@ export type Database = {
             }
             Returns: Json
           }
+      correct_owner_distribution_date: {
+        Args: {
+          p_distribution_date: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+          p_withdrawal_id: string
+        }
+        Returns: Json
+      }
       correct_tenant_invoice: {
         Args: {
           p_action: string

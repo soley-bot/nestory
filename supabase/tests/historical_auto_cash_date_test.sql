@@ -37,7 +37,7 @@ BEGIN
  VALUES(invoice,org,'HAC-TEN',prop,lease,term,past,(past+interval '1 month - 1 day')::date,past,past+5,'through_ips','individual',owner_id,'Tenant',500,actor);
  PERFORM set_config('app.rent_generation_context','lease-derived-v1',true);
  INSERT INTO public.finance_income_items(id,organization_id,property_id,payer_label,due_date,amount_due,income_type,lease_id) VALUES(income,org,prop,'Tenant',past+5,500,'rent',lease);
- INSERT INTO public.tenant_invoice_lines(id,organization_id,invoice_id,income_item_id,line_type,customer_label,amount,sort_order,property_id,currency,recognized_on,created_by) VALUES(line,org,invoice,income,'rent','Rent',500,1,prop,'USD',past,actor);
+ INSERT INTO public.tenant_invoice_lines(id,organization_id,invoice_id,income_item_id,line_type,customer_label,description,amount,sort_order,property_id,currency,recognized_on,created_by) VALUES(line,org,invoice,income,'rent','Rent','Monthly rental for the garden apartment',500,1,prop,'USD',past,actor);
  INSERT INTO public.management_fee_occurrences(organization_id,property_id,lease_id,tenant_invoice_id,billing_term_id,fee_date,amount,fee_mode,fee_value,created_by)
  VALUES(org,prop,lease,invoice,term,past+20,40,'flat',40,actor);
  -- A later document issue date must not block a charge recognized earlier.
@@ -54,6 +54,14 @@ SELECT lives_ok($$SELECT public.record_tenant_invoice_payment(
  jsonb_build_array(jsonb_build_object('lineId',line_id,'amount',500)),'historical-auto-cash-payment') FROM auto_cash_fixture$$,
  'historical rent can be recorded when a later fee already exists');
 RESET ROLE;
+SELECT set_config('request.jwt.claim.sub','d4600000-0000-4000-8000-000000000010',true);
+SELECT public.allocate_owner_event('d4600000-0000-4000-8000-000000000001','tenant_rent_receipt',id,'description-rent-allocation')
+ FROM public.tenant_invoice_payment_allocations WHERE invoice_id=(SELECT invoice_id FROM auto_cash_fixture) AND reversal_of_allocation_id IS NULL;
+SELECT is((SELECT app_private.owner_statement_source_description(organization_id,id)
+ FROM public.owner_event_allocation_sets WHERE property_id=(SELECT property_id FROM auto_cash_fixture)
+ AND source_type='tenant_rent_receipt'),'Monthly rental for the garden apartment',
+ 'owner statement resolves the actual rent invoice description after authenticated receipt posting');
+
 SELECT is((SELECT count(*) FROM public.owner_charge_cash_allocations WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),0::bigint,
  'recording historical rent never settles a fee before its recognition date');
 SELECT is((SELECT count(*) FROM app_private.deferred_owner_cash WHERE property_id=(SELECT property_id FROM auto_cash_fixture)),1::bigint,

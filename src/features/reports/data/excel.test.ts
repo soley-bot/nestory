@@ -10,6 +10,17 @@ import { ownerStatementPublicationPayload } from "@/features/reports/data/owner-
 import type { TrustedReport } from "@/features/reports/reports.types";
 
 describe("trusted report Excel export", () => {
+  it("delivers P&L without event IDs, technical trace notes, or raw timestamps", () => {
+    const report = reportFixture();
+    report.unitProfitLossLines = [{ id: "private-event-uuid", amountCents: BigInt(50000), category: "Rent", categoryCode: "rent", categoryId: null, currency: "USD", date: "2026-07-01", description: "Monthly rent", direction: "income", property: "Property One", reportingGroup: "rent", unit: "A1" }];
+    report.totalsTraceLabel = "private canonical ledger trace";
+    const sheet = strFromU8(unzipSync(buildTrustedReportXlsx(report))["xl/worksheets/sheet1.xml"]!);
+    for (const internal of ["private-event-uuid", "Source event", "private canonical ledger trace", report.generatedAt]) expect(sheet).not.toContain(internal);
+    expect(sheet).not.toContain("Prepared");
+    expect(sheet).not.toContain("Generated");
+    expect(sheet).toContain("<v>500.00</v>");
+    expect(sheet).toContain("Monthly rent");
+  });
   it("labels grouped subtotals even with the group column hidden and avoids SUM duplication", () => {
     const report = reportFixture();
     report.columns = [{ key: "amount", label: "Amount", numeric: true }];
@@ -75,7 +86,7 @@ describe("trusted report Excel export", () => {
 });
 
 describe("official owner statement workbook", () => {
-  it("is byte-stable with typed money, statement, trace, and checks sheets", () => {
+  it("is byte-stable with one owner-facing sheet and typed money", () => {
     const model = mapOwnerStatementPublicationPayload(
       structuredClone(ownerStatementPublicationPayload),
     );
@@ -86,21 +97,16 @@ describe("official owner statement workbook", () => {
     const statement = Buffer.from(
       files["xl/worksheets/sheet1.xml"] ?? [],
     ).toString();
-    const sourceTrace = Buffer.from(
-      files["xl/worksheets/sheet2.xml"] ?? [],
-    ).toString();
-
+    const packageText = Object.values(files).map((entry) => strFromU8(entry)).join("\n");
     expect(first).toEqual(second);
     expect(workbook).toContain('name="Statement"');
-    expect(workbook).toContain('name="Source Trace"');
-    expect(workbook).toContain('name="Checks"');
-    expect(statement).toContain("OS-202608-300000000000");
-    expect(statement).toContain(
-      '<col min="1" max="1" width="32" customWidth="1"/>',
-    );
-    expect(sourceTrace).toContain(
-      '<col min="1" max="1" width="20" customWidth="1"/>',
-    );
+    expect(Object.keys(files).filter((path) => path.startsWith("xl/worksheets/"))).toEqual(["xl/worksheets/sheet1.xml"]);
+    for (const internal of ["Source Trace", "Checks", "Statement line", "Balance components", "SHA-256", "ips_held_owner_cash", model.statementNumber, model.ownerPersonId, model.propertyId, model.contentHash]) {
+      expect(packageText).not.toContain(internal);
+    }
+    expect(statement).toContain("01 Aug 2026 - 31 Aug 2026");
+    expect(statement).toContain("Not provided");
+    expect(statement).not.toContain("source trace");
     expect(statement).toMatch(/<c r="[A-Z]+\d+" s="\d+"><v>1250\.00<\/v><\/c>/);
     expect(statement).not.toContain("#REF!");
   });

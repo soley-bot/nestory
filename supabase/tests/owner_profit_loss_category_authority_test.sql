@@ -1,7 +1,7 @@
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(9);
+SELECT plan(12);
 
 SET LOCAL session_replication_role = replica;
 
@@ -407,5 +407,31 @@ SELECT ok(
 );
 
 RESET ROLE;
+-- Statement descriptions retain expense detail independently of category labels.
+RESET ROLE;
+SET LOCAL session_replication_role = replica;
+INSERT INTO public.owner_event_allocation_sets (
+ id,organization_id,property_id,currency,event_date,source_type,source_id,source_line_id,
+ gross_signed_amount,source_fingerprint,allocation_basis,created_by,idempotency_key,command_payload_hash
+) VALUES (
+ 'cad00000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001',
+ '10000000-0000-0000-0000-000000000001','USD','2031-01-31','owner_paid_cost',
+ 'ca600000-0000-0000-0000-000000000001','ca900000-0000-0000-0000-000000000001',
+ 200,repeat('a',64),'effective_roster','00000000-0000-0000-0000-000000000101',
+ 'statement-expense-description',repeat('b',64));
+SELECT is(app_private.owner_statement_source_description('00000000-0000-0000-0000-000000000001',
+ 'cad00000-0000-0000-0000-000000000001'),'Company-advanced grounds service',
+ 'statement keeps linked invoice detail when expense description is missing');
+UPDATE public.finance_expense_items SET description='Install water booster pump and replace supply pipe'
+ WHERE id='ca600000-0000-0000-0000-000000000001';
+SELECT is(app_private.owner_statement_source_description('00000000-0000-0000-0000-000000000001',
+ 'cad00000-0000-0000-0000-000000000001'),'Install water booster pump and replace supply pipe',
+ 'statement prefers the actual expense description over its category');
+UPDATE public.finance_expense_items SET archived_at=now()
+ WHERE id='ca600000-0000-0000-0000-000000000001';
+SELECT is(app_private.owner_statement_source_description('00000000-0000-0000-0000-000000000001',
+ 'cad00000-0000-0000-0000-000000000001'),'Install water booster pump and replace supply pipe',
+ 'historical archived source details remain readable for a new close');
+
 SELECT * FROM finish();
 ROLLBACK;

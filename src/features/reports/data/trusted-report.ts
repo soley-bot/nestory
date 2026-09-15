@@ -814,9 +814,7 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
   const rows = [...unitRows, ...propertyLevelRows];
   const recognizedEvents = context.ownerProfitLossEvents;
   const unitProfitLossLines =
-    context.viewQuery.unitId === "all"
-      ? undefined
-      : recognizedEvents
+    recognizedEvents
           .map<UnitProfitLossLine>((event) => {
             const unit = event.unitId
               ? context.unitsById.get(event.unitId)
