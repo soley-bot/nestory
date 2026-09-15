@@ -3445,6 +3445,17 @@ describe("FinanceOperationsScreen", () => {
     ).toBe(true);
   });
 
+  it("offers property contribution and corrects the mapped withdrawal source", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.positions[0].availableWithdrawal = 0;
+    input.accountEntries = [{ id: "composite-row", sourceWithdrawalId: "actual-withdrawal", amount: 50, category: "withdrawal", createdAt: "2026-09-01", date: "2026-09-01", label: "Owner distribution", note: null, propertyId: "property-1", runningBalance: 0, sourceType: "property_withdrawal" }];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordOwnerCash: true, canCorrectFinance: true })} organizationName="Sokha Property Services" selectedPropertyId="property-1" view="account" />);
+    expect(screen.getByRole("button", { name: "Record owner contribution" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Correct date" }));
+    expect(valueOfNamedInput(screen.getByRole("dialog"), "withdrawalId")).toBe("actual-withdrawal");
+  });
+
   it("summarizes owner balances in four columns and opens the full position on demand", async () => {
     const user = userEvent.setup();
     const input = data();
@@ -3854,7 +3865,7 @@ describe("FinanceOperationsScreen", () => {
     expect(summary.className).toContain("shadow-sm");
     expect(within(summary).getByText("Owner balance")).not.toBeNull();
     expect(
-      within(summary).getByText("Income minus owner costs and distributions"),
+      within(summary).getByText("Income and contributions minus owner costs and distributions"),
     ).not.toBeNull();
     expect(within(summary).getByText("Cash available")).not.toBeNull();
     expect(

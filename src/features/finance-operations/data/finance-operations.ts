@@ -1959,6 +1959,8 @@ function toAccountEntry(row: AccountEntryRow): PropertyAccountEntry[] {
       date: row.event_date,
       id: row.source_id,
       label: row.label,
+      balanceEffect: Number(row.balance_effect ?? 0),
+      sourceWithdrawalId: row.source_type === "property_withdrawal" && row.category === "withdrawal" && Number(row.amount) > 0 ? row.source_id : null,
       note: row.note,
       propertyId: row.property_id,
       runningBalance: Number(row.running_balance ?? 0),

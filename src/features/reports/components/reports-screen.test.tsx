@@ -27,6 +27,15 @@ class ResizeObserverStub {
 }
 
 describe("minimal Reports workspace", () => {
+  it("shows full recognized transaction detail with separate property-level scope", () => {
+    const report = unitProfitLossReport();
+    report.unitProfitLossLines = [{ amountCents: BigInt(6500), category: "Repairs", categoryCode: "repairs", categoryId: null, currency: "USD", date: "2026-08-09", description: "Roof repair with full itemized description", direction: "expense", id: "event-1", property: "Property One", reportingGroup: "expenses", unit: "Property-level" }];
+    renderReport({ report });
+    const detail = screen.getByRole("region", { name: "Profit and loss transaction detail" });
+    expect(within(detail).getByText("Property-level")).toBeTruthy();
+    expect(within(detail).getByText("Roof repair with full itemized description")).toBeTruthy();
+    expect(within(detail).getByText("USD 65.00")).toBeTruthy();
+  });
   it("keeps drill-down navigation focused on filters and report output", () => {
     renderReport();
 

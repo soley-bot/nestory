@@ -180,14 +180,15 @@ describe("Monthly Unit Profit & Loss", () => {
     });
   });
 
-  it("keeps all-unit scope summarized without line-detail payload", () => {
+  it("includes combined transaction detail for all-unit scope", () => {
     const input = reportInput();
     input.viewQuery.unitId = "all";
 
     const report = buildTrustedReport(input);
 
     expect(report.unitProfitLossDetailScope).toBeUndefined();
-    expect(report.unitProfitLossLines).toBeUndefined();
+    expect(report.unitProfitLossLines).toHaveLength(5);
+    expect(report.unitProfitLossLines?.some((line) => line.unit === "Property-level")).toBe(true);
   });
 });
 

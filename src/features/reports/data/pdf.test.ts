@@ -69,7 +69,8 @@ describe("official owner statement PDF", () => {
     expect(text).toContain("Independent Property Service");
     expect(text).toContain("XIA YIXUAN");
     expect(text).toContain("The PEAK #2807");
-    expect(text).toContain("OS-202608-300000000000");
+    expect(text).not.toContain(model.statementNumber);
+    expect(text).not.toContain(model.generatedAt);
     expect(text).toContain("OPENING BALANCE");
     expect(text).toContain("CASH IN");
     expect(text).toContain("CASH OUT");

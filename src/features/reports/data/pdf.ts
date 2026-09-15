@@ -1,9 +1,10 @@
+import { ownerStatementCash } from "@/features/reports/data/owner-statement-cash";
 import { getTrustedReport } from "@/features/reports/data/trusted-report";
 import {
   formatLongReportDate,
   getReportExportFilename,
 } from "@/features/reports/data/report-format";
-import { formatDate } from "@/lib/dates/format";
+import { formatCalendarDate } from "@/lib/dates/format";
 import type { OwnerStatementPublicationModel } from "@/features/reports/data/owner-statement-report";
 import type {
   OccupancyReport,
@@ -95,7 +96,7 @@ type UnitStatementFlowRow =
       kind: "category";
       label: string;
     }
-  | { height: number; kind: "entry"; line: UnitProfitLossLine }
+  | { height: number; kind: "entry"; line: UnitProfitLossLine; description?: string[]; continued?: boolean }
   | { height: number; kind: "empty"; label: string }
   | {
       height: number;
@@ -136,11 +137,10 @@ const tableTopY = 382;
 const statementTableTopY = 438;
 const tableBottomY = 45;
 const headerRowHeight = 24;
-const unitStatementFirstContentTop = 620;
+const unitStatementFirstContentTop = 666;
 const unitStatementContinuationContentTop = 704;
 const unitStatementContentBottom = 58;
 const unitStatementSectionHeight = 26;
-const unitStatementCategoryMinHeight = 20;
 const unitStatementCategoryTextWidth = 310;
 const unitStatementEmptyHeight = 30;
 const unitStatementSubtotalHeight = 28;
@@ -180,12 +180,7 @@ const sourceTraceColumns: PdfColumn[] = [
   { label: "Source link", maxLines: 10, width: 290 },
 ];
 
-const unitStatementSourceTraceColumns: PdfColumn[] = [
-  { label: "Report row", maxLines: 3, width: 108 },
-  { label: "Source", maxLines: 3, width: 103 },
-  { label: "Source ID", maxLines: 4, width: 112 },
-  { label: "Source link", maxLines: 10, width: 200 },
-];
+
 
 const columns: PdfColumn[] = [
   { align: "center", label: "No.", maxLines: 1, width: 30 },
@@ -225,7 +220,7 @@ export function buildTrustedReportPdf({
 }) {
   if (
     report.kind === "unit-profit-loss" &&
-    report.unitProfitLossDetailScope === "single-unit"
+    report.unitProfitLossLines !== undefined
   ) {
     return buildUnitProfitLossStatementPdf({ organizationName, report });
   }
@@ -293,20 +288,27 @@ type OwnerStatementTransaction = {
   cashOutCents: number;
   date: string;
   details: string;
-  type: "Expense" | "Payment";
+  type: string;
+  continued?: boolean;
 };
 
 const ownerStatementMargin = 28;
 const ownerStatementTableWidth = 784;
-const ownerStatementTableTop = 421;
-const ownerStatementRowHeight = 18;
+const ownerStatementRight = ownerStatementMargin + ownerStatementTableWidth;
+const ownerStatementCellPadding = 12;
+const ownerStatementTableTop = 374;
+const ownerStatementTableBottom = 64;
+const ownerStatementSummaryBottom = 403;
+const ownerStatementSummaryHeight = 51;
+const ownerStatementRowHeight = 26;
+const ownerStatementDetailsWidth = 364;
 const ownerStatementColumns: PdfColumn[] = [
   { label: "Date", maxLines: 1, width: 68 },
-  { label: "Type", maxLines: 1, width: 72 },
-  { label: "Details", maxLines: 1, width: 324 },
-  { align: "right", label: "Cash out", maxLines: 1, width: 96 },
-  { align: "right", label: "Cash in", maxLines: 1, width: 96 },
-  { align: "right", label: "Balance", maxLines: 1, width: 128 },
+  { label: "Type", maxLines: 1, width: 112 },
+  { label: "Details", maxLines: 2, width: ownerStatementDetailsWidth },
+  { align: "right", label: "Cash out", maxLines: 1, width: 80 },
+  { align: "right", label: "Cash in", maxLines: 1, width: 80 },
+  { align: "right", label: "Balance", maxLines: 1, width: 80 },
 ];
 
 export function buildOwnerStatementPdf(
@@ -314,9 +316,22 @@ export function buildOwnerStatementPdf(
   presentation: OwnerStatementPresentation,
 ) {
   const cash = ownerStatementCash(model);
-  const firstPageRows = cash.transactions.slice(0, 19);
-  const continuationRows = chunk(cash.transactions.slice(19), 20);
-  const pages = [firstPageRows, ...continuationRows.filter((rows) => rows.length > 0)];
+  const pages: OwnerStatementTransaction[][] = [[]];
+  let used = ownerStatementRowHeight;
+  for (const transaction of cash.transactions) {
+    const detailLines = wrapText(transaction.details, ownerStatementDetailsWidth - ownerStatementCellPadding * 2, 6.8, Number.MAX_SAFE_INTEGER);
+    const segments = chunk(detailLines, 24);
+    for (const [index, segment] of segments.entries()) {
+      const row = { ...transaction, details: segment.join(" "), continued: index > 0 };
+      const height = ownerStatementTransactionHeight(row);
+      if (used + height > ownerStatementTableTop - headerRowHeight - ownerStatementTableBottom - ownerStatementRowHeight) {
+        pages.push([]);
+        used = ownerStatementRowHeight;
+      }
+      pages[pages.length - 1].push(row);
+      used += height;
+    }
+  }
   const totalPages = pages.length;
   const commands = pages.map((transactions, pageIndex) =>
     renderOwnerStatementPage({
@@ -352,17 +367,19 @@ function renderOwnerStatementPage({
   const commands: string[] = [];
   drawOwnerStatementHeader(commands, model, presentation);
   drawOwnerStatementBalances(commands, cash);
+  drawText(commands, "Tenant deposits", ownerStatementMargin + ownerStatementCellPadding, 390, { fontSize: 7.5, color: colors.muted, width: 200 });
+  drawText(commands, formatOwnerStatementMoney(cash.depositCents), ownerStatementMargin + ownerStatementCellPadding + 65, 390, { align: "left", fontSize: 7.5, color: colors.ink, width: 55 });
   drawOwnerStatementTableHeader(commands);
 
   let y = ownerStatementTableTop - headerRowHeight;
-  if (pageNumber === 1) {
+  {
     y -= ownerStatementRowHeight;
     drawOwnerStatementRow(commands, {
-      balanceCents: cash.openingCents,
+      balanceCents: pageNumber === 1 ? cash.openingCents : (transactions[0]?.balanceCents ?? cash.closingCents) - (transactions[0]?.continued ? 0 : (transactions[0]?.cashInCents ?? 0) - (transactions[0]?.cashOutCents ?? 0)),
       cashInCents: 0,
       cashOutCents: 0,
       date: "",
-      details: "Opening balance",
+      details: pageNumber === 1 ? "Opening balance" : "Balance brought forward",
       type: "Payment",
     }, y, 0, true);
   }
@@ -371,9 +388,17 @@ function renderOwnerStatementPage({
     drawOwnerStatementEmptyRow(commands, y);
   } else {
     transactions.forEach((transaction, index) => {
-      y -= ownerStatementRowHeight;
+      y -= ownerStatementTransactionHeight(transaction);
       drawOwnerStatementRow(commands, transaction, y, index + (pageNumber === 1 ? 1 : 0));
     });
+  }
+
+  if (pageNumber === totalPages) {
+    y -= ownerStatementRowHeight;
+    drawOwnerStatementRow(commands, {
+      balanceCents: cash.closingCents, cashInCents: cash.cashInCents,
+      cashOutCents: cash.cashOutCents, date: "", type: "", details: "Period totals",
+    }, y, transactions.length + 1, false, true);
   }
 
   drawOwnerStatementFooter(commands, model, presentation, pageNumber, totalPages);
@@ -390,16 +415,16 @@ function drawOwnerStatementHeader(
     drawImage(
       commands,
       "Logo",
-      ownerStatementMargin + (41 - fitted.width) / 2,
+      ownerStatementMargin + ownerStatementCellPadding + (41 - fitted.width) / 2,
       528 + (31 - fitted.height) / 2,
       fitted.width,
       fitted.height,
     );
   } else {
-    drawRect(commands, ownerStatementMargin, 528, 41, 31, {
+    drawRect(commands, ownerStatementMargin + ownerStatementCellPadding, 528, 41, 31, {
       fill: colors.soft,
     });
-    drawText(commands, organizationInitials(presentation.organizationName), ownerStatementMargin, 538, {
+    drawText(commands, organizationInitials(presentation.organizationName), ownerStatementMargin + ownerStatementCellPadding, 538, {
       align: "center",
       bold: true,
       color: colors.ink,
@@ -407,41 +432,39 @@ function drawOwnerStatementHeader(
       width: 41,
     });
   }
-  drawText(commands, presentation.organizationName, 79, 550, {
+  drawText(commands, presentation.organizationName, 93, 550, {
     bold: true,
     color: colors.ink,
     fontSize: 9.5,
     width: 300,
   });
-  drawText(commands, "Property management", 79, 535, {
+  drawText(commands, "Property management", 93, 535, {
     color: colors.muted,
     fontSize: 7.5,
     width: 300,
   });
-  drawText(commands, "OWNER STATEMENT", 540, 548, {
+  drawText(commands, "OWNER STATEMENT", 540, 550, {
     align: "right",
     bold: true,
     color: colors.ink,
     fontSize: 17,
-    width: 274,
+    width: ownerStatementRight - ownerStatementCellPadding - 540,
   });
-  drawText(commands, model.statementNumber, 540, 531, {
+  drawText(commands, `Currency: ${model.currency}`, 540, 535, {
     align: "right",
     color: colors.muted,
     fontSize: 7,
-    width: 274,
+    width: ownerStatementRight - ownerStatementCellPadding - 540,
   });
-  drawLine(commands, ownerStatementMargin, 515, 814, 515, colors.accent, 1.6);
+  drawLine(commands, ownerStatementMargin, 515, ownerStatementRight, 515, colors.accent, 1.6);
 
-  drawStatementIdentity(commands, "Owner", presentation.ownerName, ownerStatementMargin, 497, 230);
-  drawStatementIdentity(commands, "Property", presentation.propertyLabel, 278, 497, 270);
-  drawStatementIdentity(commands, "Period", ownerStatementPeriod(model.monthStart), 576, 497, 238);
-  drawText(commands, "Cash basis", 676, 482, {
-    align: "right",
-    color: colors.muted,
-    fontSize: 7.5,
-    width: 138,
-  });
+  const identityWidth = ownerStatementTableWidth / 3;
+  const identityLeft = ownerStatementMargin + ownerStatementCellPadding;
+  const identityContentWidth = identityWidth - ownerStatementCellPadding * 2;
+  drawStatementIdentity(commands, "Owner", presentation.ownerName, identityLeft, 497, identityContentWidth);
+  drawStatementIdentity(commands, "Property", presentation.propertyLabel, identityLeft + identityWidth, 497, identityContentWidth);
+  drawStatementIdentity(commands, "Period", ownerStatementPeriod(model.monthStart), identityLeft + identityWidth * 2, 497, identityContentWidth, "right");
+
 }
 
 function drawStatementIdentity(
@@ -451,19 +474,23 @@ function drawStatementIdentity(
   x: number,
   y: number,
   width: number,
+  align: "left" | "right" = "left",
 ) {
   drawText(commands, label.toUpperCase(), x, y, {
+    align,
     bold: true,
     color: colors.muted,
     fontSize: 6.6,
     width,
   });
-  drawText(commands, value, x, y - 15, {
+  const lines = wrapText(value, width, 10.5, 2);
+  lines.forEach((line, index) => drawText(commands, line, x, y - 15 - index * 13, {
+    align,
     bold: true,
     color: colors.ink,
     fontSize: 10.5,
     width,
-  });
+  }));
 }
 
 function drawOwnerStatementBalances(
@@ -476,23 +503,25 @@ function drawOwnerStatementBalances(
     ["CASH OUT", cash.cashOutCents, colors.ink],
     ["CLOSING BALANCE", cash.closingCents, colors.accent],
   ] as const;
+  drawRect(commands, ownerStatementMargin, ownerStatementSummaryBottom,
+    ownerStatementTableWidth, ownerStatementSummaryHeight, { fill: colors.soft });
   const metricWidth = ownerStatementTableWidth / metrics.length;
   metrics.forEach(([label, value, color], index) => {
-    const x = ownerStatementMargin + metricWidth * index;
+    const x = ownerStatementMargin + metricWidth * index + 12;
     if (index > 0) {
-      drawLine(commands, x - 12, 449, x - 12, 477, colors.border, 0.6);
+      drawLine(commands, x - 12, 414, x - 12, 443, colors.border, 0.6);
     }
-    drawText(commands, label, x, 474, {
+    drawText(commands, label, x, 439, {
       bold: true,
       color: colors.muted,
       fontSize: 6.6,
-      width: metricWidth - 20,
+      width: metricWidth - 24,
     });
-    drawText(commands, formatOwnerStatementMoney(value), x, 455, {
+    drawText(commands, formatOwnerStatementMoney(value), x, 416, {
       bold: true,
       color,
       fontSize: 13.5,
-      width: metricWidth - 20,
+      width: metricWidth - 24,
     });
   });
 }
@@ -508,15 +537,19 @@ function drawOwnerStatementTableHeader(commands: string[]) {
   );
   let x = ownerStatementMargin;
   for (const column of ownerStatementColumns) {
-    drawText(commands, column.label, x + 5, ownerStatementTableTop - 15, {
+    drawText(commands, column.label, x + ownerStatementCellPadding, ownerStatementTableTop - 15, {
       align: column.align,
       bold: true,
       color: "#ffffff",
       fontSize: 7.1,
-      width: column.width - 10,
+      width: column.width - ownerStatementCellPadding * 2,
     });
     x += column.width;
   }
+}
+
+function ownerStatementTransactionHeight(transaction: OwnerStatementTransaction) {
+  return Math.max(ownerStatementRowHeight, wrapText(transaction.details, ownerStatementDetailsWidth - ownerStatementCellPadding * 2, 6.8, Number.MAX_SAFE_INTEGER).length * 9 + 12);
 }
 
 function drawOwnerStatementRow(
@@ -525,30 +558,33 @@ function drawOwnerStatementRow(
   y: number,
   index: number,
   opening = false,
+  totals = false,
 ) {
+  const height = opening ? ownerStatementRowHeight : ownerStatementTransactionHeight(transaction);
   if (index % 2 === 0) {
-    drawRect(commands, ownerStatementMargin, y, ownerStatementTableWidth, ownerStatementRowHeight, {
+    drawRect(commands, ownerStatementMargin, y, ownerStatementTableWidth, height, {
       fill: colors.soft,
     });
   }
-  drawLine(commands, ownerStatementMargin, y, 812, y, colors.border, 0.35);
+  drawLine(commands, ownerStatementMargin, y, ownerStatementRight, y, colors.border, 0.35);
   const values = [
-    transaction.date,
-    opening ? "" : transaction.type,
+    transaction.date ? formatCalendarDate(transaction.date) : "",
+    opening ? "" : transaction.continued ? "Continued" : transaction.type,
     transaction.details,
-    opening || transaction.cashOutCents === 0 ? "-" : formatOwnerStatementMoney(transaction.cashOutCents),
-    opening || transaction.cashInCents === 0 ? "-" : formatOwnerStatementMoney(transaction.cashInCents),
-    formatOwnerStatementMoney(transaction.balanceCents),
+    opening || transaction.continued || transaction.cashOutCents === 0 ? "-" : formatOwnerStatementMoney(transaction.cashOutCents),
+    opening || transaction.continued || transaction.cashInCents === 0 ? "-" : formatOwnerStatementMoney(transaction.cashInCents),
+    transaction.continued ? "" : formatOwnerStatementMoney(transaction.balanceCents),
   ];
   let x = ownerStatementMargin;
   ownerStatementColumns.forEach((column, cellIndex) => {
-    drawText(commands, values[cellIndex] ?? "", x + 5, y + 6, {
-      align: column.align,
-      bold: cellIndex === values.length - 1,
+    const lines = wrapText(values[cellIndex] ?? "", column.width - ownerStatementCellPadding * 2, 6.8, Number.MAX_SAFE_INTEGER);
+    lines.forEach((line, lineIndex) => drawText(commands, line, x + ownerStatementCellPadding, y + (height + lines.length * 9) / 2 - 8 - lineIndex * 9, {
+      align: totals && cellIndex === 2 ? "right" : column.align,
+      bold: totals || cellIndex === values.length - 1,
       color: opening ? colors.muted : colors.ink,
       fontSize: 6.8,
-      width: column.width - 10,
-    });
+      width: column.width - ownerStatementCellPadding * 2,
+    }));
     x += column.width;
   });
 }
@@ -571,13 +607,13 @@ function drawOwnerStatementFooter(
   pageNumber: number,
   totalPages: number,
 ) {
-  drawLine(commands, ownerStatementMargin, 28, 814, 28, colors.border, 0.6);
+  drawLine(commands, ownerStatementMargin, 28, ownerStatementRight, 28, colors.border, 0.6);
   drawText(commands, presentation.organizationName, ownerStatementMargin, 14, {
     color: colors.muted,
     fontSize: 6.5,
     width: 230,
   });
-  drawText(commands, `Generated by Nestory | ${formatLongReportDate(model.generatedAt)}`, 260, 14, {
+  drawText(commands, ownerStatementPeriod(model.monthStart), 260, 14, {
     align: "center",
     color: colors.muted,
     fontSize: 6.5,
@@ -591,68 +627,6 @@ function drawOwnerStatementFooter(
   });
 }
 
-function ownerStatementCash(model: OwnerStatementPublicationModel) {
-  const component = model.components.find((item) => item.component === "ips_held_owner_cash");
-  if (!component) throw new Error("Owner Statement is missing the Nestory-held cash component.");
-  const openingCents = ownerStatementCents(component.openingAmount);
-  const closingCents = ownerStatementCents(component.closingAmount);
-  let balanceCents = openingCents;
-  let cashInCents = 0;
-  let cashOutCents = 0;
-  const transactions = model.lines
-    .filter((line) => line.lineKind === "movement" && line.component === "ips_held_owner_cash")
-    .map((line) => {
-      const signedCents = ownerStatementCents(line.signedAmount);
-      const incoming = signedCents > 0 ? signedCents : 0;
-      const outgoing = signedCents < 0 ? -signedCents : 0;
-      cashInCents += incoming;
-      cashOutCents += outgoing;
-      balanceCents += signedCents;
-      return {
-        balanceCents,
-        cashInCents: incoming,
-        cashOutCents: outgoing,
-        date: line.businessDate,
-        details: ownerStatementTransactionLabel(line.sources[0]?.sourceType, line.description),
-        type: signedCents < 0 ? "Expense" as const : "Payment" as const,
-      };
-    });
-  if (balanceCents !== closingCents) {
-    throw new Error("Owner Statement cash movements do not reconcile to the closing balance.");
-  }
-  return { cashInCents, cashOutCents, closingCents, openingCents, transactions };
-}
-
-function ownerStatementTransactionLabel(sourceType: string | undefined, fallback: string) {
-  const labels: Record<string, string> = {
-    management_fee_occurrence: "Management fee",
-    owner_close_correction: "Correction",
-    owner_component_transfer: "Balance transfer",
-    owner_contribution: "Owner contribution",
-    owner_distribution: "Owner distribution",
-    owner_invoice_payment: "Owner invoice payment",
-    owner_paid_cost: "Property cost paid by owner",
-    owner_reimbursement: "Owner reimbursement",
-    reversal: "Reversal",
-    security_deposit_receipt: "Security deposit received",
-    security_deposit_refund: "Security deposit refunded",
-    tenant_rent_receipt: "Rent collected by Nestory",
-  };
-  return sourceType && labels[sourceType]
-    ? labels[sourceType]
-    : fallback.replace(/\s+(?:Â·|\|)\s+ips_held_owner_cash$/i, "");
-}
-
-function ownerStatementCents(value: string) {
-  const match = /^(-?)(\d+)\.(\d{2})$/.exec(value);
-  if (!match) throw new Error("Owner Statement amount is not canonical.");
-  const cents = Number(match[2]) * 100 + Number(match[3]);
-  if (!Number.isSafeInteger(cents)) {
-    throw new Error("Owner Statement amount exceeds the supported range.");
-  }
-  return match[1] === "-" ? -cents : cents;
-}
-
 function formatOwnerStatementMoney(value: number) {
   const sign = value < 0 ? "-" : "";
   const absolute = Math.abs(value);
@@ -663,7 +637,7 @@ function formatOwnerStatementMoney(value: number) {
 function ownerStatementPeriod(monthStart: string) {
   const [year, month] = monthStart.split("-").map(Number);
   const end = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
-  return `${formatDate(monthStart)} - ${formatDate(end)}`;
+  return `${formatCalendarDate(monthStart)} - ${formatCalendarDate(end)}`;
 }
 
 function organizationInitials(name: string) {
@@ -743,44 +717,6 @@ function renderTrustedReportSourceTracePage({
   }
 
   drawFooter(commands, pageIndex + 1, totalPages);
-  return commands.join("\n");
-}
-
-function renderUnitProfitLossSourceTracePage({
-  organizationName,
-  page,
-  pageIndex,
-  report,
-  totalPages,
-}: {
-  organizationName: string;
-  page: PdfPage;
-  pageIndex: number;
-  report: TrustedReport;
-  totalPages: number;
-}) {
-  const commands: string[] = [];
-
-  drawUnitProfitLossHeader(commands, organizationName, report, false);
-  drawText(commands, "SOURCE TRACE", marginX, 720, {
-    bold: true,
-    color: colors.muted,
-    fontSize: 7,
-    width: unitStatementContentWidth,
-  });
-  drawTableHeader(
-    commands,
-    unitStatementContinuationContentTop,
-    unitStatementSourceTraceColumns,
-  );
-
-  let y = unitStatementContinuationContentTop - headerRowHeight;
-  for (const row of page.rows) {
-    y -= row.height;
-    drawTableRow(commands, row, y, unitStatementSourceTraceColumns);
-  }
-
-  drawUnitProfitLossFooter(commands, pageIndex + 1, totalPages);
   return commands.join("\n");
 }
 
@@ -1046,15 +982,7 @@ function buildUnitProfitLossStatementPdf({
     netIncome,
   });
   const pages = paginateUnitStatementRows(rows);
-  const sourceTraceRows = buildTrustedReportSourceTraceRows(
-    report,
-    unitStatementSourceTraceColumns,
-  );
-  const sourceTracePages =
-    sourceTraceRows.length > 0
-      ? paginateRows(sourceTraceRows, unitStatementContinuationContentTop)
-      : [];
-  const totalPages = pages.length + sourceTracePages.length;
+  const totalPages = pages.length;
   const renderedSections = new Set<"EXPENSES" | "INCOME">();
   const pageCommands = pages.map((page, pageIndex) =>
     renderUnitProfitLossPage({
@@ -1065,17 +993,6 @@ function buildUnitProfitLossStatementPdf({
       report,
       totalPages,
     }),
-  );
-  pageCommands.push(
-    ...sourceTracePages.map((page, sourcePageIndex) =>
-      renderUnitProfitLossSourceTracePage({
-        organizationName,
-        page,
-        pageIndex: pages.length + sourcePageIndex,
-        report,
-        totalPages,
-      }),
-    ),
   );
 
   return createPdfDocument(pageCommands, portraitA4PageSize);
@@ -1095,35 +1012,14 @@ function buildUnitStatementFlowRows({
   netIncome: string;
 }): UnitStatementFlowRow[] {
   const buildEntries = (lines: UnitProfitLossLine[]) =>
-    lines.map(
-      (line): UnitStatementFlowRow => {
-        const descriptionLines = wrapText(line.description, 332, 8.6, 2);
-        const height = Math.max(26, descriptionLines.length * 10.5 + 10);
-
-        return { height, kind: "entry", line };
-      },
-    );
-  const buildCategoryRows = (lines: UnitProfitLossLine[]) =>
-    groupUnitStatementLines(lines).flatMap(([category, categoryLines]) => {
-      const categoryTextLines = wrapText(
-        category,
-        unitStatementCategoryTextWidth,
-        8.4,
-        1,
-      );
-
-      return [
-        {
-          height: Math.max(
-            unitStatementCategoryMinHeight,
-            categoryTextLines.length * 10 + 10,
-          ),
-          kind: "category" as const,
-          label: category,
-        },
-        ...buildEntries(categoryLines),
-      ];
+    lines.flatMap((line): UnitStatementFlowRow[] => {
+      const descriptionLines = wrapText(unitProfitLossDescription(line), unitStatementColumns[1].width - cellPaddingX * 2 - 14, 8.6, Number.MAX_SAFE_INTEGER);
+      return chunk(descriptionLines, 30).map((description, index) => ({
+        height: Math.max(26, description.length * 11 + 10), kind: "entry" as const, line,
+        description, continued: index > 0,
+      }));
     });
+  const buildCategoryRows = buildEntries;
 
   return [
     {
@@ -1174,19 +1070,6 @@ function buildUnitStatementFlowRows({
       netIncome,
     },
   ];
-}
-
-function groupUnitStatementLines(lines: UnitProfitLossLine[]) {
-  const groups = new Map<string, UnitProfitLossLine[]>();
-
-  for (const line of lines) {
-    const category = line.category.trim() || "Uncategorized";
-    const categoryLines = groups.get(category) ?? [];
-    categoryLines.push(line);
-    groups.set(category, categoryLines);
-  }
-
-  return [...groups.entries()];
 }
 
 function paginateUnitStatementRows(
@@ -1374,58 +1257,22 @@ function drawUnitProfitLossHeader(
       fontSize: 8.5,
       width: 260,
     });
-    drawText(commands, "Cash basis", marginX, 746, {
+    drawText(commands, "Income and expenses by invoice or cost date, whether paid or unpaid.", marginX, 746, {
       color: colors.muted,
       fontSize: 8,
-      width: 250,
+      width: unitStatementContentWidth,
     });
     return;
   }
 
-  drawText(commands, "Nestory", marginX, 806, {
-    bold: true,
-    color: colors.ink,
-    fontSize: 11,
-    width: 220,
-  });
-  drawText(commands, organizationName, marginX, 790, {
-    color: colors.muted,
-    fontSize: 8.5,
-    width: 260,
-  });
-  drawText(commands, report.title, marginX, 752, {
-    bold: true,
-    color: colors.ink,
-    fontSize: 22,
-    width: unitStatementContentWidth,
-  });
-  drawText(commands, report.scopeLabel, marginX, 727, {
-    bold: true,
-    color: colors.ink,
-    fontSize: 10,
-    width: unitStatementContentWidth,
-  });
-  drawText(commands, report.periodLabel, marginX, 709, {
-    color: colors.muted,
-    fontSize: 9,
-    width: 250,
-  });
-  drawText(
-    commands,
-    `Generated ${formatDate(report.generatedAt)}`,
-    marginX,
-    692,
-    {
-      color: colors.muted,
-      fontSize: 8,
-      width: 250,
-    },
-  );
-  drawText(commands, "Cash basis", marginX, 675, {
-    color: colors.muted,
-    fontSize: 8,
-    width: 250,
-  });
+  drawText(commands, organizationName, marginX, 806, { bold: true, fontSize: 10, width: 280 });
+  drawText(commands, "Prepared with Nestory", marginX, 790, { fontSize: 8, color: colors.muted, width: 240 });
+  drawText(commands, "PROFIT & LOSS", marginX + 295, 805, { bold: true, fontSize: 17, align: "right", width: unitStatementContentWidth - 295 });
+  drawLine(commands, marginX, 777, marginX + unitStatementContentWidth, 777, colors.accent, 1);
+  drawText(commands, report.scopeLabel, marginX, 756, { bold: true, fontSize: 10, width: unitStatementContentWidth });
+  drawText(commands, report.periodLabel, marginX, 739, { fontSize: 9, color: colors.muted, width: 280 });
+  drawText(commands, "Income and expenses by invoice or cost date, whether paid or unpaid.", marginX, 721, { fontSize: 8, color: colors.muted, width: unitStatementContentWidth });
+  drawText(commands, "Property-level costs are identified separately and are not allocated to a unit.", marginX, 706, { fontSize: 7.5, color: colors.muted, width: unitStatementContentWidth });
 }
 
 function drawUnitProfitLossSectionRow(
@@ -1446,6 +1293,13 @@ function drawUnitProfitLossSectionRow(
   });
 }
 
+function unitProfitLossDescription(line: UnitProfitLossLine) {
+  const detail = line.description.toLowerCase().startsWith(line.category.toLowerCase())
+    ? line.description : `${line.category}: ${line.description}`;
+  const scope = line.property === line.unit ? line.unit : `${line.property} / ${line.unit}`;
+  return `${scope} | ${detail}`;
+}
+
 function drawUnitProfitLossEntryRow(
   commands: string[],
   row: Extract<UnitStatementFlowRow, { kind: "entry" }>,
@@ -1456,11 +1310,11 @@ function drawUnitProfitLossEntryRow(
   const detailX = marginX + dateColumn.width;
   const amountX = detailX + detailColumn.width;
   const textY = y + row.height - 5 - 8.6;
-  const descriptionLines = wrapText(
-    row.line.description,
+  const descriptionLines = row.description ?? wrapText(
+    unitProfitLossDescription(row.line),
     detailColumn.width - cellPaddingX * 2 - 14,
     8.6,
-    detailColumn.maxLines ?? 2,
+    Number.MAX_SAFE_INTEGER,
   );
   const amount = formatExactMoneyCents(
     row.line.amountCents,
@@ -1481,7 +1335,7 @@ function drawUnitProfitLossEntryRow(
     colors.border,
     0.35,
   );
-  drawText(commands, formatDate(row.line.date), marginX + cellPaddingX, textY, {
+  drawText(commands, formatCalendarDate(row.line.date), marginX + cellPaddingX, textY, {
     color: colors.ink,
     fontSize: 8.6,
     width: dateColumn.width - cellPaddingX * 2,
@@ -1508,7 +1362,7 @@ function drawUnitProfitLossEntryRow(
 
   drawText(
     commands,
-    amount,
+    row.continued ? "" : amount,
     amountX + cellPaddingX,
     textY,
     {
@@ -1708,7 +1562,7 @@ function drawUnitProfitLossFooter(
     colors.border,
     0.6,
   );
-  drawText(commands, "Nestory unit financial statement", marginX, 18, {
+  drawText(commands, "Nestory profit and loss report", marginX, 18, {
     color: colors.muted,
     fontSize: 8,
   });
