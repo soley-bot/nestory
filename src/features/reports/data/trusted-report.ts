@@ -261,6 +261,18 @@ const trustedReportSourceRequirements = {
   "vacancy-risk": requiresReportSources("documents", "leases", "units"),
 } satisfies Record<ReportKind, TrustedReportSourceRequirements>;
 
+function invalidReportScope(viewQuery: ReportsViewQuery): TrustedReport {
+  const message = "Choose an available property and a unit that belongs to it.";
+  return {
+    kind: viewQuery.report, title: "Report", columns: [], rows: [], summary: [],
+    description: "", emptyTitle: "Choose a valid report scope", emptyDescription: "",
+    exportFilenameBase: viewQuery.report, generatedAt: new Date().toISOString(),
+    periodLabel: "", scopeLabel: "Selected scope", totalsTraceLabel: "",
+    scopeValidation: { code: "invalid_report_scope", message },
+    exportValidation: { code: "invalid_report_scope", message, status: 400 },
+  };
+}
+
 export async function getTrustedReport({
   financeContext: suppliedFinanceContext,
   organizationId,
@@ -272,10 +284,10 @@ export async function getTrustedReport({
   supabase?: SupabaseServerClient;
   viewQuery: ReportsViewQuery;
 }): Promise<TrustedReport> {
+  if (viewQuery.scopeInvalid) return invalidReportScope(viewQuery);
   if (["transactions", "management-fees", "rent-roll", "rent-collections"].includes(viewQuery.report)) {
     const { getReportDateRange } = await import("../reports.filters");
     try {
-      if (viewQuery.scopeInvalid) throw new Error("Choose a valid property and unit for this report.");
       if (viewQuery.report !== "rent-roll") getReportDateRange(viewQuery);
     } catch (error) {
       return {
@@ -331,7 +343,6 @@ export async function getTrustedReport({
       (await loadScopedFinanceContext(
         supabase,
         organizationId,
-        viewQuery.propertyId === "all" ? undefined : viewQuery.propertyId,
       ));
     const properties: PropertyRow[] = financeContext.properties
       .filter(
@@ -364,6 +375,11 @@ export async function getTrustedReport({
         status: "active",
         unit_number: unit.unit_number,
       }));
+    if (
+      (viewQuery.propertyId !== "all" && !visiblePropertyIds.has(viewQuery.propertyId)) ||
+      (viewQuery.unitId !== "all" && !units.some((unit) => unit.id === viewQuery.unitId))
+    ) return invalidReportScope(viewQuery);
+
     const ownerProfitLossEvents =
       propertyIds.length === 0
         ? []

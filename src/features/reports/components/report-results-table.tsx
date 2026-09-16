@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ChevronRight, Download } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { SideDrawer } from "@/components/ui/side-drawer";
@@ -288,13 +288,9 @@ function ReportRowDetails({
     0,
     row.sourceCount - row.sourceLinks.length,
   );
-  const unitPdfHref =
+  const completeReportHref =
     report.kind === "unit-profit-loss" && row.cells.unit !== "Property-level"
-      ? buildUnitExportHref("/api/reports/pdf", viewQuery, row.id)
-      : null;
-  const unitExcelHref =
-    report.kind === "unit-profit-loss" && row.cells.unit !== "Property-level"
-      ? buildUnitExportHref("/api/reports/excel", viewQuery, row.id)
+      ? buildUnitExportHref("/reports/unit-profit-loss", viewQuery, row.id)
       : null;
 
   return (
@@ -302,19 +298,9 @@ function ReportRowDetails({
       description={report.periodLabel}
       footer={
         <>
-          {unitPdfHref ? (
+          {completeReportHref ? (
             <Button asChild size="sm" variant="outline">
-              <a aria-label="Export this unit as PDF" href={unitPdfHref}>
-                <Download aria-hidden="true" />
-                Export PDF
-              </a>
-            </Button>
-          ) : null}
-          {unitExcelHref ? (
-            <Button asChild size="sm" variant="outline">
-              <a aria-label="Export this unit as Excel" href={unitExcelHref}>
-                Export Excel
-              </a>
+              <Link href={completeReportHref} onClick={onClose}>Open complete P&amp;L</Link>
             </Button>
           ) : null}
           {row.href ? (
@@ -330,6 +316,7 @@ function ReportRowDetails({
       title={row.title}
     >
       <div className="space-y-6 px-5 pb-6">
+        {completeReportHref ? <p className="text-sm text-muted-foreground">These totals cover this unit only. Open the complete P&amp;L to review property-level costs and export the combined report.</p> : null}
         <dl className="divide-y divide-border border-y border-border">
           {(report.availableColumns ?? report.columns).map((column) => (
             <div
@@ -408,7 +395,7 @@ function ReportRowDetails({
           )}
           {hiddenSourceCount > 0 ? (
             <p
-              aria-label={`${row.sourceSummary}; ${hiddenSourceCount} additional source${hiddenSourceCount === 1 ? " is" : "s are"} available in PDF and Excel exports`}
+              aria-label={`${row.sourceSummary}; ${hiddenSourceCount} additional source${hiddenSourceCount === 1 ? " is" : "s are"} not shown in this preview`}
               className="mt-2 text-xs text-muted-foreground"
             >
               +{hiddenSourceCount} more

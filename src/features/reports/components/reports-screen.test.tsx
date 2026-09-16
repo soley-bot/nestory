@@ -168,17 +168,27 @@ describe("minimal Reports workspace", () => {
     ).toBe("/ledger?archiveState=all&entryId=ledger-income");
     expect(
       screen
-        .getByRole("link", { name: "Export this unit as PDF" })
+        .getByRole("link", { name: "Open complete P&L" })
         .getAttribute("href"),
     ).toBe(
-      "/api/reports/pdf?report=unit-profit-loss&month=2026-07&unitId=unit-1",
+      "/reports/unit-profit-loss?report=unit-profit-loss&month=2026-07&unitId=unit-1",
     );
+    expect(screen.queryByRole("link", { name: "Export this unit as Excel" })).toBeNull();
+    expect(screen.getByText(/These totals cover this unit only/)).toBeTruthy();
     expect(screen.queryByText("Report library")).toBeNull();
     expect(screen.queryByText("Report families")).toBeNull();
     expect(screen.queryByText("Report packets")).toBeNull();
     expect(screen.queryByText("Preview ready")).toBeNull();
     expect(screen.queryByText("2 source rows")).toBeNull();
     expect(screen.queryByText("Generate preview")).toBeNull();
+  });
+
+  it("closes the drawer when opening the already selected complete P&L", async () => {
+    const user = userEvent.setup();
+    renderReport({ viewQuery: query({ unitId: "unit-1" }) });
+    await user.click(screen.getByRole("button", { name: "View details for P1 / Unit A1" }));
+    await user.click(screen.getByRole("link", { name: "Open complete P&L" }));
+    expect(screen.queryByRole("button", { name: "Close drawer" })).toBeNull();
   });
 
   it("keeps the report title and row count inline until the heading needs to wrap", () => {
@@ -249,7 +259,7 @@ describe("minimal Reports workspace", () => {
     expect(screen.getByText("+2 more")).toBeTruthy();
     expect(
       screen.getByLabelText(
-        "7 source records; 2 additional sources are available in PDF and Excel exports",
+        "7 source records; 2 additional sources are not shown in this preview",
       ),
     ).toBeTruthy();
   });
