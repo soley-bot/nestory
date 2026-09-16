@@ -89,7 +89,7 @@ export async function getReportsScreenData(
   const financeContext = await loadScopedFinanceContext(
     supabase,
     organizationId,
-    viewQuery.propertyId === "all" ? undefined : viewQuery.propertyId,
+    viewQuery.report === "unit-profit-loss" || viewQuery.propertyId === "all" ? undefined : viewQuery.propertyId,
   );
   const { propertyOptions, unitOptions } = getReportSelectorData(financeContext, ["transactions", "management-fees", "rent-collections"].includes(viewQuery.report));
   const trustedReport = await getTrustedReport({
