@@ -84,7 +84,8 @@ import {
   getInvoiceStatusPresentation,
   maintenanceStatusLabel,
 } from "@/features/finance-operations/finance-operations-view-model";
-import { OwnerContributionControl, OwnerDistributionDateControl } from "@/features/owner-balances/components/owner-cash-controls";
+import { OwnerContributionControl } from "@/features/owner-balances/components/owner-cash-controls";
+import { AccountEntryActions } from "./account-entry-actions";
 import { sortPropertyAccountEntriesNewestFirst } from "@/features/finance-operations/property-account";
 import {
   getBusinessDateValue,
@@ -854,6 +855,23 @@ function getScreen(
       body: (
         <PropertyAccountView
           entries={props.accountEntries}
+          getSourceAction={(entry) => {
+            const source = entry.source;
+            if (!source) return undefined;
+            if (source.kind === "rent") {
+              const invoice = props.tenantInvoices.find((item) => item.id === source.id && item.propertyId === entry.propertyId);
+              return invoice ? { label: "Open rent transaction", onSelect: () => openModal({ mode: "invoice-details", invoice }) } : undefined;
+            }
+            if (source.kind === "expense") {
+              const submission = props.expenseSubmissions.find((item) => item.id === source.id || item.lines?.some((line) => line.submissionId === source.id && line.propertyId === entry.propertyId));
+              return submission ? { label: "Open expense transaction", onSelect: () => openModal({ mode: "expense-details", submission }) } : undefined;
+            }
+            if (source.kind === "lease" && props.canViewLeases) {
+              const lease = props.leases.find((item) => item.id === source.id && item.propertyId === entry.propertyId);
+              return lease ? { label: "Open lease", href: `/leases/${lease.id}` } : undefined;
+            }
+            return undefined;
+          }}
           canRecordOwnerCash={props.canRecordOwnerCash}
           canCorrectFinance={props.canCorrectFinance}
           onRecordWithdrawal={
@@ -2747,12 +2765,14 @@ function OwnerBalanceDetails({
 }
 
 function PropertyAccountView({
+  getSourceAction,
   canRecordOwnerCash,
   canCorrectFinance,
   entries,
   onRecordWithdrawal,
   position,
 }: {
+  getSourceAction: (entry: PropertyAccountEntry) => { label: string; onSelect?: () => void; href?: string } | undefined;
   canRecordOwnerCash: boolean;
   canCorrectFinance: boolean;
   entries: FinanceOperationsData["accountEntries"];
@@ -2826,6 +2846,7 @@ function PropertyAccountView({
                 <Th align="right">Money in</Th>
                 <Th align="right">Money out</Th>
                 <Th align="right">Balance after</Th>
+                <Th align="right">Actions</Th>
               </tr>
             </thead>
             <tbody>
@@ -2843,7 +2864,6 @@ function PropertyAccountView({
                       <p className="font-medium text-foreground">
                         {entry.label}
                       </p>
-                      {entry.sourceWithdrawalId ? <OwnerDistributionDateControl canCorrectFinance={canCorrectFinance} propertyId={position.propertyId} withdrawalId={entry.sourceWithdrawalId} originalDate={entry.date} amount={entry.amount.toFixed(2)} /> : null}
                       {entry.note ? (
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {entry.note}
@@ -2873,6 +2893,7 @@ function PropertyAccountView({
                     <Td align="right">
                       <Money amount={entry.runningBalance} />
                     </Td>
+                    <Td align="right"><AccountEntryActions entry={entry} propertyLabel={position.propertyLabel} canCorrectFinance={canCorrectFinance} sourceAction={getSourceAction(entry)} /></Td>
                   </tr>
                 );
               })}

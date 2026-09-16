@@ -245,6 +245,7 @@ export type PropertyFinancePosition = {
 };
 
 export type PropertyAccountEntry = {
+  source?: { kind: "distribution" | "contribution" | "rent" | "expense" | "lease"; id: string; reference: string | null; blockedReason?: string };
   amount: number;
   balanceEffect?: number;
   sourceWithdrawalId?: string | null;

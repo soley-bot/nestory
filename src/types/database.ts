@@ -235,6 +235,14 @@ type RpcFunctionOverrides = {
       p_review_reason: string | null;
     }
   >;
+  correct_owner_distribution: WithArgs<
+    "correct_owner_distribution",
+    { p_organization_id: string; p_withdrawal_id: string; p_distribution_date: string; p_amount: string; p_reference: string | null; p_reason: string; p_idempotency_key: string }
+  >;
+  correct_owner_contribution: WithArgs<
+    "correct_owner_contribution",
+    { p_organization_id: string; p_cash_event_id: string; p_event_date: string; p_amount: string; p_reference: string | null; p_reason: string; p_idempotency_key: string }
+  >;
   record_owner_cash_event: WithArgs<
     "record_owner_cash_event",
     {
