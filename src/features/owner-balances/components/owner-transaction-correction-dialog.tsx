@@ -57,7 +57,7 @@ function CorrectionForm({ entry, propertyId, onClose, onPendingChange }: {
     <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
     {Object.entries(review).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
     <table className="w-full text-sm" aria-label="Review transaction correction">
-      <thead><tr className="border-b"><th className="py-2 text-left">Field</th><th className="py-2 text-left">Original</th><th className="py-2 text-left">Corrected</th></tr></thead>
+      <thead className="bg-[var(--table-header-bg)]"><tr className="border-b"><th className="py-2 text-left">Field</th><th className="py-2 text-left">Original</th><th className="py-2 text-left">Corrected</th></tr></thead>
       <tbody>
         <tr><th className="py-2 text-left font-medium">Date</th><td>{formatCalendarDate(entry.date)}</td><td>{formatCalendarDate(review.date)}</td></tr>
         <tr><th className="py-2 text-left font-medium">Amount (USD)</th><td className="tabular-nums">{entry.amount}</td><td className="tabular-nums">{review.amount}</td></tr>
