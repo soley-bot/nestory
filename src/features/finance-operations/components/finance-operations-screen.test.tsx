@@ -3461,6 +3461,16 @@ describe("FinanceOperationsScreen", () => {
     expect(valueOfNamedInput(screen.getByRole("dialog"), "originalId")).toBe("actual-withdrawal");
   });
 
+  it.each(["distribution", "contribution"] as const)("does not offer %s correction without payment permission", async kind => {
+    const user = userEvent.setup();
+    const input = data();
+    input.accountEntries = [{ id: "source", source: { kind, id: "source", reference: null }, amount: 50, category: kind, createdAt: "2026-09-01", date: "2026-09-01", label: "Owner transaction", note: null, propertyId: "property-1", runningBalance: 0, sourceType: kind === "distribution" ? "property_withdrawal" : "owner_contribution" }];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordOwnerCash: false, canCorrectFinance: true })} organizationName="Sokha Property Services" selectedPropertyId="property-1" view="account" />);
+    await user.click(screen.getByRole("button", { name: /Actions for Owner transaction/ }));
+    expect(screen.queryByRole("menuitem", { name: "Correct transaction" })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: "View transaction" })).toBeTruthy();
+  });
+
   it("summarizes owner balances in four columns and opens the full position on demand", async () => {
     const user = userEvent.setup();
     const input = data();

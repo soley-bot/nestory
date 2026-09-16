@@ -2893,7 +2893,7 @@ function PropertyAccountView({
                     <Td align="right">
                       <Money amount={entry.runningBalance} />
                     </Td>
-                    <Td align="right"><AccountEntryActions entry={entry} propertyLabel={position.propertyLabel} canCorrectFinance={canCorrectFinance} sourceAction={getSourceAction(entry)} /></Td>
+                    <Td align="right"><AccountEntryActions entry={entry} propertyLabel={position.propertyLabel} canCorrectFinance={canCorrectFinance && canRecordOwnerCash} sourceAction={getSourceAction(entry)} /></Td>
                   </tr>
                 );
               })}
