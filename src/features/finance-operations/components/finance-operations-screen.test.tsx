@@ -3449,11 +3449,26 @@ describe("FinanceOperationsScreen", () => {
     const user = userEvent.setup();
     const input = data();
     input.positions[0].availableWithdrawal = 0;
-    input.accountEntries = [{ id: "composite-row", sourceWithdrawalId: "actual-withdrawal", amount: 50, category: "withdrawal", createdAt: "2026-09-01", date: "2026-09-01", label: "Owner distribution", note: null, propertyId: "property-1", runningBalance: 0, sourceType: "property_withdrawal" }];
+    input.accountEntries = [{ id: "composite-row", sourceWithdrawalId: "actual-withdrawal", source: { kind: "distribution", id: "actual-withdrawal", reference: null }, amount: 50, category: "withdrawal", createdAt: "2026-09-01", date: "2026-09-01", label: "Owner distribution", note: null, propertyId: "property-1", runningBalance: 0, sourceType: "property_withdrawal" }];
     render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordOwnerCash: true, canCorrectFinance: true })} organizationName="Sokha Property Services" selectedPropertyId="property-1" view="account" />);
     expect(screen.getByRole("button", { name: "Record owner contribution" })).not.toBeNull();
-    await user.click(screen.getByRole("button", { name: "Correct date" }));
-    expect(valueOfNamedInput(screen.getByRole("dialog"), "withdrawalId")).toBe("actual-withdrawal");
+    await user.click(screen.getByRole("button", { name: /Actions for Owner distribution/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Correct transaction" }));
+    await user.clear(screen.getByRole("textbox", { name: "Amount (USD)" }));
+    await user.type(screen.getByRole("textbox", { name: "Amount (USD)" }), "45");
+    await user.type(screen.getByRole("textbox", { name: "Reason for correction" }), "Correct amount recorded");
+    await user.click(screen.getByRole("button", { name: "Review correction" }));
+    expect(valueOfNamedInput(screen.getByRole("dialog"), "originalId")).toBe("actual-withdrawal");
+  });
+
+  it.each(["distribution", "contribution"] as const)("does not offer %s correction without payment permission", async kind => {
+    const user = userEvent.setup();
+    const input = data();
+    input.accountEntries = [{ id: "source", source: { kind, id: "source", reference: null }, amount: 50, category: kind, createdAt: "2026-09-01", date: "2026-09-01", label: "Owner transaction", note: null, propertyId: "property-1", runningBalance: 0, sourceType: kind === "distribution" ? "property_withdrawal" : "owner_contribution" }];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordOwnerCash: false, canCorrectFinance: true })} organizationName="Sokha Property Services" selectedPropertyId="property-1" view="account" />);
+    await user.click(screen.getByRole("button", { name: /Actions for Owner transaction/ }));
+    expect(screen.queryByRole("menuitem", { name: "Correct transaction" })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: "View transaction" })).toBeTruthy();
   });
 
   it("summarizes owner balances in four columns and opens the full position on demand", async () => {

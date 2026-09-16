@@ -5532,6 +5532,7 @@ export type Database = {
       owner_cash_events: {
         Row: {
           amount: number
+          corrects_event_id: string | null
           created_at: string
           created_by: string
           currency: Database["public"]["Enums"]["currency_code"]
@@ -5545,9 +5546,11 @@ export type Database = {
           property_id: string
           reason: string
           reference: string | null
+          reversal_of_id: string | null
         }
         Insert: {
           amount: number
+          corrects_event_id?: string | null
           created_at?: string
           created_by: string
           currency: Database["public"]["Enums"]["currency_code"]
@@ -5561,9 +5564,11 @@ export type Database = {
           property_id: string
           reason: string
           reference?: string | null
+          reversal_of_id?: string | null
         }
         Update: {
           amount?: number
+          corrects_event_id?: string | null
           created_at?: string
           created_by?: string
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -5577,8 +5582,16 @@ export type Database = {
           property_id?: string
           reason?: string
           reference?: string | null
+          reversal_of_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "owner_cash_events_correction_fk"
+            columns: ["organization_id", "corrects_event_id"]
+            isOneToOne: false
+            referencedRelation: "owner_cash_events"
+            referencedColumns: ["organization_id", "id"]
+          },
           {
             foreignKeyName: "owner_cash_events_owner_fk"
             columns: ["organization_id", "owner_person_id"]
@@ -5599,6 +5612,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "property_finance_positions"
             referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "owner_cash_events_reversal_fk"
+            columns: ["organization_id", "reversal_of_id"]
+            isOneToOne: false
+            referencedRelation: "owner_cash_events"
+            referencedColumns: ["organization_id", "id"]
           },
         ]
       }
@@ -10919,6 +10939,30 @@ export type Database = {
             }
             Returns: Json
           }
+      correct_owner_contribution: {
+        Args: {
+          p_amount: number
+          p_cash_event_id: string
+          p_event_date: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+          p_reference: string
+        }
+        Returns: Json
+      }
+      correct_owner_distribution: {
+        Args: {
+          p_amount: number
+          p_distribution_date: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+          p_reference: string
+          p_withdrawal_id: string
+        }
+        Returns: Json
+      }
       correct_owner_distribution_date: {
         Args: {
           p_distribution_date: string

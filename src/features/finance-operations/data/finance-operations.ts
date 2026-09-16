@@ -33,6 +33,7 @@ import type {
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
 import { sortPropertyAccountEntriesNewestFirst } from "@/features/finance-operations/property-account";
+import { hydrateAccountEntrySources } from "./account-entry-sources";
 import { documentDownloadUrl } from "@/lib/uploads/document-download";
 
 type TenantInvoiceBalanceRow =
@@ -459,6 +460,7 @@ export function groupExpenseTransactionSummaries(
 export async function getFinanceOperationsData(
   organizationId: string,
   propertyId?: string | null,
+  options: { includeAccountSources?: boolean } = {},
 ): Promise<FinanceOperationsData> {
   const supabase = await createSupabaseServerClient();
   const [
@@ -770,12 +772,13 @@ export async function getFinanceOperationsData(
         sortOrder: category.sort_order,
       }) satisfies FinanceCategory,
   );
-  return {
-    accountEntries: sortPropertyAccountEntriesNewestFirst(
+  const accountEntries = sortPropertyAccountEntriesNewestFirst(
       (entriesResult.data ?? []).flatMap((row) =>
         toAccountEntry(row as AccountEntryRow),
       ),
-    ),
+    );
+  return {
+    accountEntries: options.includeAccountSources ? await hydrateAccountEntrySources(supabase, organizationId, accountEntries) : accountEntries,
     expenseAccounts: getExpenseAccountOptions(financeAccounts),
     expenseSubmissions: groupExpenseTransactionSummaries((expenseSubmissionsResult.data ?? []).map(
       (submission) =>

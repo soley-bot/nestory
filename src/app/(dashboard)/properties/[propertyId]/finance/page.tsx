@@ -21,7 +21,7 @@ export default async function PropertyFinancePage({
     searchParams,
     requireFinanceContext(),
   ]);
-  const allData = await getFinanceOperationsData(context.organizationId, propertyId);
+  const allData = await getFinanceOperationsData(context.organizationId, propertyId, { includeAccountSources: query.view === "owner" });
   const property = allData.propertyOptions.find((option) => option.id === propertyId);
   if (!property) notFound();
   const data = scopeFinanceOperationsData(allData, { propertyId });
@@ -42,6 +42,7 @@ export default async function PropertyFinancePage({
       canReverseExpense={context.capabilities.canReverseExpense}
       canRetryCurrentRent={context.capabilities.canRetryCurrentRent}
       canSubmitExpense={context.capabilities.canSubmitExpense}
+      canViewLeases={context.permissionKeys.has("leases.view")}
       canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       organizationName={context.organizationName}
       scope={{
