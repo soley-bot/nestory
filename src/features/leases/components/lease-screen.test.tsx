@@ -469,8 +469,15 @@ describe("LeaseScreen redesign contract", () => {
 
     renderLeases({ canPrepare: false, leases: [] });
     expect(screen.getByText("No leases yet")).not.toBeNull();
+    expect(screen.queryByRole("link", { name: "Choose a property" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add lease" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Generate rent" })).toBeNull();
+  });
+
+  it("offers the property workflow from an authorized empty lease register", () => {
+    renderLeases({ leases: [] });
+    expect(screen.getByRole("link", { name: "Choose a property" }).getAttribute("href"))
+      .toBe("/properties?notice=choose-lease-context");
   });
 
   it("keeps Finance lease inspection read-only", () => {
