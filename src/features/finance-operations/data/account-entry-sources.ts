@@ -5,12 +5,15 @@ type Client = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
 // The projection's identity is not always the command identity. Resolve through
 // explicit foreign keys, and leave the row read-only when a source is unavailable.
-export async function hydrateAccountEntrySources(client: Client, organizationId: string, entries: PropertyAccountEntry[]) {
+export async function hydrateAccountEntrySources(client: Client, organizationId: string, entries: PropertyAccountEntry[], options: {requireComplete?: boolean} = {}) {
+  const assertComplete = (...results: {error: unknown}[]) => {
+    if (options.requireComplete && results.some(result => result.error)) throw new Error("Transaction history could not be loaded completely. Refresh before reviewing activity.");
+  };
   if (!entries.length) return entries;
   // Bound PostgREST URLs even if the account register limit grows.
   if (entries.length > 75) {
     const result: PropertyAccountEntry[] = [];
-    for (let offset = 0; offset < entries.length; offset += 75) result.push(...await hydrateAccountEntrySources(client, organizationId, entries.slice(offset, offset + 75)));
+    for (let offset = 0; offset < entries.length; offset += 75) result.push(...await hydrateAccountEntrySources(client, organizationId, entries.slice(offset, offset + 75), options));
     return result;
   }
   const ids = (type: string) => entries.filter((entry) => entry.sourceType === type).map((entry) => entry.id);
@@ -32,12 +35,13 @@ export async function hydrateAccountEntrySources(client: Client, organizationId:
       client.from("owner_balance_periods").select("property_id, owner_person_id, currency, month_start").eq("organization_id", organizationId).eq("status", "closed").in("property_id", propertyIds),
       client.from("financial_month_locks").select("month_start, branch_id").eq("organization_id", organizationId).eq("is_locked", true),
     ]);
+    assertComplete(originals, reversals, periods, locks);
     if (!originals.error && !reversals.error && !periods.error && !locks.error) {
       for (const row of originals.data ?? []) {
         const reversed = row.reversal_of_id || reversals.data?.some((item) => item.reversal_of_id === row.id);
         const month = `${row.withdrawal_date.slice(0, 7)}-01`;
         const closed = locks.data?.some((item) => item.month_start === month && (item.branch_id === null || branches.get(row.property_id) === null || item.branch_id === branches.get(row.property_id))) || periods.data?.some((item) => item.property_id === row.property_id && item.owner_person_id === row.owner_person_id && item.currency === row.currency && item.month_start >= month);
-        sources.set(key("property_withdrawal", row.id), { kind: "distribution", id: row.id, reference: row.reference, blockedReason: reversed ? "This transaction has been reversed." : closed ? "This transaction belongs to a closed period." : undefined });
+        sources.set(key("property_withdrawal", row.id), { kind: "distribution", id: row.id, reference: row.reference, isReversed: Boolean(reversed), blockedReason: reversed ? "This transaction has been reversed." : closed ? "This transaction belongs to a closed period." : undefined });
       }
     }
   }
@@ -49,11 +53,12 @@ export async function hydrateAccountEntrySources(client: Client, organizationId:
       client.from("owner_balance_periods").select("property_id, owner_person_id, currency, month_start").eq("organization_id", organizationId).eq("status", "closed").in("property_id", propertyIds),
       client.from("financial_month_locks").select("month_start, branch_id").eq("organization_id", organizationId).eq("is_locked", true),
     ]);
+    assertComplete(originals, reversals, periods, locks);
     if (!originals.error && !reversals.error && !periods.error && !locks.error) for (const row of originals.data ?? []) {
       const reversed = row.reversal_of_id || reversals.data?.some((item) => item.reversal_of_id === row.id);
       const month = `${row.event_date.slice(0, 7)}-01`;
       const closed = locks.data?.some((item) => item.month_start === month && (item.branch_id === null || branches.get(row.property_id) === null || item.branch_id === branches.get(row.property_id))) || periods.data?.some((item) => item.property_id === row.property_id && item.owner_person_id === row.owner_person_id && item.currency === row.currency && item.month_start >= month);
-      sources.set(key("owner_contribution", row.id), { kind: "contribution", id: row.id, reference: row.corrects_event_id ? row.reference : row.reference ?? row.reason, blockedReason: reversed || row.amount <= 0 ? "This transaction has been reversed." : closed ? "This transaction belongs to a closed period." : undefined });
+      sources.set(key("owner_contribution", row.id), { kind: "contribution", id: row.id, reference: row.corrects_event_id ? row.reference : row.reference ?? row.reason, isReversed: Boolean(reversed || row.amount <= 0), blockedReason: reversed || row.amount <= 0 ? "This transaction has been reversed." : closed ? "This transaction belongs to a closed period." : undefined });
     }
   }
   for (const type of ["tenant_invoice_payment", "owner_collection_confirmation"] as const) {
@@ -61,6 +66,7 @@ export async function hydrateAccountEntrySources(client: Client, organizationId:
     if (!sourceIds.length) continue;
     const table = type === "tenant_invoice_payment" ? "tenant_invoice_payment_allocations" : "owner_collection_confirmation_allocations";
     const result = await client.from(table).select("id, invoice_id, reversal_of_allocation_id").eq("organization_id", organizationId).in("id", sourceIds);
+    assertComplete(result);
     if (!result.error) for (const row of result.data ?? []) {
       sources.set(key(type, row.id), { kind: "rent", id: row.invoice_id, reference: null, blockedReason: row.reversal_of_allocation_id ? "This is a reversal entry." : undefined });
     }
@@ -68,8 +74,10 @@ export async function hydrateAccountEntrySources(client: Client, organizationId:
   const expenseIds = ids("ips_expense_responsibility");
   if (expenseIds.length) {
     const result = await client.from("ips_expense_responsibilities").select("id, finance_expense_item_id").eq("organization_id", organizationId).in("property_id", propertyIds).in("id", expenseIds);
+    assertComplete(result);
     if (!result.error && result.data?.length) {
       const submissions = await client.from("expense_submissions").select("id, approved_finance_expense_item_id, reference, status").eq("organization_id", organizationId).in("property_id", propertyIds).in("approved_finance_expense_item_id", result.data.map((row) => row.finance_expense_item_id));
+      assertComplete(submissions);
       if (!submissions.error) for (const row of result.data) {
         const submission = submissions.data?.find((item) => item.approved_finance_expense_item_id === row.finance_expense_item_id);
         if (submission) sources.set(key("ips_expense_responsibility", row.id), { kind: "expense", id: submission.id, reference: submission.reference, blockedReason: submission.status === "reversed" ? "This transaction has been reversed." : undefined });
@@ -78,8 +86,12 @@ export async function hydrateAccountEntrySources(client: Client, organizationId:
   }
   const feeIds = ids("management_fee_occurrence");
   if (feeIds.length) {
-    const result = await client.from("management_fee_occurrences").select("id, lease_id").eq("organization_id", organizationId).in("property_id", propertyIds).in("id", feeIds);
-    if (!result.error) for (const row of result.data ?? []) sources.set(key("management_fee_occurrence", row.id), { kind: "lease", id: row.lease_id, reference: null });
+    const [result, reversals] = await Promise.all([
+      client.from("management_fee_occurrences").select("id, lease_id, reversal_of_id, settlement_status").eq("organization_id", organizationId).in("property_id", propertyIds).in("id", feeIds),
+      client.from("management_fee_occurrences").select("reversal_of_id").eq("organization_id", organizationId).in("property_id", propertyIds).in("reversal_of_id", feeIds),
+    ]);
+    assertComplete(result, reversals);
+    if (!result.error && !reversals.error) for (const row of result.data ?? []) sources.set(key("management_fee_occurrence", row.id), { kind: "lease", id: row.lease_id, reference: null, isReversed: Boolean(row.reversal_of_id || row.settlement_status === "reversed" || reversals.data?.some(reversal => reversal.reversal_of_id === row.id)) });
   }
   return entries.map((entry) => ({ ...entry, source: sources.get(key(entry.sourceType, entry.id)) }));
 }

@@ -85,6 +85,8 @@ import {
   maintenanceStatusLabel,
 } from "@/features/finance-operations/finance-operations-view-model";
 import { OwnerContributionControl } from "@/features/owner-balances/components/owner-cash-controls";
+import { TransactionWorkspace } from "./transaction-workspace";
+import { TransactionRowActions } from "./transaction-row-actions";
 import { AccountEntryActions } from "./account-entry-actions";
 import { sortPropertyAccountEntriesNewestFirst } from "@/features/finance-operations/property-account";
 import {
@@ -96,11 +98,11 @@ import { formatMoneyDisplay } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 export type FinanceOperationsView =
-  "account" | "balances" | "expenses" | "rent" | "work";
+  "account" | "balances" | "expenses" | "rent" | "work" | "transactions";
 
 type ModalState =
   | { mode: "expense-cancel"; submission: ExpenseSubmissionSummary }
-  | { lease?: FinanceLease; mode: "manual-charge" }
+  | { lease?: FinanceLease; mode: "manual-charge"; transactionScope?: FinanceOperationsScreenProps["scope"] }
   | {
       invoice: TenantInvoiceSummary;
       mode: "invoice-details";
@@ -115,6 +117,7 @@ type ModalState =
       position: PropertyFinancePosition;
     }
   | {
+      transactionScope?: FinanceOperationsScreenProps["scope"];
       canChooseAnother?: boolean;
       invoice?: TenantInvoiceSummary;
       mode: "payment";
@@ -139,6 +142,7 @@ type ModalState =
 type DrawerState =
   | { lease: FinanceLease; mode: "billing" }
   | {
+      fixedScope?: FinanceOperationsScreenProps["scope"];
       initialInvoiceId?: string;
       initialResponsibility?: "owner" | "tenant";
       mode: "expense";
@@ -411,7 +415,8 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
             <ExpenseForm
               expenseAccounts={props.expenseAccounts}
               replacement={visibleDrawer.replacement}
-              fixedScope={props.scope}
+              fixedScope={visibleDrawer.fixedScope ?? props.scope}
+              lockScope={Boolean(visibleDrawer.fixedScope)}
               initialInvoiceId={visibleDrawer.initialInvoiceId}
               initialResponsibility={visibleDrawer.initialResponsibility}
               invoices={props.tenantInvoices}
@@ -550,10 +555,10 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
               leaseChargeAccounts={props.leaseChargeAccounts}
               fixedLease={visibleActionModal.lease}
               invoices={props.tenantInvoices}
-              leases={props.leases}
+              leases={props.leases.filter(lease => !visibleActionModal.transactionScope || lease.propertyId === visibleActionModal.transactionScope.propertyId && (visibleActionModal.transactionScope.kind !== "unit" || lease.unitId === visibleActionModal.transactionScope.id))}
               onClose={closeModal}
               onSuccess={onActionSuccess}
-              scope={props.scope}
+              scope={visibleActionModal.transactionScope ?? props.scope}
             />
           ) : visibleActionModal.mode === "rent-recovery" ? (
             <HistoricalRentRecoveryForm
@@ -566,7 +571,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
                 invoice={visibleActionModal.invoice}
                 onChooseAnother={
                   visibleActionModal.canChooseAnother
-                    ? () => setModal({ mode: "payment" })
+                    ? () => setModal({ mode: "payment", transactionScope: visibleActionModal.transactionScope })
                     : undefined
                 }
                 onReceiptResult={setReceiptResult}
@@ -581,10 +586,10 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
             ) : (
               <PaymentChooser
                 invoices={props.tenantInvoices.filter(
-                  (invoice) => invoice.balanceDue > 0,
+                  (invoice) => invoice.balanceDue > 0 && (!visibleActionModal.transactionScope || invoice.propertyId === visibleActionModal.transactionScope.propertyId && (visibleActionModal.transactionScope.kind !== "unit" || invoice.unitId === visibleActionModal.transactionScope.id)),
                 )}
                 onChoose={(invoice) =>
-                  setModal({ canChooseAnother: true, invoice, mode: "payment" })
+                  setModal({ canChooseAnother: true, invoice, mode: "payment", transactionScope: visibleActionModal.transactionScope })
                 }
               />
             )
@@ -638,6 +643,7 @@ function ScopedFinanceNavigation({
       ? `/properties/${scope.id}/finance`
       : `/units/${scope.id}/finance`;
   const items = [
+    { active: view === "transactions", href: `${base}?view=transactions`, label: "Transactions" },
     {
       active: view === "rent",
       href: `${base}?view=rent`,
@@ -676,6 +682,46 @@ function getScreen(
   openDrawer: (drawer: DrawerState) => void,
 ) {
   const canConfigureRent = props.canConfigureRent;
+
+  if (props.view === "transactions" && props.scope) {
+    const scope = props.scope;
+    const position = props.positions.find(item => item.propertyId === scope.propertyId);
+    return {
+      activeRoute: "/finance" as const,
+      actions: undefined,
+      context: scope.label,
+      contextHref: scope.kind === "unit" ? `/units/${scope.id}/finance` : `/properties/${scope.id}/finance`,
+      title: "Transactions",
+      toolbar: undefined,
+      body: <TransactionWorkspace
+        data={props}
+        scope={{ propertyId: scope.propertyId, unitId: scope.kind === "unit" ? scope.id : undefined }}
+        canReadReports={props.canReadFinanceReports ?? false}
+        onOpenInvoice={invoice => openModal({ mode: "invoice-details", invoice })}
+        onOpenExpense={submission => openModal({ mode: "expense-details", submission })}
+        renderTransactionActions={row => <TransactionRowActions row={row} canCorrect={props.canCorrectFinance} canViewLeases={props.canViewLeases ?? false}
+          onEditExpense={row.source.kind === "expense" && canReplaceExpense(row.source.submission, props) ? () => { if (row.source.kind === "expense") openDrawer({ mode: "expense", replacement: row.source.submission }); } : undefined}
+          onDeleteExpense={row.source.kind === "expense" && !row.source.submission.transactionReviewBlocked && (row.source.submission.status === "approved" ? props.canReverseExpense : row.source.submission.status === "submitted" && canReplaceExpense(row.source.submission, props)) ? () => { if (row.source.kind === "expense") openModal({ mode: row.source.submission.status === "approved" ? "expense-reversal" : "expense-cancel", submission: row.source.submission }); } : undefined}
+        />}
+        renderAccountActions={entry => <AccountEntryActions entry={entry} propertyLabel={scope.propertyLabel} canCorrectFinance={props.canCorrectFinance && props.canRecordOwnerCash} sourceAction={entry.source?.kind === "lease" && props.canViewLeases ? { label: "Open lease", href: `/leases/${entry.source.id}` } : undefined} />}
+        actions={effectiveScope => {
+          const transactionScope: NonNullable<FinanceOperationsScreenProps["scope"]> = effectiveScope.unitId ? { ...scope, id: effectiveScope.unitId, kind: "unit", label: props.unitOptions.find(unit => unit.id === effectiveScope.unitId)?.label ?? scope.label } : scope;
+          const leases = props.leases.filter(lease => lease.propertyId === effectiveScope.propertyId && (!effectiveScope.unitId || lease.unitId === effectiveScope.unitId) && ["active", "notice_given"].includes(lease.status));
+          const openInvoices = props.tenantInvoices.filter(invoice => invoice.propertyId === effectiveScope.propertyId && (!effectiveScope.unitId || invoice.unitId === effectiveScope.unitId) && invoice.balanceDue > 0 && invoice.paymentStatus !== "voided");
+          return <>
+          {props.canRecordPayments ? <>
+            <Button onClick={() => openModal({ mode: "manual-charge", transactionScope, lease: leases.length === 1 ? leases[0] : undefined })}>Add charge</Button>
+            <Button variant="outline" disabled={!openInvoices.length} onClick={() => openModal({ mode: "payment", transactionScope, invoice: openInvoices.length === 1 ? openInvoices[0] : undefined, canChooseAnother: true })}>Receive payment</Button>
+          </> : null}
+          {props.canSubmitExpense ? <Button variant="outline" onClick={() => openDrawer({ mode: "expense", initialResponsibility: "owner", fixedScope: transactionScope })}>Add expense</Button> : null}
+          {!effectiveScope.unitId && props.canRecordOwnerCash && position?.ownerPersonId ? <>
+            <OwnerContributionControl canRecordOwnerCash propertyId={position.propertyId} ownerPersonId={position.ownerPersonId} ownerLabel={position.ownerLabel} />
+            <Button variant="outline" disabled={position.availableWithdrawal <= 0} onClick={() => openModal({ mode: "withdrawal", position })}>Owner distribution</Button>
+          </> : null}
+        </>; }}
+      />,
+    };
+  }
 
   if (props.view === "rent") {
     const focusedLease = props.initialRentLeaseId
@@ -2674,11 +2720,11 @@ function ExpenseDetails({
           </Button>
           {submission.status === "approved" && canReverse && !submission.transactionReviewBlocked ? (
             <Button
-              aria-label={`Reverse ${submission.vendorLabel}`}
+              aria-label={`Delete ${submission.vendorLabel}`}
               onClick={onReverse}
               variant="outline"
             >
-              Reverse
+              Delete
             </Button>
           ) : null}
         </FormFooter>
@@ -3100,6 +3146,7 @@ function PaymentChooser({
 }
 
 type ExpenseFormProps = {
+  lockScope?: boolean;
   replacement?: ExpenseSubmissionSummary;
   expenseAccounts: FinanceOperationsData["expenseAccounts"];
   fixedScope?: FinanceOperationsScreenProps["scope"];
@@ -3148,6 +3195,7 @@ type OwnerExpenseDraftLine = {
 };
 
 function OwnerExpenseTransactionForm({
+  lockScope = false,
   replacement,
   canCreateVendor = false,
   expenseAccounts,
@@ -3256,7 +3304,7 @@ function OwnerExpenseTransactionForm({
       ariaLabel="Record property expense form"
       onCancel={onClose}
       pending={pending}
-      saveLabel={replacement ? replacement.status === "approved" ? "Reverse and submit correction" : "Save changes for review" : "Submit for review"}
+      saveLabel={replacement ? replacement.status === "approved" ? "Save correction for review" : "Save changes for review" : "Submit for review"}
       savingLabel="Submitting expense"
       state={state}
     >
@@ -3352,6 +3400,7 @@ function OwnerExpenseTransactionForm({
                   <Field label="Property">
                       <SelectControl
                         ariaLabel={index === 0 ? "Property" : `Expense line ${index + 1} property`}
+                        disabled={lockScope}
                         placeholder="Choose property"
                         required
                         onValueChange={(propertyId) => updateLine(line.key, { propertyId, unitId: "", categoryAccountId: activeCategories.find((account) => account.propertyId === null || account.propertyId === propertyId)?.id ?? "" })}
@@ -3362,6 +3411,7 @@ function OwnerExpenseTransactionForm({
                   <Field label="Unit">
                       <SelectControl
                         ariaLabel={`Expense line ${index + 1} unit`}
+                        disabled={lockScope && fixedScope?.kind === "unit"}
                         onValueChange={(unitId) => updateLine(line.key, { unitId })}
                         options={[
                           { label: "No unit", value: "" },
@@ -4166,13 +4216,8 @@ function ExpenseReversalForm({
           ["Charged", formatMoneyDisplay(submission.customerTotal).primary],
         ]}
       />
-      <Field label="Reversal date">
-        <DatePickerField
-          defaultValue={getBusinessDateValue()}
-          name="reversalDate"
-          required
-        />
-      </Field>
+      <input name="reversalDate" type="hidden" value={submission.date} />
+      <p className="text-sm">Transaction date: {formatDate(submission.date)}</p>
       <Field label="Reason">
         <Input
           onChange={(event) => setReason(event.target.value)}
@@ -4182,15 +4227,14 @@ function ExpenseReversalForm({
         />
       </Field>
       <p className="text-xs text-muted-foreground">
-        Reversal keeps the original record and adds an opposite cash, balance,
-        and customer correction.
+        Deleting removes this expense from current balances. The original record stays in history.
       </p>
       <ActionMessage state={state} />
       <FormFooter>
         <span />
         <SubmitButton
           disabled={reason.trim().length < 3}
-          label="Reverse paid cost"
+          label="Delete expense"
         />
       </FormFooter>
     </form>
@@ -4657,7 +4701,7 @@ function getModalTitle(modal: ModalState) {
       ? "Approve paid cost"
       : "Reject paid cost";
   }
-  if (modal.mode === "expense-reversal") return "Reverse paid cost";
+  if (modal.mode === "expense-reversal") return "Delete expense";
   if (modal.mode === "settlement-reversal") return "Correct settlement";
   return "Record owner distribution";
 }

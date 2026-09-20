@@ -26,6 +26,18 @@ vi.mock("@/features/finance-accounts/data/finance-accounts", () => ({
 }));
 
 describe("finance operations initial reads", () => {
+  it("loads historical transactions beyond the old caps for the scoped workspace", async () => {
+    const harness=createFinanceReadHarness({
+      properties:{data:[{id:"property-1",code:"P",name:"Property",archived_at:null}]},
+      tenant_invoice_balances:{data:Array.from({length:601},(_,index)=>({id:`invoice-${index}`,property_id:"property-1",lease_id:"lease-1",invoice_number:`INV-${index}`,issue_date:"2025-01-01",due_date:"2025-01-05",total_amount:500,balance_due:0,unit_id:null}))},
+      property_account_entries:{data:Array.from({length:601},(_,index)=>({source_id:`source-${index}`,property_id:"property-1",event_date:"2025-01-01",created_at:"2025-01-01",category:"opening",label:"Opening",source_type:"opening_balance",amount:10,running_balance:10}))},
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result=await getFinanceOperationsData("organization-1","property-1",{completeTransactionHistory:true,includeAccountSources:true});
+    expect(result.tenantInvoices).toHaveLength(601);
+    expect(result.accountEntries).toHaveLength(601);
+    expect(result.accountSourcesComplete).toBe(true);
+  });
   it("keeps a readable historical rent invoice when direct property reads are denied", async () => {
     // Break caught: toTenantInvoice drops permitted money rows because the property map is domain-filtered.
     const harness = createFinanceReadHarness({
@@ -242,6 +254,7 @@ function createFinanceReadHarness(
 
   class Query implements PromiseLike<{ data: unknown; error: unknown }> {
     private singleRow = false;
+    private bounds?: [number, number];
 
     constructor(private readonly table: string) {}
 
@@ -261,9 +274,7 @@ function createFinanceReadHarness(
       return this;
     }
 
-    limit() {
-      return this;
-    }
+    limit(count:number) { this.bounds=[0,count-1]; return this; }
 
     neq() {
       return this;
@@ -273,9 +284,7 @@ function createFinanceReadHarness(
       return this;
     }
 
-    range() {
-      return this;
-    }
+    range(from:number,to:number) { this.bounds=[from,to]; return this; }
 
     select() {
       return this;
@@ -303,6 +312,7 @@ function createFinanceReadHarness(
           (this.singleRow ? { operational_timezone: "UTC" } : []),
         error: override?.error ?? null,
       };
+      if (this.bounds && Array.isArray(value.data)) value.data=value.data.slice(this.bounds[0],this.bounds[1]+1);
       active += 1;
       peak = Math.max(peak, active);
 

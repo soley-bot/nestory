@@ -460,8 +460,9 @@ export function groupExpenseTransactionSummaries(
 export async function getFinanceOperationsData(
   organizationId: string,
   propertyId?: string | null,
-  options: { includeAccountSources?: boolean } = {},
+  options: { includeAccountSources?: boolean; completeTransactionHistory?: boolean } = {},
 ): Promise<FinanceOperationsData> {
+  if (options.completeTransactionHistory && !propertyId) throw new Error("Choose a property before loading complete transaction history.");
   const supabase = await createSupabaseServerClient();
   const [
     organizationResult,
@@ -490,16 +491,16 @@ export async function getFinanceOperationsData(
       .order("display_name"),
     () => supabase.from("person_roles").select("person_id, role")
       .eq("organization_id", organizationId).eq("status", "active").is("archived_at", null),
-    () => getTenantInvoiceBalanceRows(supabase, organizationId, propertyId),
+    () => getTenantInvoiceBalanceRows(supabase, organizationId, propertyId, options.completeTransactionHistory),
     () => getUnresolvedRentGenerationExceptions(supabase, organizationId),
     () => getOwnerInvoiceBalanceRows(supabase, organizationId, propertyId),
-    () => getExpenseSubmissionRows(supabase, organizationId),
+    () => getExpenseSubmissionRows(supabase, organizationId, options.completeTransactionHistory ? propertyId : undefined),
     () => supabase
       .from("property_finance_positions")
       .select("*")
       .eq("organization_id", organizationId)
       .order("property_code"),
-    () => buildAccountEntryQuery(supabase, organizationId, propertyId),
+    () => options.completeTransactionHistory ? fetchAllActionableRows(async (from, to) => buildAccountEntryQuery(supabase, organizationId, propertyId, {from, to})) : buildAccountEntryQuery(supabase, organizationId, propertyId),
     () => supabase
       .from("financial_reconciliation_sources")
       .select("id, property_id, code, display_name, archived_at")
@@ -537,7 +538,7 @@ export async function getFinanceOperationsData(
   }
 
   const expenseTransactions = await loadExpenseTransactions(
-    supabase, organizationId, expenseSubmissionsResult.data ?? [],
+    supabase, organizationId, expenseSubmissionsResult.data ?? [], options.completeTransactionHistory ? propertyId : undefined,
   );
   expenseSubmissionsResult.data = expenseTransactions.submissions;
 
@@ -778,7 +779,8 @@ export async function getFinanceOperationsData(
       ),
     );
   return {
-    accountEntries: options.includeAccountSources ? await hydrateAccountEntrySources(supabase, organizationId, accountEntries) : accountEntries,
+    accountSourcesComplete: Boolean(options.completeTransactionHistory && options.includeAccountSources),
+    accountEntries: options.includeAccountSources ? await hydrateAccountEntrySources(supabase, organizationId, accountEntries, { requireComplete: options.completeTransactionHistory }) : accountEntries,
     expenseAccounts: getExpenseAccountOptions(financeAccounts),
     expenseSubmissions: groupExpenseTransactionSummaries((expenseSubmissionsResult.data ?? []).map(
       (submission) =>
@@ -1137,6 +1139,7 @@ export function scopeFinanceOperationsData(
     (!scope.unitId || unitId === scope.unitId);
 
   return {
+    accountSourcesComplete: data.accountSourcesComplete,
     expenseEntryOptions: data.expenseEntryOptions ?? {
       propertyOptions: data.propertyOptions,
       unitOptions: data.unitOptions,
@@ -1499,7 +1502,13 @@ async function getTenantInvoiceBalanceRows(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   organizationId: string,
   propertyId?: string | null,
+  completeHistory = false,
 ): Promise<DataPageResult<TenantInvoiceBalanceRow>> {
+  if (completeHistory) return fetchAllActionableRows(async (from, to) => {
+    let query = supabase.from("tenant_invoice_balances").select("*").eq("organization_id", organizationId).order("due_date", {ascending:false}).order("id").range(from,to);
+    if (propertyId) query = query.eq("property_id", propertyId);
+    return query;
+  });
   const actionableResult =
     await fetchAllActionableRows<TenantInvoiceBalanceRow>(async (from, to) => {
       let query = supabase
@@ -1613,7 +1622,9 @@ async function getOwnerInvoiceBalanceRows(
 async function getExpenseSubmissionRows(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   organizationId: string,
+  completePropertyId?: string | null,
 ): Promise<DataPageResult<ExpenseSubmissionRow>> {
+  if (completePropertyId) return fetchAllActionableRows(async (from, to) => supabase.from("expense_submissions").select("*").eq("organization_id",organizationId).eq("property_id",completePropertyId).order("submitted_at",{ascending:false}).order("id").range(from,to));
   const pending = await fetchAllActionableRows(async (from, to) => {
     const { data, error } = await supabase
       .from("expense_submissions")
@@ -1646,13 +1657,21 @@ export async function loadExpenseTransactions(
   supabase: FinanceServerClient,
   organizationId: string,
   initialSubmissions: ExpenseSubmissionRow[],
+  completePropertyId?: string | null,
 ) {
-  const pending = await fetchAllActionableRows(async (from, to) => {
+  const scopedParentIds: string[] = [];
+  if (completePropertyId) for (let offset=0; offset<initialSubmissions.length; offset+=500) {
+    const links = await supabase.rpc("get_expense_transaction_child_links", {p_organization_id:organizationId,p_submission_ids:initialSubmissions.slice(offset,offset+500).map(item=>item.id)});
+    if (links.error) throw new Error("Could not load complete expense transaction membership.");
+    scopedParentIds.push(...(links.data ?? []).map(link=>link.transaction_id));
+  }
+  const scopedParents = completePropertyId ? await fetchRowsByIdBatches([...new Set(scopedParentIds)],async(ids,from,to)=>supabase.from("expense_transactions").select("*").eq("organization_id",organizationId).in("id",[...ids]).order("id").range(from,to)) : null;
+  const pending = scopedParents ?? await fetchAllActionableRows(async (from, to) => {
     return await supabase.from("expense_transactions").select("*")
       .eq("organization_id", organizationId).eq("status", "submitted")
       .order("submitted_at", { ascending: false }).order("id").range(from, to);
   });
-  const history = await supabase.from("expense_transactions").select("*")
+  const history = completePropertyId ? {data: [],error:null} : await supabase.from("expense_transactions").select("*")
     .eq("organization_id", organizationId).neq("status", "submitted")
     .order("submitted_at", { ascending: false }).order("id").limit(250);
   if (pending.error || history.error) throw new Error("Could not load expense transactions.");
@@ -1732,18 +1751,19 @@ function buildAccountEntryQuery(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   organizationId: string,
   propertyId?: string | null,
+  range?: {from:number;to:number},
 ) {
   let query = supabase
     .from("property_account_entries")
     .select("*")
     .eq("organization_id", organizationId);
   if (propertyId) query = query.eq("property_id", propertyId);
-  return query
+  const ordered = query
     .order("event_date", { ascending: false })
     .order("created_at", { ascending: false })
     .order("source_type", { ascending: false })
-    .order("source_id", { ascending: false })
-    .limit(300);
+    .order("source_id", { ascending: false });
+  return range ? ordered.range(range.from,range.to) : ordered.limit(300);
 }
 
 function toBilling(

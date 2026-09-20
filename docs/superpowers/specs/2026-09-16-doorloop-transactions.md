@@ -1,6 +1,6 @@
 # Property and unit transaction workflow
 
-Status: proposed design for review, 16 September 2026. No application or live financial data changes made in this investigation.
+Status: approved by the user on 16 September 2026. Implementation must preserve live financial records until an exact correction preview is approved.
 
 ## Intended staff experience
 

@@ -21,7 +21,7 @@ export default async function PropertyFinancePage({
     searchParams,
     requireFinanceContext(),
   ]);
-  const allData = await getFinanceOperationsData(context.organizationId, propertyId, { includeAccountSources: query.view === "owner" });
+  const allData = await getFinanceOperationsData(context.organizationId, propertyId, { completeTransactionHistory: !["rent", "expenses", "owner"].includes(query.view ?? ""), includeAccountSources: !["rent", "expenses", "owner"].includes(query.view ?? "") || query.view === "owner" });
   const property = allData.propertyOptions.find((option) => option.id === propertyId);
   if (!property) notFound();
   const data = scopeFinanceOperationsData(allData, { propertyId });
@@ -61,5 +61,5 @@ export default async function PropertyFinancePage({
 function propertyFinanceView(view?: string): FinanceOperationsView {
   if (view === "expenses") return "expenses";
   if (view === "owner") return "account";
-  return "rent";
+  return view === "rent" ? "rent" : "transactions";
 }

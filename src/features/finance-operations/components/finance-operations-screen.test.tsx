@@ -90,6 +90,31 @@ class ResizeObserverStub {
 }
 
 describe("FinanceOperationsScreen", () => {
+  it("keeps selected transaction unit when opening charge, payment and expense forms", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.unitOptions.push({id:"unit-2",label:"Unit 02",propertyId:"property-1"});
+    input.leases.push({...input.leases[0],id:"lease-2",unitId:"unit-2",unitLabel:"Unit 02",tenantLabel:"Other tenant"});
+    input.tenantInvoices=[tenantInvoice(),{...tenantInvoice(),id:"invoice-2",leaseId:"lease-2",unitId:"unit-2",unitLabel:"Unit 02",recipientLabel:"Other tenant"}];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({canRecordPayments:true,canSubmitExpense:true,canRecordOwnerCash:true})} organizationName="IPS" view="transactions" scope={{id:"property-1",kind:"property",label:"Riverside",propertyId:"property-1",propertyLabel:"Riverside"}} />);
+    await user.click(screen.getByRole("combobox",{name:"Transaction unit"}));
+    await user.click(screen.getByRole("option",{name:"Unit 02"}));
+    expect(screen.queryByRole("button",{name:"Owner distribution"})).toBeNull();
+    await user.click(screen.getByRole("button",{name:"Add charge"}));
+    expect(screen.getByRole("dialog").querySelector<HTMLInputElement>('input[name="leaseId"]')?.value).toBe("lease-2");
+    await user.click(within(screen.getByRole("dialog")).getByRole("button",{name:"Cancel"}));
+    await user.click(screen.getByRole("button",{name:"Receive payment"}));
+    expect(screen.getByRole("dialog").textContent).toContain("Other tenant");
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button",{name:"Add expense"}));
+    const expense = screen.getByRole("dialog");
+    expect(within(expense).getByRole("combobox",{name:"Expense line 1 unit"}).hasAttribute("disabled")).toBe(true);
+    const lines=JSON.parse(expense.querySelector<HTMLInputElement>('input[name="lines"]')!.value);
+    expect(lines[0].unitId).toBe("unit-2");
+    await user.click(within(expense).getByRole("button",{name:"Cancel"}));
+    expect(financeActionMocks.recordTenantInvoicePaymentAction).not.toHaveBeenCalled();
+    expect(financeActionMocks.submitExpenseAction).not.toHaveBeenCalled();
+  });
   it("explains current availability and retains a rejected distribution draft", async () => {
     const user = userEvent.setup();
     financeActionMocks.recordWithdrawalAction.mockResolvedValue({ status: "error", message: "Earlier owner cash records need reconciliation before this distribution can be recorded." });
@@ -165,7 +190,7 @@ describe("FinanceOperationsScreen", () => {
     await user.click(screen.getByRole("button", { name: "View Sokha Repairs" }));
     await user.click(screen.getByRole("button", { name: "Correct expense" }));
     expect(screen.getByText(/replacement needs approval before it affects the owner balance/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Reverse and submit correction" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save correction for review" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Cancel expense" })).toBeNull();
   });
 
@@ -2640,13 +2665,13 @@ describe("FinanceOperationsScreen", () => {
     );
     const details = screen.getByRole("dialog", { name: "Paid cost details" });
     await user.click(
-      within(details).getByRole("button", { name: "Reverse Sokha Repairs" }),
+      within(details).getByRole("button", { name: "Delete Sokha Repairs" }),
     );
     expect(
-      screen.getByRole("dialog", { name: "Reverse paid cost" }),
+      screen.getByRole("dialog", { name: "Delete expense" }),
     ).not.toBeNull();
     expect(
-      screen.getByRole("button", { name: "Reverse paid cost" }),
+      screen.getByRole("button", { name: "Delete expense" }),
     ).not.toBeNull();
   });
 
@@ -3453,7 +3478,7 @@ describe("FinanceOperationsScreen", () => {
     render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordOwnerCash: true, canCorrectFinance: true })} organizationName="Sokha Property Services" selectedPropertyId="property-1" view="account" />);
     expect(screen.getByRole("button", { name: "Record owner contribution" })).not.toBeNull();
     await user.click(screen.getByRole("button", { name: /Actions for Owner distribution/ }));
-    await user.click(screen.getByRole("menuitem", { name: "Correct transaction" }));
+    await user.click(screen.getByRole("menuitem", { name: "Edit" }));
     await user.clear(screen.getByRole("textbox", { name: "Amount (USD)" }));
     await user.type(screen.getByRole("textbox", { name: "Amount (USD)" }), "45");
     await user.type(screen.getByRole("textbox", { name: "Reason for correction" }), "Correct amount recorded");
@@ -3467,7 +3492,7 @@ describe("FinanceOperationsScreen", () => {
     input.accountEntries = [{ id: "source", source: { kind, id: "source", reference: null }, amount: 50, category: kind, createdAt: "2026-09-01", date: "2026-09-01", label: "Owner transaction", note: null, propertyId: "property-1", runningBalance: 0, sourceType: kind === "distribution" ? "property_withdrawal" : "owner_contribution" }];
     render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordOwnerCash: false, canCorrectFinance: true })} organizationName="Sokha Property Services" selectedPropertyId="property-1" view="account" />);
     await user.click(screen.getByRole("button", { name: /Actions for Owner transaction/ }));
-    expect(screen.queryByRole("menuitem", { name: "Correct transaction" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Edit" })).toBeNull();
     expect(screen.getByRole("menuitem", { name: "View transaction" })).toBeTruthy();
   });
 

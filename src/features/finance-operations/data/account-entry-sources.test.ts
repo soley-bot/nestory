@@ -14,6 +14,18 @@ function harness(results: Record<string, { data: unknown[]; error?: unknown }[]>
   return { client: client as never, calls };
 }
 describe("account source routing", () => {
+  it("fails complete transaction loading when source hydration is unreadable", async () => {
+    const {client}=harness({tenant_invoice_payment_allocations:[{data:[],error:{message:"unavailable"}}]});
+    await expect(hydrateAccountEntrySources(client,"org",[entry("tenant_invoice_payment")],{requireComplete:true})).rejects.toThrow("could not be loaded completely");
+  });
+  it("marks a fee original reversed even when its own settlement status is unchanged", async () => {
+    const {client} = harness({ management_fee_occurrences: [
+      {data:[{id:"source",lease_id:"lease-a",reversal_of_id:null,settlement_status:"paid"}]},
+      {data:[{reversal_of_id:"source"}]},
+    ] });
+    const [result] = await hydrateAccountEntrySources(client,"org",[entry("management_fee_occurrence")]);
+    expect(result.source).toMatchObject({kind:"lease",id:"lease-a",isReversed:true});
+  });
   it("maps actual rent allocation identities and scopes all reads to the organization", async () => {
     const { client, calls } = harness({ tenant_invoice_payment_allocations: [{ data: [{ id: "source", invoice_id: "real-invoice", reversal_of_allocation_id: null }] }] });
     const [result] = await hydrateAccountEntrySources(client, "org", [entry("tenant_invoice_payment")]);
