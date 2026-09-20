@@ -8,6 +8,10 @@ export const invoice = (overrides: Partial<TenantInvoiceSummary> = {}): TenantIn
 });
 const input = (overrides: Partial<FinanceOperationsData> = {}) => ({ tenantInvoices: [invoice()], expenseSubmissions: [], accountEntries: [], ...overrides });
 describe("transaction workspace projection", () => {
+  it("keeps an archived lease fee in the original unit history", () => {
+    const rows=projectTransactions({...input({tenantInvoices:[],accountEntries:[{id:"fee",sourceType:"management_fee_occurrence",source:{kind:"lease",id:"old-lease",reference:null},amount:40,date:"2025-01-01",createdAt:"",category:"fee",label:"Management fee",propertyId:"property-a",runningBalance:0,note:null}]}),leases:[],historicalLeases:[{id:"old-lease",propertyId:"property-a",unitId:"unit-a",unitLabel:"101",tenantLabel:"Former tenant"}]});
+    expect(filterTransactions(rows,{propertyId:"property-a",unitId:"unit-a"})).toEqual([expect.objectContaining({kind:"management_fee",tenant:"Former tenant",unitLabel:"101"})]);
+  });
   it.each(["property_withdrawal_reversal", "expense_customer_adjustment"])("keeps %s in correction history", sourceType => {
     const rows = projectTransactions(input({tenantInvoices: [], accountEntries: [{id:"reversal", amount:50, date:"2026-09-04", createdAt:"", category:"", label:"Correction", propertyId:"property-a", runningBalance:50, note:null, sourceType}]}));
     expect(filterTransactions(rows, {propertyId:"property-a"})).toEqual([]);

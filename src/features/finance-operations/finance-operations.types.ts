@@ -270,6 +270,7 @@ export type FinanceOperationsData = {
   leaseChargeAccounts: FinanceAccountOption[];
   leaseDepositAccounts: FinanceAccountOption[];
   leases: FinanceLease[];
+  historicalLeases?: Pick<FinanceLease, "id" | "propertyId" | "unitId" | "unitLabel" | "tenantLabel">[];
   ownerInvoices: OwnerInvoiceSummary[];
   payFromAccounts: FinanceAccountOption[];
   operationalTimezone?: string;

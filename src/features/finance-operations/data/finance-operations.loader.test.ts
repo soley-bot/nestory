@@ -26,6 +26,20 @@ vi.mock("@/features/finance-accounts/data/finance-accounts", () => ({
 }));
 
 describe("finance operations initial reads", () => {
+  it("retains archived lease context without offering it for new charges", async () => {
+    const harness=createFinanceReadHarness({properties:{data:[{id:"property-1",code:"P",name:"Property",archived_at:null}]},units:{data:[{id:"unit-1",property_id:"property-1",unit_number:"101",archived_at:null}]},current_leases:{data:[{id:"old-lease",property_id:"property-1",unit_id:"unit-1",primary_tenant_person_id:"tenant",tenant_name:"Former tenant",status:"ended",lease_start_date:"2025-01-01",lease_end_date:"2025-12-31",monthly_rent_amount:500,archived_at:"2026-01-01"}]}});
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result=await getFinanceOperationsData("organization-1","property-1",{completeTransactionHistory:true});
+    expect(result.leases).toEqual([]);
+    expect(result.historicalLeases).toEqual([expect.objectContaining({id:"old-lease",unitId:"unit-1",tenantLabel:"Former tenant"})]);
+  });
+  it("batches maintenance context for large complete expense histories", async () => {
+    const harness=createFinanceReadHarness({properties:{data:[{id:"property-1",code:"P",name:"Property",archived_at:null}]},expense_submissions:{data:Array.from({length:1101},(_,i)=>({id:`expense-${i}`,property_id:"property-1",source_type:"maintenance_task",source_id:`task-${i}`,expense_date:"2025-01-01",status:"approved",responsibility:"owner",submitted_by:"user",submitted_at:"2025-01-01",internal_cost_amount:1,customer_total_amount:1}))},tasks:{data:Array.from({length:1101},(_,i)=>({id:`task-${i}`,title:`Repair ${i}`,description:null,status:"completed",completed_at:"2025-01-01"}))}});
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result=await getFinanceOperationsData("organization-1","property-1",{completeTransactionHistory:true});
+    expect(result.expenseSubmissions).toHaveLength(1101);
+    expect(result.expenseSubmissions.every(row=>row.maintenanceTask?.title)).toBe(true);
+  });
   it("loads every payment and owner confirmation beyond the API row cap", async () => {
     const harness=createFinanceReadHarness({
       properties:{data:[{id:"property-1",code:"P",name:"Property",archived_at:null}]},
@@ -267,6 +281,7 @@ function createFinanceReadHarness(
   class Query implements PromiseLike<{ data: unknown; error: unknown }> {
     private singleRow = false;
     private bounds?: [number, number];
+    private taskIds?: string[];
 
     constructor(private readonly table: string) {}
 
@@ -278,7 +293,11 @@ function createFinanceReadHarness(
       return this;
     }
 
-    in() {
+    in(column: string, ids: string[]) {
+      if (this.table === "tasks" && column === "id") {
+        if (ids.length > 1000) throw new Error("Task lookup exceeds request size");
+        this.taskIds=ids;
+      }
       return this;
     }
 
@@ -324,6 +343,7 @@ function createFinanceReadHarness(
           (this.singleRow ? { operational_timezone: "UTC" } : []),
         error: override?.error ?? null,
       };
+      if (this.taskIds && Array.isArray(value.data)) value.data=value.data.filter(row=>this.taskIds!.includes(row.id));
       if (Array.isArray(value.data)) value.data=this.bounds ? value.data.slice(this.bounds[0],this.bounds[1]+1) : value.data.slice(0,1000);
       active += 1;
       peak = Math.max(peak, active);

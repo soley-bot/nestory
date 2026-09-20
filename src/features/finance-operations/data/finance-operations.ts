@@ -705,11 +705,11 @@ export async function getFinanceOperationsData(
   );
   const maintenanceTaskResult =
     maintenanceTaskIds.length > 0
-      ? await supabase
+      ? await fetchRowsByIdBatches<MaintenanceTaskRow>(maintenanceTaskIds, async (ids, from, to) => supabase
           .from("tasks")
           .select("id, title, description, status, completed_at")
           .eq("organization_id", organizationId)
-          .in("id", [...new Set(maintenanceTaskIds)])
+          .in("id", [...ids]).order("id").range(from, to))
       : { data: [] as MaintenanceTaskRow[], error: null };
   if (maintenanceTaskResult.error) {
     throw new Error(
@@ -780,6 +780,11 @@ export async function getFinanceOperationsData(
     );
   return {
     accountSourcesComplete: Boolean(options.completeTransactionHistory && options.includeAccountSources),
+    historicalLeases: readContext.leases.map(lease => {
+      const property = propertyById.get(lease.property_id);
+      const unit = lease.unit_id ? unitById.get(lease.unit_id) : undefined;
+      return {id:lease.id,propertyId:lease.property_id,unitId:lease.unit_id,unitLabel:unit && property ? unitLabel(unit,property) : "No unit",tenantLabel:lease.tenant_name};
+    }),
     accountEntries: options.includeAccountSources ? await hydrateAccountEntrySources(supabase, organizationId, accountEntries, { requireComplete: options.completeTransactionHistory }) : accountEntries,
     expenseAccounts: getExpenseAccountOptions(financeAccounts),
     expenseSubmissions: groupExpenseTransactionSummaries((expenseSubmissionsResult.data ?? []).map(
@@ -1140,6 +1145,7 @@ export function scopeFinanceOperationsData(
 
   return {
     accountSourcesComplete: data.accountSourcesComplete,
+    historicalLeases: data.historicalLeases?.filter(lease => lease.propertyId === scope.propertyId && (!scope.unitId || lease.unitId === scope.unitId)),
     expenseEntryOptions: data.expenseEntryOptions ?? {
       propertyOptions: data.propertyOptions,
       unitOptions: data.unitOptions,

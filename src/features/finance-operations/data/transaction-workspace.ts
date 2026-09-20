@@ -15,7 +15,7 @@ export type TransactionScope = { propertyId: string; unitId?: string };
 export type TransactionFilters = TransactionScope & { month?: string; kind?: string; status?: string; tenant?: string; query?: string; includeHistory?: boolean };
 
 /** Business documents only: invoice allocations and the owner account are not added together. */
-export function projectTransactions(data: Pick<FinanceOperationsData, "tenantInvoices" | "expenseSubmissions" | "accountEntries"> & { leases?: FinanceOperationsData["leases"]; accountSourcesComplete?: boolean }): TransactionRow[] {
+export function projectTransactions(data: Pick<FinanceOperationsData, "tenantInvoices" | "expenseSubmissions" | "accountEntries"> & { leases?: FinanceOperationsData["leases"]; historicalLeases?: FinanceOperationsData["historicalLeases"]; accountSourcesComplete?: boolean }): TransactionRow[] {
   const rows: TransactionRow[] = [];
   for (const invoice of data.tenantInvoices) {
     const common = { propertyId: invoice.propertyId, unitId: invoice.unitId, unitLabel: invoice.unitLabel, tenant: invoice.recipientLabel };
@@ -30,7 +30,7 @@ export function projectTransactions(data: Pick<FinanceOperationsData, "tenantInv
       if (entry.source?.kind === "expense" && data.expenseSubmissions.some(submission => submission.id === entry.source!.id || submission.lines?.some(line => line.submissionId === entry.source!.id))) continue;
       // Unresolved allocations cannot be matched safely to documents; do not duplicate their cash.
       if (!data.accountSourcesComplete && !entry.source && ["tenant_invoice_payment", "owner_collection_confirmation", "ips_expense_responsibility"].includes(entry.sourceType)) continue;
-      const lease = entry.source?.kind === "lease" ? data.leases?.find(lease => lease.id === entry.source!.id) : undefined;
+      const lease = entry.source?.kind === "lease" ? (data.historicalLeases ?? data.leases)?.find(lease => lease.id === entry.source!.id) : undefined;
       const history = entry.source?.isReversed === true || ["property_withdrawal_reversal", "expense_customer_adjustment"].includes(entry.sourceType) || entry.sourceType === "management_fee_occurrence" && entry.amount < 0;
       rows.push({ id: `account:${entry.sourceType}:${entry.id}`, sourceId: entry.source?.id ?? entry.id, kind: entry.sourceType === "management_fee_occurrence" ? "management_fee" : "account", date: entry.date, label: entry.label, propertyId: entry.propertyId, unitId: lease?.unitId ?? null, unitLabel: lease?.unitLabel ?? "Property", tenant: lease?.tenantLabel ?? "", amount: entry.amount, status: history ? "reversed" : "posted", history, source: {kind: "account", entry} });
       continue;
