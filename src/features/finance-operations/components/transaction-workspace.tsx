@@ -65,4 +65,3 @@ export function TransactionWorkspace({ data, scope, actions, canReadReports, onO
   </section>;
 }
 const kindLabels = { charge: "Charge", payment: "Payment", expense: "Expense", contribution: "Owner contribution", distribution: "Owner distribution", management_fee: "Management fee", account: "Account activity" };
-
