@@ -14,6 +14,7 @@ export default async function RentIncomePage({
     query.action === "billing" ? query.leaseId : undefined;
   return (
     <FinanceOperationsScreen
+      canRecoverOwnerDistribution={context.isSuperAdmin}
       currentUserId={context.userId}
       canApproveOwnExpense={context.isSuperAdmin}
       {...data}

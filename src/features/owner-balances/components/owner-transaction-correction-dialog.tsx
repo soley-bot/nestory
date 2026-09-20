@@ -13,9 +13,9 @@ import { correctionChangesEntry, ownerCashCorrectionFields, type OwnerCashCorrec
 import type { OwnerCashActionState } from "../owner-cash-actions";
 import { OwnerDistributionRecoveryDialog } from "./owner-distribution-recovery-dialog";
 
-export function OwnerTransactionCorrectionDialog({ open, onOpenChange, propertyId, entry, canCorrectFinance }: {
+export function OwnerTransactionCorrectionDialog({ open, onOpenChange, propertyId, entry, canCorrectFinance, canRecoverOwnerDistribution = false }: {
   open: boolean; onOpenChange: (open: boolean) => void; propertyId: string;
-  entry: OwnerCashCorrectionEntry; canCorrectFinance: boolean;
+  entry: OwnerCashCorrectionEntry; canCorrectFinance: boolean; canRecoverOwnerDistribution?: boolean;
 }) {
   const [pending, setPending] = useState(false);
   if (!canCorrectFinance) return null;
@@ -23,13 +23,13 @@ export function OwnerTransactionCorrectionDialog({ open, onOpenChange, propertyI
     <DialogContent onInteractOutside={event => { if (pending) event.preventDefault(); }} onEscapeKeyDown={event => { if (pending) event.preventDefault(); }}>
       <DialogTitle>Correct owner {entry.kind}</DialogTitle>
       <DialogDescription>Review the changes before confirming. The original transaction stays in history, with a reversal and replacement.</DialogDescription>
-      {open ? <CorrectionForm key={entry.id} entry={entry} propertyId={propertyId} onClose={() => onOpenChange(false)} onPendingChange={setPending} /> : null}
+      {open ? <CorrectionForm canRecoverOwnerDistribution={canRecoverOwnerDistribution} key={entry.id} entry={entry} propertyId={propertyId} onClose={() => onOpenChange(false)} onPendingChange={setPending} /> : null}
     </DialogContent>
   </Dialog>;
 }
 
-function CorrectionForm({ entry, propertyId, onClose, onPendingChange }: {
-  entry: OwnerCashCorrectionEntry; propertyId: string; onClose: () => void; onPendingChange: (pending: boolean) => void;
+function CorrectionForm({ entry, propertyId, onClose, onPendingChange, canRecoverOwnerDistribution }: {
+  canRecoverOwnerDistribution: boolean; entry: OwnerCashCorrectionEntry; propertyId: string; onClose: () => void; onPendingChange: (pending: boolean) => void;
 }) {
   const router = useRouter();
   const [date, setDate] = useState(entry.date);
@@ -69,7 +69,7 @@ function CorrectionForm({ entry, propertyId, onClose, onPendingChange }: {
     <p className="break-words text-sm"><span className="font-medium">Reason for correction: </span>{review.reason}</p>
     <p className="text-xs text-muted-foreground">Balances and reports will reflect the corrected transaction. Closed periods and available cash are checked when you confirm.</p>
     {state.status === "error" ? <p role="alert" className="text-sm text-destructive">{state.message}</p> : null}
-    {state.status === "error" && entry.kind === "distribution" && /cash/i.test(state.message ?? "") && review.date !== entry.date && Number(review.amount) === Number(entry.amount) && review.reference === (entry.reference ?? "") ? <>
+    {canRecoverOwnerDistribution && state.status === "error" && entry.kind === "distribution" && /cash/i.test(state.message ?? "") && review.date !== entry.date && Number(review.amount) === Number(entry.amount) && review.reference === (entry.reference ?? "") ? <>
       <Button type="button" variant="outline" onClick={() => setRecoveryOpen(true)}>Review related fee dates</Button>
       <OwnerDistributionRecoveryDialog open={recoveryOpen} onOpenChange={setRecoveryOpen} withdrawalId={entry.id} distributionDate={review.date} onSuccess={onClose} />
     </> : null}

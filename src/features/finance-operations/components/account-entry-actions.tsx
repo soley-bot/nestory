@@ -12,10 +12,11 @@ import { formatCalendarDate } from "@/lib/dates/format";
 import { formatMoney } from "@/lib/money/format";
 import { TransactionDeleteDialog } from "./transaction-delete-dialog";
 
-export function AccountEntryActions({ entry, propertyLabel, canCorrectFinance, sourceAction }: {
+export function AccountEntryActions({ entry, propertyLabel, canCorrectFinance, canRecoverOwnerDistribution = false, sourceAction }: {
   entry: PropertyAccountEntry;
   propertyLabel: string;
   canCorrectFinance: boolean;
+  canRecoverOwnerDistribution?: boolean;
   sourceAction?: { label: string; onSelect?: () => void; href?: string };
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -49,7 +50,7 @@ export function AccountEntryActions({ entry, propertyLabel, canCorrectFinance, s
         {source?.blockedReason ? <p className="text-muted-foreground">{source.blockedReason}</p> : null}
       </DialogContent>
     </Dialog>
-    {cash ? <OwnerTransactionCorrectionDialog open={correctionOpen} onOpenChange={setCorrectionOpen} canCorrectFinance={canCorrectFinance && !cash.blockedReason} propertyId={entry.propertyId} entry={{ id: cash.id, kind: cash.kind as "distribution" | "contribution", date: entry.date, amount: entry.amount.toFixed(2), reference: cash.reference }} /> : null}
+    {cash ? <OwnerTransactionCorrectionDialog canRecoverOwnerDistribution={canRecoverOwnerDistribution} open={correctionOpen} onOpenChange={setCorrectionOpen} canCorrectFinance={canCorrectFinance && !cash.blockedReason} propertyId={entry.propertyId} entry={{ id: cash.id, kind: cash.kind as "distribution" | "contribution", date: entry.date, amount: entry.amount.toFixed(2), reference: cash.reference }} /> : null}
     {cash ? <TransactionDeleteDialog open={deleteOpen} onOpenChange={setDeleteOpen} canDelete={canCorrectFinance && !cash.blockedReason} entry={{ id: cash.id, kind: cash.kind as "distribution" | "contribution", date: entry.date, amount: entry.amount, label: entry.label, propertyId: entry.propertyId }} /> : null}
   </>;
 }

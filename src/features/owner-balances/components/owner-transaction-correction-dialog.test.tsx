@@ -11,6 +11,17 @@ const entry = { id: "transaction", kind: "distribution" as const, date: "2026-01
 function mount(extra = {}) { return render(<OwnerTransactionCorrectionDialog open onOpenChange={vi.fn()} canCorrectFinance propertyId="property" entry={entry} {...extra} />); }
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 describe("transaction correction review", () => {
+  it.each([false, true])("offers fee recovery only with administrator authority: %s", async canRecoverOwnerDistribution => {
+    mocks.action.mockResolvedValueOnce({status:"error", message:"Not enough cash on the corrected date."});
+    const user = userEvent.setup(); mount({canRecoverOwnerDistribution});
+    await user.clear(screen.getByLabelText("Correction date"));
+    await user.type(screen.getByLabelText("Correction date"), "2026-01-02");
+    await user.type(screen.getByLabelText("Reason for correction"), "Correct payment date");
+    await user.click(screen.getByRole("button", {name:"Review correction"}));
+    await user.click(screen.getByRole("button", {name:"Confirm correction"}));
+    await screen.findByRole("alert");
+    expect(Boolean(screen.queryByRole("button", {name:"Review related fee dates"}))).toBe(canRecoverOwnerDistribution);
+  });
   it("does not expose correction fields without authority", () => { mount({ canCorrectFinance: false }); expect(screen.queryByRole("dialog")).toBeNull(); });
   it("reviews amount/reference changes without saving and requires explicit confirmation", async () => {
     const user = userEvent.setup(); mount();

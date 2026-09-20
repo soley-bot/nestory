@@ -156,6 +156,7 @@ type FinanceOperationsScreenProps = FinanceOperationsData & {
   canConfigureRent: boolean;
   canManageFinanceCategories?: boolean;
   canCorrectFinance: boolean;
+  canRecoverOwnerDistribution?: boolean;
   canRecordOwnerCash: boolean;
   canRecordPayments: boolean;
   canReadFinanceReports?: boolean;
@@ -703,7 +704,7 @@ function getScreen(
           onEditExpense={row.source.kind === "expense" && canReplaceExpense(row.source.submission, props) ? () => { if (row.source.kind === "expense") openDrawer({ mode: "expense", replacement: row.source.submission }); } : undefined}
           onDeleteExpense={row.source.kind === "expense" && !row.source.submission.transactionReviewBlocked && (row.source.submission.status === "approved" ? props.canReverseExpense : row.source.submission.status === "submitted" && canReplaceExpense(row.source.submission, props)) ? () => { if (row.source.kind === "expense") openModal({ mode: row.source.submission.status === "approved" ? "expense-reversal" : "expense-cancel", submission: row.source.submission }); } : undefined}
         />}
-        renderAccountActions={entry => <AccountEntryActions entry={entry} propertyLabel={scope.propertyLabel} canCorrectFinance={props.canCorrectFinance && props.canRecordOwnerCash} sourceAction={entry.source?.kind === "lease" && props.canViewLeases ? { label: "Open lease", href: `/leases/${entry.source.id}` } : undefined} />}
+        renderAccountActions={entry => <AccountEntryActions canRecoverOwnerDistribution={props.canRecoverOwnerDistribution} entry={entry} propertyLabel={scope.propertyLabel} canCorrectFinance={props.canCorrectFinance && props.canRecordOwnerCash} sourceAction={entry.source?.kind === "lease" && props.canViewLeases ? { label: "Open lease", href: `/leases/${entry.source.id}` } : undefined} />}
         actions={effectiveScope => {
           const transactionScope: NonNullable<FinanceOperationsScreenProps["scope"]> = effectiveScope.unitId ? { ...scope, id: effectiveScope.unitId, kind: "unit", label: props.unitOptions.find(unit => unit.id === effectiveScope.unitId)?.label ?? scope.label } : scope;
           const leases = props.leases.filter(lease => lease.propertyId === effectiveScope.propertyId && (!effectiveScope.unitId || lease.unitId === effectiveScope.unitId) && ["active", "notice_given"].includes(lease.status));
@@ -900,6 +901,7 @@ function getScreen(
       actions: undefined,
       body: (
         <PropertyAccountView
+          canRecoverOwnerDistribution={props.canRecoverOwnerDistribution}
           entries={props.accountEntries}
           getSourceAction={(entry) => {
             const source = entry.source;
@@ -2811,6 +2813,7 @@ function OwnerBalanceDetails({
 }
 
 function PropertyAccountView({
+  canRecoverOwnerDistribution,
   getSourceAction,
   canRecordOwnerCash,
   canCorrectFinance,
@@ -2821,6 +2824,7 @@ function PropertyAccountView({
   getSourceAction: (entry: PropertyAccountEntry) => { label: string; onSelect?: () => void; href?: string } | undefined;
   canRecordOwnerCash: boolean;
   canCorrectFinance: boolean;
+  canRecoverOwnerDistribution?: boolean;
   entries: FinanceOperationsData["accountEntries"];
   onRecordWithdrawal?: () => void;
   position: PropertyFinancePosition | null;
@@ -2939,7 +2943,7 @@ function PropertyAccountView({
                     <Td align="right">
                       <Money amount={entry.runningBalance} />
                     </Td>
-                    <Td align="right"><AccountEntryActions entry={entry} propertyLabel={position.propertyLabel} canCorrectFinance={canCorrectFinance && canRecordOwnerCash} sourceAction={getSourceAction(entry)} /></Td>
+                    <Td align="right"><AccountEntryActions canRecoverOwnerDistribution={canRecoverOwnerDistribution} entry={entry} propertyLabel={position.propertyLabel} canCorrectFinance={canCorrectFinance && canRecordOwnerCash} sourceAction={getSourceAction(entry)} /></Td>
                   </tr>
                 );
               })}
