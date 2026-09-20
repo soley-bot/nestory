@@ -33,8 +33,8 @@ export function transactionCommandError(message: string) {
   if (/forbidden|permission|not authorized/i.test(message)) return "You do not have permission to change this transaction.";
   if (/closed|month_locked|month is locked/i.test(message)) return "An affected financial month is closed. Reopen it before changing this transaction.";
   if (/dependent_owner_cash|consumed|held_cash|insufficient|underfund/i.test(message)) return "This money is used by another transaction. Review the related payments before deleting it.";
-  if (/settlement|payment|collection/i.test(message)) return "This charge has payments attached. Review those payments before deleting the charge.";
   if (/already|not_issued|target_missing/i.test(message)) return "This transaction has already changed. Refresh the list before trying again.";
   if (/idempotency|sources_changed|serialization/i.test(message)) return "The transaction changed while you were working. Refresh and review it again.";
+  if (/settlement|payment|collection/i.test(message)) return "This charge has payments attached. Review those payments before deleting the charge.";
   return "The transaction could not be deleted. Refresh the list and review its details before trying again.";
 }

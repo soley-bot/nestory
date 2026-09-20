@@ -8,6 +8,12 @@ export const invoice = (overrides: Partial<TenantInvoiceSummary> = {}): TenantIn
 });
 const input = (overrides: Partial<FinanceOperationsData> = {}) => ({ tenantInvoices: [invoice()], expenseSubmissions: [], accountEntries: [], ...overrides });
 describe("transaction workspace projection", () => {
+  it.each(["property_withdrawal_reversal", "expense_customer_adjustment"])("keeps %s in correction history", sourceType => {
+    const rows = projectTransactions(input({tenantInvoices: [], accountEntries: [{id:"reversal", amount:50, date:"2026-09-04", createdAt:"", category:"", label:"Correction", propertyId:"property-a", runningBalance:50, note:null, sourceType}]}));
+    expect(filterTransactions(rows, {propertyId:"property-a"})).toEqual([]);
+    expect(filterTransactions(rows, {propertyId:"property-a", includeHistory:true})).toHaveLength(1);
+    expect(rows[0]).toMatchObject({history:true, status:"reversed"});
+  });
   it("keeps partial charges separate from cash and does not duplicate account allocations", () => {
     const rows = projectTransactions(input({ accountEntries: [{id: "allocation", amount: 200, date: "2026-09-04", createdAt: "", category: "rent", label: "Receipt", propertyId: "property-a", runningBalance: 200, note: null, sourceType: "tenant_invoice_payment"}] }));
     expect(rows.map(row => [row.kind, row.amount])).toEqual([["payment",200],["charge",500]]);

@@ -31,7 +31,7 @@ describe("delete financial transaction", () => {
     expect(await deleteTransactionAction({}, form())).toMatchObject({ status: "error" });
     expect(mocks.revalidate).not.toHaveBeenCalled();
   });
-  it.each([["dependent_owner_cash:test", "used by another"], ["Financial month is locked", "month is closed"], ["tenant_invoice_has_settlements", "payments attached"]])("explains %s", async (error, message) => {
+  it.each([["dependent_owner_cash:test", "used by another"], ["Financial month is locked", "month is closed"], ["tenant_invoice_has_settlements", "payments attached"], ["Tenant invoice payment is already reversed", "Refresh the list"], ["owner_collection_sources_changed", "Refresh and review"]])("explains %s", async (error, message) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: error } });
     expect((await deleteTransactionAction({}, form())).message).toContain(message);
   });

@@ -31,7 +31,7 @@ export function projectTransactions(data: Pick<FinanceOperationsData, "tenantInv
       // Unresolved allocations cannot be matched safely to documents; do not duplicate their cash.
       if (!data.accountSourcesComplete && !entry.source && ["tenant_invoice_payment", "owner_collection_confirmation", "ips_expense_responsibility"].includes(entry.sourceType)) continue;
       const lease = entry.source?.kind === "lease" ? data.leases?.find(lease => lease.id === entry.source!.id) : undefined;
-      const history = entry.source?.isReversed === true || entry.sourceType === "management_fee_occurrence" && entry.amount < 0;
+      const history = entry.source?.isReversed === true || ["property_withdrawal_reversal", "expense_customer_adjustment"].includes(entry.sourceType) || entry.sourceType === "management_fee_occurrence" && entry.amount < 0;
       rows.push({ id: `account:${entry.sourceType}:${entry.id}`, sourceId: entry.source?.id ?? entry.id, kind: entry.sourceType === "management_fee_occurrence" ? "management_fee" : "account", date: entry.date, label: entry.label, propertyId: entry.propertyId, unitId: lease?.unitId ?? null, unitLabel: lease?.unitLabel ?? "Property", tenant: lease?.tenantLabel ?? "", amount: entry.amount, status: history ? "reversed" : "posted", history, source: {kind: "account", entry} });
       continue;
     }
