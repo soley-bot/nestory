@@ -10,15 +10,18 @@ import { OwnerTransactionCorrectionDialog } from "@/features/owner-balances/comp
 import type { PropertyAccountEntry } from "../finance-operations.types";
 import { formatCalendarDate } from "@/lib/dates/format";
 import { formatMoney } from "@/lib/money/format";
+import { TransactionDeleteDialog } from "./transaction-delete-dialog";
 
-export function AccountEntryActions({ entry, propertyLabel, canCorrectFinance, sourceAction }: {
+export function AccountEntryActions({ entry, propertyLabel, canCorrectFinance, canRecoverOwnerDistribution = false, sourceAction }: {
   entry: PropertyAccountEntry;
   propertyLabel: string;
   canCorrectFinance: boolean;
+  canRecoverOwnerDistribution?: boolean;
   sourceAction?: { label: string; onSelect?: () => void; href?: string };
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const source = entry.source;
   const cash = source?.kind === "distribution" || source?.kind === "contribution" ? source : null;
   return <>
@@ -28,7 +31,7 @@ export function AccountEntryActions({ entry, propertyLabel, canCorrectFinance, s
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
         <DropdownMenuItem onSelect={() => setDetailsOpen(true)}>View transaction</DropdownMenuItem>
-        {canCorrectFinance && cash && !cash.blockedReason ? <DropdownMenuItem onSelect={() => setCorrectionOpen(true)}>Correct transaction</DropdownMenuItem> : null}
+        {canCorrectFinance && cash && !cash.blockedReason ? <><DropdownMenuItem onSelect={() => setCorrectionOpen(true)}>Edit</DropdownMenuItem><DropdownMenuItem onSelect={() => setDeleteOpen(true)}>Delete</DropdownMenuItem></> : null}
         {sourceAction?.href ? <DropdownMenuItem asChild><Link href={sourceAction.href}>{sourceAction.label}</Link></DropdownMenuItem> : sourceAction ? <DropdownMenuItem onSelect={sourceAction.onSelect}>{sourceAction.label}</DropdownMenuItem> : null}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -47,6 +50,7 @@ export function AccountEntryActions({ entry, propertyLabel, canCorrectFinance, s
         {source?.blockedReason ? <p className="text-muted-foreground">{source.blockedReason}</p> : null}
       </DialogContent>
     </Dialog>
-    {cash ? <OwnerTransactionCorrectionDialog open={correctionOpen} onOpenChange={setCorrectionOpen} canCorrectFinance={canCorrectFinance && !cash.blockedReason} propertyId={entry.propertyId} entry={{ id: cash.id, kind: cash.kind as "distribution" | "contribution", date: entry.date, amount: entry.amount.toFixed(2), reference: cash.reference }} /> : null}
+    {cash ? <OwnerTransactionCorrectionDialog canRecoverOwnerDistribution={canRecoverOwnerDistribution} open={correctionOpen} onOpenChange={setCorrectionOpen} canCorrectFinance={canCorrectFinance && !cash.blockedReason} propertyId={entry.propertyId} entry={{ id: cash.id, kind: cash.kind as "distribution" | "contribution", date: entry.date, amount: entry.amount.toFixed(2), reference: cash.reference }} /> : null}
+    {cash ? <TransactionDeleteDialog open={deleteOpen} onOpenChange={setDeleteOpen} canDelete={canCorrectFinance && !cash.blockedReason} entry={{ id: cash.id, kind: cash.kind as "distribution" | "contribution", date: entry.date, amount: entry.amount, label: entry.label, propertyId: entry.propertyId }} /> : null}
   </>;
 }

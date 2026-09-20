@@ -245,7 +245,7 @@ export type PropertyFinancePosition = {
 };
 
 export type PropertyAccountEntry = {
-  source?: { kind: "distribution" | "contribution" | "rent" | "expense" | "lease"; id: string; reference: string | null; blockedReason?: string };
+  source?: { kind: "distribution" | "contribution" | "rent" | "expense" | "lease"; id: string; reference: string | null; blockedReason?: string; isReversed?: boolean };
   amount: number;
   balanceEffect?: number;
   sourceWithdrawalId?: string | null;
@@ -261,6 +261,7 @@ export type PropertyAccountEntry = {
 };
 
 export type FinanceOperationsData = {
+  accountSourcesComplete?: boolean;
   expenseEntryOptions?: Pick<FinanceOperationsData, "propertyOptions" | "unitOptions" | "positions" | "payFromAccounts">;
   accountEntries: PropertyAccountEntry[];
   expenseAccounts: FinanceAccountOption[];
@@ -269,6 +270,7 @@ export type FinanceOperationsData = {
   leaseChargeAccounts: FinanceAccountOption[];
   leaseDepositAccounts: FinanceAccountOption[];
   leases: FinanceLease[];
+  historicalLeases?: Pick<FinanceLease, "id" | "propertyId" | "unitId" | "unitLabel" | "tenantLabel">[];
   ownerInvoices: OwnerInvoiceSummary[];
   payFromAccounts: FinanceAccountOption[];
   operationalTimezone?: string;

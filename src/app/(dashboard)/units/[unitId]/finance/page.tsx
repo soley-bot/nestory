@@ -27,6 +27,7 @@ export default async function UnitFinancePage({
   const allData = await getFinanceOperationsData(
     context.organizationId,
     unit.propertyId,
+    { completeTransactionHistory: !["rent", "expenses"].includes(query.view ?? ""), includeAccountSources: !["rent", "expenses"].includes(query.view ?? "") },
   );
   const data = scopeFinanceOperationsData(allData, {
     propertyId: unit.propertyId,
@@ -35,6 +36,7 @@ export default async function UnitFinancePage({
 
   return (
     <FinanceOperationsScreen
+      isSuperAdmin={context.isSuperAdmin}
       currentUserId={context.userId}
       canApproveOwnExpense={context.isSuperAdmin}
       {...data}
@@ -48,6 +50,7 @@ export default async function UnitFinancePage({
       canReverseExpense={context.capabilities.canReverseExpense}
       canRetryCurrentRent={context.capabilities.canRetryCurrentRent}
       canSubmitExpense={context.capabilities.canSubmitExpense}
+      canViewLeases={context.permissionKeys.has("leases.view")}
       canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       organizationName={context.organizationName}
       scope={{
@@ -64,5 +67,5 @@ export default async function UnitFinancePage({
 }
 
 function unitFinanceView(view?: string): FinanceOperationsView {
-  return view === "expenses" ? "expenses" : "rent";
+  return view === "expenses" ? "expenses" : view === "rent" ? "rent" : "transactions";
 }

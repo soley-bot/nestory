@@ -108,6 +108,15 @@ type UpdateUnitRpc =
     };
 
 type RpcFunctionOverrides = {
+  void_tenant_invoice_checked: {
+    Args: { p_organization_id: string; p_invoice_id: string; p_expected_issue_date: string; p_expected_lines: Json; p_reason: string; p_idempotency_key: string };
+    Returns: Json;
+  };
+  correct_tenant_invoice: WithArgs<"correct_tenant_invoice", Omit<GeneratedFunctions["correct_tenant_invoice"]["Args"], "p_target_invoice_line_id"> & { p_target_invoice_line_id: string | null }>;
+  void_owner_contribution: {
+    Args: { p_organization_id: string; p_cash_event_id: string; p_reason: string; p_idempotency_key: string };
+    Returns: Json;
+  };
   submit_public_interest_request_limited: {
     Args: {
       p_company_name: string;

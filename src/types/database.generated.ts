@@ -12293,6 +12293,16 @@ export type Database = {
             }
             Returns: Json
           }
+      preview_owner_distribution_fee_recovery: {
+        Args: {
+          p_allocation_id: string
+          p_distribution_date: string
+          p_organization_id: string
+          p_payment_date: string
+          p_withdrawal_id: string
+        }
+        Returns: Json
+      }
       process_due_lease_activations: {
         Args: {
           p_limit?: number
@@ -12490,6 +12500,19 @@ export type Database = {
           p_billing_period_start: string
           p_lease_id: string
           p_organization_id: string
+        }
+        Returns: Json
+      }
+      recover_owner_distribution_fee_dates: {
+        Args: {
+          p_allocation_id: string
+          p_distribution_date: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_payment_date: string
+          p_preview_hash: string
+          p_reason: string
+          p_withdrawal_id: string
         }
         Returns: Json
       }
@@ -13626,6 +13649,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      void_owner_contribution: {
+        Args: {
+          p_cash_event_id: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+        }
+        Returns: Json
+      }
       void_petty_cash_entry: {
         Args: {
           p_entry_id: string
@@ -13633,6 +13665,17 @@ export type Database = {
           p_reason: string
         }
         Returns: string
+      }
+      void_tenant_invoice_checked: {
+        Args: {
+          p_expected_issue_date: string
+          p_expected_lines: Json
+          p_idempotency_key: string
+          p_invoice_id: string
+          p_organization_id: string
+          p_reason: string
+        }
+        Returns: Json
       }
     }
     Enums: {
