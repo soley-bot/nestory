@@ -3506,7 +3506,7 @@ function OwnerExpenseTransactionForm({
                 key,
                 ownerCashAmount: "",
                 propertyId,
-                unitId: "",
+                unitId: lockScope ? defaultUnitId : "",
               }];
               });
             }}

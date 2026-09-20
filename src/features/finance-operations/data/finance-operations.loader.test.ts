@@ -26,6 +26,18 @@ vi.mock("@/features/finance-accounts/data/finance-accounts", () => ({
 }));
 
 describe("finance operations initial reads", () => {
+  it("loads every payment and owner confirmation beyond the API row cap", async () => {
+    const harness=createFinanceReadHarness({
+      properties:{data:[{id:"property-1",code:"P",name:"Property",archived_at:null}]},
+      tenant_invoice_balances:{data:[{id:"invoice-1",property_id:"property-1",lease_id:"lease-1",invoice_number:"INV-1",issue_date:"2025-01-01",due_date:"2025-01-05",total_amount:2402,balance_due:0,unit_id:null}]},
+      tenant_invoice_payments:{data:Array.from({length:1201},(_,index)=>({id:`payment-${index}`,invoice_id:"invoice-1",received_date:"2025-01-02",amount:1,reversal_of_id:null}))},
+      owner_collection_confirmations:{data:Array.from({length:1201},(_,index)=>({id:`confirmation-${index}`,invoice_id:"invoice-1",confirmed_date:"2025-01-02",amount:1,reversal_of_id:null}))},
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result=await getFinanceOperationsData("organization-1","property-1",{completeTransactionHistory:true});
+    expect(result.tenantInvoices[0].settlements.filter(row=>row.route==="through_ips")).toHaveLength(1201);
+    expect(result.tenantInvoices[0].settlements.filter(row=>row.route==="direct_to_owner")).toHaveLength(1201);
+  });
   it("loads historical transactions beyond the old caps for the scoped workspace", async () => {
     const harness=createFinanceReadHarness({
       properties:{data:[{id:"property-1",code:"P",name:"Property",archived_at:null}]},
@@ -312,7 +324,7 @@ function createFinanceReadHarness(
           (this.singleRow ? { operational_timezone: "UTC" } : []),
         error: override?.error ?? null,
       };
-      if (this.bounds && Array.isArray(value.data)) value.data=value.data.slice(this.bounds[0],this.bounds[1]+1);
+      if (Array.isArray(value.data)) value.data=this.bounds ? value.data.slice(this.bounds[0],this.bounds[1]+1) : value.data.slice(0,1000);
       active += 1;
       peak = Math.max(peak, active);
 

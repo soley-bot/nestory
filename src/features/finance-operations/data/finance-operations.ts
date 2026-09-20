@@ -1222,20 +1222,20 @@ async function getTenantInvoiceSettlementRows(
   for (let index = 0; index < invoiceIds.length; index += 100) {
     const invoiceIdBatch = invoiceIds.slice(index, index + 100);
     const [paymentsResult, confirmationsResult] = await Promise.all([
-      supabase
+      fetchAllActionableRows(async (from, to) => supabase
         .from("tenant_invoice_payments")
         .select(
           "id, invoice_id, received_date, amount, reference, reversal_of_id, reversal_reason",
         )
         .eq("organization_id", organizationId)
-        .in("invoice_id", invoiceIdBatch),
-      supabase
+        .in("invoice_id", invoiceIdBatch).order("id").range(from, to)),
+      fetchAllActionableRows(async (from, to) => supabase
         .from("owner_collection_confirmations")
         .select(
           "id, invoice_id, confirmed_date, amount, reference, reversal_of_id, reversal_reason",
         )
         .eq("organization_id", organizationId)
-        .in("invoice_id", invoiceIdBatch),
+        .in("invoice_id", invoiceIdBatch).order("id").range(from, to)),
     ]);
 
     if (paymentsResult.error) {

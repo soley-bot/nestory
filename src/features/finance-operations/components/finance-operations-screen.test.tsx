@@ -111,6 +111,10 @@ describe("FinanceOperationsScreen", () => {
     expect(within(expense).getByRole("combobox",{name:"Expense line 1 unit"}).hasAttribute("disabled")).toBe(true);
     const lines=JSON.parse(expense.querySelector<HTMLInputElement>('input[name="lines"]')!.value);
     expect(lines[0].unitId).toBe("unit-2");
+    await user.click(within(expense).getByRole("button", {name:"Add line"}));
+    const addedLines=JSON.parse(expense.querySelector<HTMLInputElement>('input[name="lines"]')!.value);
+    expect(addedLines.map((line: {unitId:string}) => line.unitId)).toEqual(["unit-2", "unit-2"]);
+    expect(within(expense).getByRole("combobox",{name:"Expense line 2 unit"}).hasAttribute("disabled")).toBe(true);
     await user.click(within(expense).getByRole("button",{name:"Cancel"}));
     expect(financeActionMocks.recordTenantInvoicePaymentAction).not.toHaveBeenCalled();
     expect(financeActionMocks.submitExpenseAction).not.toHaveBeenCalled();
