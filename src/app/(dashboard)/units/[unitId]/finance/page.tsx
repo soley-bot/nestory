@@ -36,7 +36,7 @@ export default async function UnitFinancePage({
 
   return (
     <FinanceOperationsScreen
-      canRecoverOwnerDistribution={context.isSuperAdmin}
+      isSuperAdmin={context.isSuperAdmin}
       currentUserId={context.userId}
       canApproveOwnExpense={context.isSuperAdmin}
       {...data}

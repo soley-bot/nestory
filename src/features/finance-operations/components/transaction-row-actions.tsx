@@ -9,8 +9,8 @@ import type { TransactionRow } from "../data/transaction-workspace";
 import { TransactionDeleteDialog } from "./transaction-delete-dialog";
 import type { TransactionDeleteEntry } from "../transaction-delete";
 
-export function TransactionRowActions({ row, canCorrect, canViewLeases, onEditExpense, onDeleteExpense }: {
-  row: TransactionRow; canCorrect: boolean; canViewLeases: boolean;
+export function TransactionRowActions({ row, canCorrect, canViewLeases, canCorrectIssuedRent = false, onEditExpense, onDeleteExpense }: {
+  row: TransactionRow; canCorrect: boolean; canViewLeases: boolean; canCorrectIssuedRent?: boolean;
   onEditExpense?: () => void; onDeleteExpense?: () => void;
 }) {
   const [deleting, setDeleting] = useState(false);
@@ -28,7 +28,7 @@ export function TransactionRowActions({ row, canCorrect, canViewLeases, onEditEx
   return <>
     <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={`Actions for ${row.label}`}><Ellipsis aria-hidden="true" /></Button></DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {source.kind === "charge" && canCorrect && canViewLeases && source.invoice.lines.some(line => line.lineType === "rent") ? <DropdownMenuItem asChild><Link href={`/leases/${source.invoice.leaseId}`}>Edit issued rent on lease</Link></DropdownMenuItem> : null}
+        {source.kind === "charge" && canCorrect && canViewLeases && canCorrectIssuedRent && source.invoice.lines.some(line => line.lineType === "rent") ? <DropdownMenuItem asChild><Link href={`/leases/${source.invoice.leaseId}`}>Edit issued rent on lease</Link></DropdownMenuItem> : null}
         {onEditExpense ? <DropdownMenuItem onSelect={onEditExpense}>Edit</DropdownMenuItem> : null}
         {onDeleteExpense ? <DropdownMenuItem onSelect={onDeleteExpense}>Delete</DropdownMenuItem> : null}
         {canCorrect && entry ? <DropdownMenuItem onSelect={() => setDeleting(true)}>Delete</DropdownMenuItem> : null}

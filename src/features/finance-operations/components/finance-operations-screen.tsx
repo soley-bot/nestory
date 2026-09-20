@@ -156,7 +156,7 @@ type FinanceOperationsScreenProps = FinanceOperationsData & {
   canConfigureRent: boolean;
   canManageFinanceCategories?: boolean;
   canCorrectFinance: boolean;
-  canRecoverOwnerDistribution?: boolean;
+  isSuperAdmin?: boolean;
   canRecordOwnerCash: boolean;
   canRecordPayments: boolean;
   canReadFinanceReports?: boolean;
@@ -700,11 +700,11 @@ function getScreen(
         canReadReports={props.canReadFinanceReports ?? false}
         onOpenInvoice={invoice => openModal({ mode: "invoice-details", invoice })}
         onOpenExpense={submission => openModal({ mode: "expense-details", submission })}
-        renderTransactionActions={row => <TransactionRowActions row={row} canCorrect={props.canCorrectFinance} canViewLeases={props.canViewLeases ?? false}
+        renderTransactionActions={row => <TransactionRowActions canCorrectIssuedRent={props.isSuperAdmin} row={row} canCorrect={props.canCorrectFinance} canViewLeases={props.canViewLeases ?? false}
           onEditExpense={row.source.kind === "expense" && canReplaceExpense(row.source.submission, props) ? () => { if (row.source.kind === "expense") openDrawer({ mode: "expense", replacement: row.source.submission }); } : undefined}
           onDeleteExpense={row.source.kind === "expense" && !row.source.submission.transactionReviewBlocked && (row.source.submission.status === "approved" ? props.canReverseExpense : row.source.submission.status === "submitted" && canReplaceExpense(row.source.submission, props)) ? () => { if (row.source.kind === "expense") openModal({ mode: row.source.submission.status === "approved" ? "expense-reversal" : "expense-cancel", submission: row.source.submission }); } : undefined}
         />}
-        renderAccountActions={entry => <AccountEntryActions canRecoverOwnerDistribution={props.canRecoverOwnerDistribution} entry={entry} propertyLabel={scope.propertyLabel} canCorrectFinance={props.canCorrectFinance && props.canRecordOwnerCash} sourceAction={entry.source?.kind === "lease" && props.canViewLeases ? { label: "Open lease", href: `/leases/${entry.source.id}` } : undefined} />}
+        renderAccountActions={entry => <AccountEntryActions canRecoverOwnerDistribution={props.isSuperAdmin} entry={entry} propertyLabel={scope.propertyLabel} canCorrectFinance={props.canCorrectFinance && props.canRecordOwnerCash} sourceAction={entry.source?.kind === "lease" && props.canViewLeases ? { label: "Open lease", href: `/leases/${entry.source.id}` } : undefined} />}
         actions={effectiveScope => {
           const transactionScope: NonNullable<FinanceOperationsScreenProps["scope"]> = effectiveScope.unitId ? { ...scope, id: effectiveScope.unitId, kind: "unit", label: props.unitOptions.find(unit => unit.id === effectiveScope.unitId)?.label ?? scope.label } : scope;
           const leases = props.leases.filter(lease => lease.propertyId === effectiveScope.propertyId && (!effectiveScope.unitId || lease.unitId === effectiveScope.unitId) && ["active", "notice_given"].includes(lease.status));
@@ -901,7 +901,7 @@ function getScreen(
       actions: undefined,
       body: (
         <PropertyAccountView
-          canRecoverOwnerDistribution={props.canRecoverOwnerDistribution}
+          canRecoverOwnerDistribution={props.isSuperAdmin}
           entries={props.accountEntries}
           getSourceAction={(entry) => {
             const source = entry.source;

@@ -11,7 +11,7 @@ export default async function FinancePage(_props: {
 
   return (
     <FinanceOperationsScreen
-      canRecoverOwnerDistribution={context.isSuperAdmin}
+      isSuperAdmin={context.isSuperAdmin}
       currentUserId={context.userId}
       canApproveOwnExpense={context.isSuperAdmin}
       {...data}

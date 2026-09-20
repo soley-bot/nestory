@@ -20,7 +20,7 @@ export default async function BillsExpensesPage({
   const data = await getFinanceOperationsData(context.organizationId);
   return (
     <FinanceOperationsScreen
-      canRecoverOwnerDistribution={context.isSuperAdmin}
+      isSuperAdmin={context.isSuperAdmin}
       currentUserId={context.userId}
       canApproveOwnExpense={context.isSuperAdmin}
       {...data}
