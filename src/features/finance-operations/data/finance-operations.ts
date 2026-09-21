@@ -494,7 +494,7 @@ export async function getFinanceOperationsData(
     () => getTenantInvoiceBalanceRows(supabase, organizationId, propertyId, options.completeTransactionHistory),
     () => getUnresolvedRentGenerationExceptions(supabase, organizationId),
     () => getOwnerInvoiceBalanceRows(supabase, organizationId, propertyId),
-    () => getExpenseSubmissionRows(supabase, organizationId, options.completeTransactionHistory ? propertyId : undefined),
+    () => getExpenseSubmissionRows(supabase, organizationId, propertyId),
     () => supabase
       .from("property_finance_positions")
       .select("*")
@@ -538,7 +538,7 @@ export async function getFinanceOperationsData(
   }
 
   const expenseTransactions = await loadExpenseTransactions(
-    supabase, organizationId, expenseSubmissionsResult.data ?? [], options.completeTransactionHistory ? propertyId : undefined,
+    supabase, organizationId, expenseSubmissionsResult.data ?? [], propertyId,
   );
   expenseSubmissionsResult.data = expenseTransactions.submissions;
 

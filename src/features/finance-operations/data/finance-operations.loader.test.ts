@@ -26,6 +26,19 @@ vi.mock("@/features/finance-accounts/data/finance-accounts", () => ({
 }));
 
 describe("finance operations initial reads", () => {
+  it("scopes expense reads before pagination on an ordinary property page", async () => {
+    const harness = createFinanceReadHarness({
+      properties: { data: [{ id: "property-1", code: "P", name: "Property", archived_at: null }] },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    await getFinanceOperationsData("organization-1", "property-1", { completeTransactionHistory: false });
+    const expenseQueries = harness.queries.filter(query => query.table === "expense_submissions");
+    expect(expenseQueries.length).toBeGreaterThan(0);
+    expect(expenseQueries.every(query => query.filters.some(([column, value]) => column === "property_id" && value === "property-1"))).toBe(true);
+    // No child links means there are no relevant parents to hydrate. Do not scan
+    // unrelated transaction parents across the organization.
+    expect(harness.queries.some(query => query.table === "expense_transactions")).toBe(false);
+  });
   it("retains archived lease context without offering it for new charges", async () => {
     const harness=createFinanceReadHarness({properties:{data:[{id:"property-1",code:"P",name:"Property",archived_at:null}]},units:{data:[{id:"unit-1",property_id:"property-1",unit_number:"101",archived_at:null}]},current_leases:{data:[{id:"old-lease",property_id:"property-1",unit_id:"unit-1",primary_tenant_person_id:"tenant",tenant_name:"Former tenant",status:"ended",lease_start_date:"2025-01-01",lease_end_date:"2025-12-31",monthly_rent_amount:500,archived_at:"2026-01-01"}]}});
     vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
@@ -275,6 +288,7 @@ function createFinanceReadHarness(
     leases: ((overrides.current_leases?.data ?? []) as Record<string, unknown>[]).map((row) => ({ archived_at: null, ...row })),
     terms: overrides.lease_terms?.data ?? [], billing_terms: overrides.lease_billing_terms?.data ?? [],
   } } };
+  const queries: Array<{ table: string; filters: Array<[string, unknown]> }> = [];
   let active = 0;
   let peak = 0;
 
@@ -283,9 +297,13 @@ function createFinanceReadHarness(
     private bounds?: [number, number];
     private taskIds?: string[];
 
-    constructor(private readonly table: string) {}
+    private readonly filters: Array<[string, unknown]> = [];
+    constructor(private readonly table: string) {
+      queries.push({ table, filters: this.filters });
+    }
 
-    eq() {
+    eq(column: string, value: unknown) {
+      this.filters.push([column, value]);
       return this;
     }
 
@@ -363,6 +381,7 @@ function createFinanceReadHarness(
       rpc: (name: string) => new Query(name === "get_finance_read_context" ? "scoped_context" : "rpc"),
     },
     maxInFlight: () => peak,
+    queries,
   };
 }
 
