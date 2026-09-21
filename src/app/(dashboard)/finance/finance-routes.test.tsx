@@ -106,11 +106,16 @@ describe("finance routes", () => {
         role,
       });
 
-      const html = renderToStaticMarkup(await page({}));
+      const html = renderToStaticMarkup(await page({ searchParams: Promise.resolve({ expenseMonth: "2026-08" }) }));
 
       expect(html).toContain("Finance route");
       expect(requireFinanceContext).toHaveBeenCalledOnce();
-      expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1");
+      if (view === "expenses") {
+        expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", undefined, { expenseMonth: "2026-08" });
+        expect(screenSpy).toHaveBeenCalledWith(expect.objectContaining({ expenseMonth: "2026-08" }));
+      } else {
+        expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1");
+      }
       expect(screenSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           canConfigureRent: false,
