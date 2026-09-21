@@ -34,11 +34,18 @@ CREATE FUNCTION public.record_owner_contribution(
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_result jsonb; v_unit uuid; v_previous text;
 BEGIN
-  IF (SELECT auth.uid()) IS NULL OR NOT app_private.can_access_property(
-    p_organization_id, p_property_id, 'finance.record_payments') THEN
+  IF (SELECT auth.uid()) IS NULL OR app_private.can_access_property(
+    p_organization_id, p_property_id, 'finance.record_payments') IS NOT TRUE THEN
     RAISE EXCEPTION 'owner_contribution_forbidden' USING ERRCODE = '42501';
   END IF;
-  IF p_unit_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.units u
+  -- Let the existing command validate and replay the original payload even if
+  -- its unit has since been archived. New keys still require an active unit.
+  IF p_unit_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM public.owner_cash_events e
+    WHERE e.organization_id = p_organization_id
+      AND e.idempotency_key = pg_catalog.btrim(p_idempotency_key)
+      AND e.unit_id = p_unit_id
+  ) AND NOT EXISTS (SELECT 1 FROM public.units u
     WHERE u.organization_id = p_organization_id AND u.property_id = p_property_id
       AND u.id = p_unit_id AND u.archived_at IS NULL) THEN
     RAISE EXCEPTION 'owner_contribution_unit_mismatch' USING ERRCODE = '23503';
@@ -72,25 +79,31 @@ BEGIN
     RAISE EXCEPTION 'Bounded event keys required' USING ERRCODE='22023';
   END IF;
   RETURN QUERY
+    WITH requested_keys AS MATERIALIZED (
+      SELECT DISTINCT pg_catalog.split_part(k, ':', 1) AS source_type,
+        CASE WHEN pg_catalog.split_part(k, ':', 2) ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          THEN pg_catalog.split_part(k, ':', 2)::uuid END AS source_id
+      FROM pg_catalog.unnest(p_event_keys) AS input(k)
+    )
     SELECT 'tenant_invoice_line:' || l.id::text, i.recipient_label
-    FROM public.tenant_invoice_lines l JOIN public.tenant_invoices i ON i.organization_id=l.organization_id AND i.id=l.invoice_id
-    WHERE l.organization_id=p_organization_id AND l.property_id=p_property_id AND ('tenant_invoice_line:'||l.id::text)=ANY(p_event_keys)
+    FROM requested_keys k JOIN public.tenant_invoice_lines l ON k.source_type='tenant_invoice_line' AND l.id=k.source_id JOIN public.tenant_invoices i ON i.organization_id=l.organization_id AND i.id=l.invoice_id
+    WHERE l.organization_id=p_organization_id AND l.property_id=p_property_id
     UNION ALL
     SELECT 'management_fee_occurrence:'||f.id::text, o.name
-    FROM public.management_fee_occurrences f JOIN public.organizations o ON o.id=f.organization_id
-    WHERE f.organization_id=p_organization_id AND f.property_id=p_property_id AND ('management_fee_occurrence:'||f.id::text)=ANY(p_event_keys)
+    FROM requested_keys k JOIN public.management_fee_occurrences f ON k.source_type='management_fee_occurrence' AND f.id=k.source_id JOIN public.organizations o ON o.id=f.organization_id
+    WHERE f.organization_id=p_organization_id AND f.property_id=p_property_id
     UNION ALL
     SELECT 'owner_invoice_line:'||l.id::text, e.vendor_label
-    FROM public.owner_invoice_lines l
+    FROM requested_keys k JOIN public.owner_invoice_lines l ON k.source_type='owner_invoice_line' AND l.id=k.source_id
     JOIN public.ips_expense_responsibilities r ON r.organization_id=l.organization_id AND r.owner_invoice_line_id=coalesce(l.reversal_of_id,l.id) AND r.responsibility='owner'
     JOIN public.finance_expense_items e ON e.organization_id=r.organization_id AND e.id=r.finance_expense_item_id
-    WHERE l.organization_id=p_organization_id AND l.property_id=p_property_id AND ('owner_invoice_line:'||l.id::text)=ANY(p_event_keys)
+    WHERE l.organization_id=p_organization_id AND l.property_id=p_property_id
     UNION ALL
     SELECT 'expense_customer_adjustment:'||a.id::text, e.vendor_label
-    FROM public.expense_customer_adjustments a
+    FROM requested_keys k JOIN public.expense_customer_adjustments a ON k.source_type='expense_customer_adjustment' AND a.id=k.source_id
     JOIN public.ips_expense_responsibilities r ON r.organization_id=a.organization_id AND r.id=a.responsibility_id
     JOIN public.finance_expense_items e ON e.organization_id=r.organization_id AND e.id=r.finance_expense_item_id
-    WHERE a.organization_id=p_organization_id AND a.property_id=p_property_id AND ('expense_customer_adjustment:'||a.id::text)=ANY(p_event_keys);
+    WHERE a.organization_id=p_organization_id AND a.property_id=p_property_id;
 END;
 $$;
 ALTER FUNCTION public.get_owner_profit_loss_names(uuid,uuid,text[]) OWNER TO postgres;
