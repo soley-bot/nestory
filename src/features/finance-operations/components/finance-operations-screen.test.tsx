@@ -102,6 +102,19 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByText("September vendor")).toBeTruthy();
   });
 
+  it("requests older expense months from the server and keeps filters usable for an empty month", async () => {
+    const user = userEvent.setup();
+    navigation.pathname = "/bills-expenses";
+    navigation.searchParams = new URLSearchParams("expenseMonth=2026-08");
+    const input = data(); input.expenseSubmissions = [];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities()} expenseMonth="2026-08" organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("button", { name: "Expense month" }));
+    await user.click(screen.getByRole("button", { name: "Sep" }));
+    expect(navigation.replace).toHaveBeenCalledWith("/bills-expenses?expenseMonth=2026-09", { scroll: false });
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(navigation.replace).toHaveBeenCalledWith("/bills-expenses", { scroll: false });
+  });
+
   it("keeps selected transaction unit when opening charge, payment and expense forms", async () => {
     const user = userEvent.setup();
     const input = data();

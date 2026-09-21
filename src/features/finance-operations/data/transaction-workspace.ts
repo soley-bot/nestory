@@ -36,7 +36,7 @@ export function projectTransactions(data: Pick<FinanceOperationsData, "tenantInv
       continue;
     }
     const history = entry.source?.isReversed === true || entry.amount < 0;
-    rows.push({ id: `${kind}:${entry.id}`, sourceId: entry.source?.id ?? entry.id, kind, date: entry.date, label: entry.label, propertyId: entry.propertyId, unitId: entry.unitId ?? null, unitLabel: entry.unitId ? data.unitOptions?.find(unit => unit.id === entry.unitId)?.label ?? "Unit contribution" : "Property", tenant: "", amount: entry.amount, status: history ? "reversed" : "posted", history, source: { kind, entry } });
+    rows.push({ id: `${kind}:${entry.id}`, sourceId: entry.source?.id ?? entry.id, kind, date: entry.date, label: entry.label, propertyId: entry.propertyId, unitId: entry.unitId ?? null, unitLabel: entry.unitId ? entry.unitLabel ?? data.unitOptions?.find(unit => unit.id === entry.unitId)?.label ?? "Unit contribution" : "Property", tenant: "", amount: entry.amount, status: history ? "reversed" : "posted", history, source: { kind, entry } });
   }
   return rows.sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
 }

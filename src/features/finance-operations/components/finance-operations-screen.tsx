@@ -150,6 +150,7 @@ type DrawerState =
     };
 
 type FinanceOperationsScreenProps = FinanceOperationsData & {
+  expenseMonth?: string;
   currentUserId?: string;
   canApproveOwnExpense?: boolean;
   canCreateVendor?: boolean;
@@ -858,6 +859,7 @@ function getScreen(
       ) : undefined,
       body: (
         <ExpensesView
+          serverMonth={props.expenseMonth}
           canReview={props.canReviewExpense}
           openModal={openModal}
           submissions={props.expenseSubmissions}
@@ -1836,6 +1838,7 @@ function RentView({
 }
 
 function ExpensesView({
+  serverMonth,
   canReview,
   openModal,
   submissions,
@@ -1843,30 +1846,29 @@ function ExpensesView({
   canReview: boolean;
   openModal: (modal: ModalState) => void;
   submissions: FinanceOperationsData["expenseSubmissions"];
+  serverMonth?: string;
 }) {
   const [status, setStatus] =
     useState<ExpenseSubmissionSummary["status"]>("submitted");
 
-  const [month, setMonth] = useState("");
+  const [localMonth, setLocalMonth] = useState("");
+  const month = serverMonth ?? localMonth;
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const setMonth = (value: string) => {
+    if (serverMonth === undefined) { setLocalMonth(value); return; }
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) params.set("expenseMonth", value); else params.delete("expenseMonth");
+    router.replace(`${pathname}${params.size ? `?${params}` : ""}`, { scroll: false });
+  };
   const [search, setSearch] = useState("");
   const filtered = submissions.filter((item) => (!month || item.date.startsWith(month)) &&
     (!search.trim() || [item.propertyLabel, item.vendorLabel, item.categoryLabel, item.reference].join(" ").toLowerCase().includes(search.trim().toLowerCase())));
 
-  if (submissions.length === 0) {
-    return (
-      <div className="mx-auto w-full max-w-[1280px] px-4 py-4 sm:px-6 2xl:px-8">
-        <EmptyState
-          body="Record an expense to start Finance review."
-          className="min-h-64 rounded-xl border border-border/80 bg-card shadow-sm"
-          kind="empty"
-          title="No expenses"
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-4 px-4 py-4 sm:px-6 2xl:px-8">
+      {serverMonth === "" ? <p className="text-xs text-muted-foreground">Recent history. Choose a month to view older expenses.</p> : null}
       <div className="flex flex-wrap items-end gap-3" aria-label="Expense filters">
         <label className="grid gap-1 text-xs font-medium">Month
           <MonthPickerField key={month || "all"} ariaLabel="Expense month" name="expenseMonth" defaultValue={month} onValueChange={setMonth} className="w-44" />
@@ -2933,7 +2935,7 @@ function PropertyAccountView({
                       <p className="font-medium text-foreground">
                         {entry.label}
                       </p>
-                      {entry.unitId ? <p className="text-xs text-muted-foreground">{units.find(unit => unit.id === entry.unitId)?.label ?? "Unit contribution"}</p> : null}
+                      {entry.unitId ? <p className="text-xs text-muted-foreground">{entry.unitLabel ?? units.find(unit => unit.id === entry.unitId)?.label ?? "Unit contribution"}</p> : null}
                       {entry.note ? (
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {entry.note}

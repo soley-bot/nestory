@@ -171,3 +171,7 @@ BEGIN
 END;
 $$;
 
+
+-- Month filtering on the global expense page must not scan other periods.
+CREATE INDEX expense_submissions_organization_date_idx
+  ON public.expense_submissions(organization_id, expense_date, id);
