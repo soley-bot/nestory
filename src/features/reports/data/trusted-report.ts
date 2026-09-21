@@ -2281,17 +2281,7 @@ async function loadReportPropertyCashEvents({
         events.push(event);
       }
 
-      const names = new Map<string, string>();
-      for (let offset = 0; offset < events.length; offset += 200) {
-        const keys = events.slice(offset, offset + 200).map(event => event.eventKey);
-        const result = await supabase.rpc("get_owner_profit_loss_names", { p_organization_id: organizationId, p_property_id: propertyId, p_event_keys: keys });
-        if (result.error) throw new Error("Could not load profit and loss transaction names.");
-        for (const row of result.data ?? []) {
-          if (!keys.includes(row.event_key) || names.has(row.event_key)) throw new Error("Profit and loss transaction names are ambiguous.");
-          names.set(row.event_key, row.party_name);
-        }
-      }
-      return events.map(event => ({ ...event, partyName: names.get(event.eventKey) ?? "" }));
+      return events;
     }),
   );
 
@@ -2326,7 +2316,28 @@ async function loadReportOwnerProfitLossEvents({
         events.push(event);
       }
 
-      return events;
+      const names = new Map<string, string>();
+      for (let offset = 0; offset < events.length; offset += 200) {
+        const keys = events.slice(offset, offset + 200).map((event) => event.eventKey);
+        const result = await supabase.rpc("get_owner_profit_loss_names", {
+          p_organization_id: organizationId,
+          p_property_id: propertyId,
+          p_event_keys: keys,
+        });
+        if (result.error) {
+          throw new Error("Could not load profit and loss transaction names.");
+        }
+        for (const row of result.data ?? []) {
+          if (!keys.includes(row.event_key) || names.has(row.event_key)) {
+            throw new Error("Profit and loss transaction names are ambiguous.");
+          }
+          names.set(row.event_key, row.party_name);
+        }
+      }
+      return events.map((event) => ({
+        ...event,
+        partyName: names.get(event.eventKey) ?? "",
+      }));
     }),
   );
 
