@@ -62,6 +62,7 @@ const OWNER_ACCOUNT_REGISTER_PAGE_SIZE = 12;
 const OWNER_ACCOUNT_REGISTER_RPC_CONCURRENCY = 4;
 
 type OwnerAccountReadContext = {
+  units?: {id: string; property_id: string; unit_number: string}[];
   properties: { id: string; code: string; name: string }[];
   people: { id: string; display_name: string }[];
   assignments: { id: string; property_id: string; person_id: string; started_on: string | null; ended_on: string | null }[];
@@ -92,6 +93,7 @@ export async function getOwnerBalanceData(
     throw new Error("Unable to load authoritative owner balance scope: Invalid account projection.");
   }
 
+  const unitOptions = (readContext.units ?? []).map(unit => ({ id: unit.id, propertyId: unit.property_id, label: unit.unit_number }));
   const propertyOptions = readContext.properties.map((property) => ({
     id: property.id,
     label: formatPropertyOptionLabel(property),
@@ -183,6 +185,7 @@ export async function getOwnerBalanceData(
       accountPageSize: OWNER_ACCOUNT_REGISTER_PAGE_SIZE,
       accountTotal,
       accounts,
+      unitOptions,
       ownerOptions,
       periods: [],
       propertyOptions,
@@ -247,6 +250,7 @@ export async function getOwnerBalanceData(
     accountPageSize: OWNER_ACCOUNT_REGISTER_PAGE_SIZE,
     accountTotal: 1,
     accounts: [],
+    unitOptions,
     ownerOptions,
     periods: mapPeriods((ledgerResult.data ?? []) as OwnerBalanceLedgerRow[]),
     propertyOptions,

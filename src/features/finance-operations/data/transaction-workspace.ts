@@ -15,7 +15,7 @@ export type TransactionScope = { propertyId: string; unitId?: string };
 export type TransactionFilters = TransactionScope & { month?: string; kind?: string; status?: string; tenant?: string; query?: string; includeHistory?: boolean };
 
 /** Business documents only: invoice allocations and the owner account are not added together. */
-export function projectTransactions(data: Pick<FinanceOperationsData, "tenantInvoices" | "expenseSubmissions" | "accountEntries"> & { leases?: FinanceOperationsData["leases"]; historicalLeases?: FinanceOperationsData["historicalLeases"]; accountSourcesComplete?: boolean }): TransactionRow[] {
+export function projectTransactions(data: Pick<FinanceOperationsData, "tenantInvoices" | "expenseSubmissions" | "accountEntries"> & { leases?: FinanceOperationsData["leases"]; historicalLeases?: FinanceOperationsData["historicalLeases"]; unitOptions?: FinanceOperationsData["unitOptions"]; accountSourcesComplete?: boolean }): TransactionRow[] {
   const rows: TransactionRow[] = [];
   for (const invoice of data.tenantInvoices) {
     const common = { propertyId: invoice.propertyId, unitId: invoice.unitId, unitLabel: invoice.unitLabel, tenant: invoice.recipientLabel };
@@ -36,7 +36,7 @@ export function projectTransactions(data: Pick<FinanceOperationsData, "tenantInv
       continue;
     }
     const history = entry.source?.isReversed === true || entry.amount < 0;
-    rows.push({ id: `${kind}:${entry.id}`, sourceId: entry.source?.id ?? entry.id, kind, date: entry.date, label: entry.label, propertyId: entry.propertyId, unitId: null, unitLabel: "Property", tenant: "", amount: entry.amount, status: history ? "reversed" : "posted", history, source: { kind, entry } });
+    rows.push({ id: `${kind}:${entry.id}`, sourceId: entry.source?.id ?? entry.id, kind, date: entry.date, label: entry.label, propertyId: entry.propertyId, unitId: entry.unitId ?? null, unitLabel: entry.unitId ? data.unitOptions?.find(unit => unit.id === entry.unitId)?.label ?? "Unit contribution" : "Property", tenant: "", amount: entry.amount, status: history ? "reversed" : "posted", history, source: { kind, entry } });
   }
   return rows.sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
 }

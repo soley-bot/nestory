@@ -1644,14 +1644,14 @@ async function getExpenseSubmissionRows(
   });
   if (pending.error) return pending;
 
-  const history = await supabase
+  const history = await fetchAllActionableRows(async (from, to) => supabase
     .from("expense_submissions")
     .select("*")
     .eq("organization_id", organizationId)
     .neq("status", "submitted")
     .order("submitted_at", { ascending: false })
     .order("id")
-    .limit(250);
+    .range(from, to));
 
   return {
     data: [...(pending.data ?? []), ...(history.data ?? [])],
@@ -1677,9 +1677,9 @@ export async function loadExpenseTransactions(
       .eq("organization_id", organizationId).eq("status", "submitted")
       .order("submitted_at", { ascending: false }).order("id").range(from, to);
   });
-  const history = completePropertyId ? {data: [],error:null} : await supabase.from("expense_transactions").select("*")
+  const history = completePropertyId ? {data: [],error:null} : await fetchAllActionableRows(async (from, to) => supabase.from("expense_transactions").select("*")
     .eq("organization_id", organizationId).neq("status", "submitted")
-    .order("submitted_at", { ascending: false }).order("id").limit(250);
+    .order("submitted_at", { ascending: false }).order("id").range(from, to));
   if (pending.error || history.error) throw new Error("Could not load expense transactions.");
   const parents = mergeRowsById(pending.data ?? [], history.data ?? []);
   const lines = await fetchRowsByIdBatches(parents.map((parent) => parent.id), async (ids, from, to) => {

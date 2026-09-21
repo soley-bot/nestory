@@ -5547,6 +5547,7 @@ export type Database = {
           reason: string
           reference: string | null
           reversal_of_id: string | null
+          unit_id: string | null
         }
         Insert: {
           amount: number
@@ -5565,6 +5566,7 @@ export type Database = {
           reason: string
           reference?: string | null
           reversal_of_id?: string | null
+          unit_id?: string | null
         }
         Update: {
           amount?: number
@@ -5583,6 +5585,7 @@ export type Database = {
           reason?: string
           reference?: string | null
           reversal_of_id?: string | null
+          unit_id?: string | null
         }
         Relationships: [
           {
@@ -5618,6 +5621,13 @@ export type Database = {
             columns: ["organization_id", "reversal_of_id"]
             isOneToOne: false
             referencedRelation: "owner_cash_events"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_cash_events_unit_fk"
+            columns: ["organization_id", "unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
             referencedColumns: ["organization_id", "id"]
           },
         ]
@@ -11987,6 +11997,17 @@ export type Database = {
           unit_id: string
         }[]
       }
+      get_owner_profit_loss_names: {
+        Args: {
+          p_event_keys: string[]
+          p_organization_id: string
+          p_property_id: string
+        }
+        Returns: {
+          event_key: string
+          party_name: string
+        }[]
+      }
       get_owner_roster_readiness: {
         Args: { p_cutover_date: string; p_organization_id: string }
         Returns: {
@@ -12394,6 +12415,20 @@ export type Database = {
           p_reason: string
           p_signed_amount: number
           p_source_reference: string
+        }
+        Returns: Json
+      }
+      record_owner_contribution: {
+        Args: {
+          p_amount: number
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_event_date: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_owner_person_id: string
+          p_property_id: string
+          p_reason: string
+          p_unit_id?: string
         }
         Returns: Json
       }

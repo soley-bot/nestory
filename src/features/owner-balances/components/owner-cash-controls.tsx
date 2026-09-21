@@ -1,13 +1,15 @@
 "use client";
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { SelectControl } from "@/components/ui/select-control";
 import { Button } from "@/components/ui/button";
+import { NumberInput } from "@/components/ui/number-input";
 import { Input } from "@/components/ui/input";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { correctOwnerDistributionDateAction, recordOwnerContributionAction, type OwnerCashActionState } from "@/features/owner-balances/owner-cash-actions";
-type Scope = { propertyId: string; ownerPersonId: string; ownerLabel: string };
+type Scope = { propertyId: string; ownerPersonId: string; ownerLabel: string; units?: { id: string; label: string; propertyId?: string | null }[]; unitId?: string };
 type Correction = { withdrawalId: string; originalDate: string; amount: string };
 export function OwnerContributionControl({ canRecordOwnerCash, ...scope }: Scope & { canRecordOwnerCash: boolean }) {
   return canRecordOwnerCash ? <OwnerCashDialog scope={scope} /> : null;
@@ -48,7 +50,8 @@ function OwnerCashForm({ scope, propertyId, correction, onClose, onSuccess }: {
       <input name="ownerPersonId" type="hidden" value={scope?.ownerPersonId} />
       <input name="currency" type="hidden" value="USD" />
       <p className="text-sm">Owner: {scope?.ownerLabel}</p>
-      <label className="grid gap-1 text-sm">Amount (USD)<Input aria-label="Amount (USD)" name="amount" inputMode="decimal" required placeholder="0.00" /></label>
+      {scope?.units ? <label className="grid gap-1 text-sm">Unit<SelectControl ariaLabel="Contribution unit" name="unitId" defaultValue={scope.unitId ?? ""} options={[{ value: "", label: "Property-wide" }, ...scope.units.filter(unit => unit.propertyId === scope.propertyId).map(unit => ({ value: unit.id, label: unit.label }))]} /></label> : null}
+      <label className="grid gap-1 text-sm">Amount (USD)<NumberInput currencyPaste aria-label="Amount (USD)" name="amount" required placeholder="0.00" /></label>
     </>}
     <label className="grid gap-1 text-sm">{correction ? "New date" : "Contribution date"}<DatePickerField ariaLabel={correction ? "New date" : "Contribution date"} name={correction ? "distributionDate" : "eventDate"} defaultValue={correction?.originalDate ?? getBusinessDateValue()} required /></label>
     <label className="grid gap-1 text-sm">Reason<Input aria-label="Reason" name="reason" required minLength={correction ? 8 : 3} maxLength={500} /></label>

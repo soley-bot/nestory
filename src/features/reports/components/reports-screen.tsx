@@ -79,6 +79,7 @@ export function ReportBuilderScreen({
               {viewStorageKey ? <ReportSavedViews key={`${viewStorageKey}:${viewQuery.report}`} storageKey={viewStorageKey} viewQuery={viewQuery} /> : null}
             </div>
           </div>
+          {viewQuery.report === "unit-profit-loss" ? <p className="text-xs text-muted-foreground">Pending expenses are excluded. <Link className="underline underline-offset-2" href="/bills-expenses">Review expenses before sharing.</Link></p> : null}
           {viewQuery.report === "rent-roll" ? <p className="text-xs text-muted-foreground">Current snapshot. Occupancy and rent reflect the current records, not a historical reconstruction.</p> : null}
           {viewQuery.report === "transactions" ? <p className="text-xs text-muted-foreground">Company receipts exclude amounts collected directly by owners.</p> : null}
           {viewQuery.report === "management-fees" ? <p className="text-xs text-muted-foreground">Fees charged to owners; not cash payments.</p> : null}

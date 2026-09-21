@@ -47,6 +47,7 @@ export type OwnerProfitLossEventDatabaseRow = {
 };
 
 export type OwnerProfitLossEvent = {
+  partyName?: string;
   categoryCode: string;
   categoryId: string | null;
   categoryLabel: string;

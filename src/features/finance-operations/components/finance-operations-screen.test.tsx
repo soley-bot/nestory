@@ -90,6 +90,18 @@ class ResizeObserverStub {
 }
 
 describe("FinanceOperationsScreen", () => {
+  it("filters expense status tabs by month and clears the filter", async () => {
+    const user = userEvent.setup(); const input = data();
+    input.expenseSubmissions = [expenseSubmission("submitted"), { ...expenseSubmission("submitted"), id: "september", date: "2026-09-01", vendorLabel: "September vendor" }];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities()} organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("button", { name: "Expense month" }));
+    await user.click(screen.getByRole("button", { name: "Aug" }));
+    expect(screen.queryByText("September vendor")).toBeNull();
+    expect(screen.getByText("Sokha Repairs")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(screen.getByText("September vendor")).toBeTruthy();
+  });
+
   it("keeps selected transaction unit when opening charge, payment and expense forms", async () => {
     const user = userEvent.setup();
     const input = data();
@@ -3843,6 +3855,7 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show correction history" }));
     expect(
       screen.getByRole("columnheader", { name: "Money in" }),
     ).not.toBeNull();

@@ -233,6 +233,7 @@ export type OwnerAccountRegisterRecord = {
 };
 
 export type OwnerBalanceData = {
+  unitOptions?: {id: string; propertyId: string; label: string}[];
   accountPage: number;
   accountPageCount: number;
   accountPageSize: number;

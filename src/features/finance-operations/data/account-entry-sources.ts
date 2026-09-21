@@ -18,6 +18,7 @@ export async function hydrateAccountEntrySources(client: Client, organizationId:
   }
   const ids = (type: string) => entries.filter((entry) => entry.sourceType === type).map((entry) => entry.id);
   const propertyIds = [...new Set(entries.map((entry) => entry.propertyId))];
+  const contributionUnits = new Map<string, string | null>();
   const sources = new Map<string, NonNullable<PropertyAccountEntry["source"]>>();
   const key = (type: string, id: string) => `${type}:${id}`;
   const cashProperties = entries.filter((entry) => ["property_withdrawal", "owner_contribution"].includes(entry.sourceType)).map((entry) => entry.propertyId);
@@ -55,6 +56,7 @@ export async function hydrateAccountEntrySources(client: Client, organizationId:
     ]);
     assertComplete(originals, reversals, periods, locks);
     if (!originals.error && !reversals.error && !periods.error && !locks.error) for (const row of originals.data ?? []) {
+      contributionUnits.set(row.id, row.unit_id);
       const reversed = row.reversal_of_id || reversals.data?.some((item) => item.reversal_of_id === row.id);
       const month = `${row.event_date.slice(0, 7)}-01`;
       const closed = locks.data?.some((item) => item.month_start === month && (item.branch_id === null || branches.get(row.property_id) === null || item.branch_id === branches.get(row.property_id))) || periods.data?.some((item) => item.property_id === row.property_id && item.owner_person_id === row.owner_person_id && item.currency === row.currency && item.month_start >= month);
@@ -80,7 +82,7 @@ export async function hydrateAccountEntrySources(client: Client, organizationId:
       assertComplete(submissions);
       if (!submissions.error) for (const row of result.data) {
         const submission = submissions.data?.find((item) => item.approved_finance_expense_item_id === row.finance_expense_item_id);
-        if (submission) sources.set(key("ips_expense_responsibility", row.id), { kind: "expense", id: submission.id, reference: submission.reference, blockedReason: submission.status === "reversed" ? "This transaction has been reversed." : undefined });
+        if (submission) sources.set(key("ips_expense_responsibility", row.id), { kind: "expense", id: submission.id, reference: submission.reference, isReversed: submission.status === "reversed", blockedReason: submission.status === "reversed" ? "This transaction has been reversed." : undefined });
       }
     }
   }
@@ -93,5 +95,5 @@ export async function hydrateAccountEntrySources(client: Client, organizationId:
     assertComplete(result, reversals);
     if (!result.error && !reversals.error) for (const row of result.data ?? []) sources.set(key("management_fee_occurrence", row.id), { kind: "lease", id: row.lease_id, reference: null, isReversed: Boolean(row.reversal_of_id || row.settlement_status === "reversed" || reversals.data?.some(reversal => reversal.reversal_of_id === row.id)) });
   }
-  return entries.map((entry) => ({ ...entry, source: sources.get(key(entry.sourceType, entry.id)) }));
+  return entries.map((entry) => ({ ...entry, unitId: entry.sourceType === "owner_contribution" ? contributionUnits.get(entry.id) : entry.unitId, source: sources.get(key(entry.sourceType, entry.id)) }));
 }
