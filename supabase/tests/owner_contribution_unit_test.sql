@@ -33,6 +33,7 @@ UPDATE owner_date_state SET original=public.record_owner_contribution('cd160000-
  'cd160000-0000-4000-8000-000000000002','cd160000-0000-4000-8000-000000000003','USD',current_date-10,1000,'Original contribution','contribution-original','cd160000-0000-4000-8000-000000000040');
 
 
+SELECT ok(EXISTS(SELECT 1 FROM pg_catalog.pg_locks WHERE pid=pg_catalog.pg_backend_pid() AND relation='public.units'::regclass AND mode='RowShareLock' AND granted),'new unit contribution retains its locking read until transaction end');
 SELECT is((SELECT unit_id FROM public.owner_cash_events WHERE id=(SELECT (original->>'owner_cash_event_id')::uuid FROM owner_date_state)), 'cd160000-0000-4000-8000-000000000040'::uuid,'contribution retains selected unit');
 SELECT is((SELECT sum(signed_amount) FROM public.owner_component_movements WHERE property_id='cd160000-0000-4000-8000-000000000002' AND component='ips_held_owner_cash'),1000::numeric,'unit attribution does not change property cash');
 SELECT lives_ok($$SELECT public.record_owner_contribution('cd160000-0000-4000-8000-000000000001','cd160000-0000-4000-8000-000000000002','cd160000-0000-4000-8000-000000000003','USD',current_date-10,1000,'Original contribution','contribution-original','cd160000-0000-4000-8000-000000000040')$$,'same unit request replays');

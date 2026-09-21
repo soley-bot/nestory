@@ -40,6 +40,7 @@ BEGIN
   END IF;
   -- Let the existing command validate and replay the original payload even if
   -- its unit has since been archived. New keys still require an active unit.
+  -- Hold a shared row lock through insertion so archival must serialize with it.
   IF p_unit_id IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM public.owner_cash_events e
     WHERE e.organization_id = p_organization_id
@@ -47,7 +48,7 @@ BEGIN
       AND e.unit_id = p_unit_id
   ) AND NOT EXISTS (SELECT 1 FROM public.units u
     WHERE u.organization_id = p_organization_id AND u.property_id = p_property_id
-      AND u.id = p_unit_id AND u.archived_at IS NULL) THEN
+      AND u.id = p_unit_id AND u.archived_at IS NULL FOR SHARE) THEN
     RAISE EXCEPTION 'owner_contribution_unit_mismatch' USING ERRCODE = '23503';
   END IF;
   v_previous := pg_catalog.current_setting('app.owner_contribution_unit', true);
