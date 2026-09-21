@@ -496,10 +496,11 @@ describe("FinanceOperationsScreen", () => {
 
   it("keeps legacy owner-account navigation finance-safe for finance readers", () => {
     const { container } = render(<FinanceOperationsScreen {...data()} {...financeCapabilities({})}
-      organizationName="IPS" selectedPropertyId="property-1" view="account" />);
+      organizationName="IPS" selectedPropertyId="property-1" accountActivityIsRecent view="account" />);
     expect(container.querySelector('a[href="/properties"], a[href="/properties/property-1"]')).toBeNull();
     expect(screen.getByRole("link", { name: "Finance" }).getAttribute("href")).toBe("/finance");
     expect(screen.getByRole("region", { name: "Account position" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open Transactions for earlier activity" }).getAttribute("href")).toBe("/properties/property-1/finance");
   });
 
   it("exposes read-only Rent navigation without invoice money actions", async () => {

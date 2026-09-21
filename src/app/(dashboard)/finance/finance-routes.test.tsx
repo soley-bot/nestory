@@ -61,6 +61,13 @@ describe("finance routes", () => {
     });
   });
 
+  it("uses bounded referenced activity on the owner account route", async () => {
+    requireFinanceContext.mockResolvedValue({ capabilities: {}, organizationId: "organization-1", organizationName: "IPS", permissionKeys: new Set(["finance.view"]) });
+    getFinanceOperationsData.mockResolvedValue({ propertyOptions: [{ id: "property-1", label: "Riverside" }] });
+    renderToStaticMarkup(await PropertyFinancePage({ params: Promise.resolve({ propertyId: "property-1" }), searchParams: Promise.resolve({ view: "owner" }) }));
+    expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", "property-1", expect.objectContaining({ accountActivityOnly: true, completeTransactionHistory: false, includeAccountSources: true }));
+  });
+
   it.each([false, true])("uses operator cash capability on unit finance and skips expense reads for rent (%s)", async canOperateFinance => {
     requireFinanceContext.mockResolvedValue({ capabilities: { canOperateFinance }, organizationId: "organization-1", organizationName: "IPS", permissionKeys: new Set(["finance.view"]) });
     getFinanceOperationsData.mockResolvedValue({ propertyOptions: [{ id: "property-1", label: "Riverside" }] });

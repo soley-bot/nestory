@@ -903,6 +903,7 @@ function getScreen(
       actions: undefined,
       body: (
         <PropertyAccountView
+          activityIsRecent={props.accountActivityIsRecent}
           units={props.unitOptions}
           canRecoverOwnerDistribution={props.isSuperAdmin}
           entries={props.accountEntries}
@@ -2830,6 +2831,7 @@ function OwnerBalanceDetails({
 }
 
 function PropertyAccountView({
+  activityIsRecent,
   units,
   canRecoverOwnerDistribution,
   getSourceAction,
@@ -2839,6 +2841,7 @@ function PropertyAccountView({
   onRecordWithdrawal,
   position,
 }: {
+  activityIsRecent?: boolean;
   units: FinanceOperationsData["unitOptions"];
   getSourceAction: (entry: PropertyAccountEntry) => { label: string; onSelect?: () => void; href?: string } | undefined;
   canRecordOwnerCash: boolean;
@@ -2896,6 +2899,7 @@ function PropertyAccountView({
           </span>
         </div>
       ) : null}
+      {activityIsRecent ? <p className="text-sm text-muted-foreground">Latest 300 activity records. <Link className="font-medium text-primary underline" href={`/properties/${position.propertyId}/finance`}>Open Transactions for earlier activity</Link>.</p> : null}
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={showHistory} onChange={event => setShowHistory(event.target.checked)} />Show correction history</label>
       {orderedEntries.length === 0 ? (
         <EmptyState

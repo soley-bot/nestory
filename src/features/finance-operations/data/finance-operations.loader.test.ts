@@ -26,6 +26,24 @@ vi.mock("@/features/finance-accounts/data/finance-accounts", () => ({
 }));
 
 describe("finance operations initial reads", () => {
+  it("bounds owner account activity and loads only referenced expense details", async () => {
+    const harness = createFinanceReadHarness({
+      properties: { data: [{ id: "property-1", code: "P", name: "Property", archived_at: null }] },
+      property_account_entries: { data: Array.from({ length: 601 }, (_, index) => ({ source_id: `cost-${index}`, source_type: "ips_expense_responsibility", property_id: "property-1", event_date: "2026-08-01", created_at: "2026-08-01", amount: 10, running_balance: 100, category: "expense", label: "Cost" })) },
+      ips_expense_responsibilities: { data: [{ id: "cost-0", finance_expense_item_id: "item-1" }] },
+      expense_submissions: { data: [{ id: "expense-1", approved_finance_expense_item_id: "item-1", property_id: "property-1", expense_date: "2026-08-01", status: "approved", responsibility: "owner", submitted_by: "user", submitted_at: "2026-08-01", internal_cost_amount: 10, customer_total_amount: 10 }] },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getFinanceOperationsData("organization-1", "property-1", { accountActivityOnly: true });
+    expect(result.accountEntries).toHaveLength(300);
+    expect(result.accountActivityIsRecent).toBe(true);
+    expect(result.accountSourcesComplete).toBe(false);
+    expect(result.expenseSubmissions[0].id).toBe("expense-1");
+    expect(result.accountEntries.some(entry => entry.source?.id === "expense-1")).toBe(true);
+    expect(harness.queries.filter(query => query.table === "expense_submissions").every(query => query.filters.some(([column]) => column.startsWith("in:")))).toBe(true);
+    expect(harness.queries.some(query => query.table === "expense_transactions")).toBe(false);
+    expect(harness.queries.some(query => query.table === "tenant_invoice_balances")).toBe(false);
+  });
   it("scopes expense reads before pagination on an ordinary property page", async () => {
     const harness = createFinanceReadHarness({
       properties: { data: [{ id: "property-1", code: "P", name: "Property", archived_at: null }] },
@@ -349,6 +367,7 @@ function createFinanceReadHarness(
     }
 
     in(column: string, ids: string[]) {
+      this.filters.push([`in:${column}`, ids]);
       if (this.table === "tasks" && column === "id") {
         if (ids.length > 1000) throw new Error("Task lookup exceeds request size");
         this.taskIds=ids;

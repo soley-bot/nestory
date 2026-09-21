@@ -263,6 +263,7 @@ export type PropertyAccountEntry = {
 };
 
 export type FinanceOperationsData = {
+  accountActivityIsRecent?: boolean;
   accountSourcesComplete?: boolean;
   expenseEntryOptions?: Pick<FinanceOperationsData, "propertyOptions" | "unitOptions" | "positions" | "payFromAccounts">;
   accountEntries: PropertyAccountEntry[];
