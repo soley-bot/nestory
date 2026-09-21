@@ -187,6 +187,8 @@ export type OwnerBalanceSourceMovementRecord = {
 };
 
 export type OwnerBalanceSourceRecord = {
+  unitId?: string | null;
+  unitLabel?: string;
   allocationSetId: string;
   eventDate: string;
   sourceType: string;

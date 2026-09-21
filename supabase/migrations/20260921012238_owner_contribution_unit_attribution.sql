@@ -159,7 +159,7 @@ BEGIN
       AND EXISTS (SELECT 1 FROM assignments assignment WHERE assignment.person_id=person.id)
   )
   SELECT jsonb_build_object(
-    'units',coalesce((SELECT jsonb_agg(jsonb_build_object('id',u.id,'property_id',u.property_id,'unit_number',u.unit_number) ORDER BY u.unit_number,u.id) FROM public.units u JOIN allowed_properties p ON p.id=u.property_id WHERE u.organization_id=p_organization_id AND u.archived_at IS NULL),'[]'::jsonb),
+    'units',coalesce((SELECT jsonb_agg(jsonb_build_object('id',u.id,'property_id',u.property_id,'unit_number',u.unit_number,'archived_at',u.archived_at) ORDER BY u.unit_number,u.id) FROM public.units u JOIN allowed_properties p ON p.id=u.property_id WHERE u.organization_id=p_organization_id),'[]'::jsonb),
     'properties',coalesce((SELECT jsonb_agg(to_jsonb(property) ORDER BY property.code,property.id)
       FROM allowed_properties property),'[]'::jsonb),
     'people',coalesce((SELECT jsonb_agg(to_jsonb(person) ORDER BY person.display_name,person.id)
