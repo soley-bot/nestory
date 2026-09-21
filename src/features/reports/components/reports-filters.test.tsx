@@ -14,7 +14,7 @@ describe("ReportsFilters", () => {
 
     const filters = screen.getByRole("region", { name: "Report filters" });
     expect(
-      within(filters).getByRole("combobox", {
+      within(filters).getByRole("button", {
         name: "Filter report by property",
       }),
     ).toBeTruthy();
@@ -22,7 +22,7 @@ describe("ReportsFilters", () => {
       within(filters).getByRole("button", { name: "Report month" }),
     ).toBeTruthy();
     expect(
-      within(filters).getByRole("combobox", {
+      within(filters).getByRole("button", {
         name: "Filter report by unit",
       }),
     ).toBeTruthy();
@@ -41,7 +41,7 @@ describe("ReportsFilters", () => {
       }),
     ).toBeTruthy();
     expect(
-      within(filters).getByRole("combobox", {
+      within(filters).getByRole("button", {
         name: "Filter report by property",
       }),
     ).toBeTruthy();

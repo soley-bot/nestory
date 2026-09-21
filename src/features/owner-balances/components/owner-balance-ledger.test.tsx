@@ -35,6 +35,15 @@ const allocationSetId = "00000000-0000-4000-8000-000000000006";
 const movementId = "00000000-0000-4000-8000-000000000007";
 
 describe("OwnerBalanceLedger", () => {
+  it.each([false, true])("shows contribution units in both account activity layouts (%s)", propertyLayout => {
+    const input = data();
+    input.sources[0] = { ...input.sources[0], sourceType: "owner_contribution", unitId: "unit-archived", unitLabel: "8F-D2" };
+    render(<OwnerBalanceLedger canAllocate={false} canCorrect={false} canTransfer={false}
+      data={input} organizationName="IPS" selectedMonth="2026-08" selectedPropertyId={propertyId}
+      selectedOwnerPersonId={ownerId} selectedView="activity" propertyAccount={propertyLayout ? { activityFilter: "all", page: 1, propertyLabel: "Riverside" } : undefined} />);
+    expect(screen.getByText("8F-D2")).toBeTruthy();
+  });
+
   it.each([
     [undefined, false], ["invalid", false], [sourceId, false], [sourceLineId, true],
   ])("opens source disclosure only for loaded source hint %s", (selectedSourceLineId, open) => {

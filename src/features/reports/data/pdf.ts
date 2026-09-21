@@ -96,7 +96,7 @@ type UnitStatementFlowRow =
       kind: "category";
       label: string;
     }
-  | { height: number; kind: "entry"; line: UnitProfitLossLine; description?: string[]; continued?: boolean }
+  | { height: number; kind: "entry"; line: UnitProfitLossLine; description?: string[]; cells?: string[][]; continued?: boolean }
   | { height: number; kind: "empty"; label: string }
   | {
       height: number;
@@ -123,13 +123,10 @@ const landscapePageSize: PdfPageSize = {
   height: pageHeight,
   width: pageWidth,
 };
-const portraitA4PageSize: PdfPageSize = {
-  height: 842,
-  width: 595,
-};
+
 const marginX = 36;
 const tableWidth = 770;
-const unitStatementContentWidth = 523;
+const unitStatementContentWidth = 770;
 const rowFontSize = 8.2;
 const rowLineHeight = 10.4;
 const cellPaddingX = 5;
@@ -137,14 +134,14 @@ const tableTopY = 382;
 const statementTableTopY = 438;
 const tableBottomY = 45;
 const headerRowHeight = 24;
-const unitStatementFirstContentTop = 666;
-const unitStatementContinuationContentTop = 704;
+const unitStatementFirstContentTop = 438;
+const unitStatementContinuationContentTop = 438;
 const unitStatementContentBottom = 58;
-const unitStatementSectionHeight = 26;
+const unitStatementSectionHeight = 22;
 const unitStatementCategoryTextWidth = 310;
 const unitStatementEmptyHeight = 30;
-const unitStatementSubtotalHeight = 28;
-const unitStatementTotalsHeight = 82;
+const unitStatementSubtotalHeight = 24;
+const unitStatementTotalsHeight = 66;
 
 const colors = {
   accent: "#2f5f7f",
@@ -168,9 +165,9 @@ const statementColumns: PdfColumn[] = [
 ];
 
 const unitStatementColumns: PdfColumn[] = [
-  { label: "Date", maxLines: 1, width: 82 },
-  { label: "Category / Description", maxLines: 2, width: 358 },
-  { align: "right", label: "Amount", maxLines: 1, width: 83 },
+  { label: "Account", width: 100 }, { label: "Date", width: 75 }, { label: "Type", width: 58 },
+  { label: "Name", width: 108 }, { label: "Property / unit", width: 122 },
+  { label: "Description", width: 222 }, { align: "right", label: "Amount", width: 85 },
 ];
 
 const sourceTraceColumns: PdfColumn[] = [
@@ -995,7 +992,7 @@ function buildUnitProfitLossStatementPdf({
     }),
   );
 
-  return createPdfDocument(pageCommands, portraitA4PageSize);
+  return createPdfDocument(pageCommands, landscapePageSize);
 }
 
 function buildUnitStatementFlowRows({
@@ -1013,10 +1010,12 @@ function buildUnitStatementFlowRows({
 }): UnitStatementFlowRow[] {
   const buildEntries = (lines: UnitProfitLossLine[]) =>
     lines.flatMap((line): UnitStatementFlowRow[] => {
-      const descriptionLines = wrapText(unitProfitLossDescription(line), unitStatementColumns[1].width - cellPaddingX * 2 - 14, 8.6, Number.MAX_SAFE_INTEGER);
-      return chunk(descriptionLines, 30).map((description, index) => ({
-        height: Math.max(26, description.length * 11 + 10), kind: "entry" as const, line,
-        description, continued: index > 0,
+      const values = [line.category, formatCalendarDate(line.date), line.type ?? (line.direction === "income" ? "Invoice" : "Expense"), line.name ?? "", line.property === line.unit ? line.unit : `${line.property} / ${line.unit}`, line.description, formatExactMoneyCents(line.amountCents, line.currency)];
+      const cells = values.map((value, index) => wrapText(value, unitStatementColumns[index].width - cellPaddingX * 2, 8.2, Number.MAX_SAFE_INTEGER));
+      const count = Math.max(...cells.map(cell => cell.length));
+      return Array.from({ length: Math.ceil(count / 22) }, (_, index) => ({
+        height: Math.max(22, Math.min(22, count - index * 22) * 11 + 10), kind: "entry" as const, line,
+        cells: cells.map((cell, column) => column === 6 && index > 0 ? [] : cell.slice(index * 22, (index + 1) * 22)), continued: index > 0,
       }));
     });
   const buildCategoryRows = buildEntries;
@@ -1233,46 +1232,15 @@ function renderUnitProfitLossPage({
   return commands.join("\n");
 }
 
-function drawUnitProfitLossHeader(
-  commands: string[],
-  organizationName: string,
-  report: TrustedReport,
-  firstPage: boolean,
-) {
-  if (!firstPage) {
-    drawText(commands, report.title, marginX, 806, {
-      bold: true,
-      color: colors.ink,
-      fontSize: 18,
-      width: unitStatementContentWidth,
-    });
-    drawText(commands, report.scopeLabel, marginX, 782, {
-      bold: true,
-      color: colors.ink,
-      fontSize: 9.5,
-      width: unitStatementContentWidth,
-    });
-    drawText(commands, report.periodLabel, marginX, 763, {
-      color: colors.muted,
-      fontSize: 8.5,
-      width: 260,
-    });
-    drawText(commands, "Income and expenses by invoice or cost date, whether paid or unpaid.", marginX, 746, {
-      color: colors.muted,
-      fontSize: 8,
-      width: unitStatementContentWidth,
-    });
-    return;
-  }
-
-  drawText(commands, organizationName, marginX, 806, { bold: true, fontSize: 10, width: 280 });
-  drawText(commands, "Prepared with Nestory", marginX, 790, { fontSize: 8, color: colors.muted, width: 240 });
-  drawText(commands, "PROFIT & LOSS", marginX + 295, 805, { bold: true, fontSize: 17, align: "right", width: unitStatementContentWidth - 295 });
-  drawLine(commands, marginX, 777, marginX + unitStatementContentWidth, 777, colors.accent, 1);
-  drawText(commands, report.scopeLabel, marginX, 756, { bold: true, fontSize: 10, width: unitStatementContentWidth });
-  drawText(commands, report.periodLabel, marginX, 739, { fontSize: 9, color: colors.muted, width: 280 });
-  drawText(commands, "Income and expenses by invoice or cost date, whether paid or unpaid.", marginX, 721, { fontSize: 8, color: colors.muted, width: unitStatementContentWidth });
-  drawText(commands, "Property-level costs are identified separately and are not allocated to a unit.", marginX, 706, { fontSize: 7.5, color: colors.muted, width: unitStatementContentWidth });
+function drawUnitProfitLossHeader(commands: string[], organizationName: string, report: TrustedReport, firstPage: boolean) {
+  drawText(commands, organizationName, marginX, 563, { bold: true, fontSize: 11, width: 450 });
+  drawText(commands, firstPage ? "PROFIT & LOSS" : "PROFIT & LOSS (continued)", marginX + 470, 560, { bold: true, fontSize: 17, align: "right", width: 300 });
+  drawLine(commands, marginX, 546, marginX + unitStatementContentWidth, 546, colors.accent, 1);
+  const scopeLines = wrapText(report.scopeLabel, unitStatementContentWidth, 10, 3);
+  scopeLines.forEach((line, index) => drawText(commands, line, marginX, 530 - index * 12, { bold: true, fontSize: 10, width: unitStatementContentWidth }));
+  drawText(commands, report.periodLabel, marginX, 489, { fontSize: 9, color: colors.muted, width: 500 });
+  drawText(commands, "Amounts in USD", marginX + 620, 489, { fontSize: 9, align: "right", width: 150 });
+  drawText(commands, "Accrual basis: income and expenses by invoice or cost date.", marginX, 473, { fontSize: 8, color: colors.muted, width: unitStatementContentWidth });
 }
 
 function drawUnitProfitLossSectionRow(
@@ -1293,85 +1261,18 @@ function drawUnitProfitLossSectionRow(
   });
 }
 
-function unitProfitLossDescription(line: UnitProfitLossLine) {
-  const detail = line.description.toLowerCase().startsWith(line.category.toLowerCase())
-    ? line.description : `${line.category}: ${line.description}`;
-  const scope = line.property === line.unit ? line.unit : `${line.property} / ${line.unit}`;
-  return `${scope} | ${detail}`;
-}
-
-function drawUnitProfitLossEntryRow(
-  commands: string[],
-  row: Extract<UnitStatementFlowRow, { kind: "entry" }>,
-  y: number,
-  index: number,
-) {
-  const [dateColumn, detailColumn, amountColumn] = unitStatementColumns;
-  const detailX = marginX + dateColumn.width;
-  const amountX = detailX + detailColumn.width;
-  const textY = y + row.height - 5 - 8.6;
-  const descriptionLines = row.description ?? wrapText(
-    unitProfitLossDescription(row.line),
-    detailColumn.width - cellPaddingX * 2 - 14,
-    8.6,
-    Number.MAX_SAFE_INTEGER,
-  );
-  const amount = formatExactMoneyCents(
-    row.line.amountCents,
-    row.line.currency,
-  );
-  const amountTextWidth = amountColumn.width - cellPaddingX * 2;
-  const amountFontSize = fitTextToWidth(amount, amountTextWidth, 8.6);
-
-  drawRect(commands, marginX, y, unitStatementContentWidth, row.height, {
-    fill: index % 2 === 0 ? colors.rowFill : colors.rowAlt,
-  });
-  drawLine(
-    commands,
-    marginX,
-    y,
-    marginX + unitStatementContentWidth,
-    y,
-    colors.border,
-    0.35,
-  );
-  drawText(commands, formatCalendarDate(row.line.date), marginX + cellPaddingX, textY, {
-    color: colors.ink,
-    fontSize: 8.6,
-    width: dateColumn.width - cellPaddingX * 2,
-  });
-  drawText(commands, "-", detailX + cellPaddingX + 2, textY, {
-    color: colors.muted,
-    fontSize: 8.6,
-    width: 8,
-  });
-
-  for (const [lineIndex, line] of descriptionLines.entries()) {
-    drawText(
-      commands,
-      line,
-      detailX + cellPaddingX + 14,
-      textY - lineIndex * 11,
-      {
-        color: colors.ink,
-        fontSize: 8.6,
-        width: detailColumn.width - cellPaddingX * 2 - 14,
-      },
-    );
+function drawUnitProfitLossEntryRow(commands: string[], row: Extract<UnitStatementFlowRow, { kind: "entry" }>, y: number, index: number) {
+  drawRect(commands, marginX, y, unitStatementContentWidth, row.height, { fill: index % 2 === 0 ? colors.rowFill : colors.rowAlt });
+  drawLine(commands, marginX, y, marginX + unitStatementContentWidth, y, colors.border, 0.35);
+  let x = marginX;
+  for (const [columnIndex, column] of unitStatementColumns.entries()) {
+    for (const [lineIndex, line] of (row.cells?.[columnIndex] ?? []).entries()) {
+      drawText(commands, line, x + cellPaddingX, y + row.height - 14 - lineIndex * 11, {
+        align: column.align, color: colors.ink, fontSize: 8.2, width: column.width - cellPaddingX * 2,
+      });
+    }
+    x += column.width;
   }
-
-  drawText(
-    commands,
-    row.continued ? "" : amount,
-    amountX + cellPaddingX,
-    textY,
-    {
-      align: "right",
-      color: colors.ink,
-      fontSize: amountFontSize,
-      width: amountTextWidth,
-    },
-  );
 }
 
 function formatExactMoneyCents(cents: bigint, currency: string) {
@@ -1384,14 +1285,6 @@ function formatExactMoneyCents(cents: bigint, currency: string) {
     .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
   return `${sign}${currency} ${groupedDollars}.${fraction}`;
-}
-
-function fitTextToWidth(value: string, maxWidth: number, preferredSize: number) {
-  const preferredWidth = estimateTextWidth(value, preferredSize);
-
-  return preferredWidth <= maxWidth
-    ? preferredSize
-    : preferredSize * (maxWidth / preferredWidth);
 }
 
 function drawUnitProfitLossCategoryRow(
@@ -1471,19 +1364,19 @@ function drawUnitProfitLossSubtotalRow(
     colors.border,
     0.7,
   );
-  drawText(commands, row.label, marginX + 250, y + 10, {
+  drawText(commands, row.label, marginX + 470, y + 10, {
     align: "right",
     bold: true,
     color: colors.ink,
     fontSize: 8.5,
-    width: 178,
+    width: 205,
   });
-  drawText(commands, row.value, marginX + 440, y + 10, {
+  drawText(commands, row.value, marginX + 685, y + 10, {
     align: "right",
     bold: true,
     color: colors.ink,
     fontSize: 8.5,
-    width: 83,
+    width: 85,
   });
 }
 
@@ -1520,15 +1413,15 @@ function drawUnitProfitLossTotals(
   netIncome: string,
   yTop: number,
 ) {
-  const labelX = marginX + 250;
-  const labelWidth = 178;
-  const amountX = marginX + 440;
-  const amountWidth = 83;
+  const labelX = marginX + 470;
+  const labelWidth = 205;
+  const amountX = marginX + 685;
+  const amountWidth = 85;
 
   [
     ["Total income", incomeTotal],
     ["Total expenses", expenseTotal],
-    ["Net income", netIncome],
+    ["Net operating income", netIncome],
   ].forEach(([label, value], index) => {
     const y = yTop - index * 22;
     drawText(commands, label, labelX, y, {

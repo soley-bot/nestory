@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { getReportMonthRange } from "@/features/reports/reports.filters";
+import { SearchableSelectControl } from "@/components/ui/searchable-select-control";
 import { SelectControl } from "@/components/ui/select-control";
 import type { ReportOwnerOption, ReportPropertyOption, ReportsViewQuery, ReportUnitOption, TrustedReport } from "@/features/reports/reports.types";
 
@@ -38,12 +39,12 @@ export function ReportsFilters({ action, ownerOptions, propertyOptions, unitOpti
       {viewQuery.columns ? <input name="columns" type="hidden" value={viewQuery.columns} /> : null}
       {modern && viewQuery.status !== "all" ? <><input name="status" type="hidden" value={viewQuery.status} /><span className="text-xs text-muted-foreground">Current lease: {viewQuery.status}</span></> : null}
       {showOwner ? <ScopeField label="Owner"><FilterSelect label="owner" name="ownerPersonId" value={viewQuery.ownerPersonId} options={ownerOptions} /></ScopeField> : null}
-      <ScopeField label="Property"><SelectControl ariaLabel="Filter report by property" className="h-8 w-[180px] px-2.5 text-sm" name="propertyId" value={propertyId} onValueChange={(value) => { setPropertyId(value); setUnitId("all"); }} options={[{ label: "All properties", value: "all" }, ...propertyOptions.map((property) => ({ label: property.label, value: property.id }))]} /></ScopeField>
+      <ScopeField label="Property"><SearchableSelectControl ariaLabel="Filter report by property" className="min-h-8 h-8 w-[280px] max-w-full px-2.5 text-sm" name="propertyId" value={propertyId} onValueChange={(value) => { setPropertyId(value); setUnitId("all"); }} options={[{ label: "All properties", value: "all" }, ...propertyOptions.map((property) => ({ label: property.label, value: property.id }))]} /></ScopeField>
       {!modern ? <ScopeField label="Month"><MonthPickerField ariaLabel="Report month" className="h-8 w-[150px] px-2.5 text-sm" defaultValue={viewQuery.month} name="month" /></ScopeField> : viewQuery.report !== "rent-roll" ? <>
         <ScopeField label="From"><DatePickerField ariaLabel="Report start date" className="h-8 w-[150px] px-2.5 text-sm" defaultValue={viewQuery.dateFrom || monthRange.start} name="dateFrom" /></ScopeField>
         <ScopeField label="To"><DatePickerField ariaLabel="Report end date" className="h-8 w-[150px] px-2.5 text-sm" defaultValue={viewQuery.dateTo || monthRange.end} name="dateTo" /></ScopeField>
       </> : null}
-      {showUnit ? <ScopeField label="Unit"><SelectControl ariaLabel="Filter report by unit" className="h-8 w-[180px] px-2.5 text-sm" name="unitId" value={unitId} onValueChange={setUnitId} options={[{ label: "All units", value: "all" }, ...visibleUnits.map((unit) => ({ label: unit.label, value: unit.id }))]} /></ScopeField> : null}
+      {showUnit ? <ScopeField label="Unit"><SearchableSelectControl ariaLabel="Filter report by unit" className="min-h-8 h-8 w-[180px] px-2.5 text-sm" name="unitId" value={unitId} onValueChange={setUnitId} options={[{ label: "All units", value: "all" }, ...visibleUnits.map((unit) => ({ label: unit.label, value: unit.id }))]} /></ScopeField> : null}
       {modern ? <ScopeField label="Search"><Input aria-label="Search report" className="h-8 w-[190px] text-sm" name="query" type="search" placeholder="Search this report" defaultValue={viewQuery.query} /></ScopeField> : null}
       {modern ? <details className="group static sm:relative">
         <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md border border-border px-3 text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><SlidersHorizontal size={14} aria-hidden="true" />More filters{moreActive ? <span aria-label="Active filters" className="size-1.5 rounded-full bg-primary" /> : null}</summary>

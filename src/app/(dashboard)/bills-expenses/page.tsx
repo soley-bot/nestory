@@ -17,7 +17,8 @@ export default async function BillsExpensesPage({
         ? "owner"
         : undefined;
   const context = await requireFinanceContext();
-  const data = await getFinanceOperationsData(context.organizationId);
+  const expenseMonth = typeof params.expenseMonth === "string" && /^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(params.expenseMonth) ? params.expenseMonth : "";
+  const data = await getFinanceOperationsData(context.organizationId, undefined, { expenseMonth });
   return (
     <FinanceOperationsScreen
       isSuperAdmin={context.isSuperAdmin}
@@ -38,6 +39,7 @@ export default async function BillsExpensesPage({
       canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       initialExpenseIntent={initialExpenseIntent}
       organizationName={context.organizationName}
+      expenseMonth={expenseMonth}
       view="expenses"
     />
   );

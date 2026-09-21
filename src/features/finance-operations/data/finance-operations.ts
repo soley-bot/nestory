@@ -460,9 +460,11 @@ export function groupExpenseTransactionSummaries(
 export async function getFinanceOperationsData(
   organizationId: string,
   propertyId?: string | null,
-  options: { includeAccountSources?: boolean; completeTransactionHistory?: boolean } = {},
+  options: { includeAccountSources?: boolean; completeTransactionHistory?: boolean; expenseMonth?: string; includeExpenses?: boolean; accountActivityOnly?: boolean } = {},
 ): Promise<FinanceOperationsData> {
+  if (options.expenseMonth && !/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(options.expenseMonth)) throw new Error("Choose a valid expense month.");
   if (options.completeTransactionHistory && !propertyId) throw new Error("Choose a property before loading complete transaction history.");
+  if (options.accountActivityOnly && (!propertyId || options.completeTransactionHistory)) throw new Error("Recent account activity requires a property and bounded history.");
   const supabase = await createSupabaseServerClient();
   const [
     organizationResult,
@@ -491,10 +493,10 @@ export async function getFinanceOperationsData(
       .order("display_name"),
     () => supabase.from("person_roles").select("person_id, role")
       .eq("organization_id", organizationId).eq("status", "active").is("archived_at", null),
-    () => getTenantInvoiceBalanceRows(supabase, organizationId, propertyId, options.completeTransactionHistory),
+    () => options.accountActivityOnly ? Promise.resolve<DataPageResult<TenantInvoiceBalanceRow>>({ data: [], error: null }) : getTenantInvoiceBalanceRows(supabase, organizationId, propertyId, options.completeTransactionHistory),
     () => getUnresolvedRentGenerationExceptions(supabase, organizationId),
     () => getOwnerInvoiceBalanceRows(supabase, organizationId, propertyId),
-    () => getExpenseSubmissionRows(supabase, organizationId, options.completeTransactionHistory ? propertyId : undefined),
+    () => options.includeExpenses === false || options.accountActivityOnly ? Promise.resolve<DataPageResult<ExpenseSubmissionRow>>({ data: [], error: null }) : getExpenseSubmissionRows(supabase, organizationId, propertyId, options.expenseMonth),
     () => supabase
       .from("property_finance_positions")
       .select("*")
@@ -537,8 +539,32 @@ export async function getFinanceOperationsData(
     );
   }
 
-  const expenseTransactions = await loadExpenseTransactions(
-    supabase, organizationId, expenseSubmissionsResult.data ?? [], options.completeTransactionHistory ? propertyId : undefined,
+  const accountEntries = sortPropertyAccountEntriesNewestFirst(
+      (entriesResult.data ?? []).flatMap((row) =>
+        toAccountEntry(row as AccountEntryRow),
+      ),
+    );
+  const sourcedEntries = (options.includeAccountSources || options.accountActivityOnly)
+    ? await hydrateAccountEntrySources(supabase, organizationId, accountEntries, { requireComplete: options.completeTransactionHistory || options.accountActivityOnly })
+    : accountEntries;
+  if (options.accountActivityOnly) {
+    const expenseIds = sourcedEntries.flatMap(entry => entry.source?.kind === "expense" ? [entry.source.id] : []);
+    const invoiceIds = sourcedEntries.flatMap(entry => entry.source?.kind === "rent" ? [entry.source.id] : []);
+    const [expenses, invoices] = await Promise.all([
+      options.includeExpenses === false ? Promise.resolve<DataPageResult<ExpenseSubmissionRow>>({ data: [], error: null }) : fetchRowsByIdBatches<ExpenseSubmissionRow>(expenseIds, async (ids, from, to) => supabase
+        .from("expense_submissions").select("*").eq("organization_id", organizationId)
+        .eq("property_id", propertyId!).in("id", [...ids]).order("id").range(from, to)),
+      fetchRowsByIdBatches<TenantInvoiceBalanceRow>(invoiceIds, async (ids, from, to) => supabase
+        .from("tenant_invoice_balances").select("*").eq("organization_id", organizationId)
+        .eq("property_id", propertyId!).in("id", [...ids]).order("id").range(from, to)),
+    ]);
+    if (expenses.error || invoices.error) throw new Error("Could not load account transaction details.");
+    expenseSubmissionsResult.data = expenses.data ?? [];
+    tenantInvoicesResult.data = invoices.data ?? [];
+  }
+
+  const expenseTransactions = options.includeExpenses === false ? { submissions: [], childLinks: [], transactions: [], lines: [] } : await loadExpenseTransactions(
+    supabase, organizationId, expenseSubmissionsResult.data ?? [], Boolean(propertyId || options.expenseMonth),
   );
   expenseSubmissionsResult.data = expenseTransactions.submissions;
 
@@ -773,19 +799,19 @@ export async function getFinanceOperationsData(
         sortOrder: category.sort_order,
       }) satisfies FinanceCategory,
   );
-  const accountEntries = sortPropertyAccountEntriesNewestFirst(
-      (entriesResult.data ?? []).flatMap((row) =>
-        toAccountEntry(row as AccountEntryRow),
-      ),
-    );
   return {
+    accountActivityIsRecent: Boolean(options.accountActivityOnly),
     accountSourcesComplete: Boolean(options.completeTransactionHistory && options.includeAccountSources),
     historicalLeases: readContext.leases.map(lease => {
       const property = propertyById.get(lease.property_id);
       const unit = lease.unit_id ? unitById.get(lease.unit_id) : undefined;
       return {id:lease.id,propertyId:lease.property_id,unitId:lease.unit_id,unitLabel:unit && property ? unitLabel(unit,property) : "No unit",tenantLabel:lease.tenant_name};
     }),
-    accountEntries: options.includeAccountSources ? await hydrateAccountEntrySources(supabase, organizationId, accountEntries, { requireComplete: options.completeTransactionHistory }) : accountEntries,
+    accountEntries: sourcedEntries.map(entry => {
+      const unit = entry.unitId ? unitById.get(entry.unitId) : undefined;
+      const property = propertyById.get(entry.propertyId);
+      return { ...entry, unitLabel: unit && property ? unitLabel(unit, property) : undefined };
+    }),
     expenseAccounts: getExpenseAccountOptions(financeAccounts),
     expenseSubmissions: groupExpenseTransactionSummaries((expenseSubmissionsResult.data ?? []).map(
       (submission) =>
@@ -1144,6 +1170,7 @@ export function scopeFinanceOperationsData(
     (!scope.unitId || unitId === scope.unitId);
 
   return {
+    accountActivityIsRecent: data.accountActivityIsRecent,
     accountSourcesComplete: data.accountSourcesComplete,
     historicalLeases: data.historicalLeases?.filter(lease => lease.propertyId === scope.propertyId && (!scope.unitId || lease.unitId === scope.unitId)),
     expenseEntryOptions: data.expenseEntryOptions ?? {
@@ -1629,8 +1656,18 @@ async function getExpenseSubmissionRows(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   organizationId: string,
   completePropertyId?: string | null,
+  month?: string,
 ): Promise<DataPageResult<ExpenseSubmissionRow>> {
-  if (completePropertyId) return fetchAllActionableRows(async (from, to) => supabase.from("expense_submissions").select("*").eq("organization_id",organizationId).eq("property_id",completePropertyId).order("submitted_at",{ascending:false}).order("id").range(from,to));
+  if (completePropertyId || month) return fetchAllActionableRows(async (from, to) => {
+    let query = supabase.from("expense_submissions").select("*").eq("organization_id", organizationId);
+    if (completePropertyId) query = query.eq("property_id", completePropertyId);
+    if (month) {
+      const [year, monthNumber] = month.split("-").map(Number);
+      const nextMonth = monthNumber === 12 ? `${String(year + 1).padStart(4, "0")}-01` : `${String(year).padStart(4, "0")}-${String(monthNumber + 1).padStart(2, "0")}`;
+      query = query.gte("expense_date", `${month}-01`).lt("expense_date", `${nextMonth}-01`);
+    }
+    return query.order("submitted_at", { ascending: false }).order("id").range(from, to);
+  });
   const pending = await fetchAllActionableRows(async (from, to) => {
     const { data, error } = await supabase
       .from("expense_submissions")
@@ -1663,21 +1700,21 @@ export async function loadExpenseTransactions(
   supabase: FinanceServerClient,
   organizationId: string,
   initialSubmissions: ExpenseSubmissionRow[],
-  completePropertyId?: string | null,
+  scopedHistory = false,
 ) {
   const scopedParentIds: string[] = [];
-  if (completePropertyId) for (let offset=0; offset<initialSubmissions.length; offset+=500) {
+  if (scopedHistory) for (let offset=0; offset<initialSubmissions.length; offset+=500) {
     const links = await supabase.rpc("get_expense_transaction_child_links", {p_organization_id:organizationId,p_submission_ids:initialSubmissions.slice(offset,offset+500).map(item=>item.id)});
     if (links.error) throw new Error("Could not load complete expense transaction membership.");
     scopedParentIds.push(...(links.data ?? []).map(link=>link.transaction_id));
   }
-  const scopedParents = completePropertyId ? await fetchRowsByIdBatches([...new Set(scopedParentIds)],async(ids,from,to)=>supabase.from("expense_transactions").select("*").eq("organization_id",organizationId).in("id",[...ids]).order("id").range(from,to)) : null;
+  const scopedParents = scopedHistory ? await fetchRowsByIdBatches([...new Set(scopedParentIds)],async(ids,from,to)=>supabase.from("expense_transactions").select("*").eq("organization_id",organizationId).in("id",[...ids]).order("id").range(from,to)) : null;
   const pending = scopedParents ?? await fetchAllActionableRows(async (from, to) => {
     return await supabase.from("expense_transactions").select("*")
       .eq("organization_id", organizationId).eq("status", "submitted")
       .order("submitted_at", { ascending: false }).order("id").range(from, to);
   });
-  const history = completePropertyId ? {data: [],error:null} : await supabase.from("expense_transactions").select("*")
+  const history = scopedHistory ? {data: [],error:null} : await supabase.from("expense_transactions").select("*")
     .eq("organization_id", organizationId).neq("status", "submitted")
     .order("submitted_at", { ascending: false }).order("id").limit(250);
   if (pending.error || history.error) throw new Error("Could not load expense transactions.");

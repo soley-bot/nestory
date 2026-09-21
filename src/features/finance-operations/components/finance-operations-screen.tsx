@@ -150,6 +150,7 @@ type DrawerState =
     };
 
 type FinanceOperationsScreenProps = FinanceOperationsData & {
+  expenseMonth?: string;
   currentUserId?: string;
   canApproveOwnExpense?: boolean;
   canCreateVendor?: boolean;
@@ -715,9 +716,9 @@ function getScreen(
             <Button variant="outline" disabled={!openInvoices.length} onClick={() => openModal({ mode: "payment", transactionScope, invoice: openInvoices.length === 1 ? openInvoices[0] : undefined, canChooseAnother: true })}>Receive payment</Button>
           </> : null}
           {props.canSubmitExpense ? <Button variant="outline" onClick={() => openDrawer({ mode: "expense", initialResponsibility: "owner", fixedScope: transactionScope })}>Add expense</Button> : null}
-          {!effectiveScope.unitId && props.canRecordOwnerCash && position?.ownerPersonId ? <>
-            <OwnerContributionControl canRecordOwnerCash propertyId={position.propertyId} ownerPersonId={position.ownerPersonId} ownerLabel={position.ownerLabel} />
-            <Button variant="outline" disabled={position.availableWithdrawal <= 0} onClick={() => openModal({ mode: "withdrawal", position })}>Owner distribution</Button>
+          {props.canRecordOwnerCash && position?.ownerPersonId ? <>
+            <OwnerContributionControl units={props.unitOptions} unitId={effectiveScope.unitId} canRecordOwnerCash propertyId={position.propertyId} ownerPersonId={position.ownerPersonId} ownerLabel={position.ownerLabel} />
+            {!effectiveScope.unitId ? <Button variant="outline" disabled={position.availableWithdrawal <= 0} onClick={() => openModal({ mode: "withdrawal", position })}>Owner distribution</Button> : null}
           </> : null}
         </>; }}
       />,
@@ -858,6 +859,7 @@ function getScreen(
       ) : undefined,
       body: (
         <ExpensesView
+          serverMonth={props.expenseMonth}
           canReview={props.canReviewExpense}
           openModal={openModal}
           submissions={props.expenseSubmissions}
@@ -901,6 +903,8 @@ function getScreen(
       actions: undefined,
       body: (
         <PropertyAccountView
+          activityIsRecent={props.accountActivityIsRecent}
+          units={props.unitOptions}
           canRecoverOwnerDistribution={props.isSuperAdmin}
           entries={props.accountEntries}
           getSourceAction={(entry) => {
@@ -1835,6 +1839,7 @@ function RentView({
 }
 
 function ExpensesView({
+  serverMonth,
   canReview,
   openModal,
   submissions,
@@ -1842,25 +1847,38 @@ function ExpensesView({
   canReview: boolean;
   openModal: (modal: ModalState) => void;
   submissions: FinanceOperationsData["expenseSubmissions"];
+  serverMonth?: string;
 }) {
   const [status, setStatus] =
     useState<ExpenseSubmissionSummary["status"]>("submitted");
 
-  if (submissions.length === 0) {
-    return (
-      <div className="mx-auto w-full max-w-[1280px] px-4 py-4 sm:px-6 2xl:px-8">
-        <EmptyState
-          body="Record an expense to start Finance review."
-          className="min-h-64 rounded-xl border border-border/80 bg-card shadow-sm"
-          kind="empty"
-          title="No expenses"
-        />
-      </div>
-    );
-  }
+  const [localMonth, setLocalMonth] = useState("");
+  const month = serverMonth ?? localMonth;
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const setMonth = (value: string) => {
+    if (serverMonth === undefined) { setLocalMonth(value); return; }
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) params.set("expenseMonth", value); else params.delete("expenseMonth");
+    router.replace(`${pathname}${params.size ? `?${params}` : ""}`, { scroll: false });
+  };
+  const [search, setSearch] = useState("");
+  const filtered = submissions.filter((item) => (!month || item.date.startsWith(month)) &&
+    (!search.trim() || [item.propertyLabel, item.vendorLabel, item.categoryLabel, item.reference].join(" ").toLowerCase().includes(search.trim().toLowerCase())));
 
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-4 px-4 py-4 sm:px-6 2xl:px-8">
+      {serverMonth === "" ? <p className="text-xs text-muted-foreground">Recent history. Choose a month to view older expenses.</p> : null}
+      <div className="flex flex-wrap items-end gap-3" aria-label="Expense filters">
+        <label className="grid gap-1 text-xs font-medium">Month
+          <MonthPickerField key={month || "all"} ariaLabel="Expense month" name="expenseMonth" defaultValue={month} onValueChange={setMonth} className="w-44" />
+        </label>
+        <label className="grid gap-1 text-xs font-medium">Search
+          <Input aria-label="Search expenses" type="search" placeholder="Property, vendor or reference" value={search} onChange={event => setSearch(event.target.value)} className="w-72 max-w-full" />
+        </label>
+        {month || search ? <Button variant="ghost" onClick={() => { setMonth(""); setSearch(""); }}>Clear filters</Button> : null}
+      </div>
       <Tabs
         className="space-y-3"
         onValueChange={(value) =>
@@ -1876,7 +1894,7 @@ function ExpensesView({
             (value) => (
               <TabsTrigger key={value} value={value}>
                 {value === "rejected" ? "Cancelled / rejected" : expenseStatusLabel(value)} (
-                {submissions.filter((item) => item.status === value).length})
+                {filtered.filter((item) => item.status === value).length})
               </TabsTrigger>
             ),
           )}
@@ -1888,7 +1906,7 @@ function ExpensesView({
                 canReview={canReview}
                 openModal={openModal}
                 status={value}
-                submissions={submissions.filter(
+                submissions={filtered.filter(
                   (submission) => submission.status === value,
                 )}
               />
@@ -1954,7 +1972,7 @@ function ExpenseSubmissionTable({
                 </p>
               </Td>
               <Td>
-                <p className="font-medium">{submission.propertyLabel}</p>
+                <p className="whitespace-normal break-words font-medium" title={submission.propertyLabel}>{submission.propertyLabel}</p>
                 <p className="text-xs text-muted-foreground">
                   {submission.responsibility === "owner"
                     ? "Property owner"
@@ -2813,6 +2831,8 @@ function OwnerBalanceDetails({
 }
 
 function PropertyAccountView({
+  activityIsRecent,
+  units,
   canRecoverOwnerDistribution,
   getSourceAction,
   canRecordOwnerCash,
@@ -2821,6 +2841,8 @@ function PropertyAccountView({
   onRecordWithdrawal,
   position,
 }: {
+  activityIsRecent?: boolean;
+  units: FinanceOperationsData["unitOptions"];
   getSourceAction: (entry: PropertyAccountEntry) => { label: string; onSelect?: () => void; href?: string } | undefined;
   canRecordOwnerCash: boolean;
   canCorrectFinance: boolean;
@@ -2829,6 +2851,7 @@ function PropertyAccountView({
   onRecordWithdrawal?: () => void;
   position: PropertyFinancePosition | null;
 }) {
+  const [showHistory, setShowHistory] = useState(false);
   if (!position)
     return (
       <EmptyState
@@ -2838,7 +2861,7 @@ function PropertyAccountView({
         title="Account unavailable"
       />
     );
-  const orderedEntries = sortPropertyAccountEntriesNewestFirst(entries);
+  const orderedEntries = sortPropertyAccountEntriesNewestFirst(entries).filter(entry => showHistory || !(entry.source?.isReversed || ["property_withdrawal_reversal", "expense_customer_adjustment"].includes(entry.sourceType) || ["owner_contribution", "management_fee_occurrence"].includes(entry.sourceType) && entry.amount < 0));
   return (
     <div className="flex min-w-0 flex-col gap-4 bg-background px-4 pb-6 pt-4 sm:px-6 2xl:px-8">
       <section
@@ -2846,7 +2869,7 @@ function PropertyAccountView({
         className="grid shrink-0 grid-cols-1 overflow-hidden rounded-xl border border-border/80 bg-card pb-5 pt-5 shadow-sm sm:grid-cols-2"
       >
         <AccountPositionItem
-          action={position.ownerPersonId ? <OwnerContributionControl canRecordOwnerCash={canRecordOwnerCash} propertyId={position.propertyId} ownerPersonId={position.ownerPersonId} ownerLabel={position.ownerLabel} /> : undefined}
+          action={position.ownerPersonId ? <OwnerContributionControl units={units} canRecordOwnerCash={canRecordOwnerCash} propertyId={position.propertyId} ownerPersonId={position.ownerPersonId} ownerLabel={position.ownerLabel} /> : undefined}
           description="Income and contributions minus owner costs and distributions"
           label="Owner balance"
           value={<Money amount={position.runningBalance} />}
@@ -2876,6 +2899,8 @@ function PropertyAccountView({
           </span>
         </div>
       ) : null}
+      {activityIsRecent ? <p className="text-sm text-muted-foreground">Latest 300 activity records. <Link className="font-medium text-primary underline" href={`/properties/${position.propertyId}/finance`}>Open Transactions for earlier activity</Link>.</p> : null}
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={showHistory} onChange={event => setShowHistory(event.target.checked)} />Show correction history</label>
       {orderedEntries.length === 0 ? (
         <EmptyState
           body="Rent, fees, owner costs, and withdrawals will appear here."
@@ -2895,7 +2920,7 @@ function PropertyAccountView({
                 <Th>Activity</Th>
                 <Th align="right">Money in</Th>
                 <Th align="right">Money out</Th>
-                <Th align="right">Balance after</Th>
+                {showHistory ? <Th align="right">Balance after</Th> : null}
                 <Th align="right">Actions</Th>
               </tr>
             </thead>
@@ -2914,6 +2939,7 @@ function PropertyAccountView({
                       <p className="font-medium text-foreground">
                         {entry.label}
                       </p>
+                      {entry.unitId ? <p className="text-xs text-muted-foreground">{entry.unitLabel ?? units.find(unit => unit.id === entry.unitId)?.label ?? "Unit contribution"}</p> : null}
                       {entry.note ? (
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {entry.note}
@@ -2940,9 +2966,7 @@ function PropertyAccountView({
                         <span className="text-muted-foreground">—</span>
                       )}
                     </Td>
-                    <Td align="right">
-                      <Money amount={entry.runningBalance} />
-                    </Td>
+                    {showHistory ? <Td align="right"><Money amount={entry.runningBalance} /></Td> : null}
                     <Td align="right"><AccountEntryActions canRecoverOwnerDistribution={canRecoverOwnerDistribution} entry={entry} propertyLabel={position.propertyLabel} canCorrectFinance={canCorrectFinance && canRecordOwnerCash} sourceAction={getSourceAction(entry)} /></Td>
                   </tr>
                 );
@@ -3449,7 +3473,7 @@ function OwnerExpenseTransactionForm({
                     />
                   </Field>
                   <Field label="Amount paid">
-                    <NumberInput
+                    <NumberInput currencyPaste
                       aria-label="Line amount"
                       onChange={(event) => updateLine(line.key, { amount: event.target.value })}
                       className="h-10 text-lg font-semibold tabular-nums md:text-lg"
@@ -3471,7 +3495,7 @@ function OwnerExpenseTransactionForm({
                     </summary>
                     <div className="mt-3 sm:max-w-sm">
                       <Field label="Apply from IPS-held owner cash">
-                        <NumberInput
+                        <NumberInput currencyPaste
                           aria-label="Apply from IPS-held owner cash"
                           max={line.amount || undefined}
                           min="0"
@@ -3816,7 +3840,7 @@ function SingleLineExpenseForm({
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Amount paid">
-            <NumberInput
+            <NumberInput currencyPaste
               onChange={(event) => setCost(event.target.value)}
               required
               value={cost}
@@ -3881,7 +3905,7 @@ function SingleLineExpenseForm({
               />
             </Field>
             <Field label="Service fee (optional)">
-              <NumberInput
+              <NumberInput currencyPaste
                 onChange={(event) => setMarkup(event.target.value)}
                 required
                 value={markup}
@@ -4372,7 +4396,7 @@ function OwnerPaymentForm({
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Amount">
-          <NumberInput
+          <NumberInput currencyPaste
             defaultValue={invoice.balanceDue}
             name="amount"
             required
@@ -4438,7 +4462,7 @@ function WithdrawalForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <Field label="Amount">
-            <NumberInput
+            <NumberInput currencyPaste
               max={position.availableWithdrawal}
               name="amount"
               aria-describedby="distribution-amount-help"
@@ -4656,7 +4680,7 @@ function ManualTenantChargeForm({
           </Field>
         )}
         <Field label="Amount">
-          <NumberInput
+          <NumberInput currencyPaste
             aria-label="Amount"
             className="h-10 border-foreground/45 bg-background text-lg font-semibold tabular-nums"
             min={0.01}

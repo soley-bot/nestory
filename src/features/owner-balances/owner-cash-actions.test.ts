@@ -15,7 +15,7 @@ describe("owner cash commands", () => {
   it("records exact contribution with server organization and selected scope", async () => {
     expect(await recordOwnerContributionAction(idle, form())).toMatchObject({ status: "success" });
     expect(mocks.operation).toHaveBeenCalledOnce();
-    expect(mocks.rpc).toHaveBeenCalledWith("record_owner_cash_event", { p_amount: "123.40", p_currency: "USD", p_event_date: values.eventDate, p_event_type: "owner_contribution", p_idempotency_key: values.idempotencyKey, p_organization_id: "org", p_owner_person_id: ownerPersonId, p_property_id: propertyId, p_reason: values.reason });
+    expect(mocks.rpc).toHaveBeenCalledWith("record_owner_contribution", { p_amount: "123.40", p_currency: "USD", p_event_date: values.eventDate, p_unit_id: undefined, p_idempotency_key: values.idempotencyKey, p_organization_id: "org", p_owner_person_id: ownerPersonId, p_property_id: propertyId, p_reason: values.reason });
     expect(mocks.revalidate).toHaveBeenCalledWith(`/properties/${propertyId}`, "layout");
   });
   it.each(["2026-02-30", "2026-13-01", "2025-02-29", "no-date"])("rejects invalid real date %s before RPC", async date => {

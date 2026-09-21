@@ -8,7 +8,7 @@ export default async function RentIncomePage({
   searchParams?: Promise<{ action?: string; leaseId?: string }>;
 } = {}) {
   const context = await requireFinanceContext();
-  const data = await getFinanceOperationsData(context.organizationId);
+  const data = await getFinanceOperationsData(context.organizationId, undefined, { includeExpenses: false });
   const query = await searchParams;
   const initialBillingLeaseId =
     query.action === "billing" ? query.leaseId : undefined;

@@ -134,30 +134,26 @@ function profitLossSheetXml(report: TrustedReport, organizationName: string) {
   const heading = (...values: string[]) => values.map((value) => ({ style: 2, value }));
   const income = lines.filter((line) => line.direction === "income").reduce((sum, line) => sum + line.amountCents, BigInt(0));
   const expenses = lines.filter((line) => line.direction === "expense").reduce((sum, line) => sum + line.amountCents, BigInt(0));
+  const detail = (direction: "income" | "expense") => lines.filter(line => line.direction === direction).map(line => [
+    { style: 4, value: line.category }, excelDateCell(line.date), { style: 4, value: line.type ?? (direction === "income" ? "Invoice" : "Expense") },
+    { style: 4, value: line.name ?? "" }, { style: 4, value: line.property === line.unit ? line.unit : `${line.property} / ${line.unit}` },
+    { style: 4, value: line.description }, money(line.amountCents),
+  ]);
+  const total = (label: string, value: bigint): OwnerWorkbookCell[] => [{ span: 5, value: "" }, { style: 13, value: label }, money(value)];
   const rows: OwnerWorkbookCell[][] = [
-    [{ style: 1, value: report.title }],
-    [{ value: "Company" }, { value: organizationName }],
-    [{ value: "Scope" }, { value: report.scopeLabel }],
-    [{ value: "Period" }, { value: report.periodLabel }],
-    [{ value: "Basis" }, { style: 4, value: "Income and expenses by invoice or cost date, whether paid or unpaid." }],
-    heading("Income", "Expenses", "Net income", "Currency").map((cell) => ({ ...cell, style: 8 })),
-    [money(income), money(expenses), money(income - expenses), { style: 11, value: "USD" }],
-    [{ style: 4, value: "Property-level activity is shown separately and is not allocated to a unit." }],
+    [{ style: 10, span: 4, value: organizationName }, { style: 9, span: 3, value: "PROFIT & LOSS" }],
+    [{ style: 10, span: 7, value: report.scopeLabel }],
+    [{ span: 5, value: report.periodLabel }, { style: 11, span: 2, value: "Amounts in USD" }],
+    [{ style: 4, value: "Accrual basis: income and expenses by invoice or cost date." }],
     [],
-    heading("Date", "Property / unit", "Category", "Description", "Income", "Expenses").map((cell, index) => ({ ...cell, style: index >= 4 ? 8 : 2 })),
-    ...lines.map((line) => [
-      excelDateCell(line.date), { style: 4, value: line.property === line.unit ? line.unit : `${line.property} / ${line.unit}` },
-      { style: 4, value: line.category }, { style: 4, value: line.description },
-      money(line.direction === "income" ? line.amountCents : BigInt(0)),
-      money(line.direction === "expense" ? line.amountCents : BigInt(0)),
-    ]),
-    [{ value: "Totals" }, { value: "" }, { value: "" }, { value: "" }, money(income), money(expenses)],
-    [{ value: "Net income" }, money(income - expenses)],
-    [],
-    ...(report.rows.length ? [heading("Scope summary", "Unit", "Income", "Expenses", "Net income")] : []),
-    ...report.rows.map((row) => ["property", "unit", "income", "expenses", "netIncome"].map((key) => ({ value: row.cells[key] ?? "" }))),
+    heading("Account", "Date", "Type", "Name", "Property / unit", "Description", "Amount").map((cell, index) => ({ ...cell, style: index === 6 ? 8 : 2 })),
+    [{ style: 2, span: 7, value: "INCOME" }],
+    ...detail("income"), total("Total income", income),
+    [{ style: 2, span: 7, value: "EXPENSES" }],
+    ...detail("expense"), total("Total expenses", expenses),
+    total("Net operating income", income - expenses),
   ];
-  return ownerWorkbookSheetXml(rows, 10, [18, 34, 30, 64, 20, 20]);
+  return ownerWorkbookSheetXml(rows, 6, [24, 16, 14, 26, 32, 48, 18]);
 }
 
 function ownerWorkbookSheetXml(

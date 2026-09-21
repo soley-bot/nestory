@@ -413,6 +413,7 @@ export function OwnerBalanceLedger({
                         <span className="inline-flex items-center gap-2 font-semibold">
                           <ChevronRight aria-hidden="true" size={14} className="shrink-0 group-open:rotate-90" />
                           {sourceTypeLabel(source.sourceType)}
+                          {source.unitLabel ? <p className="text-xs font-normal text-muted-foreground">{source.unitLabel}</p> : null}
                         </span>
                         <span className="tabular-nums">
                           {source.eventDate} ·{" "}
@@ -965,7 +966,7 @@ function PropertyAccountLedger({
           </section>
         ) : (
           <>
-            {selectedOwnerPersonId ? <OwnerContributionControl canRecordOwnerCash={canRecordOwnerCash} propertyId={propertyId} ownerPersonId={selectedOwnerPersonId} ownerLabel={data.ownerOptions.find(option => option.id === selectedOwnerPersonId)?.label ?? "Selected owner"} /> : null}
+            {selectedOwnerPersonId ? <OwnerContributionControl units={data.unitOptions} canRecordOwnerCash={canRecordOwnerCash} propertyId={propertyId} ownerPersonId={selectedOwnerPersonId} ownerLabel={data.ownerOptions.find(option => option.id === selectedOwnerPersonId)?.label ?? "Selected owner"} /> : null}
             <section
               aria-label="Owner cash position"
               className="grid grid-cols-1 divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0"
@@ -1103,6 +1104,7 @@ function PropertyAccountLedger({
                             </td>
                             <td className="px-3 py-2 font-medium">
                               {propertyAccountSourceLabel(source.sourceType)}
+                              {source.unitLabel ? <p className="text-xs font-normal text-muted-foreground">{source.unitLabel}</p> : null}
                               {source.sourceType === "owner_distribution" && !data.sources.some(item => item.reversalOfAllocationSetId === source.allocationSetId) ? <OwnerDistributionDateControl canCorrectFinance={canCorrect} propertyId={propertyId} withdrawalId={source.sourceLineId} originalDate={source.eventDate} amount={source.allocatedGrossSignedAmount.replace(/^-/, "")} /> : null}
                             </td>
                             <td className="px-3 py-2 text-muted-foreground">

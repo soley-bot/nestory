@@ -1,7 +1,7 @@
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(18);
+SELECT plan(20);
 
 SELECT has_function(
   'public',
@@ -627,5 +627,10 @@ SELECT is(
   'closed, reopened-stale, and reclosed state leaves recognition deterministic'
 );
 
+SELECT is((SELECT party_name FROM public.get_owner_profit_loss_names(
+  '00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001',
+  ARRAY['owner_invoice_line:97000000-0000-0000-0000-000000000001'])), 'Roof vendor','P&L names use the expense vendor');
+SELECT is((SELECT count(*) FROM public.get_owner_profit_loss_names(
+  '00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001', ARRAY['tenant_invoice_line:00000000-0000-4000-8000-999999999999'])), 0::bigint,'unknown event keys do not disclose other records');
 SELECT * FROM finish();
 ROLLBACK;

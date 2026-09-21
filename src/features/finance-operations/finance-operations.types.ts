@@ -245,6 +245,8 @@ export type PropertyFinancePosition = {
 };
 
 export type PropertyAccountEntry = {
+  unitLabel?: string;
+  unitId?: string | null;
   source?: { kind: "distribution" | "contribution" | "rent" | "expense" | "lease"; id: string; reference: string | null; blockedReason?: string; isReversed?: boolean };
   amount: number;
   balanceEffect?: number;
@@ -261,6 +263,7 @@ export type PropertyAccountEntry = {
 };
 
 export type FinanceOperationsData = {
+  accountActivityIsRecent?: boolean;
   accountSourcesComplete?: boolean;
   expenseEntryOptions?: Pick<FinanceOperationsData, "propertyOptions" | "unitOptions" | "positions" | "payFromAccounts">;
   accountEntries: PropertyAccountEntry[];

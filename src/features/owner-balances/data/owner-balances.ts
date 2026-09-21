@@ -62,6 +62,7 @@ const OWNER_ACCOUNT_REGISTER_PAGE_SIZE = 12;
 const OWNER_ACCOUNT_REGISTER_RPC_CONCURRENCY = 4;
 
 type OwnerAccountReadContext = {
+  units?: {id: string; property_id: string; unit_number: string; archived_at?: string | null}[];
   properties: { id: string; code: string; name: string }[];
   people: { id: string; display_name: string }[];
   assignments: { id: string; property_id: string; person_id: string; started_on: string | null; ended_on: string | null }[];
@@ -92,6 +93,7 @@ export async function getOwnerBalanceData(
     throw new Error("Unable to load authoritative owner balance scope: Invalid account projection.");
   }
 
+  const unitOptions = (readContext.units ?? []).filter(unit => !unit.archived_at).map(unit => ({ id: unit.id, propertyId: unit.property_id, label: unit.unit_number }));
   const propertyOptions = readContext.properties.map((property) => ({
     id: property.id,
     label: formatPropertyOptionLabel(property),
@@ -183,6 +185,7 @@ export async function getOwnerBalanceData(
       accountPageSize: OWNER_ACCOUNT_REGISTER_PAGE_SIZE,
       accountTotal,
       accounts,
+      unitOptions,
       ownerOptions,
       periods: [],
       propertyOptions,
@@ -241,12 +244,25 @@ export async function getOwnerBalanceData(
     throw new Error("Unable to load authoritative owner balances.");
   }
 
+  const sources = mapSources((sourcesResult.data ?? []) as OwnerBalanceSourceRow[]);
+  const contributionIds = [...new Set(sources.filter(source => ["owner_contribution", "owner_reimbursement", "reversal"].includes(source.sourceType)).map(source => source.sourceLineId))];
+  const contributionUnits = new Map<string, string | null>();
+  for (let offset = 0; offset < contributionIds.length; offset += 200) {
+    const result = await supabase.from("owner_cash_events").select("id, unit_id")
+      .eq("organization_id", context.organizationId).eq("property_id", propertyId)
+      .in("id", contributionIds.slice(offset, offset + 200));
+    if (result.error) throw new Error("Unable to load contribution unit details.");
+    for (const event of result.data ?? []) contributionUnits.set(event.id, event.unit_id);
+  }
+  const unitLabels = new Map((readContext.units ?? []).map(unit => [unit.id, unit.unit_number]));
+
   return {
     accountPage: 1,
     accountPageCount: 1,
     accountPageSize: OWNER_ACCOUNT_REGISTER_PAGE_SIZE,
     accountTotal: 1,
     accounts: [],
+    unitOptions,
     ownerOptions,
     periods: mapPeriods((ledgerResult.data ?? []) as OwnerBalanceLedgerRow[]),
     propertyOptions,
@@ -261,7 +277,10 @@ export async function getOwnerBalanceData(
       sourceLineId: row.source_line_id,
       sourceType: row.source_type,
     })),
-    sources: mapSources((sourcesResult.data ?? []) as OwnerBalanceSourceRow[]),
+    sources: sources.map(source => {
+      const unitId = contributionUnits.get(source.sourceLineId);
+      return unitId ? { ...source, unitId, unitLabel: unitLabels.get(unitId) ?? "Unit contribution" } : source;
+    }),
     withdrawalCapacity: mapWithdrawalCapacity(capacityResult.data),
   };
 }

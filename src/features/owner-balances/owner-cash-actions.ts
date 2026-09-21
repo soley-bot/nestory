@@ -13,11 +13,13 @@ const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a valid date.").ref
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }, "Choose a real calendar date.");
 const shared = { propertyId: uuid, idempotencyKey: z.string().trim().min(8).max(160), reason: z.string().trim().min(3, "Enter a reason of at least 3 characters.").max(500) };
-const contributionSchema = z.object({ ...shared, ownerPersonId: uuid, currency: z.literal("USD"), amount: z.string(), eventDate: date });
+const contributionSchema = z.object({ ...shared, ownerPersonId: uuid, currency: z.literal("USD"), amount: z.string(), eventDate: date, unitId: z.union([uuid, z.literal("")]).optional() });
 const correctionSchema = z.object({ ...shared, withdrawalId: uuid, distributionDate: date, reason: z.string().trim().min(8, "Explain the correction in at least 8 characters.").max(500), idempotencyKey: z.string().trim().min(8).max(120) });
 const correctionResultSchema = z.object({ withdrawalId: uuid, reversalId: uuid, oldDate: date, newDate: date });
 function commandError(message: string | undefined) {
   const code = (message ?? "").toLowerCase();
+  if (/unit_mismatch/.test(code)) return "Choose an active unit belonging to this property.";
+  if (/idempotency_key_reused/.test(code)) return "This form was already submitted with different details. Close it and start a new contribution.";
   if (/privileged_email_step_up_required/.test(code)) return "Verify your email for this financial correction, then try again.";
   if (/forbidden|permission/.test(code)) return "You do not have permission to make this financial change.";
   if (/financial_month_locked|closed|month_locked/.test(code)) return "This financial month is closed. Reopen the affected month before correcting the date.";
@@ -47,9 +49,9 @@ export async function recordOwnerContributionAction(_previous: OwnerCashActionSt
   const context = await requireFinanceOperationContext();
   const supabase = await createSupabaseServerClient();
   try {
-    const result = await supabase.rpc("record_owner_cash_event", {
+    const result = await supabase.rpc("record_owner_contribution", {
       p_amount: amount, p_currency: input.currency, p_event_date: input.eventDate,
-      p_event_type: "owner_contribution", p_idempotency_key: input.idempotencyKey,
+      p_unit_id: input.unitId || undefined, p_idempotency_key: input.idempotencyKey,
       p_organization_id: context.organizationId, p_owner_person_id: input.ownerPersonId,
       p_property_id: input.propertyId, p_reason: input.reason,
     });

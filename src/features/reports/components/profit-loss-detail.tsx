@@ -1,5 +1,6 @@
 "use client";
 
+import { formatCalendarDate } from "@/lib/dates/format";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -20,18 +21,20 @@ export function ProfitLossDetail({ lines }: { lines: UnitProfitLossLine[] }) {
       </div>
       <Table>
         <TableHeader><TableRow>
-          { ["Date", "Property / unit", "Category", "Description", "Income", "Expenses"].map((label, index) => <TableHead className={index > 3 ? "text-right" : undefined} key={label}>{label}</TableHead>) }
+          { ["Account", "Date", "Type", "Name", "Property / unit", "Description", "Income", "Expenses"].map((label, index) => <TableHead className={index > 5 ? "text-right" : undefined} key={label}>{label}</TableHead>) }
         </TableRow></TableHeader>
         <TableBody>
           {lines.slice(currentPage * 50, (currentPage + 1) * 50).map((line) => <TableRow key={line.id}>
-            <TableCell className="whitespace-nowrap">{line.date}</TableCell>
-            <TableCell>{line.property}<span className="block text-xs text-muted-foreground">{line.unit}</span></TableCell>
             <TableCell>{line.category}</TableCell>
+            <TableCell className="whitespace-nowrap">{formatCalendarDate(line.date)}</TableCell>
+            <TableCell>{line.type ?? (line.direction === "income" ? "Invoice" : "Expense")}</TableCell>
+            <TableCell>{line.name || "—"}</TableCell>
+            <TableCell>{line.property}<span className="block text-xs text-muted-foreground">{line.unit}</span></TableCell>
             <TableCell className="min-w-52 max-w-xl whitespace-normal break-words">{line.description}</TableCell>
             <TableCell className="text-right tabular-nums">{line.direction === "income" ? formatAmount(line.amountCents) : "—"}</TableCell>
             <TableCell className="text-right tabular-nums">{line.direction === "expense" ? formatAmount(line.amountCents) : "—"}</TableCell>
           </TableRow>)}
-          {lines.length === 0 ? <TableRow><TableCell colSpan={6} className="py-6 text-muted-foreground">No recognized income or expenses in this period.</TableCell></TableRow> : null}
+          {lines.length === 0 ? <TableRow><TableCell colSpan={8} className="py-6 text-muted-foreground">No recognized income or expenses in this period.</TableCell></TableRow> : null}
         </TableBody>
       </Table>
       {pageCount > 1 ? <div className="flex items-center justify-end gap-3 py-3 text-xs">

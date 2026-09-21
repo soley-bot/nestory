@@ -27,7 +27,7 @@ export default async function UnitFinancePage({
   const allData = await getFinanceOperationsData(
     context.organizationId,
     unit.propertyId,
-    { completeTransactionHistory: !["rent", "expenses"].includes(query.view ?? ""), includeAccountSources: !["rent", "expenses"].includes(query.view ?? "") },
+    { includeExpenses: query.view !== "rent", completeTransactionHistory: !["rent", "expenses"].includes(query.view ?? ""), includeAccountSources: !["rent", "expenses"].includes(query.view ?? "") },
   );
   const data = scopeFinanceOperationsData(allData, {
     propertyId: unit.propertyId,
@@ -42,7 +42,7 @@ export default async function UnitFinancePage({
       {...data}
       canConfigureRent={context.permissionKeys.has("leases.change_terms")}
       canCorrectFinance={context.capabilities.canCorrectFinance}
-      canRecordOwnerCash={false}
+      canRecordOwnerCash={context.capabilities.canOperateFinance}
       canRecordPayments={context.capabilities.canOperateFinance}
       canReadFinanceReports={context.capabilities.canReadFinanceReports}
       canRecoverRent={context.capabilities.canRecoverHistoricalRent}

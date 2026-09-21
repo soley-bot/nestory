@@ -40,6 +40,7 @@ describe("authoritative owner balance loader", () => {
     mocks.requireReadContext.mockResolvedValue({ organizationId });
 
     const tableResults = {
+      owner_cash_events: { data: [], error: null },
       people: {
         data: [{ archived_at: null, display_name: "Nora Owner", id: ownerId }],
         error: null,
@@ -171,6 +172,24 @@ describe("authoritative owner balance loader", () => {
       }
       throw new Error(`Unexpected RPC ${name}`);
     });
+  });
+
+  it("shows archived contribution units in source history but excludes them from new-entry options", async () => {
+    const priorRpc = mocks.rpc.getMockImplementation()!;
+    mocks.rpc.mockImplementation((name: string, ...args: unknown[]) => {
+      if (name === "get_owner_account_read_context") return query({ data: {
+        properties: [{ id: propertyId, code: "P", name: "Property" }],
+        people: [{ id: ownerId, display_name: "Owner" }],
+        assignments: [{ id: propertyOwnerId, property_id: propertyId, person_id: ownerId, started_on: "2026-01-01", ended_on: null }],
+        units: [{ id: "unit-archived", property_id: propertyId, unit_number: "8F-D2", archived_at: "2026-09-01" }],
+      }, error: null });
+      if (name === "get_owner_balance_source_ledger") return query({ data: [{ ...sourceLedgerRows()[0], source_type: "owner_contribution" }], error: null });
+      return priorRpc(name, ...args);
+    });
+    mocks.from.mockReturnValue(query({ data: [{ id: sourceLineId, unit_id: "unit-archived" }], error: null }));
+    const result = await getOwnerBalanceData({ currency: "USD", periodStart: "2026-08-01", periodEnd: "2026-08-31", propertyId, ownerPersonId: ownerId });
+    expect(result.unitOptions).toEqual([]);
+    expect(result.sources[0]).toMatchObject({ unitId: "unit-archived", unitLabel: "8F-D2" });
   });
 
   it("maps exact four-component periods, authority metadata, and typed remediation", async () => {

@@ -61,6 +61,25 @@ describe("finance routes", () => {
     });
   });
 
+  it("uses bounded referenced activity on the owner account route", async () => {
+    requireFinanceContext.mockResolvedValue({ capabilities: {}, organizationId: "organization-1", organizationName: "IPS", permissionKeys: new Set(["finance.view"]) });
+    getFinanceOperationsData.mockResolvedValue({ propertyOptions: [{ id: "property-1", label: "Riverside" }] });
+    renderToStaticMarkup(await PropertyFinancePage({ params: Promise.resolve({ propertyId: "property-1" }), searchParams: Promise.resolve({ view: "owner" }) }));
+    expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", "property-1", expect.objectContaining({ accountActivityOnly: true, completeTransactionHistory: false, includeAccountSources: true }));
+  });
+
+  it.each([false, true])("uses operator cash capability on unit finance and skips expense reads for rent (%s)", async canOperateFinance => {
+    requireFinanceContext.mockResolvedValue({ capabilities: { canOperateFinance }, organizationId: "organization-1", organizationName: "IPS", permissionKeys: new Set(["finance.view"]) });
+    getFinanceOperationsData.mockResolvedValue({ propertyOptions: [{ id: "property-1", label: "Riverside" }] });
+    getUnitDetail.mockResolvedValue({ propertyId: "property-1", propertyName: "Riverside", unitNumber: "2A" });
+    renderToStaticMarkup(await UnitFinancePage({ params: Promise.resolve({ unitId: "unit-1" }), searchParams: Promise.resolve({ view: "rent" }) }));
+    expect(screenSpy).toHaveBeenCalledWith(expect.objectContaining({ canRecordOwnerCash: canOperateFinance }));
+    expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", "property-1", expect.objectContaining({ includeExpenses: false }));
+    getFinanceOperationsData.mockClear();
+    renderToStaticMarkup(await PropertyFinancePage({ params: Promise.resolve({ propertyId: "property-1" }), searchParams: Promise.resolve({ view: "rent" }) }));
+    expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", "property-1", expect.objectContaining({ includeExpenses: false }));
+  });
+
   it.each([false, true])("delegates property record navigation for scoped finance only when readable (%s)", async (canViewPropertyRecords) => {
     requireFinanceContext.mockResolvedValue({ capabilities: {}, organizationId: "organization-1", organizationName: "IPS",
       permissionKeys: new Set(["finance.view", "leases.view", ...(canViewPropertyRecords ? ["properties.view"] : [])]),
@@ -106,11 +125,18 @@ describe("finance routes", () => {
         role,
       });
 
-      const html = renderToStaticMarkup(await page({}));
+      const html = renderToStaticMarkup(await page({ searchParams: Promise.resolve({ expenseMonth: "2026-08" }) }));
 
       expect(html).toContain("Finance route");
       expect(requireFinanceContext).toHaveBeenCalledOnce();
-      expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1");
+      if (view === "expenses") {
+        expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", undefined, { expenseMonth: "2026-08" });
+        expect(screenSpy).toHaveBeenCalledWith(expect.objectContaining({ expenseMonth: "2026-08" }));
+      } else if (view === "rent") {
+        expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", undefined, { includeExpenses: false });
+      } else {
+        expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1");
+      }
       expect(screenSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           canConfigureRent: false,

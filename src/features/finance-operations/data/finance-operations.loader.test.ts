@@ -26,6 +26,71 @@ vi.mock("@/features/finance-accounts/data/finance-accounts", () => ({
 }));
 
 describe("finance operations initial reads", () => {
+  it("bounds owner account activity and loads only referenced expense details", async () => {
+    const harness = createFinanceReadHarness({
+      properties: { data: [{ id: "property-1", code: "P", name: "Property", archived_at: null }] },
+      property_account_entries: { data: Array.from({ length: 601 }, (_, index) => ({ source_id: `cost-${index}`, source_type: "ips_expense_responsibility", property_id: "property-1", event_date: "2026-08-01", created_at: "2026-08-01", amount: 10, running_balance: 100, category: "expense", label: "Cost" })) },
+      ips_expense_responsibilities: { data: [{ id: "cost-0", finance_expense_item_id: "item-1" }] },
+      expense_submissions: { data: [{ id: "expense-1", approved_finance_expense_item_id: "item-1", property_id: "property-1", expense_date: "2026-08-01", status: "approved", responsibility: "owner", submitted_by: "user", submitted_at: "2026-08-01", internal_cost_amount: 10, customer_total_amount: 10 }] },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getFinanceOperationsData("organization-1", "property-1", { accountActivityOnly: true });
+    expect(result.accountEntries).toHaveLength(300);
+    expect(result.accountActivityIsRecent).toBe(true);
+    expect(result.accountSourcesComplete).toBe(false);
+    expect(result.expenseSubmissions[0].id).toBe("expense-1");
+    expect(result.accountEntries.some(entry => entry.source?.id === "expense-1")).toBe(true);
+    expect(harness.queries.filter(query => query.table === "expense_submissions").every(query => query.filters.some(([column]) => column.startsWith("in:")))).toBe(true);
+    expect(harness.queries.some(query => query.table === "expense_transactions")).toBe(false);
+    expect(harness.queries.some(query => query.table === "tenant_invoice_balances")).toBe(false);
+  });
+  it("scopes expense reads before pagination on an ordinary property page", async () => {
+    const harness = createFinanceReadHarness({
+      properties: { data: [{ id: "property-1", code: "P", name: "Property", archived_at: null }] },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    await getFinanceOperationsData("organization-1", "property-1", { completeTransactionHistory: false });
+    const expenseQueries = harness.queries.filter(query => query.table === "expense_submissions");
+    expect(expenseQueries.length).toBeGreaterThan(0);
+    expect(expenseQueries.every(query => query.filters.some(([column, value]) => column === "property_id" && value === "property-1"))).toBe(true);
+    // No child links means there are no relevant parents to hydrate. Do not scan
+    // unrelated transaction parents across the organization.
+    expect(harness.queries.some(query => query.table === "expense_transactions")).toBe(false);
+  });
+  it("keeps unscoped history bounded and loads a selected expense month completely", async () => {
+    const recent = createFinanceReadHarness();
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(recent.client as never);
+    await getFinanceOperationsData("organization-1");
+    for (const table of ["expense_submissions", "expense_transactions"]) {
+      expect(recent.queries.some(query => query.table === table && query.filters.some(([column, value]) => column === "limit" && value === 250))).toBe(true);
+    }
+    const monthly = createFinanceReadHarness();
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(monthly.client as never);
+    await getFinanceOperationsData("organization-1", undefined, { expenseMonth: "2026-08" });
+    const query = monthly.queries.find(query => query.table === "expense_submissions");
+    expect(query?.filters).toContainEqual(["gte:expense_date", "2026-08-01"]);
+    expect(query?.filters).toContainEqual(["lt:expense_date", "2026-09-01"]);
+    expect(monthly.queries.some(query => query.table === "expense_transactions")).toBe(false);
+  });
+  it("retains an archived contribution unit's display label without offering it for new entries", async () => {
+    const harness = createFinanceReadHarness({
+      properties: { data: [{ id: "property-1", code: "P", name: "Property", archived_at: null }] },
+      units: { data: [{ id: "unit-1", property_id: "property-1", unit_number: "8F-D2", archived_at: "2026-09-01" }] },
+      property_account_entries: { data: [{ source_id: "contribution-1", source_type: "owner_contribution", property_id: "property-1", event_date: "2026-08-01", created_at: "2026-08-01", amount: 100, running_balance: 100, category: "owner_contribution", label: "Owner contribution" }] },
+      owner_cash_events: { data: [{ id: "contribution-1", unit_id: "unit-1", property_id: "property-1", event_date: "2026-08-01", owner_person_id: "owner-1" }] },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getFinanceOperationsData("organization-1", "property-1", { completeTransactionHistory: true, includeAccountSources: true });
+    expect(result.unitOptions).toEqual([]);
+    expect(result.accountEntries[0].unitLabel).toContain("8F-D2");
+  });
+  it("does not read expense tables for rent-only views", async () => {
+    const harness = createFinanceReadHarness();
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getFinanceOperationsData("organization-1", "property-1", { includeExpenses: false });
+    expect(result.expenseSubmissions).toEqual([]);
+    expect(harness.queries.some(query => ["expense_submissions", "expense_transactions", "expense_transaction_lines", "tasks"].includes(query.table))).toBe(false);
+  });
   it("retains archived lease context without offering it for new charges", async () => {
     const harness=createFinanceReadHarness({properties:{data:[{id:"property-1",code:"P",name:"Property",archived_at:null}]},units:{data:[{id:"unit-1",property_id:"property-1",unit_number:"101",archived_at:null}]},current_leases:{data:[{id:"old-lease",property_id:"property-1",unit_id:"unit-1",primary_tenant_person_id:"tenant",tenant_name:"Former tenant",status:"ended",lease_start_date:"2025-01-01",lease_end_date:"2025-12-31",monthly_rent_amount:500,archived_at:"2026-01-01"}]}});
     vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
@@ -275,6 +340,7 @@ function createFinanceReadHarness(
     leases: ((overrides.current_leases?.data ?? []) as Record<string, unknown>[]).map((row) => ({ archived_at: null, ...row })),
     terms: overrides.lease_terms?.data ?? [], billing_terms: overrides.lease_billing_terms?.data ?? [],
   } } };
+  const queries: Array<{ table: string; filters: Array<[string, unknown]> }> = [];
   let active = 0;
   let peak = 0;
 
@@ -283,17 +349,25 @@ function createFinanceReadHarness(
     private bounds?: [number, number];
     private taskIds?: string[];
 
-    constructor(private readonly table: string) {}
+    private readonly filters: Array<[string, unknown]> = [];
+    constructor(private readonly table: string) {
+      queries.push({ table, filters: this.filters });
+    }
 
-    eq() {
+    eq(column: string, value: unknown) {
+      this.filters.push([column, value]);
       return this;
     }
+
+    gte(column: string, value: unknown) { this.filters.push([`gte:${column}`, value]); return this; }
+    lt(column: string, value: unknown) { this.filters.push([`lt:${column}`, value]); return this; }
 
     gt() {
       return this;
     }
 
     in(column: string, ids: string[]) {
+      this.filters.push([`in:${column}`, ids]);
       if (this.table === "tasks" && column === "id") {
         if (ids.length > 1000) throw new Error("Task lookup exceeds request size");
         this.taskIds=ids;
@@ -305,7 +379,7 @@ function createFinanceReadHarness(
       return this;
     }
 
-    limit(count:number) { this.bounds=[0,count-1]; return this; }
+    limit(count:number) { this.filters.push(["limit", count]); this.bounds=[0,count-1]; return this; }
 
     neq() {
       return this;
@@ -363,6 +437,7 @@ function createFinanceReadHarness(
       rpc: (name: string) => new Query(name === "get_finance_read_context" ? "scoped_context" : "rpc"),
     },
     maxInFlight: () => peak,
+    queries,
   };
 }
 

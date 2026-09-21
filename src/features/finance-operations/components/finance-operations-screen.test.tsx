@@ -90,6 +90,31 @@ class ResizeObserverStub {
 }
 
 describe("FinanceOperationsScreen", () => {
+  it("filters expense status tabs by month and clears the filter", async () => {
+    const user = userEvent.setup(); const input = data();
+    input.expenseSubmissions = [expenseSubmission("submitted"), { ...expenseSubmission("submitted"), id: "september", date: "2026-09-01", vendorLabel: "September vendor" }];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities()} organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("button", { name: "Expense month" }));
+    await user.click(screen.getByRole("button", { name: "Aug" }));
+    expect(screen.queryByText("September vendor")).toBeNull();
+    expect(screen.getByText("Sokha Repairs")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(screen.getByText("September vendor")).toBeTruthy();
+  });
+
+  it("requests older expense months from the server and keeps filters usable for an empty month", async () => {
+    const user = userEvent.setup();
+    navigation.pathname = "/bills-expenses";
+    navigation.searchParams = new URLSearchParams("expenseMonth=2026-08");
+    const input = data(); input.expenseSubmissions = [];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities()} expenseMonth="2026-08" organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("button", { name: "Expense month" }));
+    await user.click(screen.getByRole("button", { name: "Sep" }));
+    expect(navigation.replace).toHaveBeenCalledWith("/bills-expenses?expenseMonth=2026-09", { scroll: false });
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(navigation.replace).toHaveBeenCalledWith("/bills-expenses", { scroll: false });
+  });
+
   it("keeps selected transaction unit when opening charge, payment and expense forms", async () => {
     const user = userEvent.setup();
     const input = data();
@@ -471,10 +496,11 @@ describe("FinanceOperationsScreen", () => {
 
   it("keeps legacy owner-account navigation finance-safe for finance readers", () => {
     const { container } = render(<FinanceOperationsScreen {...data()} {...financeCapabilities({})}
-      organizationName="IPS" selectedPropertyId="property-1" view="account" />);
+      organizationName="IPS" selectedPropertyId="property-1" accountActivityIsRecent view="account" />);
     expect(container.querySelector('a[href="/properties"], a[href="/properties/property-1"]')).toBeNull();
     expect(screen.getByRole("link", { name: "Finance" }).getAttribute("href")).toBe("/finance");
     expect(screen.getByRole("region", { name: "Account position" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open Transactions for earlier activity" }).getAttribute("href")).toBe("/properties/property-1/finance");
   });
 
   it("exposes read-only Rent navigation without invoice money actions", async () => {
@@ -3843,6 +3869,7 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show correction history" }));
     expect(
       screen.getByRole("columnheader", { name: "Money in" }),
     ).not.toBeNull();

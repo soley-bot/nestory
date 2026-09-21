@@ -106,6 +106,19 @@ describe("live Finance report reads", () => {
     ]);
   });
 
+  it("enriches names through the P&L loader without loading cash events", async () => {
+    const event = ownerProfitLossEvent();
+    const harness = createReportReadHarness({
+      ownerProfitLossEvents: [event],
+      ownerProfitLossNames: [{ event_key: event.event_key, party_name: "Tenant Example" }],
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getReportsScreenData(ORGANIZATION_ID, reportQuery({ report: "unit-profit-loss" }));
+    expect(result.trustedReport.unitProfitLossLines).toEqual([
+      expect.objectContaining({ name: "Tenant Example", type: "Invoice" }),
+    ]);
+  });
+
   it("preserves the report property selector's name ordering", async () => {
     // Break caught: the scoped context is code-ordered, while the released
     // report selector is intentionally name-ordered.
@@ -271,11 +284,13 @@ type QueryResult = { data: unknown; error: { message: string } | null };
 function createReportReadHarness({
   context = financeContext(),
   contextResponse,
+  ownerProfitLossNames = [],
   ownerProfitLossEvents = [],
   propertyAccountEntries = [],
 }: {
   context?: unknown;
   contextResponse?: QueryResult;
+  ownerProfitLossNames?: unknown[];
   ownerProfitLossEvents?: unknown[];
   propertyAccountEntries?: unknown[];
 } = {}) {
@@ -315,6 +330,9 @@ function createReportReadHarness({
           return Promise.resolve(
             contextResponse ?? { data: context, error: null },
           );
+        }
+        if (name === "get_owner_profit_loss_names") {
+          return Promise.resolve({ data: ownerProfitLossNames, error: null });
         }
         if (name === "get_owner_profit_loss_events_page") {
           return Promise.resolve({ data: ownerProfitLossEvents, error: null });

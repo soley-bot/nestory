@@ -44,7 +44,7 @@ describe("minimal Reports workspace", () => {
 
     const filters = screen.getByRole("region", { name: "Report filters" });
     expect(
-      within(filters).getByRole("combobox", {
+      within(filters).getByRole("button", {
         name: "Filter report by property",
       }),
     ).toBeTruthy();
@@ -52,7 +52,7 @@ describe("minimal Reports workspace", () => {
       within(filters).getByRole("button", { name: "Report month" }),
     ).toBeTruthy();
     expect(
-      within(filters).getByRole("combobox", {
+      within(filters).getByRole("button", {
         name: "Filter report by unit",
       }),
     ).toBeTruthy();
