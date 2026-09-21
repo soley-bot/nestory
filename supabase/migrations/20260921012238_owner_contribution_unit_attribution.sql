@@ -67,6 +67,11 @@ ALTER FUNCTION public.record_owner_contribution(uuid,uuid,uuid,public.currency_c
 REVOKE ALL ON FUNCTION public.record_owner_contribution(uuid,uuid,uuid,public.currency_code,date,numeric,text,text,uuid) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.record_owner_contribution(uuid,uuid,uuid,public.currency_code,date,numeric,text,text,uuid) TO authenticated;
 
+-- Complete the indexed path from bounded invoice-line IDs to expense names.
+CREATE INDEX ips_expense_responsibilities_owner_line_idx
+  ON public.ips_expense_responsibilities(organization_id, owner_invoice_line_id)
+  WHERE owner_invoice_line_id IS NOT NULL;
+
 -- Bounded display-name enrichment. Amounts and dates still come solely from the canonical P&L events.
 CREATE FUNCTION public.get_owner_profit_loss_names(p_organization_id uuid, p_property_id uuid, p_event_keys text[])
 RETURNS TABLE(event_key text, party_name text)
