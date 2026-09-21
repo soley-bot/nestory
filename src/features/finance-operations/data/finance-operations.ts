@@ -460,7 +460,7 @@ export function groupExpenseTransactionSummaries(
 export async function getFinanceOperationsData(
   organizationId: string,
   propertyId?: string | null,
-  options: { includeAccountSources?: boolean; completeTransactionHistory?: boolean; expenseMonth?: string } = {},
+  options: { includeAccountSources?: boolean; completeTransactionHistory?: boolean; expenseMonth?: string; includeExpenses?: boolean } = {},
 ): Promise<FinanceOperationsData> {
   if (options.expenseMonth && !/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(options.expenseMonth)) throw new Error("Choose a valid expense month.");
   if (options.completeTransactionHistory && !propertyId) throw new Error("Choose a property before loading complete transaction history.");
@@ -495,7 +495,7 @@ export async function getFinanceOperationsData(
     () => getTenantInvoiceBalanceRows(supabase, organizationId, propertyId, options.completeTransactionHistory),
     () => getUnresolvedRentGenerationExceptions(supabase, organizationId),
     () => getOwnerInvoiceBalanceRows(supabase, organizationId, propertyId),
-    () => getExpenseSubmissionRows(supabase, organizationId, propertyId, options.expenseMonth),
+    () => options.includeExpenses === false ? Promise.resolve<DataPageResult<ExpenseSubmissionRow>>({ data: [], error: null }) : getExpenseSubmissionRows(supabase, organizationId, propertyId, options.expenseMonth),
     () => supabase
       .from("property_finance_positions")
       .select("*")
@@ -538,7 +538,7 @@ export async function getFinanceOperationsData(
     );
   }
 
-  const expenseTransactions = await loadExpenseTransactions(
+  const expenseTransactions = options.includeExpenses === false ? { submissions: [], childLinks: [], transactions: [], lines: [] } : await loadExpenseTransactions(
     supabase, organizationId, expenseSubmissionsResult.data ?? [], Boolean(propertyId || options.expenseMonth),
   );
   expenseSubmissionsResult.data = expenseTransactions.submissions;

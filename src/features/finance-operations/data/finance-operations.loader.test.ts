@@ -66,6 +66,13 @@ describe("finance operations initial reads", () => {
     expect(result.unitOptions).toEqual([]);
     expect(result.accountEntries[0].unitLabel).toContain("8F-D2");
   });
+  it("does not read expense tables for rent-only views", async () => {
+    const harness = createFinanceReadHarness();
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getFinanceOperationsData("organization-1", "property-1", { includeExpenses: false });
+    expect(result.expenseSubmissions).toEqual([]);
+    expect(harness.queries.some(query => ["expense_submissions", "expense_transactions", "expense_transaction_lines", "tasks"].includes(query.table))).toBe(false);
+  });
   it("retains archived lease context without offering it for new charges", async () => {
     const harness=createFinanceReadHarness({properties:{data:[{id:"property-1",code:"P",name:"Property",archived_at:null}]},units:{data:[{id:"unit-1",property_id:"property-1",unit_number:"101",archived_at:null}]},current_leases:{data:[{id:"old-lease",property_id:"property-1",unit_id:"unit-1",primary_tenant_person_id:"tenant",tenant_name:"Former tenant",status:"ended",lease_start_date:"2025-01-01",lease_end_date:"2025-12-31",monthly_rent_amount:500,archived_at:"2026-01-01"}]}});
     vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
