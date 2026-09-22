@@ -159,9 +159,9 @@ export function FinanceAccountsScreen({
               title="No accounts match these filters."
             />
           ) : (
-            <table className="block w-full border-collapse text-sm md:table">
+            <table className="block w-full border-collapse text-[13px] leading-5 md:table">
               <caption className="sr-only">Organization Chart of Accounts</caption>
-              <thead className="hidden bg-[var(--table-header-bg)] text-left text-xs font-medium uppercase tracking-[0.05em] text-muted-foreground md:table-header-group">
+              <thead className="hidden bg-[var(--table-header-bg)] text-left text-[11px] font-medium text-muted-foreground md:table-header-group">
                 <tr>
                   <th className="px-4 py-2.5" scope="col">Account</th>
                   <th className="px-3 py-2.5" scope="col">Type</th>
@@ -263,7 +263,7 @@ function AccountGroupRows({
     <>
       <tr className="block border-y border-border bg-muted/55 first:border-t-0 md:table-row">
         <th className="block px-4 py-2 text-left md:table-cell" colSpan={5} scope="rowgroup">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-foreground">{label}</h2>
+          <h2 className="text-[11px] font-semibold tracking-wide text-foreground">{label}</h2>
         </th>
       </tr>
       {accounts.map((account) => (

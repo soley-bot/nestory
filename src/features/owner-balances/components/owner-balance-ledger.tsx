@@ -599,9 +599,9 @@ function OwnerAccountRegister({
       <div className="overflow-x-auto border-y border-border">
         <table
           aria-label="Owner account register"
-          className={`w-full ${selectedView === "statements" ? "min-w-[32rem]" : "min-w-[68rem]"} text-left text-sm`}
+          className={`w-full ${selectedView === "statements" ? "min-w-[32rem]" : "min-w-[72rem]"} text-left text-[13px] leading-5`}
         >
-          <thead className="bg-[var(--table-header-bg)] text-xs font-medium text-muted-foreground">
+          <thead className="bg-[var(--table-header-bg)] text-[11px] font-medium text-muted-foreground">
             <tr>
               <th className="px-3 py-2" scope="col">Owner</th>
               <th className="px-3 py-2" scope="col">Property</th>
@@ -685,10 +685,10 @@ function OwnerAccountRegisterRow({
 
   return (
     <tr>
-      <th className="px-3 py-3 font-semibold" scope="row">{account.ownerLabel}</th>
+      <th className="px-3 py-3 font-medium" scope="row">{account.ownerLabel}</th>
       <td className="px-3 py-3">{account.propertyLabel}</td>
       {selectedView !== "statements" ? <>
-      <td className="px-3 py-3 text-right font-semibold tabular-nums">
+      <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums">
         {account.availableAmount === null
           ? "Unavailable"
           : formatExactMoney(account.availableAmount)}
@@ -709,7 +709,7 @@ function OwnerAccountRegisterRow({
         <p className="font-semibold tabular-nums">{account.issueCount}</p>
         <p className={status.priorityClassName}>{status.priority}</p>
       </td>
-      <td className="px-3 py-3 tabular-nums">
+      <td className="whitespace-nowrap px-3 py-3 tabular-nums">
         {account.lastActivityDate === "unknown"
           ? account.lastActivityDate
           : formatCalendarDate(account.lastActivityDate)}
@@ -717,7 +717,7 @@ function OwnerAccountRegisterRow({
       </> : null}
       <td className="px-3 py-3 text-right">
         <Link
-          className="font-semibold text-primary underline-offset-4 hover:underline"
+          className="inline-flex min-h-8 items-center whitespace-nowrap rounded-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           href={nextAction.href}
         >
           {nextAction.label}
@@ -1073,7 +1073,7 @@ function PropertyAccountLedger({
                 <>
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[44rem] text-left text-sm">
-                      <thead className="bg-[var(--table-header-bg)] text-xs font-medium text-muted-foreground">
+                      <thead className="bg-[var(--table-header-bg)] text-[11px] font-medium text-muted-foreground">
                         <tr>
                           <th className="px-3 py-2" scope="col">
                             Date

@@ -74,8 +74,8 @@ describe("LedgerScreen finance workspace contract", () => {
     expect(summaryStrip?.className).not.toContain("overflow-x-auto");
     expect(within(summaryStrip!).queryByText("Clear")).toBeNull();
     const table = screen.getByRole("table");
-    expect(table.className).toContain("text-sm");
-    expect(table.querySelector("thead")?.className).toContain("text-xs");
+    expect(table.className).toContain("text-[13px]");
+    expect(table.querySelector("thead")?.className).toContain("text-[11px]");
     const pagination = screen
       .getByText(
         (_content, element) =>

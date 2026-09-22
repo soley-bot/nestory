@@ -101,14 +101,14 @@ export function ReportResultsTable({
           role="region"
           tabIndex={0}
         >
-          <Table aria-label={report.title} className={cn("min-w-[600px] text-sm", operational && "table-fixed", operational && columns.length > 7 && "min-w-[1000px]")}>
+          <Table aria-label={report.title} className={cn("min-w-[600px] text-[13px] leading-5", operational && "table-fixed", operational && columns.length > 7 && "min-w-[1000px]")}>
             {operational ? <colgroup>{columns.map((column) => <col key={column.key} style={{ width: operationalColumnWidth(column.key, columns.length) }} />)}<col style={{ width: 42 }} /></colgroup> : null}
-            <TableHeader className="bg-muted/35 text-xs uppercase tracking-[0.02em] text-muted-foreground">
+            <TableHeader className="bg-[var(--table-header-bg)] text-[11px] text-muted-foreground">
               <TableRow>
                 {columns.map((column) => (
                   <TableHead
                     className={cn(
-                      "h-9 px-3 font-semibold text-muted-foreground",
+                      "h-9 px-3 font-medium text-muted-foreground",
                       column.align === "right" && "text-right",
                     )}
                     key={column.key}
@@ -201,7 +201,7 @@ function ReportResultRow({
       {columns.map((column) => (
         <TableCell
           className={cn(
-            "px-3 py-2.5 leading-5 text-muted-foreground",
+            "px-3 py-2.5 leading-5 text-foreground",
             column.align === "right" &&
               "text-right font-medium tabular-nums text-foreground",
           )}
@@ -320,11 +320,11 @@ function ReportRowDetails({
         <dl className="divide-y divide-border border-y border-border">
           {(report.availableColumns ?? report.columns).map((column) => (
             <div
-              className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-2.5"
+              className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-4 py-2.5 text-[13px] leading-5"
               key={column.key}
             >
               <dt className="text-muted-foreground">{column.label}</dt>
-              <dd className="max-w-72 text-right font-medium tabular-nums text-foreground">
+              <dd className="min-w-0 break-words text-right font-medium tabular-nums text-foreground">
                 {row.cells[column.key] || "—"}
               </dd>
             </div>

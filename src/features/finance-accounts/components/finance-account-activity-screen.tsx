@@ -44,11 +44,11 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Basis</p>
             <p className="text-sm font-medium">{activity.basisLabel}</p>
           </div>
-          <p className="font-mono text-lg tabular-nums">USD {activity.total}</p>
+          <p className="font-medium text-lg tabular-nums">USD {activity.total}</p>
         </div>
         <div className="overflow-x-auto rounded-lg border bg-card">
-          <table className="w-full border-collapse text-sm">
-            <thead className="bg-[var(--table-header-bg)] text-left text-xs uppercase tracking-wide text-muted-foreground">
+          <table className="w-full min-w-[900px] border-collapse text-[13px] leading-5">
+            <thead className="bg-[var(--table-header-bg)] text-left text-[11px] font-medium text-muted-foreground">
               <tr>
                 <th className="px-3 py-2" scope="col">Date</th>
                 <th className="px-3 py-2" scope="col">Property</th>
@@ -66,9 +66,9 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
                   <td className="px-3 py-2 whitespace-nowrap">{row.propertyLabel}</td>
                   <td className="px-3 py-2">{row.contact ?? "—"}</td>
                   <td className="px-3 py-2"><Link className="font-medium underline-offset-4 hover:underline" href={row.sourceHref}>{row.description}</Link></td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums">{row.increase ? `USD ${row.increase}` : "—"}</td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums">{row.decrease ? `USD ${row.decrease}` : "—"}</td>
-                  {showRunningBalance ? <td className="px-3 py-2 text-right font-mono tabular-nums">{row.runningBalance ? `USD ${row.runningBalance}` : "—"}</td> : null}
+                  <td className="px-3 py-2 whitespace-nowrap text-right font-medium tabular-nums">{row.increase ? `USD ${row.increase}` : "—"}</td>
+                  <td className="px-3 py-2 whitespace-nowrap text-right font-medium tabular-nums">{row.decrease ? `USD ${row.decrease}` : "—"}</td>
+                  {showRunningBalance ? <td className="px-3 py-2 whitespace-nowrap text-right font-medium tabular-nums">{row.runningBalance ? `USD ${row.runningBalance}` : "—"}</td> : null}
                 </tr>
               ))}
               {activity.rows.length === 0 ? <tr><td className="px-3 py-8 text-center text-muted-foreground" colSpan={showRunningBalance ? 7 : 6}>No activity in this period.</td></tr> : null}

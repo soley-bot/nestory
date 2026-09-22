@@ -67,7 +67,7 @@ export function LedgerInspector({
           <CompactFact label="Source">{entry.sourceLabel}</CompactFact>
           <CompactFact label="Property">
             <Link
-              className="line-clamp-2 break-words text-accent hover:underline"
+              className="line-clamp-2 break-words text-primary hover:underline"
               href={`/properties/${entry.propertyId}/account`}
             >
               {entry.unitNumber
@@ -158,7 +158,7 @@ function AttentionNote({
           {item ? null : (
             <Link
               aria-label="Open action"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-accent transition-colors hover:bg-muted"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-primary transition-colors hover:bg-muted"
               href={href}
               title="Open action"
             >
