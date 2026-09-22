@@ -45,6 +45,9 @@ const financeContextSchema = z.object({
     primary_tenant_person_id: z.string(), tenant_name: z.string(), status: z.string(),
     lease_start_date: z.string(), lease_end_date: z.string(), monthly_rent_amount: z.number(), archived_at: nullableText,
   })),
+  recovery_leases: z.array(z.object({
+    id: z.string(), property_id: z.string(), archived_at: nullableText,
+  })).optional(),
   terms: z.array(z.object({ lease_id: z.string(), start_date: z.string(), end_date: z.string(), rent_amount: z.number() })),
   billing_terms: z.array(scopedBillingTermSchema),
 });

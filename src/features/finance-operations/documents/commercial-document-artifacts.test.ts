@@ -154,13 +154,22 @@ describe("commercial document artifact publication", () => {
     );
   });
 
-  it("publishes a Receipt from the authoritative payment source without accepting Invoice publication input", async () => {
+  it.each([
+    ["200.00", "300.00", "200.00"],
+    ["0", "500.00", "0.00"],
+  ])("publishes a Receipt with previous settlement %s through retained-byte verification and registration", async (previous, remaining, normalizedPrevious) => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-21T09:15:00.000Z"));
     const receiptPath =
       `${organizationId}/receipt/${paymentId}/RCT-2026-0018.pdf`;
     const harness = artifactHarness({
-      sourceResponses: [receiptSource()],
+      sourceResponses: [receiptSource({
+        payment: {
+          ...receiptSource().payment,
+          amount_previously_paid: previous,
+          remaining_balance: remaining,
+        },
+      })],
       storageObject: storageObject({
         id: objectId,
         version: "tenant-commercial-document-v1-receipt-current",
@@ -190,7 +199,11 @@ describe("commercial document artifact publication", () => {
     expect(onlyEvent(harness.events, "admin.attest").args).toMatchObject({
       p_actor_id: actorId,
       p_organization_id: organizationId,
-      p_presentation_snapshot: expectedReceiptSnapshot(),
+      p_presentation_snapshot: {
+        ...expectedReceiptSnapshot(),
+        amountPreviouslyPaid: normalizedPrevious,
+        remainingBalance: remaining,
+      },
       p_renderer_version: "commercial-pdf-v1",
       p_source_id: paymentId,
       p_source_kind: "receipt",

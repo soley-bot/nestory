@@ -644,6 +644,11 @@ export async function getFinanceOperationsData(
       .filter((property) => property.archived_at === null)
       .map((property) => property.id),
   );
+  // Base Lease metadata distinguishes active and archived termless leases.
+  // The optional fallback supports an older schema during a rolling release.
+  const recoveryLeaseById = new Map(
+    (readContext.recovery_leases ?? readContext.leases).map((lease) => [lease.id, lease]),
+  );
   const propertyById = new Map(
     properties.map((property) => [property.id, property]),
   );
@@ -892,7 +897,14 @@ export async function getFinanceOperationsData(
         label: `${source.code} · ${source.display_name}`,
         propertyId: source.property_id,
       })),
-    rentGenerationExceptions: (rentGenerationExceptionsResult.data ?? []).map(
+    rentGenerationExceptions: (rentGenerationExceptionsResult.data ?? []).filter(
+      (exception) => {
+        const lease = recoveryLeaseById.get(exception.lease_id);
+        return activePropertyIds.has(exception.property_id)
+          && (lease ? lease.archived_at === null && lease.property_id === exception.property_id
+            : readContext.recovery_leases === undefined);
+      },
+    ).map(
       (exception) => ({
         attemptCount: exception.attempt_count,
         billingPeriodStart: exception.billing_period_start,

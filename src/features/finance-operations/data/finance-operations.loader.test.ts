@@ -26,6 +26,38 @@ vi.mock("@/features/finance-accounts/data/finance-accounts", () => ({
 }));
 
 describe("finance operations initial reads", () => {
+  it("excludes confirmed archived rent targets while retaining ended and termless leases needing recovery", async () => {
+    const lease = {
+      property_id: "property-1", unit_id: null, primary_tenant_person_id: "tenant-1",
+      tenant_name: "Tenant", status: "active", lease_start_date: "2026-01-01",
+      lease_end_date: "2026-09-01", monthly_rent_amount: 500, archived_at: null,
+    };
+    const harness = createFinanceReadHarness({
+      properties: { data: [
+        { id: "property-1", code: "P", name: "Property", archived_at: null },
+        { id: "archived-property", code: "OLD", name: "Archived", archived_at: "2026-08-01" },
+      ] },
+      current_leases: { data: [
+        { ...lease, id: "current" },
+        { ...lease, id: "ended", status: "ended" },
+        { ...lease, id: "archived", archived_at: "2026-08-01" },
+        { ...lease, id: "old-property", property_id: "archived-property" },
+      ] },
+      recovery_leases: { data: ["current", "ended", "archived", "old-property", "termless", "archived-termless"].map((id) => ({
+        id, property_id: id === "old-property" ? "archived-property" : "property-1",
+        archived_at: id.startsWith("archived") ? "2026-08-01" : null,
+      })) },
+      rent_generation_exceptions: { data: ["current", "ended", "archived", "old-property", "termless", "archived-termless", "unavailable"].map((id) => ({
+        id, lease_id: id, property_id: id === "old-property" ? "archived-property" : "property-1",
+        attempt_count: 1, billing_period_start: "2026-08-01", error_code: "billing_setup_missing",
+        last_attempt_at: "2026-08-01", safe_message: "Review billing", resolved_at: null,
+      })) },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getFinanceOperationsData("organization-1");
+    expect(result.rentGenerationExceptions.map(exception => exception.id)).toEqual(["current", "ended", "termless"]);
+  });
+
   it("bounds owner account activity and loads only referenced expense details", async () => {
     const harness = createFinanceReadHarness({
       properties: { data: [{ id: "property-1", code: "P", name: "Property", archived_at: null }] },
@@ -338,6 +370,7 @@ function createFinanceReadHarness(
     properties: overrides.properties?.data ?? [], units: overrides.units?.data ?? [], people: overrides.people?.data ?? [],
     owner_assignments: overrides.property_owners?.data ?? [],
     leases: ((overrides.current_leases?.data ?? []) as Record<string, unknown>[]).map((row) => ({ archived_at: null, ...row })),
+    ...(overrides.recovery_leases ? { recovery_leases: overrides.recovery_leases.data } : {}),
     terms: overrides.lease_terms?.data ?? [], billing_terms: overrides.lease_billing_terms?.data ?? [],
   } } };
   const queries: Array<{ table: string; filters: Array<[string, unknown]> }> = [];

@@ -252,6 +252,28 @@ SET LOCAL ROLE authenticated;
 SELECT throws_ok(format('SELECT public.get_finance_read_context(%L)',(SELECT org FROM read_scope_state)),'42501',NULL,'inactive branch denied');
 RESET ROLE;
 UPDATE public.organization_branches SET status='active' WHERE id=(SELECT branch_a FROM read_scope_state);
+-- Termless leases retain the same branch-scoped recovery metadata, including
+-- archival, without requiring separate access to the Lease domain.
+ALTER TABLE public.lease_terms DISABLE TRIGGER USER;
+UPDATE public.lease_terms SET archived_at=now()
+WHERE organization_id=(SELECT org FROM read_scope_state);
+ALTER TABLE public.lease_terms ENABLE TRIGGER USER;
+SELECT set_config('request.jwt.claim.sub',(SELECT finance_only_reader::text FROM read_scope_state),true);
+SET LOCAL ROLE authenticated;
+CREATE TEMP TABLE recovery_context_result AS
+SELECT public.get_finance_read_context((SELECT org FROM read_scope_state)) payload;
+SELECT is(jsonb_array_length((SELECT payload->'leases' FROM recovery_context_result)),0,
+  'termless regression has no rows in the term-dependent Lease projection');
+SELECT is(jsonb_array_length((SELECT payload->'recovery_leases' FROM recovery_context_result)),2,
+  'Finance-only recovery metadata retains both scoped termless leases and excludes other branches');
+SELECT is((SELECT array_agg(key ORDER BY key)::text FROM recovery_context_result,
+  LATERAL jsonb_object_keys(payload->'recovery_leases'->0) key),
+  '{archived_at,id,property_id}','recovery metadata exposes only identity and archival fields');
+SELECT ok((SELECT bool_and((entry->>'archived_at' IS NOT NULL) = (row.kind='archived_a'))
+  FROM recovery_context_result, LATERAL jsonb_array_elements(payload->'recovery_leases') entry
+  JOIN read_scope_rows row ON row.lease_id=(entry->>'id')::uuid),
+  'recovery metadata distinguishes active and archived termless leases');
+RESET ROLE;
 UPDATE public.organization_authorization_states SET ordinary_access_enabled=false WHERE organization_id=(SELECT org FROM read_scope_state);
 SET LOCAL ROLE authenticated;
 SELECT throws_ok(format('SELECT public.get_finance_read_context(%L)',(SELECT org FROM read_scope_state)),'42501',NULL,'disabled ordinary access denied');

@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(71);
+SELECT plan(80);
 
 CREATE TEMP TABLE review_state (
   fixture_clock timestamptz NOT NULL DEFAULT pg_catalog.now(),
@@ -302,7 +302,7 @@ SELECT fixture.rule_id, state.organization_id, fixture.lease_id,
   'lease_default_v1', now(), state.admin_id, state.admin_id, state.admin_id
 FROM review_state AS state
 CROSS JOIN LATERAL (VALUES
-  ('96000000-0000-0000-0000-000000000101'::uuid, state.proration_lease, state.property_a, DATE '2026-01-01', DATE '2026-12-31', 'through_ips', false, state.company_id, NULL::numeric, 'UTC'),
+  ('96000000-0000-0000-0000-000000000101'::uuid, state.proration_lease, state.property_a, DATE '2026-01-01', DATE '2026-05-20', 'through_ips', false, state.company_id, NULL::numeric, 'UTC'),
   ('96000000-0000-0000-0000-000000000102'::uuid, state.full_fee_lease, state.property_a, DATE '2026-01-01', DATE '2026-12-31', 'through_ips', true, state.company_id, NULL::numeric, 'UTC'),
   ('96000000-0000-0000-0000-000000000103'::uuid, state.override_fee_lease, state.property_a, DATE '2026-01-01', DATE '2026-12-31', 'through_ips', false, state.company_id, 1550::numeric, 'UTC'),
   ('96000000-0000-0000-0000-000000000104'::uuid, state.move_lease, state.property_a, DATE '2026-08-01', DATE '2027-12-31', 'direct_to_owner', false, state.owner_a, NULL::numeric, 'UTC'),
@@ -1924,6 +1924,134 @@ SELECT is(
   ),
   'adjacent-calendar retry issues and resolves through the exact Lease rule'
 ) FROM review_state;
+
+-- A final partial-month invoice remains authoritative after the billing rule
+-- expires. Scheduled retries must resolve the stale exception, not re-bill.
+CREATE TEMP TABLE finance_retry_snapshot AS
+SELECT invoice.id, pg_catalog.to_jsonb(invoice) AS contents
+FROM public.tenant_invoices AS invoice
+JOIN review_state AS state ON invoice.organization_id = state.organization_id
+  AND invoice.lease_id = state.authority_gap_lease
+  AND invoice.billing_period_start = state.fixture_lease_month_start;
+
+GRANT SELECT ON finance_retry_snapshot TO authenticated;
+
+UPDATE public.lease_billing_terms AS billing
+SET effective_to = state.fixture_lease_date - 1
+FROM review_state AS state
+WHERE billing.organization_id = state.organization_id
+  AND billing.id = '96000000-0000-0000-0000-000000000111';
+
+UPDATE public.rent_generation_exceptions AS exception
+SET resolved_at = NULL, resolved_invoice_id = NULL
+FROM review_state AS state
+WHERE exception.organization_id = state.organization_id
+  AND exception.lease_id = state.authority_gap_lease
+  AND exception.billing_period_start = state.fixture_lease_month_start;
+
+SELECT ok(
+  resolved.billing_term_id IS NULL,
+  'Finance Manager regression has no current billing authority'
+) FROM review_state AS state
+CROSS JOIN LATERAL app_private.resolve_lease_billing_clock(
+  state.organization_id, state.authority_gap_lease, state.fixture_clock
+) AS resolved;
+
+SET LOCAL ROLE authenticated;
+SELECT is(
+  pg_temp.capture_rent_recovery(state.organization_id, exception.id)->>'invoiceId',
+  (SELECT id::text FROM finance_retry_snapshot),
+  'Finance Manager public retry recovers existing evidence after rule expiry'
+) FROM review_state AS state
+JOIN public.rent_generation_exceptions AS exception
+  ON exception.organization_id = state.organization_id
+  AND exception.lease_id = state.authority_gap_lease
+  AND exception.billing_period_start = state.fixture_lease_month_start;
+RESET ROLE;
+
+SELECT ok(
+  pg_catalog.to_jsonb(invoice) = snapshot.contents
+    AND exception.resolved_at IS NOT NULL
+    AND exception.resolved_invoice_id = invoice.id,
+  'Finance Manager recovery resolves the exception without changing its invoice'
+) FROM finance_retry_snapshot AS snapshot
+JOIN public.tenant_invoices AS invoice ON invoice.id = snapshot.id
+JOIN public.rent_generation_exceptions AS exception
+  ON exception.organization_id = invoice.organization_id
+  AND exception.lease_id = invoice.lease_id
+  AND exception.billing_period_start = invoice.billing_period_start;
+
+-- Restore the scheduler actor after the Finance Manager permission scenarios.
+UPDATE public.organization_members AS membership
+SET role = 'super_admin'
+FROM review_state AS state
+WHERE membership.organization_id = state.organization_id
+  AND membership.user_id = state.admin_id;
+
+CREATE TEMP TABLE rent_retry_snapshot AS
+SELECT invoice.id, pg_catalog.to_jsonb(invoice) AS contents
+FROM public.tenant_invoices AS invoice
+JOIN review_state AS state ON invoice.organization_id = state.organization_id
+  AND invoice.lease_id = state.proration_lease
+  AND invoice.billing_period_start = DATE '2026-05-01';
+
+INSERT INTO public.rent_generation_exceptions (
+  organization_id, property_id, lease_id, billing_period_start,
+  generation_source, error_code, safe_message, attempt_count
+)
+SELECT organization_id, property_a, proration_lease, DATE '2026-05-01',
+  'scheduled', 'billing_setup_missing', 'Complete the Lease billing setup.', 441
+FROM review_state
+ON CONFLICT ON CONSTRAINT rent_generation_exceptions_lease_period_unique
+DO UPDATE SET resolved_at = NULL, resolved_invoice_id = NULL, attempt_count = 441;
+
+SELECT is(
+  app_private.try_current_month_rent(organization_id, proration_lease,
+    'scheduled', '2026-05-22T12:00:00Z'::timestamptz)->>'invoiceId',
+  (SELECT id::text FROM rent_retry_snapshot),
+  'scheduled retry returns the existing final-month invoice after rule expiry'
+) FROM review_state;
+
+SELECT is(
+  (SELECT pg_catalog.to_jsonb(invoice) FROM public.tenant_invoices AS invoice
+    JOIN rent_retry_snapshot AS snapshot ON snapshot.id = invoice.id),
+  (SELECT contents FROM rent_retry_snapshot),
+  'expired-rule retry leaves all existing invoice fields unchanged'
+);
+
+SELECT is(
+  (SELECT pg_catalog.jsonb_build_array(exception.resolved_at IS NOT NULL,
+      exception.resolved_invoice_id, exception.attempt_count)
+    FROM public.rent_generation_exceptions AS exception
+    WHERE exception.organization_id = state.organization_id
+      AND exception.lease_id = state.proration_lease
+      AND exception.billing_period_start = DATE '2026-05-01'),
+  pg_catalog.jsonb_build_array(true, (SELECT id FROM rent_retry_snapshot), 441),
+  'existing evidence resolves the false exception without increasing attempts'
+) FROM review_state AS state;
+
+SELECT is(
+  app_private.try_generate_lease_rent_invoice(organization_id, proration_lease,
+    DATE '2026-05-01', DATE '2026-05-22', 'manual_recovery', admin_id)->>'invoiceId',
+  (SELECT id::text FROM rent_retry_snapshot),
+  'explicit recovery also returns existing evidence after rule expiry'
+) FROM review_state;
+
+SELECT is(
+  app_private.try_current_month_rent(organization_id, proration_lease,
+    'scheduled', '2026-06-22T12:00:00Z'::timestamptz)->>'status',
+  'failed',
+  'missing next-month billing authority still fails closed'
+) FROM review_state;
+
+SELECT is(
+  (SELECT count(*) FROM public.tenant_invoices AS invoice
+    WHERE invoice.organization_id = state.organization_id
+      AND invoice.lease_id = state.proration_lease
+      AND invoice.billing_period_start IN (DATE '2026-05-01', DATE '2026-06-01')),
+  1::bigint,
+  'retry never duplicates the final invoice or invents next-month rent'
+) FROM review_state AS state;
 
 SELECT * FROM finish();
 ROLLBACK;
