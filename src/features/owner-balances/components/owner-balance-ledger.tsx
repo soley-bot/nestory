@@ -599,8 +599,19 @@ function OwnerAccountRegister({
       <div className="overflow-x-auto border-y border-border">
         <table
           aria-label="Owner account register"
-          className={`w-full ${selectedView === "statements" ? "min-w-[32rem]" : "min-w-[72rem]"} text-left text-[13px] leading-5`}
+          className={`w-full ${selectedView === "statements" ? "min-w-[32rem]" : "min-w-[62.5rem] table-fixed"} text-left text-[13px] leading-5`}
         >
+          {selectedView !== "statements" ? (
+            <colgroup>
+              <col className="w-[16%]" />
+              <col className="w-[24%]" />
+              <col className="w-[12%]" />
+              <col className="w-[13%]" />
+              <col className="w-[9%]" />
+              <col className="w-[12%]" />
+              <col className="w-[14%]" />
+            </colgroup>
+          ) : null}
           <thead className="bg-[var(--table-header-bg)] text-[11px] font-medium text-muted-foreground">
             <tr>
               <th className="px-3 py-2" scope="col">Owner</th>
@@ -688,7 +699,7 @@ function OwnerAccountRegisterRow({
       <th className="px-3 py-3 font-medium" scope="row">{account.ownerLabel}</th>
       <td className="px-3 py-3">{account.propertyLabel}</td>
       {selectedView !== "statements" ? <>
-      <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums">
+      <td className="whitespace-normal px-3 py-3 text-right font-medium tabular-nums [overflow-wrap:anywhere]">
         {account.availableAmount === null
           ? "Unavailable"
           : formatExactMoney(account.availableAmount)}
