@@ -644,10 +644,11 @@ export async function getFinanceOperationsData(
       .filter((property) => property.archived_at === null)
       .map((property) => property.id),
   );
-  // A lease missing its authoritative term is absent from current_leases, but
-  // still needs its billing exception shown. Only suppress confirmed archived
-  // or mismatched targets; the exception read already enforces finance scope.
-  const recoveryLeaseById = new Map(readContext.leases.map((lease) => [lease.id, lease]));
+  // Base Lease metadata distinguishes active and archived termless leases.
+  // The optional fallback supports an older schema during a rolling release.
+  const recoveryLeaseById = new Map(
+    (readContext.recovery_leases ?? readContext.leases).map((lease) => [lease.id, lease]),
+  );
   const propertyById = new Map(
     properties.map((property) => [property.id, property]),
   );
@@ -900,7 +901,8 @@ export async function getFinanceOperationsData(
       (exception) => {
         const lease = recoveryLeaseById.get(exception.lease_id);
         return activePropertyIds.has(exception.property_id)
-          && (!lease || (lease.archived_at === null && lease.property_id === exception.property_id));
+          && (lease ? lease.archived_at === null && lease.property_id === exception.property_id
+            : readContext.recovery_leases === undefined);
       },
     ).map(
       (exception) => ({

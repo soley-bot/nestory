@@ -70,3 +70,30 @@ BEGIN
   EXECUTE pg_catalog.replace(v_definition, v_old, v_new);
 END;
 $repair_checked_retry$;
+
+-- Recovery needs base Lease archive state even when a missing authoritative
+-- term excludes the Lease from current_leases. Reuse the existing scoped CTE;
+-- do not grant access to base tables or expose any additional business fields.
+DO $recovery_context$
+DECLARE
+  v_definition text := pg_catalog.pg_get_functiondef(
+    'app_private.finance_read_context(uuid,uuid)'::regprocedure);
+  v_old constant text := $anchor$    'leases',coalesce($anchor$;
+  v_new constant text := $replacement$    'recovery_leases',coalesce((
+      SELECT jsonb_agg(jsonb_build_object(
+        'id',base.id,'property_id',base.property_id,'archived_at',base.archived_at
+      ) ORDER BY base.id)
+      FROM allowed_leases allowed
+      JOIN public.leases base ON base.id=allowed.id
+        AND base.organization_id=p_organization_id
+    ),'[]'::jsonb),
+    'leases',coalesce($replacement$;
+BEGIN
+  IF (pg_catalog.length(v_definition)
+    - pg_catalog.length(pg_catalog.replace(v_definition, v_old, '')))
+    / pg_catalog.length(v_old) <> 1 THEN
+    RAISE EXCEPTION 'Expected finance recovery context anchor missing or ambiguous';
+  END IF;
+  EXECUTE pg_catalog.replace(v_definition, v_old, v_new);
+END;
+$recovery_context$;

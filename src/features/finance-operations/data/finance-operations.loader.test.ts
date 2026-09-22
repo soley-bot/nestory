@@ -43,7 +43,11 @@ describe("finance operations initial reads", () => {
         { ...lease, id: "archived", archived_at: "2026-08-01" },
         { ...lease, id: "old-property", property_id: "archived-property" },
       ] },
-      rent_generation_exceptions: { data: ["current", "ended", "archived", "old-property", "termless"].map((id) => ({
+      recovery_leases: { data: ["current", "ended", "archived", "old-property", "termless", "archived-termless"].map((id) => ({
+        id, property_id: id === "old-property" ? "archived-property" : "property-1",
+        archived_at: id.startsWith("archived") ? "2026-08-01" : null,
+      })) },
+      rent_generation_exceptions: { data: ["current", "ended", "archived", "old-property", "termless", "archived-termless", "unavailable"].map((id) => ({
         id, lease_id: id, property_id: id === "old-property" ? "archived-property" : "property-1",
         attempt_count: 1, billing_period_start: "2026-08-01", error_code: "billing_setup_missing",
         last_attempt_at: "2026-08-01", safe_message: "Review billing", resolved_at: null,
@@ -366,6 +370,7 @@ function createFinanceReadHarness(
     properties: overrides.properties?.data ?? [], units: overrides.units?.data ?? [], people: overrides.people?.data ?? [],
     owner_assignments: overrides.property_owners?.data ?? [],
     leases: ((overrides.current_leases?.data ?? []) as Record<string, unknown>[]).map((row) => ({ archived_at: null, ...row })),
+    ...(overrides.recovery_leases ? { recovery_leases: overrides.recovery_leases.data } : {}),
     terms: overrides.lease_terms?.data ?? [], billing_terms: overrides.lease_billing_terms?.data ?? [],
   } } };
   const queries: Array<{ table: string; filters: Array<[string, unknown]> }> = [];
