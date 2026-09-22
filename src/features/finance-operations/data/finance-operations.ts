@@ -644,13 +644,10 @@ export async function getFinanceOperationsData(
       .filter((property) => property.archived_at === null)
       .map((property) => property.id),
   );
-  // Archived records retain their history, but must not offer rent-generation
-  // actions. Keep ended, unarchived leases eligible for historical recovery.
-  const recoverableLeaseById = new Map(
-    readContext.leases
-      .filter((lease) => lease.archived_at === null && activePropertyIds.has(lease.property_id))
-      .map((lease) => [lease.id, lease]),
-  );
+  // A lease missing its authoritative term is absent from current_leases, but
+  // still needs its billing exception shown. Only suppress confirmed archived
+  // or mismatched targets; the exception read already enforces finance scope.
+  const recoveryLeaseById = new Map(readContext.leases.map((lease) => [lease.id, lease]));
   const propertyById = new Map(
     properties.map((property) => [property.id, property]),
   );
@@ -900,7 +897,11 @@ export async function getFinanceOperationsData(
         propertyId: source.property_id,
       })),
     rentGenerationExceptions: (rentGenerationExceptionsResult.data ?? []).filter(
-      (exception) => recoverableLeaseById.get(exception.lease_id)?.property_id === exception.property_id,
+      (exception) => {
+        const lease = recoveryLeaseById.get(exception.lease_id);
+        return activePropertyIds.has(exception.property_id)
+          && (!lease || (lease.archived_at === null && lease.property_id === exception.property_id));
+      },
     ).map(
       (exception) => ({
         attemptCount: exception.attempt_count,
