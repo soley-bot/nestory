@@ -1058,12 +1058,13 @@ SELECT throws_ok(
 
 UPDATE tenant_commercial_document_test_state
 SET invoice_artifact_id = public.register_tenant_commercial_document_artifact(
-  'a0000000-0000-4000-8000-000000000001',
-  'invoice',
-  'a7000000-0000-4000-8000-000000000001',
-  'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000001/INV-1001.pdf',
-  repeat('d', 64), 1024, 'commercial-pdf-v1', 'INV-1001',
-  '{"kind":"invoice","paymentInstructions":"Bank transfer"}'::jsonb
+  p_organization_id => 'a0000000-0000-4000-8000-000000000001',
+  p_source_kind => 'invoice',
+  p_source_id => 'a7000000-0000-4000-8000-000000000001',
+  p_storage_path => 'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000001/INV-1001.pdf',
+  p_sha256 => repeat('d', 64), p_size_bytes => 1024,
+  p_renderer_version => 'commercial-pdf-v1', p_filename => 'invoice-INV-1001.pdf',
+  p_presentation_snapshot => '{"kind":"invoice","paymentInstructions":"Bank transfer"}'::jsonb
 );
 
 SELECT results_eq(
@@ -1161,15 +1162,44 @@ SELECT pg_catalog.set_config(
 
 SELECT is(
   public.register_tenant_commercial_document_artifact(
-    'a0000000-0000-4000-8000-000000000001',
-    'receipt',
-    'a9000000-0000-4000-8000-000000000001',
-    'a0000000-0000-4000-8000-000000000001/receipt/a9000000-0000-4000-8000-000000000001/RCP-1001.pdf',
-    repeat('e', 64), 2048, 'commercial-pdf-v1', 'RCP-1001',
-    '{"kind":"receipt","amount":"400.00"}'::jsonb
+    p_organization_id => 'a0000000-0000-4000-8000-000000000001',
+    p_source_kind => 'receipt',
+    p_source_id => 'a9000000-0000-4000-8000-000000000001',
+    p_storage_path => 'a0000000-0000-4000-8000-000000000001/receipt/a9000000-0000-4000-8000-000000000001/RCP-1001.pdf',
+    p_sha256 => repeat('e', 64), p_size_bytes => 2048,
+    p_renderer_version => 'commercial-pdf-v1', p_filename => 'receipt-RCP-1001.pdf',
+    p_presentation_snapshot => '{"kind":"receipt","amount":"400.00"}'::jsonb
   ),
   (SELECT receipt_artifact_id FROM tenant_commercial_document_test_state),
-  'a guarded retry promotes the same failed source row to published'
+  'the application named filename contract promotes the same failed receipt row to published'
+);
+
+SELECT throws_ok(
+  $$ SELECT public.register_tenant_commercial_document_artifact(
+    p_organization_id => 'a0000000-0000-4000-8000-000000000001',
+    p_source_kind => 'receipt',
+    p_source_id => 'a9000000-0000-4000-8000-000000000001',
+    p_storage_path => 'a0000000-0000-4000-8000-000000000001/receipt/a9000000-0000-4000-8000-000000000001/RCP-1001.pdf',
+    p_sha256 => repeat('e',64),p_size_bytes => 2048,
+    p_renderer_version => 'commercial-pdf-v1',p_filename => 'invoice-RCP-1001.pdf',
+    p_presentation_snapshot => '{"kind":"receipt","amount":"400.00"}'::jsonb
+  ) $$,
+  '22023','tenant_commercial_document_number_mismatch',
+  'a filename for the wrong document kind is not accepted'
+);
+
+SELECT is(
+  public.register_tenant_commercial_document_artifact(
+    p_organization_id => 'a0000000-0000-4000-8000-000000000001',
+    p_source_kind => 'receipt',
+    p_source_id => 'a9000000-0000-4000-8000-000000000001',
+    p_storage_path => 'a0000000-0000-4000-8000-000000000001/receipt/a9000000-0000-4000-8000-000000000001/RCP-1001.pdf',
+    p_sha256 => repeat('e',64),p_size_bytes => 2048,
+    p_renderer_version => 'commercial-pdf-v1',p_filename => 'receipt-RCP-1001.pdf',
+    p_presentation_snapshot => '{"kind":"receipt","amount":"400.00"}'::jsonb
+  ),
+  (SELECT receipt_artifact_id FROM tenant_commercial_document_test_state),
+  'the named filename contract is idempotent after publication'
 );
 
 SELECT is(
