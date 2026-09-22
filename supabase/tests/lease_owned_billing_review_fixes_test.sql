@@ -1934,6 +1934,8 @@ JOIN review_state AS state ON invoice.organization_id = state.organization_id
   AND invoice.lease_id = state.authority_gap_lease
   AND invoice.billing_period_start = state.fixture_lease_month_start;
 
+GRANT SELECT ON finance_retry_snapshot TO authenticated;
+
 UPDATE public.lease_billing_terms AS billing
 SET effective_to = state.fixture_lease_date - 1
 FROM review_state AS state
