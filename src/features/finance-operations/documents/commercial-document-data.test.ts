@@ -253,6 +253,37 @@ describe("commercial document authoritative snapshot loading", () => {
     ).rejects.toThrow("Tenant Receipt source is unavailable.");
   });
 
+  it.each([
+    ["0", "0.00"],
+    ["350", "350.00"],
+    ["350.1", "350.10"],
+    ["-25.5", "-25.50"],
+    ["9007199254740993.01", "9007199254740993.01"],
+  ])("normalizes PostgreSQL exact money %s without floating-point conversion", async (value, expected) => {
+    const source = receiptSource();
+    source.payment.amount_previously_paid = value;
+    const model = await loadTenantReceiptPdfModel(
+      fakeDataClient({ source }) as unknown as SupabaseClient<Database>,
+      organizationId,
+      paymentId,
+    );
+    expect(model.amountPreviouslyPaid).toBe(expected);
+  });
+
+  it.each(["0.001", "1e3", "NaN", "", " 0", "1,000.00", 0, null])(
+    "rejects inexact or malformed money %s rather than rounding financial evidence",
+    async (value) => {
+      const source = receiptSource({
+        payment: { ...receiptSource().payment, amount_previously_paid: value },
+      });
+      await expect(loadTenantReceiptPdfModel(
+        fakeDataClient({ source }) as unknown as SupabaseClient<Database>,
+        organizationId,
+        paymentId,
+      )).rejects.toThrow("Commercial document money must be an exact decimal string.");
+    },
+  );
+
   it("uses authoritative signed settlement strings for sequential partial payments with a prior reversal", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-21T09:45:00.000Z"));

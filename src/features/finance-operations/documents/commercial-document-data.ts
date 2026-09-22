@@ -306,10 +306,13 @@ function currency(value: unknown): "USD" | "KHR" {
 }
 
 function moneyString(value: unknown) {
-  if (typeof value !== "string" || !/^-?(?:0|[1-9]\d*)\.\d{2}$/.test(value)) {
+  if (typeof value !== "string" || !/^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(value)) {
     throw new Error("Commercial document money must be an exact decimal string.");
   }
-  return value;
+  // PostgreSQL numeric aggregates can serialize zero as "0". Pad the exact
+  // decimal string; never round or convert financial evidence through Number.
+  const [whole, fraction = ""] = value.split(".");
+  return `${whole}.${fraction.padEnd(2, "0")}`;
 }
 
 function requiredString(value: unknown) {
