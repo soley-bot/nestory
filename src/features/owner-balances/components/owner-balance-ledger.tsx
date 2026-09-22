@@ -699,7 +699,7 @@ function OwnerAccountRegisterRow({
       <th className="px-3 py-3 font-medium" scope="row">{account.ownerLabel}</th>
       <td className="px-3 py-3">{account.propertyLabel}</td>
       {selectedView !== "statements" ? <>
-      <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums">
+      <td className="whitespace-normal px-3 py-3 text-right font-medium tabular-nums [overflow-wrap:anywhere]">
         {account.availableAmount === null
           ? "Unavailable"
           : formatExactMoney(account.availableAmount)}
