@@ -37,3 +37,36 @@ BEGIN
   END LOOP;
 END;
 $repair_retry$;
+
+-- Finance Manager recovery keeps its actor, branch, current-month and open-
+-- exception checks. Existing period evidence also permits its idempotent path
+-- when the clock no longer selects a billing rule; new invoices still need one.
+DO $repair_checked_retry$
+DECLARE
+  v_signature constant regprocedure :=
+    'app_private.is_checked_current_rent_retry_generation(uuid,uuid,date,date,text,uuid)'::regprocedure;
+  v_definition text := pg_catalog.pg_get_functiondef(v_signature);
+  v_old constant text := 'WHERE resolved.billing_term_id IS NOT NULL';
+  v_new constant text := $replacement$WHERE (resolved.billing_term_id IS NOT NULL OR EXISTS (
+          SELECT 1
+          FROM public.tenant_invoices AS invoice
+          WHERE invoice.organization_id = p_organization_id
+            AND invoice.lease_id = p_lease_id
+            AND invoice.billing_period_start = p_billing_period_start
+            AND EXISTS (
+              SELECT 1
+              FROM public.tenant_invoice_lines AS line
+              WHERE line.organization_id = invoice.organization_id
+                AND line.invoice_id = invoice.id
+                AND line.line_type = 'rent'
+            )
+        ))$replacement$;
+BEGIN
+  IF (pg_catalog.length(v_definition)
+    - pg_catalog.length(pg_catalog.replace(v_definition, v_old, '')))
+    / pg_catalog.length(v_old) <> 1 THEN
+    RAISE EXCEPTION 'Expected checked rent retry anchor missing or ambiguous';
+  END IF;
+  EXECUTE pg_catalog.replace(v_definition, v_old, v_new);
+END;
+$repair_checked_retry$;

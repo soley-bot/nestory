@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(77);
+SELECT plan(80);
 
 CREATE TEMP TABLE review_state (
   fixture_clock timestamptz NOT NULL DEFAULT pg_catalog.now(),
@@ -1927,6 +1927,58 @@ SELECT is(
 
 -- A final partial-month invoice remains authoritative after the billing rule
 -- expires. Scheduled retries must resolve the stale exception, not re-bill.
+CREATE TEMP TABLE finance_retry_snapshot AS
+SELECT invoice.id, pg_catalog.to_jsonb(invoice) AS contents
+FROM public.tenant_invoices AS invoice
+JOIN review_state AS state ON invoice.organization_id = state.organization_id
+  AND invoice.lease_id = state.authority_gap_lease
+  AND invoice.billing_period_start = state.fixture_lease_month_start;
+
+UPDATE public.lease_billing_terms AS billing
+SET effective_to = state.fixture_lease_date - 1
+FROM review_state AS state
+WHERE billing.organization_id = state.organization_id
+  AND billing.id = '96000000-0000-0000-0000-000000000111';
+
+UPDATE public.rent_generation_exceptions AS exception
+SET resolved_at = NULL, resolved_invoice_id = NULL
+FROM review_state AS state
+WHERE exception.organization_id = state.organization_id
+  AND exception.lease_id = state.authority_gap_lease
+  AND exception.billing_period_start = state.fixture_lease_month_start;
+
+SELECT ok(
+  resolved.billing_term_id IS NULL,
+  'Finance Manager regression has no current billing authority'
+) FROM review_state AS state
+CROSS JOIN LATERAL app_private.resolve_lease_billing_clock(
+  state.organization_id, state.authority_gap_lease, state.fixture_clock
+) AS resolved;
+
+SET LOCAL ROLE authenticated;
+SELECT is(
+  pg_temp.capture_rent_recovery(state.organization_id, exception.id)->>'invoiceId',
+  (SELECT id::text FROM finance_retry_snapshot),
+  'Finance Manager public retry recovers existing evidence after rule expiry'
+) FROM review_state AS state
+JOIN public.rent_generation_exceptions AS exception
+  ON exception.organization_id = state.organization_id
+  AND exception.lease_id = state.authority_gap_lease
+  AND exception.billing_period_start = state.fixture_lease_month_start;
+RESET ROLE;
+
+SELECT ok(
+  pg_catalog.to_jsonb(invoice) = snapshot.contents
+    AND exception.resolved_at IS NOT NULL
+    AND exception.resolved_invoice_id = invoice.id,
+  'Finance Manager recovery resolves the exception without changing its invoice'
+) FROM finance_retry_snapshot AS snapshot
+JOIN public.tenant_invoices AS invoice ON invoice.id = snapshot.id
+JOIN public.rent_generation_exceptions AS exception
+  ON exception.organization_id = invoice.organization_id
+  AND exception.lease_id = invoice.lease_id
+  AND exception.billing_period_start = invoice.billing_period_start;
+
 -- Restore the scheduler actor after the Finance Manager permission scenarios.
 UPDATE public.organization_members AS membership
 SET role = 'super_admin'
