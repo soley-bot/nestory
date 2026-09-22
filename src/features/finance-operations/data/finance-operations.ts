@@ -644,6 +644,13 @@ export async function getFinanceOperationsData(
       .filter((property) => property.archived_at === null)
       .map((property) => property.id),
   );
+  // Archived records retain their history, but must not offer rent-generation
+  // actions. Keep ended, unarchived leases eligible for historical recovery.
+  const recoverableLeaseById = new Map(
+    readContext.leases
+      .filter((lease) => lease.archived_at === null && activePropertyIds.has(lease.property_id))
+      .map((lease) => [lease.id, lease]),
+  );
   const propertyById = new Map(
     properties.map((property) => [property.id, property]),
   );
@@ -892,7 +899,9 @@ export async function getFinanceOperationsData(
         label: `${source.code} · ${source.display_name}`,
         propertyId: source.property_id,
       })),
-    rentGenerationExceptions: (rentGenerationExceptionsResult.data ?? []).map(
+    rentGenerationExceptions: (rentGenerationExceptionsResult.data ?? []).filter(
+      (exception) => recoverableLeaseById.get(exception.lease_id)?.property_id === exception.property_id,
+    ).map(
       (exception) => ({
         attemptCount: exception.attempt_count,
         billingPeriodStart: exception.billing_period_start,

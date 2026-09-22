@@ -26,6 +26,34 @@ vi.mock("@/features/finance-accounts/data/finance-accounts", () => ({
 }));
 
 describe("finance operations initial reads", () => {
+  it("only offers rent recovery for unarchived scoped targets, including ended leases with historical work", async () => {
+    const lease = {
+      property_id: "property-1", unit_id: null, primary_tenant_person_id: "tenant-1",
+      tenant_name: "Tenant", status: "active", lease_start_date: "2026-01-01",
+      lease_end_date: "2026-09-01", monthly_rent_amount: 500, archived_at: null,
+    };
+    const harness = createFinanceReadHarness({
+      properties: { data: [
+        { id: "property-1", code: "P", name: "Property", archived_at: null },
+        { id: "archived-property", code: "OLD", name: "Archived", archived_at: "2026-08-01" },
+      ] },
+      current_leases: { data: [
+        { ...lease, id: "current" },
+        { ...lease, id: "ended", status: "ended" },
+        { ...lease, id: "archived", archived_at: "2026-08-01" },
+        { ...lease, id: "old-property", property_id: "archived-property" },
+      ] },
+      rent_generation_exceptions: { data: ["current", "ended", "archived", "old-property", "unavailable"].map((id) => ({
+        id, lease_id: id, property_id: id === "old-property" ? "archived-property" : "property-1",
+        attempt_count: 1, billing_period_start: "2026-08-01", error_code: "billing_setup_missing",
+        last_attempt_at: "2026-08-01", safe_message: "Review billing", resolved_at: null,
+      })) },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getFinanceOperationsData("organization-1");
+    expect(result.rentGenerationExceptions.map(exception => exception.id)).toEqual(["current", "ended"]);
+  });
+
   it("bounds owner account activity and loads only referenced expense details", async () => {
     const harness = createFinanceReadHarness({
       properties: { data: [{ id: "property-1", code: "P", name: "Property", archived_at: null }] },
