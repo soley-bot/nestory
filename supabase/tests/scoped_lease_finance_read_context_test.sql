@@ -252,22 +252,8 @@ SET LOCAL ROLE authenticated;
 SELECT throws_ok(format('SELECT public.get_finance_read_context(%L)',(SELECT org FROM read_scope_state)),'42501',NULL,'inactive branch denied');
 RESET ROLE;
 UPDATE public.organization_branches SET status='active' WHERE id=(SELECT branch_a FROM read_scope_state);
-UPDATE public.organization_authorization_states SET ordinary_access_enabled=false WHERE organization_id=(SELECT org FROM read_scope_state);
-SET LOCAL ROLE authenticated;
-SELECT throws_ok(format('SELECT public.get_finance_read_context(%L)',(SELECT org FROM read_scope_state)),'42501',NULL,'disabled ordinary access denied');
-RESET ROLE;
-SELECT set_config('request.jwt.claim.sub','',true);
-SET LOCAL ROLE authenticated;
-SELECT throws_ok(format('SELECT public.get_finance_read_context(%L)',(SELECT org FROM read_scope_state)),'28000',NULL,'missing authentication denied');
-RESET ROLE;
-SELECT ok(NOT has_function_privilege(role_name,'public.'||signature,'EXECUTE'),role_name||' denied '||signature)
-FROM unnest(ARRAY['anon','service_role']) role_name CROSS JOIN unnest(ARRAY[
-  'get_scoped_leases_with_effective_rent(uuid,date)','get_lease_read_context(uuid,uuid[])',
-  'get_finance_read_context(uuid,uuid)','get_scoped_lease_rent_readiness(uuid,uuid,date)']) signature;
 -- Termless leases retain the same branch-scoped recovery metadata, including
 -- archival, without requiring separate access to the Lease domain.
-UPDATE public.organization_authorization_states SET ordinary_access_enabled=true
-WHERE organization_id=(SELECT org FROM read_scope_state);
 ALTER TABLE public.lease_terms DISABLE TRIGGER USER;
 UPDATE public.lease_terms SET archived_at=now()
 WHERE organization_id=(SELECT org FROM read_scope_state);
@@ -288,5 +274,17 @@ SELECT ok((SELECT bool_and((entry->>'archived_at' IS NOT NULL) = (row.kind='arch
   JOIN read_scope_rows row ON row.lease_id=(entry->>'id')::uuid),
   'recovery metadata distinguishes active and archived termless leases');
 RESET ROLE;
+UPDATE public.organization_authorization_states SET ordinary_access_enabled=false WHERE organization_id=(SELECT org FROM read_scope_state);
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(format('SELECT public.get_finance_read_context(%L)',(SELECT org FROM read_scope_state)),'42501',NULL,'disabled ordinary access denied');
+RESET ROLE;
+SELECT set_config('request.jwt.claim.sub','',true);
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(format('SELECT public.get_finance_read_context(%L)',(SELECT org FROM read_scope_state)),'28000',NULL,'missing authentication denied');
+RESET ROLE;
+SELECT ok(NOT has_function_privilege(role_name,'public.'||signature,'EXECUTE'),role_name||' denied '||signature)
+FROM unnest(ARRAY['anon','service_role']) role_name CROSS JOIN unnest(ARRAY[
+  'get_scoped_leases_with_effective_rent(uuid,date)','get_lease_read_context(uuid,uuid[])',
+  'get_finance_read_context(uuid,uuid)','get_scoped_lease_rent_readiness(uuid,uuid,date)']) signature;
 SELECT * FROM finish();
 ROLLBACK;
