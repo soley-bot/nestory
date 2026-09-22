@@ -1927,6 +1927,13 @@ SELECT is(
 
 -- A final partial-month invoice remains authoritative after the billing rule
 -- expires. Scheduled retries must resolve the stale exception, not re-bill.
+-- Restore the scheduler actor after the Finance Manager permission scenarios.
+UPDATE public.organization_members AS membership
+SET role = 'super_admin'
+FROM review_state AS state
+WHERE membership.organization_id = state.organization_id
+  AND membership.user_id = state.admin_id;
+
 CREATE TEMP TABLE rent_retry_snapshot AS
 SELECT invoice.id, pg_catalog.to_jsonb(invoice) AS contents
 FROM public.tenant_invoices AS invoice
