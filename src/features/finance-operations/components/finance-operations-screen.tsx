@@ -319,7 +319,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
                 }
               />
             }
-            className="px-4 py-3 sm:px-6 lg:py-3 2xl:px-8"
+            className="px-4 py-3 sm:px-6 lg:py-3 2xl:px-8 [&_[data-slot=page-header-actions]]:ml-0 [&_[data-slot=page-header-actions]]:basis-full md:[&_[data-slot=page-header-actions]]:ml-auto md:[&_[data-slot=page-header-actions]]:basis-auto"
             context={screen.title}
             description={
               props.scope.kind === "unit"
@@ -332,7 +332,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
           screen.header
         ) : undefined
       }
-      headerClassName="px-4 py-3 sm:px-6 lg:py-3 2xl:px-8"
+      headerClassName="px-4 py-3 sm:px-6 lg:py-3 2xl:px-8 [&_[data-slot=page-header-actions]]:ml-0 [&_[data-slot=page-header-actions]]:basis-full md:[&_[data-slot=page-header-actions]]:ml-auto md:[&_[data-slot=page-header-actions]]:basis-auto"
       localNav={
         props.scope ? (
           <ScopedFinanceNavigation scope={props.scope} view={props.view} />
@@ -1201,12 +1201,12 @@ function FinanceWorkView({
         ) : (
           <>
             <TableFrame borderless className="p-0">
-              <Table className="min-w-[860px]">
+              <Table scrollRegionLabel="Finance records" className="min-w-[860px]">
               <thead className="bg-[var(--table-header-bg)]">
                 <tr>
                   <Th>Work</Th>
                   <Th>Property</Th>
-                  <Th>Amount</Th>
+                  <Th align="right">Amount</Th>
                   <Th>Due</Th>
                   <Th align="right">Action</Th>
                 </tr>
@@ -1298,7 +1298,7 @@ function FinanceWorkView({
                         </p>
                       </Td>
                       <Td>{item.invoice.propertyLabel}</Td>
-                      <Td>
+                      <Td align="right">
                         <Money amount={item.invoice.balanceDue} />
                       </Td>
                       <FinanceWorkDue
@@ -1309,11 +1309,7 @@ function FinanceWorkView({
                         <Button
                           asChild
                           size="sm"
-                          variant={
-                            isFinanceWorkOverdue(item, businessDate)
-                              ? "default"
-                              : "outline"
-                          }
+                          variant="outline"
                         >
                           <Link
                             href={
@@ -1340,7 +1336,7 @@ function FinanceWorkView({
                         </p>
                       </Td>
                       <Td>{item.invoice.propertyLabel}</Td>
-                      <Td>
+                      <Td align="right">
                         <Money amount={item.invoice.balanceDue} />
                       </Td>
                       <FinanceWorkDue
@@ -1351,11 +1347,7 @@ function FinanceWorkView({
                         <Button
                           asChild
                           size="sm"
-                          variant={
-                            isFinanceWorkOverdue(item, businessDate)
-                              ? "default"
-                              : "outline"
-                          }
+                          variant="outline"
                         >
                           <Link
                             href={`/properties/${item.invoice.propertyId}/account`}
@@ -1736,14 +1728,14 @@ function RentView({
           />
         ) : (
           <TableFrame className="p-0">
-            <Table
-              className={cn("table-fixed min-w-[720px]", scoped && "lg:min-w-0")}
+            <Table scrollRegionLabel="Finance records"
+              className={cn("table-fixed min-w-[1000px]", scoped && "lg:min-w-[960px]")}
             >
               <colgroup>
                 <col className="w-[21%]" />
-                <col className="w-[30%]" />
+                <col className="w-[28%]" />
                 <col className="w-[12%]" />
-                <col className="w-[14%]" />
+                <col className="w-[16%]" />
                 <col className="w-[14%]" />
                 <col className="w-[9%]" />
               </colgroup>
@@ -1752,7 +1744,7 @@ function RentView({
                   <Th>Invoice</Th>
                   <Th>Tenant / property</Th>
                   <Th>Collected by</Th>
-                  <Th>Balance</Th>
+                  <Th align="right">Balance</Th>
                   <Th>Status</Th>
                   <Th align="right">Preview</Th>
                 </tr>
@@ -1792,7 +1784,7 @@ function RentView({
                         "Owner"
                       )}
                     </Td>
-                    <Td className="overflow-hidden">
+                    <Td align="right" className="overflow-hidden">
                       {invoice.balanceDue === 0 ? (
                         <p className="font-medium tabular-nums">
                           Paid {formatMoneyDisplay(invoice.totalAmount).primary}
@@ -1874,8 +1866,8 @@ function ExpensesView({
         <label className="grid gap-1 text-xs font-medium">Month
           <MonthPickerField key={month || "all"} ariaLabel="Expense month" name="expenseMonth" defaultValue={month} onValueChange={setMonth} className="w-44" />
         </label>
-        <label className="grid gap-1 text-xs font-medium">Search
-          <Input aria-label="Search expenses" type="search" placeholder="Property, vendor or reference" value={search} onChange={event => setSearch(event.target.value)} className="w-72 max-w-full" />
+        <label className="grid min-w-0 flex-1 basis-full gap-1 text-xs font-medium sm:max-w-sm sm:basis-auto">Search
+          <Input aria-label="Search expenses" type="search" placeholder="Property, vendor or reference" value={search} onChange={event => setSearch(event.target.value)} className="w-full" />
         </label>
         {month || search ? <Button variant="ghost" onClick={() => { setMonth(""); setSearch(""); }}>Clear filters</Button> : null}
       </div>
@@ -1888,11 +1880,11 @@ function ExpensesView({
       >
         <TabsList
           aria-label="Paid cost status"
-          className="rounded-xl border border-border/80 bg-card p-1 shadow-sm"
+          className="group-data-horizontal/tabs:h-auto max-w-full flex-wrap justify-start gap-1 rounded-lg bg-muted/50 p-1"
         >
           {(["submitted", "approved", "rejected", "reversed"] as const).map(
             (value) => (
-              <TabsTrigger key={value} value={value}>
+              <TabsTrigger className="h-8 flex-none px-2.5" key={value} value={value}>
                 {value === "rejected" ? "Cancelled / rejected" : expenseStatusLabel(value)} (
                 {filtered.filter((item) => item.status === value).length})
               </TabsTrigger>
@@ -1942,32 +1934,34 @@ function ExpenseSubmissionTable({
 
   return (
     <TableFrame>
-      <Table className="table-fixed min-w-[720px]">
+      <Table scrollRegionLabel="Finance records" className="table-fixed min-w-[960px]">
         <colgroup>
-          <col className="w-[11%]" />
-          <col className="w-[29%]" />
+          <col className="w-[13%]" />
+          <col className="w-[24%]" />
           <col className="w-[25%]" />
-          <col className="w-[15%]" />
-          <col className="w-[20%]" />
+          <col className="w-[13%]" />
+          <col className="w-[17%]" />
+          <col className="w-[8%]" />
         </colgroup>
         <thead className="bg-[var(--table-header-bg)]">
           <tr>
             <Th>Date</Th>
             <Th>Paid cost</Th>
             <Th>Property / charged to</Th>
-            <Th>Amount</Th>
+            <Th align="right">Amount</Th>
             <Th>Status</Th>
+            <Th align="right">Action</Th>
           </tr>
         </thead>
         <tbody>
           {submissions.map((submission) => (
             <tr className="border-b border-border" key={submission.id}>
-              <Td>{formatDate(submission.date)}</Td>
+              <Td className="whitespace-nowrap tabular-nums">{formatDate(submission.date)}</Td>
               <Td>
-                <p className="font-medium">
+                <p className="whitespace-normal break-words font-medium">
                   {submission.categoryLabel ?? categoryLabel(submission.category)}
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="truncate text-xs text-muted-foreground" title={submission.vendorLabel}>
                   {submission.vendorLabel}
                 </p>
               </Td>
@@ -1979,14 +1973,15 @@ function ExpenseSubmissionTable({
                     : "Tenant recharge"}
                 </p>
               </Td>
-              <Td>
+              <Td align="right">
                 <Money amount={submission.internalCost} />
               </Td>
               <Td>
-                <div className="flex flex-col items-start gap-2">
                   <Badge tone={expenseStatusTone(submission.status)}>
                     {submission.cancelledAt ? "Cancelled" : expenseStatusLabel(submission.status)}
                   </Badge>
+              </Td>
+              <Td align="right">
                   <Button
                     aria-label={`${submission.status === "submitted" && canReview && !submission.transactionReviewBlocked && !submission.reviewRequiresAnotherUser ? "Review" : "View"} ${submission.vendorLabel}`}
                     onClick={() =>
@@ -1999,7 +1994,6 @@ function ExpenseSubmissionTable({
                       ? "Review"
                       : "View"}
                   </Button>
-                </div>
               </Td>
             </tr>
           ))}
@@ -2080,7 +2074,7 @@ function BalancesView({
           </TabsList>
           <TabsContent tabIndex={-1} value="owners">
             <TableFrame>
-              <Table className="table-fixed min-w-[680px]">
+              <Table scrollRegionLabel="Finance records" className="table-fixed min-w-[680px]">
                 <colgroup>
                   <col className="w-[40%]" />
                   <col className="w-[20%]" />
@@ -2090,8 +2084,8 @@ function BalancesView({
                 <thead className="bg-[var(--table-header-bg)]">
                   <tr>
                     <Th>Property / owner</Th>
-                    <Th>Cash collected</Th>
-                    <Th>Available</Th>
+                    <Th align="right">Cash collected</Th>
+                    <Th align="right">Available</Th>
                     <Th align="right">Action</Th>
                   </tr>
                 </thead>
@@ -2118,10 +2112,10 @@ function BalancesView({
                             {position.ownerLabel}
                           </p>
                         </Td>
-                        <Td>
+                        <Td align="right">
                           <Money amount={position.cashHeldByIps} />
                         </Td>
-                        <Td>
+                        <Td align="right">
                           <Money amount={position.availableWithdrawal} />
                         </Td>
                         <Td align="right">
@@ -2149,12 +2143,12 @@ function BalancesView({
           </TabsContent>
           <TabsContent tabIndex={-1} value="tenants">
             <TableFrame>
-              <Table className="min-w-[720px]">
+              <Table scrollRegionLabel="Finance records" className="min-w-[720px]">
                 <thead className="bg-[var(--table-header-bg)]">
                   <tr>
                     <Th>Customer</Th>
                     <Th>Invoices</Th>
-                    <Th>Outstanding</Th>
+                    <Th align="right">Outstanding</Th>
                     <Th>Status</Th>
                   </tr>
                 </thead>
@@ -2163,7 +2157,7 @@ function BalancesView({
                     <tr className="border-b border-border" key={balance.label}>
                       <Td className="font-medium">{balance.label}</Td>
                       <Td>{balance.invoices}</Td>
-                      <Td>
+                      <Td align="right">
                         <Money amount={balance.total} />
                       </Td>
                       <Td>
@@ -4878,7 +4872,7 @@ function CompactTotals({
     <div
       aria-label="Finance summary"
       className={cn(
-        "grid shrink-0 grid-cols-1 divide-y divide-border overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm sm:divide-x sm:divide-y-0",
+        "grid shrink-0 grid-cols-1 divide-y divide-border border-y border-border bg-background sm:divide-x sm:divide-y-0",
         items.length === 4 ? "sm:grid-cols-4" : "sm:grid-cols-3",
       )}
       role="region"
@@ -4907,16 +4901,14 @@ function TableFrame({
 }) {
   return (
     <div
-      aria-label="Finance records"
       className={cn(
-        "flex-1 overflow-x-auto",
+        "min-w-0 flex-1",
         borderless
           ? "bg-transparent"
-          : "rounded-xl border border-border/80 bg-card p-3 shadow-sm",
+          : "rounded-lg border border-border bg-card",
         className,
       )}
       data-slot="finance-table-frame"
-      role="region"
     >
       {children}
     </div>
@@ -4932,7 +4924,7 @@ function Th({
   return (
     <TableHead
       className={cn(
-        "border-b border-border bg-muted/65 px-3 py-2 text-xs font-semibold text-muted-foreground",
+        "h-9 border-b border-border bg-[var(--table-header-bg)] px-3 py-2 text-[11px] font-medium text-muted-foreground",
         align === "right" ? "text-right" : "text-left",
       )}
     >
@@ -4952,7 +4944,7 @@ function Td({
   return (
     <TableCell
       className={cn(
-        "px-3 py-2.5 align-middle",
+        "px-3 py-2.5 align-middle text-[13px] leading-5",
         align === "right" ? "text-right" : "text-left",
         className,
       )}

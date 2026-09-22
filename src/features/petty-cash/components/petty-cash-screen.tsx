@@ -604,7 +604,7 @@ function PettyCashTable({
   return (
     <div className="overflow-hidden" data-petty-cash-surface="register">
       <div aria-label="Petty cash table" className="overflow-x-auto" role="region">
-        <table className="w-full min-w-[720px] table-fixed border-collapse text-left text-sm">
+        <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[13px] leading-5">
           <colgroup>
             <col className="w-[104px]" />
             <col />
@@ -613,14 +613,14 @@ function PettyCashTable({
             <col className="w-[118px]" />
             <col className="w-[132px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
-              <th className="px-3 py-2.5 font-semibold">Date</th>
-              <th className="px-3 py-2.5 font-semibold">Entry</th>
-              <th className="px-3 py-2.5 font-semibold">Property / Unit</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Amount</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Balance</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Status</th>
+              <th className="px-3 py-2.5 font-medium">Date</th>
+              <th className="px-3 py-2.5 font-medium">Entry</th>
+              <th className="px-3 py-2.5 font-medium">Property / Unit</th>
+              <th className="px-3 py-2.5 text-right font-medium">Amount</th>
+              <th className="px-3 py-2.5 text-right font-medium">Balance</th>
+              <th className="px-3 py-2.5 text-right font-medium">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -637,9 +637,9 @@ function PettyCashTable({
             {entries.map((entry) => (
               <tr
                 className={cn(
-                  "cursor-pointer border-t border-border transition-colors hover:bg-muted/70 focus-visible:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
+                  "cursor-pointer border-t border-border transition-colors hover:bg-muted/70 focus-visible:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring",
                   selectedEntryId === entry.id &&
-                    "bg-muted shadow-[inset_3px_0_0_var(--accent)]",
+                    "bg-muted shadow-[inset_3px_0_0_var(--primary)]",
                 )}
                 key={entry.id}
                 onClick={() => onSelectEntry(entry.id)}

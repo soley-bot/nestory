@@ -713,7 +713,7 @@ describe("FinanceOperationsScreen", () => {
     }
   });
 
-  it("uses shared gutters and keeps summary cards scoped to rent", () => {
+  it("uses shared gutters and keeps compact totals scoped to rent", () => {
     const input = data();
     const { container, rerender } = render(
       <FinanceOperationsScreen
@@ -761,9 +761,9 @@ describe("FinanceOperationsScreen", () => {
       name: "Finance summary",
     });
     expect(rentSummary.firstElementChild?.className).toContain("py-2.5");
-    expect(rentSummary.className).toContain("rounded-xl");
-    expect(rentSummary.className).toContain("bg-card");
-    expect(rentSummary.className).toContain("shadow-sm");
+    expect(rentSummary.className).toContain("border-y");
+    expect(rentSummary.className).toContain("bg-background");
+    expect(rentSummary.className).not.toContain("shadow-sm");
   });
 
   it("keeps the work queue summary focused on open items and payment ownership", () => {
@@ -1685,7 +1685,7 @@ describe("FinanceOperationsScreen", () => {
     );
   });
 
-  it("groups payment work by urgency, shows aging, and promotes overdue review", () => {
+  it("groups payment work by urgency and shows aging with consistent review actions", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-02T05:00:00Z"));
 
@@ -1736,7 +1736,7 @@ describe("FinanceOperationsScreen", () => {
         within(overdueRow!)
           .getByRole("link", { name: "Review tenant payment" })
           .getAttribute("data-variant"),
-      ).toBe("default");
+      ).toBe("outline");
       expect(
         within(upcomingRow!)
           .getByRole("link", { name: "Review tenant payment" })
@@ -1844,8 +1844,8 @@ describe("FinanceOperationsScreen", () => {
     );
     const table = within(rentSurface!).getByRole("table");
     expect(within(table).getAllByRole("columnheader")).toHaveLength(6);
-    expect(table.className).toContain("min-w-[720px]");
-    expect(table.className).toContain("lg:min-w-0");
+    expect(table.className).toContain("min-w-[1000px]");
+    expect(table.className).toContain("lg:min-w-[960px]");
     const preview = within(table).getByRole("button", {
       name: `View invoice ${input.tenantInvoices[0].invoiceNumber}`,
     });
@@ -1914,9 +1914,9 @@ describe("FinanceOperationsScreen", () => {
     );
     expect(columns.map((column) => column.className)).toEqual([
       "w-[21%]",
-      "w-[30%]",
+      "w-[28%]",
       "w-[12%]",
-      "w-[14%]",
+      "w-[16%]",
       "w-[14%]",
       "w-[9%]",
     ]);
@@ -2443,6 +2443,7 @@ describe("FinanceOperationsScreen", () => {
       "Property / charged to",
       "Amount",
       "Status",
+      "Action",
     ]);
     expect(screen.queryByRole("link", { name: "receipt.pdf" })).toBeNull();
     expect(
@@ -3627,7 +3628,7 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
   });
 
-  it("separates finance records from the page with a raised operating surface", () => {
+  it("separates finance records with a restrained bordered surface", () => {
     const { container } = render(
       <FinanceOperationsScreen
         {...data()}
@@ -3642,10 +3643,10 @@ describe("FinanceOperationsScreen", () => {
     );
 
     expect(tableFrame).not.toBeNull();
-    expect(tableFrame?.className).toContain("rounded-xl");
+    expect(tableFrame?.className).toContain("rounded-lg");
     expect(tableFrame?.className).toContain("border");
     expect(tableFrame?.className).toContain("bg-card");
-    expect(tableFrame?.className).toContain("shadow-sm");
+    expect(tableFrame?.className).not.toContain("shadow-sm");
     expect(within(tableFrame!).getByRole("table")).not.toBeNull();
     expect(
       within(tableFrame!).getByRole("row", { name: /Riverside Home/ })
@@ -3669,10 +3670,11 @@ describe("FinanceOperationsScreen", () => {
 
     expect(tableFrame).not.toBeNull();
     const table = within(tableFrame!).getByRole("table");
-    expect(tableFrame?.className).toContain("overflow-x-auto");
+    expect(table.parentElement?.className).toContain("overflow-x-auto");
     expect(tableFrame?.className).not.toContain("overflow-auto");
     expect(tableFrame?.className).not.toContain("overflow-hidden");
-    expect(tableFrame?.getAttribute("aria-label")).toBe("Finance records");
+    expect(table.parentElement?.getAttribute("aria-label")).toBe("Finance records");
+    expect(table.parentElement?.getAttribute("tabindex")).toBe("0");
     expect(table.parentElement?.getAttribute("data-slot")).toBe(
       "table-container",
     );

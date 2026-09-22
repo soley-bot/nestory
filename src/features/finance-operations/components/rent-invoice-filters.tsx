@@ -77,7 +77,7 @@ export function RentInvoiceFilterBar({
 
   return (
     <>
-      <div className="rounded-xl border border-border/80 bg-card shadow-sm">
+      <div className="rounded-lg border border-border bg-card">
         <div className="flex flex-col gap-2 p-2 sm:flex-row sm:items-center">
           <form
             className="flex min-w-0 flex-1 gap-2"

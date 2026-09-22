@@ -26,7 +26,7 @@ export function LedgerTable({
   return (
     <div className="overflow-hidden bg-card">
       <div aria-label="Ledger table" className="overflow-x-auto" role="region">
-        <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-sm">
+        <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-[13px] leading-5">
           <colgroup>
             <col className="w-[12%]" />
             <col className="w-[35%]" />
@@ -34,13 +34,13 @@ export function LedgerTable({
             <col className="w-[17%]" />
             <col className="w-[74px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
-              <th className="px-3 py-2.5 font-semibold">Date</th>
-              <th className="px-4 py-2.5 font-semibold">Entry</th>
-              <th className="px-3 py-2.5 font-semibold">Property</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Amount</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Preview</th>
+              <th className="px-3 py-2.5 font-medium">Date</th>
+              <th className="px-4 py-2.5 font-medium">Entry</th>
+              <th className="px-3 py-2.5 font-medium">Property</th>
+              <th className="px-3 py-2.5 text-right font-medium">Amount</th>
+              <th className="px-3 py-2.5 text-right font-medium">Preview</th>
             </tr>
           </thead>
           <tbody>
@@ -94,7 +94,7 @@ export function LedgerTable({
                     {entry.propertyCode}
                   </p>
                   <Link
-                    className="mt-0.5 block truncate text-xs text-accent hover:underline"
+                    className="mt-0.5 block truncate text-xs text-primary hover:underline"
                     href={`/properties/${entry.propertyId}/account`}
                     onClick={(event) => event.stopPropagation()}
                   >
@@ -102,7 +102,7 @@ export function LedgerTable({
                   </Link>
                 </td>
                 <td
-                  className="px-3 py-2.5 align-middle tabular-nums"
+                  className="px-3 py-2.5 text-right align-middle tabular-nums"
                   data-money-cell="true"
                 >
                   <MoneyDisplay
