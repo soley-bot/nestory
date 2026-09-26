@@ -4,6 +4,8 @@ import type { ReportsViewQuery } from "../reports.types";
 import { buildProfitLossFunding, type FundingCashRow, type FundingActivityRow } from "./profit-loss-funding";
 
 type ReportClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+// Bound per-request history work; never return a silently truncated unit total.
+const MAX_UNIT_OPENING_ROWS = 10000;
 
 async function loadUnitOpeningActivity(supabase: ReportClient, organizationId: string, propertyId: string, monthStart: string) {
   const activity: FundingActivityRow[] = [];
@@ -18,17 +20,23 @@ async function loadUnitOpeningActivity(supabase: ReportClient, organizationId: s
       throw new Error("Unable to load complete unit opening activity.");
     }
     expected = result.count;
+    if (expected > MAX_UNIT_OPENING_ROWS) throw new Error("Unit opening activity exceeds the 10,000-row report limit. Select all units to use the property balance.");
     const rows = (result.data ?? []) as FundingActivityRow[];
     // The account view predates contribution unit attribution. Resolve each
     // contribution from its authoritative source, including signed reversals.
     const contributionIds = rows.filter(row => row.source_type === "owner_contribution").map(row => row.source_id);
     if (contributionIds.length) {
-      const sources = await supabase.from("owner_cash_events").select("id, unit_id")
+      const sources = await supabase.from("owner_cash_events").select("id, unit_id, reversal_of_id")
         .eq("organization_id", organizationId).eq("property_id", propertyId).eq("currency", "USD")
         .eq("event_type", "owner_contribution").in("id", contributionIds);
       if (sources.error || sources.data?.length !== contributionIds.length) throw new Error("Unable to resolve unit contribution activity.");
-      const units = new Map(sources.data.map(source => [source.id, source.unit_id]));
-      for (const row of rows) if (row.source_type === "owner_contribution") row.unit_id = units.get(row.source_id) ?? null;
+      const sourcesById = new Map(sources.data.map(source => [source.id, source]));
+      for (const row of rows) if (row.source_type === "owner_contribution") {
+        const source = sourcesById.get(row.source_id);
+        if (!source) throw new Error("Unable to resolve unit contribution activity.");
+        row.unit_id = source.unit_id;
+        row.reversal_of_id = source.reversal_of_id;
+      }
     }
     activity.push(...rows);
     if (activity.length === expected) return activity;
@@ -51,7 +59,7 @@ export async function loadProfitLossFunding({ supabase, organizationId, financeC
       let loaded = 0;
       let expected: number | undefined;
       do {
-        const result = await supabase.from("owner_cash_events").select("id, property_id, unit_id, event_date, amount", { count: "exact" })
+        const result = await supabase.from("owner_cash_events").select("id, property_id, unit_id, event_date, amount, reversal_of_id", { count: "exact" })
           .eq("organization_id", organizationId).eq("property_id", propertyId).eq("currency", "USD")
           .eq("event_type", "owner_contribution").gte("event_date", period.start).lte("event_date", period.end)
           .order("id").range(loaded, loaded + 499);

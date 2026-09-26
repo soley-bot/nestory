@@ -30,7 +30,7 @@ const options = {
   viewQuery: { unitId: "u1" } as never,
 };
 describe("P&L funding source loader", () => {
-  it.each([false, true])("resolves prior contribution units across every activity page (missing source: %s)", async missingSource => {
+  it.each(["complete", "missing source", "over limit"])("resolves prior contribution units across every activity page (%s)", async scenario => {
     const calls: unknown[][] = [];
     const history = Array.from({ length: 501 }, (_, i) => ({ property_id: "p1", unit_id: i === 500 ? null : "u1", event_date: "2026-08-01", category: i === 500 ? "owner_contribution" : "owner_expense", balance_effect: i === 500 ? "682.00" : "-1.00", source_type: i === 500 ? "owner_contribution" : "ips_expense_responsibility", source_id: `s${i}` }));
     const client = { from(table: string) {
@@ -43,13 +43,14 @@ describe("P&L funding source loader", () => {
         in(...args: unknown[]) { sourceLookup = true; calls.push([table, "in", ...args]); return query; },
         range(from: number, to: number) { start = from; end = to; calls.push([table, "range", from, to]); return query; },
         then(resolve: (result: unknown) => unknown) {
-          return Promise.resolve(resolve(table === "property_account_entries" ? { error: null, count: history.length, data: history.slice(start, end + 1).map(row => ({ ...row })) } : { error: null, count: 0, data: sourceLookup && !missingSource ? [{ id: "s500", unit_id: "u1" }] : [] }));
+          return Promise.resolve(resolve(table === "property_account_entries" ? { error: null, count: scenario === "over limit" ? 10001 : history.length, data: history.slice(start, end + 1).map(row => ({ ...row })) } : { error: null, count: 0, data: sourceLookup && scenario !== "missing source" ? [{ id: "s500", unit_id: "u1", reversal_of_id: null }] : [] }));
         },
       };
       return query;
     } };
     const result = loadProfitLossFunding({ ...options, financeContext: { units: [{ id: "u1", property_id: "p1" }, { id: "u2", property_id: "p1" }] } as never, supabase: client as never });
-    if (missingSource) await expect(result).rejects.toThrow(/resolve unit contribution/);
+    if (scenario === "over limit") await expect(result).rejects.toThrow(/10,000-row/);
+    else if (scenario === "missing source") await expect(result).rejects.toThrow(/resolve unit contribution/);
     else {
       expect(await result).toMatchObject({ remainingBalanceCents: BigInt(18200) });
       expect(calls).toContainEqual(["property_account_entries", "range", 500, 999]);
