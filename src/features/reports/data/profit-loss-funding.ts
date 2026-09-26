@@ -13,9 +13,9 @@ export const profitLossFundingNote = "Remaining Balance is recorded property-acc
 export type FundingCashRow = { id: string; property_id: string; unit_id: string | null; event_date: string; amount: number | string };
 export type FundingActivityRow = { property_id: string; unit_id: string | null; event_date: string; category: string; balance_effect: number | string; source_type: string; source_id: string };
 
-export function buildProfitLossFunding({ propertyIds, unitId, units, monthStart, cash, activity }: {
+export function buildProfitLossFunding({ propertyIds, unitId, units, monthStart, cash, activity, activityScope = "property" }: {
   propertyIds: string[]; unitId: string; units: { id: string; property_id: string }[];
-  monthStart: string; cash: FundingCashRow[]; activity: FundingActivityRow[];
+  monthStart: string; cash: FundingCashRow[]; activity: FundingActivityRow[]; activityScope?: "property" | "unit";
 }): ProfitLossFunding {
   const selectedUnit = units.find(unit => unit.id === unitId);
   const ids = new Set(unitId === "all" ? propertyIds : propertyIds.filter(id => id === selectedUnit?.property_id));
@@ -33,15 +33,20 @@ export function buildProfitLossFunding({ propertyIds, unitId, units, monthStart,
   }
   const unavailable = (unavailableReason: string): ProfitLossFunding => ({ contributionCents, unassignedContributionCents, remainingBalanceCents: null, unavailableReason });
   let remainingBalanceCents = BigInt(0);
+  let unassignedBalanceCents = BigInt(0);
   for (const row of activity) {
     if (!ids.has(row.property_id) || row.event_date >= monthStart) continue;
     const key = `${row.source_type}:${row.source_id}`;
     if (seen.has(key)) throw new Error("Duplicate owner account activity source.");
     seen.add(key);
+    if (multiUnit && activityScope === "unit") {
+      if (row.unit_id === null) unassignedBalanceCents += parseExactMoneyToCents(row.balance_effect);
+      if (row.unit_id !== unitId) continue;
+    }
     remainingBalanceCents += parseExactMoneyToCents(row.balance_effect);
   }
   // Property account balances include all units. Never guess an allocation.
-  if (multiUnit) return unavailable("Remaining Balance is held at property level. This property has multiple units; select all units to include its owner balance. Unassigned contributions are shown separately and excluded from the unit total.");
+  if (multiUnit && (activityScope !== "unit" || unassignedBalanceCents !== BigInt(0) || unassignedContributionCents !== BigInt(0))) return unavailable("Some property account activity is not assigned to a unit. Select all units to include the full owner balance. Unassigned contributions are shown separately and excluded from the unit total.");
   return { contributionCents, remainingBalanceCents };
 }
 

@@ -3,12 +3,46 @@ import type { ScopedFinanceContext } from "@/features/finance-operations/data/sc
 import type { ReportsViewQuery } from "../reports.types";
 import { buildProfitLossFunding, type FundingCashRow, type FundingActivityRow } from "./profit-loss-funding";
 
+type ReportClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+
+async function loadUnitOpeningActivity(supabase: ReportClient, organizationId: string, propertyId: string, monthStart: string) {
+  const activity: FundingActivityRow[] = [];
+  let expected: number | undefined;
+  do {
+    const result = await supabase.from("property_account_entries")
+      .select("property_id, unit_id, event_date, category, balance_effect, source_type, source_id", { count: "exact" })
+      .eq("organization_id", organizationId).eq("property_id", propertyId).lt("event_date", monthStart)
+      .order("event_date").order("created_at").order("source_type").order("source_id")
+      .range(activity.length, activity.length + 499);
+    if (result.error || result.count == null || (expected !== undefined && expected !== result.count)) {
+      throw new Error("Unable to load complete unit opening activity.");
+    }
+    expected = result.count;
+    const rows = (result.data ?? []) as FundingActivityRow[];
+    // The account view predates contribution unit attribution. Resolve each
+    // contribution from its authoritative source, including signed reversals.
+    const contributionIds = rows.filter(row => row.source_type === "owner_contribution").map(row => row.source_id);
+    if (contributionIds.length) {
+      const sources = await supabase.from("owner_cash_events").select("id, unit_id")
+        .eq("organization_id", organizationId).eq("property_id", propertyId).eq("currency", "USD")
+        .eq("event_type", "owner_contribution").in("id", contributionIds);
+      if (sources.error || sources.data?.length !== contributionIds.length) throw new Error("Unable to resolve unit contribution activity.");
+      const units = new Map(sources.data.map(source => [source.id, source.unit_id]));
+      for (const row of rows) if (row.source_type === "owner_contribution") row.unit_id = units.get(row.source_id) ?? null;
+    }
+    activity.push(...rows);
+    if (activity.length === expected) return activity;
+    if (!rows.length || activity.length > expected) throw new Error("Incomplete unit opening activity.");
+  } while (true);
+}
+
 export async function loadProfitLossFunding({ supabase, organizationId, financeContext, propertyIds, viewQuery, period }: {
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>; organizationId: string;
   financeContext: ScopedFinanceContext; propertyIds: string[]; viewQuery: ReportsViewQuery; period: { start: string; end: string };
 }) {
   const unit = financeContext.units.find(unit => unit.id === viewQuery.unitId);
   const ids = propertyIds.filter(id => viewQuery.unitId === "all" || id === unit?.property_id);
+  const needsUnitActivity = viewQuery.unitId !== "all" && financeContext.units.filter(unit => ids.includes(unit.property_id)).length > 1;
   const cash: FundingCashRow[] = [];
   const activity: FundingActivityRow[] = [];
   for (let offset = 0; offset < ids.length; offset += 4) {
@@ -31,6 +65,7 @@ export async function loadProfitLossFunding({ supabase, organizationId, financeC
         if (loaded === expected) break;
         if (!rows.length || loaded > expected) throw new Error("Incomplete P&L owner contributions.");
       } while (true);
+      if (needsUnitActivity) return { contributions, opening: await loadUnitOpeningActivity(supabase, organizationId, propertyId, period.start) };
       // The view owns the cumulative balance. Read its last row before the month
       // in the exact reverse of its window order, not a truncated history sum.
       const opening = await supabase.from("property_account_entries")
@@ -46,5 +81,5 @@ export async function loadProfitLossFunding({ supabase, organizationId, financeC
       activity.push(...result.opening);
     }
   }
-  return buildProfitLossFunding({ propertyIds: ids, unitId: viewQuery.unitId, units: financeContext.units, monthStart: period.start, cash, activity });
+  return buildProfitLossFunding({ propertyIds: ids, unitId: viewQuery.unitId, units: financeContext.units, monthStart: period.start, cash, activity, activityScope: needsUnitActivity ? "unit" : "property" });
 }
