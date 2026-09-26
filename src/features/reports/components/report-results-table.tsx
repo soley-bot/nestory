@@ -416,7 +416,7 @@ function displayColumns(report: TrustedReport): DisplayColumn[] {
       {
         align: "right",
         key: "netIncome",
-        label: "Net income",
+        label: "Net operating income",
         type: "value",
       },
     ];

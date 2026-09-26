@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({ context: vi.fn(), events: vi.fn(), client: vi.
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: mocks.client }));
 vi.mock("@/features/finance-operations/data/scoped-finance-context", async (importOriginal) => ({ ...await importOriginal<typeof import("@/features/finance-operations/data/scoped-finance-context")>(), loadScopedFinanceContext: mocks.context }));
 vi.mock("./owner-profit-loss-events", () => ({ iterateOwnerProfitLossEvents: mocks.events }));
+vi.mock("./profit-loss-funding-loader", () => ({ loadProfitLossFunding: async () => ({ contributionCents: BigInt(0), remainingBalanceCents: BigInt(0) }) }));
 const property = "11111111-1111-4111-8111-111111111111";
 const unit = "22222222-2222-4222-8222-222222222222";
 const other = "33333333-3333-4333-8333-333333333333";
@@ -62,7 +63,7 @@ describe("financial report scope guard", () => {
     expect(result.exportValidation).toBeUndefined();
     expect(result.scopeValidation).toBeUndefined();
     expect(mocks.events).toHaveBeenCalledOnce();
-    expect(result.summary.find(metric => metric.label === "Net income")?.value).toBe("USD 0.00");
+    expect(result.summary.find(metric => metric.label === "Net operating income")?.value).toBe("USD 0.00");
   });
   it("keeps an unfiltered empty portfolio exportable", async () => {
     mocks.context.mockResolvedValue({ properties: [], units: [] });

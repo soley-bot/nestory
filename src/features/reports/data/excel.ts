@@ -1,4 +1,5 @@
 import { ownerStatementCash } from "@/features/reports/data/owner-statement-cash";
+import { profitLossSummaryRows, profitLossFundingNote } from "./profit-loss-funding";
 import type { OwnerStatementPresentation } from "@/features/reports/data/pdf";
 import { formatCalendarDate } from "@/lib/dates/format";
 import { strToU8, zipSync } from "fflate";
@@ -151,7 +152,11 @@ function profitLossSheetXml(report: TrustedReport, organizationName: string) {
     ...detail("income"), total("Total income", income),
     [{ style: 2, span: 7, value: "EXPENSES" }],
     ...detail("expense"), total("Total expenses", expenses),
-    total("Net operating income", income - expenses),
+    ...profitLossSummaryRows(lines, report.unitProfitLossFunding).slice(2).map(row => row.amountCents === null
+      ? [{ span: 5, value: "" }, { style: 13, value: row.label }, { style: 4, value: "Unavailable" }]
+      : total(row.label, row.amountCents)),
+    ...(report.unitProfitLossFunding ? [[], [{ style: 4, span: 7, value: profitLossFundingNote }],
+      ...(report.unitProfitLossFunding.unavailableReason ? [[{ style: 4, span: 7, value: report.unitProfitLossFunding.unavailableReason }]] : [])] : []),
   ];
   return ownerWorkbookSheetXml(rows, 6, [24, 16, 14, 26, 32, 48, 18]);
 }

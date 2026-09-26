@@ -53,6 +53,27 @@ function cashFixture() {
 }
 
 describe("PDF and XLSX accounting presentation", () => {
+  it("includes owner funding and remaining balance in the same order and amounts in both exports", () => {
+    const funded = { ...report, unitProfitLossFunding: { contributionCents: BigInt(68200), remainingBalanceCents: -BigInt(9300) } };
+    const pdf = Buffer.from(buildTrustedReportPdf({ organizationName: "IPS", report: funded })).toString("latin1");
+    const sheet = strFromU8(unzipSync(buildTrustedReportXlsx(funded))["xl/worksheets/sheet1.xml"]!);
+    for (const text of [pdf, sheet]) {
+      expect(text).toContain("Owner Contribution");
+      expect(text).toContain("Remaining Balance");
+      expect(text).toContain("721.00");
+      expect(text.indexOf("Owner Contribution")).toBeLessThan(text.indexOf("Remaining Balance"));
+    }
+    savePreview("profit-loss-owner-funding", buildTrustedReportPdf({ organizationName: "IPS", report: funded }), buildTrustedReportXlsx(funded));
+  });
+  it("shows unavailable opening authority rather than a fabricated zero or final balance", () => {
+    const funded = { ...report, unitProfitLossFunding: { contributionCents: BigInt(68200), remainingBalanceCents: null, unavailableReason: "Review Owner Accounts for this month." } };
+    const pdf = Buffer.from(buildTrustedReportPdf({ organizationName: "IPS", report: funded })).toString("latin1");
+    const sheet = strFromU8(unzipSync(buildTrustedReportXlsx(funded))["xl/worksheets/sheet1.xml"]!);
+    for (const text of [pdf, sheet]) {
+      expect(text).toContain("Unavailable");
+      expect(text).toContain("Review Owner Accounts");
+    }
+  });
   it("omits internal source appendices even when P&L rows have audit links", () => {
     const withSources = { ...report, rows: [{ id: "internal-row", title: "Internal row", cells: {}, sourceCount: 1, sourceLinks: [{ id: "40000000-0000-0000-0000-000000000099", label: "Internal event", recordType: "property", href: "/internal/source" }] }] } as TrustedReport;
     const pdf = Buffer.from(buildTrustedReportPdf({ organizationName: "IPS", report: withSources })).toString("latin1");
