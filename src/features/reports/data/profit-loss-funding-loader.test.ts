@@ -30,20 +30,26 @@ const options = {
   viewQuery: { unitId: "u1" } as never,
 };
 describe("P&L funding source loader", () => {
-  it.each(["complete", "missing source", "over limit"])("resolves prior contribution units across every activity page (%s)", async scenario => {
+  it.each(["complete", "missing source", "over limit", "dense contributions"])("resolves prior contribution units across every activity page (%s)", async scenario => {
     const calls: unknown[][] = [];
     const history = Array.from({ length: 501 }, (_, i) => ({ property_id: "p1", unit_id: i === 500 ? null : "u1", event_date: "2026-08-01", category: i === 500 ? "owner_contribution" : "owner_expense", balance_effect: i === 500 ? "682.00" : "-1.00", source_type: i === 500 ? "owner_contribution" : "ips_expense_responsibility", source_id: `s${i}` }));
+    if (scenario === "dense contributions") for (const row of history) {
+      row.unit_id = null;
+      row.source_type = "owner_contribution";
+      row.balance_effect = "1.00";
+    }
     const client = { from(table: string) {
       let start = 0, end = 0;
       let sourceLookup = false;
+      let sourceIds: string[] = [];
       const query = {
         select(...args: unknown[]) { calls.push([table, "select", ...args]); return query; },
         eq(...args: unknown[]) { calls.push([table, "eq", ...args]); return query; },
         lt() { return query; }, gte() { return query; }, lte() { return query; }, order() { return query; },
-        in(...args: unknown[]) { sourceLookup = true; calls.push([table, "in", ...args]); return query; },
+        in(...args: unknown[]) { sourceLookup = true; sourceIds = args[1] as string[]; calls.push([table, "in", ...args]); return query; },
         range(from: number, to: number) { start = from; end = to; calls.push([table, "range", from, to]); return query; },
         then(resolve: (result: unknown) => unknown) {
-          return Promise.resolve(resolve(table === "property_account_entries" ? { error: null, count: scenario === "over limit" ? 10001 : history.length, data: history.slice(start, end + 1).map(row => ({ ...row })) } : { error: null, count: 0, data: sourceLookup && scenario !== "missing source" ? [{ id: "s500", unit_id: "u1", reversal_of_id: null }] : [] }));
+          return Promise.resolve(resolve(table === "property_account_entries" ? { error: null, count: scenario === "over limit" ? 10001 : history.length, data: history.slice(start, end + 1).map(row => ({ ...row })) } : { error: null, count: 0, data: sourceLookup && scenario !== "missing source" ? sourceIds.map(id => ({ id, unit_id: "u1", reversal_of_id: null })) : [] }));
         },
       };
       return query;
@@ -52,7 +58,8 @@ describe("P&L funding source loader", () => {
     if (scenario === "over limit") await expect(result).rejects.toThrow(/10,000-row/);
     else if (scenario === "missing source") await expect(result).rejects.toThrow(/resolve unit contribution/);
     else {
-      expect(await result).toMatchObject({ remainingBalanceCents: BigInt(18200) });
+      expect(await result).toMatchObject({ remainingBalanceCents: BigInt(scenario === "dense contributions" ? 50100 : 18200) });
+      expect(calls.filter(call => call[1] === "in").every(call => (call[3] as string[]).length <= 100)).toBe(true);
       expect(calls).toContainEqual(["property_account_entries", "range", 500, 999]);
       expect(calls).toContainEqual(["owner_cash_events", "in", "id", ["s500"]]);
       expect(calls).toContainEqual(["owner_cash_events", "eq", "property_id", "p1"]);

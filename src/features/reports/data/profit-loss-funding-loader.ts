@@ -25,13 +25,14 @@ async function loadUnitOpeningActivity(supabase: ReportClient, organizationId: s
     // The account view predates contribution unit attribution. Resolve each
     // contribution from its authoritative source, including signed reversals.
     const contributionIds = rows.filter(row => row.source_type === "owner_contribution").map(row => row.source_id);
-    if (contributionIds.length) {
+    for (let offset = 0; offset < contributionIds.length; offset += 100) {
+      const batch = contributionIds.slice(offset, offset + 100);
       const sources = await supabase.from("owner_cash_events").select("id, unit_id, reversal_of_id")
         .eq("organization_id", organizationId).eq("property_id", propertyId).eq("currency", "USD")
-        .eq("event_type", "owner_contribution").in("id", contributionIds);
-      if (sources.error || sources.data?.length !== contributionIds.length) throw new Error("Unable to resolve unit contribution activity.");
+        .eq("event_type", "owner_contribution").in("id", batch);
+      if (sources.error || sources.data?.length !== batch.length) throw new Error("Unable to resolve unit contribution activity.");
       const sourcesById = new Map(sources.data.map(source => [source.id, source]));
-      for (const row of rows) if (row.source_type === "owner_contribution") {
+      for (const row of rows) if (row.source_type === "owner_contribution" && batch.includes(row.source_id)) {
         const source = sourcesById.get(row.source_id);
         if (!source) throw new Error("Unable to resolve unit contribution activity.");
         row.unit_id = source.unit_id;
