@@ -21,7 +21,9 @@ export function useRegisterSearch(
       source: appliedQuery,
       value: acknowledgement >= 0 ? state.value : appliedQuery,
       submitted:
-        acknowledgement >= 0 ? state.submitted.slice(acknowledgement + 1) : [],
+        // A newer response does not acknowledge older requests. Keep those
+        // pending so a late response cannot masquerade as external navigation.
+        acknowledgement >= 0 ? state.submitted.filter((_, index) => index !== acknowledgement) : [],
     };
     setState(current);
   }

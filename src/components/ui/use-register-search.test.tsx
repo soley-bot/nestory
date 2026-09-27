@@ -36,6 +36,24 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("register live search", () => {
+  it("retains newer text when the newer response arrives first and restores its URL", async () => {
+    vi.useFakeTimers();
+    const apply = vi.fn();
+    const view = render(<Harness apply={apply} />);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "River" } });
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Riverside" } });
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    view.rerender(<Harness applied="Riverside" apply={apply} />);
+    view.rerender(<Harness applied="River" apply={apply} />);
+    expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("Riverside");
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    expect(apply).toHaveBeenLastCalledWith("Riverside");
+    expect(apply).toHaveBeenCalledTimes(3);
+    view.rerender(<Harness applied="Riverside" apply={apply} />);
+    view.rerender(<Harness applied="" apply={apply} />);
+    expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("");
+  });
   it("cancels a pending search when a suggestion opens a record", async () => {
     vi.useFakeTimers(); const apply = vi.fn(); render(<Harness apply={apply} />);
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "Riverside" } });

@@ -155,8 +155,10 @@ export async function searchWorkspaceWithStatus({
     return dedupe([...(await fields("properties", ["name", "code", "address"])), ...(await related("properties", "id", ids))]);
   };
   async function portfolioRows(table: "tasks" | "documents") {
-    const conditions = (await getPortfolio()).conditions(anchor);
-    return conditions.length ? read(base(table).or(conditions.join(",")).order("id")) : [];
+    const portfolio = await getPortfolio();
+    const propertyIds = portfolio.properties.filter(row => matchesSearchText(anchor, portfolio.propertyValues(row.id))).map(row => row.id);
+    const unitIds = portfolio.units.filter(row => matchesSearchText(anchor, portfolio.unitValues(row.id))).map(row => row.id);
+    return dedupe([...(await related(table, "property_id", propertyIds)), ...(await related(table, "unit_id", unitIds))]);
   }
   async function portfolioText(row: Row) {
     const portfolio = await getPortfolio();

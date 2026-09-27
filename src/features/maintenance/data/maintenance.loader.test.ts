@@ -1,3 +1,5 @@
+import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import { createPortfolioSearch } from "@/lib/search/portfolio";
 import { describe, expect, it, vi } from "vitest";
 import { getMaintenanceScreenData } from "@/features/maintenance/data/maintenance";
 import type {
@@ -6,11 +8,24 @@ import type {
 } from "@/features/maintenance/maintenance.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
+vi.mock("@/lib/search/portfolio.server", () => ({ loadPortfolioSearch: vi.fn() }));
+
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(),
 }));
 
 describe("getMaintenanceScreenData reference loading", () => {
+  it("keeps branch scope and matching summary totals during a broad owner search", async () => {
+    vi.mocked(loadPortfolioSearch).mockResolvedValue(createPortfolioSearch(Array.from({ length: 400 }, (_, index) => ({ id: index ? `20000000-0000-4000-8000-${String(index).padStart(12, "0")}` : "property-visible", code: `P${index}`, name: "Property", ownerNames: ["Shared Owner"] })), []));
+    const supabase = createMaintenanceSupabaseStub();
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+    const result = await getMaintenanceScreenData("org-1", { ...makeViewQuery(), query: "shared" }, { branchId: "branch-visible", dataScope: "branch", workflowMode: "coordinator" });
+    expect(result.pagination.totalCount).toBe(1);
+    expect(result.summary.total).toBe(1);
+    expect(result.cases.map(row => row.id)).toEqual(["task-visible"]);
+    expect(supabase.eqCalls.filter(call => call.table === "tasks").every(call => call.filters.some(([column, value]) => column === "branch_id" && value === "branch-visible"))).toBe(true);
+  });
+
   it.each([false, undefined])("loads branch-readable cases without assignment RPC authority (%s)", async (canAssignCase) => {
     const supabase = createMaintenanceSupabaseStub({ assignmentDenied: true });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);

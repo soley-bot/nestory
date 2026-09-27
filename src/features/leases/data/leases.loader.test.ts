@@ -1,3 +1,5 @@
+import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import { createPortfolioSearch } from "@/lib/search/portfolio";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { createSupabaseServerClient, getPersonSelectOptions } = vi.hoisted(
@@ -6,6 +8,8 @@ const { createSupabaseServerClient, getPersonSelectOptions } = vi.hoisted(
     getPersonSelectOptions: vi.fn().mockResolvedValue([]),
   }),
 );
+
+vi.mock("@/lib/search/portfolio.server", () => ({ loadPortfolioSearch: vi.fn() }));
 
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient }));
 vi.mock("@/features/people/data/person-options", () => ({
@@ -38,6 +42,23 @@ describe("lease screen data readiness", () => {
   beforeEach(() => {
     createSupabaseServerClient.mockReset();
     getPersonSelectOptions.mockClear();
+  });
+
+  it.each(["start_desc", "rent_desc"])("pages a broad owner search through the scoped lease RPC (%s)", async (sort) => {
+    const properties = Array.from({ length: 400 }, (_, index) => ({ id: index ? `20000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}` : propertyId, code: `P${index}`, name: "Property", ownerNames: ["Shared Owner"] }));
+    vi.mocked(loadPortfolioSearch).mockResolvedValue(createPortfolioSearch(properties, []));
+    const rows = leaseRows(1200);
+    const { client } = leaseLoaderStub({ rows });
+    createSupabaseServerClient.mockResolvedValue(client);
+    const result = await getLeasesScreenData(organizationId, parseLeaseSearchParams({ query: "shared", page: "2", pageSize: "50", sort }));
+    expect(result.pagination.totalCount).toBe(1200);
+    expect(result.leases).toHaveLength(50);
+    const lists = client.rpc.mock.results.filter((_, index) => client.rpc.mock.calls[index][0] === "get_scoped_leases_with_effective_rent");
+    expect(lists.length).toBeGreaterThanOrEqual(3);
+    for (const call of lists) {
+      expect(call.value.or).not.toHaveBeenCalled();
+      expect(call.value.range.mock.calls[0][1] - call.value.range.mock.calls[0][0]).toBeLessThan(500);
+    }
   });
 
   it("loads named leases and term history when whole-domain related reads are denied", async () => {
@@ -359,6 +380,7 @@ function ok(data: unknown, count: number | null = null): QueryResult {
 }
 
 function query(result: QueryResult) {
+  let bounds: [number, number] | undefined;
   const builder = {
     eq: vi.fn(() => builder),
     gte: vi.fn(() => builder),
@@ -370,13 +392,13 @@ function query(result: QueryResult) {
     not: vi.fn(() => builder),
     or: vi.fn(() => builder),
     order: vi.fn(() => builder),
-    range: vi.fn(() => builder),
+    range: vi.fn((from: number, to: number) => { bounds = [from, to]; return builder; }),
     select: vi.fn(() => builder),
     single: vi.fn(() => builder),
     then: (
       resolve: (value: QueryResult) => unknown,
       reject?: (reason: unknown) => unknown,
-    ) => Promise.resolve(result).then(resolve, reject),
+    ) => Promise.resolve(bounds && Array.isArray(result.data) ? { ...result, data: result.data.slice(bounds[0], bounds[1] + 1) } : result).then(resolve, reject),
   };
 
   return builder;
