@@ -146,7 +146,7 @@ export function ReportBuilderScreen({
             reportRowCount={reportRowCount}
             viewQuery={viewQuery}
           />
-          {trustedReport.unitProfitLossLines ? <ProfitLossDetail key={`${queryKey}-detail`} lines={trustedReport.unitProfitLossLines} /> : null}
+          {trustedReport.unitProfitLossLines ? <ProfitLossDetail key={`${queryKey}-detail`} lines={trustedReport.unitProfitLossLines} funding={trustedReport.unitProfitLossFunding} /> : null}
         </div>
       </div>
     </WorkspacePage>

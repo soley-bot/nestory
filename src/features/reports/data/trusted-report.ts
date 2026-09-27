@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { loadProfitLossFunding } from "./profit-loss-funding-loader";
 import { formatDate } from "@/lib/dates/format";
 import {
   formatMoney,
@@ -390,7 +391,7 @@ export async function getTrustedReport({
             supabase,
           });
 
-    return buildTrustedReport({
+    const report = buildTrustedReport({
       documents: [],
       ledgerEntries: [],
       leases: [],
@@ -406,6 +407,10 @@ export async function getTrustedReport({
       units,
       viewQuery,
     });
+    report.unitProfitLossFunding = await loadProfitLossFunding({ supabase, organizationId, financeContext, propertyIds, viewQuery, period });
+    report.summary = report.summary.map(metric => metric.label === "Net income" ? { ...metric, label: "Net operating income" } : metric);
+    report.columns = report.columns.map(column => column.key === "netIncome" ? { ...column, label: "Net operating income" } : column);
+    return report;
   }
 
   const properties = await loadReportProperties(supabase, organizationId, viewQuery);

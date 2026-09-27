@@ -1,4 +1,5 @@
 import { ownerStatementCash } from "@/features/reports/data/owner-statement-cash";
+import { profitLossSummaryRows, profitLossFundingNote, formatProfitLossAmount, type ProfitLossFunding } from "./profit-loss-funding";
 import { getTrustedReport } from "@/features/reports/data/trusted-report";
 import {
   formatLongReportDate,
@@ -110,6 +111,8 @@ type UnitStatementFlowRow =
       incomeTotal: string;
       kind: "totals";
       netIncome: string;
+      funding?: ProfitLossFunding;
+      summaryRows: { label: string; amountCents: bigint | null }[];
     };
 
 type UnitStatementPage = {
@@ -977,6 +980,7 @@ function buildUnitProfitLossStatementPdf({
     expenseTotal,
     incomeLines,
     netIncome,
+    funding: report.unitProfitLossFunding,
   });
   const pages = paginateUnitStatementRows(rows);
   const totalPages = pages.length;
@@ -1001,12 +1005,14 @@ function buildUnitStatementFlowRows({
   incomeLines,
   incomeTotal,
   netIncome,
+  funding,
 }: {
   expenseLines: UnitProfitLossLine[];
   expenseTotal: string;
   incomeLines: UnitProfitLossLine[];
   incomeTotal: string;
   netIncome: string;
+  funding?: ProfitLossFunding;
 }): UnitStatementFlowRow[] {
   const buildEntries = (lines: UnitProfitLossLine[]) =>
     lines.flatMap((line): UnitStatementFlowRow[] => {
@@ -1019,6 +1025,8 @@ function buildUnitStatementFlowRows({
       }));
     });
   const buildCategoryRows = buildEntries;
+  const summaryRows = profitLossSummaryRows([...incomeLines, ...expenseLines], funding);
+  const fundingNoteLines = funding ? wrapText([profitLossFundingNote, funding.unavailableReason].filter(Boolean).join(" "), tableWidth, 8, 6).length : 0;
 
   return [
     {
@@ -1063,10 +1071,12 @@ function buildUnitStatementFlowRows({
     },
     {
       expenseTotal,
-      height: unitStatementTotalsHeight,
+      height: funding ? summaryRows.length * 18 + fundingNoteLines * 10 + 8 : unitStatementTotalsHeight,
       incomeTotal,
       kind: "totals",
       netIncome,
+      funding,
+      summaryRows,
     },
   ];
 }
@@ -1220,10 +1230,8 @@ function renderUnitProfitLossPage({
     } else {
       drawUnitProfitLossTotals(
         commands,
-        row.incomeTotal,
-        row.expenseTotal,
-        row.netIncome,
-        y + 60,
+        row,
+        y + row.height - 6,
       );
     }
   }
@@ -1408,9 +1416,7 @@ function drawUnitProfitLossTableHeader(commands: string[], yTop: number) {
 
 function drawUnitProfitLossTotals(
   commands: string[],
-  incomeTotal: string,
-  expenseTotal: string,
-  netIncome: string,
+  row: Extract<UnitStatementFlowRow, { kind: "totals" }>,
   yTop: number,
 ) {
   const labelX = marginX + 470;
@@ -1418,27 +1424,30 @@ function drawUnitProfitLossTotals(
   const amountX = marginX + 685;
   const amountWidth = 85;
 
-  [
-    ["Total income", incomeTotal],
-    ["Total expenses", expenseTotal],
-    ["Net operating income", netIncome],
-  ].forEach(([label, value], index) => {
-    const y = yTop - index * 22;
+  row.summaryRows.forEach(({ label, amountCents }, index) => {
+    const value = formatProfitLossAmount(amountCents);
+    const y = yTop - index * (row.funding ? 18 : 22);
     drawText(commands, label, labelX, y, {
       align: "right",
-      bold: index === 2,
+      bold: index === 2 || index === row.summaryRows.length - 1,
       color: colors.ink,
       fontSize: index === 2 ? 10 : 8.5,
       width: labelWidth,
     });
     drawText(commands, value, amountX, y, {
       align: "right",
-      bold: index === 2,
+      bold: index === 2 || index === row.summaryRows.length - 1,
       color: colors.ink,
       fontSize: index === 2 ? 10 : 8.5,
       width: amountWidth,
     });
   });
+  if (row.funding) {
+    const note = [profitLossFundingNote, row.funding.unavailableReason].filter(Boolean).join(" ");
+    wrapText(note, tableWidth, 8, 6).forEach((line, index) => {
+      drawText(commands, line, marginX, yTop - row.summaryRows.length * 18 - index * 10, { fontSize: 8, color: colors.muted, width: tableWidth });
+    });
+  }
 }
 
 function drawUnitProfitLossFooter(

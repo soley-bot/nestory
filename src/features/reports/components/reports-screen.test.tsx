@@ -34,7 +34,7 @@ describe("minimal Reports workspace", () => {
     const detail = screen.getByRole("region", { name: "Profit and loss transaction detail" });
     expect(within(detail).getByText("Property-level")).toBeTruthy();
     expect(within(detail).getByText("Roof repair with full itemized description")).toBeTruthy();
-    expect(within(detail).getByText("USD 65.00")).toBeTruthy();
+    expect(within(detail).getByRole("cell", { name: "USD 65.00" })).toBeTruthy();
   });
   it("keeps drill-down navigation focused on filters and report output", () => {
     renderReport();

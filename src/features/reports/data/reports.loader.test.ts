@@ -279,7 +279,7 @@ function ownerProfitLossEvent() {
   };
 }
 
-type QueryResult = { data: unknown; error: { message: string } | null };
+type QueryResult = { data: unknown; error: { message: string } | null; count?: number };
 
 function createReportReadHarness({
   context = financeContext(),
@@ -302,6 +302,7 @@ function createReportReadHarness({
     in() { return this; }
     is() { return this; }
     lte() { return this; }
+    lt() { return this; }
     or() { return this; }
     order() { return this; }
     range() { return this; }
@@ -324,6 +325,7 @@ function createReportReadHarness({
               ? propertyAccountEntries
               : [],
           error: null,
+          count: table === "property_account_entries" ? propertyAccountEntries.length : 0,
         }),
       rpc: (name: string) => {
         if (name === "get_finance_read_context") {
