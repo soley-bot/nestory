@@ -32,7 +32,7 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
   const periodStart = `${selectedMonth}-01`;
   if (isStatementReportEnabled(context) && selectedView === "statements" && first(query.manage) !== "1") {
     const data = await getOwnerBalanceData({ currency: "USD", ownerPersonId: selectedOwnerPersonId, propertyId: selectedPropertyId, periodStart, periodEnd: periodStart, registerPage });
-    return <OwnerStatementsReport key={`${selectedMonth}:${selectedPropertyId}:${selectedOwnerPersonId}:${registerPage}`} data={data} month={selectedMonth} selectedOwnerPersonId={selectedOwnerPersonId} selectedPropertyId={selectedPropertyId} />;
+    return <OwnerStatementsReport key={`${selectedMonth}:${selectedPropertyId}:${selectedOwnerPersonId}:${registerPage}:${first(query.reportType)}`} data={data} month={selectedMonth} reportType={["summary", "detail"].includes(first(query.reportType) ?? "") ? first(query.reportType) : "all"} selectedOwnerPersonId={selectedOwnerPersonId} selectedPropertyId={selectedPropertyId} />;
   }
   const [data, openingData, closeData] = await Promise.all([
     getOwnerBalanceData({

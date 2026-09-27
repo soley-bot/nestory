@@ -9,7 +9,30 @@ import { getOwnerBalanceData } from "./data/owner-balances";
 import { isStatementReportEnabled } from "./statement-report-enabled";
 import type { OwnerStatementLine } from "@/features/reports/data/owner-statement-report";
 
-export async function readStatementReport(input: { month: string; ownerPersonId: string; propertyId: string }) {
+type StatementScope = { month: string; ownerPersonId: string; propertyId: string };
+type StatementReport = {
+  cash: ReturnType<typeof ownerStatementCash>;
+  unitLabels?: Record<number, string | undefined>;
+  statementNumber: string;
+  artifacts: { id: string; format: "pdf" | "xlsx" }[];
+  stale: boolean;
+  published: boolean;
+};
+
+export async function readStatementReports(scopes: StatementScope[]) {
+  if (!Array.isArray(scopes) || scopes.length > 12) throw new Error("Select at most twelve owner accounts.");
+  const results: { scope: StatementScope; statement: StatementReport | null; failed: boolean }[] = [];
+  // Bound database concurrency while avoiding one queued Server Action per account.
+  for (let index = 0; index < scopes.length; index += 3) {
+    results.push(...await Promise.all(scopes.slice(index, index + 3).map(async scope => {
+      try { return { scope, statement: await readStatementReport(scope), failed: false }; }
+      catch { return { scope, statement: null, failed: true }; }
+    })));
+  }
+  return results;
+}
+
+export async function readStatementReport(input: StatementScope): Promise<StatementReport | null> {
   const context = await requireOwnerBalanceReadContext();
   if (!isStatementReportEnabled(context)) throw new Error("Statement report is not enabled for this workspace.");
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -21,7 +44,8 @@ export async function readStatementReport(input: { month: string; ownerPersonId:
     const period = balance.periods.find(item => item.monthStart === `${input.month}-01` && (item.status === "ready" || item.status === "closed"));
     if (!period) return null;
     const lines: OwnerStatementLine[] = balance.sources.flatMap(source => source.movements.map(movement => ({ id: movement.id, lineNumber: 0, businessDate: source.eventDate, component: movement.component, description: source.sourceType.replaceAll("_", " "), lineKind: "movement" as const, signedAmount: movement.signedAmount, sourceCount: 1, sources: [{ id: source.allocationSetId, sourceFingerprint: source.sourceFingerprint, sourceId: source.sourceId, sourceLineId: source.sourceLineId, sourceType: source.sourceType }] }))).map((line, index) => ({ ...line, lineNumber: index + 1 }));
-    return { cash: ownerStatementCash({ components: period.components, lines }), statementNumber: "Draft", artifacts: [] as { id: string; format: "pdf" | "xlsx" }[], stale: false, published: false };
+    const unitLabels = Object.fromEntries(balance.sources.flatMap(source => source.movements.map(() => source.unitLabel)).map((label, index) => [index + 1, label]));
+    return { cash: ownerStatementCash({ components: period.components, lines }), unitLabels, statementNumber: "Draft", artifacts: [], stale: false, published: false };
   }
   const client = await createSupabaseServerClient();
   const model = await loadOwnerStatementPublication(client, context.organizationId, publication.id);

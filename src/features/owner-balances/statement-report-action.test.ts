@@ -5,10 +5,12 @@ vi.mock("@/lib/db/server",()=>({createSupabaseServerClient:mocks.client}));
 vi.mock("@/features/owner-close/data/owner-close",()=>({getOwnerCloseData:mocks.close}));
 vi.mock("@/features/reports/data/owner-statement-report",()=>({loadOwnerStatementPublication:mocks.publication}));
 vi.mock("./data/owner-balances",()=>({getOwnerBalanceData:mocks.balance}));
-import { readStatementReport } from "./statement-report-action";
+import { readStatementReport, readStatementReports } from "./statement-report-action";
 const scope={month:"2026-09",propertyId:"10000000-0000-0000-0000-000000000001",ownerPersonId:"80000000-0000-0000-0000-000000000001"};
 beforeEach(()=>{vi.resetAllMocks();mocks.context.mockResolvedValue({organizationId:"org",organizationSlug:"pilot"});mocks.client.mockResolvedValue({});mocks.close.mockResolvedValue({publications:[],series:null});});
 describe("statement report read authority",()=>{
+ it("rejects an oversized batch before any reads",async()=>{await expect(readStatementReports(Array(13).fill(scope))).rejects.toThrow("at most twelve");expect(mocks.close).not.toHaveBeenCalled();});
+ it("preserves known unit attribution on a reconciled draft",async()=>{mocks.balance.mockResolvedValue({periods:[{monthStart:"2026-09-01",status:"ready",components:[{component:"ips_held_owner_cash",openingAmount:"100.00",closingAmount:"200.00"}]}],sources:[{unitLabel:"Unit 101",eventDate:"2026-09-02",sourceType:"owner_contribution",movements:[{id:"movement",component:"ips_held_owner_cash",signedAmount:"100.00"}]}]});const result=await readStatementReport(scope);expect(result?.unitLabels?.[1]).toBe("Unit 101");expect(result?.cash.closingCents).toBe(20000);});
  it("keeps the report disabled outside Pilot",async()=>{mocks.context.mockResolvedValue({organizationId:"org",organizationSlug:"live"});await expect(readStatementReport(scope)).rejects.toThrow("not enabled");expect(mocks.close).not.toHaveBeenCalled();});
  it("rejects malformed scopes before reading statement data",async()=>{await expect(readStatementReport({...scope,month:"2026-19"})).rejects.toThrow();expect(mocks.close).not.toHaveBeenCalled();});
  it("does not render blocked balances as draft statements",async()=>{mocks.balance.mockResolvedValue({periods:[{monthStart:"2026-09-01",status:"blocked"}]});expect(await readStatementReport(scope)).toBeNull();});
