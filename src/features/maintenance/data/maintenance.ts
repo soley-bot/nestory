@@ -1,3 +1,6 @@
+import { needsBoundedSearch, readBoundedSearch } from "@/lib/search/bounded-register";
+import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import {
   resolveRecentChangeTargets,
@@ -180,11 +183,12 @@ export async function getMaintenanceScreenData(
   capabilities: Pick<MaintenanceCapabilities, "canAssignCase"> = { canAssignCase: false },
 ): Promise<MaintenanceScreenData> {
   const supabase = await createSupabaseServerClient();
+  const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
   const now = new Date();
   const today = toIsoDate(now);
   const currentTime = toIsoTime(now);
   const [pagedTasks, summaryTaskRows] = await Promise.all([
-    getPagedTaskRows(supabase, organizationId, viewQuery, today, currentTime, actor),
+    getPagedTaskRows(supabase, organizationId, viewQuery, today, currentTime, actor, portfolio),
     getSummaryTaskRows(
       supabase,
       organizationId,
@@ -192,6 +196,7 @@ export async function getMaintenanceScreenData(
       today,
       currentTime,
       actor,
+      portfolio,
     ),
   ]);
   const referenceTaskRows = uniqueTaskRows([
@@ -506,6 +511,7 @@ async function getPagedTaskRows(
   today: string,
   currentTime: string,
   actor?: MaintenanceActor,
+  portfolio?: PortfolioSearch,
 ) {
   let result = await buildTasksQuery(
     supabase,
@@ -514,6 +520,7 @@ async function getPagedTaskRows(
     today,
     currentTime,
     actor,
+    portfolio,
   ).range(getPageStart(viewQuery.page, viewQuery.pageSize), getPageEnd(viewQuery.page, viewQuery.pageSize));
 
   if (result.error) {
@@ -534,6 +541,7 @@ async function getPagedTaskRows(
       today,
       currentTime,
       actor,
+      portfolio,
     ).range(
       getPageStart(pagination.page, pagination.pageSize),
       getPageEnd(pagination.page, pagination.pageSize),
@@ -562,7 +570,13 @@ async function getSummaryTaskRows(
   today: string,
   currentTime: string,
   actor?: MaintenanceActor,
+  portfolio?: PortfolioSearch,
 ) {
+  if (needsBoundedSearch(taskSearchGroups(viewQuery, portfolio))) {
+    const result = await buildTasksQuery(supabase, organizationId, viewQuery, today, currentTime, actor, portfolio).range(0, Number.MAX_SAFE_INTEGER);
+    if (result.error) throw new Error(`Could not load maintenance summary: ${result.error.message}`);
+    return (result.data ?? []) as MaintenanceTaskRow[];
+  }
   const rows: MaintenanceTaskRow[] = [];
   let from = 0;
   let totalCount: number | null = null;
@@ -575,6 +589,7 @@ async function getSummaryTaskRows(
       today,
       currentTime,
       actor,
+      portfolio,
     ).range(from, from + MAINTENANCE_QUERY_BATCH_SIZE - 1);
 
     if (result.error) {
@@ -602,6 +617,25 @@ function buildTasksQuery(
   today: string,
   currentTime: string,
   actor?: MaintenanceActor,
+  portfolio?: PortfolioSearch,
+) {
+  const groups = taskSearchGroups(viewQuery, portfolio);
+  return { range: (from: number, to: number) => readBoundedSearch(groups, (start, end, filters) =>
+    buildFilteredTasksQuery(supabase, organizationId, viewQuery, today, currentTime, actor, filters).order("id").range(start, end), from, to) };
+}
+
+function taskSearchGroups(viewQuery: MaintenanceViewQuery, portfolio?: PortfolioSearch) {
+  return viewQuery.taskId === "all" ? portfolio?.groups(viewQuery.query, ["title", "description", "category", "status", "priority"]) ?? [] : [];
+}
+
+function buildFilteredTasksQuery(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  viewQuery: MaintenanceViewQuery,
+  today: string,
+  currentTime: string,
+  actor: MaintenanceActor | undefined,
+  filters: string[],
 ) {
   let query = createBaseTaskQuery(supabase, organizationId);
 
@@ -636,7 +670,7 @@ function buildTasksQuery(
   }
 
   query = applyReviewFilter(query, viewQuery, today, currentTime);
-  query = applySearchFilter(query, viewQuery.query);
+  for (const group of filters) query = query.or(group);
 
   return applyTaskSort(query, viewQuery.sort);
 }
@@ -722,25 +756,6 @@ function applyReviewFilter(
   return query;
 }
 
-function applySearchFilter(
-  query: MaintenanceTaskQuery,
-  search: string,
-) {
-  return getSearchTokens(search).reduce(
-    (currentQuery, token) =>
-      currentQuery.or(
-        [
-          `title.ilike.%${token}%`,
-          `description.ilike.%${token}%`,
-          `category.ilike.%${token}%`,
-          `status.ilike.%${token}%`,
-          `priority.ilike.%${token}%`,
-        ].join(","),
-      ),
-    query,
-  );
-}
-
 function applyTaskSort(
   query: MaintenanceTaskQuery,
   sort: MaintenanceViewQuery["sort"],
@@ -766,15 +781,6 @@ function applyTaskSort(
     .order("due_date", { ascending: true, nullsFirst: false })
     .order("due_time", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
-}
-
-function getSearchTokens(search: string) {
-  return search
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((token) => token.replace(/[%,]/g, ""));
 }
 
 function getPageStart(page: number, pageSize: number) {

@@ -1,3 +1,5 @@
+import { readBoundedSearch } from "@/lib/search/bounded-register";
+import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import { getDocumentAuthorityDomain } from "@/features/documents/document-authority";
 import {
@@ -101,48 +103,47 @@ export async function getDocumentsScreenData(
     throw new Error(`Could not load document units: ${unitsResult.error.message}`);
   }
 
-  let documentsQuery = supabase
-    .from("documents")
-    .select(
-      "id, category, content_sha256, file_name, storage_path, mime_type, size_bytes, uploaded_at, archived_at, property_id, unit_id, lease_id, ledger_entry_id, task_id, timeline_event_id",
-      { count: "exact" },
-    )
-    .eq("organization_id", organizationId);
+  const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
+  const groups = portfolio?.groups(viewQuery.query, ["file_name", "category"]) ?? [];
+  const fetchPage = (start: number, end: number, filters: string[]) => {
+    let documentsQuery = supabase
+      .from("documents")
+      .select(
+        "id, category, content_sha256, file_name, storage_path, mime_type, size_bytes, uploaded_at, archived_at, property_id, unit_id, lease_id, ledger_entry_id, task_id, timeline_event_id",
+        { count: "exact" },
+      )
+      .eq("organization_id", organizationId);
 
-  if (viewQuery.archiveState === "active") {
-    documentsQuery = documentsQuery.is("archived_at", null);
-  } else if (viewQuery.archiveState === "archived") {
-    documentsQuery = documentsQuery.not("archived_at", "is", null);
-  }
+    if (viewQuery.archiveState === "active") {
+      documentsQuery = documentsQuery.is("archived_at", null);
+    } else if (viewQuery.archiveState === "archived") {
+      documentsQuery = documentsQuery.not("archived_at", "is", null);
+    }
 
-  if (viewQuery.documentId !== "all") {
-    documentsQuery = documentsQuery.eq("id", viewQuery.documentId);
-  }
+    if (viewQuery.documentId !== "all") {
+      documentsQuery = documentsQuery.eq("id", viewQuery.documentId);
+    }
 
-  if (viewQuery.propertyId !== "all") {
-    documentsQuery = documentsQuery.eq("property_id", viewQuery.propertyId);
-  }
+    if (viewQuery.propertyId !== "all") {
+      documentsQuery = documentsQuery.eq("property_id", viewQuery.propertyId);
+    }
 
-  if (viewQuery.unitId !== "all") {
-    documentsQuery = documentsQuery.eq("unit_id", viewQuery.unitId);
-  }
+    if (viewQuery.unitId !== "all") {
+      documentsQuery = documentsQuery.eq("unit_id", viewQuery.unitId);
+    }
 
-  if (viewQuery.leaseId !== "all") {
-    documentsQuery = documentsQuery.eq("lease_id", viewQuery.leaseId);
-  }
+    if (viewQuery.leaseId !== "all") {
+      documentsQuery = documentsQuery.eq("lease_id", viewQuery.leaseId);
+    }
 
-  if (viewQuery.taskId !== "all") {
-    documentsQuery = documentsQuery.eq("task_id", viewQuery.taskId);
-  }
+    if (viewQuery.taskId !== "all") {
+      documentsQuery = documentsQuery.eq("task_id", viewQuery.taskId);
+    }
 
-  if (viewQuery.query) {
-    const token = viewQuery.query.replace(/[,%()]/g, " ").trim().replace(/\s+/g, "%");
-    documentsQuery = documentsQuery.or(`file_name.ilike.%${token}%,category.ilike.%${token}%`);
-  }
-
-  const documentsResult = await documentsQuery
-    .order("uploaded_at", { ascending: false })
-    .range(from, to);
+    for (const group of filters) documentsQuery = documentsQuery.or(group);
+    return documentsQuery.order("uploaded_at", { ascending: false }).order("id").range(start, end);
+  };
+  const documentsResult = await readBoundedSearch(groups, fetchPage, from, to);
 
   if (documentsResult.error) {
     throw new Error(`Could not load documents: ${documentsResult.error.message}`);

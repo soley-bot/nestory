@@ -1,4 +1,4 @@
-import { searchWorkspace } from "@/features/workspace-search/data/workspace-search";
+import { searchWorkspaceWithStatus } from "@/features/workspace-search/data/workspace-search";
 import {
   getCurrentUser,
   getWorkspaceMembershipForUser,
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     "";
 
   try {
-    const results = await searchWorkspace({
+    const response = await searchWorkspaceWithStatus({
       client,
       context: {
         branchId: membership.branchId,
@@ -49,10 +49,7 @@ export async function GET(request: Request) {
       query,
     });
 
-    return Response.json(
-      { results },
-      { headers: PRIVATE_RESPONSE_HEADERS },
-    );
+    return Response.json(response, { headers: PRIVATE_RESPONSE_HEADERS });
   } catch {
     return Response.json(
       { error: "Search unavailable" },

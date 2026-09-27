@@ -1,3 +1,6 @@
+import { readBoundedSearch } from "@/lib/search/bounded-register";
+import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
   formatPropertyOptionLabel,
@@ -170,7 +173,9 @@ export async function getLedgerScreenData(
           searchTokens,
         )
       : [];
+  const portfolio = searchTokens.length ? await loadPortfolioSearch(supabase, organizationId) : undefined;
   const searchGroups = buildLedgerSearchGroups({
+    portfolio,
     properties,
     propertiesById,
     relatedLedgerEntryIds,
@@ -180,74 +185,77 @@ export async function getLedgerScreenData(
   const page = viewQuery.entryId ? 1 : viewQuery.page;
   const { from, to } = getRange(page, viewQuery.pageSize);
 
-  let ledgerQuery = supabase
-    .from("ledger_entries")
-    .select(ledgerEntrySelect, { count: "exact" })
-    .eq("organization_id", organizationId);
+  const fetchPage = (start: number, end: number, filters: string[]) => {
+    let ledgerQuery = supabase
+      .from("ledger_entries")
+      .select(ledgerEntrySelect, { count: "exact" })
+      .eq("organization_id", organizationId);
 
-  if (viewQuery.archiveState === "active") {
-    ledgerQuery = ledgerQuery.is("archived_at", null);
-  } else if (viewQuery.archiveState === "archived") {
-    ledgerQuery = ledgerQuery.not("archived_at", "is", null);
-  }
-
-  if (viewQuery.entryId) {
-    ledgerQuery = ledgerQuery.eq("id", viewQuery.entryId);
-  } else {
-    if (viewQuery.direction !== "all") {
-      ledgerQuery = ledgerQuery.eq("direction", viewQuery.direction);
+    if (viewQuery.archiveState === "active") {
+      ledgerQuery = ledgerQuery.is("archived_at", null);
+    } else if (viewQuery.archiveState === "archived") {
+      ledgerQuery = ledgerQuery.not("archived_at", "is", null);
     }
 
-    if (viewQuery.propertyId !== "all") {
-      ledgerQuery = ledgerQuery.eq("property_id", viewQuery.propertyId);
+    if (viewQuery.entryId) {
+      ledgerQuery = ledgerQuery.eq("id", viewQuery.entryId);
+    } else {
+      if (viewQuery.direction !== "all") {
+        ledgerQuery = ledgerQuery.eq("direction", viewQuery.direction);
+      }
+
+      if (viewQuery.propertyId !== "all") {
+        ledgerQuery = ledgerQuery.eq("property_id", viewQuery.propertyId);
+      }
+
+      if (viewQuery.unitId !== "all") {
+        ledgerQuery = ledgerQuery.eq("unit_id", viewQuery.unitId);
+      }
+
+      const dateScope = getLedgerTransactionDateScope(viewQuery);
+
+      if (dateScope.from) {
+        ledgerQuery = ledgerQuery.gte("transaction_date", dateScope.from);
+      }
+
+      if (dateScope.before) {
+        ledgerQuery = ledgerQuery.lt("transaction_date", dateScope.before);
+      }
+
+      if (viewQuery.minAmount !== null) {
+        ledgerQuery = ledgerQuery.gte("amount", viewQuery.minAmount);
+      }
+
+      for (const searchGroup of filters) {
+        ledgerQuery = ledgerQuery.or(searchGroup);
+      }
     }
 
-    if (viewQuery.unitId !== "all") {
-      ledgerQuery = ledgerQuery.eq("unit_id", viewQuery.unitId);
+    if (viewQuery.sort === "date_asc") {
+      ledgerQuery = ledgerQuery
+        .order("transaction_date", { ascending: true })
+        .order("created_at", { ascending: true });
+    } else if (viewQuery.sort === "amount_desc") {
+      ledgerQuery = ledgerQuery
+        .order("amount", { ascending: false })
+        .order("transaction_date", { ascending: false });
+    } else if (viewQuery.sort === "amount_asc") {
+      ledgerQuery = ledgerQuery
+        .order("amount", { ascending: true })
+        .order("transaction_date", { ascending: false });
+    } else if (viewQuery.sort === "property_asc") {
+      ledgerQuery = ledgerQuery
+        .order("property_id", { ascending: true })
+        .order("transaction_date", { ascending: false });
+    } else {
+      ledgerQuery = ledgerQuery
+        .order("transaction_date", { ascending: false })
+        .order("created_at", { ascending: false });
     }
 
-    const dateScope = getLedgerTransactionDateScope(viewQuery);
-
-    if (dateScope.from) {
-      ledgerQuery = ledgerQuery.gte("transaction_date", dateScope.from);
-    }
-
-    if (dateScope.before) {
-      ledgerQuery = ledgerQuery.lt("transaction_date", dateScope.before);
-    }
-
-    if (viewQuery.minAmount !== null) {
-      ledgerQuery = ledgerQuery.gte("amount", viewQuery.minAmount);
-    }
-
-    for (const searchGroup of searchGroups) {
-      ledgerQuery = ledgerQuery.or(searchGroup);
-    }
-  }
-
-  if (viewQuery.sort === "date_asc") {
-    ledgerQuery = ledgerQuery
-      .order("transaction_date", { ascending: true })
-      .order("created_at", { ascending: true });
-  } else if (viewQuery.sort === "amount_desc") {
-    ledgerQuery = ledgerQuery
-      .order("amount", { ascending: false })
-      .order("transaction_date", { ascending: false });
-  } else if (viewQuery.sort === "amount_asc") {
-    ledgerQuery = ledgerQuery
-      .order("amount", { ascending: true })
-      .order("transaction_date", { ascending: false });
-  } else if (viewQuery.sort === "property_asc") {
-    ledgerQuery = ledgerQuery
-      .order("property_id", { ascending: true })
-      .order("transaction_date", { ascending: false });
-  } else {
-    ledgerQuery = ledgerQuery
-      .order("transaction_date", { ascending: false })
-      .order("created_at", { ascending: false });
-  }
-
-  const ledgerResult = await ledgerQuery.range(from, to);
+    return ledgerQuery.order("id").range(start, end);
+  };
+  const ledgerResult = await readBoundedSearch(viewQuery.entryId ? [] : searchGroups, fetchPage, from, to);
 
   if (ledgerResult.error) {
     throw new Error(
@@ -810,12 +818,14 @@ async function getLedgerEntryIdsMatchingTimelineSearch(
 }
 
 function buildLedgerSearchGroups({
+  portfolio,
   properties,
   propertiesById,
   relatedLedgerEntryIds,
   searchTokens,
   units,
 }: {
+  portfolio?: PortfolioSearch;
   properties: PropertyRow[];
   propertiesById: Map<string, PropertyRow>;
   relatedLedgerEntryIds: string[];
@@ -824,6 +834,7 @@ function buildLedgerSearchGroups({
 }) {
   return searchTokens.map((token) => {
     const conditions = [
+      ...(portfolio?.conditions(token) ?? []),
       `category.ilike.%${token}%`,
       `description.ilike.%${token}%`,
       `direction.ilike.%${token}%`,

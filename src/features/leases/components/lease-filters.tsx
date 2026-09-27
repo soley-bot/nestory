@@ -1,11 +1,11 @@
 "use client";
 
-import type { FormEvent } from "react";
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { RotateCcw } from "lucide-react";
 import { FilterPopover } from "@/components/ui/filter-popover";
+import { useRegisterSearch } from "@/components/ui/use-register-search";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import {
@@ -26,30 +26,33 @@ type LeaseFiltersProps = {
   viewQuery: LeaseViewQuery;
 };
 
-export function LeaseFilters({ properties, units, viewQuery }: LeaseFiltersProps) {
+export function LeaseFilters({
+  properties,
+  units,
+  viewQuery,
+}: LeaseFiltersProps) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const [queryState, setQueryState] = useState({
-    source: viewQuery.query,
-    value: viewQuery.query,
-  });
+  const search = useRegisterSearch(viewQuery.query, (value) =>
+    replaceParam("query", value, ""),
+  );
   const advancedFilterCount = getAdvancedFilterCount(viewQuery);
   const hasActiveFilters =
     viewQuery.query.trim().length > 0 ||
     advancedFilterCount > 0 ||
     viewQuery.endsWithinDays !== null ||
     viewQuery.endMonth !== "";
-  const query =
-    queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
+  const query = search.query;
   const compactSelectClassName = "h-8 px-2 text-sm";
   const visibleUnitOptions =
     viewQuery.propertyId === "all"
       ? units
       : units.filter(
           (unit) =>
-            unit.propertyId === viewQuery.propertyId || unit.id === viewQuery.unitId,
+            unit.propertyId === viewQuery.propertyId ||
+            unit.id === viewQuery.unitId,
         );
 
   function replaceParam(
@@ -80,25 +83,16 @@ export function LeaseFilters({ properties, units, viewQuery }: LeaseFiltersProps
     });
   }
 
-  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    replaceParam("query", query.trim(), "");
-  }
-
   return (
     <div className="w-full min-w-0">
       <div className="flex min-w-0 items-center gap-2 text-sm">
         <SearchCombo
           ariaLabel="Search leases"
           disabled={isPending}
-          onQueryChange={(value) =>
-            setQueryState({
-              source: viewQuery.query,
-              value,
-            })
-          }
-          onSubmit={handleSearchSubmit}
-          placeholder="Search tenant, unit, property, or term"
+          onQueryChange={search.onQueryChange}
+          onCompositionChange={search.onCompositionChange}
+          onSubmit={search.onSubmit}
+          placeholder="Search property, unit, owner or tenant"
           query={query}
           submitLabel="Search leases"
         />

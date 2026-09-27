@@ -3,6 +3,12 @@ import type { PermissionKey } from "@/lib/auth/permission-catalog";
 export const WORKSPACE_SEARCH_RESULT_LIMIT = 20;
 export const WORKSPACE_SEARCH_MIN_QUERY_LENGTH = 2;
 
+export type WorkspaceSearchResponse = {
+  results: WorkspaceSearchResult[];
+  partial: boolean;
+  limited: boolean;
+};
+
 export type WorkspaceSearchResultKind =
   | "property"
   | "unit"

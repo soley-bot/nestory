@@ -226,7 +226,7 @@ describe("DocumentScreen workspace contract", () => {
     expect(screen.getAllByRole("button", { name: "Upload document" })).toHaveLength(1);
   });
 
-  it("keeps search and link-scope filters URL-backed", async () => {
+  it("preserves lease scope while searching and resets pagination and selection", async () => {
     navigation.searchParams = new URLSearchParams(
       "propertyId=property-1&leaseId=lease-1&page=2&documentId=document-1",
     );
@@ -239,7 +239,7 @@ describe("DocumentScreen workspace contract", () => {
     await user.click(screen.getByRole("button", { name: "Search documents" }));
 
     expect(navigation.replace).toHaveBeenCalledWith(
-      "/documents?propertyId=property-1&query=lease",
+      "/documents?propertyId=property-1&leaseId=lease-1&query=lease",
       { scroll: false },
     );
   });

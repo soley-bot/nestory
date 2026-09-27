@@ -1,3 +1,7 @@
+import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import type { PortfolioSearch } from "@/lib/search/portfolio";
+import { matchesSearchText } from "@/lib/search/text";
+import { normalizeSearchText } from "@/lib/search/text";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import {
@@ -547,7 +551,8 @@ async function getCompletePropertiesScreenData({
     ownerStatus: viewQuery.ownerStatus,
     status: viewQuery.status,
   });
-  const filteredProperties = filterPropertySummaries(properties, viewQuery);
+  const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(await createSupabaseServerClient(), organizationId) : undefined;
+  const filteredProperties = filterPropertySummaries(properties, viewQuery, portfolio);
   const sortedProperties = sortPropertySummaries(
     filteredProperties,
     viewQuery.sort,
@@ -863,12 +868,8 @@ function groupByProperty<T extends { property_id: string }>(rows: T[]) {
 function filterPropertySummaries(
   properties: PropertySummary[],
   viewQuery: PropertyViewQuery,
+  portfolio?: PortfolioSearch,
 ) {
-  const tokens = viewQuery.query
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean);
 
   return properties.filter((property) => {
     const matchesArchiveState =
@@ -891,7 +892,7 @@ function filterPropertySummaries(
       viewQuery.leaseStatus,
     );
     const matchesReview = propertyMatchesReviewFilter(property, viewQuery.review);
-    const haystack = [
+    const haystack = normalizeSearchText([
       property.name,
       property.code,
       property.type,
@@ -899,9 +900,8 @@ function filterPropertySummaries(
       property.address,
       property.status,
     ]
-      .join(" ")
-      .toLowerCase();
-    const matchesQuery = tokens.every((token) => haystack.includes(token));
+      .join(" "));
+    const matchesQuery = portfolio ? portfolio.matchesProperty(viewQuery.query, property.id, [haystack]) : matchesSearchText(viewQuery.query, [haystack]);
 
     return (
       matchesArchiveState &&

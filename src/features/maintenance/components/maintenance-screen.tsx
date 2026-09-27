@@ -58,6 +58,7 @@ import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { NumberInput } from "@/components/ui/number-input";
+import { useRegisterSearch } from "@/components/ui/use-register-search";
 import { SearchCombo } from "@/components/ui/search-combo";
 import {
   SelectControl,
@@ -678,12 +679,8 @@ function MaintenanceCasesCommandBar({
   const router = useRouter();
   const searchParams = useSearchParams();
   const advancedFilterCount = getAdvancedFilterCount(viewQuery, "open");
-  const [queryState, setQueryState] = useState({
-    source: viewQuery.query,
-    value: viewQuery.query,
-  });
-  const query =
-    queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
+  const search = useRegisterSearch(viewQuery.query, (value) => replaceParam("query", value, ""));
+  const query = search.query;
   const scopeOptions = getScopeOptions(properties, units, listLabel);
   const caseViews = getMaintenanceCasesViewTabs(
     pathname,
@@ -693,7 +690,7 @@ function MaintenanceCasesCommandBar({
   const currentCaseView =
     caseViews.find((view) => view.active) ?? caseViews[0]!;
 
-  const replaceParam = (name: string, value: string, defaultValue = "") => {
+  function replaceParam(name: string, value: string, defaultValue = "") {
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.delete("page");
     nextParams.delete("taskId");
@@ -787,17 +784,10 @@ function MaintenanceCasesCommandBar({
           <SearchCombo
             ariaLabel={`Search ${listLabel}`}
             className="w-full sm:w-[240px] sm:flex-none"
-            onQueryChange={(value) =>
-              setQueryState({
-                source: viewQuery.query,
-                value,
-              })
-            }
-            onSubmit={(event) => {
-              event.preventDefault();
-              replaceParam("query", query);
-            }}
-            placeholder={`Search ${listLabel}...`}
+            onQueryChange={search.onQueryChange}
+          onCompositionChange={search.onCompositionChange}
+            onSubmit={search.onSubmit}
+            placeholder={`Search property, unit, owner or ${listLabel.toLowerCase()}`}
             query={query}
             submitLabel={`Search ${listLabel}`}
           />
@@ -897,15 +887,11 @@ function MaintenanceFilters({
   const searchParams = useSearchParams();
   const advancedFilterCount = getAdvancedFilterCount(viewQuery, baseReview);
   const [advancedOpen, setAdvancedOpen] = useState(advancedFilterCount > 0);
-  const [queryState, setQueryState] = useState({
-    source: viewQuery.query,
-    value: viewQuery.query,
-  });
-  const query =
-    queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
+  const search = useRegisterSearch(viewQuery.query, (value) => replaceParam("query", value, ""));
+  const query = search.query;
   const scopeOptions = getScopeOptions(properties, units, listLabel);
 
-  const replaceParam = (name: string, value: string, defaultValue = "") => {
+  function replaceParam(name: string, value: string, defaultValue = "") {
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.delete("page");
     nextParams.delete("taskId");
@@ -986,17 +972,10 @@ function MaintenanceFilters({
       <div className="grid gap-2 lg:grid-cols-[minmax(280px,1.25fr)_minmax(220px,1fr)_auto]">
         <SearchCombo
           ariaLabel={`Search ${listLabel}`}
-          onQueryChange={(value) =>
-            setQueryState({
-              source: viewQuery.query,
-              value,
-            })
-          }
-          onSubmit={(event) => {
-            event.preventDefault();
-            replaceParam("query", query);
-          }}
-          placeholder={`Search ${listLabel}...`}
+          onQueryChange={search.onQueryChange}
+          onCompositionChange={search.onCompositionChange}
+          onSubmit={search.onSubmit}
+          placeholder={`Search property, unit, owner or ${listLabel.toLowerCase()}`}
           query={query}
           submitLabel={`Search ${listLabel}`}
         />

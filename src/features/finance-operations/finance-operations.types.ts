@@ -230,6 +230,7 @@ export type ExpenseSubmissionSummary = {
 };
 
 export type PropertyFinancePosition = {
+  ownerSearchLabels?: string[];
   availableWithdrawal: number;
   cashHeldByIps: number;
   managementFeeExpense: number;

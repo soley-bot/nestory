@@ -1,11 +1,11 @@
 "use client";
 
-import type { FormEvent } from "react";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { RotateCcw, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useRegisterSearch } from "@/components/ui/use-register-search";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import {
@@ -34,10 +34,7 @@ export function LedgerFilters({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const [queryState, setQueryState] = useState({
-    source: viewQuery.query,
-    value: viewQuery.query,
-  });
+  const search = useRegisterSearch(viewQuery.query, (value) => replaceParam("query", value, ""));
   const hasAdvancedFilters =
     viewQuery.propertyId !== "all" ||
     viewQuery.unitId !== "all" ||
@@ -51,8 +48,7 @@ export function LedgerFilters({
     viewQuery.pageSize !== DEFAULT_LEDGER_PAGE_SIZE;
   const hasActiveFilters = hasAdvancedFilters || viewQuery.query.trim() !== "";
   const [advancedOpen, setAdvancedOpen] = useState(hasAdvancedFilters);
-  const query =
-    queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
+  const query = search.query;
   const compactSelectClassName = "h-8 px-2 text-sm";
   const visibleUnitOptions =
     viewQuery.propertyId === "all"
@@ -91,10 +87,6 @@ export function LedgerFilters({
     });
   }
 
-  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    replaceParam("query", query.trim(), "");
-  }
 
   return (
     <div className="w-full">
@@ -104,14 +96,10 @@ export function LedgerFilters({
             ariaLabel="Search ledger entries"
             className="w-full xl:w-[320px] xl:flex-none"
             disabled={isPending}
-            onQueryChange={(value) =>
-              setQueryState({
-                source: viewQuery.query,
-                value,
-              })
-            }
-            onSubmit={handleSearchSubmit}
-            placeholder="Search category or notes"
+            onQueryChange={search.onQueryChange}
+          onCompositionChange={search.onCompositionChange}
+            onSubmit={search.onSubmit}
+            placeholder="Search property, unit, owner, category or notes"
             query={query}
             submitLabel="Search ledger entries"
           />

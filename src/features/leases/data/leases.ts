@@ -1,3 +1,6 @@
+import { needsBoundedSearch, readBoundedSearch } from "@/lib/search/bounded-register";
+import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
 import { toRecentChange } from "@/features/activity/recent-changes";
@@ -100,6 +103,7 @@ export async function getLeasesScreenData(
     readContext.availability_leases,
     readContext.availability_terms,
   );
+  const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
   const unitOptions = toUnitOptions(
@@ -107,12 +111,15 @@ export async function getLeasesScreenData(
     propertiesById,
     reservationsByUnitId,
   );
-  const buildLeasesQuery = ({
+  const searchGroups = viewQuery.leaseId ? [] : buildLeaseSearchFilters(viewQuery, { properties, units, propertiesById, portfolio });
+  const buildFilteredLeasesQuery = ({
     count,
     currency,
     head = false,
     sort = viewQuery.sort,
+    filters = searchGroups,
   }: {
+    filters?: string[];
     count?: "exact";
     currency?: CurrencyCode;
     head?: boolean;
@@ -124,7 +131,7 @@ export async function getLeasesScreenData(
       selectOptions.count = count;
     }
 
-    if (head) {
+    if (head && !needsBoundedSearch(searchGroups)) {
       selectOptions.head = true;
     }
 
@@ -179,15 +186,7 @@ export async function getLeasesScreenData(
       leasesQuery = leasesQuery.eq("monthly_rent_currency", currency);
     }
 
-    if (!viewQuery.leaseId) {
-      for (const filter of buildLeaseSearchFilters(viewQuery, {
-        properties,
-        units,
-        propertiesById,
-      })) {
-        leasesQuery = leasesQuery.or(filter);
-      }
-    }
+    for (const filter of filters) leasesQuery = leasesQuery.or(filter);
 
     if (sort === "none") {
       return leasesQuery;
@@ -223,6 +222,13 @@ export async function getLeasesScreenData(
       .order("tenant_name", { ascending: true });
   };
 
+  const buildLeasesQuery = (options: Parameters<typeof buildFilteredLeasesQuery>[0] = {}) => {
+    const range = (from: number, to: number) => readBoundedSearch(searchGroups,
+      (start, end, filters) => buildFilteredLeasesQuery({ ...options, filters }).order("id").range(start, end),
+      from, to, result => parseScopedLeaseRows(result.data));
+    return { range };
+  };
+
   const toLeaseSummaries = (rows: LeaseRow[]) =>
     rows.map((lease) =>
       buildLeaseSummary({
@@ -237,7 +243,7 @@ export async function getLeasesScreenData(
       count: "exact",
       head: true,
       sort: "none",
-    });
+    }).range(0, 0);
 
     if (countResult.error) {
       throw new Error(`Could not load leases: ${countResult.error.message}`);
@@ -1191,10 +1197,12 @@ export function buildLeaseUnitReservations(
 function buildLeaseSearchFilters(
   viewQuery: LeaseViewQuery,
   {
+    portfolio,
     properties,
     propertiesById,
     units,
   }: {
+    portfolio?: PortfolioSearch;
     properties: LeasePropertyRow[];
     propertiesById: Map<string, LeasePropertyRow>;
     units: LeaseUnitRow[];
@@ -1202,6 +1210,7 @@ function buildLeaseSearchFilters(
 ) {
   return getLeaseSearchTokens(viewQuery.query).map((token) => {
     const conditions = [
+      ...(portfolio?.conditions(token) ?? []),
       `tenant_name.ilike.*${token}*`,
       `status.ilike.*${token}*`,
     ];

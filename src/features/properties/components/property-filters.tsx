@@ -1,8 +1,7 @@
 "use client";
 
 import * as Popover from "@radix-ui/react-popover";
-import type { FormEvent } from "react";
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -12,6 +11,7 @@ import {
   Table2,
   X,
 } from "lucide-react";
+import { useRegisterSearch } from "@/components/ui/use-register-search";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import {
@@ -101,18 +101,16 @@ export function PropertyFilters({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const [queryState, setQueryState] = useState({
-    source: viewQuery.query,
-    value: viewQuery.query,
-  });
+  const search = useRegisterSearch(viewQuery.query, (value) =>
+    replaceParam("query", value, ""),
+  );
   const activeFilterChips = getActivePropertyFilters(viewQuery);
   const activeFilters = activeFilterChips.filter(
     (filter) => filter.param !== "query",
   ).length;
   const hasAdvancedFilters = activeFilters > 0;
   const hasAnyFilters = activeFilterChips.length > 0;
-  const query =
-    queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
+  const query = search.query;
   const compactSelectClassName = "h-8 w-full px-2 text-sm";
   const propertySuggestions = getPropertySuggestions(properties, query);
 
@@ -135,11 +133,6 @@ export function PropertyFilters({
     });
   }
 
-  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    replaceParam("query", query.trim(), "");
-  }
-
   return (
     <div className="w-full min-w-0">
       <div>
@@ -148,23 +141,15 @@ export function PropertyFilters({
             ariaLabel="Search properties"
             className="lg:max-w-[520px]"
             disabled={isPending}
-            onQueryChange={(value) =>
-              setQueryState({
-                source: viewQuery.query,
-                value,
-              })
-            }
-            onSubmit={handleSearchSubmit}
-            placeholder="Search properties..."
+            onQueryChange={search.onQueryChange}
+            onCompositionChange={search.onCompositionChange}
+            onSubmit={search.onSubmit}
+            placeholder="Search property, unit or owner"
             query={query}
             showSubmitButton={false}
             suggestions={propertySuggestions}
             onSuggestionSelect={(suggestion) => {
-              const property = properties.find((item) => item.id === suggestion.id);
-              setQueryState({
-                source: viewQuery.query,
-                value: property?.name ?? suggestion.label,
-              });
+              search.cancelPending();
               onOpenProperty(suggestion.id);
             }}
             submitLabel="Search properties"
@@ -220,21 +205,21 @@ export function PropertyFilters({
                     </div>
 
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      {activeFilterChips.length > 0 ? (
-                        activeFilterChips.map((filter) => (
-                          <ActiveFilterChip
-                            key={filter.param}
-                            filter={filter}
-                            onRemove={() =>
-                              replaceParam(
-                                filter.param,
-                                filter.defaultValue,
-                                filter.defaultValue,
-                              )
-                            }
-                          />
-                        ))
-                      ) : null}
+                      {activeFilterChips.length > 0
+                        ? activeFilterChips.map((filter) => (
+                            <ActiveFilterChip
+                              key={filter.param}
+                              filter={filter}
+                              onRemove={() =>
+                                replaceParam(
+                                  filter.param,
+                                  filter.defaultValue,
+                                  filter.defaultValue,
+                                )
+                              }
+                            />
+                          ))
+                        : null}
                     </div>
                   </div>
 
@@ -339,10 +324,12 @@ export function PropertyFilters({
                               String(DEFAULT_PROPERTY_PAGE_SIZE),
                             )
                           }
-                          options={PROPERTY_PAGE_SIZE_OPTIONS.map((pageSize) => ({
-                            label: String(pageSize),
-                            value: String(pageSize),
-                          }))}
+                          options={PROPERTY_PAGE_SIZE_OPTIONS.map(
+                            (pageSize) => ({
+                              label: String(pageSize),
+                              value: String(pageSize),
+                            }),
+                          )}
                           value={String(viewQuery.pageSize)}
                         />
                       </FilterField>
@@ -352,8 +339,8 @@ export function PropertyFilters({
                   <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-2 text-xs text-muted-foreground">
                     <span>
                       Showing {properties.length}{" "}
-                      {properties.length === 1 ? "property" : "properties"} on this
-                      page
+                      {properties.length === 1 ? "property" : "properties"} on
+                      this page
                     </span>
                     <Popover.Close asChild>
                       <button
@@ -433,8 +420,14 @@ function ActiveFilterChip({
       type="button"
     >
       <span className="font-semibold">{filter.label}</span>
-      <span className="min-w-0 truncate text-muted-foreground">{filter.value}</span>
-      <X aria-hidden="true" className="shrink-0 text-muted-foreground" size={12} />
+      <span className="min-w-0 truncate text-muted-foreground">
+        {filter.value}
+      </span>
+      <X
+        aria-hidden="true"
+        className="shrink-0 text-muted-foreground"
+        size={12}
+      />
     </button>
   );
 }

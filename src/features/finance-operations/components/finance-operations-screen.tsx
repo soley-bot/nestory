@@ -1,5 +1,8 @@
 "use client";
 
+import { SearchCombo } from "@/components/ui/search-combo";
+import { matchesSearchText } from "@/lib/search/text";
+
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -797,6 +800,7 @@ function getScreen(
         ) : undefined,
       body: (
         <RentView
+          positions={props.positions}
           invoices={invoices}
           openModal={openModal}
           organizationName={props.organizationName}
@@ -859,6 +863,7 @@ function getScreen(
       ) : undefined,
       body: (
         <ExpensesView
+          positions={props.positions}
           serverMonth={props.expenseMonth}
           canReview={props.canReviewExpense}
           openModal={openModal}
@@ -1677,11 +1682,13 @@ function HistoricalRentRecoveryForm({
 }
 
 function RentView({
+  positions,
   invoices,
   openModal,
   organizationName,
   scoped,
 }: {
+  positions: FinanceOperationsData["positions"];
   invoices: TenantInvoiceSummary[];
   openModal: (modal: ModalState) => void;
   organizationName: string;
@@ -1692,6 +1699,7 @@ function RentView({
     invoices,
     searchParams,
     getBusinessDateValue(),
+    positions,
   );
   const unpaid = filteredInvoices.reduce(
     (sum, invoice) => sum + invoice.balanceDue,
@@ -1831,11 +1839,13 @@ function RentView({
 }
 
 function ExpensesView({
+  positions,
   serverMonth,
   canReview,
   openModal,
   submissions,
 }: {
+  positions: FinanceOperationsData["positions"];
   canReview: boolean;
   openModal: (modal: ModalState) => void;
   submissions: FinanceOperationsData["expenseSubmissions"];
@@ -1857,7 +1867,7 @@ function ExpensesView({
   };
   const [search, setSearch] = useState("");
   const filtered = submissions.filter((item) => (!month || item.date.startsWith(month)) &&
-    (!search.trim() || [item.propertyLabel, item.vendorLabel, item.categoryLabel, item.reference].join(" ").toLowerCase().includes(search.trim().toLowerCase())));
+    matchesSearchText(search, [item.propertyLabel, item.unitLabel, positions.find(position => position.propertyId === item.propertyId)?.ownerLabel, ...(positions.find(position => position.propertyId === item.propertyId)?.ownerSearchLabels ?? []), item.vendorLabel, item.categoryLabel, item.reference, ...(item.lines ?? []).map(line => line.unitLabel)]));
 
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-4 px-4 py-4 sm:px-6 2xl:px-8">
@@ -1866,9 +1876,7 @@ function ExpensesView({
         <label className="grid gap-1 text-xs font-medium">Month
           <MonthPickerField key={month || "all"} ariaLabel="Expense month" name="expenseMonth" defaultValue={month} onValueChange={setMonth} className="w-44" />
         </label>
-        <label className="grid min-w-0 flex-1 basis-full gap-1 text-xs font-medium sm:max-w-sm sm:basis-auto">Search
-          <Input aria-label="Search expenses" type="search" placeholder="Property, vendor or reference" value={search} onChange={event => setSearch(event.target.value)} className="w-full" />
-        </label>
+        <SearchCombo ariaLabel="Search expenses" className="basis-full sm:max-w-sm sm:basis-auto" placeholder="Search property, unit, owner, vendor or reference" query={search} onQueryChange={setSearch} onSubmit={event => event.preventDefault()} submitLabel="Search expenses" showSubmitButton={false} />
         {month || search ? <Button variant="ghost" onClick={() => { setMonth(""); setSearch(""); }}>Clear filters</Button> : null}
       </div>
       <Tabs

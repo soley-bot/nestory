@@ -1,12 +1,12 @@
 "use client";
 
-import type { FormEvent } from "react";
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { RotateCcw } from "lucide-react";
 import { FilterPopover } from "@/components/ui/filter-popover";
 import { Input } from "@/components/ui/input";
+import { useRegisterSearch } from "@/components/ui/use-register-search";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import {
@@ -37,15 +37,11 @@ export function TimelineFilters({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const [queryState, setQueryState] = useState({
-    source: viewQuery.query,
-    value: viewQuery.query,
-  });
+  const search = useRegisterSearch(viewQuery.query, (value) => replaceParam("query", value, ""));
   const advancedFilterCount = getAdvancedFilterCount(viewQuery);
   const hasActiveFilters =
     advancedFilterCount > 0 || viewQuery.query.trim().length > 0;
-  const query =
-    queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
+  const query = search.query;
   const compactSelectClassName = "h-8 px-2 text-sm";
   const compactInputClassName = "h-8 px-2 text-sm";
   const unitOptions =
@@ -81,10 +77,6 @@ export function TimelineFilters({
     });
   }
 
-  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    replaceParam("query", query.trim(), "");
-  }
 
   return (
     <div className="w-full min-w-0">
@@ -92,14 +84,10 @@ export function TimelineFilters({
         <SearchCombo
           ariaLabel="Search timeline records"
           disabled={isPending}
-          onQueryChange={(value) =>
-            setQueryState({
-              source: viewQuery.query,
-              value,
-            })
-          }
-          onSubmit={handleSearchSubmit}
-          placeholder="Search title, notes, property, unit, tenant, ledger, or document"
+          onQueryChange={search.onQueryChange}
+          onCompositionChange={search.onCompositionChange}
+          onSubmit={search.onSubmit}
+          placeholder="Search property, unit, owner, title or notes"
           query={query}
           submitLabel="Search timeline records"
         />

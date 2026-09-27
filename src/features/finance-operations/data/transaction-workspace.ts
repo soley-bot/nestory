@@ -1,3 +1,4 @@
+import { matchesSearchText } from "@/lib/search/text";
 import type { ExpenseSubmissionSummary, FinanceOperationsData, PropertyAccountEntry, TenantInvoiceSettlement, TenantInvoiceSummary } from "../finance-operations.types";
 
 export type TransactionSource =
@@ -9,13 +10,14 @@ export type TransactionSource =
 export type TransactionRow = {
   id: string; sourceId: string; kind: TransactionSource["kind"] | "management_fee"; date: string; label: string;
   propertyId: string; unitId: string | null; unitLabel: string; tenant: string;
+  propertyLabel?: string; ownerLabel?: string;
   amount: number; status: string; history: boolean; source: TransactionSource;
 };
 export type TransactionScope = { propertyId: string; unitId?: string };
 export type TransactionFilters = TransactionScope & { month?: string; kind?: string; status?: string; tenant?: string; query?: string; includeHistory?: boolean };
 
 /** Business documents only: invoice allocations and the owner account are not added together. */
-export function projectTransactions(data: Pick<FinanceOperationsData, "tenantInvoices" | "expenseSubmissions" | "accountEntries"> & { leases?: FinanceOperationsData["leases"]; historicalLeases?: FinanceOperationsData["historicalLeases"]; unitOptions?: FinanceOperationsData["unitOptions"]; accountSourcesComplete?: boolean }): TransactionRow[] {
+export function projectTransactions(data: Pick<FinanceOperationsData, "tenantInvoices" | "expenseSubmissions" | "accountEntries"> & { positions?: FinanceOperationsData["positions"]; leases?: FinanceOperationsData["leases"]; historicalLeases?: FinanceOperationsData["historicalLeases"]; unitOptions?: FinanceOperationsData["unitOptions"]; accountSourcesComplete?: boolean }): TransactionRow[] {
   const rows: TransactionRow[] = [];
   for (const invoice of data.tenantInvoices) {
     const common = { propertyId: invoice.propertyId, unitId: invoice.unitId, unitLabel: invoice.unitLabel, tenant: invoice.recipientLabel };
@@ -38,6 +40,11 @@ export function projectTransactions(data: Pick<FinanceOperationsData, "tenantInv
     const history = entry.source?.isReversed === true || entry.amount < 0;
     rows.push({ id: `${kind}:${entry.id}`, sourceId: entry.source?.id ?? entry.id, kind, date: entry.date, label: entry.label, propertyId: entry.propertyId, unitId: entry.unitId ?? null, unitLabel: entry.unitId ? entry.unitLabel ?? data.unitOptions?.find(unit => unit.id === entry.unitId)?.label ?? "Unit contribution" : "Property", tenant: "", amount: entry.amount, status: history ? "reversed" : "posted", history, source: { kind, entry } });
   }
+  for (const row of rows) {
+    const position = data.positions?.find(position => position.propertyId === row.propertyId);
+    row.propertyLabel = position?.propertyLabel;
+    row.ownerLabel = [position?.ownerLabel, ...(position?.ownerSearchLabels ?? [])].filter(Boolean).join(" ");
+  }
   return rows.sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
 }
 
@@ -58,7 +65,7 @@ export function filterTransactions(rows: TransactionRow[], filters: TransactionF
     (!filters.status || filters.status === "all" || row.status === filters.status) &&
     (!filters.tenant || filters.tenant === "all" || row.tenant === filters.tenant) &&
     (filters.includeHistory || !row.history) &&
-    (!query || [row.label, row.tenant, row.unitLabel, row.kind].some(value => value.toLocaleLowerCase().includes(query))));
+    matchesSearchText(query ?? "", [row.label, row.tenant, row.unitLabel, row.kind, row.propertyLabel, row.ownerLabel]));
 }
 
 export function transactionReportLinks(scope: TransactionScope, month: string, ownerPersonId?: string | null) {

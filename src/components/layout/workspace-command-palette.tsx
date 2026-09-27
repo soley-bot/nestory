@@ -17,6 +17,7 @@ import {
 import { useRouter } from "next/navigation";
 import {
   getWorkspaceSearchActions,
+  getWorkspaceSearchScopes,
   type WorkspaceSearchAction,
 } from "@/features/workspace-search/workspace-search.scopes";
 import {
@@ -27,25 +28,20 @@ import {
 } from "@/features/workspace-search/workspace-search.types";
 import { cn } from "@/lib/utils";
 import type { PermissionKey } from "@/lib/auth/permission-catalog";
+import { matchesSearchText } from "@/lib/search/text";
 
 const SEARCH_DEBOUNCE_MS = 500;
 const SEARCH_QUERY_MAX_LENGTH = 120;
-const MAX_VISIBLE_RESULTS = 8;
+const MAX_VISIBLE_RESULTS = WORKSPACE_SEARCH_RESULT_LIMIT + 3;
 const MAX_PAGE_RESULTS = 3;
 
 const RESULT_GROUPS = [
-  {
-    kinds: [
-      "property",
-      "unit",
-      "person",
-      "lease",
-      "maintenance",
-      "task",
-      "document",
-    ],
-    label: "Best matches",
-  },
+  { kinds: ["property"], label: "Properties" },
+  { kinds: ["unit"], label: "Units" },
+  { kinds: ["person"], label: "People" },
+  { kinds: ["lease"], label: "Leases" },
+  { kinds: ["maintenance", "task"], label: "Tasks & cases" },
+  { kinds: ["document"], label: "Documents" },
   { kinds: ["action"], label: "Pages" },
 ] as const satisfies readonly {
   kinds: readonly WorkspaceSearchResultKind[];
@@ -68,6 +64,8 @@ type SearchState = "idle" | "loading" | "success" | "error";
 type EntityResultState = {
   query: string;
   results: WorkspaceSearchResult[];
+  partial?: boolean;
+  limited?: boolean;
 };
 
 type ResultGroup = {
@@ -102,6 +100,7 @@ export function WorkspaceCommandPalette({
   const listboxId = `${componentId}-results`;
   const inputId = `${componentId}-input`;
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
@@ -110,6 +109,7 @@ export function WorkspaceCommandPalette({
   const requestSequenceRef = useRef(0);
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [isComposing, setIsComposing] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [searchState, setSearchState] = useState<SearchState>("idle");
   const [entityState, setEntityState] = useState<EntityResultState>({
@@ -130,6 +130,10 @@ export function WorkspaceCommandPalette({
     () => new Set(permissionKeys),
     [permissionKeys],
   );
+  const registerScopes = getWorkspaceSearchScopes({
+    isSuperAdmin,
+    permissionKeys: resolvedPermissionKeys,
+  });
 
   const localActions = useMemo(() => {
     const actions = getWorkspaceSearchActions({
@@ -147,9 +151,16 @@ export function WorkspaceCommandPalette({
 
     return rankPageActions(actions, pageQuery).slice(
       0,
-      isPageMode ? MAX_VISIBLE_RESULTS : MAX_PAGE_RESULTS,
+      isPageMode ? 8 : MAX_PAGE_RESULTS,
     );
-  }, [isPageMode, isRecordQuery, isSuperAdmin, normalizedQuery, pageQuery, resolvedPermissionKeys]);
+  }, [
+    isPageMode,
+    isRecordQuery,
+    isSuperAdmin,
+    normalizedQuery,
+    pageQuery,
+    resolvedPermissionKeys,
+  ]);
 
   const entityResults = useMemo(
     () =>
@@ -241,13 +252,16 @@ export function WorkspaceCommandPalette({
       }
 
       event.preventDefault();
-      const moveToClose = document.activeElement === inputRef.current;
-
-      if (moveToClose) {
-        closeButtonRef.current?.focus();
-      } else {
-        inputRef.current?.focus();
-      }
+      const focusable = Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          "input, button, a[href]",
+        ) ?? [],
+      );
+      const current = focusable.indexOf(document.activeElement as HTMLElement);
+      const next =
+        (current + (event.shiftKey ? -1 : 1) + focusable.length) %
+        focusable.length;
+      focusable[next]?.focus();
     }
 
     document.addEventListener("keydown", handleDocumentKeyDown);
@@ -286,7 +300,7 @@ export function WorkspaceCommandPalette({
     activeRequestRef.current?.abort();
     activeRequestRef.current = null;
 
-    if (!isRecordQuery) {
+    if (!isRecordQuery || isComposing) {
       return;
     }
 
@@ -310,14 +324,25 @@ export function WorkspaceCommandPalette({
         const payload: unknown = await response.json();
         const results = parseEntityResults(payload);
 
-        if (controller.signal.aborted || sequence !== requestSequenceRef.current) {
+        if (
+          controller.signal.aborted ||
+          sequence !== requestSequenceRef.current
+        ) {
           return;
         }
 
-        setEntityState({ query: normalizedQuery, results });
+        setEntityState({
+          query: normalizedQuery,
+          results,
+          partial: isObject(payload) && payload.partial === true,
+          limited: isObject(payload) && payload.limited === true,
+        });
         setSearchState("success");
       } catch {
-        if (controller.signal.aborted || sequence !== requestSequenceRef.current) {
+        if (
+          controller.signal.aborted ||
+          sequence !== requestSequenceRef.current
+        ) {
           return;
         }
 
@@ -330,7 +355,7 @@ export function WorkspaceCommandPalette({
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [isOpen, isRecordQuery, normalizedQuery]);
+  }, [isOpen, isRecordQuery, normalizedQuery, isComposing]);
 
   useEffect(() => {
     if (!isOpen || !activeOptionId) {
@@ -351,6 +376,7 @@ export function WorkspaceCommandPalette({
     requestSequenceRef.current += 1;
     activeRequestRef.current?.abort();
     compositionActiveRef.current = false;
+    setIsComposing(false);
     setIsOpen(false);
     setQuery("");
     setActiveIndex(0);
@@ -403,25 +429,38 @@ export function WorkspaceCommandPalette({
     }
   }
 
-  const statusMessage = getStatusMessage({
-    availableResultCount,
-    isPageMode,
-    isShortQuery: isShortRecordQuery,
-    query,
-    visibleResultCount: orderedResults.length,
-    searchState,
-  });
+  const statusMessage =
+    entityState.query === normalizedQuery &&
+    searchState === "success" &&
+    entityState.partial
+      ? "Some categories are unavailable. Showing available matches."
+      : entityState.query === normalizedQuery &&
+          searchState === "success" &&
+          entityState.limited
+        ? "Top matches shown. Open a register below to keep searching."
+        : getStatusMessage({
+            availableResultCount,
+            isPageMode,
+            isShortQuery: isShortRecordQuery,
+            query,
+            visibleResultCount: orderedResults.length,
+            searchState,
+          });
 
   return (
     <>
       <button
         aria-label="Search or jump"
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex h-8 shrink-0 items-center justify-center gap-2 rounded-md px-2 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring sm:border sm:border-input sm:bg-card sm:px-3"
         onClick={openFromTrigger}
         ref={triggerRef}
         type="button"
       >
         <Search aria-hidden="true" size={16} />
+        <span className="hidden text-xs sm:inline">Search records…</span>
+        <kbd aria-hidden="true" className="ml-3 hidden text-[10px] lg:inline">
+          Ctrl K
+        </kbd>
       </button>
 
       {isOpen && typeof document !== "undefined"
@@ -436,13 +475,17 @@ export function WorkspaceCommandPalette({
               }}
             >
               <section
+                ref={dialogRef}
                 aria-labelledby={dialogTitleId}
                 aria-modal="true"
                 className="flex max-h-[min(72vh,32rem)] w-full max-w-[38rem] flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-xl"
                 role="dialog"
               >
                 <div className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-4 py-2.5 transition-shadow focus-within:border-ring focus-within:ring-2 focus-within:ring-ring">
-                  <Search className="shrink-0 text-muted-foreground" size={18} />
+                  <Search
+                    className="shrink-0 text-muted-foreground"
+                    size={18}
+                  />
                   <h2 className="sr-only" id={dialogTitleId}>
                     Search or jump
                   </h2>
@@ -462,27 +505,34 @@ export function WorkspaceCommandPalette({
                     id={inputId}
                     onChange={(event) => {
                       const nextQuery = event.target.value;
-                      const nextNormalizedQuery = normalizeSearchText(nextQuery);
-                      const nextIsPageMode = nextNormalizedQuery.startsWith(">");
+                      const nextNormalizedQuery =
+                        normalizeSearchText(nextQuery);
+                      const nextIsPageMode =
+                        nextNormalizedQuery.startsWith(">");
                       setQuery(nextQuery);
                       setActiveIndex(0);
-                      setEntityState({ query: nextNormalizedQuery, results: [] });
+                      setEntityState({
+                        query: nextNormalizedQuery,
+                        results: [],
+                      });
                       setSearchState(
                         !nextIsPageMode &&
                           Array.from(nextNormalizedQuery).length >=
-                          WORKSPACE_SEARCH_MIN_QUERY_LENGTH
+                            WORKSPACE_SEARCH_MIN_QUERY_LENGTH
                           ? "loading"
                           : "idle",
                       );
                     }}
                     onCompositionEnd={() => {
                       compositionActiveRef.current = false;
+                      setIsComposing(false);
                     }}
                     onCompositionStart={() => {
                       compositionActiveRef.current = true;
+                      setIsComposing(true);
                     }}
                     onKeyDown={handleInputKeyDown}
-                    placeholder="Search properties, units, people…"
+                    placeholder="Name, property, unit, email or phone…"
                     ref={inputRef}
                     role="combobox"
                     type="search"
@@ -495,7 +545,9 @@ export function WorkspaceCommandPalette({
                     ref={closeButtonRef}
                     type="button"
                   >
-                    <span className="hidden text-xs font-medium sm:inline">Esc</span>
+                    <span className="hidden text-xs font-medium sm:inline">
+                      Esc
+                    </span>
                     <X className="sm:hidden" size={16} />
                   </button>
                 </div>
@@ -524,8 +576,10 @@ export function WorkspaceCommandPalette({
                         <div className="space-y-0.5">
                           {group.results.map((result) => {
                             const resultIndex = orderedResults.indexOf(result);
-                            const isActive = resultIndex === resolvedActiveIndex;
-                            const presentation = RESULT_KIND_PRESENTATION[result.kind];
+                            const isActive =
+                              resultIndex === resolvedActiveIndex;
+                            const presentation =
+                              RESULT_KIND_PRESENTATION[result.kind];
                             const ResultIcon = presentation.icon;
                             const optionId = getOptionId(
                               componentId,
@@ -550,7 +604,8 @@ export function WorkspaceCommandPalette({
                                 <span
                                   className={cn(
                                     "grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border bg-background text-muted-foreground",
-                                    isActive && "border-foreground/15 text-foreground",
+                                    isActive &&
+                                      "border-foreground/15 text-foreground",
                                   )}
                                 >
                                   <ResultIcon aria-hidden="true" size={15} />
@@ -604,12 +659,54 @@ export function WorkspaceCommandPalette({
                           : isShortRecordQuery
                             ? "Add one more character to search workspace records."
                             : normalizedQuery
-                              ? "Try a more specific name, code, payer, or reference."
+                              ? "Try a name, property code, address, unit, email or phone."
                               : "Search across properties, units, people, leases, tasks, and documents."}
                       </p>
                     </div>
                   ) : null}
                 </div>
+
+                {isRecordQuery && registerScopes.length > 0 ? (
+                  <div className="shrink-0 border-t border-border px-4 py-2">
+                    <p className="text-xs text-muted-foreground">
+                      Search within a register · use its filters for archived
+                      records
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                      {registerScopes.map((scope) => {
+                        const assignmentOnly =
+                          !isSuperAdmin &&
+                          resolvedPermissionKeys.has("maintenance.complete") &&
+                          !resolvedPermissionKeys.has(
+                            "maintenance.create_assign",
+                          ) &&
+                          !resolvedPermissionKeys.has("maintenance.review");
+                        const route =
+                          scope === "tasks"
+                            ? assignmentOnly
+                              ? "tasks"
+                              : "maintenance"
+                            : scope;
+                        const label =
+                          scope === "tasks"
+                            ? assignmentOnly
+                              ? "Tasks"
+                              : "Cases"
+                            : scope.charAt(0).toUpperCase() + scope.slice(1);
+                        return (
+                          <a
+                            className="rounded text-xs font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            href={`/${route}?query=${encodeURIComponent(normalizedQuery)}`}
+                            key={scope}
+                            onClick={closePalette}
+                          >
+                            {label}
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-card px-3.5 py-2">
                   <p
@@ -626,9 +723,15 @@ export function WorkspaceCommandPalette({
                     aria-hidden="true"
                     className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex"
                   >
-                    <span><kbd className="font-medium">↑↓</kbd> Navigate</span>
-                    <span><kbd className="font-medium">Enter</kbd> Open</span>
-                    <span><kbd className="font-medium">&gt;</kbd> Pages</span>
+                    <span>
+                      <kbd className="font-medium">↑↓</kbd> Navigate
+                    </span>
+                    <span>
+                      <kbd className="font-medium">Enter</kbd> Open
+                    </span>
+                    <span>
+                      <kbd className="font-medium">&gt;</kbd> Pages
+                    </span>
                   </div>
                 </div>
               </section>
@@ -640,7 +743,9 @@ export function WorkspaceCommandPalette({
   );
 }
 
-function groupResults(results: readonly WorkspaceSearchResult[]): ResultGroup[] {
+function groupResults(
+  results: readonly WorkspaceSearchResult[],
+): ResultGroup[] {
   return RESULT_GROUPS.flatMap((group) => {
     const groupKinds: readonly WorkspaceSearchResultKind[] = group.kinds;
     const groupResults = results.filter((result) =>
@@ -653,9 +758,7 @@ function groupResults(results: readonly WorkspaceSearchResult[]): ResultGroup[] 
   });
 }
 
-function getQuickAccessActions(
-  actions: readonly WorkspaceSearchAction[],
-) {
+function getQuickAccessActions(actions: readonly WorkspaceSearchAction[]) {
   const preferredIds = [
     "action:properties",
     "action:people",
@@ -685,7 +788,7 @@ function rankPageActions(
       const id = normalizeSearchText(action.id.replace(/^action:/u, ""));
       const searchableText = [label, id, ...keywords].join(" ");
 
-      if (!searchableText.includes(query)) {
+      if (!matchesSearchText(query, [searchableText])) {
         return null;
       }
 
@@ -701,7 +804,9 @@ function rankPageActions(
       return { action, index, score };
     })
     .filter(
-      (candidate): candidate is {
+      (
+        candidate,
+      ): candidate is {
         action: WorkspaceSearchAction;
         index: number;
         score: number;
@@ -725,9 +830,7 @@ function limitResultGroups(groups: readonly ResultGroup[], limit: number) {
   });
 }
 
-function parseEntityResults(
-  payload: unknown,
-): WorkspaceSearchResult[] {
+function parseEntityResults(payload: unknown): WorkspaceSearchResult[] {
   if (!isObject(payload) || !Array.isArray(payload.results)) {
     throw new Error("Invalid search response");
   }
@@ -761,7 +864,9 @@ function parseEntityResults(
   return results;
 }
 
-function isWorkspaceSearchResult(value: unknown): value is WorkspaceSearchResult {
+function isWorkspaceSearchResult(
+  value: unknown,
+): value is WorkspaceSearchResult {
   if (!isObject(value)) {
     return false;
   }

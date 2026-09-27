@@ -1,3 +1,5 @@
+import { readBoundedSearch } from "@/lib/search/bounded-register";
+import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
 import { Constants } from "@/types/database";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import {
@@ -193,26 +195,32 @@ export async function getTimelineScreenData(
 ) {
   const supabase = await createSupabaseServerClient();
   const scope = options.scope ?? "global";
+  const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
   const searchMatches = await getTimelineSearchMatches({
     organizationId,
     query: viewQuery.query,
     supabase,
   });
 
+  const linked = buildTimelineSearchClauses("", searchMatches).filter(clause => !clause.includes(".ilike.") && !clause.startsWith("property_id.") && !clause.startsWith("unit_id."));
+  const groups = viewQuery.eventId ? [] : (portfolio?.groups(viewQuery.query, ["title", "description"]) ?? []).map(group => [group, ...linked].join(","));
   const fetchEventsPage = (page: number) => {
     const { from, to } = getRange(page, viewQuery.pageSize);
-    let query = supabase
-      .from("timeline_events")
-      .select(
-        "id, property_id, unit_id, lease_id, ledger_entry_id, event_date, event_type, title, description, cost_amount, cost_currency, created_by, archived_at",
-        { count: "exact" },
-      )
-      .eq("organization_id", organizationId);
+    return readBoundedSearch(groups, (start, end, filters) => {
+      let query = supabase
+        .from("timeline_events")
+        .select(
+          "id, property_id, unit_id, lease_id, ledger_entry_id, event_date, event_type, title, description, cost_amount, cost_currency, created_by, archived_at",
+          { count: "exact" },
+        )
+        .eq("organization_id", organizationId);
 
-    query = applyTimelineFilters(query, viewQuery, scope, searchMatches);
-    query = applyTimelineSort(query, viewQuery.sort);
+      query = applyTimelineFilters(query, viewQuery, scope);
+      for (const group of filters) query = query.or(group);
+      query = applyTimelineSort(query, viewQuery.sort);
 
-    return query.range(from, to);
+      return query.order("id").range(start, end);
+    }, from, to);
   };
 
   const [
@@ -533,7 +541,6 @@ function applyTimelineFilters<TQuery extends FilterableQuery<TQuery>>(
   query: TQuery,
   viewQuery: TimelineViewQuery,
   scope: TimelineScope,
-  searchMatches: TimelineSearchMatches,
 ) {
   let nextQuery = applyTimelineScope(query, scope);
 
@@ -566,13 +573,7 @@ function applyTimelineFilters<TQuery extends FilterableQuery<TQuery>>(
       nextQuery = nextQuery.eq("event_type", viewQuery.eventType);
     }
 
-    const searchPattern = getSearchPattern(viewQuery.query);
 
-    if (searchPattern) {
-      nextQuery = nextQuery.or(
-        buildTimelineSearchClauses(searchPattern, searchMatches).join(","),
-      );
-    }
   }
 
   return nextQuery;

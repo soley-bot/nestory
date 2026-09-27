@@ -1,5 +1,7 @@
 "use client";
 
+import { matchesSearchText } from "@/lib/search/text";
+
 import { startTransition, useActionState, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
@@ -7,7 +9,7 @@ import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { SearchInput } from "@/components/ui/search-input";
+import { SearchCombo } from "@/components/ui/search-combo";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import {
   setFinanceAccountArchivedAction,
@@ -89,13 +91,13 @@ export function FinanceAccountsScreen({
         const active = account.archivedAt === null;
         if (status === "active" && !active) return false;
         if (status === "inactive" && active) return false;
-        if (normalizedQuery && ![
+        if (normalizedQuery && !matchesSearchText(query, [
           account.accountNumber,
           account.displayName,
           account.description,
           accountSubtypeLabel(account.accountSubtype),
           ...defaultLabels(account),
-        ].filter(Boolean).some((value) => value?.toLocaleLowerCase().includes(normalizedQuery))) {
+        ])) {
           return false;
         }
         return account.depth === 0 || Boolean(normalizedQuery) || expandedParents.has(account.parentAccountId ?? "");
@@ -118,13 +120,15 @@ export function FinanceAccountsScreen({
       title="Chart of Accounts"
       toolbar={
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <SearchInput
-            aria-label="Search accounts"
-            className="w-full sm:w-64"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search accounts"
-            role="searchbox"
-            value={query}
+          <SearchCombo
+            ariaLabel="Search accounts"
+            className="w-full sm:w-64 sm:flex-none"
+            onQueryChange={setQuery}
+            onSubmit={event => event.preventDefault()}
+            placeholder="Search number, name or description"
+            query={query}
+            showSubmitButton={false}
+            submitLabel="Search accounts"
           />
           <select
             aria-label="Account type filter"
