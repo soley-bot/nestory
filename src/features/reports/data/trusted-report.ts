@@ -855,6 +855,8 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
                   ? "expense"
                   : "income",
               id: event.eventKey,
+              propertyId: event.propertyId,
+              unitId: event.unitId,
               property: propertyLabel(
                 context.propertiesById.get(event.propertyId),
               ),

@@ -190,7 +190,7 @@ function trimTrustedReportForScreen(report: TrustedReport): TrustedReport {
   }
   return {
     ...report,
-    rows: report.rows.slice(0, maxScreenReportRows).map((row) => ({
+    rows: (report.kind === "unit-profit-loss" ? report.rows : report.rows.slice(0, maxScreenReportRows)).map((row) => ({
       ...row,
       sourceLinks:
         report.kind === "monthly-owner-activity"

@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ReportResultsTable } from "@/features/reports/components/report-results-table";
-import { ProfitLossDetail } from "@/features/reports/components/profit-loss-detail";
+import { UnitProfitLossWorkspace } from "./unit-profit-loss-workspace";
 import { ReportsFilters } from "@/features/reports/components/reports-filters";
 import { getReportCatalogItem, reportCatalog } from "@/features/reports/report-catalog";
 import { buildReportQueryParams } from "@/features/reports/reports.filters";
@@ -52,6 +52,7 @@ export function ReportBuilderScreen({
 
   return (
     <WorkspacePage
+      className={viewQuery.report === "unit-profit-loss" ? "overflow-x-clip" : undefined}
       actions={<div className="flex items-center gap-2"><RecheckReport />{validation ? null : <ExportMenu viewQuery={viewQuery} />}</div>}
       breadcrumbItems={[{ href: "/reports", label: "Reports" }]}
       title={selectedReport.title}
@@ -60,6 +61,7 @@ export function ReportBuilderScreen({
         <nav aria-label="Reports" className="workspace-gutter-x flex gap-1 overflow-x-auto border-b border-border py-2">
           {reportCatalog.map((report) => <Link key={report.kind} aria-current={report.kind === viewQuery.report ? "page" : undefined} href={`/reports/${report.kind}`} className={cn("shrink-0 rounded-md px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", report.kind === viewQuery.report ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>{report.tabLabel}</Link>)}
         </nav>
+        <div className={viewQuery.report === "unit-profit-loss" ? "sticky top-0 z-20 bg-background" : undefined}>
         <ReportsFilters
           key={queryKey}
           action={`/reports/${viewQuery.report}`}
@@ -70,6 +72,7 @@ export function ReportBuilderScreen({
           unitOptions={unitOptions}
           viewQuery={viewQuery}
         />
+        </div>
 
         <div className="workspace-gutter-x flex-1 space-y-4 py-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -140,13 +143,9 @@ export function ReportBuilderScreen({
             </section>
           ) : null}
 
-          <ReportResultsTable
-            key={queryKey}
-            report={trustedReport}
-            reportRowCount={reportRowCount}
-            viewQuery={viewQuery}
-          />
-          {trustedReport.unitProfitLossLines ? <ProfitLossDetail key={`${queryKey}-detail`} lines={trustedReport.unitProfitLossLines} funding={trustedReport.unitProfitLossFunding} /> : null}
+          {trustedReport.kind === "unit-profit-loss" ? (
+            <UnitProfitLossWorkspace key={queryKey} report={trustedReport} viewQuery={viewQuery} />
+          ) : <ReportResultsTable key={queryKey} report={trustedReport} reportRowCount={reportRowCount} viewQuery={viewQuery} />}
         </div>
       </div>
     </WorkspacePage>

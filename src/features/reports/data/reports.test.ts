@@ -9,6 +9,14 @@ describe("report screen preparation", () => {
     expect(selected.totalRowCount).toBe(76);
   });
 
+  it("keeps every Unit P&L row available for pagination and search", () => {
+    const report = reportWithRows(89);
+    report.kind = "unit-profit-loss";
+    const selected = prepareTrustedReportForScreen(report);
+    expect(selected.rows).toHaveLength(89);
+    expect(selected.totalRowCount).toBe(89);
+  });
+
   it("bounds Unit P&L source links without changing the source count", () => {
     const report = reportWithRows(1);
     report.kind = "unit-profit-loss";

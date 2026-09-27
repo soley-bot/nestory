@@ -4,6 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
+import { Input } from "@/components/ui/input";
+import { ProfitLossUnitTransactions } from "./profit-loss-detail";
 import { Button } from "@/components/ui/button";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import {
@@ -52,18 +54,23 @@ export function ReportResultsTable({
   );
   const [showZeroActivity, setShowZeroActivity] = React.useState(false);
   const [page, setPage] = React.useState(0);
+  const isProfitLoss = report.kind === "unit-profit-loss";
+  const pageSize = isProfitLoss ? 25 : 50;
+  const [search, setSearch] = React.useState("");
   const zeroActivityRows =
     report.kind === "unit-profit-loss"
       ? report.rows.filter((row) => !hasFinancialActivity(row))
       : [];
-  const allRows =
+  const activityRows =
     report.kind === "unit-profit-loss" && !showZeroActivity
       ? report.rows.filter(hasFinancialActivity)
       : report.rows;
+  const query = search.trim().toLowerCase();
+  const allRows = isProfitLoss && query ? activityRows.filter((row) => `${row.cells.property} ${row.cells.unit}`.toLowerCase().includes(query)) : activityRows;
   const recordCount = allRows.filter((row) => !row.isGroup).length;
-  const pageCount = Math.max(1, Math.ceil(recordCount / 50));
+  const pageCount = Math.max(1, Math.ceil(recordCount / pageSize));
   const currentPage = Math.min(page, pageCount - 1);
-  const rows = paginateReportRows(allRows, currentPage, 50);
+  const rows = paginateReportRows(allRows, currentPage, pageSize);
   const columns = displayColumns(report);
   const operational = ["transactions", "management-fees", "rent-roll", "rent-collections"].includes(report.kind);
   const countLabel =
@@ -72,6 +79,13 @@ export function ReportResultsTable({
       : report.kind === "monthly-owner-activity"
         ? `${reportRowCount} ${reportRowCount === 1 ? "property" : "properties"}`
         : `${reportRowCount} ${reportRowCount === 1 ? "record" : "records"}`;
+
+  function pagination(label: string) {
+    return pageCount > 1 ? <nav aria-label={label} className="flex flex-wrap items-center justify-between gap-2 border-t border-border py-2 text-xs text-muted-foreground">
+      <p>{currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, recordCount)} of {recordCount} records.{!isProfitLoss ? " Totals and exports include all matching rows." : ""}</p>
+      <div className="flex items-center gap-2"><Button size="sm" variant="outline" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Previous</Button><span>Page {currentPage + 1} of {pageCount}</span><Button size="sm" variant="outline" disabled={currentPage + 1 === pageCount} onClick={() => setPage(currentPage + 1)}>Next</Button></div>
+    </nav> : null;
+  }
 
   return (
     <>
@@ -84,7 +98,7 @@ export function ReportResultsTable({
           {zeroActivityRows.length > 0 ? (
             <Button
               className="ml-auto h-7 px-2 text-xs"
-              onClick={() => setShowZeroActivity((current) => !current)}
+              onClick={() => { setShowZeroActivity((current) => !current); setPage(0); }}
               type="button"
               variant="ghost"
             >
@@ -95,15 +109,17 @@ export function ReportResultsTable({
           ) : null}
         </div>
 
+        {isProfitLoss ? <div className="flex flex-wrap items-center gap-3 py-2"><Input aria-label="Find property or unit" placeholder="Find property or unit" className="max-w-xs" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} /><p className="text-xs text-muted-foreground">Search filters this list. Totals and exports cover the full report.</p></div> : null}
+        {isProfitLoss ? pagination("Report pages, top") : null}
         <div
           aria-label={`${report.title} table`}
-          className="max-w-full overflow-x-auto"
+          className={cn("max-w-full", isProfitLoss ? "[&>[data-slot=table-container]]:max-h-[55vh]" : "overflow-x-auto")}
           role="region"
           tabIndex={0}
         >
-          <Table aria-label={report.title} className={cn("min-w-[600px] text-[13px] leading-5", operational && "table-fixed", operational && columns.length > 7 && "min-w-[1000px]")}>
+          <Table scrollRegionLabel={isProfitLoss ? "Summary rows" : undefined} aria-label={report.title} className={cn("min-w-[600px] text-[13px] leading-5", operational && "table-fixed", operational && columns.length > 7 && "min-w-[1000px]")}>
             {operational ? <colgroup>{columns.map((column) => <col key={column.key} style={{ width: operationalColumnWidth(column.key, columns.length) }} />)}<col style={{ width: 42 }} /></colgroup> : null}
-            <TableHeader className="bg-[var(--table-header-bg)] text-[11px] text-muted-foreground">
+            <TableHeader sticky={isProfitLoss} className="bg-[var(--table-header-bg)] text-[11px] text-muted-foreground">
               <TableRow>
                 {columns.map((column) => (
                   <TableHead
@@ -161,13 +177,11 @@ export function ReportResultsTable({
             </TableBody>
           </Table>
         </div>
-        {pageCount > 1 ? <nav aria-label="Report pages" className="flex flex-wrap items-center justify-between gap-2 border-t border-border py-3 text-xs text-muted-foreground">
-          <p>{currentPage * 50 + 1}–{Math.min((currentPage + 1) * 50, recordCount)} of {recordCount} records. Totals and exports include all matching rows.</p>
-          <div className="flex items-center gap-2"><Button size="sm" variant="outline" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Previous</Button><span>Page {currentPage + 1} of {pageCount}</span><Button size="sm" variant="outline" disabled={currentPage + 1 === pageCount} onClick={() => setPage(currentPage + 1)}>Next</Button></div>
-        </nav> : null}
+        {pagination(isProfitLoss ? "Report pages, bottom" : "Report pages")}
       </section>
 
       <ReportRowDetails
+        key={activeRow?.id}
         onClose={() => setActiveRow(null)}
         report={report}
         row={activeRow}
@@ -284,6 +298,7 @@ function ReportRowDetails({
 }) {
   if (!row) return null;
 
+  const unitLines = report.kind === "unit-profit-loss" && !report.scopeValidation && report.unitProfitLossLines ? report.unitProfitLossLines.filter((line) => row.id.startsWith("property-level:") ? line.unitId === null && line.propertyId === row.id.slice("property-level:".length) : line.unitId === row.id) : null;
   const hiddenSourceCount = Math.max(
     0,
     row.sourceCount - row.sourceLinks.length,
@@ -350,6 +365,7 @@ function ReportRowDetails({
           </section>
         ) : null}
 
+        {unitLines ? <ProfitLossUnitTransactions lines={unitLines} /> : null}
         <section aria-labelledby="report-row-sources">
           <h3 className="font-semibold text-foreground" id="report-row-sources">
             Source records
