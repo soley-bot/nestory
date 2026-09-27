@@ -10,12 +10,17 @@ import { OWNER_BALANCE_COMPONENTS } from "./owner-balance.types";
 const scope={month:"2026-09",propertyId:"10000000-0000-0000-0000-000000000001",ownerPersonId:"80000000-0000-0000-0000-000000000001"};
 beforeEach(()=>{vi.resetAllMocks();mocks.context.mockResolvedValue({organizationId:"org",organizationSlug:"pilot"});mocks.client.mockResolvedValue({});mocks.close.mockResolvedValue({publications:[],series:null});});
 describe("statement report read authority",()=>{
+ it.each(["preparing","stale","open"])("does not present a superseded close as a ready draft when %s",async state=>{
+   mocks.close.mockResolvedValue({publications:[],series:{state,currentClosedRevisionId:"old",activeRevisionId:"replacement"},revisions:[{id:"old",status:"closed"}]});
+   expect(await readStatementReport(scope)).toBeNull();
+   expect(mocks.balance).not.toHaveBeenCalled();
+ });
  it("uses frozen descriptions and balances for a closed unpublished revision",async()=>{
    const lines=OWNER_BALANCE_COMPONENTS.flatMap((component,index)=>[
      {id:`open-${index}`,component,lineKind:"opening",lineNumber:index+1,signedAmount:component==="ips_held_owner_cash"?"100.00":"0.00",businessDate:"2026-09-01",sources:[]},
      {id:`close-${index}`,component,lineKind:"closing",lineNumber:index+10,signedAmount:component==="ips_held_owner_cash"?"200.00":"0.00",businessDate:"2026-09-30",sources:[]},
    ]);
-   mocks.close.mockResolvedValue({publications:[],series:{currentClosedRevisionId:"revision",state:"closed"},revisions:[{id:"revision",status:"closed",revisionNumber:1,lines:[...lines,{id:"rent",component:"ips_held_owner_cash",lineKind:"movement",lineNumber:5,signedAmount:"100.00",businessDate:"2026-09-02",description:"Frozen September rent",sources:[{sourceType:"rent_payment"}]}]}]});
+   mocks.close.mockResolvedValue({publications:[],series:{currentClosedRevisionId:"revision",activeRevisionId:"revision",state:"closed"},revisions:[{id:"revision",status:"closed",revisionNumber:1,lines:[...lines,{id:"rent",component:"ips_held_owner_cash",lineKind:"movement",lineNumber:5,signedAmount:"100.00",businessDate:"2026-09-02",description:"Frozen September rent",sources:[{sourceType:"rent_payment"}]}]}]});
    const report=await readStatementReport(scope);
    expect(report?.cash.transactions[0].details).toBe("Frozen September rent");
    expect(report?.cash.closingCents).toBe(20000);
@@ -30,4 +35,5 @@ describe("statement report read authority",()=>{
  it("rejects a publication returned for another owner",async()=>{mocks.close.mockResolvedValue({publications:[{id:"published",revisionNumber:1,supersededByPublicationId:null}],series:null});mocks.publication.mockResolvedValue({organizationId:"org",ownerPersonId:"other",propertyId:scope.propertyId,monthStart:"2026-09-01"});await expect(readStatementReport(scope)).rejects.toThrow("Statement scope mismatch");expect(mocks.balance).not.toHaveBeenCalled();});
  it("fails closed when draft cash does not reconcile",async()=>{mocks.balance.mockResolvedValue({periods:[{monthStart:"2026-09-01",status:"ready",components:[{component:"ips_held_owner_cash",openingAmount:"100.00",closingAmount:"200.00"}]}],sources:[]});await expect(readStatementReport(scope)).rejects.toThrow("do not reconcile");});
 });
+
 

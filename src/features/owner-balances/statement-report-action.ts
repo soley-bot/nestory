@@ -42,7 +42,8 @@ export async function readStatementReport(input: StatementScope): Promise<Statem
   const data = await getOwnerCloseData({ currency: "USD", monthStart: `${input.month}-01`, ownerPersonId: input.ownerPersonId, propertyId: input.propertyId });
   const publication = data.publications.filter(item => !item.supersededByPublicationId).sort((a, b) => b.revisionNumber - a.revisionNumber)[0];
   if (!publication) {
-    if (data.series?.currentClosedRevisionId) {
+    if (data.series?.currentClosedRevisionId || data.series?.state === "closed") {
+      if (data.series.state !== "closed" || !data.series.currentClosedRevisionId || data.series.activeRevisionId !== data.series.currentClosedRevisionId) return null;
       const revision = data.revisions.find(item => item.id === data.series?.currentClosedRevisionId && item.status === "closed");
       if (!revision) throw new Error("Closed statement revision is unavailable.");
       const components = OWNER_BALANCE_COMPONENTS.map(component => {
@@ -51,7 +52,7 @@ export async function readStatementReport(input: StatementScope): Promise<Statem
         if (opening.length !== 1 || closing.length !== 1) throw new Error("Closed statement balances are incomplete.");
         return { component, openingAmount: opening[0].signedAmount, closingAmount: closing[0].signedAmount };
       });
-      return { cash: ownerStatementCash({ components, lines: revision.lines }), statementNumber: `Closed revision ${revision.revisionNumber}`, artifacts: [], stale: data.series.state === "stale", published: false, frozen: true };
+      return { cash: ownerStatementCash({ components, lines: revision.lines }), statementNumber: `Closed revision ${revision.revisionNumber}`, artifacts: [], stale: false, published: false, frozen: true };
     }
     const balance = await getOwnerBalanceData({ currency: "USD", periodStart: `${input.month}-01`, periodEnd: `${input.month}-01`, ownerPersonId: input.ownerPersonId, propertyId: input.propertyId });
     const period = balance.periods.find(item => item.monthStart === `${input.month}-01` && (item.status === "ready" || item.status === "closed"));
@@ -65,5 +66,5 @@ export async function readStatementReport(input: StatementScope): Promise<Statem
   if (model.organizationId !== context.organizationId || model.ownerPersonId !== input.ownerPersonId || model.propertyId !== input.propertyId || model.monthStart !== `${input.month}-01`) throw new Error("Statement scope mismatch.");
   // The frozen publication contract has no unit label. Do not backfill current
   // roster data into a historical statement; the UI explicitly says Not recorded.
-  return { cash: ownerStatementCash(model), statementNumber: model.statementNumber, artifacts: model.artifacts.map(item => ({ id: item.id, format: item.format })), stale: data.series?.state === "stale", published: true };
+  return { cash: ownerStatementCash(model), statementNumber: model.statementNumber, artifacts: model.artifacts.map(item => ({ id: item.id, format: item.format })), stale: Boolean(data.series && (data.series.state !== "closed" || data.series.currentClosedRevisionId !== publication.revisionId)), published: true };
 }
