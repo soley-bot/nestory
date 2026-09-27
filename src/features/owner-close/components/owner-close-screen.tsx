@@ -496,8 +496,8 @@ function earlierMonthHref(blocker: OwnerCloseBlocker, monthStart: string, proper
   previous.setUTCMonth(previous.getUTCMonth() - 1);
   const month = blocker.expected_month_start ?? blocker.month_start ?? previous.toISOString().slice(0, 10);
   if (typeof month !== "string" || !/^\d{4}-(0[1-9]|1[0-2])-01$/.test(month) || month >= monthStart) return;
-  const original = new URLSearchParams({ month: monthStart.slice(0, 7), propertyId, ownerPersonId, view: "statements" });
-  const target = new URLSearchParams({ month: month.slice(0, 7), propertyId, ownerPersonId, view: "statements", returnTo: `/balances?${original}` });
+  const original = new URLSearchParams({ month: monthStart.slice(0, 7), propertyId, ownerPersonId, view: "statements", manage: "1" });
+  const target = new URLSearchParams({ month: month.slice(0, 7), propertyId, ownerPersonId, view: "statements", manage: "1", returnTo: `/balances?${original}` });
   return `/balances?${target}`;
 }
 

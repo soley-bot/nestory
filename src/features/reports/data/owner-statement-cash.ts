@@ -1,6 +1,9 @@
 import type { OwnerStatementPublicationModel } from "@/features/reports/data/owner-statement-report";
 
-export function ownerStatementCash(model: Pick<OwnerStatementPublicationModel, "components" | "lines">) {
+export function ownerStatementCash(model: {
+  components: Pick<OwnerStatementPublicationModel["components"][number], "component" | "openingAmount" | "closingAmount">[];
+  lines: OwnerStatementPublicationModel["lines"];
+}) {
 
   const component = model.components.find((item) => item.component === "ips_held_owner_cash");
 

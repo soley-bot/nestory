@@ -100,6 +100,14 @@ describe("BalancesPage opening balance integration", () => {
     expect(screen.queryByTestId("statement-report")).toBeNull();
   });
 
+  it("keeps Pilot remediation links on the management screen", async () => {
+    const context = await mocks.requireFinanceContext();
+    mocks.requireFinanceContext.mockResolvedValue({ ...context, organizationSlug: "pilot" });
+    render(await BalancesPage({ searchParams: Promise.resolve({ view: "statements", returnTo: "/balances?month=2026-09&view=statements&manage=1" }) }));
+    expect(screen.getByTestId("authoritative-ledger")).toBeTruthy();
+    expect(screen.queryByTestId("statement-report")).toBeNull();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireFinanceContext.mockResolvedValue({

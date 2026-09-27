@@ -27,10 +27,10 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
   const selectedSourceLineId = validUuid(first(query.sourceLineId));
   const selectedView = parseOwnerAccountView(first(query.view));
   const originReportHref = reportReturnHref(first(query.returnTo));
-  const accountReturnHref = withReportReturn(`/balances?${new URLSearchParams({ month: selectedMonth, view: selectedView, propertyId: selectedPropertyId ?? "", ownerPersonId: selectedOwnerPersonId ?? "" })}`, originReportHref);
+  const accountReturnHref = withReportReturn(`/balances?${new URLSearchParams({ month: selectedMonth, view: selectedView, ...(first(query.manage) === "1" ? { manage: "1" } : {}), propertyId: selectedPropertyId ?? "", ownerPersonId: selectedOwnerPersonId ?? "" })}`, originReportHref);
   const registerPage = positiveInteger(first(query.page)) ?? 1;
   const periodStart = `${selectedMonth}-01`;
-  if (isStatementReportEnabled(context) && selectedView === "statements" && first(query.manage) !== "1") {
+  if (!originReportHref && isStatementReportEnabled(context) && selectedView === "statements" && first(query.manage) !== "1") {
     const data = await getOwnerBalanceData({ currency: "USD", ownerPersonId: selectedOwnerPersonId, propertyId: selectedPropertyId, periodStart, periodEnd: periodStart, registerPage });
     return <OwnerStatementsReport key={`${selectedMonth}:${selectedPropertyId}:${selectedOwnerPersonId}:${registerPage}:${first(query.reportType)}`} data={data} month={selectedMonth} reportType={["summary", "detail"].includes(first(query.reportType) ?? "") ? first(query.reportType) : "all"} selectedOwnerPersonId={selectedOwnerPersonId} selectedPropertyId={selectedPropertyId} />;
   }
