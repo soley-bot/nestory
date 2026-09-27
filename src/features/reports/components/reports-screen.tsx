@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronDown, Download } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ChevronDown, Download } from "lucide-react";
 import Link from "next/link";
 
 import { WorkspacePage } from "@/components/layout/workspace-page";
@@ -49,6 +49,20 @@ export function ReportBuilderScreen({
   const reportRowCount =
     trustedReport.totalRowCount ?? trustedReport.rows.length;
   const queryKey = buildReportQueryParams(viewQuery).toString();
+
+  if (trustedReport.kind === "unit-profit-loss") {
+    return <WorkspacePage className="overflow-x-clip" header={<header className="workspace-gutter-x flex min-h-12 flex-wrap items-center gap-3 border-b border-border/70 py-2">
+      <Link href="/reports" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />All reports</Link>
+      <h1 className="text-sm font-semibold">Profit &amp; loss detail</h1>
+      <div className="ml-auto flex items-center gap-2">{validation ? null : <ExportMenu viewQuery={viewQuery} />}<RecheckReport /></div>
+    </header>}>
+      <ReportsFilters key={queryKey} compact action={`/reports/${viewQuery.report}`} propertyOptions={propertyOptions} unitOptions={unitOptions} ownerOptions={ownerOptions} viewQuery={viewQuery} />
+      <div className="workspace-gutter-x pb-4">
+        {validation ? <div role={trustedReport.scopeValidation ? "alert" : "status"} className="my-3 rounded-md border border-warning/30 bg-warning-soft/35 px-3 py-2 text-sm"><p className="font-semibold">{trustedReport.scopeValidation ? "Report unavailable" : "Export unavailable"}</p><p>{validation.message}</p></div> : null}
+        <UnitProfitLossWorkspace key={queryKey} report={trustedReport} />
+      </div>
+    </WorkspacePage>;
+  }
 
   return (
     <WorkspacePage
@@ -143,9 +157,7 @@ export function ReportBuilderScreen({
             </section>
           ) : null}
 
-          {trustedReport.kind === "unit-profit-loss" ? (
-            <UnitProfitLossWorkspace key={queryKey} report={trustedReport} viewQuery={viewQuery} />
-          ) : <ReportResultsTable key={queryKey} report={trustedReport} reportRowCount={reportRowCount} viewQuery={viewQuery} />}
+          <ReportResultsTable key={queryKey} report={trustedReport} reportRowCount={reportRowCount} viewQuery={viewQuery} />
         </div>
       </div>
     </WorkspacePage>
