@@ -59,6 +59,15 @@ describe("minimal Reports workspace", () => {
     expect(within(table).getAllByRole("row")).toHaveLength(2);
     expect(within(screen.getByRole("region", { name: "Report totals" })).getByText("USD 500.00")).toBeTruthy();
   });
+  it("distinguishes an unsuccessful search from an empty financial report", async () => {
+    const user = userEvent.setup();
+    renderReport();
+    await user.type(screen.getByRole("textbox", { name: "Find property or unit" }), "Unknown building");
+    expect(screen.getByText("No matching property or unit")).toBeTruthy();
+    expect(screen.queryByText(unitProfitLossReport().emptyTitle)).toBeNull();
+    expect(within(screen.getByRole("region", { name: "Report totals" })).getByText("USD 500.00")).toBeTruthy();
+  });
+
   it("matches drawer transactions by unit identity even when unit labels repeat", async () => {
     const user = userEvent.setup();
     const report = unitProfitLossReport();

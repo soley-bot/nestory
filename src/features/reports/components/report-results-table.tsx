@@ -145,10 +145,10 @@ export function ReportResultsTable({
                     colSpan={columns.length + 1}
                   >
                     <p className="font-medium text-foreground">
-                      {report.emptyTitle}
+                      {isProfitLoss && query ? "No matching property or unit" : report.emptyTitle}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {report.emptyDescription}
+                      {isProfitLoss && query ? "Try a different search or show scopes with no activity. Report totals and exports still cover the full selected scope." : report.emptyDescription}
                     </p>
                   </TableCell>
                 </TableRow>
