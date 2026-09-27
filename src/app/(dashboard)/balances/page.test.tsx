@@ -76,11 +76,30 @@ vi.mock("@/features/owner-balances/components/owner-balance-ledger", () => ({
 
 import BalancesPage from "./page";
 
+vi.mock("@/features/owner-balances/components/owner-statements-report", () => ({
+  OwnerStatementsReport: () => <div data-testid="statement-report">Owner statement report</div>,
+}));
+
 const organizationId = "00000000-0000-4000-8000-000000000001";
 const propertyId = "00000000-0000-4000-8000-000000000002";
 const ownerId = "00000000-0000-4000-8000-000000000003";
 
 describe("BalancesPage opening balance integration", () => {
+  it("shows the new statement report for Pilot without loading management controls", async () => {
+    const context = await mocks.requireFinanceContext();
+    mocks.requireFinanceContext.mockResolvedValue({ ...context, organizationSlug: "pilot" });
+    render(await BalancesPage({ searchParams: Promise.resolve({ view: "statements" }) }));
+    expect(screen.getByTestId("statement-report")).toBeTruthy();
+    expect(mocks.closeData).not.toHaveBeenCalled();
+    expect(mocks.openingData).not.toHaveBeenCalled();
+  });
+
+  it("preserves the existing statement screen outside Pilot", async () => {
+    render(await BalancesPage({ searchParams: Promise.resolve({ view: "statements" }) }));
+    expect(screen.getByTestId("authoritative-ledger")).toBeTruthy();
+    expect(screen.queryByTestId("statement-report")).toBeNull();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireFinanceContext.mockResolvedValue({
@@ -175,6 +194,7 @@ describe("BalancesPage opening balance integration", () => {
           ownerPersonId: ownerId,
           propertyId,
           view: "statements",
+          manage: "1",
         }),
       }),
     );

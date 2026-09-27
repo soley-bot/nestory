@@ -1,6 +1,6 @@
 import type { OwnerStatementPublicationModel } from "@/features/reports/data/owner-statement-report";
 
-export function ownerStatementCash(model: OwnerStatementPublicationModel) {
+export function ownerStatementCash(model: Pick<OwnerStatementPublicationModel, "components" | "lines">) {
 
   const component = model.components.find((item) => item.component === "ips_held_owner_cash");
 

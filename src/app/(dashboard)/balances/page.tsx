@@ -1,4 +1,6 @@
 import { OwnerBalanceLedger, OwnerSourceResolution } from "@/features/owner-balances/components/owner-balance-ledger";
+import { OwnerStatementsReport } from "@/features/owner-balances/components/owner-statements-report";
+import { isStatementReportEnabled } from "@/features/owner-balances/statement-report-enabled";
 import { getOwnerBalanceData } from "@/features/owner-balances/data/owner-balances";
 import { OpeningBalanceScreen } from "@/features/owner-balances/components/opening-balance-screen";
 import { getOpeningBalanceAuthorityData } from "@/features/owner-balances/data/opening-balances";
@@ -28,6 +30,10 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
   const accountReturnHref = withReportReturn(`/balances?${new URLSearchParams({ month: selectedMonth, view: selectedView, propertyId: selectedPropertyId ?? "", ownerPersonId: selectedOwnerPersonId ?? "" })}`, originReportHref);
   const registerPage = positiveInteger(first(query.page)) ?? 1;
   const periodStart = `${selectedMonth}-01`;
+  if (isStatementReportEnabled(context) && selectedView === "statements" && first(query.manage) !== "1") {
+    const data = await getOwnerBalanceData({ currency: "USD", ownerPersonId: selectedOwnerPersonId, propertyId: selectedPropertyId, periodStart, periodEnd: periodStart, registerPage });
+    return <OwnerStatementsReport key={`${selectedMonth}:${selectedPropertyId}:${selectedOwnerPersonId}:${registerPage}`} data={data} month={selectedMonth} selectedOwnerPersonId={selectedOwnerPersonId} selectedPropertyId={selectedPropertyId} />;
+  }
   const [data, openingData, closeData] = await Promise.all([
     getOwnerBalanceData({
       currency: "USD",
