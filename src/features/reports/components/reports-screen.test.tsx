@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -26,101 +26,43 @@ class ResizeObserverStub {
   unobserve() {}
 }
 
-describe("minimal Reports workspace", () => {
-  it("starts with Summary and reveals grouped transactions only on request", async () => {
+describe("Reports screen", () => {
+  it("opens directly in the reference account table with compact controls", async () => {
     const user = userEvent.setup();
     const report = unitProfitLossReport();
-    report.unitProfitLossLines = [{ amountCents: BigInt(6500), category: "Repairs", categoryCode: "repairs", categoryId: null, currency: "USD", date: "2026-08-09", description: "Roof repair with full itemized description", direction: "expense", id: "event-1", property: "Property One", reportingGroup: "expenses", unit: "Property-level" }];
+    report.unitProfitLossLines = [{ amountCents: BigInt(6500), category: "Repairs", categoryCode: "repairs", categoryId: null, currency: "USD", date: "2026-07-09", description: "Roof repair", direction: "expense", id: "event-1", property: "Property One", reportingGroup: "expenses", unit: "Property-level" }];
     renderReport({ report });
-    expect(screen.getByRole("tab", { name: "Summary" }).getAttribute("aria-selected")).toBe("true");
-    expect(screen.queryByRole("region", { name: "Profit and loss transaction detail" })).toBeNull();
-    await user.click(screen.getByRole("tab", { name: "Transactions" }));
-    expect(screen.queryByRole("table", { name: "Monthly Unit Profit & Loss" })).toBeNull();
-    expect(screen.queryByText("Roof repair with full itemized description")).toBeNull();
-    await user.click(screen.getByRole("button", { name: /Expenses: Repairs/ }));
-    const detail = screen.getByRole("region", { name: "Profit and loss transaction detail" });
-    expect(within(detail).getByText("Property-level")).toBeTruthy();
-    expect(within(detail).getByText("Roof repair with full itemized description")).toBeTruthy();
-    expect(within(detail).getByRole("cell", { name: "USD 65.00" })).toBeTruthy();
-  });
-  it("paginates Summary by 25 and searches all units without changing report totals", async () => {
-    const user = userEvent.setup();
-    const report = unitProfitLossReport();
-    report.rows = Array.from({ length: 31 }, (_, index) => ({
-      ...report.rows[0]!, id: `unit-${index + 1}`, title: `Unit ${index + 1}`,
-      cells: { ...report.rows[0]!.cells, unit: `Unit ${index + 1}` },
-    }));
-    renderReport({ report });
-    const table = screen.getByRole("table", { name: report.title });
-    expect(within(table).getAllByRole("row")).toHaveLength(26);
-    await user.click(within(screen.getByRole("navigation", { name: "Report pages, top" })).getByRole("button", { name: "Next" }));
-    expect(within(table).getByText("Unit 31")).toBeTruthy();
-    await user.type(screen.getByRole("textbox", { name: "Find property or unit" }), "Unit 31");
-    expect(within(table).getAllByRole("row")).toHaveLength(2);
-    expect(within(screen.getByRole("region", { name: "Report totals" })).getByText("USD 500.00")).toBeTruthy();
-  });
-  it("distinguishes an unsuccessful search from an empty financial report", async () => {
-    const user = userEvent.setup();
-    renderReport();
-    await user.type(screen.getByRole("textbox", { name: "Find property or unit" }), "Unknown building");
-    expect(screen.getByText("No matching property or unit")).toBeTruthy();
-    expect(screen.queryByText(unitProfitLossReport().emptyTitle)).toBeNull();
-    expect(within(screen.getByRole("region", { name: "Report totals" })).getByText("USD 500.00")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Profit & loss detail", level: 1 })).toBeTruthy();
+    expect(screen.queryByRole("tab")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Report totals" })).toBeNull();
+    expect(screen.getAllByRole("table")).toHaveLength(1);
+    expect(screen.getAllByRole("columnheader").map(cell => cell.textContent)).toEqual(["Account", "Date", "Type", "Name", "Property", "Memo", "Amount"]);
+    expect(screen.getByRole("link", { name: "All reports" }).getAttribute("href")).toBe("/reports");
+    expect(screen.getByRole("button", { name: "Report month" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Filter report by property" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Filter report by unit" })).toBeTruthy();
+    expect(screen.queryByText("Roof repair")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Operating expenses: Repairs" }));
+    expect(screen.getByText("Roof repair")).toBeTruthy();
   });
 
-  it("matches drawer transactions by unit identity even when unit labels repeat", async () => {
-    const user = userEvent.setup();
-    const report = unitProfitLossReport();
-    const base = { amountCents: BigInt(50000), category: "Rent", categoryCode: "rent", categoryId: null, currency: "USD" as const, date: "2026-07-09", direction: "income" as const, property: "Property One", reportingGroup: "income", unit: "Unit A1", propertyId: "property-1" };
-    report.unitProfitLossLines = [
-      { ...base, id: "chosen", unitId: "unit-1", description: "Selected unit rent" },
-      { ...base, id: "other", unitId: "unit-2", description: "Other unit rent" },
-      { ...base, id: "shared", unitId: null, description: "Property-only activity" },
-    ];
-    renderReport({ report });
-    await user.click(screen.getByRole("button", { name: "View details for P1 / Unit A1" }));
-    const transactions = screen.getByRole("region", { name: "Unit transactions" });
-    expect(within(transactions).getByText("Selected unit rent")).toBeTruthy();
-    expect(within(transactions).queryByText("Other unit rent")).toBeNull();
-    expect(within(transactions).queryByText("Property-only activity")).toBeNull();
-  });
-
-  it("keeps owner funding above both views and shows unavailable balances explicitly", async () => {
-    const user = userEvent.setup();
+  it("keeps unavailable owner balances visible below operating profit", () => {
     const report = unitProfitLossReport();
     report.unitProfitLossLines = [];
     report.unitProfitLossFunding = { contributionCents: BigInt(68200), remainingBalanceCents: null, unavailableReason: "Unit allocation is unresolved." };
     renderReport({ report });
-    const funding = screen.getByRole("region", { name: "Owner funding and balance" });
-    expect(within(funding).getByRole("status").textContent).toBe("Unit allocation is unresolved.");
-    expect(funding.textContent).toContain("Unavailable");
-    await user.click(screen.getByRole("tab", { name: "Transactions" }));
-    expect(screen.getByRole("region", { name: "Owner funding and balance" })).toBe(funding);
+    expect(screen.getByRole("status").textContent).toBe("Unit allocation is unresolved.");
+    expect(screen.getByRole("row", { name: "Remaining Balance Unavailable" })).toBeTruthy();
+    expect(screen.getByRole("row", { name: "Net income Unavailable" })).toBeTruthy();
   });
 
-  it("keeps drill-down navigation focused on filters and report output", () => {
-    renderReport();
-
-    const navigation = screen.getByRole("navigation", { name: "Reports" });
-    expect(within(navigation).getByRole("link", { name: "Unit P&L" }).getAttribute("aria-current")).toBe("page");
-
-    const filters = screen.getByRole("region", { name: "Report filters" });
-    expect(
-      within(filters).getByRole("button", {
-        name: "Filter report by property",
-      }),
-    ).toBeTruthy();
-    expect(
-      within(filters).getByRole("button", { name: "Report month" }),
-    ).toBeTruthy();
-    expect(
-      within(filters).getByRole("button", {
-        name: "Filter report by unit",
-      }),
-    ).toBeTruthy();
-    expect(
-      within(filters).getByRole("button", { name: "Apply filters" }),
-    ).toBeTruthy();
+  it("hides the report and exports when scope validation fails", () => {
+    const report = unitProfitLossReport();
+    report.scopeValidation = { code: "invalid", message: "Choose a valid unit." };
+    renderReport({ report });
+    expect(screen.getByRole("alert").textContent).toContain("Choose a valid unit.");
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
   });
 
   it("offers clearly named PDF and Excel exports through one menu", async () => {
@@ -197,197 +139,8 @@ describe("minimal Reports workspace", () => {
     ).toBeTruthy();
   });
 
-  it("shows three decision totals and moves source records into row details", async () => {
-    const user = userEvent.setup();
-    const { container } = renderReport();
 
-    const totals = screen.getByRole("region", { name: "Report totals" });
-    expect(within(totals).getByText("USD 500.00")).toBeTruthy();
-    expect(within(totals).getByText("USD 380.00")).toBeTruthy();
-    expect(within(totals).queryByText("Units")).toBeNull();
-    expect(totals.className).not.toContain("rounded-md");
-
-    const table = screen.getByRole("table", {
-      name: "Monthly Unit Profit & Loss",
-    });
-    const tableFrame = container.querySelector<HTMLElement>(
-      '[data-slot="report-table-frame"]',
-    );
-    expect(tableFrame).not.toBeNull();
-    expect(tableFrame?.className).not.toContain("rounded-md");
-    expect(tableFrame?.querySelector("thead > tr")?.className).toContain(
-      "border-b",
-    );
-    expect(within(table).getByText("P1 - Property One")).toBeTruthy();
-    expect(within(table).getByText("Unit A1")).toBeTruthy();
-    expect(within(table).queryByRole("columnheader", { name: "Records" })).toBeNull();
-    expect(within(table).getByRole("columnheader", { name: "Property / unit" })).toBeTruthy();
-    expect(within(table).queryByRole("link", { name: "Rent ledger" })).toBeNull();
-
-    await user.click(within(table).getByRole("button", { name: "View details for P1 / Unit A1" }));
-    expect(
-      screen.getByRole("link", { name: "Rent ledger" }).getAttribute("href"),
-    ).toBe("/ledger?archiveState=all&entryId=ledger-income");
-    expect(
-      screen
-        .getByRole("link", { name: "Open complete P&L" })
-        .getAttribute("href"),
-    ).toBe(
-      "/reports/unit-profit-loss?report=unit-profit-loss&month=2026-07&unitId=unit-1",
-    );
-    expect(screen.queryByRole("link", { name: "Export this unit as Excel" })).toBeNull();
-    expect(screen.getByText(/These totals cover this unit only/)).toBeTruthy();
-    expect(screen.queryByText("Report library")).toBeNull();
-    expect(screen.queryByText("Report families")).toBeNull();
-    expect(screen.queryByText("Report packets")).toBeNull();
-    expect(screen.queryByText("Preview ready")).toBeNull();
-    expect(screen.queryByText("2 source rows")).toBeNull();
-    expect(screen.queryByText("Generate preview")).toBeNull();
-  });
-
-  it("closes the drawer when opening the already selected complete P&L", async () => {
-    const user = userEvent.setup();
-    renderReport({ viewQuery: query({ unitId: "unit-1" }) });
-    await user.click(screen.getByRole("button", { name: "View details for P1 / Unit A1" }));
-    await user.click(screen.getByRole("link", { name: "Open complete P&L" }));
-    expect(screen.queryByRole("button", { name: "Close drawer" })).toBeNull();
-  });
-
-  it("keeps the report title and row count inline until the heading needs to wrap", () => {
-    renderReport();
-
-    const title = screen.getByRole("heading", {
-      level: 2,
-      name: "Monthly Unit Profit & Loss",
-    });
-    const heading = title.parentElement;
-    const rowCount = within(heading!).getByText("1 scope");
-
-    expect(heading).not.toBeNull();
-    expect(heading?.className).toContain("flex");
-    expect(heading?.className).toContain("flex-wrap");
-    expect(title.parentElement).toBe(heading);
-    expect(rowCount.parentElement).toBe(heading);
-    expect(rowCount.className).not.toContain("mt-0.5");
-  });
-
-  it("draws each report row separator across the full row and omits the final one", () => {
-    const report = unitProfitLossReport();
-    report.rows.push({
-      ...report.rows[0]!,
-      cells: {
-        ...report.rows[0]!.cells,
-        property: "P2 - Property Two",
-        unit: "Unit B1",
-      },
-      href: "/units/unit-2",
-      id: "unit-2",
-      title: "P2 / Unit B1",
-    });
-
-    renderReport({ report });
-
-    const bodyRows = screen
-      .getByRole("table", { name: "Monthly Unit Profit & Loss" })
-      .querySelectorAll("tbody > tr");
-
-    expect(bodyRows).toHaveLength(2);
-    expect(bodyRows[0]?.className).toContain("border-b");
-    expect(bodyRows[1]?.parentElement?.className).toContain(
-      "[&_tr:last-child]:border-0",
-    );
-    for (const cell of bodyRows[0]!.querySelectorAll("td")) {
-      expect(cell.className).not.toContain("border-b");
-    }
-  });
-
-  it("discloses omitted source links inside row details", async () => {
-    const user = userEvent.setup();
-    const report = unitProfitLossReport();
-    report.rows[0]!.sourceLinks = Array.from({ length: 7 }, (_, index) => ({
-      href: `/ledger?entryId=ledger-${index + 1}`,
-      id: `ledger-${index + 1}`,
-      label: `Source ${index + 1}`,
-      recordType: "ledger" as const,
-    }));
-    report.rows[0]!.sourceCount = 7;
-    report.rows[0]!.sourceSummary = "7 source records";
-
-    renderReport({ report: prepareTrustedReportForScreen(report) });
-
-    await user.click(
-      screen.getByRole("button", { name: "View details for P1 / Unit A1" }),
-    );
-    expect(screen.getByText("+2 more")).toBeTruthy();
-    expect(
-      screen.getByLabelText(
-        "7 source records; 2 additional sources are not shown in this preview",
-      ),
-    ).toBeTruthy();
-  });
-
-  it("hides zero-activity units until the user asks to include them", async () => {
-    const user = userEvent.setup();
-    const report = unitProfitLossReport();
-    report.rows.push({
-      ...report.rows[0]!,
-      cells: {
-        expenses: "USD 0.00",
-        income: "USD 0.00",
-        netIncome: "USD 0.00",
-        property: "P2 - Property Two",
-        unit: "Unit B1",
-      },
-      href: "/units/unit-2",
-      id: "unit-2",
-      sourceCount: 2,
-      sourceLinks: [],
-      sourceSummary: "Property and unit records",
-      title: "P2 / Unit B1",
-    });
-
-    renderReport({ report });
-
-    expect(screen.queryByText("P2 - Property Two")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Show 1 scope with no activity" }));
-    expect(screen.getByText("P2 - Property Two")).toBeTruthy();
-  });
-
-  it("keeps Finance Manager report records on finance-safe routes", async () => {
-    const user = userEvent.setup();
-    const report = unitProfitLossReport();
-    report.rows[0]!.sourceLinks.push(
-      {
-        href: "/properties/property-1",
-        id: "property-1",
-        label: "P1",
-        recordType: "property",
-      },
-      {
-        href: "/units/unit-1",
-        id: "unit-1",
-        label: "Unit A1",
-        recordType: "unit",
-      },
-    );
-
-    const financeSafe = prepareTrustedReportForScreen(report, {
-      financeSafeRecords: true,
-    });
-    renderReport({ report: financeSafe });
-
-    expect(screen.queryByRole("link", { name: "P1 - Property One" })).toBeNull();
-    await user.click(
-      screen.getByRole("button", { name: "View details for P1 / Unit A1" }),
-    );
-    expect(screen.getByRole("link", { name: "P1" }).getAttribute("href")).toBe(
-      "/properties/property-1/account",
-    );
-    expect(screen.queryByRole("link", { name: "Unit A1" })).toBeNull();
-    expect(screen.getAllByText("Unit A1")).not.toHaveLength(0);
-  });
 });
-
 function renderReport({
   report = unitProfitLossReport(),
   viewQuery = query(),

@@ -1,94 +1,100 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { Fragment, useId, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCalendarDate } from "@/lib/dates/format";
-import { formatProfitLossAmount } from "../data/profit-loss-funding";
+import { cn } from "@/lib/utils";
+import { formatProfitLossAmount, profitLossSummaryRows, profitLossFundingNote, type ProfitLossFunding } from "../data/profit-loss-funding";
 import type { UnitProfitLossLine } from "../reports.types";
 
 const pageSize = 25;
 type AccountGroup = { key: string; label: string; direction: "income" | "expense"; lines: UnitProfitLossLine[]; total: bigint };
 
-export function ProfitLossDetail({ lines }: { lines: UnitProfitLossLine[] }) {
-  const [query, setQuery] = useState("");
+export function ProfitLossDetail({ lines, funding }: { lines: UnitProfitLossLine[]; funding?: ProfitLossFunding }) {
+  const id = useId();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [closedSections, setClosedSections] = useState<Set<string>>(new Set());
   const groups = useMemo(() => {
     const grouped = new Map<string, AccountGroup>();
-    const search = query.trim().toLocaleLowerCase();
     for (const line of lines) {
-      if (search && ![line.category, line.property, line.unit, line.name, line.description, line.date, formatCalendarDate(line.date), formatProfitLossAmount(line.amountCents), line.type ?? (line.direction === "income" ? "Invoice" : "Expense")].join(" ").toLocaleLowerCase().includes(search)) continue;
       const key = JSON.stringify([line.direction, line.categoryId ?? line.categoryCode, line.currency]);
       const group = grouped.get(key) ?? { key, label: line.category, direction: line.direction, lines: [], total: BigInt(0) };
       group.lines.push(line);
       group.total += line.amountCents;
       grouped.set(key, group);
     }
-    return [...grouped.values()].sort((a, b) => (a.direction === b.direction ? a.label.localeCompare(b.label) : a.direction === "income" ? -1 : 1));
-  }, [lines, query]);
+    return [...grouped.values()].sort((a, b) => a.label.localeCompare(b.label));
+  }, [lines]);
+  const totals = profitLossSummaryRows(lines, funding);
+  const toggle = (key: string, setter: typeof setExpanded) => setter(current => {
+    const next = new Set(current);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
 
   return (
-    <section aria-label="Profit and loss transaction detail" className="border-t border-border">
-      <div className="flex flex-wrap items-center justify-between gap-3 py-3">
-        <div>
-          <h2 className="text-sm font-semibold">Transaction detail</h2>
-          <p className="mt-1 text-xs text-muted-foreground">{lines.length} transactions · Recognized by invoice or owner-cost obligation date.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Input aria-label="Search transactions" placeholder="Find a transaction" className="h-8 w-56" value={query} onChange={event => setQuery(event.target.value)} />
-          <Button size="sm" variant="outline" onClick={() => setExpanded(new Set(groups.map(group => group.key)))}>Expand all</Button>
-          <Button size="sm" variant="outline" onClick={() => setExpanded(new Set())}>Collapse all</Button>
-        </div>
+    <section aria-label="Profit and loss detail">
+      <div className="flex items-center justify-end gap-1 py-1.5">
+        <Button className="h-7 gap-1 rounded-md text-xs font-normal" size="sm" variant="outline" onClick={() => { setClosedSections(new Set()); setExpanded(new Set(groups.map(group => group.key))); }}><ChevronsUpDown className="size-3" />Expand all</Button>
+        <Button className="h-7 gap-1 rounded-md text-xs font-normal" size="sm" variant="outline" onClick={() => { setExpanded(new Set()); setClosedSections(new Set()); }}><ChevronsDownUp className="size-3" />Collapse all</Button>
       </div>
-      <p className="pb-3 text-xs text-muted-foreground">Property-level costs remain separate from unit costs. {query ? "Account subtotals reflect this search. Report totals and exports include the full selected scope." : "Expand an account to review its transactions."}</p>
-      <div className="divide-y divide-border border-y border-border">
-        {groups.map(group => <AccountTransactions key={group.key + query} group={group} expanded={expanded.has(group.key)} onToggle={() => setExpanded(current => {
-          const next = new Set(current);
-          if (next.has(group.key)) next.delete(group.key); else next.add(group.key);
-          return next;
-        })} />)}
-      </div>
-      {groups.length === 0 ? <p className="py-6 text-sm text-muted-foreground">{query ? "No transactions match this search." : "No recognized income or expenses in this period."}</p> : null}
+      <Table aria-label="Profit & loss detail" scrollRegionLabel="Profit and loss report" className="min-w-[850px] table-fixed text-xs [&_td]:px-3 [&_td]:py-1.5">
+        <colgroup><col className="w-[23%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[13%]" /><col className="w-[15%]" /><col className="w-[18%]" /><col className="w-[12%]" /></colgroup>
+        <TableHeader><TableRow className="hover:bg-muted/30">
+          {["Account", "Date", "Type", "Name", "Property", "Memo", "Amount"].map(label => <TableHead key={label} className={cn("h-9 border-y border-border/70 px-3 text-[11px] font-medium text-muted-foreground", label === "Account" && "border-r border-r-border/50", label === "Amount" && "text-right")}>{label}</TableHead>)}
+        </TableRow></TableHeader>
+        {(["income", "expense"] as const).map((direction, sectionIndex) => {
+          const sectionLabel = direction === "income" ? "Income" : "Operating expenses";
+          const sectionGroups = groups.filter(group => group.direction === direction);
+          const open = !closedSections.has(direction);
+          return <Fragment key={direction}>
+            <TableBody>
+              <TableRow className="bg-muted/40 hover:bg-muted/40">
+                <TableCell className="border-r border-border/40"><button type="button" aria-expanded={open} aria-controls={`${id}-${direction}`} onClick={() => toggle(direction, setClosedSections)} className="flex min-h-6 w-full items-center gap-1.5 text-left font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  {open ? <ChevronDown className="size-3 text-muted-foreground" /> : <ChevronRight className="size-3 text-muted-foreground" />}{sectionLabel}
+                </button></TableCell><TableCell colSpan={5} />
+                <TableCell className="text-right font-semibold tabular-nums">{formatProfitLossAmount(totals[sectionIndex].amountCents)}</TableCell>
+              </TableRow>
+            </TableBody>
+            <TableBody id={`${id}-${direction}`} hidden={!open}>
+              {sectionGroups.map((group, index) => {
+                const accountOpen = expanded.has(group.key);
+                return <Fragment key={group.key}>
+                  <TableRow className="border-border/50">
+                    <TableCell className="border-r border-border/40"><button type="button" aria-label={`${sectionLabel}: ${group.label}`} aria-expanded={accountOpen} aria-controls={`${id}-${direction}-${index}`} onClick={() => toggle(group.key, setExpanded)} className="flex min-h-6 w-full items-center gap-1.5 pl-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      {accountOpen ? <ChevronDown className="size-3 text-muted-foreground" /> : <ChevronRight className="size-3 text-muted-foreground" />}{group.label}
+                    </button></TableCell><TableCell colSpan={5} />
+                    <TableCell className="text-right tabular-nums">{formatProfitLossAmount(group.total)}</TableCell>
+                  </TableRow>
+                  <TableRow id={`${id}-${direction}-${index}`} hidden={!accountOpen} className="border-0"><TableCell colSpan={7} className="!p-0">
+                    {accountOpen ? <table aria-label={`${group.label} transactions`} className="w-full table-fixed text-xs"><colgroup><col className="w-[23%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[13%]" /><col className="w-[15%]" /><col className="w-[18%]" /><col className="w-[12%]" /></colgroup><thead className="sr-only"><tr>{["Account", "Date", "Type", "Name", "Property", "Memo", "Amount"].map(label => <th key={label}>{label}</th>)}</tr></thead><tbody>{group.lines.map(line => <tr key={line.id} className="border-b border-border/40 text-muted-foreground hover:bg-muted/25">
+                      <td className="!pl-11"><span className="sr-only">{group.label}</span></td>
+                      <td className="whitespace-nowrap">{formatCalendarDate(line.date)}</td>
+                      <td>{line.type ?? (line.direction === "income" ? "Invoice" : "Expense")}</td>
+                      <td className="truncate" title={line.name}>{line.name || "—"}</td>
+                      <td className="truncate" title={`${line.property} / ${line.unit}`}>{line.property}<span className="block truncate text-[11px]">{line.unit}</span></td>
+                      <td className="truncate" title={line.description}>{line.description}</td>
+                      <td className={cn("text-right tabular-nums", line.amountCents < BigInt(0) && "text-danger")}>{formatProfitLossAmount(line.amountCents)}</td>
+                    </tr>)}</tbody></table> : null}
+                  </TableCell></TableRow>
+                </Fragment>;
+              })}
+              {sectionGroups.length === 0 ? <TableRow><TableCell colSpan={7} className="!pl-8 text-muted-foreground">No {direction === "income" ? "income" : "operating expenses"} in this period.</TableCell></TableRow> : null}
+            </TableBody>
+          </Fragment>;
+        })}
+        <TableBody aria-label="Profit and loss totals">
+          {totals.slice(2).map(row => <TableRow key={row.label} className={cn("border-border/60", row.label.startsWith("Net") && "border-t-2 border-t-blue-400 bg-blue-50 font-semibold hover:bg-blue-50 dark:bg-blue-950/30")}>
+            <TableCell colSpan={6} className="!pl-5">{row.label}</TableCell>
+            <TableCell className={cn("text-right tabular-nums", row.amountCents !== null && row.amountCents < BigInt(0) && "text-danger")}>{formatProfitLossAmount(row.amountCents)}</TableCell>
+          </TableRow>)}
+        </TableBody>
+      </Table>
+      {funding?.unavailableReason ? <p role="status" className="mt-2 text-xs text-warning">{funding.unavailableReason}</p> : null}
+      <details className="mt-3 text-xs text-muted-foreground"><summary className="w-fit cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring">Report notes</summary><p className="mt-2">Income and expenses are recognized by invoice or owner-cost obligation date. Pending expenses are excluded. Property-level costs remain separate from unit costs.</p>{funding ? <p className="mt-2 max-w-3xl">{profitLossFundingNote}</p> : null}</details>
     </section>
-  );
-}
-
-function AccountTransactions({ group, expanded, onToggle }: { group: AccountGroup; expanded: boolean; onToggle: () => void }) {
-  const id = useId();
-  const [page, setPage] = useState(0);
-  const currentPage = Math.min(page, Math.max(0, Math.ceil(group.lines.length / pageSize) - 1));
-  const visible = group.lines.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
-  const label = `${group.direction === "income" ? "Income" : "Expenses"}: ${group.label}`;
-  return (
-    <div>
-      <button aria-expanded={expanded} aria-controls={id} onClick={onToggle} className="flex min-h-11 w-full items-center gap-2 px-2 py-2 text-left text-sm hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" type="button">
-        {expanded ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}
-        <span className="font-medium">{label}</span>
-        <span className="text-xs text-muted-foreground">{group.lines.length} transactions</span>
-        <span className="ml-auto whitespace-nowrap font-semibold tabular-nums">{formatProfitLossAmount(group.total)}</span>
-      </button>
-      <div id={id} hidden={!expanded}>
-        {expanded ? <>
-          <TransactionPagination page={currentPage} count={group.lines.length} onPageChange={setPage} label={label} />
-          <div className="[&>[data-slot=table-container]]:max-h-[55vh]">
-            <Table aria-label={label} scrollRegionLabel={`${label} transactions`}>
-              <TableHeader sticky><TableRow>
-                {["Date", "Description", "Name / type", "Property / unit", "Amount"].map(column => <TableHead key={column} className={column === "Amount" ? "text-right" : undefined}>{column}</TableHead>)}
-              </TableRow></TableHeader>
-              <TableBody>{visible.map(line => <TableRow key={line.id}>
-                <TableCell className="align-top whitespace-nowrap">{formatCalendarDate(line.date)}</TableCell>
-                <TableCell className="min-w-40 max-w-sm whitespace-normal break-words align-top">{line.description}</TableCell>
-                <TableCell className="min-w-28 max-w-48 whitespace-normal align-top">{line.name || "—"}<span className="block text-xs text-muted-foreground">{line.type ?? (line.direction === "income" ? "Invoice" : "Expense")}</span></TableCell>
-                <TableCell className="min-w-32 max-w-56 whitespace-normal align-top">{line.property}<span className="block text-xs text-muted-foreground">{line.unit}</span></TableCell>
-                <TableCell className="text-right align-top tabular-nums">{formatProfitLossAmount(line.amountCents)}</TableCell>
-              </TableRow>)}</TableBody>
-            </Table>
-          </div>
-        </> : null}
-      </div>
-    </div>
   );
 }
 

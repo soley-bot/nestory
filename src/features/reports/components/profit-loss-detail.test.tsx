@@ -6,36 +6,33 @@ import { ProfitLossDetail } from "./profit-loss-detail";
 import type { UnitProfitLossLine } from "../reports.types";
 afterEach(cleanup);
 const line: UnitProfitLossLine = { amountCents: BigInt(6500), category: "Repairs", categoryCode: "repairs", categoryId: null, currency: "USD", date: "2026-09-09", description: "Roof repair", direction: "expense", id: "repair", property: "Property One", reportingGroup: "expenses", unit: "Property-level" };
-describe("P&L transaction groups", () => {
-  it("starts collapsed, includes signed corrections in subtotals, and expands or collapses all", async () => {
+describe("Reference P&L account table", () => {
+  it("keeps signed totals visible while account details and sections collapse independently", async () => {
     const user = userEvent.setup();
-    render(<ProfitLossDetail lines={[line, { ...line, id: "correction", description: "Repair correction", amountCents: -BigInt(1500) }]} />);
-    expect(screen.getByRole("button", { name: /Expenses: Repairs/ }).textContent).toContain("USD 50.00");
+    render(<ProfitLossDetail lines={[line, { ...line, id: "correction", type: "Correction", description: "Repair correction", amountCents: -BigInt(1500) }]} funding={{ contributionCents: BigInt(2000), remainingBalanceCents: BigInt(4000) }} />);
+    const account = screen.getByRole("button", { name: "Operating expenses: Repairs" });
+    expect(within(account.closest("tr")!).getByText("USD 50.00")).toBeTruthy();
+    expect(screen.getByRole("row", { name: "Net operating income -USD 50.00" })).toBeTruthy();
+    expect(screen.getByRole("row", { name: "Net income USD 10.00" })).toBeTruthy();
     expect(screen.queryByText("Roof repair")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Expand all" }));
+    await user.click(account);
     expect(screen.getByText("Repair correction")).toBeTruthy();
     expect(screen.getByRole("cell", { name: "-USD 15.00" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Operating expenses" }));
+    expect(screen.queryByRole("table", { name: "Repairs transactions" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Expand all" }));
+    expect(screen.getByRole("table", { name: "Repairs transactions" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Collapse all" }));
     expect(screen.queryByText("Repair correction")).toBeNull();
+    expect(screen.getByRole("row", { name: "Net income USD 10.00" })).toBeTruthy();
   });
-  it("finds corrections by their displayed transaction type", async () => {
+  it("expands every transaction in the report flow without paging or nested scroll regions", async () => {
     const user = userEvent.setup();
-    render(<ProfitLossDetail lines={[line, { ...line, id: "reversal", description: "Duplicate removed", type: "Correction", amountCents: -BigInt(6500) }]} />);
-    await user.type(screen.getByRole("textbox", { name: "Search transactions" }), "Correction");
+    render(<ProfitLossDetail lines={Array.from({ length: 58 }, (_, index) => ({ ...line, id: `${index}`, description: `Repair ${index + 1}` }))} />);
     await user.click(screen.getByRole("button", { name: "Expand all" }));
-    expect(screen.getByText("Duplicate removed")).toBeTruthy();
-    expect(screen.queryByText("Roof repair")).toBeNull();
-  });
-
-  it("paginates account transactions and searches across every page", async () => {
-    const user = userEvent.setup();
-    render(<ProfitLossDetail lines={Array.from({length: 28}, (_, index) => ({ ...line, id: `${index}`, description: `Repair ${index + 1}` }))} />);
-    await user.click(screen.getByRole("button", { name: "Expand all" }));
-    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(26);
-    await user.click(screen.getByRole("button", { name: "Next transactions" }));
-    expect(screen.getByText("Repair 28")).toBeTruthy();
-    await user.type(screen.getByRole("textbox", { name: "Search transactions" }), "Repair 28");
-    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(2);
-    expect(screen.getByRole("button", { name: /Expenses: Repairs/ }).textContent).toContain("USD 65.00");
+    expect(screen.getByText("Repair 58")).toBeTruthy();
+    expect(within(screen.getByRole("table", { name: "Repairs transactions" })).getAllByRole("row")).toHaveLength(59);
+    expect(screen.queryByRole("button", { name: "Next transactions" })).toBeNull();
+    expect(screen.getAllByRole("region")).toHaveLength(2);
   });
 });

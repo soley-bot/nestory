@@ -13,6 +13,7 @@ import { SelectControl } from "@/components/ui/select-control";
 import type { ReportOwnerOption, ReportPropertyOption, ReportsViewQuery, ReportUnitOption, TrustedReport } from "@/features/reports/reports.types";
 
 type ReportsFiltersProps = {
+  compact?: boolean;
   action: string;
   ownerOptions: ReportOwnerOption[];
   propertyOptions: ReportPropertyOption[];
@@ -22,7 +23,7 @@ type ReportsFiltersProps = {
   availableColumns?: TrustedReport["columns"];
 };
 
-export function ReportsFilters({ action, ownerOptions, propertyOptions, unitOptions, viewQuery, filterOptions, availableColumns = [] }: ReportsFiltersProps) {
+export function ReportsFilters({ compact = false, action, ownerOptions, propertyOptions, unitOptions, viewQuery, filterOptions, availableColumns = [] }: ReportsFiltersProps) {
   const modern = ["transactions", "management-fees", "rent-roll", "rent-collections"].includes(viewQuery.report);
   const showUnit = modern || viewQuery.report === "unit-profit-loss";
   const showOwner = viewQuery.report === "monthly-owner-activity";
@@ -33,6 +34,17 @@ export function ReportsFilters({ action, ownerOptions, propertyOptions, unitOpti
   const moreActive = [viewQuery.transactionType, viewQuery.transactionStatus, viewQuery.payeeId].some((value) => Boolean(value && value !== "all")) || Boolean(viewQuery.groupBy && viewQuery.groupBy !== "none");
   const showReset = (modern && viewQuery.status !== "all") || (showOwner && viewQuery.ownerPersonId !== "all") || viewQuery.propertyId !== "all" || (showUnit && viewQuery.unitId !== "all") || Boolean(viewQuery.query || viewQuery.dateFrom || viewQuery.dateTo || viewQuery.columns) || moreActive;
   const groupOptions = [{ label: "No grouping", value: "none" }, ...availableColumns.filter((column) => ["property", "unit", "type", "payee", "status"].includes(column.key)).map((column) => ({ label: column.label, value: column.key }))];
+
+  if (compact) return <section aria-label="Report filters" className="workspace-gutter-x border-b border-border/70 bg-blue-50/20 py-2" role="region">
+    <form action={action} method="get" className="flex min-w-0 flex-wrap items-center gap-2">
+      <MonthPickerField ariaLabel="Report month" className="h-7 min-h-7 w-[180px] whitespace-nowrap rounded-full border-blue-300 bg-blue-50 px-3 text-xs text-blue-700 shadow-none dark:bg-blue-950/30" defaultValue={viewQuery.month} name="month" />
+      <SearchableSelectControl ariaLabel="Filter report by property" className="h-7 min-h-7 w-[180px] rounded-full px-3 text-xs font-normal shadow-none" name="propertyId" value={propertyId} onValueChange={(value) => { setPropertyId(value); setUnitId("all"); }} options={[{ label: "All properties", value: "all" }, ...propertyOptions.map(property => ({ label: property.label, value: property.id }))]} />
+      <SearchableSelectControl ariaLabel="Filter report by unit" className="h-7 min-h-7 w-[160px] rounded-full px-3 text-xs font-normal shadow-none" name="unitId" value={unitId} onValueChange={setUnitId} options={[{ label: "All units", value: "all" }, ...visibleUnits.map(unit => ({ label: unit.label, value: unit.id }))]} />
+      <Button aria-label="Apply filters" className="h-7 rounded-full px-3 text-xs" type="submit">Apply</Button>
+      {showReset ? <Button asChild size="sm" variant="ghost" className="h-7 text-xs"><Link aria-label="Reset report filters" href={`/reports/${viewQuery.report}`}>Reset</Link></Button> : null}
+      <span className="ml-auto rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] text-blue-700 dark:bg-blue-950/30 dark:text-blue-300" title="Income and expenses are recognized by invoice or owner-cost obligation date">Accrual</span>
+    </form>
+  </section>;
 
   return <section aria-label="Report filters" className="workspace-gutter-x relative border-b border-border/70 bg-background py-3" role="region">
     <form action={action} method="get" className="flex min-w-0 flex-wrap items-end gap-2">
