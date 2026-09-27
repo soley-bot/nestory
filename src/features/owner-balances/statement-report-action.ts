@@ -50,5 +50,7 @@ export async function readStatementReport(input: StatementScope): Promise<Statem
   const client = await createSupabaseServerClient();
   const model = await loadOwnerStatementPublication(client, context.organizationId, publication.id);
   if (model.organizationId !== context.organizationId || model.ownerPersonId !== input.ownerPersonId || model.propertyId !== input.propertyId || model.monthStart !== `${input.month}-01`) throw new Error("Statement scope mismatch.");
+  // The frozen publication contract has no unit label. Do not backfill current
+  // roster data into a historical statement; the UI explicitly says Not recorded.
   return { cash: ownerStatementCash(model), statementNumber: model.statementNumber, artifacts: model.artifacts.map(item => ({ id: item.id, format: item.format })), stale: data.series?.state === "stale", published: true };
 }
