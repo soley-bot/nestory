@@ -4,9 +4,11 @@ import type { ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchCombo } from "@/components/ui/search-combo";
+import { useRegisterSearch } from "@/components/ui/use-register-search";
+import { matchesSearchText } from "@/lib/search/text";
 import { SelectControl } from "@/components/ui/select-control";
-import type { TenantInvoiceSummary } from "@/features/finance-operations/finance-operations.types";
+import type { PropertyFinancePosition, TenantInvoiceSummary } from "@/features/finance-operations/finance-operations.types";
 
 type RentSearchParams = Pick<URLSearchParams, "get" | "toString">;
 
@@ -75,32 +77,21 @@ export function RentInvoiceFilterBar({
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
+  const search = useRegisterSearch(filters.query, (value) => replaceFilters({ q: value }));
+
   return (
     <>
       <div className="rounded-lg border border-border bg-card">
         <div className="flex flex-col gap-2 p-2 sm:flex-row sm:items-center">
-          <form
-            className="flex min-w-0 flex-1 gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const formData = new FormData(event.currentTarget);
-              replaceFilters({ q: String(formData.get("q") ?? "").trim() });
-            }}
-            role="search"
-          >
-            <Input
-              aria-label="Search rent invoices"
-              className="min-w-0 flex-1"
-              defaultValue={filters.query}
-              key={filters.query}
-              name="q"
-              placeholder="Search invoice, tenant, property, or unit"
-              type="search"
-            />
-            <Button size="sm" type="submit" variant="outline">
-              Search
-            </Button>
-          </form>
+          <SearchCombo
+            ariaLabel="Search rent invoices"
+            onQueryChange={search.onQueryChange}
+            onCompositionChange={search.onCompositionChange}
+            onSubmit={search.onSubmit}
+            placeholder="Search property, unit, owner, tenant or invoice"
+            query={search.query}
+            submitLabel="Search rent invoices"
+          />
           {filtersActive ? (
             <Button
               onClick={() =>
@@ -194,10 +185,11 @@ export function getRentInvoiceView(
   invoices: TenantInvoiceSummary[],
   searchParams: RentSearchParams,
   businessDate: string,
+  positions: PropertyFinancePosition[] = [],
 ) {
   const filters = getRentInvoiceFilters(searchParams);
   return {
-    filteredInvoices: filterAndSortRentInvoices(invoices, filters, businessDate),
+    filteredInvoices: filterAndSortRentInvoices(invoices, filters, businessDate, positions),
   };
 }
 
@@ -232,19 +224,24 @@ function filterAndSortRentInvoices(
   invoices: TenantInvoiceSummary[],
   filters: RentInvoiceFilters,
   businessDate: string,
+  positions: PropertyFinancePosition[] = [],
 ) {
   const query = filters.query.toLocaleLowerCase();
+  const positionsById = new Map(positions.map(position => [position.propertyId, position]));
   const businessDay = Date.parse(`${businessDate}T00:00:00Z`);
   const filtered = invoices.filter((invoice) => {
     if (
       query &&
-      ![
+      !matchesSearchText(query, [
+        positionsById.get(invoice.propertyId)?.ownerLabel,
+        positionsById.get(invoice.propertyId)?.propertyLabel,
+        ...(positionsById.get(invoice.propertyId)?.ownerSearchLabels ?? []),
         invoice.invoiceNumber,
         invoice.recipientLabel,
         invoice.propertyLabel,
         invoice.unitLabel,
         ...invoice.occupantLabels,
-      ].some((value) => value.toLocaleLowerCase().includes(query))
+      ])
     ) {
       return false;
     }

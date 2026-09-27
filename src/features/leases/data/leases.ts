@@ -1,3 +1,5 @@
+import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
 import { toRecentChange } from "@/features/activity/recent-changes";
@@ -100,6 +102,7 @@ export async function getLeasesScreenData(
     readContext.availability_leases,
     readContext.availability_terms,
   );
+  const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
   const unitOptions = toUnitOptions(
@@ -184,6 +187,7 @@ export async function getLeasesScreenData(
         properties,
         units,
         propertiesById,
+        portfolio,
       })) {
         leasesQuery = leasesQuery.or(filter);
       }
@@ -1191,10 +1195,12 @@ export function buildLeaseUnitReservations(
 function buildLeaseSearchFilters(
   viewQuery: LeaseViewQuery,
   {
+    portfolio,
     properties,
     propertiesById,
     units,
   }: {
+    portfolio?: PortfolioSearch;
     properties: LeasePropertyRow[];
     propertiesById: Map<string, LeasePropertyRow>;
     units: LeaseUnitRow[];
@@ -1202,6 +1208,7 @@ function buildLeaseSearchFilters(
 ) {
   return getLeaseSearchTokens(viewQuery.query).map((token) => {
     const conditions = [
+      ...(portfolio?.conditions(token) ?? []),
       `tenant_name.ilike.*${token}*`,
       `status.ilike.*${token}*`,
     ];

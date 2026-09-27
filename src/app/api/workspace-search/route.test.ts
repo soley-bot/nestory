@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET } from "@/app/api/workspace-search/route";
-import { searchWorkspace } from "@/features/workspace-search/data/workspace-search";
+import { searchWorkspaceWithStatus } from "@/features/workspace-search/data/workspace-search";
 import {
   getCurrentUser,
   getWorkspaceMembershipForUser,
@@ -9,7 +9,7 @@ import {
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 vi.mock("@/features/workspace-search/data/workspace-search", () => ({
-  searchWorkspace: vi.fn(),
+  searchWorkspaceWithStatus: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/context", () => ({
@@ -45,14 +45,18 @@ describe("GET /api/workspace-search", () => {
         mode: "system",
       },
     } as never);
-    vi.mocked(searchWorkspace).mockResolvedValue([
-      {
-        href: "/maintenance?archiveState=all&taskId=task-1",
-        id: "task-1",
-        kind: "maintenance",
-        label: "Boiler leak",
-      },
-    ]);
+    vi.mocked(searchWorkspaceWithStatus).mockResolvedValue({
+      partial: false,
+      limited: false,
+      results: [
+        {
+          href: "/maintenance?archiveState=all&taskId=task-1",
+          id: "task-1",
+          kind: "maintenance",
+          label: "Boiler leak",
+        },
+      ],
+    });
   });
 
   it("returns a clean private 401 without touching the database when unauthenticated", async () => {
@@ -66,7 +70,7 @@ describe("GET /api/workspace-search", () => {
     expect(await response.json()).toEqual({ error: "Unauthorized" });
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(createSupabaseServerClient).not.toHaveBeenCalled();
-    expect(searchWorkspace).not.toHaveBeenCalled();
+    expect(searchWorkspaceWithStatus).not.toHaveBeenCalled();
   });
 
   it("derives organization, branch, and permissions from the signed-in membership", async () => {
@@ -83,7 +87,7 @@ describe("GET /api/workspace-search", () => {
       "user-1",
       expect.anything(),
     );
-    expect(searchWorkspace).toHaveBeenCalledWith(
+    expect(searchWorkspaceWithStatus).toHaveBeenCalledWith(
       expect.objectContaining({
         context: {
           branchId: "branch-a",
@@ -99,6 +103,8 @@ describe("GET /api/workspace-search", () => {
       }),
     );
     expect(await response.json()).toEqual({
+      partial: false,
+      limited: false,
       results: [expect.objectContaining({ id: "task-1" })],
     });
   });
@@ -112,6 +118,21 @@ describe("GET /api/workspace-search", () => {
 
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ error: "Forbidden" });
-    expect(searchWorkspace).not.toHaveBeenCalled();
+    expect(searchWorkspaceWithStatus).not.toHaveBeenCalled();
+  });
+
+  it("returns partial results without exposing the failed category's error", async () => {
+    vi.mocked(searchWorkspaceWithStatus).mockResolvedValue({ results: [], partial: true, limited: true });
+    const response = await GET(new Request("http://localhost/api/workspace-search?q=boiler"));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ results: [], partial: true, limited: true });
+  });
+
+  it("returns a private generic error when all record searches fail", async () => {
+    vi.mocked(searchWorkspaceWithStatus).mockRejectedValue(new Error("Internal database details"));
+    const response = await GET(new Request("http://localhost/api/workspace-search?q=boiler"));
+    expect(response.status).toBe(500);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(await response.json()).toEqual({ error: "Search unavailable" });
   });
 });

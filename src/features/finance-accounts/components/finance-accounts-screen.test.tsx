@@ -175,7 +175,7 @@ describe("FinanceAccountsScreen", () => {
     expect(screen.queryByRole("columnheader", { name: "Description" })).toBeNull();
     expect(screen.queryByText("Day-to-day upkeep")).toBeNull();
     expect(container.querySelector('th[scope="rowgroup"]')?.getAttribute("colspan")).toBe("5");
-    await user.type(screen.getByRole("searchbox"), "Day-to-day upkeep");
+    await user.type(screen.getByRole("textbox", { name: "Search accounts" }), "Day-to-day upkeep");
     expect(screen.getByText("Repairs and maintenance")).toBeTruthy();
     expect(screen.queryByText("Operating account")).toBeNull();
     await user.click(screen.getByRole("button", { name: "View Repairs and maintenance" }));
@@ -189,11 +189,11 @@ describe("FinanceAccountsScreen", () => {
     const user = userEvent.setup();
     render(<FinanceAccountsScreen {...fixture()} canManageAccounts={false} />);
 
-    await user.type(screen.getByRole("searchbox", { name: "Search accounts" }), "former");
+    await user.type(screen.getByRole("textbox", { name: "Search accounts" }), "former");
     expect(screen.queryByText("Operating account")).toBeNull();
     expect(screen.getByText("No accounts match these filters.")).toBeTruthy();
 
-    await user.clear(screen.getByRole("searchbox", { name: "Search accounts" }));
+    await user.clear(screen.getByRole("textbox", { name: "Search accounts" }));
     await user.selectOptions(screen.getByLabelText("Account status"), "inactive");
     expect(screen.getByText("Former cash account")).toBeTruthy();
     expect(screen.queryByText("Operating account")).toBeNull();

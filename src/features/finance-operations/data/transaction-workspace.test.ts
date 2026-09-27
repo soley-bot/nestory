@@ -33,6 +33,11 @@ describe("transaction workspace projection", () => {
     expect(filterTransactions(rows,{propertyId:"property-a",unitId:"unit-a",month:"2026-09",kind:"payment",status:"received",tenant:"Tenant A",query:"rec-001"}).map(row => row.sourceId)).toEqual(["payment-a"]);
     expect(filterTransactions(rows,{propertyId:"property-a",month:"2026-08"})).toEqual([]);
   });
+  it("matches separate words across reference, tenant and unit regardless of order", () => {
+    const rows = projectTransactions(input({tenantInvoices: [invoice()]}));
+    expect(filterTransactions(rows, {propertyId: "property-a", query: "101 TENANT rent-001"}).map(row => row.kind)).toEqual(["charge"]);
+    expect(filterTransactions(rows, {propertyId: "property-a", query: "101 missing"})).toEqual([]);
+  });
   it("never assigns property owner cash or property costs to a unit", () => {
     const rows = projectTransactions(input({accountEntries: [{id:"cash", amount: 100, date:"2026-09-02", createdAt:"", category:"", label:"Contribution", propertyId:"property-a", runningBalance:100, note:null,sourceType:"owner_contribution"}]}));
     expect(filterTransactions(rows,{propertyId:"property-a",unitId:"unit-a"}).map(row => row.kind)).toEqual(["payment","charge"]);

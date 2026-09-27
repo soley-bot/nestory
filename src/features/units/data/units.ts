@@ -1,3 +1,7 @@
+import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import type { PortfolioSearch } from "@/lib/search/portfolio";
+import { matchesSearchText } from "@/lib/search/text";
+import { normalizeSearchText } from "@/lib/search/text";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
@@ -356,7 +360,8 @@ async function getCompleteUnitsScreenData({
       unitRows,
     })
   ).toSorted(compareUnitSummaries);
-  const filteredUnits = filterUnitSummaries(units, viewQuery);
+  const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
+  const filteredUnits = filterUnitSummaries(units, viewQuery, portfolio);
   const sortedUnits = sortUnitSummaries(filteredUnits, viewQuery.sort);
   const pagination = buildUnitPagination({
     page: viewQuery.page,
@@ -787,12 +792,7 @@ function compareUnitSummaries(
   );
 }
 
-function filterUnitSummaries(units: UnitSummary[], viewQuery: UnitViewQuery) {
-  const tokens = viewQuery.query
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean);
+function filterUnitSummaries(units: UnitSummary[], viewQuery: UnitViewQuery, portfolio?: PortfolioSearch) {
 
   return units.filter((unit) => {
     const matchesProperty =
@@ -807,7 +807,7 @@ function filterUnitSummaries(units: UnitSummary[], viewQuery: UnitViewQuery) {
       unit,
       viewQuery.occupancy,
     );
-    const haystack = [
+    const haystack = normalizeSearchText([
       unit.unitNumber,
       unit.propertyCode,
       unit.propertyName,
@@ -817,9 +817,8 @@ function filterUnitSummaries(units: UnitSummary[], viewQuery: UnitViewQuery) {
       unit.leaseLabel,
       unit.latestTimelineEvent?.title ?? "",
     ]
-      .join(" ")
-      .toLowerCase();
-    const matchesQuery = tokens.every((token) => haystack.includes(token));
+      .join(" "));
+    const matchesQuery = matchesSearchText(viewQuery.query, [haystack, ...(portfolio?.unitValues(unit.id) ?? [])]);
 
     return (
       matchesProperty &&

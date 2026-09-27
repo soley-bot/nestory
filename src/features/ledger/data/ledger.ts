@@ -1,3 +1,5 @@
+import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
   formatPropertyOptionLabel,
@@ -170,7 +172,9 @@ export async function getLedgerScreenData(
           searchTokens,
         )
       : [];
+  const portfolio = searchTokens.length ? await loadPortfolioSearch(supabase, organizationId) : undefined;
   const searchGroups = buildLedgerSearchGroups({
+    portfolio,
     properties,
     propertiesById,
     relatedLedgerEntryIds,
@@ -810,12 +814,14 @@ async function getLedgerEntryIdsMatchingTimelineSearch(
 }
 
 function buildLedgerSearchGroups({
+  portfolio,
   properties,
   propertiesById,
   relatedLedgerEntryIds,
   searchTokens,
   units,
 }: {
+  portfolio?: PortfolioSearch;
   properties: PropertyRow[];
   propertiesById: Map<string, PropertyRow>;
   relatedLedgerEntryIds: string[];
@@ -824,6 +830,7 @@ function buildLedgerSearchGroups({
 }) {
   return searchTokens.map((token) => {
     const conditions = [
+      ...(portfolio?.conditions(token) ?? []),
       `category.ilike.%${token}%`,
       `description.ilike.%${token}%`,
       `direction.ilike.%${token}%`,

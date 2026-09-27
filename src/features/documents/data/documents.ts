@@ -1,3 +1,4 @@
+import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import { getDocumentAuthorityDomain } from "@/features/documents/document-authority";
 import {
@@ -135,9 +136,11 @@ export async function getDocumentsScreenData(
     documentsQuery = documentsQuery.eq("task_id", viewQuery.taskId);
   }
 
-  if (viewQuery.query) {
-    const token = viewQuery.query.replace(/[,%()]/g, " ").trim().replace(/\s+/g, "%");
-    documentsQuery = documentsQuery.or(`file_name.ilike.%${token}%,category.ilike.%${token}%`);
+  if (viewQuery.query.trim()) {
+    const portfolio = await loadPortfolioSearch(supabase, organizationId);
+    for (const group of portfolio.groups(viewQuery.query, ["file_name", "category"])) {
+      documentsQuery = documentsQuery.or(group);
+    }
   }
 
   const documentsResult = await documentsQuery

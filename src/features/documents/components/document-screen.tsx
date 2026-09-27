@@ -36,6 +36,7 @@ import {
 import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
 import { RecordField, RecordForm } from "@/components/ui/record-form";
+import { useRegisterSearch } from "@/components/ui/use-register-search";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
@@ -356,17 +357,13 @@ function DocumentFilters({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [queryState, setQueryState] = useState({
-    source: viewQuery.query,
-    value: viewQuery.query,
-  });
-  const query =
-    queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
+  const search = useRegisterSearch(viewQuery.query, (value) => replaceParam("query", value, ""));
+  const query = search.query;
   const visibleUnits =
     viewQuery.propertyId === "all"
       ? units
       : units.filter((unit) => unit.propertyId === viewQuery.propertyId);
-  const replaceParam = (name: string, value: string, defaultValue = "") => {
+  function replaceParam(name: string, value: string, defaultValue = "") {
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.delete("page");
     nextParams.delete("documentId");
@@ -381,8 +378,10 @@ function DocumentFilters({
       nextParams.delete("unitId");
     }
 
-    nextParams.delete("leaseId");
-    nextParams.delete("taskId");
+    if (name !== "query") {
+      nextParams.delete("leaseId");
+      nextParams.delete("taskId");
+    }
 
     const query = nextParams.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, {
@@ -394,17 +393,10 @@ function DocumentFilters({
     <div className="grid w-full gap-2 md:grid-cols-[minmax(0,1.4fr)_150px_minmax(170px,220px)_minmax(170px,220px)]">
       <SearchCombo
         ariaLabel="Search documents"
-        onQueryChange={(value) =>
-          setQueryState({
-            source: viewQuery.query,
-            value,
-          })
-        }
-        onSubmit={(event) => {
-          event.preventDefault();
-          replaceParam("query", query);
-        }}
-        placeholder="Search file name or category"
+        onQueryChange={search.onQueryChange}
+          onCompositionChange={search.onCompositionChange}
+        onSubmit={search.onSubmit}
+        placeholder="Search property, unit, owner, file name or category"
         query={query}
         submitLabel="Search documents"
       />

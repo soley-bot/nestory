@@ -1936,7 +1936,7 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
-    expect(screen.getByRole("searchbox", { name: "Search rent invoices" })).not.toBeNull();
+    expect(screen.getByRole("textbox", { name: "Search rent invoices" })).not.toBeNull();
     expect(screen.getByText("Filters")).not.toBeNull();
     expect(screen.getByRole("combobox", { name: "Property" })).not.toBeNull();
     expect(screen.getByRole("combobox", { name: "Invoice status" })).not.toBeNull();

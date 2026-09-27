@@ -1,3 +1,5 @@
+import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { Constants } from "@/types/database";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import {
@@ -193,6 +195,7 @@ export async function getTimelineScreenData(
 ) {
   const supabase = await createSupabaseServerClient();
   const scope = options.scope ?? "global";
+  const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
   const searchMatches = await getTimelineSearchMatches({
     organizationId,
     query: viewQuery.query,
@@ -209,7 +212,7 @@ export async function getTimelineScreenData(
       )
       .eq("organization_id", organizationId);
 
-    query = applyTimelineFilters(query, viewQuery, scope, searchMatches);
+    query = applyTimelineFilters(query, viewQuery, scope, searchMatches, portfolio);
     query = applyTimelineSort(query, viewQuery.sort);
 
     return query.range(from, to);
@@ -534,6 +537,7 @@ function applyTimelineFilters<TQuery extends FilterableQuery<TQuery>>(
   viewQuery: TimelineViewQuery,
   scope: TimelineScope,
   searchMatches: TimelineSearchMatches,
+  portfolio?: PortfolioSearch,
 ) {
   let nextQuery = applyTimelineScope(query, scope);
 
@@ -566,12 +570,14 @@ function applyTimelineFilters<TQuery extends FilterableQuery<TQuery>>(
       nextQuery = nextQuery.eq("event_type", viewQuery.eventType);
     }
 
-    const searchPattern = getSearchPattern(viewQuery.query);
-
-    if (searchPattern) {
-      nextQuery = nextQuery.or(
-        buildTimelineSearchClauses(searchPattern, searchMatches).join(","),
-      );
+    if (portfolio) {
+      for (const group of portfolio.groups(viewQuery.query, ["title", "description"])) {
+        const linked = buildTimelineSearchClauses("", searchMatches).filter(clause => !clause.includes(".ilike.") && !clause.startsWith("property_id.") && !clause.startsWith("unit_id."));
+        nextQuery = nextQuery.or([group, ...linked].join(","));
+      }
+    } else {
+      const searchPattern = getSearchPattern(viewQuery.query);
+      if (searchPattern) nextQuery = nextQuery.or(buildTimelineSearchClauses(searchPattern, searchMatches).join(","));
     }
   }
 

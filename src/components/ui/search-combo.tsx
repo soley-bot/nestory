@@ -1,8 +1,11 @@
 import { useState, type FormEvent } from "react";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search-input";
-import { SelectControl, type SelectControlOption } from "@/components/ui/select-control";
+import {
+  SelectControl,
+  type SelectControlOption,
+} from "@/components/ui/select-control";
 import { cn } from "@/lib/utils";
 
 export type SearchComboSuggestion = {
@@ -17,6 +20,7 @@ type SearchComboProps = {
   className?: string;
   disabled?: boolean;
   onQueryChange?: (value: string) => void;
+  onCompositionChange?: (composing: boolean) => void;
   onScopeChange?: (value: string) => void;
   onSuggestionSelect?: (suggestion: SearchComboSuggestion) => void;
   onSubmit?: (event: FormEvent<HTMLFormElement>) => void;
@@ -34,6 +38,7 @@ export function SearchCombo({
   className,
   disabled = false,
   onQueryChange,
+  onCompositionChange,
   onScopeChange,
   onSuggestionSelect,
   onSubmit,
@@ -54,6 +59,9 @@ export function SearchCombo({
     <form
       className={cn("flex min-w-0 flex-1 gap-1.5", className)}
       onSubmit={onSubmit}
+      role="search"
+      aria-label={ariaLabel}
+      aria-busy={disabled}
     >
       <div className="relative min-w-0 flex-1">
         <div className="flex min-w-0 overflow-hidden rounded-md border border-input bg-card shadow-sm focus-within:border-ring focus-within:ring-2 focus-within:ring-ring">
@@ -66,24 +74,36 @@ export function SearchCombo({
               value={scopeValue}
             />
           ) : null}
-        <label className="relative min-w-0 flex-1">
-          <span className="sr-only">{ariaLabel}</span>
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-            size={16}
-          />
-          <SearchInput
-            className="h-8 rounded-none border-0 bg-transparent pl-9 shadow-none focus:border-transparent focus:ring-0"
-            onBlur={() => setSuggestionsOpen(false)}
-            onChange={(event) => {
-              setSuggestionsOpen(true);
-              onQueryChange?.(event.currentTarget.value);
-            }}
-            onFocus={() => setSuggestionsOpen(true)}
-            placeholder={placeholder}
-            value={query}
-          />
-        </label>
+          <label className="relative min-w-0 flex-1">
+            <span className="sr-only">{ariaLabel}</span>
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              size={16}
+            />
+            <SearchInput
+              onCompositionStart={() => onCompositionChange?.(true)}
+              onCompositionEnd={() => onCompositionChange?.(false)}
+              className="h-8 rounded-none border-0 bg-transparent pl-9 shadow-none focus:border-transparent focus:ring-0"
+              onBlur={() => setSuggestionsOpen(false)}
+              onChange={(event) => {
+                setSuggestionsOpen(true);
+                onQueryChange?.(event.currentTarget.value);
+              }}
+              onFocus={() => setSuggestionsOpen(true)}
+              placeholder={placeholder}
+              value={query}
+            />
+          </label>
+          {query && onQueryChange ? (
+            <button
+              aria-label={`Clear ${ariaLabel.toLowerCase()}`}
+              className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+              onClick={() => { setSuggestionsOpen(false); onQueryChange(""); }}
+              type="button"
+            >
+              <X size={14} />
+            </button>
+          ) : null}
         </div>
         {hasSuggestions ? (
           <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 overflow-hidden rounded-md border border-border bg-card p-1 shadow-lg">

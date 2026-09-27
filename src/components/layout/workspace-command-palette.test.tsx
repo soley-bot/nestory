@@ -1,6 +1,13 @@
 /* @vitest-environment jsdom */
 
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "@/components/layout/app-shell";
 
@@ -17,7 +24,10 @@ vi.mock("@/features/auth/actions", () => ({
   signOutAction: vi.fn(),
 }));
 
-function renderPalette(role: "super_admin" | "operations_manager" | "operations_member" = "super_admin") {
+function renderPalette(
+  role:
+    "super_admin" | "operations_manager" | "operations_member" = "super_admin",
+) {
   if (role !== "super_admin") {
     const permissionKeys =
       role === "operations_member"
@@ -36,7 +46,9 @@ function renderPalette(role: "super_admin" | "operations_manager" | "operations_
       <AppShell
         permissionKeys={permissionKeys}
         roleKind="custom"
-        roleName={role === "operations_member" ? "Task Assignee" : "Operations Lead"}
+        roleName={
+          role === "operations_member" ? "Task Assignee" : "Operations Lead"
+        }
       >
         <button type="button">Outside control</button>
       </AppShell>,
@@ -152,12 +164,20 @@ describe("Workspace command palette access", () => {
     openPalette();
 
     const dialog = screen.getByRole("dialog", { name: "Search or jump" });
-    const input = within(dialog).getByRole("combobox", { name: "Search or jump" });
-    const idleListbox = within(dialog).getByRole("listbox", { name: "Search results" });
-    expect(within(idleListbox).getByRole("group", { name: "Quick access" })).toBeTruthy();
+    const input = within(dialog).getByRole("combobox", {
+      name: "Search or jump",
+    });
+    const idleListbox = within(dialog).getByRole("listbox", {
+      name: "Search results",
+    });
+    expect(
+      within(idleListbox).getByRole("group", { name: "Quick access" }),
+    ).toBeTruthy();
     expect(input.getAttribute("aria-expanded")).toBe("true");
     fireEvent.change(input, { target: { value: ">" } });
-    const listbox = within(dialog).getByRole("listbox", { name: "Search results" });
+    const listbox = within(dialog).getByRole("listbox", {
+      name: "Search results",
+    });
     const navigationGroup = within(listbox).getByRole("group", {
       name: "Pages",
     });
@@ -167,8 +187,10 @@ describe("Workspace command palette access", () => {
     expect(input.getAttribute("aria-expanded")).toBe("true");
     expect(input.getAttribute("aria-activedescendant")).toBe(options[0].id);
     expect(options[0].getAttribute("aria-selected")).toBe("true");
-    expect(new Set([input.id, listbox.id, ...options.map((option) => option.id)]).size)
-      .toBe(2 + options.length);
+    expect(
+      new Set([input.id, listbox.id, ...options.map((option) => option.id)])
+        .size,
+    ).toBe(2 + options.length);
   });
 
   it("closes when the backdrop is clicked and restores focus", () => {
@@ -199,7 +221,9 @@ describe("Workspace command palette access", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     fireEvent.keyDown(document, { key: "Escape" });
 
-    expect(input.getAttribute("aria-activedescendant")).toBe(initialActiveOption);
+    expect(input.getAttribute("aria-activedescendant")).toBe(
+      initialActiveOption,
+    );
     expect(navigation.push).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: "Search or jump" })).toBeTruthy();
 
@@ -223,7 +247,9 @@ describe("Workspace command palette access", () => {
     fireEvent.keyDown(input, { key: "Enter", keyCode: 229, which: 229 });
     fireEvent.keyDown(document, { key: "Escape", keyCode: 229, which: 229 });
 
-    expect(input.getAttribute("aria-activedescendant")).toBe(initialActiveOption);
+    expect(input.getAttribute("aria-activedescendant")).toBe(
+      initialActiveOption,
+    );
     expect(navigation.push).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: "Search or jump" })).toBeTruthy();
 
@@ -272,7 +298,9 @@ describe("Workspace command palette results", () => {
     renderPalette("operations_member");
     openPalette();
 
-    expect(screen.getByRole("listbox", { name: "Search results" })).toBeTruthy();
+    expect(
+      screen.getByRole("listbox", { name: "Search results" }),
+    ).toBeTruthy();
     fireEvent.change(screen.getByRole("combobox", { name: "Search or jump" }), {
       target: { value: ">" },
     });
@@ -298,7 +326,9 @@ describe("Workspace command palette results", () => {
     await advanceSearch();
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(screen.getAllByRole("option")[0].textContent).toContain("Properties");
+    expect(screen.getAllByRole("option")[0].textContent).toContain(
+      "Properties",
+    );
     expect(screen.getByRole("status").textContent).toBe("3 pages");
   });
 
@@ -334,6 +364,36 @@ describe("Workspace command palette results", () => {
         signal: expect.any(AbortSignal),
       }),
     );
+  });
+
+  it("keeps successful matches and offers permission-scoped register links on partial failure", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({
+      results: [{ href: "/people/person-1", id: "person-1", kind: "person", label: "Dara" }],
+      partial: true, limited: false,
+    })));
+    render(<AppShell roleKind="custom" permissionKeys={["people.view"]}><span>People</span></AppShell>);
+    openPalette();
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "dara" } });
+    await advanceSearch();
+    expect(screen.getByRole("option", { name: /Dara/ })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain("Some categories are unavailable");
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByRole("link", { name: "People" }).getAttribute("href")).toBe("/people?query=dara");
+    expect(dialog.queryByRole("link", { name: "Properties" })).toBeNull();
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Tab" });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Close search" }), { key: "Tab" });
+    expect(document.activeElement).toBe(dialog.getByRole("link", { name: "People" }));
+    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+    expect(document.activeElement).toBe(screen.getByRole("combobox"));
+  });
+
+  it("describes a bounded preview without presenting its size as the total count", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ results: [], partial: false, limited: true })));
+    renderPalette(); openPalette();
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "riverside" } });
+    await advanceSearch();
+    expect(screen.getByRole("status").textContent).toContain("Open a register below");
+    expect(screen.queryByText("No results")).toBeNull();
   });
 
   it("groups validated entities, announces the count, and activates a clicked result", async () => {
@@ -373,7 +433,9 @@ describe("Workspace command palette results", () => {
     });
 
     const listbox = screen.getByRole("listbox", { name: "Search results" });
-    expect(within(listbox).getByRole("group", { name: "Best matches" })).toBeTruthy();
+    expect(
+      within(listbox).getByRole("group", { name: "Properties" }),
+    ).toBeTruthy();
     expect(screen.getByRole("status").textContent).toContain("2 results");
 
     fireEvent.click(screen.getByRole("option", { name: /Boiler House/ }));
@@ -413,9 +475,11 @@ describe("Workspace command palette results", () => {
     const groups = within(
       screen.getByRole("listbox", { name: "Search results" }),
     ).getAllByRole("group");
-    expect(groups[0].textContent).toContain("Best matches");
+    expect(groups[0].textContent).toContain("Properties");
     expect(groups[1].textContent).toContain("Pages");
-    expect(screen.getAllByRole("option")[0].textContent).toContain("Property One");
+    expect(screen.getAllByRole("option")[0].textContent).toContain(
+      "Property One",
+    );
   });
 
   it("moves through results with Arrow keys and activates the selected option with Enter", () => {
@@ -463,7 +527,9 @@ describe("Workspace command palette results", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ results: [] }))
-      .mockResolvedValueOnce(jsonResponse({ error: "Search unavailable" }, 500));
+      .mockResolvedValueOnce(
+        jsonResponse({ error: "Search unavailable" }, 500),
+      );
     vi.stubGlobal("fetch", fetchMock);
     renderPalette("operations_member");
     openPalette();
@@ -484,7 +550,9 @@ describe("Workspace command palette results", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(screen.getByRole("status").textContent).toContain("Search unavailable");
+    expect(screen.getByRole("status").textContent).toContain(
+      "Search unavailable",
+    );
     expect(screen.getByRole("option", { name: /Tasks/ })).toBeTruthy();
   });
 
@@ -556,18 +624,49 @@ describe("Workspace command palette results", () => {
       vi.fn().mockResolvedValue(
         jsonResponse({
           results: [
-            { href: "javascript:alert(1)", id: "bad-1", kind: "property", label: "Bad JS" },
-            { href: "https://evil.example", id: "bad-2", kind: "unit", label: "Bad external" },
-            { href: "//evil.example", id: "bad-3", kind: "person", label: "Bad relative" },
-            { href: "/tasks/task-1", id: "bad-4", kind: "unknown", label: "Bad kind" },
-            { href: "/tasks/task-2", id: "bad-5", kind: "task", label: "Bad meta", meta: 3 },
+            {
+              href: "javascript:alert(1)",
+              id: "bad-1",
+              kind: "property",
+              label: "Bad JS",
+            },
+            {
+              href: "https://evil.example",
+              id: "bad-2",
+              kind: "unit",
+              label: "Bad external",
+            },
+            {
+              href: "//evil.example",
+              id: "bad-3",
+              kind: "person",
+              label: "Bad relative",
+            },
+            {
+              href: "/tasks/task-1",
+              id: "bad-4",
+              kind: "unknown",
+              label: "Bad kind",
+            },
+            {
+              href: "/tasks/task-2",
+              id: "bad-5",
+              kind: "task",
+              label: "Bad meta",
+              meta: 3,
+            },
             {
               href: "/tasks/task-oversized",
               id: "bad-6",
               kind: "task",
               label: "x".repeat(501),
             },
-            { href: "/tasks?taskId=task-safe", id: "safe", kind: "task", label: "Safe task" },
+            {
+              href: "/tasks?taskId=task-safe",
+              id: "safe",
+              kind: "task",
+              label: "Safe task",
+            },
           ],
         }),
       ),
@@ -586,8 +685,12 @@ describe("Workspace command palette results", () => {
     expect(screen.getAllByRole("option")).toHaveLength(1);
     fireEvent.click(screen.getByRole("option", { name: /Safe task/ }));
     expect(navigation.push).toHaveBeenCalledWith("/tasks?taskId=task-safe");
-    expect(navigation.push).not.toHaveBeenCalledWith(expect.stringContaining("evil"));
-    expect(navigation.push).not.toHaveBeenCalledWith(expect.stringContaining("javascript"));
+    expect(navigation.push).not.toHaveBeenCalledWith(
+      expect.stringContaining("evil"),
+    );
+    expect(navigation.push).not.toHaveBeenCalledWith(
+      expect.stringContaining("javascript"),
+    );
   });
 
   it("drops action results returned by the API so local role-aware actions remain authoritative", async () => {
@@ -596,7 +699,12 @@ describe("Workspace command palette results", () => {
       vi.fn().mockResolvedValue(
         jsonResponse({
           results: [
-            { href: "/settings", id: "action:settings", kind: "action", label: "Settings" },
+            {
+              href: "/settings",
+              id: "action:settings",
+              kind: "action",
+              label: "Settings",
+            },
           ],
         }),
       ),
@@ -641,8 +749,8 @@ describe("Workspace command palette results", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getAllByRole("option")).toHaveLength(8);
-    expect(screen.getByRole("status").textContent).toContain("Showing 8 of 20 results");
+    expect(screen.getAllByRole("option")).toHaveLength(20);
+    expect(screen.getByRole("status").textContent).toContain("20 results");
   });
 
   it("bounds the untrusted payload rows before validating them", async () => {
@@ -730,22 +838,29 @@ describe("Workspace command palette results", () => {
     async ({ allowed, deniedHref, deniedKind, role }) => {
       vi.stubGlobal(
         "fetch",
-        vi.fn().mockResolvedValue(
-          jsonResponse({ results: [deniedKind, deniedHref, allowed] }),
-        ),
+        vi
+          .fn()
+          .mockResolvedValue(
+            jsonResponse({ results: [deniedKind, deniedHref, allowed] }),
+          ),
       );
       renderPalette(role);
       openPalette();
-      fireEvent.change(screen.getByRole("combobox", { name: "Search or jump" }), {
-        target: { value: "allowed" },
-      });
+      fireEvent.change(
+        screen.getByRole("combobox", { name: "Search or jump" }),
+        {
+          target: { value: "allowed" },
+        },
+      );
       await advanceSearch();
       await act(async () => {
         await Promise.resolve();
         await Promise.resolve();
       });
 
-      expect(screen.getByRole("option", { name: new RegExp(allowed.label) })).toBeTruthy();
+      expect(
+        screen.getByRole("option", { name: new RegExp(allowed.label) }),
+      ).toBeTruthy();
       expect(screen.queryByRole("option", { name: /Denied/ })).toBeNull();
     },
   );
@@ -800,7 +915,10 @@ describe("Workspace command palette results", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const requestedUrl = new URL(String(fetchMock.mock.calls[0][0]), "http://localhost");
+    const requestedUrl = new URL(
+      String(fetchMock.mock.calls[0][0]),
+      "http://localhost",
+    );
     const sentQuery = requestedUrl.searchParams.get("q");
     expect(sentQuery).not.toBeNull();
     expect(sentQuery?.isWellFormed()).toBe(true);

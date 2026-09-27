@@ -882,7 +882,12 @@ export async function getFinanceOperationsData(
         } : {}),
       })),
     positions: (positionsResult.data ?? []).flatMap((row) =>
-      toPosition(row as PositionRow, personById),
+      toPosition(row as PositionRow, personById).map(position => ({
+        ...position,
+        ownerSearchLabels: readContext.owner_assignments
+          .filter(owner => owner.property_id === position.propertyId && !owner.archived_at && !owner.ended_on)
+          .flatMap(owner => personById.get(owner.person_id) ?? []),
+      })),
     ),
     propertyOptions: properties
       .filter((property) => property.archived_at === null)

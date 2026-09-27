@@ -1,3 +1,5 @@
+import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import {
   resolveRecentChangeTargets,
@@ -180,11 +182,12 @@ export async function getMaintenanceScreenData(
   capabilities: Pick<MaintenanceCapabilities, "canAssignCase"> = { canAssignCase: false },
 ): Promise<MaintenanceScreenData> {
   const supabase = await createSupabaseServerClient();
+  const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
   const now = new Date();
   const today = toIsoDate(now);
   const currentTime = toIsoTime(now);
   const [pagedTasks, summaryTaskRows] = await Promise.all([
-    getPagedTaskRows(supabase, organizationId, viewQuery, today, currentTime, actor),
+    getPagedTaskRows(supabase, organizationId, viewQuery, today, currentTime, actor, portfolio),
     getSummaryTaskRows(
       supabase,
       organizationId,
@@ -192,6 +195,7 @@ export async function getMaintenanceScreenData(
       today,
       currentTime,
       actor,
+      portfolio,
     ),
   ]);
   const referenceTaskRows = uniqueTaskRows([
@@ -506,6 +510,7 @@ async function getPagedTaskRows(
   today: string,
   currentTime: string,
   actor?: MaintenanceActor,
+  portfolio?: PortfolioSearch,
 ) {
   let result = await buildTasksQuery(
     supabase,
@@ -514,6 +519,7 @@ async function getPagedTaskRows(
     today,
     currentTime,
     actor,
+    portfolio,
   ).range(getPageStart(viewQuery.page, viewQuery.pageSize), getPageEnd(viewQuery.page, viewQuery.pageSize));
 
   if (result.error) {
@@ -534,6 +540,7 @@ async function getPagedTaskRows(
       today,
       currentTime,
       actor,
+      portfolio,
     ).range(
       getPageStart(pagination.page, pagination.pageSize),
       getPageEnd(pagination.page, pagination.pageSize),
@@ -562,6 +569,7 @@ async function getSummaryTaskRows(
   today: string,
   currentTime: string,
   actor?: MaintenanceActor,
+  portfolio?: PortfolioSearch,
 ) {
   const rows: MaintenanceTaskRow[] = [];
   let from = 0;
@@ -575,6 +583,7 @@ async function getSummaryTaskRows(
       today,
       currentTime,
       actor,
+      portfolio,
     ).range(from, from + MAINTENANCE_QUERY_BATCH_SIZE - 1);
 
     if (result.error) {
@@ -602,6 +611,7 @@ function buildTasksQuery(
   today: string,
   currentTime: string,
   actor?: MaintenanceActor,
+  portfolio?: PortfolioSearch,
 ) {
   let query = createBaseTaskQuery(supabase, organizationId);
 
@@ -636,7 +646,9 @@ function buildTasksQuery(
   }
 
   query = applyReviewFilter(query, viewQuery, today, currentTime);
-  query = applySearchFilter(query, viewQuery.query);
+  if (portfolio) {
+    for (const group of portfolio.groups(viewQuery.query, ["title", "description", "category", "status", "priority"])) query = query.or(group);
+  } else query = applySearchFilter(query, viewQuery.query);
 
   return applyTaskSort(query, viewQuery.sort);
 }

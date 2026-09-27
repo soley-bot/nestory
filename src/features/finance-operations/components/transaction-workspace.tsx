@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchCombo } from "@/components/ui/search-combo";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { SelectControl } from "@/components/ui/select-control";
 import { MoneyDisplay } from "@/components/data/money-display";
@@ -46,7 +46,7 @@ export function TransactionWorkspace({ data, scope, actions, canReadReports, onO
       <SelectControl ariaLabel="Transaction type" value={kind} onValueChange={setKind} options={[{value: "all", label: "All types"}, ...Object.entries(kindLabels).map(([value, label]) => ({value, label}))]} />
       <SelectControl ariaLabel="Transaction status" value={status} onValueChange={setStatus} options={[{value: "all", label: "All statuses"}, ...[...new Set(scopedRows.map(row => row.status))].sort().map(value => ({value, label: value.replaceAll("_", " ")}))]} />
       <SelectControl ariaLabel="Transaction tenant" value={tenant} onValueChange={setTenant} options={[{value: "all", label: "All tenants"}, ...[...new Set(scopedRows.map(row => row.tenant).filter(Boolean))].sort().map(value => ({value, label: value}))]} />
-      <Input aria-label="Search transactions" placeholder="Search transactions" value={query} onChange={event => setQuery(event.target.value)} />
+      <SearchCombo ariaLabel="Search transactions" placeholder="Search property, unit, owner or reference" query={query} onQueryChange={setQuery} onSubmit={event => event.preventDefault()} submitLabel="Search transactions" showSubmitButton={false} />
     </div>
     <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
       <label className="flex items-center gap-2"><input type="checkbox" checked={includeHistory} onChange={event => setIncludeHistory(event.target.checked)} />Show correction history</label>

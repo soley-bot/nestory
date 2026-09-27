@@ -1,3 +1,7 @@
+import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import type { PortfolioSearch } from "@/lib/search/portfolio";
+import { matchesSearchText } from "@/lib/search/text";
+import { normalizeSearchText } from "@/lib/search/text";
 import {
   toRecentChange,
   type ActivityLogSnapshot,
@@ -361,9 +365,10 @@ async function getQueryFilteredPeopleScreenData({
   supabase: SupabaseServerClient;
   viewQuery: PeopleViewQuery;
 }): Promise<PeopleScreenData> {
+  const portfolio = await loadPortfolioSearch(supabase, organizationId);
   const [idFilterResult, queryIdsResult] = await Promise.all([
     getPeopleIdPrefilter({ organizationId, supabase, viewQuery }),
-    getPeopleIdsMatchingQuery({ organizationId, supabase, viewQuery }),
+    getPeopleIdsMatchingQuery({ organizationId, supabase, viewQuery, portfolio }),
   ]);
 
   if (queryIdsResult.kind === "unsupported") {
@@ -404,6 +409,7 @@ async function getQueryFilteredPeopleScreenData({
 
   const filteredPeople = await filterPeopleRowsByQuery({
     organizationId,
+    portfolio,
     people: rowsResult.people,
     supabase,
     viewQuery,
@@ -485,9 +491,11 @@ async function getCompletePeopleScreenData({
     people,
     supabase,
   });
+  const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
   const filteredPeople = filterPeopleSummaries(
     summaries.toSorted(comparePeopleSummaries),
     viewQuery,
+    portfolio,
   );
   const sortedPeople = sortPeopleSummaries(filteredPeople, viewQuery.sort);
   const pagination = buildPeoplePagination({
@@ -1020,10 +1028,12 @@ async function getCurrentLeaseRows(
 }
 
 async function getPeopleIdsMatchingQuery({
+  portfolio,
   organizationId,
   supabase,
   viewQuery,
 }: {
+  portfolio?: PortfolioSearch;
   organizationId: string;
   supabase: SupabaseServerClient;
   viewQuery: PeopleViewQuery;
@@ -1042,6 +1052,7 @@ async function getPeopleIdsMatchingQuery({
       return tokenResult;
     }
 
+    for (const id of portfolio?.ownerIds(token) ?? []) tokenResult.ids.add(id);
     matchingIds = matchingIds
       ? intersectSets(matchingIds, tokenResult.ids)
       : tokenResult.ids;
@@ -1637,11 +1648,13 @@ function readPersonIdQueryResult(
 }
 
 async function filterPeopleRowsByQuery({
+  portfolio,
   organizationId,
   people,
   supabase,
   viewQuery,
 }: {
+  portfolio?: PortfolioSearch;
   organizationId: string;
   people: PersonRow[];
   supabase: SupabaseServerClient;
@@ -1727,6 +1740,7 @@ async function filterPeopleRowsByQuery({
 
   return people.filter((person) =>
     personMatchesQueryTokens({
+      extraSearchValues: portfolio?.ownerValues(person.id),
       contacts: contactsByPerson.get(person.id) ?? [],
       leaseParties: leasePartiesByPerson.get(person.id) ?? [],
       leasesById,
@@ -2437,10 +2451,9 @@ function buildPeopleNextAction({
 export function filterPeopleSummaries(
   people: PeopleSummary[],
   viewQuery: PeopleViewQuery,
+  portfolio?: PortfolioSearch,
 ) {
-  const tokens = viewQuery.query
-    .trim()
-    .toLowerCase()
+  const tokens = normalizeSearchText(viewQuery.query)
     .split(/\s+/)
     .filter(Boolean);
 
@@ -2450,7 +2463,7 @@ export function filterPeopleSummaries(
       viewQuery.role === "all" ||
       person.roles.some((role) => role.role === viewQuery.role);
     const matchesStatus = personMatchesStatusFilter(person, viewQuery.status);
-    const haystack = [
+    const haystack = normalizeSearchText([
       person.displayName,
       person.legalName ?? "",
       person.partyTypeLabel,
@@ -2462,9 +2475,8 @@ export function filterPeopleSummaries(
       person.linked.vendorProfile?.label ?? "",
       person.notes ?? "",
     ]
-      .join(" ")
-      .toLowerCase();
-    const matchesQuery = tokens.every((token) => haystack.includes(token));
+      .join(" "));
+    const matchesQuery = matchesSearchText(tokens.join(" "), [haystack, ...(portfolio?.ownerValues(person.id) ?? [])]);
 
     return matchesArchiveState && matchesRole && matchesStatus && matchesQuery;
   });
@@ -2505,6 +2517,7 @@ export function personMatchesStatusFilter(
 }
 
 function personMatchesQueryTokens({
+  extraSearchValues = [],
   contacts,
   leaseParties,
   leasesById,
@@ -2516,6 +2529,7 @@ function personMatchesQueryTokens({
   unitsById,
   vendorProfiles,
 }: {
+  extraSearchValues?: string[];
   contacts: ContactRow[];
   leaseParties: LeasePartyRow[];
   leasesById: Map<string, LeaseRow>;
@@ -2547,6 +2561,7 @@ function personMatchesQueryTokens({
       ? visibleRoles.map((role) => formatRole(role.role)).join(", ")
       : "No role";
   const haystack = [
+    ...extraSearchValues,
     person.displayName,
     person.legalName ?? "",
     formatPartyType(person.partyType),
@@ -2606,7 +2621,7 @@ function personMatchesQueryTokens({
     .join(" ")
     .toLowerCase();
 
-  return tokens.every((token) => haystack.includes(token));
+  return matchesSearchText(tokens.join(" "), [haystack]);
 }
 
 async function getExcludedPersonIdsForStatus(
