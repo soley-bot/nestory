@@ -1,4 +1,6 @@
 import { OwnerBalanceLedger, OwnerSourceResolution } from "@/features/owner-balances/components/owner-balance-ledger";
+import { OwnerStatementsReport } from "@/features/owner-balances/components/owner-statements-report";
+import { isStatementReportEnabled } from "@/features/owner-balances/statement-report-enabled";
 import { getOwnerBalanceData } from "@/features/owner-balances/data/owner-balances";
 import { OpeningBalanceScreen } from "@/features/owner-balances/components/opening-balance-screen";
 import { getOpeningBalanceAuthorityData } from "@/features/owner-balances/data/opening-balances";
@@ -25,9 +27,13 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
   const selectedSourceLineId = validUuid(first(query.sourceLineId));
   const selectedView = parseOwnerAccountView(first(query.view));
   const originReportHref = reportReturnHref(first(query.returnTo));
-  const accountReturnHref = withReportReturn(`/balances?${new URLSearchParams({ month: selectedMonth, view: selectedView, propertyId: selectedPropertyId ?? "", ownerPersonId: selectedOwnerPersonId ?? "" })}`, originReportHref);
+  const accountReturnHref = withReportReturn(`/balances?${new URLSearchParams({ month: selectedMonth, view: selectedView, ...(first(query.manage) === "1" ? { manage: "1" } : {}), propertyId: selectedPropertyId ?? "", ownerPersonId: selectedOwnerPersonId ?? "" })}`, originReportHref);
   const registerPage = positiveInteger(first(query.page)) ?? 1;
   const periodStart = `${selectedMonth}-01`;
+  if (!originReportHref && isStatementReportEnabled(context) && selectedView === "statements" && first(query.manage) !== "1") {
+    const data = await getOwnerBalanceData({ currency: "USD", ownerPersonId: selectedOwnerPersonId, propertyId: selectedPropertyId, periodStart, periodEnd: periodStart, registerPage });
+    return <OwnerStatementsReport key={`${selectedMonth}:${selectedPropertyId}:${selectedOwnerPersonId}:${registerPage}:${first(query.reportType)}`} data={data} month={selectedMonth} reportType={["summary", "detail"].includes(first(query.reportType) ?? "") ? first(query.reportType) : "all"} selectedOwnerPersonId={selectedOwnerPersonId} selectedPropertyId={selectedPropertyId} />;
+  }
   const [data, openingData, closeData] = await Promise.all([
     getOwnerBalanceData({
       currency: "USD",
