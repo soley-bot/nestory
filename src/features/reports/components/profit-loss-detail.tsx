@@ -19,7 +19,7 @@ export function ProfitLossDetail({ lines }: { lines: UnitProfitLossLine[] }) {
     const grouped = new Map<string, AccountGroup>();
     const search = query.trim().toLocaleLowerCase();
     for (const line of lines) {
-      if (search && ![line.category, line.property, line.unit, line.name, line.description, line.date].join(" ").toLocaleLowerCase().includes(search)) continue;
+      if (search && ![line.category, line.property, line.unit, line.name, line.description, line.date, formatCalendarDate(line.date), formatProfitLossAmount(line.amountCents), line.type ?? (line.direction === "income" ? "Invoice" : "Expense")].join(" ").toLocaleLowerCase().includes(search)) continue;
       const key = JSON.stringify([line.direction, line.categoryId ?? line.categoryCode, line.currency]);
       const group = grouped.get(key) ?? { key, label: line.category, direction: line.direction, lines: [], total: BigInt(0) };
       group.lines.push(line);

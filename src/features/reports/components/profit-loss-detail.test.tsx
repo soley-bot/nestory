@@ -18,6 +18,15 @@ describe("P&L transaction groups", () => {
     await user.click(screen.getByRole("button", { name: "Collapse all" }));
     expect(screen.queryByText("Repair correction")).toBeNull();
   });
+  it("finds corrections by their displayed transaction type", async () => {
+    const user = userEvent.setup();
+    render(<ProfitLossDetail lines={[line, { ...line, id: "reversal", description: "Duplicate removed", type: "Correction", amountCents: -BigInt(6500) }]} />);
+    await user.type(screen.getByRole("textbox", { name: "Search transactions" }), "Correction");
+    await user.click(screen.getByRole("button", { name: "Expand all" }));
+    expect(screen.getByText("Duplicate removed")).toBeTruthy();
+    expect(screen.queryByText("Roof repair")).toBeNull();
+  });
+
   it("paginates account transactions and searches across every page", async () => {
     const user = userEvent.setup();
     render(<ProfitLossDetail lines={Array.from({length: 28}, (_, index) => ({ ...line, id: `${index}`, description: `Repair ${index + 1}` }))} />);
