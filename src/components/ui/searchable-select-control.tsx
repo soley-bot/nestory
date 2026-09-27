@@ -26,6 +26,8 @@ type SearchableSelectControlProps = {
   "aria-invalid"?: boolean | "false" | "true";
   ariaLabel: string;
   className?: string;
+  contentClassName?: string;
+  wrapOptions?: boolean;
   disabled?: boolean;
   name?: string;
   onValueChange?: (value: string) => void;
@@ -40,6 +42,8 @@ export function SearchableSelectControl({
   "aria-invalid": ariaInvalid,
   ariaLabel,
   className,
+  contentClassName,
+  wrapOptions = false,
   disabled = false,
   name,
   onValueChange,
@@ -155,7 +159,7 @@ export function SearchableSelectControl({
         <Popover.Portal container={portalContainer ?? undefined}>
           <Popover.Content
             align="start"
-            className="z-[90] w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-1rem)] rounded-md border border-border bg-card p-1 shadow-lg"
+            className={cn("z-[90] w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-1rem)] rounded-md border border-border bg-card p-1 shadow-lg", contentClassName)}
             onOpenAutoFocus={(event) => {
               event.preventDefault();
               searchRef.current?.focus();
@@ -218,7 +222,7 @@ export function SearchableSelectControl({
                     type="button"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold">
+                      <span className={cn("block text-sm font-semibold", wrapOptions ? "whitespace-normal break-words" : "truncate")}>
                         {option.label}
                       </span>
                       {option.description ? (
