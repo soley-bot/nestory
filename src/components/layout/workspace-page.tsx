@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 import {
   PageBreadcrumb,
@@ -8,6 +9,7 @@ import { PageHeader } from "@/components/layout/page-header";
 
 type WorkspacePageProps = {
   actions?: ReactNode;
+  className?: string;
   breadcrumbCurrent?: ReactNode;
   breadcrumbItems?: BreadcrumbItem[];
   controlsClassName?: string;
@@ -27,6 +29,7 @@ export function WorkspacePage({
   breadcrumbCurrent,
   breadcrumbItems,
   children,
+  className,
   controlsClassName,
   context,
   header,
@@ -54,7 +57,7 @@ export function WorkspacePage({
 
   return (
     <div
-      className="flex min-h-full min-w-0 flex-col overflow-x-hidden bg-background"
+      className={cn("flex min-h-full min-w-0 flex-col overflow-x-hidden bg-background", className)}
       data-slot="workspace-page"
     >
       {header ?? generatedHeader}

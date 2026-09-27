@@ -27,15 +27,77 @@ class ResizeObserverStub {
 }
 
 describe("minimal Reports workspace", () => {
-  it("shows full recognized transaction detail with separate property-level scope", () => {
+  it("starts with Summary and reveals grouped transactions only on request", async () => {
+    const user = userEvent.setup();
     const report = unitProfitLossReport();
     report.unitProfitLossLines = [{ amountCents: BigInt(6500), category: "Repairs", categoryCode: "repairs", categoryId: null, currency: "USD", date: "2026-08-09", description: "Roof repair with full itemized description", direction: "expense", id: "event-1", property: "Property One", reportingGroup: "expenses", unit: "Property-level" }];
     renderReport({ report });
+    expect(screen.getByRole("tab", { name: "Summary" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.queryByRole("region", { name: "Profit and loss transaction detail" })).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Transactions" }));
+    expect(screen.queryByRole("table", { name: "Monthly Unit Profit & Loss" })).toBeNull();
+    expect(screen.queryByText("Roof repair with full itemized description")).toBeNull();
+    await user.click(screen.getByRole("button", { name: /Expenses: Repairs/ }));
     const detail = screen.getByRole("region", { name: "Profit and loss transaction detail" });
     expect(within(detail).getByText("Property-level")).toBeTruthy();
     expect(within(detail).getByText("Roof repair with full itemized description")).toBeTruthy();
     expect(within(detail).getByRole("cell", { name: "USD 65.00" })).toBeTruthy();
   });
+  it("paginates Summary by 25 and searches all units without changing report totals", async () => {
+    const user = userEvent.setup();
+    const report = unitProfitLossReport();
+    report.rows = Array.from({ length: 31 }, (_, index) => ({
+      ...report.rows[0]!, id: `unit-${index + 1}`, title: `Unit ${index + 1}`,
+      cells: { ...report.rows[0]!.cells, unit: `Unit ${index + 1}` },
+    }));
+    renderReport({ report });
+    const table = screen.getByRole("table", { name: report.title });
+    expect(within(table).getAllByRole("row")).toHaveLength(26);
+    await user.click(within(screen.getByRole("navigation", { name: "Report pages, top" })).getByRole("button", { name: "Next" }));
+    expect(within(table).getByText("Unit 31")).toBeTruthy();
+    await user.type(screen.getByRole("textbox", { name: "Find property or unit" }), "Unit 31");
+    expect(within(table).getAllByRole("row")).toHaveLength(2);
+    expect(within(screen.getByRole("region", { name: "Report totals" })).getByText("USD 500.00")).toBeTruthy();
+  });
+  it("distinguishes an unsuccessful search from an empty financial report", async () => {
+    const user = userEvent.setup();
+    renderReport();
+    await user.type(screen.getByRole("textbox", { name: "Find property or unit" }), "Unknown building");
+    expect(screen.getByText("No matching property or unit")).toBeTruthy();
+    expect(screen.queryByText(unitProfitLossReport().emptyTitle)).toBeNull();
+    expect(within(screen.getByRole("region", { name: "Report totals" })).getByText("USD 500.00")).toBeTruthy();
+  });
+
+  it("matches drawer transactions by unit identity even when unit labels repeat", async () => {
+    const user = userEvent.setup();
+    const report = unitProfitLossReport();
+    const base = { amountCents: BigInt(50000), category: "Rent", categoryCode: "rent", categoryId: null, currency: "USD" as const, date: "2026-07-09", direction: "income" as const, property: "Property One", reportingGroup: "income", unit: "Unit A1", propertyId: "property-1" };
+    report.unitProfitLossLines = [
+      { ...base, id: "chosen", unitId: "unit-1", description: "Selected unit rent" },
+      { ...base, id: "other", unitId: "unit-2", description: "Other unit rent" },
+      { ...base, id: "shared", unitId: null, description: "Property-only activity" },
+    ];
+    renderReport({ report });
+    await user.click(screen.getByRole("button", { name: "View details for P1 / Unit A1" }));
+    const transactions = screen.getByRole("region", { name: "Unit transactions" });
+    expect(within(transactions).getByText("Selected unit rent")).toBeTruthy();
+    expect(within(transactions).queryByText("Other unit rent")).toBeNull();
+    expect(within(transactions).queryByText("Property-only activity")).toBeNull();
+  });
+
+  it("keeps owner funding above both views and shows unavailable balances explicitly", async () => {
+    const user = userEvent.setup();
+    const report = unitProfitLossReport();
+    report.unitProfitLossLines = [];
+    report.unitProfitLossFunding = { contributionCents: BigInt(68200), remainingBalanceCents: null, unavailableReason: "Unit allocation is unresolved." };
+    renderReport({ report });
+    const funding = screen.getByRole("region", { name: "Owner funding and balance" });
+    expect(within(funding).getByRole("status").textContent).toBe("Unit allocation is unresolved.");
+    expect(funding.textContent).toContain("Unavailable");
+    await user.click(screen.getByRole("tab", { name: "Transactions" }));
+    expect(screen.getByRole("region", { name: "Owner funding and balance" })).toBe(funding);
+  });
+
   it("keeps drill-down navigation focused on filters and report output", () => {
     renderReport();
 
