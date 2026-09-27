@@ -38,7 +38,7 @@ export function ProfitLossDetail({ lines, funding }: { lines: UnitProfitLossLine
     <section aria-label="Profit and loss detail">
       <div className="flex items-center justify-end gap-1 py-1.5">
         <Button className="h-7 gap-1 rounded-md text-xs font-normal" size="sm" variant="outline" onClick={() => { setClosedSections(new Set()); setExpanded(new Set(groups.map(group => group.key))); }}><ChevronsUpDown className="size-3" />Expand all</Button>
-        <Button className="h-7 gap-1 rounded-md text-xs font-normal" size="sm" variant="outline" onClick={() => { setExpanded(new Set()); setClosedSections(new Set()); }}><ChevronsDownUp className="size-3" />Collapse all</Button>
+        <Button className="h-7 gap-1 rounded-md text-xs font-normal" size="sm" variant="outline" onClick={() => { setExpanded(new Set()); setClosedSections(new Set(["income", "expense"])); }}><ChevronsDownUp className="size-3" />Collapse all</Button>
       </div>
       <Table aria-label="Profit & loss detail" scrollRegionLabel="Profit and loss report" className="min-w-[850px] table-fixed text-xs [&_td]:px-3 [&_td]:py-1.5">
         <colgroup><col className="w-[23%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[13%]" /><col className="w-[15%]" /><col className="w-[18%]" /><col className="w-[12%]" /></colgroup>

@@ -24,6 +24,9 @@ describe("Reference P&L account table", () => {
     expect(screen.getByRole("table", { name: "Repairs transactions" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Collapse all" }));
     expect(screen.queryByText("Repair correction")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Operating expenses: Repairs" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Income" }).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByRole("button", { name: "Operating expenses" }).getAttribute("aria-expanded")).toBe("false");
     expect(screen.getByRole("row", { name: "Net income USD 10.00" })).toBeTruthy();
   });
   it("expands every transaction in the report flow without paging or nested scroll regions", async () => {
