@@ -1,10 +1,11 @@
 name: Apply void invoice screen patch
 
 on:
-  push:
+  pull_request:
     branches:
-      - codex/void-invoice-from-rent
+      - main
     paths:
+      - .github/workflows/apply-void-invoice-screen-patch.yml
       - scripts/apply-void-invoice-screen-patch.py
 
 permissions:
@@ -12,7 +13,7 @@ permissions:
 
 jobs:
   patch:
-    if: github.event.head_commit.message == 'Trigger void invoice screen patch'
+    if: github.event.pull_request.head.ref == 'codex/void-invoice-from-rent'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -49,6 +50,9 @@ jobs:
           git config user.name "soley-bot"
           git config user.email "143jester@gmail.com"
           git add src/features/finance-operations/components/finance-operations-screen.tsx
-          git diff --cached --quiet && exit 1
+          if git diff --cached --quiet; then
+            echo "Screen integration is already applied."
+            exit 0
+          fi
           git commit -m "Expose invoice void action in rent details"
           git push origin HEAD:codex/void-invoice-from-rent
