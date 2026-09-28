@@ -3045,8 +3045,7 @@ describe("FinanceOperationsScreen", () => {
     expect(within(drawer).getByText("billing@ips.example")).not.toBeNull();
   });
 
-  it("does not offer invoice publication for a voided invoice without an artifact", async () => {
-    const user = userEvent.setup();
+  it("keeps a voided invoice out of Rent & collections", () => {
     const input = data();
     const invoice = tenantInvoice();
     invoice.collectionRoute = "through_ips";
@@ -3061,10 +3060,13 @@ describe("FinanceOperationsScreen", () => {
         view="rent"
       />,
     );
-    await user.click(
-      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
-    );
-    expect(screen.queryByRole("button", { name: "Publish PDF" })).toBeNull();
+
+    expect(screen.queryByText("INV-202608-001")).toBeNull();
+    expect(
+      screen.queryByRole("button", {
+        name: "View invoice INV-202608-001",
+      }),
+    ).toBeNull();
   });
 
   it("shows immutable receipt history and keeps retry limited to payment operators", async () => {

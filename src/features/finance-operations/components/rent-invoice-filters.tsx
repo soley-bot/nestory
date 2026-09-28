@@ -12,13 +12,18 @@ import type { PropertyFinancePosition, TenantInvoiceSummary } from "@/features/f
 
 type RentSearchParams = Pick<URLSearchParams, "get" | "toString">;
 
+type VisibleTenantInvoiceStatus = Exclude<
+  TenantInvoiceSummary["paymentStatus"],
+  "voided"
+>;
+
 type RentInvoiceFilters = {
   duePeriod: "all" | "next_7_days" | "overdue" | "this_month" | "today";
   overdueDays: "all" | "7" | "30" | "60";
   propertyId: string;
   query: string;
   sort: "balance_desc" | "default" | "due_asc" | "due_desc" | "tenant_asc";
-  status: "all" | "open" | TenantInvoiceSummary["paymentStatus"];
+  status: "all" | "open" | VisibleTenantInvoiceStatus;
 };
 
 const RENT_STATUS_OPTIONS = [
@@ -27,7 +32,6 @@ const RENT_STATUS_OPTIONS = [
   { label: "Unpaid", value: "unpaid" },
   { label: "Partly paid", value: "partly_paid" },
   { label: "Paid", value: "paid" },
-  { label: "Voided", value: "voided" },
 ];
 const RENT_DUE_OPTIONS = [
   { label: "Any due date", value: "all" },
@@ -50,6 +54,10 @@ const RENT_SORT_OPTIONS = [
   { label: "Tenant · A to Z", value: "tenant_asc" },
 ];
 
+export function isVisibleTenantInvoice(invoice: TenantInvoiceSummary) {
+  return invoice.paymentStatus !== "voided";
+}
+
 export function RentInvoiceFilterBar({
   invoices,
   resultCount,
@@ -61,7 +69,8 @@ export function RentInvoiceFilterBar({
   const router = useRouter();
   const searchParams = useSearchParams();
   const filters = getRentInvoiceFilters(searchParams);
-  const propertyOptions = uniqueRentPropertyOptions(invoices);
+  const visibleInvoices = invoices.filter(isVisibleTenantInvoice);
+  const propertyOptions = uniqueRentPropertyOptions(visibleInvoices);
   const activeAdvancedFilterCount = countAdvancedFilters(filters);
   const filtersActive = filters.query.length > 0 || activeAdvancedFilterCount > 0;
   const replaceFilters = (updates: Record<string, string>) => {
@@ -173,8 +182,8 @@ export function RentInvoiceFilterBar({
       </div>
       {filtersActive ? (
         <p className="text-xs text-muted-foreground" role="status">
-          Showing {resultCount} of {invoices.length}{" "}
-          {invoices.length === 1 ? "invoice" : "invoices"}
+          Showing {resultCount} of {visibleInvoices.length}{" "}
+          {visibleInvoices.length === 1 ? "invoice" : "invoices"}
         </p>
       ) : null}
     </>
@@ -189,7 +198,12 @@ export function getRentInvoiceView(
 ) {
   const filters = getRentInvoiceFilters(searchParams);
   return {
-    filteredInvoices: filterAndSortRentInvoices(invoices, filters, businessDate, positions),
+    filteredInvoices: filterAndSortRentInvoices(
+      invoices.filter(isVisibleTenantInvoice),
+      filters,
+      businessDate,
+      positions,
+    ),
   };
 }
 
@@ -214,7 +228,7 @@ function getRentInvoiceFilters(searchParams: RentSearchParams): RentInvoiceFilte
     ),
     status: oneOf(
       searchParams.get("status"),
-      ["all", "open", "paid", "partly_paid", "unpaid", "voided"] as const,
+      ["all", "open", "paid", "partly_paid", "unpaid"] as const,
       "all",
     ),
   };

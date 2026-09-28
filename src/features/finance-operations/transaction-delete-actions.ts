@@ -40,6 +40,8 @@ export async function deleteTransactionAction(_state: FinanceOperationsActionSta
     return { status: "error", message: "The deletion could not be confirmed. Refresh the list before trying again." };
   }
   revalidatePath(`/properties/${input.propertyId}`, "layout");
-  for (const path of ["/units", "/finance", "/balances", "/reports", "/ledger"]) revalidatePath(path, "layout");
-  return { status: "success", message: "Transaction deleted. Its history is retained." };
+  for (const path of ["/units", "/finance", "/rent-income", "/balances", "/reports", "/ledger"]) revalidatePath(path, "layout");
+  return input.kind === "tenant-invoice"
+    ? { status: "success", message: "Invoice voided and removed from Rent & collections. Review the lease to prevent future charges." }
+    : { status: "success", message: "Transaction deleted. Its history is retained." };
 }

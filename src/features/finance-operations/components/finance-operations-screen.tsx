@@ -59,12 +59,14 @@ import {
   cancelExpenseAction,
 } from "@/features/finance-operations/actions";
 import { FinanceCategorySetupEntry } from "@/features/finance-operations/components/finance-category-manager";
+import { TenantInvoiceVoidControl } from "@/features/finance-operations/components/tenant-invoice-void-control";
 import {
   TenantInvoicePaymentForm,
   type TenantPaymentReceiptResult,
 } from "@/features/finance-operations/components/tenant-invoice-payment-form";
 import {
   getRentInvoiceView,
+  isVisibleTenantInvoice,
   RentInvoiceFilterBar,
 } from "@/features/finance-operations/components/rent-invoice-filters";
 import type {
@@ -473,6 +475,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
                   mode: "payment",
                 })
               }
+              onVoidSuccess={onActionSuccess}
               onPublishPdf={(trigger) => {
                 pdfDrawerTriggerRef.current = trigger;
                 setInvoicePdfPublicationOpen(true);
@@ -732,11 +735,13 @@ function getScreen(
     const focusedLease = props.initialRentLeaseId
       ? props.leases.find((lease) => lease.id === props.initialRentLeaseId)
       : undefined;
-    const invoices = props.initialRentLeaseId
-      ? props.tenantInvoices.filter(
-          (invoice) => invoice.leaseId === props.initialRentLeaseId,
-        )
-      : props.tenantInvoices;
+    const invoices = (
+      props.initialRentLeaseId
+        ? props.tenantInvoices.filter(
+            (invoice) => invoice.leaseId === props.initialRentLeaseId,
+          )
+        : props.tenantInvoices
+    ).filter(isVisibleTenantInvoice);
     const scope = props.scope;
     const scopedLeases = scope
       ? props.leases.filter(
@@ -884,7 +889,7 @@ function getScreen(
       body: (
         <BalancesView
           canRecordOwnerCash={props.canRecordOwnerCash}
-          invoices={props.tenantInvoices}
+          invoices={props.tenantInvoices.filter(isVisibleTenantInvoice)}
           openingAuthority={props.openingAuthority}
           openModal={openModal}
           ownerInvoices={props.ownerInvoices}
@@ -984,7 +989,7 @@ function getScreen(
         openDrawer={openDrawer}
         ownerInvoices={props.ownerInvoices}
         rentGenerationExceptions={props.rentGenerationExceptions}
-        tenantInvoices={props.tenantInvoices}
+        tenantInvoices={props.tenantInvoices.filter(isVisibleTenantInvoice)}
       />
     ),
     context: "Portfolio review",
@@ -2200,6 +2205,7 @@ function InvoiceDetails({
   onPublicationSuccess,
   onPublishPdf,
   onRecordPayment,
+  onVoidSuccess,
   organizationName,
   pdf,
   pdfResultHref,
@@ -2213,6 +2219,7 @@ function InvoiceDetails({
   onPublicationSuccess: (state: FinanceOperationsActionState) => void;
   onPublishPdf: (trigger: HTMLElement) => void;
   onRecordPayment: () => void;
+  onVoidSuccess: (message: string) => void;
   organizationName: string;
   pdf: CommercialDocumentLink;
   pdfResultHref: string | null;
@@ -2323,6 +2330,11 @@ function InvoiceDetails({
       <FormFooter>
         <span />
         <div className="flex flex-wrap justify-end gap-2">
+          <TenantInvoiceVoidControl
+            canCorrectFinance={canCorrectFinance}
+            invoice={invoice}
+            onSuccess={onVoidSuccess}
+          />
           {canCorrect ? (
             <Button onClick={onCorrect} variant="outline">
               Correct settlement
