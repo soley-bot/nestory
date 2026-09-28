@@ -725,21 +725,9 @@ function isStrictPostgrestTransportFailure(result: {
   return result.data === null && result.error?.code === "" && result.status === 0;
 }
 
-// Match app_private.rent_business_date for mutation defaults. Readiness keeps
-// its separate predecessor-policy boundary below.
-export function getRentChangeBusinessDate(
-  policies: readonly RentPolicyCalendarDateRow[], date: Date, fallbackTimezone: string,
-) {
-  const policy = [...policies].filter((item) => item.rent_calculation_timezone &&
-    item.effective_from <= getCalendarDateInTimeZone(date, item.rent_calculation_timezone))
-    .sort((a, b) => b.effective_from.localeCompare(a.effective_from) || b.version_number - a.version_number)[0];
-  return getCalendarDateInTimeZone(date, policy?.rent_calculation_timezone ?? fallbackTimezone);
-}
-
 export function getEffectiveRentPolicyCalendarDate(
   policies: readonly RentPolicyCalendarDateRow[],
   date: Date,
-  fallbackTimezone = "UTC",
 ) {
   const sortedPolicies = [...policies].sort(
     (left, right) =>
@@ -752,7 +740,7 @@ export function getEffectiveRentPolicyCalendarDate(
     // The current policy owns the next effective-date boundary. A future
     // policy cannot bootstrap itself early by using its own timezone.
     const boundaryTimeZone =
-      effectivePolicy?.rent_calculation_timezone ?? fallbackTimezone;
+      effectivePolicy?.rent_calculation_timezone ?? "UTC";
     const boundaryDate = getCalendarDateInTimeZone(date, boundaryTimeZone);
 
     if (policy.effective_from > boundaryDate) {
@@ -763,12 +751,12 @@ export function getEffectiveRentPolicyCalendarDate(
   }
 
   if (!effectivePolicy) {
-    return getCalendarDateInTimeZone(date, fallbackTimezone);
+    return getCalendarDateInTimeZone(date, "UTC");
   }
 
   const calendarDate = getCalendarDateInTimeZone(
     date,
-    effectivePolicy.rent_calculation_timezone ?? fallbackTimezone,
+    effectivePolicy.rent_calculation_timezone ?? "UTC",
   );
 
   return calendarDate < effectivePolicy.effective_from
@@ -780,7 +768,7 @@ async function loadLeaseBillingFormConfig(
   supabase: SupabaseServerClient,
   organizationId: string,
 ): Promise<LeaseBillingFormConfig> {
-  const [organizationResult, companiesResult] = await Promise.all([
+  const [organizationResult, companiesResult, businessDateResult] = await Promise.all([
     supabase
       .from("organizations")
       .select("name, operational_timezone")
@@ -793,6 +781,7 @@ async function loadLeaseBillingFormConfig(
       .eq("party_type", "company")
       .is("archived_at", null)
       .order("display_name"),
+    supabase.rpc("get_lease_rent_business_date", { p_organization_id: organizationId }),
   ]);
 
   if (organizationResult.error) {
@@ -806,12 +795,16 @@ async function loadLeaseBillingFormConfig(
     );
   }
 
+  if (businessDateResult.error || typeof businessDateResult.data !== "string") {
+    throw new Error("Could not load the company rent business date");
+  }
+
   return {
     companyOptions: (companiesResult.data ?? []).map((person) => ({
       id: person.id,
       label: person.display_name,
     })),
-    rentBusinessDate: await loadEffectiveRentPolicyCalendarDate(supabase, organizationId, new Date(), organizationResult.data.operational_timezone || "UTC", true),
+    rentBusinessDate: businessDateResult.data,
     operationalTimezone:
       organizationResult.data.operational_timezone || "UTC",
     organizationName: organizationResult.data.name || "our company",
@@ -831,8 +824,6 @@ export async function loadEffectiveRentPolicyCalendarDate(
   supabase: SupabaseServerClient,
   organizationId: string,
   date = new Date(),
-  fallbackTimezone = "UTC",
-  forRentChange = false,
 ) {
   const result = await supabase
     .from("rent_policy_versions")
@@ -855,9 +846,7 @@ export async function loadEffectiveRentPolicyCalendarDate(
     );
   }
 
-  return forRentChange
-    ? getRentChangeBusinessDate(result.data ?? [], date, fallbackTimezone)
-    : getEffectiveRentPolicyCalendarDate(result.data ?? [], date, fallbackTimezone);
+  return getEffectiveRentPolicyCalendarDate(result.data ?? [], date);
 }
 
 export function getOptionalLeaseBackboneRows<T>(

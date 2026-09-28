@@ -513,6 +513,8 @@ ROLLBACK TO SAVEPOINT prorated_fixture;
 SELECT set_config('request.jwt.claim.sub',(SELECT finance_manager_id::text FROM lease_rent_state),true);
 SET LOCAL ROLE authenticated;
 SELECT lives_ok($$ SELECT public.schedule_authoritative_lease_term(organization_id,good_lease_id,current_period_start,(current_period_start + interval '2 months - 1 day')::date,1200,'USD',5,'monthly',good_term_id,'current-rent-change-test') FROM lease_rent_state $$,'authorized finance manager can change issued current-month rent');
+SELECT is(public.get_lease_rent_business_date((SELECT organization_id FROM lease_rent_state)),(SELECT current_business_date FROM lease_rent_state),'staff receive the authoritative company rent date');
+SELECT throws_ok($$ SELECT public.get_lease_rent_business_date('ffffffff-ffff-4fff-8fff-ffffffffffff') $$,'42501','Not authorized','company date RPC rejects another organization');
 SELECT set_config('request.jwt.claim.sub',(SELECT super_admin_id::text FROM lease_rent_state),true);
 SELECT is((SELECT total_amount FROM public.tenant_invoice_balances WHERE id=(SELECT id FROM current_invoice)),1200::numeric,'current invoice uses new rent');
 SELECT is((SELECT rent_amount FROM public.lease_terms WHERE lease_id=(SELECT good_lease_id FROM lease_rent_state) AND status='active' AND archived_at IS NULL),1200::numeric,'ongoing term uses new rent');

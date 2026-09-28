@@ -43,6 +43,10 @@ BEGIN
     'leases.change_terms'::public.organization_permission_key
   );
 
+  -- Shared by both rent-correction entry points, before any month/invoice locks.
+  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+    'lease_rent_correction:' || p_organization_id::text || ':' || p_lease_id::text, 0));
+
   -- Claim the complete command before changing the predecessor. Retries must
   -- work even after that term expires or the business date advances.
   SELECT * INTO v_claim
@@ -363,6 +367,21 @@ BEGIN
 END;
 $live_due_date$;
 
+-- Serialize direct corrections and term corrections before their finer locks.
+DO $correction_lock_order$
+DECLARE d text; old text := '  v_payload := pg_catalog.jsonb_build_object(';
+BEGIN
+ d:=pg_get_functiondef('public.correct_historical_rent(uuid,uuid,numeric,integer,text,text,text)'::regprocedure);
+ IF (length(d)-length(replace(d,old,'')))<>length(old) THEN RAISE EXCEPTION 'rent_lock_contract_changed'; END IF;
+ EXECUTE replace(d,old,$patch$  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+    'lease_rent_correction:' || p_organization_id::text || ':' ||
+    (SELECT invoice.lease_id::text FROM public.tenant_invoices invoice
+      WHERE invoice.organization_id=p_organization_id AND invoice.id=p_invoice_id), 0));
+
+  v_payload := pg_catalog.jsonb_build_object($patch$);
+END;
+$correction_lock_order$;
+
 -- Private executor for the checked lease command. Direct historical correction
 -- retains its existing admin-only API; staff must enter through lease authority.
 DO $lease_correction_authority$
@@ -387,3 +406,16 @@ END;
 $lease_correction_authority$;
 ALTER FUNCTION app_private.correct_effective_month_rent(uuid,uuid,numeric,integer,text,text,text) OWNER TO postgres;
 REVOKE ALL ON FUNCTION app_private.correct_effective_month_rent(uuid,uuid,numeric,integer,text,text,text) FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE FUNCTION public.get_lease_rent_business_date(p_organization_id uuid)
+RETURNS date LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+BEGIN
+  IF (SELECT auth.uid()) IS NULL OR NOT app_private.is_org_member(p_organization_id) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE='42501';
+  END IF;
+  RETURN app_private.rent_business_date(p_organization_id,pg_catalog.statement_timestamp());
+END;
+$$;
+ALTER FUNCTION public.get_lease_rent_business_date(uuid) OWNER TO postgres;
+REVOKE ALL ON FUNCTION public.get_lease_rent_business_date(uuid) FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.get_lease_rent_business_date(uuid) TO authenticated;

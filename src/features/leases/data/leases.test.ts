@@ -3,7 +3,6 @@ import {
   buildLeaseUnitReservations,
   getCalendarDateInTimeZone,
   getEffectiveRentPolicyCalendarDate,
-  getRentChangeBusinessDate,
 } from "@/features/leases/data/leases";
 
 describe("lease data dates", () => {
@@ -42,14 +41,6 @@ describe("lease data dates", () => {
         new Date("2026-08-01T04:30:00.000Z"),
       ),
     ).toBe("2026-08-01");
-  });
-
-  it("matches the database policy timezone when choosing the rent-change month", () => {
-    expect(getRentChangeBusinessDate([
-      { effective_from: "2026-01-01", rent_calculation_timezone: "America/New_York", version_number: 1 },
-      { effective_from: "2026-08-01", rent_calculation_timezone: "Asia/Bangkok", version_number: 2 },
-    ], new Date("2026-07-31T18:30:00Z"), "America/New_York")).toBe("2026-08-01");
-    expect(getRentChangeBusinessDate([], new Date("2026-08-01T01:00:00Z"), "America/New_York")).toBe("2026-07-31");
   });
 
   it("uses UTC until the first approved policy is effective", () => {
