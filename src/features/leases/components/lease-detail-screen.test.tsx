@@ -54,6 +54,8 @@ vi.mock("@/lib/dates/format", async (importOriginal) => {
 });
 
 vi.mock("@/features/leases/actions", () => ({
+  recordCompletedDraftLeaseAction: async () => ({}),
+  renewAndActivateDraftLeaseAction: async () => ({}),
   archiveLeaseAction: async () => ({}),
   cancelLeaseActivationAction: async () => ({}),
   createLeaseAction: async () => ({}),
@@ -625,6 +627,25 @@ describe("LeaseDetailScreen", () => {
     await user.click(mode);
     await user.click(screen.getByRole("option", { name: "Activate on date" }));
     expect(within(dialog).getByLabelText("Activation date")).not.toBeNull();
+  });
+
+  it("offers renewal or completed history for an expired draft", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    lease.statusLabel = "Draft";
+    lease.statusValue = "draft";
+    lease.formValues.leaseEndDate = "2020-08-31";
+    renderDetail("overview", lease);
+    await user.click(screen.getByRole("button", { name: "Activate lease" }));
+    const dialog = screen.getByRole("dialog", { name: "Activate lease" });
+    expect(within(dialog).getByLabelText("Renewal end date")).not.toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Renew and activate" })).not.toBeNull();
+    await user.click(within(dialog).getByRole("combobox", { name: "Tenant situation" }));
+    await user.click(screen.getByRole("option", { name: "Already moved out" }));
+    expect(within(dialog).getByLabelText("Actual move-out date")).not.toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Record ended lease" })).not.toBeNull();
+    expect(within(dialog).getByText(/creates no rent charges or payments/)).not.toBeNull();
+    expect(within(dialog).queryByLabelText("Renewal end date")).toBeNull();
   });
 
   it("cancels a draft through the checked lifecycle transition", async () => {
