@@ -65,7 +65,6 @@ BEGIN
     reporting_group,
     sort_order,
     is_default,
-    is_active,
     created_by,
     updated_by
   )
@@ -76,7 +75,6 @@ BEGIN
     charge.display_name,
     charge.reporting_group,
     charge.sort_order,
-    true,
     true,
     p_organization_id,
     p_organization_id
