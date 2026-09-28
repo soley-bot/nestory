@@ -504,5 +504,21 @@ SELECT is((SELECT due_date FROM public.tenant_invoice_balances WHERE id=(SELECT 
 SELECT is((SELECT (public.preview_historical_rent_correction(organization_id,(SELECT id FROM current_invoice),1300,9)->>'originalDueDate')::date FROM lease_rent_state),(SELECT greatest(current_period_start+6,(SELECT issue_date FROM public.tenant_invoices WHERE id=(SELECT id FROM current_invoice))) FROM lease_rent_state),'next preview uses previous corrected due date');
 SELECT is((SELECT count(*) FROM public.tenant_invoice_corrections WHERE tenant_invoice_id=(SELECT id FROM current_invoice)),2::bigint,'both edits remain in audit history without retry duplicates');
 SELECT is((SELECT total_amount FROM public.tenant_invoices WHERE id=(SELECT id FROM current_invoice)),1000::numeric,'issued snapshot remains unchanged');
+SELECT lives_ok($$ SELECT public.record_tenant_invoice_payment_with_account(
+ state.organization_id,(SELECT id FROM current_invoice),500,state.current_business_date,
+ (SELECT account_id FROM public.finance_account_source_links WHERE organization_id=state.organization_id AND source_id=state.source_id),
+ 'Current month partial receipt',
+ jsonb_build_array(jsonb_build_object('lineId',(SELECT line.id FROM public.tenant_invoice_lines line WHERE line.invoice_id=(SELECT id FROM current_invoice) AND line.line_type='rent' AND line.reversal_of_id IS NULL AND NOT EXISTS (SELECT 1 FROM public.tenant_invoice_lines r WHERE r.reversal_of_id=line.id)),'amount',500)),
+ 'current-rent-partial-receipt') FROM lease_rent_state state $$,'partial payment is recorded against corrected rent');
+SELECT public.allocate_owner_event(state.organization_id,'tenant_rent_receipt',allocation.id,'current-rent-owner-'||allocation.id::text)
+FROM public.tenant_invoice_payment_allocations allocation CROSS JOIN lease_rent_state state
+WHERE allocation.invoice_id=(SELECT id FROM current_invoice);
+SELECT lives_ok($$ SELECT public.schedule_authoritative_lease_term(organization_id,good_lease_id,current_period_start,(current_period_start + interval '2 months - 1 day')::date,1400,'USD',7,'monthly',(SELECT id FROM public.lease_terms WHERE lease_id=good_lease_id AND status='active' AND archived_at IS NULL),'current-rent-paid-change') FROM lease_rent_state $$,'paid month can be increased without recording cash again');
+SELECT is((SELECT total_amount FROM public.tenant_invoice_balances WHERE id=(SELECT id FROM current_invoice)),1400::numeric,'paid invoice reflects updated amount');
+SELECT is((SELECT sum(signed_amount) FROM public.tenant_invoice_payment_allocations WHERE invoice_id=(SELECT id FROM current_invoice)),500::numeric,'payment allocations conserve received cash');
+SELECT throws_ok($$ SELECT public.schedule_authoritative_lease_term(organization_id,good_lease_id,current_period_start,(current_period_start + interval '2 months - 1 day')::date,400,'USD',7,'monthly',(SELECT id FROM public.lease_terms WHERE lease_id=good_lease_id AND status='active' AND archived_at IS NULL),'current-rent-credit-blocked') FROM lease_rent_state $$,'23514','rent_change_requires_linked_review','reduction below collected cash requires resolving credit');
+SELECT is((SELECT total_amount FROM public.tenant_invoice_balances WHERE id=(SELECT id FROM current_invoice)),1400::numeric,'failed change leaves invoice intact');
+SELECT is((SELECT rent_amount FROM public.lease_terms WHERE lease_id=(SELECT good_lease_id FROM lease_rent_state) AND status='active' AND archived_at IS NULL),1400::numeric,'failed change leaves ongoing schedule intact');
 SELECT * FROM finish();
 ROLLBACK;
+
