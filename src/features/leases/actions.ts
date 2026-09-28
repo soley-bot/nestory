@@ -635,6 +635,89 @@ export async function transitionLeaseLifecycleAction(
   };
 }
 
+export async function renewAndActivateDraftLeaseAction(
+  _state: LeaseActionState, formData: FormData,
+): Promise<LeaseActionState> {
+  const context = await requirePermission("leases.activate");
+  await requirePermission("leases.change_terms");
+  const parsed = z.object({
+    termId: postgresUuid("Refresh the lease before renewing."),
+    leaseId: leaseIdSchema, occupancyId: postgresUuid("Choose the recorded occupancy."),
+    moveInDate: dateSchema, renewalEndDate: dateSchema,
+    rentAmount: z.coerce.number().positive(),
+    idempotencyKey: z.string().min(8).max(200),
+    confirmed: z.literal("on"),
+  }).safeParse({
+    termId: readString(formData, "expectedTermId"),
+    leaseId: readString(formData, "leaseId"),
+    occupancyId: readString(formData, "expectedOccupancyId"),
+    moveInDate: readString(formData, "activationDate"),
+    renewalEndDate: readString(formData, "renewalEndDate"),
+    rentAmount: readString(formData, "renewalRentAmount"),
+    idempotencyKey: readString(formData, "idempotencyKey"),
+    confirmed: readString(formData, "confirmRenewal"),
+  });
+  if (!parsed.success) return { ...invalidFormState(parsed.error), message: "Complete the dates, amounts, and confirmation before saving." };
+  const client = await createSupabaseServerClient();
+  const { data, error } = await client.rpc("renew_and_activate_draft_lease", {
+    p_organization_id: context.organizationId, p_lease_id: parsed.data.leaseId,
+    p_expected_occupancy_id: parsed.data.occupancyId, p_move_in_date: parsed.data.moveInDate,
+    p_renewal_end_date: parsed.data.renewalEndDate, p_rent_amount: parsed.data.rentAmount,
+    p_idempotency_key: parsed.data.idempotencyKey, p_expected_term_id: parsed.data.termId,
+  });
+  if (error) return { status: "error", message: leaseActionErrorMessage(error) };
+  if (!data || typeof data !== "object" || Array.isArray(data) || data.status !== "active") {
+    return { status: "error", message: "The renewed lease was not returned." };
+  }
+  revalidateLeasePaths([], [], parsed.data.leaseId);
+  return { status: "success", leaseId: parsed.data.leaseId, message: "Lease renewed and activated. Original rent history retained." };
+}
+
+export async function recordCompletedDraftLeaseAction(
+  _state: LeaseActionState,
+  formData: FormData,
+): Promise<LeaseActionState> {
+  const context = await requirePermission("leases.activate");
+  await requirePermission("leases.close");
+  const parsed = z.object({
+    confirmed: z.literal("on"),
+    leaseId: leaseIdSchema,
+    occupancyId: postgresUuid("Choose the recorded occupancy."),
+    moveInDate: dateSchema,
+    moveOutDate: dateSchema,
+    reason: z.string().trim().min(8, "Add a short explanation."),
+    idempotencyKey: z.string().min(8).max(200),
+  }).safeParse({
+    confirmed: readString(formData, "confirmHistory"),
+    leaseId: readString(formData, "leaseId"),
+    occupancyId: readString(formData, "expectedOccupancyId"),
+    moveInDate: readString(formData, "activationDate"),
+    moveOutDate: readString(formData, "moveOutDate"),
+    reason: readString(formData, "reason"),
+    idempotencyKey: readString(formData, "idempotencyKey"),
+  });
+  if (!parsed.success) return { ...invalidFormState(parsed.error), message: "Complete the dates, amounts, and confirmation before saving." };
+  const client = await createSupabaseServerClient();
+  const { data, error } = await client.rpc("record_completed_draft_lease", {
+    p_organization_id: context.organizationId,
+    p_lease_id: parsed.data.leaseId,
+    p_expected_status: "draft",
+    p_expected_occupancy_id: parsed.data.occupancyId,
+    p_transition: "end",
+    p_effective_date: parsed.data.moveOutDate,
+    p_scheduled_move_out_date: null as unknown as string,
+    p_reason: parsed.data.reason,
+    p_idempotency_key: parsed.data.idempotencyKey,
+    p_move_in_date: parsed.data.moveInDate,
+  });
+  if (error) return { status: "error", message: leaseActionErrorMessage(error) };
+  if (!data || typeof data !== "object" || Array.isArray(data) || data.status !== "ended") {
+    return { status: "error", message: "The completed lease was not returned." };
+  }
+  revalidateLeasePaths([], [], parsed.data.leaseId);
+  return { status: "success", leaseId: parsed.data.leaseId, message: "Historical lease recorded as ended." };
+}
+
 export async function scheduleLeaseActivationAction(
   _state: LeaseActionState,
   formData: FormData,
@@ -1148,6 +1231,24 @@ function leaseActionErrorMessage(error: {
 
   const { details, message } = error;
   const errorMessage = `${message} ${details ?? ""}`;
+  if (errorMessage.includes("lease_renewal_dates_invalid")) {
+    return "Choose the actual move-in date within the original term, a renewal end date on or after today, and a positive rent amount.";
+  }
+  if (errorMessage.includes("lease_history_dates_invalid") || errorMessage.includes("lease_history_dates_outside_term")) {
+    return "Choose actual move-in and move-out dates within the recorded term. Move-out must be on or after move-in and cannot be in the future.";
+  }
+  if (errorMessage.includes("lease_activation_outside_term")) {
+    return "Choose an activation date within the lease term. If the term has ended, confirm whether the tenant moved out or needs a renewal.";
+  }
+  if (errorMessage.includes("lease_activation_date_in_past")) {
+    return "This activation request does not support a past date yet. Keep the original move-in date and review the lease history before activating.";
+  }
+  if (errorMessage.includes("lease_activation_billing_rules_required")) {
+    return "Complete the billing setup for the selected activation date, then try again.";
+  }
+  if (errorMessage.includes("lease_activation_stale_status") || errorMessage.includes("lease_activation_stale_occupancy")) {
+    return "This lease changed after the page loaded. Refresh it before trying again.";
+  }
   if (isLeaseUnitTermConflict(message)) {
     return "This unit is already reserved for those dates.";
   }

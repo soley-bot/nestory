@@ -12359,6 +12359,21 @@ export type Database = {
         Args: { p_auth_user_id: string; p_proof_method: string }
         Returns: string
       }
+      record_completed_draft_lease: {
+        Args: {
+          p_effective_date: string
+          p_expected_occupancy_id: string
+          p_expected_status: string
+          p_idempotency_key: string
+          p_lease_id: string
+          p_move_in_date: string
+          p_organization_id: string
+          p_reason: string
+          p_scheduled_move_out_date: string
+          p_transition: string
+        }
+        Returns: Json
+      }
       record_current_lease_occupancy_evidence: {
         Args: {
           p_actual_move_in_date: string
@@ -12652,6 +12667,19 @@ export type Database = {
           p_organization_id: string
           p_owner_close_series_id: string
           p_reopen_reason: string
+        }
+        Returns: Json
+      }
+      renew_and_activate_draft_lease: {
+        Args: {
+          p_expected_occupancy_id: string
+          p_expected_term_id: string
+          p_idempotency_key: string
+          p_lease_id: string
+          p_move_in_date: string
+          p_organization_id: string
+          p_renewal_end_date: string
+          p_rent_amount: number
         }
         Returns: Json
       }

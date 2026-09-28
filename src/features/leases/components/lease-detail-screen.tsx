@@ -42,6 +42,8 @@ import { findConfiguredAccountId } from "@/features/finance-accounts/finance-acc
 import {
   cancelLeaseActivationAction,
   recordLeaseDepositEventAction,
+  recordCompletedDraftLeaseAction,
+  renewAndActivateDraftLeaseAction,
   reverseLeaseDepositEventAction,
   scheduleLeaseActivationAction,
   scheduleFutureRentTermAction,
@@ -1771,11 +1773,14 @@ function LeaseActivationModal({
   onSuccess: (message: string) => void;
 }) {
   const router = useRouter();
+  const today = getBusinessDateValue();
+  const expiredTerm = lease.formValues.leaseEndDate < today;
+  const [renewalRent, setRenewalRent] = useState(String(lease.formValues.monthlyRentAmount));
+  const [outcome, setOutcome] = useState("staying");
   const [state, formAction, pending] = useActionState(
-    scheduleLeaseActivationAction,
+    outcome === "completed" ? recordCompletedDraftLeaseAction : expiredTerm ? renewAndActivateDraftLeaseAction : scheduleLeaseActivationAction,
     initialActionState,
   );
-  const today = getBusinessDateValue();
   const [activationMode, setActivationMode] = useState("today");
   const [idempotencyKey] = useState(
     () => `lease-activation:${lease.id}:${crypto.randomUUID()}`,
@@ -1790,6 +1795,7 @@ function LeaseActivationModal({
   return (
     <Modal onClose={onClose} open title="Activate lease">
       <form action={formAction} className="space-y-5 p-4">
+        <input name="expectedTermId" type="hidden" value={lease.terms.find((term) => term.status === "draft")?.id ?? ""} />
         <input name="leaseId" type="hidden" value={lease.id} />
         <input name="expectedStatus" type="hidden" value="draft" />
         <input name="expectedOccupancyId" type="hidden" value={occupancyId} />
@@ -1804,6 +1810,19 @@ function LeaseActivationModal({
         </div>
 
         <label className="grid gap-1.5 text-sm font-medium">
+          Tenant situation
+          <SelectControl ariaLabel="Tenant situation" value={outcome}
+            onValueChange={setOutcome}
+            options={[
+              { label: "Still staying", value: "staying" },
+              { label: "Already moved out", value: "completed" },
+            ]} />
+        </label>
+        {outcome === "staying" && lease.formValues.leaseEndDate < today ? (
+          <p className="text-sm text-muted-foreground">The recorded term has ended. A renewal is needed before this tenant can be marked as currently staying.</p>
+        ) : null}
+
+        {outcome === "staying" && !expiredTerm ? <label className="grid gap-1.5 text-sm font-medium">
           Activation timing
           <SelectControl
             ariaLabel="Activation timing"
@@ -1814,14 +1833,14 @@ function LeaseActivationModal({
             ]}
             value={activationMode}
           />
-        </label>
+        </label> : null}
 
-        {activationMode === "scheduled" ? (
+        {activationMode === "scheduled" || outcome === "completed" || expiredTerm ? (
           <div className="grid gap-1.5 text-sm font-medium">
             <span>Activation date</span>
             <DatePickerField
               ariaLabel="Activation date"
-              defaultValue={today}
+              defaultValue={outcome === "completed" || expiredTerm ? lease.formValues.leaseStartDate : today}
               name="activationDate"
               required
             />
@@ -1830,6 +1849,49 @@ function LeaseActivationModal({
         ) : (
           <input name="activationDate" type="hidden" value={today} />
         )}
+
+        {outcome === "staying" && expiredTerm ? (
+          <>
+            <div className="grid gap-1.5 text-sm font-medium">
+              <span>Renewal end date</span>
+              <DatePickerField ariaLabel="Renewal end date" name="renewalEndDate" required />
+            </div>
+            <label className="grid gap-1.5 text-sm font-medium">
+              Renewal rent amount
+              <Input name="renewalRentAmount" type="number" min="0.01" step="0.01" required value={renewalRent} onChange={(event) => setRenewalRent(event.target.value)} />
+            </label>
+            <div className="rounded border border-border p-3 text-sm">
+              <p className="font-medium">Renewal preview</p>
+              <p>The renewal continues from the day after {lease.endDateLabel}. Rent becomes {lease.formValues.monthlyRentCurrency} {renewalRent} per {lease.formValues.paymentFrequency ?? "monthly"} billing period. The due day and billing setup carry forward. Original rent history is retained.</p>
+              <p>Saving creates the renewal schedule and records no payment. Rent charges follow the company billing setup.</p>
+            </div>
+            <label className="flex gap-2 text-sm">
+              <input type="checkbox" required name="confirmRenewal" />
+              I confirm the tenant has stayed continuously and this renewal is agreed.
+            </label>
+          </>
+        ) : null}
+
+        {outcome === "completed" ? (
+          <>
+            <div className="grid gap-1.5 text-sm font-medium">
+              <span>Actual move-out date</span>
+              <DatePickerField ariaLabel="Actual move-out date" name="moveOutDate" defaultValue={lease.formValues.leaseEndDate} required />
+            </div>
+            <label className="grid gap-1.5 text-sm font-medium">
+              Note
+              <Input name="reason" required minLength={8} placeholder="Explain the historical entry" />
+            </label>
+            <div className="rounded border border-border p-3 text-sm">
+              <p className="font-medium">Rent preview</p>
+              <p>This saves an ended lease with the actual occupancy dates. It creates no rent charges or payments. Existing financial records remain available for review.</p>
+            </div>
+            <label className="flex gap-2 text-sm">
+              <input type="checkbox" required name="confirmHistory" />
+              I confirm the tenant has moved out and these are the actual dates.
+            </label>
+          </>
+        ) : null}
 
         {state.status === "error" && state.message ? (
           <p className="text-sm text-danger" role="alert">
@@ -1842,7 +1904,7 @@ function LeaseActivationModal({
             Cancel
           </Button>
           <Button disabled={pending} type="submit">
-            {pending ? "Saving..." : "Activate lease"}
+            {pending ? "Saving..." : outcome === "completed" ? "Record ended lease" : expiredTerm ? "Renew and activate" : "Activate lease"}
           </Button>
         </div>
       </form>
