@@ -20,6 +20,9 @@ required_starter(account_class, account_subtype, display_name, system_role) AS (
     ('income', 'income', 'Late fees', NULL),
     ('income', 'income', 'Application fees', NULL),
     ('income', 'other_income', 'Other income', NULL),
+    ('income', 'income', 'Utilities', NULL),
+    ('income', 'income', 'Parking', NULL),
+    ('income', 'income', 'Internet', NULL),
     ('expense', 'expense', 'Cleaning', NULL),
     ('expense', 'expense', 'Management fees', NULL),
     ('expense', 'expense', 'Repairs and maintenance', NULL),
@@ -157,7 +160,7 @@ observed AS (
 SELECT value AS pilot_chart_of_accounts_postflight
 FROM observed
 WHERE (value ->> 'organizationCount')::integer = 1
-  AND (value ->> 'requiredStarterAccountCount')::integer = 20
+  AND (value ->> 'requiredStarterAccountCount')::integer = 23
   AND (value ->> 'requiredDefaultCount')::integer = 11
   AND (value ->> 'activeSourceMappingViolationCount')::integer = 0
   AND (value ->> 'activeCategoryMappingViolationCount')::integer = 0
