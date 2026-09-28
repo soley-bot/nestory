@@ -1212,10 +1212,13 @@ function leaseActionErrorMessage(error: {
   }
 
   if (message.includes("rent_change_must_follow_term_start")) {
-    return "Choose an effective date on or after the active term starts. Current and past months are allowed.";
+    return "Choose a month within the active term. Use Correct historical rent for an earlier term.";
   }
   if (message.includes("issued_rent_change_requires_month_start")) {
     return "Choose the first day of the month to update issued rent. Issued periods currently require monthly billing.";
+  }
+  if (message.includes("issued_rent_change_source_unsupported")) {
+    return "This issued rent uses an older billing calculation. Review its exact charge before changing the schedule. Nothing was changed.";
   }
   if (message.includes("issued_rent_change_prorated")) {
     return "This month has an agreed prorated charge. Use Correct historical rent to enter the exact charge for that month, then change the ongoing rent from the next full month.";

@@ -153,7 +153,8 @@ BEGIN
           FROM public.tenant_invoices AS invoice
           WHERE invoice.organization_id = p_organization_id
             AND invoice.lease_id = p_lease_id
-            AND invoice.lifecycle = 'issued' AND invoice.generation_source = 'lease_rules_v1'
+            AND invoice.lifecycle = 'issued'
+            AND (invoice.generation_source = 'lease_rules_v1' OR invoice.lease_term_id IS NOT NULL)
             AND invoice.billing_period_end >= p_start_date
             AND invoice.billing_period_start <= v_previous.end_date
         ) THEN
@@ -163,13 +164,17 @@ BEGIN
         END IF;
         FOR v_invoice IN SELECT invoice.* FROM public.tenant_invoices invoice
           WHERE invoice.organization_id=p_organization_id AND invoice.lease_id=p_lease_id
-            AND invoice.lifecycle='issued' AND invoice.generation_source='lease_rules_v1'
+            AND invoice.lifecycle='issued'
+            AND (invoice.generation_source='lease_rules_v1' OR invoice.lease_term_id IS NOT NULL)
             AND invoice.billing_period_end >= p_start_date
             AND invoice.billing_period_start <= v_previous.end_date
           ORDER BY invoice.billing_period_start,invoice.id
         LOOP
           IF v_invoice.billing_period_start < p_start_date OR v_invoice.billing_period_end > p_end_date THEN
             RAISE EXCEPTION 'issued_rent_change_period_mismatch' USING ERRCODE='22023';
+          END IF;
+          IF v_invoice.generation_source <> 'lease_rules_v1' THEN
+            RAISE EXCEPTION 'issued_rent_change_source_unsupported' USING ERRCODE='22023';
           END IF;
           IF v_invoice.is_prorated THEN
             RAISE EXCEPTION 'issued_rent_change_prorated' USING ERRCODE='22023';

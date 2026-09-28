@@ -1561,7 +1561,7 @@ function LeaseTermModal({
           </label>
         </div>
 
-        {mode !== "renewal" ? <p className="text-sm text-muted-foreground">Choose the first day of the month to change its rent, including the current or a past month. Issued rent and the ongoing schedule update together. Previous amounts remain in history.</p> : null}
+        {mode !== "renewal" ? <p className="text-sm text-muted-foreground">Choose the first day of the month to change its rent, including the current or a past month within this active term. For an earlier term, use Correct historical rent. Issued rent and the ongoing schedule update together. Previous amounts remain in history.</p> : null}
 
         {state.message ? (
           <p

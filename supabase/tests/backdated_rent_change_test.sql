@@ -190,13 +190,13 @@ INSERT INTO public.tenant_invoices (
   organization_id, invoice_number, property_id, unit_id, lease_id,
   billing_term_id, billing_period_start, billing_period_end, issue_date,
   due_date, collection_route, recipient_kind, recipient_person_id,
-  recipient_label, total_amount
+  recipient_label, total_amount, lease_term_id
 )
 SELECT state.organization_id, 'BACKDATED-ISSUED', state.property_id, state.unit_id,
   state.lease_id, billing.id, date_trunc('month', current_date)::date,
   (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
   current_date, current_date, 'through_ips', 'individual', tenant_id,
-  'Billing Tenant', 1000
+  'Billing Tenant', 1000, state.initial_term_id
 FROM rent_change_state state
 JOIN public.lease_billing_terms billing ON billing.lease_id = state.lease_id;
 SET LOCAL ROLE authenticated;
