@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { loadOwnerStatementPresentation } from "@/features/reports/data/owner-statement-presentation";
+import { loadOwnerStatementPresentation, loadReportCompanyLogo } from "@/features/reports/data/owner-statement-presentation";
 import { mapOwnerStatementPublicationPayload } from "@/features/reports/data/owner-statement-report";
 import { ownerStatementPublicationPayload } from "@/features/reports/data/owner-statement-report.test-fixture";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -41,6 +41,8 @@ describe("owner statement presentation", () => {
     expect(presentation.logo?.bytes[1]).toBe(0xd8);
     expect(presentation.logo?.width).toBeGreaterThan(0);
     expect(presentation.logo?.height).toBeGreaterThan(0);
+    const reportLogo = await loadReportCompanyLogo(client as unknown as SupabaseClient<Database>, model.organizationId);
+    expect(reportLogo?.bytes).toEqual(presentation.logo?.bytes);
   });
 });
 

@@ -198,6 +198,7 @@ export type TrustedReport = {
   totalsTraceLabel: string;
   totalRowCount?: number;
   unitProfitLossFunding?: import("./data/profit-loss-funding").ProfitLossFunding;
+  unitProfitLossOwnerProperties?: { ownerName: string; propertyName: string }[];
   unitProfitLossDetailScope?: "single-unit";
   unitProfitLossLines?: UnitProfitLossLine[];
 };

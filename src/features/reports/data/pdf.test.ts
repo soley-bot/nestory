@@ -65,24 +65,21 @@ describe("official owner statement PDF", () => {
 
     expect(first).toEqual(second);
     expect(isContainedPdf(first)).toBe(true);
-    expect(text).toContain("OWNER STATEMENT");
+    expect(text).toContain("Owner Statement");
     expect(text).toContain("Independent Property Service");
     expect(text).toContain("XIA YIXUAN");
     expect(text).toContain("The PEAK #2807");
     expect(text).not.toContain(model.statementNumber);
     expect(text).not.toContain(model.generatedAt);
-    expect(text).toContain("OPENING BALANCE");
-    expect(text).toContain("CASH IN");
-    expect(text).toContain("CASH OUT");
-    expect(text).toContain("CLOSING BALANCE");
-    expect(text).toContain("Cash out");
-    expect(text).toContain("Cash in");
+    expect(text).toContain("Cash Out");
+    expect(text).toContain("Cash In");
     expect(text).toContain("Balance");
     expect(text).not.toContain(model.organizationId);
     expect(text).not.toContain(model.ownerPersonId);
     expect(text).not.toContain(model.propertyId);
     expect(text).not.toContain("SOURCE TRACE");
     expect(text).toContain("Page 1 of 1");
+    expect(text).toContain("Category");
   });
 
   it("embeds the uploaded company logo as an image in the statement header", () => {

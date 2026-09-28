@@ -22,6 +22,7 @@ const events = [
 ] as const;
 const report: TrustedReport = {
   kind: "unit-profit-loss", title: "Monthly Unit Profit & Loss", scopeLabel: "Xavier St.65",
+  unitProfitLossOwnerProperties: [{ ownerName: "Xavier Tissieres", propertyName: "Xavier St.65" }],
   periodLabel: "01 Aug 2026 - 31 Aug 2026", generatedAt: "2026-09-01T00:00:00.000Z",
   description: "Recognized owner income and expenses", emptyDescription: "No activity", emptyTitle: "No activity",
   exportFilenameBase: "unit-profit-loss", columns: [], rows: [],
@@ -35,7 +36,7 @@ const report: TrustedReport = {
     id: `demo-${index}`, amountCents: BigInt(amount * 100), category, categoryCode: category,
     categoryId: null, currency: "USD", date: index === 0 ? "2026-08-01" : "2026-08-02",
     description, direction, property: "Xavier St.65",
-    reportingGroup: direction, unit: "Xavier St.65",
+    reportingGroup: direction, unit: "Unit A1",
   })),
 };
 
@@ -51,6 +52,8 @@ function cashFixture() {
   }));
   return mapOwnerStatementPublicationPayload(payload);
 }
+
+const transactionDetails = Object.fromEntries(events.map(([category, , direction], index) => [index + 1, { unit: "Unit A1", name: direction === "income" ? "Sample Tenant" : "Sample Vendor", category }]));
 
 describe("PDF and XLSX accounting presentation", () => {
   it("includes owner funding and remaining balance in the same order and amounts in both exports", () => {
@@ -90,7 +93,7 @@ describe("PDF and XLSX accounting presentation", () => {
     const cash = ownerStatementCash(model);
     expect(cash.transactions[0]!.details).toBe("Rent received");
     expect(cash.transactions[1]!.details).toBe("Property expense paid");
-    const pdf = Buffer.from(buildOwnerStatementPdf(model, { organizationName: "IPS", ownerName: "Owner", propertyLabel: "Property" })).toString("latin1");
+    const pdf = Buffer.from(buildOwnerStatementPdf(model, { organizationName: "IPS", ownerName: "Owner", propertyLabel: "Property", transactionDetails })).toString("latin1");
     expect(pdf).toContain("01 Aug 2026");
     expect(pdf).not.toContain("2026-08-01");
     expect(pdf).not.toContain("ips_held_owner_cash");
@@ -105,7 +108,7 @@ describe("PDF and XLSX accounting presentation", () => {
     expect(pdf).toContain("END-OF-DETAIL");
     const model = cashFixture();
     model.lines[0]!.description = description;
-    const statement = Buffer.from(buildOwnerStatementPdf(model, { organizationName: "IPS", ownerName: "Owner", propertyLabel: "Property" })).toString("latin1");
+    const statement = Buffer.from(buildOwnerStatementPdf(model, { organizationName: "IPS", ownerName: "Owner", propertyLabel: "Property", transactionDetails: { ...transactionDetails, 1: { ...transactionDetails[1]!, category: description } } })).toString("latin1");
     expect(statement).toContain("END-OF-DETAIL");
     expect(statement).toContain("Balance brought forward");
     expect(statement).not.toContain("Owner cash available");
@@ -125,7 +128,11 @@ describe("PDF and XLSX accounting presentation", () => {
     }
     expect(text).not.toContain("Cash basis");
     expect(sheet).not.toContain("<f>");
-    expect(sheet).toContain("Illustrative Property Services");
+    expect(sheet).not.toContain("Illustrative Property Services");
+    expect(sheet).not.toContain("Accrual basis: income and expenses by invoice or cost date.");
+    expect(sheet).toContain("Owner: Xavier Tissieres | Property: Xavier St.65");
+    expect(sheet).toContain(">Unit A1</t>");
+    expect(sheet).toContain(">Payment</t>");
     expect(sheet).not.toContain("Scope summary");
     expect(sheet).toContain('s="5"><v>46235</v>');
     savePreview("profit-loss-august", pdf, xlsx);
@@ -137,16 +144,22 @@ describe("PDF and XLSX accounting presentation", () => {
     expect(cash).toMatchObject({ openingCents: 125000, cashInCents: 70000, cashOutCents: 56800, closingCents: 138200, depositCents: 80000 });
     expect(cash.transactions.map((line) => line.balanceCents)).toEqual([195000, 188000, 158000, 156500, 152000, 149500, 147700, 144700, 138200]);
     expect(cash.transactions[0]?.details).toBe("Monthly rental");
-    const identity = { organizationName: "Illustrative Property Services", ownerName: "Xavier Tissieres", propertyLabel: "Xavier St.65" };
+    const identity = { organizationName: "Illustrative Property Services", ownerName: "Xavier Tissieres", propertyLabel: "Xavier St.65", transactionDetails };
     const pdf = buildOwnerStatementPdf(model, identity);
     const xlsx = buildOwnerStatementXlsx(model, identity);
     const text = Buffer.from(pdf).toString("latin1");
     const sheet = strFromU8(unzipSync(xlsx)["xl/worksheets/sheet1.xml"]!);
     expect(text).toContain("$1,382.00");
     expect(text).toContain("$800.00");
-    expect(text).toContain("Monthly rental");
+    expect(text).toContain("Sample Tenant");
     expect(sheet).toContain("Xavier");
+    for (const label of ["Opening balance", "Closing balance", "Category", "Name", "Unit A1"]) {
+      expect(text).toContain(label);
+      expect(sheet).toContain(label);
+    }
     expect(sheet).toContain("<v>1382.00</v>");
+    expect(sheet).not.toContain("Not recorded");
+    expect(text).not.toContain("Not recorded");
     expect(sheet).not.toContain(model.ownerPersonId);
     savePreview("owner-statement-august", pdf, xlsx);
   });
@@ -155,7 +168,7 @@ describe("PDF and XLSX accounting presentation", () => {
     const model = cashFixture();
     model.lines.pop();
     expect(() => buildOwnerStatementXlsx(model)).toThrow("do not reconcile");
-    expect(() => buildOwnerStatementPdf(model, { organizationName: "IPS", ownerName: "Owner", propertyLabel: "Property" })).toThrow("do not reconcile");
+    expect(() => buildOwnerStatementPdf(model, { organizationName: "IPS", ownerName: "Owner", propertyLabel: "Property", transactionDetails })).toThrow("do not reconcile");
   });
 });
 

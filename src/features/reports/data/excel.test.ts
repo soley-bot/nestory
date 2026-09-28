@@ -1,5 +1,6 @@
 import { strFromU8, unzipSync } from "fflate";
 import { describe, expect, it, vi } from "vitest";
+import sharp from "sharp";
 
 import {
   buildOwnerStatementXlsx,
@@ -10,6 +11,80 @@ import { ownerStatementPublicationPayload } from "@/features/reports/data/owner-
 import type { TrustedReport } from "@/features/reports/reports.types";
 
 describe("trusted report Excel export", () => {
+  it("embeds the company logo at the top right and uses light transaction dividers", async () => {
+    const bytes = await sharp({ create: { width: 200, height: 100, channels: 3, background: "white" } }).jpeg().toBuffer();
+    const report = reportFixture();
+    report.unitProfitLossLines = [];
+    const files = unzipSync(buildTrustedReportXlsx(report, { organizationName: "Company", logo: { bytes, width: 200, height: 100 } }));
+    expect(files["xl/media/company-logo.jpg"]).toEqual(new Uint8Array(bytes));
+    expect(strFromU8(files["xl/drawings/drawing1.xml"])).toContain("<xdr:col>5</xdr:col>");
+    expect(strFromU8(files["xl/drawings/drawing1.xml"])).toContain('cx="1447800" cy="723900"');
+    expect(strFromU8(files["xl/drawings/_rels/drawing1.xml.rels"])).toContain("../media/company-logo.jpg");
+    expect(strFromU8(files["xl/worksheets/_rels/sheet1.xml.rels"])).toContain("../drawings/drawing1.xml");
+    const sheet = strFromU8(files["xl/worksheets/sheet1.xml"]);
+    expect(sheet).toContain('<mergeCell ref="A2:E2"/>');
+    expect(sheet).toContain('<drawing ');
+    expect(strFromU8(files["xl/styles.xml"])).toContain('style="hair"');
+    expect(strFromU8(files["[Content_Types].xml"])).toContain('ContentType="image/jpeg"');
+    const withoutLogo = unzipSync(buildTrustedReportXlsx(report));
+    expect(withoutLogo["xl/media/company-logo.jpg"]).toBeUndefined();
+    expect(strFromU8(withoutLogo["xl/worksheets/sheet1.xml"])).not.toContain('<drawing ');
+    const model = mapOwnerStatementPublicationPayload(structuredClone(ownerStatementPublicationPayload));
+    const presentation = { organizationName: "Company", ownerName: "Owner", propertyLabel: "Property", logo: { bytes, width: 200, height: 100 } };
+    const statement = buildOwnerStatementXlsx(model, presentation);
+    expect(buildOwnerStatementXlsx(model, presentation)).toEqual(statement);
+    const ownerFiles = unzipSync(statement);
+    expect(ownerFiles["xl/media/company-logo.jpg"]).toEqual(new Uint8Array(bytes));
+    expect(strFromU8(ownerFiles["xl/worksheets/sheet1.xml"])).toContain('<drawing ');
+  });
+  it("matches the requested P&L layout while retaining custom accounts and exact funding totals", () => {
+    const report = reportFixture();
+    const line = { id: "rent", amountCents: BigInt(48333), category: "Rent", categoryCode: "rent", categoryId: null, currency: "USD" as const, date: "2026-09-01", description: "Monthly rent", direction: "income" as const, property: "Bellavita", reportingGroup: "rent", unit: "8F-D2" };
+    report.unitProfitLossLines = [
+      { ...line, id: "custom", direction: "expense", category: "Custom cost", amountCents: BigInt(88833), description: "=HYPERLINK(\"unsafe\")" },
+      line,
+      { ...line, id: "zero", category: "Utilities", amountCents: BigInt(0), description: "Zero transaction omitted" },
+    ];
+    report.unitProfitLossFunding = { contributionCents: BigInt(0), remainingBalanceCents: -BigInt(9300) };
+    const files = unzipSync(buildTrustedReportXlsx(report));
+    const sheet = strFromU8(files["xl/worksheets/sheet1.xml"]!);
+    const styles = strFromU8(files["xl/styles.xml"]!);
+    const labels = ["Profit and loss details", "Account", "Income", "Rent", "Total Income", "Expenses", "Custom cost", "Total Expenses", "Net operating income", "Owner Contribution", "Remaining Balance", "Net income"];
+    expect(sheet).not.toContain("Zero transaction omitted");
+    expect(sheet).not.toContain(">Utilities</t>");
+    let previous = -1;
+    for (const label of labels) {
+      const position = sheet.indexOf(`>${label}</t>`, previous + 1);
+      expect(position, label).toBeGreaterThan(previous);
+      previous = position;
+    }
+    expect(sheet).toContain('r="A8"');
+    expect(sheet).toContain('>Unit</t>');
+    expect(sheet).toContain('>Payment</t>');
+    expect(sheet).toContain('>8F-D2</t>');
+    expect(sheet).not.toContain('Bellavita / 8F-D2');
+    expect(sheet).toMatch(/<c r="A\d+"[^>]*><is><t[^>]*>Net income<\/t>/);
+    for (const amount of ["483.33", "888.33", "-405.00", "-93.00", "-498.00"]) expect(sheet).toContain(`<v>${amount}</v>`);
+    expect(sheet.match(/>Custom cost<\/t>/g)).toHaveLength(1);
+    expect(sheet).toContain("=HYPERLINK(&quot;unsafe&quot;)");
+    expect(sheet).not.toContain("<f>");
+    expect(sheet).not.toContain("XXXX");
+    expect(styles).toContain("FFE7EEF5");
+    expect(styles).toContain('<name val="Calibri"/>');
+    expect(styles).toContain("mm/dd/yyyy");
+  });
+
+  it("keeps unavailable balances unavailable without empty category rows", () => {
+    const report = reportFixture();
+    report.unitProfitLossLines = [];
+    report.unitProfitLossFunding = { contributionCents: BigInt(68200), remainingBalanceCents: null, unavailableReason: "Unassigned activity" };
+    const sheet = strFromU8(unzipSync(buildTrustedReportXlsx(report))["xl/worksheets/sheet1.xml"]!);
+    expect(sheet.match(/>Unavailable<\/t>/g)).toHaveLength(2);
+    expect(sheet).toContain("Unassigned activity");
+    expect(sheet).not.toContain(">Rent</t>");
+    expect(sheet).not.toContain(">Cleaning</t>");
+    expect(sheet).toContain("<v>682.00</v>");
+  });
   it("delivers P&L without event IDs, technical trace notes, or raw timestamps", () => {
     const report = reportFixture();
     report.unitProfitLossLines = [{ id: "private-event-uuid", amountCents: BigInt(50000), category: "Rent", categoryCode: "rent", categoryId: null, currency: "USD", date: "2026-07-01", description: "Monthly rent", direction: "income", property: "Property One", reportingGroup: "rent", unit: "A1" }];

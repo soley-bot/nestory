@@ -258,7 +258,7 @@ const trustedReportSourceRequirements = {
     "timelineEvents",
     "units",
   ),
-  "unit-profit-loss": requiresReportSources("ownerProfitLossEvents", "units"),
+  "unit-profit-loss": requiresReportSources("ownerProfitLossEvents", "units", "owners", "people"),
   "vacancy-risk": requiresReportSources("documents", "leases", "units"),
 } satisfies Record<ReportKind, TrustedReportSourceRequirements>;
 
@@ -928,6 +928,12 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
     unitProfitLossDetailScope:
       context.viewQuery.unitId === "all" ? undefined : "single-unit",
     unitProfitLossLines,
+    unitProfitLossOwnerProperties: context.properties.map(property => {
+      const names = context.owners.filter(owner => owner.property_id === property.id)
+        .map(owner => context.peopleById.get(owner.person_id)?.display_name)
+        .filter((name): name is string => Boolean(name));
+      return { ownerName: [...new Set(names)].join(", ") || property.owner || "Not provided", propertyName: property.name };
+    }),
   });
 }
 

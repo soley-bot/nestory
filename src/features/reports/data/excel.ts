@@ -3,6 +3,7 @@ import { profitLossSummaryRows, profitLossFundingNote } from "./profit-loss-fund
 import type { OwnerStatementPresentation } from "@/features/reports/data/pdf";
 import { formatCalendarDate } from "@/lib/dates/format";
 import { strToU8, zipSync } from "fflate";
+import { addCompanyLogo } from "./excel-logo";
 
 import { getReportExportFilename } from "@/features/reports/data/report-format";
 import { getTrustedReport } from "@/features/reports/data/trusted-report";
@@ -19,6 +20,8 @@ type WorkbookRow = {
   values: string[];
 };
 
+type ReportExcelPresentation = { organizationName: string; logo?: { bytes: Uint8Array; width: number; height: number } };
+
 export async function getReportExcel(
   organizationId: string,
   viewQuery: ReportsViewQuery,
@@ -34,28 +37,37 @@ export async function getReportExcel(
   }
 
   return {
-    body: buildTrustedReportXlsx(report, { organizationName }),
+    body: buildTrustedReportXlsx(report, { organizationName, logo: report.unitProfitLossLines ? await loadCompanyLogo(organizationId) : undefined }),
     filename: getReportExportFilename(report, viewQuery, "xlsx"),
   };
 }
 
-export function buildTrustedReportXlsx(report: TrustedReport, presentation?: { organizationName: string }) {
+async function loadCompanyLogo(organizationId: string) {
+  const [{ createSupabaseServerClient }, { loadReportCompanyLogo }] = await Promise.all([
+    import("@/lib/db/server"), import("./owner-statement-presentation"),
+  ]);
+  return loadReportCompanyLogo(await createSupabaseServerClient(), organizationId);
+}
+
+export function buildTrustedReportXlsx(report: TrustedReport, presentation?: ReportExcelPresentation) {
   const rows = workbookRows(report);
   const headerRow = 6;
   const lastDataRow = Math.max(headerRow, headerRow + report.rows.length);
-  const files = {
+  const logo = report.unitProfitLossLines ? presentation?.logo : undefined;
+  const files: Record<string, Uint8Array> = {
     "[Content_Types].xml": strToU8(contentTypesXml()),
     "_rels/.rels": strToU8(rootRelationshipsXml()),
     "docProps/app.xml": strToU8(appPropertiesXml()),
     "docProps/core.xml": strToU8(corePropertiesXml(report)),
     "xl/_rels/workbook.xml.rels": strToU8(workbookRelationshipsXml()),
-    "xl/styles.xml": strToU8(report.unitProfitLossLines ? ownerStatementStylesXml() : stylesXml()),
+    "xl/styles.xml": strToU8(report.unitProfitLossLines ? profitLossStylesXml() : stylesXml()),
     "xl/workbook.xml": strToU8(workbookXml()),
     "xl/worksheets/sheet1.xml": strToU8(
-      report.unitProfitLossLines ? profitLossSheetXml(report, presentation?.organizationName ?? "Company not provided") : worksheetXml(rows, headerRow, lastDataRow),
+      report.unitProfitLossLines ? profitLossSheetXml(report, Boolean(logo)) : worksheetXml(rows, headerRow, lastDataRow),
     ),
   };
 
+  if (logo) addCompanyLogo(files, logo);
   return zipSync(files, { level: 6 });
 }
 
@@ -66,10 +78,11 @@ export function buildOwnerStatementXlsx(model: OwnerStatementPublicationModel, p
     "docProps/app.xml": strToU8(ownerStatementAppPropertiesXml()),
     "docProps/core.xml": strToU8(ownerStatementCorePropertiesXml(model)),
     "xl/_rels/workbook.xml.rels": strToU8(workbookRelationshipsXml()),
-    "xl/styles.xml": strToU8(ownerStatementStylesXml()),
+    "xl/styles.xml": strToU8(profitLossStylesXml()),
     "xl/workbook.xml": strToU8(ownerStatementWorkbookXml()),
     "xl/worksheets/sheet1.xml": strToU8(ownerStatementSheetXml(model, presentation)),
   };
+  if (presentation?.logo) addCompanyLogo(files, presentation.logo);
   // ZIP stores local DOS date fields. A fixed local calendar value keeps the
   // official workbook byte-identical across clock buckets and host time zones.
   return zipSync(files, { level: 6, mtime: new Date(1980, 0, 1, 0, 0, 0) });
@@ -85,31 +98,27 @@ type OwnerWorkbookCell = {
 function ownerStatementSheetXml(model: OwnerStatementPublicationModel, presentation?: OwnerStatementPresentation) {
   const cash = ownerStatementCash(model);
   const money = (cents: number): OwnerWorkbookCell => ({ style: 3, type: "number", value: centsDecimal(BigInt(cents)) });
-  const heading = (...values: string[]) => values.map((value) => ({ style: 2, value }));
-  const register = (cells: OwnerWorkbookCell[]) => cells.map((cell, index) => ({ ...cell, span: [4, 6, 13, 3, 3, 3][index] }));
+  const balance = (label: string, cents: number): OwnerWorkbookCell[] => [{ style: 2, span: 8, value: label }, { ...money(cents), style: 8 }];
   const rows: OwnerWorkbookCell[][] = [
-    [{ style: 10, span: 16, value: presentation?.organizationName ?? "Company not provided" }, { style: 9, span: 16, value: "OWNER STATEMENT" }],
-    [{ span: 16, value: "Property management" }, { style: 11, span: 16, value: `Currency: ${model.currency}` }],
-    [],
-    [{ style: 12, span: 10, value: "OWNER" }, { style: 12, span: 12, value: "PROPERTY" }, { style: 13, span: 10, value: "PERIOD" }],
-    [{ style: 10, span: 10, value: presentation?.ownerName ?? "Not provided" }, { style: 10, span: 12, value: presentation?.propertyLabel ?? "Not provided" }, { style: 11, span: 10, value: ownerStatementPeriod(model.monthStart) }],
-    [],
-    ...[
-      ["Opening balance", "Cash in", "Cash out", "Closing balance"].map((value) => ({ style: 6, span: 8, value })),
-      [cash.openingCents, cash.cashInCents, cash.cashOutCents, cash.closingCents].map((value) => ({ ...money(value), style: 7, span: 8 })),
-    ],
-    [],
-    [{ style: 4, span: 4, value: "Tenant deposits" }, { ...money(cash.depositCents), span: 3 }],
-    [],
-    register(heading("Date", "Type", "Details", "Cash out", "Cash in", "Balance").map((cell, index) => ({ ...cell, style: index >= 3 ? 8 : 2 }))),
-    register([excelDateCell(model.monthStart), { value: "Opening balance" }, { value: "" }, money(0), money(0), money(cash.openingCents)]),
-    ...cash.transactions.map((line) => register([
-      excelDateCell(line.date), { style: 4, value: line.type }, { style: 4, value: line.details },
-      money(line.cashOutCents), money(line.cashInCents), money(line.balanceCents),
-    ])),
-    register([{ value: "" }, { value: "" }, { style: 13, value: "Period totals" }, money(cash.cashOutCents), money(cash.cashInCents), money(cash.closingCents)]),
+    [], [{ style: 1, span: 5, value: "Owner Statement" }], [],
+    [{ style: 9, span: 5, value: ownerStatementPeriod(model.monthStart) }], [],
+    [{ style: 4, span: 9, value: `Owner: ${presentation?.ownerName ?? "Not provided"} | Property: ${presentation?.propertyLabel ?? "Not provided"}` }],
+    [{ style: 4, span: 9, value: `Currency: ${model.currency} | Tenant deposits held separately: ${centsDecimal(BigInt(cash.depositCents))}` }], [],
+    ["Date", "Type", "Property", "Unit", "Name", "Category", "Cash Out", "Cash In", "Balance"].map(value => ({ style: 2, value })),
+    balance("Opening balance", cash.openingCents),
+    ...cash.transactions.filter(line => line.cashInCents !== 0 || line.cashOutCents !== 0).map(line => {
+      const detail = presentation?.transactionDetails?.[line.lineNumber];
+      if (!detail?.unit) throw new Error("Statement transaction unit attribution is required before export.");
+      return [excelDateCell(line.date), { style: 4, value: line.cashInCents > 0 ? "Payment" : "Expense" },
+        { style: 4, value: presentation?.propertyLabel ?? "Not provided" }, { style: 4, value: detail.unit },
+        { style: 4, value: detail.name }, { style: 4, value: detail.category },
+        money(line.cashOutCents), money(line.cashInCents), money(line.balanceCents)];
+    }),
+    [{ style: 2, span: 6, value: "Total" }, { ...money(cash.cashOutCents), style: 8 }, { ...money(cash.cashInCents), style: 8 }, { ...money(cash.closingCents), style: 8 }],
+    balance("Closing balance", cash.closingCents),
   ];
-  return ownerWorkbookSheetXml(rows, 12, Array.from({ length: 32 }, () => 5));
+  const sheet = ownerWorkbookSheetXml(rows, 9, [16, 14, 30, 24, 38, 32, 18, 18, 18]);
+  return presentation?.logo ? sheet.replace("</worksheet>", '<drawing xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId1"/></worksheet>') : sheet;
 }
 
 function ownerStatementPeriod(monthStart: string) {
@@ -129,36 +138,72 @@ function centsDecimal(cents: bigint) {
   return `${cents < BigInt(0) ? "-" : ""}${magnitude / BigInt(100)}.${String(magnitude % BigInt(100)).padStart(2, "0")}`;
 }
 
-function profitLossSheetXml(report: TrustedReport, organizationName: string) {
+function profitLossSheetXml(report: TrustedReport, hasLogo: boolean) {
   const lines = report.unitProfitLossLines ?? [];
   const money = (cents: bigint): OwnerWorkbookCell => ({ style: 3, type: "number", value: centsDecimal(cents) });
   const heading = (...values: string[]) => values.map((value) => ({ style: 2, value }));
   const income = lines.filter((line) => line.direction === "income").reduce((sum, line) => sum + line.amountCents, BigInt(0));
   const expenses = lines.filter((line) => line.direction === "expense").reduce((sum, line) => sum + line.amountCents, BigInt(0));
-  const detail = (direction: "income" | "expense") => lines.filter(line => line.direction === direction).map(line => [
-    { style: 4, value: line.category }, excelDateCell(line.date), { style: 4, value: line.type ?? (direction === "income" ? "Invoice" : "Expense") },
-    { style: 4, value: line.name ?? "" }, { style: 4, value: line.property === line.unit ? line.unit : `${line.property} / ${line.unit}` },
+  const detail = (direction: "income" | "expense"): OwnerWorkbookCell[][] => {
+    const categories = direction === "income"
+      ? ["Rent", "Utilities", "Other income"]
+      : ["Cleaning", "Management fee", "Repairs and Maintenance", "Utilities", "Commission", "Other expense"];
+    const categoryKey = (label: string) => {
+      const key = label.trim().toLowerCase();
+      return ({ "management fees": "management fee", repairs: "repairs and maintenance", "other expenses": "other expense" } as Record<string, string>)[key] ?? key;
+    };
+    const entries = lines.filter(line => line.direction === direction && line.amountCents !== BigInt(0));
+    const ordered = categories.flatMap(category =>
+      entries.filter(line => categoryKey(line.category) === categoryKey(category)));
+    ordered.push(...entries.filter(line => !categories.some(category => categoryKey(line.category) === categoryKey(category))));
+    return ordered.map(line => [
+    { style: 4, value: line.category }, excelDateCell(line.date), { style: 4, value: direction === "income" ? "Payment" : line.type ?? "Expense" },
+    { style: 4, value: line.name ?? "" }, { style: 4, value: line.unit },
     { style: 4, value: line.description }, money(line.amountCents),
-  ]);
-  const total = (label: string, value: bigint): OwnerWorkbookCell[] => [{ span: 5, value: "" }, { style: 13, value: label }, money(value)];
+    ]);
+  };
+  const total = (label: string, value: bigint | null): OwnerWorkbookCell[] => [
+    { style: 2, value: label }, ...Array.from({ length: 5 }, () => ({ style: 2, value: "" })),
+    value === null ? { style: 2, value: "Unavailable" } : { ...money(value), style: 8 },
+  ];
   const rows: OwnerWorkbookCell[][] = [
-    [{ style: 10, span: 4, value: organizationName }, { style: 9, span: 3, value: "PROFIT & LOSS" }],
-    [{ style: 10, span: 7, value: report.scopeLabel }],
-    [{ span: 5, value: report.periodLabel }, { style: 11, span: 2, value: "Amounts in USD" }],
-    [{ style: 4, value: "Accrual basis: income and expenses by invoice or cost date." }],
     [],
-    heading("Account", "Date", "Type", "Name", "Property / unit", "Description", "Amount").map((cell, index) => ({ ...cell, style: index === 6 ? 8 : 2 })),
-    [{ style: 2, span: 7, value: "INCOME" }],
-    ...detail("income"), total("Total income", income),
-    [{ style: 2, span: 7, value: "EXPENSES" }],
-    ...detail("expense"), total("Total expenses", expenses),
-    ...profitLossSummaryRows(lines, report.unitProfitLossFunding).slice(2).map(row => row.amountCents === null
-      ? [{ span: 5, value: "" }, { style: 13, value: row.label }, { style: 4, value: "Unavailable" }]
-      : total(row.label, row.amountCents)),
+    [{ style: 1, span: hasLogo ? 5 : 7, value: "Profit and loss details" }],
+    [],
+    [{ style: 9, span: hasLogo ? 5 : 7, value: report.periodLabel }],
+    [],
+    [{ style: 4, span: 7, value: report.unitProfitLossOwnerProperties?.length
+      ? report.unitProfitLossOwnerProperties.map(({ ownerName, propertyName }) => `Owner: ${ownerName} | Property: ${propertyName}`).join("\n")
+      : `Owner: Not provided | Property: ${report.scopeLabel}` }],
+    [],
+    heading("Account", "Date", "Type", "Name", "Unit", "Description", "Amount"),
+    [{ style: 10, span: 7, value: "Income" }],
+    ...detail("income"), total("Total Income", income),
+    [{ style: 10, span: 7, value: "Expenses" }],
+    ...detail("expense"), total("Total Expenses", expenses),
+    ...profitLossSummaryRows(lines, report.unitProfitLossFunding).slice(2).map(row =>
+      row.label === "Net operating income" || row.label === "Net income"
+        ? total(row.label, row.amountCents)
+        : [{ style: 4, value: row.label }, ...Array.from({ length: 5 }, () => ({ value: "" })),
+          row.amountCents === null ? { value: "Unavailable" } : money(row.amountCents)]),
     ...(report.unitProfitLossFunding ? [[], [{ style: 4, span: 7, value: profitLossFundingNote }],
       ...(report.unitProfitLossFunding.unavailableReason ? [[{ style: 4, span: 7, value: report.unitProfitLossFunding.unavailableReason }]] : [])] : []),
   ];
-  return ownerWorkbookSheetXml(rows, 6, [24, 16, 14, 26, 32, 48, 18]);
+  const sheet = ownerWorkbookSheetXml(rows, 8, [32, 16, 14, 38, 32, 42, 18]);
+  return hasLogo ? sheet.replace("</worksheet>", '<drawing xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId1"/></worksheet>') : sheet;
+}
+
+function profitLossStylesXml() {
+  const style = (font = 0, fill = 0, border = 0, number = 0, align = "left") =>
+    `<xf numFmtId="${number}" fontId="${font}" fillId="${fill}" borderId="${border}" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="${align}" vertical="center" wrapText="1"/></xf>`;
+  return xml(`<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
+    `<numFmts count="2"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0.00;(&quot;$&quot;#,##0.00);&quot;-&quot;"/><numFmt numFmtId="165" formatCode="mm/dd/yyyy"/></numFmts>` +
+    `<fonts count="4"><font><sz val="14"/><name val="Calibri"/></font><font><sz val="24"/><name val="Calibri"/></font><font><b/><sz val="14"/><name val="Calibri"/></font><font><sz val="16"/><name val="Calibri"/></font></fonts>` +
+    `<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE7EEF5"/><bgColor indexed="64"/></patternFill></fill></fills>` +
+    `<borders count="3"><border/><border><top style="thin"><color rgb="FFCBD5E1"/></top><bottom style="thin"><color rgb="FFCBD5E1"/></bottom></border><border><bottom style="hair"><color rgb="FFE2E8F0"/></bottom></border></borders>` +
+    `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
+    `<cellXfs count="11">${[style(), style(1), style(2, 2, 1), style(0, 0, 2, 164, "right"), style(0, 0, 2), style(0, 0, 2, 165), style(), style(), style(2, 2, 1, 164, "right"), style(3), style(2, 0, 1)].join("")}</cellXfs>` +
+    `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`);
 }
 
 function ownerWorkbookSheetXml(
@@ -210,18 +255,6 @@ function ownerStatementWorkbookXml() {
   );
 }
 
-function ownerStatementStylesXml() {
-  return xml(
-    `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
-    `<numFmts count="2"><numFmt numFmtId="164" formatCode="#,##0.00;[Red](#,##0.00);-"/><numFmt numFmtId="165" formatCode="dd mmm yyyy"/></numFmts>` +
-    `<fonts count="4"><font><sz val="11"/><name val="Aptos"/></font><font><b/><sz val="16"/><color rgb="FF17324D"/><name val="Aptos Display"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Aptos"/></font><font><b/><sz val="10"/><color rgb="FF17324D"/><name val="Aptos"/></font></fonts>` +
-    `<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF2F5F7F"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF3F6F9"/><bgColor indexed="64"/></patternFill></fill></fills>` +
-    `<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><bottom style="thin"><color rgb="FFD6DEE5"/></bottom></border></borders>` +
-    `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
-    `<cellXfs count="14"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1" indent="1"/></xf><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1" indent="1"/></xf><xf numFmtId="0" fontId="2" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1" indent="1"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center" wrapText="0" indent="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1" indent="1"/></xf><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="0" indent="1"/></xf><xf numFmtId="0" fontId="3" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1" indent="1"/></xf><xf numFmtId="164" fontId="1" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1" indent="1"/></xf><xf numFmtId="0" fontId="2" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center" wrapText="1" indent="1"/></xf><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center" wrapText="1" indent="1"/></xf><xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1" indent="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center" wrapText="1" indent="1"/></xf><xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1" indent="1"/></xf><xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center" wrapText="1" indent="1"/></xf></cellXfs>` +
-    `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`,
-  );
-}
 
 function ownerStatementCorePropertiesXml(model: OwnerStatementPublicationModel) {
   const generatedAt = escapeXml(model.generatedAt);
