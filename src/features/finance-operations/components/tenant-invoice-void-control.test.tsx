@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TenantInvoiceSummary } from "@/features/finance-operations/finance-operations.types";
@@ -96,15 +96,16 @@ describe("TenantInvoiceVoidControl", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Void invoice" }));
-    expect(screen.getByRole("dialog", { name: "Void invoice" })).not.toBeNull();
-    expect(screen.getByText(/current balances and Rent & collections/)).not.toBeNull();
-    expect(screen.getByLabelText("Reason for voiding")).not.toBeNull();
+    const dialog = screen.getByRole("dialog", { name: "Void invoice" });
+    expect(dialog).not.toBeNull();
+    expect(within(dialog).getByText(/current balances and Rent & collections/)).not.toBeNull();
+    expect(within(dialog).getByLabelText("Reason for voiding")).not.toBeNull();
 
     await user.type(
-      screen.getByLabelText("Reason for voiding"),
+      within(dialog).getByLabelText("Reason for voiding"),
       "Wrong unit activated",
     );
-    await user.click(screen.getByRole("button", { name: "Void invoice" }));
+    await user.click(within(dialog).getByRole("button", { name: "Void invoice" }));
 
     await waitFor(() =>
       expect(onSuccess).toHaveBeenCalledWith(
