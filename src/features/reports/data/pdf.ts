@@ -276,6 +276,7 @@ export function buildTrustedReportPdf({
 }
 
 export type OwnerStatementPresentation = {
+  transactionDetails?: Record<number, import("./owner-statement-transaction-details").StatementTransactionDetail>;
   logo?: Omit<PdfImageAsset, "name">;
   organizationName: string;
   ownerName: string;
@@ -283,6 +284,9 @@ export type OwnerStatementPresentation = {
 };
 
 type OwnerStatementTransaction = {
+  name?: string;
+  property?: string;
+  unit?: string;
   balanceCents: number;
   cashInCents: number;
   cashOutCents: number;
@@ -295,20 +299,18 @@ type OwnerStatementTransaction = {
 const ownerStatementMargin = 28;
 const ownerStatementTableWidth = 784;
 const ownerStatementRight = ownerStatementMargin + ownerStatementTableWidth;
-const ownerStatementCellPadding = 12;
-const ownerStatementTableTop = 374;
+const ownerStatementCellPadding = 6;
+const ownerStatementTableTop = 442;
 const ownerStatementTableBottom = 64;
-const ownerStatementSummaryBottom = 403;
-const ownerStatementSummaryHeight = 51;
 const ownerStatementRowHeight = 26;
-const ownerStatementDetailsWidth = 364;
+const ownerStatementDetailsWidth = 110;
 const ownerStatementColumns: PdfColumn[] = [
-  { label: "Date", maxLines: 1, width: 68 },
-  { label: "Type", maxLines: 1, width: 112 },
-  { label: "Details", maxLines: 2, width: ownerStatementDetailsWidth },
-  { align: "right", label: "Cash out", maxLines: 1, width: 80 },
-  { align: "right", label: "Cash in", maxLines: 1, width: 80 },
-  { align: "right", label: "Balance", maxLines: 1, width: 80 },
+  { label: "Date", width: 60 }, { label: "Type", width: 52 },
+  { label: "Property", width: 110 }, { label: "Unit", width: 80 },
+  { label: "Name", width: 130 }, { label: "Category", width: 110 },
+  { align: "right", label: "Cash Out", width: 80 },
+  { align: "right", label: "Cash In", width: 80 },
+  { align: "right", label: "Balance", width: 82 },
 ];
 
 export function buildOwnerStatementPdf(
@@ -318,11 +320,15 @@ export function buildOwnerStatementPdf(
   const cash = ownerStatementCash(model);
   const pages: OwnerStatementTransaction[][] = [[]];
   let used = ownerStatementRowHeight;
-  for (const transaction of cash.transactions) {
-    const detailLines = wrapText(transaction.details, ownerStatementDetailsWidth - ownerStatementCellPadding * 2, 6.8, Number.MAX_SAFE_INTEGER);
-    const segments = chunk(detailLines, 24);
-    for (const [index, segment] of segments.entries()) {
-      const row = { ...transaction, details: segment.join(" "), continued: index > 0 };
+  for (const transaction of cash.transactions.filter(row => row.cashInCents !== 0 || row.cashOutCents !== 0)) {
+    const detail = presentation.transactionDetails?.[transaction.lineNumber];
+    if (!detail?.unit) throw new Error("Statement transaction unit attribution is required before export.");
+    const fields = { details: [detail.category, 110], property: [presentation.propertyLabel, 110], unit: [detail.unit, 80], name: [detail.name, 130] } as const;
+    const wrapped = Object.fromEntries(Object.entries(fields).map(([key, [text, width]]) => [key, chunk(wrapText(text, width - ownerStatementCellPadding * 2, 6.8, Number.MAX_SAFE_INTEGER), 24)]));
+    const count = Math.max(1, ...Object.values(wrapped).map(parts => parts.length));
+    for (let index = 0; index < count; index++) {
+      const segment = (key: string) => wrapped[key]?.[index]?.join(" ") ?? "";
+      const row = { ...transaction, property: segment("property"), unit: segment("unit"), name: segment("name"), type: transaction.cashInCents > 0 ? "Payment" : "Expense", details: segment("details"), continued: index > 0 };
       const height = ownerStatementTransactionHeight(row);
       if (used + height > ownerStatementTableTop - headerRowHeight - ownerStatementTableBottom - ownerStatementRowHeight) {
         pages.push([]);
@@ -338,6 +344,7 @@ export function buildOwnerStatementPdf(
       cash,
       model,
       pageNumber: pageIndex + 1,
+      pageOffset: 0,
       presentation,
       totalPages,
       transactions,
@@ -353,6 +360,7 @@ function renderOwnerStatementPage({
   cash,
   model,
   pageNumber,
+  pageOffset,
   presentation,
   totalPages,
   transactions,
@@ -360,15 +368,13 @@ function renderOwnerStatementPage({
   cash: ReturnType<typeof ownerStatementCash>;
   model: OwnerStatementPublicationModel;
   pageNumber: number;
+  pageOffset: number;
   presentation: OwnerStatementPresentation;
   totalPages: number;
   transactions: OwnerStatementTransaction[];
 }) {
   const commands: string[] = [];
   drawOwnerStatementHeader(commands, model, presentation);
-  drawOwnerStatementBalances(commands, cash);
-  drawText(commands, "Tenant deposits", ownerStatementMargin + ownerStatementCellPadding, 390, { fontSize: 7.5, color: colors.muted, width: 200 });
-  drawText(commands, formatOwnerStatementMoney(cash.depositCents), ownerStatementMargin + ownerStatementCellPadding + 65, 390, { align: "left", fontSize: 7.5, color: colors.ink, width: 55 });
   drawOwnerStatementTableHeader(commands);
 
   let y = ownerStatementTableTop - headerRowHeight;
@@ -380,28 +386,26 @@ function renderOwnerStatementPage({
       cashOutCents: 0,
       date: "",
       details: pageNumber === 1 ? "Opening balance" : "Balance brought forward",
-      type: "Payment",
+      type: "",
     }, y, 0, true);
   }
-  if (transactions.length === 0) {
-    y -= ownerStatementRowHeight;
-    drawOwnerStatementEmptyRow(commands, y);
-  } else {
+  if (transactions.length > 0) {
     transactions.forEach((transaction, index) => {
       y -= ownerStatementTransactionHeight(transaction);
       drawOwnerStatementRow(commands, transaction, y, index + (pageNumber === 1 ? 1 : 0));
     });
   }
 
-  if (pageNumber === totalPages) {
+  if (pageNumber + pageOffset === totalPages) {
     y -= ownerStatementRowHeight;
     drawOwnerStatementRow(commands, {
       balanceCents: cash.closingCents, cashInCents: cash.cashInCents,
-      cashOutCents: cash.cashOutCents, date: "", type: "", details: "Period totals",
+      cashOutCents: cash.cashOutCents, date: "", type: "", details: "Closing balance",
     }, y, transactions.length + 1, false, true);
   }
 
-  drawOwnerStatementFooter(commands, model, presentation, pageNumber, totalPages);
+  drawText(commands, `Tenant deposits (held separately): ${formatOwnerStatementMoney(cash.depositCents)}`, ownerStatementMargin, 42, { fontSize: 7 });
+  drawOwnerStatementFooter(commands, model, presentation, pageNumber + pageOffset, totalPages);
   return commands.join("\n");
 }
 
@@ -410,53 +414,13 @@ function drawOwnerStatementHeader(
   model: OwnerStatementPublicationModel,
   presentation: OwnerStatementPresentation,
 ) {
+  drawText(commands, "Owner Statement", ownerStatementMargin + 6, 551, { fontSize: 24, width: 500 });
+  drawText(commands, `Currency: ${model.currency}`, ownerStatementMargin + 6, 530, { fontSize: 9, width: 400 });
   if (presentation.logo) {
-    const fitted = fitImage(presentation.logo, 41, 31);
-    drawImage(
-      commands,
-      "Logo",
-      ownerStatementMargin + ownerStatementCellPadding + (41 - fitted.width) / 2,
-      528 + (31 - fitted.height) / 2,
-      fitted.width,
-      fitted.height,
-    );
-  } else {
-    drawRect(commands, ownerStatementMargin + ownerStatementCellPadding, 528, 41, 31, {
-      fill: colors.soft,
-    });
-    drawText(commands, organizationInitials(presentation.organizationName), ownerStatementMargin + ownerStatementCellPadding, 538, {
-      align: "center",
-      bold: true,
-      color: colors.ink,
-      fontSize: 10,
-      width: 41,
-    });
+    const fitted = fitImage(presentation.logo, 150, 49);
+    drawImage(commands, "Logo", ownerStatementRight - fitted.width, 523, fitted.width, fitted.height);
   }
-  drawText(commands, presentation.organizationName, 93, 550, {
-    bold: true,
-    color: colors.ink,
-    fontSize: 9.5,
-    width: 300,
-  });
-  drawText(commands, "Property management", 93, 535, {
-    color: colors.muted,
-    fontSize: 7.5,
-    width: 300,
-  });
-  drawText(commands, "OWNER STATEMENT", 540, 550, {
-    align: "right",
-    bold: true,
-    color: colors.ink,
-    fontSize: 17,
-    width: ownerStatementRight - ownerStatementCellPadding - 540,
-  });
-  drawText(commands, `Currency: ${model.currency}`, 540, 535, {
-    align: "right",
-    color: colors.muted,
-    fontSize: 7,
-    width: ownerStatementRight - ownerStatementCellPadding - 540,
-  });
-  drawLine(commands, ownerStatementMargin, 515, ownerStatementRight, 515, colors.accent, 1.6);
+  drawLine(commands, ownerStatementMargin, 515, ownerStatementRight, 515, colors.border, 0.4);
 
   const identityWidth = ownerStatementTableWidth / 3;
   const identityLeft = ownerStatementMargin + ownerStatementCellPadding;
@@ -493,39 +457,6 @@ function drawStatementIdentity(
   }));
 }
 
-function drawOwnerStatementBalances(
-  commands: string[],
-  cash: ReturnType<typeof ownerStatementCash>,
-) {
-  const metrics = [
-    ["OPENING BALANCE", cash.openingCents, colors.ink],
-    ["CASH IN", cash.cashInCents, colors.ink],
-    ["CASH OUT", cash.cashOutCents, colors.ink],
-    ["CLOSING BALANCE", cash.closingCents, colors.accent],
-  ] as const;
-  drawRect(commands, ownerStatementMargin, ownerStatementSummaryBottom,
-    ownerStatementTableWidth, ownerStatementSummaryHeight, { fill: colors.soft });
-  const metricWidth = ownerStatementTableWidth / metrics.length;
-  metrics.forEach(([label, value, color], index) => {
-    const x = ownerStatementMargin + metricWidth * index + 12;
-    if (index > 0) {
-      drawLine(commands, x - 12, 414, x - 12, 443, colors.border, 0.6);
-    }
-    drawText(commands, label, x, 439, {
-      bold: true,
-      color: colors.muted,
-      fontSize: 6.6,
-      width: metricWidth - 24,
-    });
-    drawText(commands, formatOwnerStatementMoney(value), x, 416, {
-      bold: true,
-      color,
-      fontSize: 13.5,
-      width: metricWidth - 24,
-    });
-  });
-}
-
 function drawOwnerStatementTableHeader(commands: string[]) {
   drawRect(
     commands,
@@ -533,14 +464,14 @@ function drawOwnerStatementTableHeader(commands: string[]) {
     ownerStatementTableTop - headerRowHeight,
     ownerStatementTableWidth,
     headerRowHeight,
-    { fill: "#60666b" },
+    { fill: "#e7eef5" },
   );
   let x = ownerStatementMargin;
   for (const column of ownerStatementColumns) {
     drawText(commands, column.label, x + ownerStatementCellPadding, ownerStatementTableTop - 15, {
       align: column.align,
       bold: true,
-      color: "#ffffff",
+      color: colors.ink,
       fontSize: 7.1,
       width: column.width - ownerStatementCellPadding * 2,
     });
@@ -549,19 +480,19 @@ function drawOwnerStatementTableHeader(commands: string[]) {
 }
 
 function ownerStatementTransactionHeight(transaction: OwnerStatementTransaction) {
-  return Math.max(ownerStatementRowHeight, wrapText(transaction.details, ownerStatementDetailsWidth - ownerStatementCellPadding * 2, 6.8, Number.MAX_SAFE_INTEGER).length * 9 + 12);
+  return Math.max(ownerStatementRowHeight, ...[[transaction.details, ownerStatementDetailsWidth], [transaction.property ?? "", 110], [transaction.unit ?? "", 80], [transaction.name ?? "", 130], [transaction.type, 52]].map(([text, width]) => wrapText(String(text), Number(width) - ownerStatementCellPadding * 2, 6.8, Number.MAX_SAFE_INTEGER).length * 9 + 12));
 }
 
 function drawOwnerStatementRow(
   commands: string[],
   transaction: OwnerStatementTransaction,
   y: number,
-  index: number,
+  _index: number,
   opening = false,
   totals = false,
 ) {
   const height = opening ? ownerStatementRowHeight : ownerStatementTransactionHeight(transaction);
-  if (index % 2 === 0) {
+  if (opening || totals) {
     drawRect(commands, ownerStatementMargin, y, ownerStatementTableWidth, height, {
       fill: colors.soft,
     });
@@ -570,33 +501,22 @@ function drawOwnerStatementRow(
   const values = [
     transaction.date ? formatCalendarDate(transaction.date) : "",
     opening ? "" : transaction.continued ? "Continued" : transaction.type,
+    transaction.property ?? "", transaction.unit ?? "", transaction.name ?? "",
     transaction.details,
     opening || transaction.continued || transaction.cashOutCents === 0 ? "-" : formatOwnerStatementMoney(transaction.cashOutCents),
     opening || transaction.continued || transaction.cashInCents === 0 ? "-" : formatOwnerStatementMoney(transaction.cashInCents),
     transaction.continued ? "" : formatOwnerStatementMoney(transaction.balanceCents),
-  ];
-  let x = ownerStatementMargin;
+  ];  let x = ownerStatementMargin;
   ownerStatementColumns.forEach((column, cellIndex) => {
     const lines = wrapText(values[cellIndex] ?? "", column.width - ownerStatementCellPadding * 2, 6.8, Number.MAX_SAFE_INTEGER);
     lines.forEach((line, lineIndex) => drawText(commands, line, x + ownerStatementCellPadding, y + (height + lines.length * 9) / 2 - 8 - lineIndex * 9, {
-      align: totals && cellIndex === 2 ? "right" : column.align,
+      align: totals && cellIndex === 5 ? "right" : column.align,
       bold: totals || cellIndex === values.length - 1,
       color: opening ? colors.muted : colors.ink,
       fontSize: 6.8,
       width: column.width - ownerStatementCellPadding * 2,
     }));
     x += column.width;
-  });
-}
-
-function drawOwnerStatementEmptyRow(commands: string[], y: number) {
-  drawRect(commands, ownerStatementMargin, y, ownerStatementTableWidth, ownerStatementRowHeight, {
-    fill: colors.rowFill,
-  });
-  drawText(commands, "No cash movement this period", ownerStatementMargin + 145, y + 6, {
-    color: colors.muted,
-    fontSize: 6.8,
-    width: 320,
   });
 }
 
@@ -638,10 +558,6 @@ function ownerStatementPeriod(monthStart: string) {
   const [year, month] = monthStart.split("-").map(Number);
   const end = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
   return `${formatCalendarDate(monthStart)} - ${formatCalendarDate(end)}`;
-}
-
-function organizationInitials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 3).map((word) => word[0]).join("").toUpperCase();
 }
 
 function fitImage(image: { height: number; width: number }, maxWidth: number, maxHeight: number) {

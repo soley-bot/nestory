@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import type { OwnerStatementPresentation } from "@/features/reports/data/pdf";
 import type { OwnerStatementPublicationModel } from "@/features/reports/data/owner-statement-report";
+import { loadStatementTransactionDetails } from "./owner-statement-transaction-details";
 
 export async function loadOwnerStatementPresentation(
   client: SupabaseClient<Database>,
@@ -42,10 +43,17 @@ export async function loadOwnerStatementPresentation(
     : undefined;
   return {
     logo,
+    transactionDetails: await loadStatementTransactionDetails(client, model, { ownerName: owner.data.display_name, organizationName: organization.data.name }),
     organizationName: organization.data.name,
     ownerName: owner.data.display_name,
     propertyLabel: [property.data.code, property.data.name].filter(Boolean).join(" / "),
   };
+}
+
+export async function loadReportCompanyLogo(client: SupabaseClient<Database>, organizationId: string) {
+  const organization = await client.from("organizations").select("logo_storage_path").eq("id", organizationId).single();
+  if (organization.error || !organization.data) throw new Error("Company logo settings could not be loaded.");
+  return organization.data.logo_storage_path ? loadPdfLogo(client, organization.data.logo_storage_path) : undefined;
 }
 
 async function loadPdfLogo(

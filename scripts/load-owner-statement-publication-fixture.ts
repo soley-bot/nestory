@@ -9,6 +9,7 @@ import { buildOwnerStatementPdf } from "../src/features/reports/data/pdf";
 import { loadOwnerStatementPresentation } from "../src/features/reports/data/owner-statement-presentation";
 import { loadOwnerStatementPublication } from "../src/features/reports/data/owner-statement-report";
 import type { Database } from "../src/types/database";
+import { localFixtureCredentials } from "./local-fixture-credentials";
 
 const organizationId = "00000000-0000-0000-0000-000000000001";
 const propertyId = "10000000-0000-0000-0000-000000000004";
@@ -59,7 +60,7 @@ async function main() {
   for (const artifact of [
     { bytes: buildOwnerStatementPdf(model, presentation), contentType: "application/pdf", format: "pdf" as const },
     {
-      bytes: buildOwnerStatementXlsx(model),
+      bytes: buildOwnerStatementXlsx(model, presentation),
       contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       format: "xlsx" as const,
     },
@@ -156,10 +157,7 @@ async function main() {
 async function signInFixture(client: SupabaseClient<Database>) {
   let lastError: unknown;
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const signedIn = await client.auth.signInWithPassword({
-      email: "nestory@gmail.com",
-      password: "123456789",
-    });
+    const signedIn = await client.auth.signInWithPassword(localFixtureCredentials);
     if (!signedIn.error) return;
     lastError = signedIn.error;
     if ((signedIn.error.status ?? 0) < 500) break;

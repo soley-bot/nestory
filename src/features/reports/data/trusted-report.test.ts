@@ -9,7 +9,13 @@ import {
 type TrustedReportInput = Parameters<typeof buildTrustedReport>[0];
 
 describe("Monthly Unit Profit & Loss", () => {
-  it("uses only units and the recognized owner P&L authority", () => {
+  it("uses linked owner names and property names for the export heading", () => {
+    const input = reportInput();
+    input.owners = [{ id: "ownership-1", property_id: "property-1", person_id: "owner-1", ownership_label: null, ownership_percent: 100 }];
+    input.people = [{ id: "owner-1", display_name: "Example Owner" }];
+    expect(buildTrustedReport(input).unitProfitLossOwnerProperties).toContainEqual({ ownerName: "Example Owner", propertyName: "Property One" });
+  });
+  it("loads owner identities alongside units and the recognized owner P&L authority", () => {
     const requirements = getTrustedReportSourceRequirements("unit-profit-loss");
 
     expect(
@@ -17,7 +23,7 @@ describe("Monthly Unit Profit & Loss", () => {
         .filter(([, enabled]) => enabled)
         .map(([key]) => key)
         .toSorted(),
-    ).toEqual(["ownerProfitLossEvents", "units"]);
+    ).toEqual(["ownerProfitLossEvents", "owners", "people", "units"]);
   });
 
   it("shows signed recognition by unit and explicit property-level scope", () => {
