@@ -1476,7 +1476,7 @@ function LeaseTermModal({
           endDateLabel: "Term end date",
           startDateLabel: "Effective date",
           submitLabel: "Change rent",
-          successMessage: "Rent change scheduled.",
+          successMessage: "Rent change saved.",
           title: "Change rent",
         };
 
@@ -1556,6 +1556,8 @@ function LeaseTermModal({
             />
           </label>
         </div>
+
+        {mode !== "renewal" ? <p className="text-sm text-muted-foreground">Choose the first day of the month to change its rent, including the current or a past month. Issued rent and the ongoing schedule update together. Previous amounts remain in history.</p> : null}
 
         {state.message ? (
           <p
@@ -1964,7 +1966,7 @@ function getTermChangeDefaults(mode: LeaseTermChange, term: LeaseTermContext) {
 
   return {
     endDate: term.endDate,
-    startDate: "",
+    startDate: [term.startDate, `${getBusinessDateValue().slice(0, 7)}-01`].sort().at(-1)!,
   };
 }
 
