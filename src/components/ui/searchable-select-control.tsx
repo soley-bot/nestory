@@ -24,6 +24,7 @@ export type SearchableSelectControlOption = {
 type SearchableSelectControlProps = {
   "aria-describedby"?: string;
   "aria-invalid"?: boolean | "false" | "true";
+  "aria-required"?: boolean | "false" | "true";
   ariaLabel: string;
   className?: string;
   contentClassName?: string;
@@ -34,12 +35,14 @@ type SearchableSelectControlProps = {
   options: SearchableSelectControlOption[];
   placeholder?: string;
   required?: boolean;
+  triggerRole?: "button" | "combobox";
   value: string;
 };
 
 export function SearchableSelectControl({
   "aria-describedby": ariaDescribedBy,
   "aria-invalid": ariaInvalid,
+  "aria-required": ariaRequired,
   ariaLabel,
   className,
   contentClassName,
@@ -50,6 +53,7 @@ export function SearchableSelectControl({
   options,
   placeholder = "Select",
   required = false,
+  triggerRole,
   value,
 }: SearchableSelectControlProps) {
   const listboxId = useId();
@@ -128,16 +132,19 @@ export function SearchableSelectControl({
       >
         <Popover.Trigger asChild>
           <button
+            aria-controls={listboxId}
             aria-describedby={ariaDescribedBy}
             aria-expanded={open}
             aria-haspopup="listbox"
             aria-label={ariaLabel}
+            aria-required={ariaRequired ?? required}
             className={cn(
               "flex min-h-11 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-input bg-card px-3 py-2 text-left shadow-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60",
               className,
             )}
             disabled={disabled}
             data-invalid={ariaInvalid === true || ariaInvalid === "true"}
+            role={triggerRole}
             type="button"
           >
             <span className="min-w-0 flex-1">

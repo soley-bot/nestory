@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { SearchableSelectControl } from "@/components/ui/searchable-select-control";
 import {
   Select,
   SelectContent,
@@ -13,6 +14,7 @@ import { useDrawerPortalContainer } from "@/components/ui/side-drawer";
 import { cn } from "@/lib/utils";
 
 const EMPTY_VALUE = "__nestory_empty_value__";
+const SEARCHABLE_OPTION_THRESHOLD = 7;
 
 export type SelectControlOption = {
   disabled?: boolean;
@@ -61,6 +63,7 @@ export function SelectControl(props: SelectControlProps) {
   const previousValueRef = useRef(selectedValue);
   const hasEmptyOption = options.some((option) => option.value === "");
   const radixValue = toRadixValue(selectedValue, hasEmptyOption);
+  const usesSearch = Boolean(ariaLabel) && options.length >= SEARCHABLE_OPTION_THRESHOLD;
 
   useEffect(() => {
     if (previousValueRef.current === selectedValue) {
@@ -73,26 +76,56 @@ export function SelectControl(props: SelectControlProps) {
     );
   }, [selectedValue]);
 
+  function handleValueChange(nextValue: string) {
+    if (value === undefined) {
+      setUncontrolledValue(nextValue);
+    }
+    onValueChange?.(nextValue);
+  }
+
+  const hiddenInput = name ? (
+    <input
+      disabled={disabled}
+      name={name}
+      ref={hiddenInputRef}
+      required={required}
+      type="hidden"
+      value={selectedValue}
+    />
+  ) : null;
+
+  if (usesSearch && ariaLabel) {
+    return (
+      <>
+        {hiddenInput}
+        <SearchableSelectControl
+          aria-describedby={ariaDescribedBy}
+          aria-invalid={ariaInvalid}
+          aria-required={ariaRequired ?? required}
+          ariaLabel={ariaLabel}
+          className={cn(
+            "h-8 min-h-8 w-full min-w-0 rounded-lg bg-transparent py-1 shadow-none",
+            className,
+          )}
+          disabled={disabled}
+          onValueChange={handleValueChange}
+          options={options}
+          placeholder={placeholder}
+          triggerRole="combobox"
+          value={selectedValue}
+          wrapOptions
+        />
+      </>
+    );
+  }
+
   return (
     <>
-      {name ? (
-        <input
-          disabled={disabled}
-          name={name}
-          ref={hiddenInputRef}
-          required={required}
-          type="hidden"
-          value={selectedValue}
-        />
-      ) : null}
+      {hiddenInput}
       <Select
         disabled={disabled}
         onValueChange={(nextValue) => {
-          const formValue = fromRadixValue(nextValue);
-          if (value === undefined) {
-            setUncontrolledValue(formValue);
-          }
-          onValueChange?.(formValue);
+          handleValueChange(fromRadixValue(nextValue));
         }}
         value={radixValue}
       >
