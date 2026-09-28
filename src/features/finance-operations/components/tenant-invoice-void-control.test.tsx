@@ -20,6 +20,9 @@ vi.mock("../transaction-delete-actions", () => ({
 
 import { TenantInvoiceVoidControl } from "./tenant-invoice-void-control";
 
+const successMessage =
+  "Invoice voided and removed from Rent & collections. Review the lease to prevent future charges.";
+
 beforeAll(() => {
   if (!globalThis.crypto?.randomUUID) {
     vi.stubGlobal("crypto", {
@@ -81,7 +84,7 @@ function invoice(
 describe("TenantInvoiceVoidControl", () => {
   it("uses explicit void language and closes the parent detail after success", async () => {
     mocks.action.mockResolvedValue({
-      message: "Invoice voided. Its audit history is retained.",
+      message: successMessage,
       status: "success",
     });
     const onSuccess = vi.fn();
@@ -99,6 +102,7 @@ describe("TenantInvoiceVoidControl", () => {
     const dialog = screen.getByRole("dialog", { name: "Void invoice" });
     expect(dialog).not.toBeNull();
     expect(within(dialog).getByText(/current balances and Rent & collections/)).not.toBeNull();
+    expect(within(dialog).getByText(/does not cancel the lease/)).not.toBeNull();
     expect(within(dialog).getByLabelText("Reason for voiding")).not.toBeNull();
 
     await user.type(
@@ -107,11 +111,7 @@ describe("TenantInvoiceVoidControl", () => {
     );
     await user.click(within(dialog).getByRole("button", { name: "Void invoice" }));
 
-    await waitFor(() =>
-      expect(onSuccess).toHaveBeenCalledWith(
-        "Invoice voided. Its audit history is retained.",
-      ),
-    );
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(successMessage));
     expect(mocks.refresh).toHaveBeenCalledOnce();
   });
 
