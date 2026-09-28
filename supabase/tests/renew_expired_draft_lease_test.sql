@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(4);
+SELECT plan(6);
 
 CREATE TEMP TABLE tenant_archive_cancel_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -154,13 +154,23 @@ SELECT set_config(
   true
 );
 
+RESET ROLE;
+ALTER TABLE tenant_archive_cancel_state ADD COLUMN original_term_id uuid;
+SET LOCAL ROLE authenticated;
+UPDATE tenant_archive_cancel_state SET original_term_id=(select id from public.lease_terms where lease_id=(creation_result->>'leaseId')::uuid and status='draft');
 SELECT lives_ok($test$
  UPDATE tenant_archive_cancel_state SET activation_result = public.renew_and_activate_draft_lease(
  organization_id,(creation_result->>'leaseId')::uuid,(creation_result->>'occupancyId')::uuid,
- current_date-30,current_date+365,1100,'renew-draft-test',(select id from public.lease_terms where lease_id=(creation_result->>'leaseId')::uuid and status='draft'))
+ current_date-30,current_date+365,1100,'renew-draft-test',original_term_id)
 $test$, 'Expired draft renews and activates atomically');
 SELECT is((SELECT activation_result->>'status' FROM tenant_archive_cancel_state),'active','Renewed lease active');
 SELECT is((SELECT rent_amount FROM public.lease_terms WHERE lease_id=(SELECT (creation_result->>'leaseId')::uuid FROM tenant_archive_cancel_state) AND status='expired'),900::numeric,'Old rent retained');
 SELECT is((SELECT rent_amount FROM public.lease_terms WHERE lease_id=(SELECT (creation_result->>'leaseId')::uuid FROM tenant_archive_cancel_state) AND status='active'),1100::numeric,'Renewal rent applied');
+SELECT lives_ok($test$
+ SELECT public.renew_and_activate_draft_lease(organization_id,(creation_result->>'leaseId')::uuid,
+ (creation_result->>'occupancyId')::uuid,current_date-30,current_date+365,1100,'renew-draft-test',original_term_id)
+ FROM tenant_archive_cancel_state
+$test$,'Renewal retry returns the same activation');
+SELECT is((SELECT count(*)::integer FROM public.tenant_invoices WHERE lease_id=(SELECT (creation_result->>'leaseId')::uuid FROM tenant_archive_cancel_state)),0,'Renewal records no invoice or payment');
 SELECT * FROM finish();
 ROLLBACK;

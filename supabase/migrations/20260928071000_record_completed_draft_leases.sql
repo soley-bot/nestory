@@ -43,6 +43,8 @@ BEGIN
     END
   );
 
+  PERFORM app_private.assert_lease_permission(p_organization_id, p_lease_id, 'leases.activate');
+
   SELECT event.* INTO v_event
   FROM public.lease_lifecycle_events AS event
   WHERE event.organization_id = p_organization_id
@@ -85,7 +87,6 @@ BEGIN
     RAISE EXCEPTION 'Choose actual move-in and move-out dates for a completed draft lease'
       USING ERRCODE = '22023', DETAIL = 'lease_history_dates_invalid';
   END IF;
-  PERFORM app_private.assert_lease_permission(p_organization_id, p_lease_id, 'leases.activate');
 
   IF p_effective_date IS NULL THEN
     RAISE EXCEPTION 'Lifecycle effective date is required'

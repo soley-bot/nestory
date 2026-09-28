@@ -423,6 +423,9 @@ export function LeaseDetailScreen({
       {transition && currentOccupancy ? (
         transition === "activate" ? (
           <LeaseActivationModal
+            businessDate={billingFormConfig?.rentBusinessDate ?? getBusinessDateValue()}
+            canClose={permissions.canClose}
+            canRenew={permissions.canChangeTerms}
             lease={lease}
             occupancyId={currentOccupancy.id}
             onClose={() => setTransition(null)}
@@ -1762,18 +1765,24 @@ function ScheduledActivationNotice({
 }
 
 function LeaseActivationModal({
+  businessDate,
+  canClose,
+  canRenew,
   lease,
   occupancyId,
   onClose,
   onSuccess,
 }: {
+  businessDate: string;
+  canClose: boolean;
+  canRenew: boolean;
   lease: LeaseSummary;
   occupancyId: string;
   onClose: () => void;
   onSuccess: (message: string) => void;
 }) {
   const router = useRouter();
-  const today = getBusinessDateValue();
+  const today = businessDate;
   const expiredTerm = lease.formValues.leaseEndDate < today;
   const [renewalRent, setRenewalRent] = useState(String(lease.formValues.monthlyRentAmount));
   const [outcome, setOutcome] = useState("staying");
@@ -1815,7 +1824,7 @@ function LeaseActivationModal({
             onValueChange={setOutcome}
             options={[
               { label: "Still staying", value: "staying" },
-              { label: "Already moved out", value: "completed" },
+              ...(canClose ? [{ label: "Already moved out", value: "completed" }] : []),
             ]} />
         </label>
         {outcome === "staying" && lease.formValues.leaseEndDate < today ? (
@@ -1837,9 +1846,9 @@ function LeaseActivationModal({
 
         {activationMode === "scheduled" || outcome === "completed" || expiredTerm ? (
           <div className="grid gap-1.5 text-sm font-medium">
-            <span>Activation date</span>
+            <span>{expiredTerm || outcome === "completed" ? "Actual move-in date" : "Activation date"}</span>
             <DatePickerField
-              ariaLabel="Activation date"
+              ariaLabel={expiredTerm || outcome === "completed" ? "Actual move-in date" : "Activation date"}
               defaultValue={outcome === "completed" || expiredTerm ? lease.formValues.leaseStartDate : today}
               name="activationDate"
               required
@@ -1850,6 +1859,7 @@ function LeaseActivationModal({
           <input name="activationDate" type="hidden" value={today} />
         )}
 
+        {outcome === "staying" && expiredTerm && !canRenew ? <p className="text-sm text-muted-foreground">Ask a colleague with permission to change lease terms to confirm the renewal.</p> : null}
         {outcome === "staying" && expiredTerm ? (
           <>
             <div className="grid gap-1.5 text-sm font-medium">
@@ -1903,7 +1913,7 @@ function LeaseActivationModal({
           <Button onClick={onClose} type="button" variant="ghost">
             Cancel
           </Button>
-          <Button disabled={pending} type="submit">
+          <Button disabled={pending || (outcome === "staying" && expiredTerm && !canRenew)} type="submit">
             {pending ? "Saving..." : outcome === "completed" ? "Record ended lease" : expiredTerm ? "Renew and activate" : "Activate lease"}
           </Button>
         </div>
