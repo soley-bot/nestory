@@ -228,3 +228,25 @@ test("direct correction and term correction serialize in the reverse order", { t
   for (const result of results) assert.equal(result.status,0,result.stderr);
   assert.doesNotMatch(results.map(result=>result.stderr).join("\n"),/deadlock detected|40P01/i);
 });
+
+test("fee correction serializes with an effective-month rent change", { timeout: 30_000 }, async () => {
+  const scope = setupCase();
+  const first = spawnSession(`BEGIN;
+    SET LOCAL statement_timeout='15s';
+    SELECT set_config('request.jwt.claim.sub','${superAdminId}',true);
+    SELECT set_config('request.jwt.claim.role','authenticated',true);
+    SET LOCAL ROLE authenticated;
+    SELECT public.correct_historical_rent('${organizationId}','${scope.invoiceId}',1000,
+      extract(day FROM i.due_date)::integer,'Verified fee correction evidence',
+      public.preview_historical_rent_correction('${organizationId}','${scope.invoiceId}',1000,extract(day FROM i.due_date)::integer,50)->>'previewHash',
+      'fee-before-term-correction',50)
+    FROM public.tenant_invoices i WHERE i.id='${scope.invoiceId}';
+    DO $ready$ BEGIN RAISE NOTICE 'fee_rent_correction_ready'; END $ready$;
+    SELECT pg_sleep(2); COMMIT;`);
+  await waitForMarker(first,"fee_rent_correction_ready");
+  const second = spawnSession(termCorrectionSql(scope,false));
+  await waitForDatabaseLock("rent-term-correction");
+  const results = await Promise.all([first.done,second.done]);
+  for (const result of results) assert.equal(result.status,0,result.stderr);
+  assert.doesNotMatch(results.map(result=>result.stderr).join("\n"),/deadlock detected|40P01/i);
+});

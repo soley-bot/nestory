@@ -382,6 +382,20 @@ BEGIN
 END;
 $correction_lock_order$;
 
+DO $fee_correction_lock_order$
+DECLARE d text; old text := '  payload := jsonb_build_object(';
+BEGIN
+ d:=pg_get_functiondef('public.correct_historical_rent(uuid,uuid,numeric,integer,text,text,text,numeric)'::regprocedure);
+ IF (length(d)-length(replace(d,old,'')))<>length(old) THEN RAISE EXCEPTION 'fee_rent_lock_contract_changed'; END IF;
+ EXECUTE replace(d,old,$patch$  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+    'lease_rent_correction:' || p_organization_id::text || ':' ||
+    (SELECT i.lease_id::text FROM public.tenant_invoices i
+      WHERE i.organization_id=p_organization_id AND i.id=p_invoice_id), 0));
+
+  payload := jsonb_build_object($patch$);
+END;
+$fee_correction_lock_order$;
+
 -- Private executor for the checked lease command. Direct historical correction
 -- retains its existing admin-only API; staff must enter through lease authority.
 DO $lease_correction_authority$
