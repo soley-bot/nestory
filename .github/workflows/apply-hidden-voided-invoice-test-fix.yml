@@ -1,0 +1,35 @@
+name: Apply hidden voided invoice test fix
+
+on:
+  push:
+    branches:
+      - codex/void-invoice-from-rent
+    paths:
+      - scripts/apply-hidden-voided-invoice-test-fix.py
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out patch branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: codex/void-invoice-from-rent
+          fetch-depth: 0
+
+      - name: Update obsolete voided-invoice test
+        run: python scripts/apply-hidden-voided-invoice-test-fix.py
+
+      - name: Commit test correction
+        run: |
+          git config user.name "soley-bot"
+          git config user.email "143jester@gmail.com"
+          git add src/features/finance-operations/components/finance-operations-screen.test.tsx
+          git diff --cached --quiet && exit 1
+          git commit -m "Expect voided invoices to stay hidden"
+          git push origin HEAD:codex/void-invoice-from-rent
