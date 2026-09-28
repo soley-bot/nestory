@@ -42,6 +42,6 @@ export async function deleteTransactionAction(_state: FinanceOperationsActionSta
   revalidatePath(`/properties/${input.propertyId}`, "layout");
   for (const path of ["/units", "/finance", "/rent-income", "/balances", "/reports", "/ledger"]) revalidatePath(path, "layout");
   return input.kind === "tenant-invoice"
-    ? { status: "success", message: "Invoice voided. Its audit history is retained." }
+    ? { status: "success", message: "Invoice voided and removed from Rent & collections. Review the lease to prevent future charges." }
     : { status: "success", message: "Transaction deleted. Its history is retained." };
 }
