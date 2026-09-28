@@ -570,6 +570,21 @@ describe("Lease occupancy evidence input", () => {
     expect(requirePermission).toHaveBeenCalledWith("leases.activate");
   });
 
+  it.each([
+    ["lease_activation_outside_term", "Choose an activation date within the lease term. If the term has ended, confirm whether the tenant moved out or needs a renewal."],
+    ["lease_activation_billing_rules_required", "Complete the billing setup for the selected activation date, then try again."],
+    ["lease_activation_stale_occupancy", "This lease changed after the page loaded. Refresh it before trying again."],
+  ])("explains activation failure %s", async (details, message) => {
+    const formData = new FormData();
+    formData.set("activationDate", "2025-09-01");
+    formData.set("expectedOccupancyId", "40000000-0000-0000-0000-000000000001");
+    formData.set("expectedStatus", "draft");
+    formData.set("idempotencyKey", "lease-activation-error-v1");
+    formData.set("leaseId", leaseId);
+    rpc.mockResolvedValueOnce({ data: null, error: { code: "22023", message: "Activation failed", details } });
+    await expect(scheduleLeaseActivationAction({}, formData)).resolves.toMatchObject({ status: "error", message });
+  });
+
   it("records deposit activity with a deterministic PostgreSQL fixture identifier", async () => {
     const leaseDepositId = "50000000-0000-0000-0000-000000000001";
     const liabilityAccountId = "70000000-0000-0000-0000-000000000001";
