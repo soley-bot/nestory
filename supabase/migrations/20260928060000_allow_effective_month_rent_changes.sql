@@ -153,6 +153,7 @@ BEGIN
           FROM public.tenant_invoices AS invoice
           WHERE invoice.organization_id = p_organization_id
             AND invoice.lease_id = p_lease_id
+            AND invoice.lifecycle = 'issued' AND invoice.generation_source = 'lease_rules_v1'
             AND invoice.billing_period_end >= p_start_date
             AND invoice.billing_period_start <= v_previous.end_date
         ) THEN
@@ -162,6 +163,7 @@ BEGIN
         END IF;
         FOR v_invoice IN SELECT invoice.* FROM public.tenant_invoices invoice
           WHERE invoice.organization_id=p_organization_id AND invoice.lease_id=p_lease_id
+            AND invoice.lifecycle='issued' AND invoice.generation_source='lease_rules_v1'
             AND invoice.billing_period_end >= p_start_date
             AND invoice.billing_period_start <= v_previous.end_date
           ORDER BY invoice.billing_period_start,invoice.id
@@ -169,15 +171,18 @@ BEGIN
           IF v_invoice.billing_period_start < p_start_date OR v_invoice.billing_period_end > p_end_date THEN
             RAISE EXCEPTION 'issued_rent_change_period_mismatch' USING ERRCODE='22023';
           END IF;
+          IF v_invoice.is_prorated THEN
+            RAISE EXCEPTION 'issued_rent_change_prorated' USING ERRCODE='22023';
+          END IF;
           -- This validates settlements, owner custody, closes, and current evidence.
-          v_preview := public.preview_historical_rent_correction(p_organization_id,v_invoice.id,p_rent_amount,p_rent_due_day);
+          v_preview := app_private.build_historical_rent_correction_preview(p_organization_id,v_invoice.id,p_rent_amount,p_rent_due_day);
           IF (v_preview->>'rentDelta')::numeric = 0 AND v_preview->>'originalDueDate' = v_preview->>'correctedDueDate' THEN
             CONTINUE;
           END IF;
           IF NOT coalesce((v_preview->>'canApply')::boolean,false) THEN
             RAISE EXCEPTION 'rent_change_requires_linked_review' USING ERRCODE='23514', DETAIL=(v_preview->'blockers')::text;
           END IF;
-          PERFORM public.correct_historical_rent(p_organization_id,v_invoice.id,p_rent_amount,p_rent_due_day,
+          PERFORM app_private.correct_effective_month_rent(p_organization_id,v_invoice.id,p_rent_amount,p_rent_due_day,
             'Rent changed from effective date ' || p_start_date::text,
             v_preview->>'previewHash', 'rent-term:' || v_claim.request_id::text || ':' || v_invoice.id::text);
         END LOOP;
@@ -352,3 +357,28 @@ BEGIN
  EXECUTE 'CREATE OR REPLACE VIEW public.tenant_invoice_balances WITH (security_invoker=true) AS ' || d;
 END;
 $live_due_date$;
+
+-- Private executor for the checked lease command. Direct historical correction
+-- retains its existing admin-only API; staff must enter through lease authority.
+DO $lease_correction_authority$
+DECLARE d text; old text := $old$  IF v_actor_id IS NULL
+    OR NOT app_private.is_org_admin(p_organization_id) THEN
+    RAISE EXCEPTION 'historical_rent_correction_forbidden'
+      USING ERRCODE = '42501';
+  END IF;$old$;
+BEGIN
+ old:=replace(old,chr(13),'');
+ d:=replace(pg_get_functiondef('public.correct_historical_rent(uuid,uuid,numeric,integer,text,text,text)'::regprocedure),chr(13),'');
+ IF (length(d)-length(replace(d,old,'')))<>length(old) THEN RAISE EXCEPTION 'rent_authority_contract_changed'; END IF;
+ d:=replace(d,'public.correct_historical_rent(', 'app_private.correct_effective_month_rent(');
+ d:=replace(d,old,$patch$  PERFORM app_private.assert_lease_permission(
+    p_organization_id,
+    (SELECT invoice.lease_id FROM public.tenant_invoices invoice
+      WHERE invoice.organization_id=p_organization_id AND invoice.id=p_invoice_id),
+    'leases.change_terms'::public.organization_permission_key
+  );$patch$);
+ EXECUTE d;
+END;
+$lease_correction_authority$;
+ALTER FUNCTION app_private.correct_effective_month_rent(uuid,uuid,numeric,integer,text,text,text) OWNER TO postgres;
+REVOKE ALL ON FUNCTION app_private.correct_effective_month_rent(uuid,uuid,numeric,integer,text,text,text) FROM PUBLIC,anon,authenticated,service_role;

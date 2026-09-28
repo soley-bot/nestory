@@ -115,6 +115,7 @@ export type LeaseBillingRuleFieldErrors = Partial<
 >;
 
 export type LeaseBillingFormConfig = {
+  rentBusinessDate?: string;
   companyOptions: Array<{ id: string; label: string }>;
   operationalTimezone: string;
   organizationName: string;

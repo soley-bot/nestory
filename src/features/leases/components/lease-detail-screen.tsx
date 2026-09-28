@@ -75,6 +75,7 @@ import type {
   LeaseTermContext,
   LeaseUnitOption,
 } from "@/features/leases/lease.types";
+import { getCalendarDateInTimeZone } from "@/features/leases/lease-billing-rule-state";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 
@@ -444,6 +445,7 @@ export function LeaseDetailScreen({
 
       {termChange && activeTerm ? (
         <LeaseTermModal
+          businessDate={billingFormConfig?.rentBusinessDate ?? getCalendarDateInTimeZone(new Date(), billingFormConfig?.operationalTimezone ?? "UTC")}
           lease={lease}
           mode={termChange}
           onClose={() => setTermChange(null)}
@@ -1442,12 +1444,14 @@ function formatCorrectionMoney(amount: number, currency: string) {
 }
 
 function LeaseTermModal({
+  businessDate,
   lease,
   mode,
   onClose,
   onSuccess,
   term,
 }: {
+  businessDate: string;
   lease: LeaseSummary;
   mode: LeaseTermChange;
   onClose: () => void;
@@ -1462,7 +1466,7 @@ function LeaseTermModal({
   const [idempotencyKey] = useState(
     () => `lease-term:${lease.id}:${mode}:${crypto.randomUUID()}`,
   );
-  const defaults = getTermChangeDefaults(mode, term);
+  const defaults = getTermChangeDefaults(mode, term, businessDate);
   const copy =
     mode === "renewal"
       ? {
@@ -1952,7 +1956,7 @@ function getTransitionCopy(transition: LeaseTransition) {
   };
 }
 
-function getTermChangeDefaults(mode: LeaseTermChange, term: LeaseTermContext) {
+function getTermChangeDefaults(mode: LeaseTermChange, term: LeaseTermContext, businessDate: string) {
   if (mode === "renewal") {
     const startDate = addDaysIso(term.endDate, 1);
     const nextYear = new Date(`${startDate}T00:00:00.000Z`);
@@ -1966,7 +1970,7 @@ function getTermChangeDefaults(mode: LeaseTermChange, term: LeaseTermContext) {
 
   return {
     endDate: term.endDate,
-    startDate: [term.startDate, `${getBusinessDateValue().slice(0, 7)}-01`].sort().at(-1)!,
+    startDate: [term.startDate, `${businessDate.slice(0, 7)}-01`].sort().at(-1)!,
   };
 }
 

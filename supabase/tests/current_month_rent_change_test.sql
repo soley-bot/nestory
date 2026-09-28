@@ -493,11 +493,32 @@ WHERE rule.id=state.good_billing_id;
 
 CREATE TEMP TABLE current_invoice AS SELECT app_private.generate_simple_lease_rent_invoice(organization_id,good_lease_id,current_period_start,current_period_start,'manual_recovery',super_admin_id) id FROM lease_rent_state;
 GRANT SELECT ON current_invoice TO authenticated;
+SELECT ok(NOT has_function_privilege('authenticated','app_private.correct_effective_month_rent(uuid,uuid,numeric,integer,text,text,text)','EXECUTE'),'private rent executor is not directly callable');
+SAVEPOINT void_fixture;
+SET LOCAL session_replication_role=replica;
+UPDATE public.tenant_invoices SET lifecycle='void',voided_at=now(),voided_by=(SELECT super_admin_id FROM lease_rent_state) WHERE id=(SELECT id FROM current_invoice);
+SET LOCAL session_replication_role=origin;
 SET LOCAL ROLE authenticated;
-SELECT lives_ok($$ SELECT public.schedule_authoritative_lease_term(organization_id,good_lease_id,current_period_start,(current_period_start + interval '2 months - 1 day')::date,1200,'USD',5,'monthly',good_term_id,'current-rent-change-test') FROM lease_rent_state $$,'current month rent change updates issued rent');
+SELECT lives_ok($$ SELECT public.schedule_authoritative_lease_term(organization_id,good_lease_id,current_period_start,(current_period_start + interval '2 months - 1 day')::date,1200,'USD',5,'monthly',good_term_id,'void-rent-change-test') FROM lease_rent_state $$,'retained void invoice does not block ongoing rent edit');
+RESET ROLE;
+ROLLBACK TO SAVEPOINT void_fixture;
+SAVEPOINT prorated_fixture;
+SET LOCAL session_replication_role=replica;
+UPDATE public.tenant_invoices SET is_prorated=true WHERE id=(SELECT id FROM current_invoice);
+SET LOCAL session_replication_role=origin;
+SET LOCAL ROLE authenticated;
+SELECT throws_ok($$ SELECT public.schedule_authoritative_lease_term(organization_id,good_lease_id,current_period_start,(current_period_start + interval '2 months - 1 day')::date,1200,'USD',5,'monthly',good_term_id,'prorated-rent-change-test') FROM lease_rent_state $$,'22023','issued_rent_change_prorated','prorated charge cannot be replaced with full recurring rent');
+RESET ROLE;
+ROLLBACK TO SAVEPOINT prorated_fixture;
+SELECT set_config('request.jwt.claim.sub',(SELECT finance_manager_id::text FROM lease_rent_state),true);
+SET LOCAL ROLE authenticated;
+SELECT lives_ok($$ SELECT public.schedule_authoritative_lease_term(organization_id,good_lease_id,current_period_start,(current_period_start + interval '2 months - 1 day')::date,1200,'USD',5,'monthly',good_term_id,'current-rent-change-test') FROM lease_rent_state $$,'authorized finance manager can change issued current-month rent');
+SELECT set_config('request.jwt.claim.sub',(SELECT super_admin_id::text FROM lease_rent_state),true);
 SELECT is((SELECT total_amount FROM public.tenant_invoice_balances WHERE id=(SELECT id FROM current_invoice)),1200::numeric,'current invoice uses new rent');
 SELECT is((SELECT rent_amount FROM public.lease_terms WHERE lease_id=(SELECT good_lease_id FROM lease_rent_state) AND status='active' AND archived_at IS NULL),1200::numeric,'ongoing term uses new rent');
+SELECT set_config('request.jwt.claim.sub',(SELECT finance_manager_id::text FROM lease_rent_state),true);
 SELECT lives_ok($$ SELECT public.schedule_authoritative_lease_term(organization_id,good_lease_id,current_period_start,(current_period_start + interval '2 months - 1 day')::date,1200,'USD',5,'monthly',good_term_id,'current-rent-change-test') FROM lease_rent_state $$,'retry does not duplicate correction');
+SELECT set_config('request.jwt.claim.sub',(SELECT super_admin_id::text FROM lease_rent_state),true);
 SELECT lives_ok($$ SELECT public.schedule_authoritative_lease_term(organization_id,good_lease_id,current_period_start,(current_period_start + interval '2 months - 1 day')::date,1250,'USD',7,'monthly',(SELECT id FROM public.lease_terms WHERE lease_id=good_lease_id AND status='active' AND archived_at IS NULL),'current-rent-change-again') FROM lease_rent_state $$,'same month can be edited again');
 SELECT is((SELECT total_amount FROM public.tenant_invoice_balances WHERE id=(SELECT id FROM current_invoice)),1250::numeric,'repeat edit uses latest rent');
 SELECT is((SELECT due_date FROM public.tenant_invoice_balances WHERE id=(SELECT id FROM current_invoice)),(SELECT greatest(current_period_start+6,(SELECT issue_date FROM public.tenant_invoices WHERE id=(SELECT id FROM current_invoice))) FROM lease_rent_state),'repeat edit exposes latest due date even in same transaction');
@@ -513,7 +534,10 @@ SELECT lives_ok($$ SELECT public.record_tenant_invoice_payment_with_account(
 SELECT public.allocate_owner_event(state.organization_id,'tenant_rent_receipt',allocation.id,'current-rent-owner-'||allocation.id::text)
 FROM public.tenant_invoice_payment_allocations allocation CROSS JOIN lease_rent_state state
 WHERE allocation.invoice_id=(SELECT id FROM current_invoice);
-SELECT lives_ok($$ SELECT public.schedule_authoritative_lease_term(organization_id,good_lease_id,current_period_start,(current_period_start + interval '2 months - 1 day')::date,1400,'USD',7,'monthly',(SELECT id FROM public.lease_terms WHERE lease_id=good_lease_id AND status='active' AND archived_at IS NULL),'current-rent-paid-change') FROM lease_rent_state $$,'paid month can be increased without recording cash again');
+SELECT set_config('test.current_term',(SELECT id::text FROM public.lease_terms WHERE lease_id=(SELECT good_lease_id FROM lease_rent_state) AND status='active' AND archived_at IS NULL),true);
+SELECT set_config('request.jwt.claim.sub',(SELECT finance_manager_id::text FROM lease_rent_state),true);
+SELECT lives_ok($$ SELECT public.schedule_authoritative_lease_term(organization_id,good_lease_id,current_period_start,(current_period_start + interval '2 months - 1 day')::date,1400,'USD',7,'monthly',current_setting('test.current_term')::uuid,'current-rent-paid-change') FROM lease_rent_state $$,'finance manager can increase paid rent without recording cash again');
+SELECT set_config('request.jwt.claim.sub',(SELECT super_admin_id::text FROM lease_rent_state),true);
 SELECT is((SELECT total_amount FROM public.tenant_invoice_balances WHERE id=(SELECT id FROM current_invoice)),1400::numeric,'paid invoice reflects updated amount');
 SELECT is((SELECT sum(signed_amount) FROM public.tenant_invoice_payment_allocations WHERE invoice_id=(SELECT id FROM current_invoice)),500::numeric,'payment allocations conserve received cash');
 SELECT throws_ok($$ SELECT public.schedule_authoritative_lease_term(organization_id,good_lease_id,current_period_start,(current_period_start + interval '2 months - 1 day')::date,400,'USD',7,'monthly',(SELECT id FROM public.lease_terms WHERE lease_id=good_lease_id AND status='active' AND archived_at IS NULL),'current-rent-credit-blocked') FROM lease_rent_state $$,'23514','rent_change_requires_linked_review','reduction below collected cash requires resolving credit');

@@ -1217,6 +1217,9 @@ function leaseActionErrorMessage(error: {
   if (message.includes("issued_rent_change_requires_month_start")) {
     return "Choose the first day of the month to update issued rent. Issued periods currently require monthly billing.";
   }
+  if (message.includes("issued_rent_change_prorated")) {
+    return "This month has an agreed prorated charge. Use Correct historical rent to enter the exact charge for that month, then change the ongoing rent from the next full month.";
+  }
   if (message.includes("issued_rent_change_period_mismatch")) {
     return "The effective dates must cover the complete issued month. Check the effective date and term end date.";
   }
