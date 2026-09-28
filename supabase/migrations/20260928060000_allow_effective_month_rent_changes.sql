@@ -295,6 +295,8 @@ DECLARE d text; signature text; clause text;
 BEGIN
  FOREACH signature IN ARRAY ARRAY[
   'app_private.build_historical_rent_correction_preview(uuid,uuid,numeric,integer)',
+  'app_private.build_historical_rent_correction_preview(uuid,uuid,numeric,integer,numeric)',
+  'public.correct_historical_rent(uuid,uuid,numeric,integer,text,text,text,numeric)',
   'public.correct_historical_rent(uuid,uuid,numeric,integer,text,text,text)'
  ] LOOP
   d:=pg_get_functiondef(signature::regprocedure);
@@ -303,7 +305,8 @@ BEGIN
     '      AND other_line.supersedes_line_id IS NULL',
     '    AND income.supersedes_income_item_id IS NULL',
     '    AND fee.supersedes_occurrence_id IS NULL',
-    '      AND owner_line.supersedes_line_id IS NULL'
+    '      AND owner_line.supersedes_line_id IS NULL',
+    ' AND f.supersedes_occurrence_id IS NULL'
   ] LOOP
     IF position(clause IN d)>0 THEN
       IF (length(d)-length(replace(d,clause,'')))<>length(clause) THEN
@@ -328,9 +331,13 @@ $fee_successor$;
 
 -- Read the predecessor due date from the live rent line, preserving the issued snapshot.
 DO $repeat_due_date$
-DECLARE d text; old text;
+DECLARE d text; old text; signature text;
 BEGIN
- d:=replace(pg_get_functiondef('app_private.build_historical_rent_correction_preview(uuid,uuid,numeric,integer)'::regprocedure),chr(13),'');
+ FOREACH signature IN ARRAY ARRAY[
+ 'app_private.build_historical_rent_correction_preview(uuid,uuid,numeric,integer)',
+ 'app_private.build_historical_rent_correction_preview(uuid,uuid,numeric,integer,numeric)'
+ ] LOOP
+ d:=replace(pg_get_functiondef(signature::regprocedure),chr(13),'');
  old:='  v_original_due_day := extract(day FROM v_invoice.due_date)::integer;';
  IF (length(d)-length(replace(d,old,'')))<>length(old) THEN RAISE EXCEPTION 'rent_due_preview_contract_changed'; END IF;
  EXECUTE replace(d,old,$patch$
@@ -342,6 +349,7 @@ BEGIN
       AND correction.action='historical_rent';
   END IF;
   v_original_due_day := extract(day FROM v_invoice.due_date)::integer;$patch$);
+ END LOOP;
  d:=replace(pg_get_functiondef('public.correct_historical_rent(uuid,uuid,numeric,integer,text,text,text)'::regprocedure),chr(13),'');
  old:=E'    v_invoice.due_date,\n    (v_preview->>''correctedDueDate'')::date,';
  IF (length(d)-length(replace(d,old,'')))<>length(old) THEN RAISE EXCEPTION 'rent_due_execution_contract_changed'; END IF;
@@ -433,3 +441,28 @@ $$;
 ALTER FUNCTION public.get_lease_rent_business_date(uuid) OWNER TO postgres;
 REVOKE ALL ON FUNCTION public.get_lease_rent_business_date(uuid) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.get_lease_rent_business_date(uuid) TO authenticated;
+
+DO $fee_after_rent_successor$
+DECLARE d text; old text := '        AND original.supersedes_occurrence_id IS NULL FOR KEY SHARE;';
+BEGIN
+ d:=pg_get_functiondef('app_private.create_management_fee_owner_charge()'::regprocedure);
+ IF (length(d)-length(replace(d,old,'')))<>length(old) THEN RAISE EXCEPTION 'fee_after_rent_contract_changed'; END IF;
+ EXECUTE replace(d,old,'        FOR KEY SHARE;');
+END;
+$fee_after_rent_successor$;
+
+DO $fee_existing_allocation$
+DECLARE d text; old text := $old$    PERFORM public.allocate_owner_event(p_organization_id,'management_fee_occurrence',fee.id,'fee-correction-original-'||fee.id::text);$old$;
+BEGIN
+ d:=pg_get_functiondef('public.correct_historical_rent(uuid,uuid,numeric,integer,text,text,text,numeric)'::regprocedure);
+ IF (length(d)-length(replace(d,old,'')))<>length(old) THEN RAISE EXCEPTION 'fee_existing_allocation_contract_changed'; END IF;
+ EXECUTE replace(d,old,$patch$    IF NOT EXISTS (
+      SELECT 1 FROM public.owner_event_allocation_sets allocation_set
+      WHERE allocation_set.organization_id=p_organization_id
+        AND allocation_set.source_type='management_fee_occurrence'
+        AND allocation_set.source_line_id=fee.id
+    ) THEN
+      PERFORM public.allocate_owner_event(p_organization_id,'management_fee_occurrence',fee.id,'fee-correction-original-'||fee.id::text);
+    END IF;$patch$);
+END;
+$fee_existing_allocation$;

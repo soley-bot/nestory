@@ -527,6 +527,13 @@ SELECT is((SELECT due_date FROM public.tenant_invoice_balances WHERE id=(SELECT 
 SELECT is((SELECT (public.preview_historical_rent_correction(organization_id,(SELECT id FROM current_invoice),1300,9)->>'originalDueDate')::date FROM lease_rent_state),(SELECT greatest(current_period_start+6,(SELECT issue_date FROM public.tenant_invoices WHERE id=(SELECT id FROM current_invoice))) FROM lease_rent_state),'next preview uses previous corrected due date');
 SELECT is((SELECT count(*) FROM public.tenant_invoice_corrections WHERE tenant_invoice_id=(SELECT id FROM current_invoice)),2::bigint,'both edits remain in audit history without retry duplicates');
 SELECT is((SELECT total_amount FROM public.tenant_invoices WHERE id=(SELECT id FROM current_invoice)),1000::numeric,'issued snapshot remains unchanged');
+SAVEPOINT fee_after_rent;
+SELECT lives_ok($$ SELECT public.correct_historical_rent(state.organization_id,balance.id,1250,extract(day FROM balance.due_date)::integer,
+ 'Verified fee after rent correction',public.preview_historical_rent_correction(state.organization_id,balance.id,1250,extract(day FROM balance.due_date)::integer,50)->>'previewHash','fee-after-rent-test',50)
+ FROM lease_rent_state state CROSS JOIN public.tenant_invoice_balances balance WHERE balance.id=(SELECT id FROM current_invoice) $$,'management fee can be corrected after repeated rent edits');
+SELECT is((SELECT sum(amount) FROM public.management_fee_occurrences WHERE tenant_invoice_id=(SELECT id FROM current_invoice)),50::numeric,'fee correction uses latest fee successor');
+SELECT is((SELECT total_amount FROM public.tenant_invoice_balances WHERE id=(SELECT id FROM current_invoice)),1250::numeric,'fee correction preserves corrected tenant rent');
+ROLLBACK TO SAVEPOINT fee_after_rent;
 SELECT lives_ok($$ SELECT public.record_tenant_invoice_payment_with_account(
  state.organization_id,(SELECT id FROM current_invoice),500,state.current_business_date,
  (SELECT account_id FROM public.finance_account_source_links WHERE organization_id=state.organization_id AND source_id=state.source_id),
