@@ -1,24 +1,48 @@
 BEGIN;
 
-SELECT plan(8);
+SELECT plan(9);
 
 SELECT is(
   (
     SELECT count(*)
     FROM public.finance_accounts AS account
     WHERE account.organization_id = '00000000-0000-0000-0000-000000000001'
-      AND account.display_name IN (
-        'Operating account',
-        'Trust account',
-        'Rental income',
-        'Cleaning',
-        'Repairs and maintenance',
-        'Utilities'
+      AND (account.account_class, account.display_name) IN (
+        ('asset', 'Operating account'),
+        ('asset', 'Trust account'),
+        ('income', 'Rental income'),
+        ('expense', 'Cleaning'),
+        ('expense', 'Repairs and maintenance'),
+        ('expense', 'Utilities')
       )
       AND account.archived_at IS NULL
   ),
   6::bigint,
   'the local fixture retains the readable starter Chart accounts'
+);
+
+SELECT is(
+  (
+    SELECT count(*)
+    FROM public.finance_accounts AS account
+    JOIN public.finance_account_category_links AS link
+      ON link.organization_id = account.organization_id
+     AND link.account_id = account.id
+    JOIN public.finance_categories AS category
+      ON category.organization_id = link.organization_id
+     AND category.id = link.category_id
+    WHERE account.organization_id = '00000000-0000-0000-0000-000000000001'
+      AND account.account_class = 'income'
+      AND account.display_name IN ('Utilities', 'Parking', 'Internet')
+      AND account.use_for_lease_charges
+      AND account.archived_at IS NULL
+      AND category.namespace = 'tenant_billing'
+      AND category.code IN ('utilities', 'parking', 'internet')
+      AND category.normalized_label = account.normalized_name
+      AND category.archived_at IS NULL
+  ),
+  3::bigint,
+  'common tenant charges are available through their billing-category mappings'
 );
 
 SELECT is(
