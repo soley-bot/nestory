@@ -251,7 +251,7 @@ test("generation-first term change waits then rejects immutable obligation drift
 
   assert.equal(firstResult.status, 0, firstResult.stderr);
   assert.notEqual(secondResult.status, 0, "same-period term change unexpectedly succeeded");
-  assert.match(secondResult.stderr, /rent_obligation_already_generated/);
+  assert.match(secondResult.stderr, /issued_rent_change_requires_month_start/);
   assert.ok(elapsedMs >= 1_500, `term change waited only ${elapsedMs.toFixed(0)}ms`);
   assert.doesNotMatch(`${firstResult.stderr}\n${secondResult.stderr}`, /deadlock detected|40P01/i);
   assert.equal(
@@ -305,7 +305,7 @@ test("pre-financial generator wins without a lease/month deadlock", async () => 
   assert.equal(blockerResult.status, 0, blockerResult.stderr);
   assert.equal(generatorResult.status, 0, generatorResult.stderr);
   assert.notEqual(schedulerResult.status, 0, "same-period term change unexpectedly succeeded");
-  assert.match(schedulerResult.stderr, /rent_obligation_already_generated/);
+  assert.match(schedulerResult.stderr, /issued_rent_change_requires_month_start/);
   assert.doesNotMatch(combined, /deadlock detected|40P01/i);
   assert.equal(
     run(`

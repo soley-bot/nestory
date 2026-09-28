@@ -287,6 +287,7 @@ function leaseLoaderStub({
     },
   );
   const rpc = vi.fn((name: string, args: Record<string, unknown>) => {
+    if (name === "get_lease_rent_business_date") return query(ok("2026-09-28"));
     if (name === "get_lease_read_context") {
       return query(contextResult ?? ok({
         properties: [{ archived_at: null, code: "PILOT", id: propertyId, name: "Pilot Property", rental_structure: "single_space" }],

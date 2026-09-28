@@ -11718,6 +11718,10 @@ export type Database = {
         Args: { p_lease_ids?: string[]; p_organization_id: string }
         Returns: Json
       }
+      get_lease_rent_business_date: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
       get_leases_with_effective_rent: {
         Args: { p_effective_date: string; p_organization_id: string }
         Returns: {

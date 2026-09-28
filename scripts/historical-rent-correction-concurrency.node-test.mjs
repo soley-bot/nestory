@@ -123,6 +123,7 @@ function setupCase() {
   const output = run(fixture + `
     SELECT jsonb_build_object(
       'invoiceId',c.invoice_id,
+      'leaseId',state.good_lease_id, 'termId',state.good_term_id,
       'previewHash',public.preview_historical_rent_correction(
         state.organization_id,c.invoice_id,1200,10)->>'previewHash'
     ) FROM historical_cases c CROSS JOIN lease_rent_state state
@@ -173,7 +174,7 @@ test("concurrent same-key correction callers both receive the identical result",
     WHERE organization_id='${organizationId}' AND tenant_invoice_id='${scope.invoiceId}'`),"1");
 });
 
-test("different correction keys cannot append two successors to one invoice", { timeout: 30_000 }, async () => {
+test("concurrent edits with the same preview cannot append two successors", { timeout: 30_000 }, async () => {
   const scope = setupCase();
   const first = spawnSession(correctionSql(scope,"historical-race-first","historical-first",true));
   await waitForMarker(first,"historical_rent_race_ready");
@@ -182,9 +183,70 @@ test("different correction keys cannot append two successors to one invoice", { 
   const [winner,loser] = await Promise.all([first.done,second.done]);
   assert.equal(winner.status,0,winner.stderr);
   assert.notEqual(loser.status,0);
-  assert.match(loser.stderr,/historical_rent_already_corrected/);
+  assert.match(loser.stderr,/historical_rent_preview_stale/);
   assert.equal(run(`SELECT count(*) FROM public.tenant_invoice_lines
     WHERE organization_id='${organizationId}' AND invoice_id='${scope.invoiceId}'`),"3");
   assert.equal(run(`SELECT total_amount FROM public.tenant_invoice_balances
     WHERE organization_id='${organizationId}' AND id='${scope.invoiceId}'`),"1200.00");
+});
+
+function termCorrectionSql(scope, pause) {
+  return `BEGIN;
+    SET LOCAL statement_timeout='15s';
+    SET LOCAL application_name='rent-term-correction';
+    SELECT set_config('request.jwt.claim.sub','${superAdminId}',true);
+    SELECT set_config('request.jwt.claim.role','authenticated',true);
+    SET LOCAL ROLE authenticated;
+    SELECT public.schedule_authoritative_lease_term('${organizationId}','${scope.leaseId}',
+      (SELECT billing_period_start FROM public.tenant_invoices WHERE id='${scope.invoiceId}'),
+      (SELECT end_date FROM public.lease_terms WHERE id='${scope.termId}'),
+      1300,'USD',10,'monthly','${scope.termId}','term-direct-correction-race');
+    ${pause ? "DO $ready$ BEGIN RAISE NOTICE 'rent_term_correction_ready'; END $ready$; SELECT pg_sleep(2);" : ""}
+    COMMIT;`;
+}
+
+test("term correction and direct correction serialize before month locks", { timeout: 30_000 }, async () => {
+  const scope = setupCase();
+  const first = spawnSession(termCorrectionSql(scope,true));
+  await waitForMarker(first,"rent_term_correction_ready");
+  const second = spawnSession(correctionSql(scope,"direct-after-term","historical-second",false));
+  await waitForDatabaseLock("historical-second");
+  const [term,direct] = await Promise.all([first.done,second.done]);
+  assert.equal(term.status,0,term.stderr);
+  assert.notEqual(direct.status,0);
+  assert.match(direct.stderr,/historical_rent_preview_stale/);
+  assert.doesNotMatch(term.stderr + direct.stderr,/deadlock detected|40P01/i);
+});
+
+test("direct correction and term correction serialize in the reverse order", { timeout: 30_000 }, async () => {
+  const scope = setupCase();
+  const first = spawnSession(correctionSql(scope,"direct-before-term","historical-first",true));
+  await waitForMarker(first,"historical_rent_race_ready");
+  const second = spawnSession(termCorrectionSql(scope,false));
+  await waitForDatabaseLock("rent-term-correction");
+  const results = await Promise.all([first.done,second.done]);
+  for (const result of results) assert.equal(result.status,0,result.stderr);
+  assert.doesNotMatch(results.map(result=>result.stderr).join("\n"),/deadlock detected|40P01/i);
+});
+
+test("fee correction serializes with an effective-month rent change", { timeout: 30_000 }, async () => {
+  const scope = setupCase();
+  const first = spawnSession(`BEGIN;
+    SET LOCAL statement_timeout='15s';
+    SELECT set_config('request.jwt.claim.sub','${superAdminId}',true);
+    SELECT set_config('request.jwt.claim.role','authenticated',true);
+    SET LOCAL ROLE authenticated;
+    SELECT public.correct_historical_rent('${organizationId}','${scope.invoiceId}',1000,
+      extract(day FROM i.due_date)::integer,'Verified fee correction evidence',
+      public.preview_historical_rent_correction('${organizationId}','${scope.invoiceId}',1000,extract(day FROM i.due_date)::integer,50)->>'previewHash',
+      'fee-before-term-correction',50)
+    FROM public.tenant_invoices i WHERE i.id='${scope.invoiceId}';
+    DO $ready$ BEGIN RAISE NOTICE 'fee_rent_correction_ready'; END $ready$;
+    SELECT pg_sleep(2); COMMIT;`);
+  await waitForMarker(first,"fee_rent_correction_ready");
+  const second = spawnSession(termCorrectionSql(scope,false));
+  await waitForDatabaseLock("rent-term-correction");
+  const results = await Promise.all([first.done,second.done]);
+  for (const result of results) assert.equal(result.status,0,result.stderr);
+  assert.doesNotMatch(results.map(result=>result.stderr).join("\n"),/deadlock detected|40P01/i);
 });

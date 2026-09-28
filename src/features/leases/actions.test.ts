@@ -33,6 +33,7 @@ import {
   reverseLeaseDepositEventAction,
   saveLeaseBillingRulesAction,
   scheduleLeaseActivationAction,
+  scheduleFutureRentTermAction,
   transitionLeaseLifecycleAction,
   updateLeaseAction,
 } from "@/features/leases/actions";
@@ -62,6 +63,21 @@ describe("Lease occupancy evidence input", () => {
     leasePathQuery.select.mockReturnValue(leasePathQuery);
     requirePermission.mockResolvedValue({ organizationId, userId });
     rpc.mockResolvedValue({ data: { leaseId }, error: null });
+  });
+
+  it("sends a past effective month to the audited rent command", async () => {
+    const form = new FormData();
+    Object.entries({ leaseId, startDate: "2026-09-01", endDate: "2027-08-31",
+      rentAmount: "1400", rentDueDay: "7", paymentFrequency: "monthly",
+      supersedesTermId: "50000000-0000-4000-8000-000000000001",
+      idempotencyKey: "60000000-0000-4000-8000-000000000001",
+    }).forEach(([key, value]) => form.set(key, value));
+    rpc.mockResolvedValueOnce({ data: "new-term", error: null });
+    await expect(scheduleFutureRentTermAction({}, form)).resolves.toMatchObject({ status: "success" });
+    expect(rpc).toHaveBeenCalledWith("schedule_authoritative_lease_term", expect.objectContaining({
+      p_start_date: "2026-09-01", p_rent_amount: 1400, p_rent_due_day: 7,
+    }));
+    expect(revalidatePath).toHaveBeenCalledWith("/reports");
   });
 
   it("explains a database-side verification race during lease save", async () => {

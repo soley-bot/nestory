@@ -895,7 +895,7 @@ export async function scheduleFutureRentTermAction(
     return {
       message:
         parsed.error.issues[0]?.message ??
-        "Complete the future term before scheduling it.",
+        "Complete the rent change details.",
       status: "error",
     };
   }
@@ -1211,8 +1211,27 @@ function leaseActionErrorMessage(error: {
     return "These dates overlap another authoritative term. Choose a non-overlapping effective range.";
   }
 
-  if (message.includes("future rent change must begin")) {
-    return "A future rent change must begin after today and after the active term starts.";
+  if (message.includes("rent_change_must_follow_term_start")) {
+    return "Choose a month within the active term. Use Correct historical rent for an earlier term.";
+  }
+  if (message.includes("issued_rent_change_requires_month_start")) {
+    return "Choose the first day of the month to update issued rent. Issued periods currently require monthly billing.";
+  }
+  if (message.includes("issued_rent_change_source_unsupported")) {
+    return "This issued rent uses an older billing calculation. Review its exact charge before changing the schedule. Nothing was changed.";
+  }
+  if (message.includes("issued_rent_change_prorated")) {
+    return "This month has an agreed prorated charge. Use Correct historical rent to enter the exact charge for that month, then change the ongoing rent from the next full month.";
+  }
+  if (message.includes("issued_rent_change_period_mismatch")) {
+    return "The effective dates must cover the complete issued month. Check the effective date and term end date.";
+  }
+  if (message.includes("rent_change_requires_linked_review") || message.includes("historical_rent_correction_blocked")) {
+    const detail = error.details ?? "";
+    if (detail.includes("historical_rent_tenant_credit_unsupported")) return "The new rent is below the amount already collected. Resolve the excess payment before reducing this month's rent.";
+    if (detail.includes("historical_rent_dependent_owner_cash")) return "A related expense or owner payment has already used this rent. Review those linked transactions before saving. Nothing was changed.";
+    if (detail.includes("owner_close") || detail.includes("financial_month_locked")) return "An affected financial month is closed. Reopen that month before changing its rent. Nothing was changed.";
+    return "A linked payment needs review before this rent can change. Open the issued rent correction preview for details. Nothing was changed.";
   }
 
   if (message.includes("reporting period is locked")) {

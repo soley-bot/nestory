@@ -433,6 +433,20 @@ describe("LeaseDetailScreen", () => {
     expect(screen.getByRole("menuitem", { name: "Complete move-out" })).not.toBeNull();
   });
 
+  it("defaults Change rent to the organization rent-policy month", async () => {
+    const user = userEvent.setup();
+    renderDetail("rent", makeLease(), allLeasePermissions, {
+      billingFormConfig: { companyOptions: [], organizationName: "Pilot",
+        operationalTimezone: "America/New_York", rentBusinessDate: "2026-08-31" },
+    });
+    await user.click(screen.getByRole("button", { name: "Manage lease" }));
+    await user.click(screen.getByRole("menuitem", { name: "Change rent" }));
+    const dialog = screen.getByRole("dialog", { name: "Change rent" });
+    const form = dialog.querySelector("form")!;
+    expect(new FormData(form).get("startDate")).toBe("2026-08-01");
+    expect(within(dialog).getByText(/including the current or a past month/)).not.toBeNull();
+  });
+
   it("keeps historical correction distinct from future Change rent for Super Admin", async () => {
     const user = userEvent.setup();
     renderDetail(

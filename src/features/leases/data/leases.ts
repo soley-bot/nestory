@@ -768,7 +768,7 @@ async function loadLeaseBillingFormConfig(
   supabase: SupabaseServerClient,
   organizationId: string,
 ): Promise<LeaseBillingFormConfig> {
-  const [organizationResult, companiesResult] = await Promise.all([
+  const [organizationResult, companiesResult, businessDateResult] = await Promise.all([
     supabase
       .from("organizations")
       .select("name, operational_timezone")
@@ -781,6 +781,7 @@ async function loadLeaseBillingFormConfig(
       .eq("party_type", "company")
       .is("archived_at", null)
       .order("display_name"),
+    supabase.rpc("get_lease_rent_business_date", { p_organization_id: organizationId }),
   ]);
 
   if (organizationResult.error) {
@@ -794,11 +795,16 @@ async function loadLeaseBillingFormConfig(
     );
   }
 
+  if (businessDateResult.error || typeof businessDateResult.data !== "string") {
+    throw new Error("Could not load the company rent business date");
+  }
+
   return {
     companyOptions: (companiesResult.data ?? []).map((person) => ({
       id: person.id,
       label: person.display_name,
     })),
+    rentBusinessDate: businessDateResult.data,
     operationalTimezone:
       organizationResult.data.operational_timezone || "UTC",
     organizationName: organizationResult.data.name || "our company",

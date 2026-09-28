@@ -809,9 +809,9 @@ SELECT throws_ok(
       'track-5-generated-obligation-drift'
     )
   $$,
-  '23514',
-  'rent_obligation_already_generated',
-  'a generated immutable obligation blocks a later same-period rent split'
+  '22023',
+  'issued_rent_change_requires_month_start',
+  'issued rent rejects a mid-month edit and requests a full-month effective date'
 );
 
 RESET ROLE;
