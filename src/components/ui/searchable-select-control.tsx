@@ -35,6 +35,7 @@ type SearchableSelectControlProps = {
   options: SearchableSelectControlOption[];
   placeholder?: string;
   required?: boolean;
+  triggerRole?: "button" | "combobox";
   value: string;
 };
 
@@ -52,6 +53,7 @@ export function SearchableSelectControl({
   options,
   placeholder = "Select",
   required = false,
+  triggerRole,
   value,
 }: SearchableSelectControlProps) {
   const listboxId = useId();
@@ -142,7 +144,7 @@ export function SearchableSelectControl({
             )}
             disabled={disabled}
             data-invalid={ariaInvalid === true || ariaInvalid === "true"}
-            role="combobox"
+            role={triggerRole}
             type="button"
           >
             <span className="min-w-0 flex-1">

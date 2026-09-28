@@ -111,6 +111,7 @@ export function SelectControl(props: SelectControlProps) {
           onValueChange={handleValueChange}
           options={options}
           placeholder={placeholder}
+          triggerRole="combobox"
           value={selectedValue}
           wrapOptions
         />
