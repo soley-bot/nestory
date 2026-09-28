@@ -20,7 +20,7 @@ const id = "00000000-0000-4000-8000-000000000001";
 const propertyId = "00000000-0000-4000-8000-000000000002";
 const reversal = "00000000-0000-4000-8000-000000000003";
 
-function form(overrides: Record<string, string> = {}) {
+function form(overrides: Partial<Record<string, string>> = {}) {
   const data = new FormData();
   const values = {
     date: "2026-08-31",
@@ -32,7 +32,9 @@ function form(overrides: Record<string, string> = {}) {
     reason: "Duplicate transaction",
     ...overrides,
   };
-  for (const [key, value] of Object.entries(values)) data.set(key, value);
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined) data.set(key, value);
+  }
   return data;
 }
 
