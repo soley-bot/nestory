@@ -12661,15 +12661,6 @@ export type Database = {
         Args: { p_member_id: string; p_organization_id: string }
         Returns: string
       }
-      reopen_owner_month: {
-        Args: {
-          p_idempotency_key: string
-          p_organization_id: string
-          p_owner_close_series_id: string
-          p_reopen_reason: string
-        }
-        Returns: Json
-      }
       renew_and_activate_draft_lease: {
         Args: {
           p_expected_occupancy_id: string
@@ -12680,6 +12671,15 @@ export type Database = {
           p_organization_id: string
           p_renewal_end_date: string
           p_rent_amount: number
+        }
+        Returns: Json
+      }
+      reopen_owner_month: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_owner_close_series_id: string
+          p_reopen_reason: string
         }
         Returns: Json
       }
