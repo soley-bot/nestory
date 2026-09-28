@@ -1,0 +1,54 @@
+name: Apply void invoice screen patch
+
+on:
+  push:
+    branches:
+      - codex/void-invoice-from-rent
+    paths:
+      - scripts/apply-void-invoice-screen-patch.py
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Trigger void invoice screen patch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out patch branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: codex/void-invoice-from-rent
+          fetch-depth: 0
+
+      - name: Apply screen patch
+        run: python scripts/apply-void-invoice-screen-patch.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Lint changed files
+        run: npx eslint src/features/finance-operations/components/finance-operations-screen.tsx src/features/finance-operations/components/rent-invoice-filters.tsx src/features/finance-operations/components/rent-invoice-filters.test.ts src/features/finance-operations/components/tenant-invoice-void-control.tsx src/features/finance-operations/components/tenant-invoice-void-control.test.tsx src/features/finance-operations/components/transaction-delete-dialog.tsx
+
+      - name: Test focused invoice correction workflow
+        run: npx vitest run src/features/finance-operations/components/rent-invoice-filters.test.ts src/features/finance-operations/components/tenant-invoice-void-control.test.tsx src/features/finance-operations/components/transaction-delete-dialog.test.tsx
+
+      - name: Commit screen integration
+        run: |
+          git config user.name "soley-bot"
+          git config user.email "143jester@gmail.com"
+          git add src/features/finance-operations/components/finance-operations-screen.tsx
+          git diff --cached --quiet && exit 1
+          git commit -m "Expose invoice void action in rent details"
+          git push origin HEAD:codex/void-invoice-from-rent
