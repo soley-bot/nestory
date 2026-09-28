@@ -73,7 +73,7 @@ describe("delete financial transaction", () => {
     expect(
       await deleteTransactionAction({}, form({ kind: "tenant-invoice" })),
     ).toEqual({
-      message: "Invoice voided. Its audit history is retained.",
+      message: "Invoice voided and removed from Rent & collections. Review the lease to prevent future charges.",
       status: "success",
     });
     expect(mocks.revalidate).toHaveBeenCalledWith("/rent-income", "layout");
