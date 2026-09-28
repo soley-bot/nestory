@@ -173,7 +173,7 @@ test("concurrent same-key correction callers both receive the identical result",
     WHERE organization_id='${organizationId}' AND tenant_invoice_id='${scope.invoiceId}'`),"1");
 });
 
-test("different correction keys cannot append two successors to one invoice", { timeout: 30_000 }, async () => {
+test("concurrent edits with the same preview cannot append two successors", { timeout: 30_000 }, async () => {
   const scope = setupCase();
   const first = spawnSession(correctionSql(scope,"historical-race-first","historical-first",true));
   await waitForMarker(first,"historical_rent_race_ready");
@@ -182,7 +182,7 @@ test("different correction keys cannot append two successors to one invoice", { 
   const [winner,loser] = await Promise.all([first.done,second.done]);
   assert.equal(winner.status,0,winner.stderr);
   assert.notEqual(loser.status,0);
-  assert.match(loser.stderr,/historical_rent_already_corrected/);
+  assert.match(loser.stderr,/historical_rent_preview_stale/);
   assert.equal(run(`SELECT count(*) FROM public.tenant_invoice_lines
     WHERE organization_id='${organizationId}' AND invoice_id='${scope.invoiceId}'`),"3");
   assert.equal(run(`SELECT total_amount FROM public.tenant_invoice_balances
