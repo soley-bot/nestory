@@ -75,15 +75,15 @@ BEGIN
     charge.display_name,
     charge.reporting_group,
     charge.sort_order,
-    true,
+    charge.is_default,
     p_organization_id,
     p_organization_id
   FROM (
     VALUES
-      ('utilities'::text, 'Utilities'::text, 'utilities'::text, 'utility_reimbursement'::text, 20),
-      ('parking', 'Parking', 'parking', 'parking', 25),
-      ('internet', 'Internet', 'internet', 'utility_reimbursement', 27)
-  ) AS charge(normalized_name, display_name, category_code, reporting_group, sort_order)
+      ('utilities'::text, 'Utilities'::text, 'utilities'::text, 'utility_reimbursement'::text, 20, true),
+      ('parking', 'Parking', 'parking', 'parking', 25, false),
+      ('internet', 'Internet', 'internet', 'utility_reimbursement', 27, false)
+  ) AS charge(normalized_name, display_name, category_code, reporting_group, sort_order, is_default)
   ON CONFLICT DO NOTHING;
 
   PERFORM pg_catalog.set_config(
