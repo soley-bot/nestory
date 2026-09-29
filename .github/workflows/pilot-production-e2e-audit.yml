@@ -58,3 +58,5 @@ jobs:
       - name: Report audit failures
         if: steps.audit.outputs.status != '0'
         run: exit 1
+
+# This file is temporary and exists only to run a read-only Pilot production audit.
