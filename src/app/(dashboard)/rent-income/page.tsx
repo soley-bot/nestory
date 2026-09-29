@@ -42,7 +42,7 @@ export default async function RentIncomePage({
       canSubmitExpense={context.capabilities.canSubmitExpense}
       canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       initialBillingLeaseId={initialBillingLeaseId}
-      initialRentLeaseId={query.leaseId}
+      initialRentLeaseId={query.invoiceId ? undefined : query.leaseId}
       organizationName={context.organizationName}
       view="rent"
     />
