@@ -861,6 +861,7 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
               ? context.unitsById.get(event.unitId)
               : undefined;
             return {
+              sourceHref: ownerProfitLossEventHref(event),
               name: event.partyName ?? "",
               type: event.isReversal ? "Correction" : event.economicClass === "owner_income" ? "Invoice" : "Expense",
               amountCents: event.signedAmountCents,
@@ -1873,6 +1874,7 @@ function ownerProfitLossEventSource(
       : `${reportingGroupLabel} · ${event.categoryLabel}`;
 
   return {
+    href: ownerProfitLossEventHref(event),
     id: event.sourceId,
     label: `${categoryContext} ${sourceLabel}`,
     recordType:
@@ -2499,4 +2501,13 @@ function addIsoDays(date: string, days: number) {
   value.setUTCDate(value.getUTCDate() + days);
 
   return value.toISOString().slice(0, 10);
+}
+
+function ownerProfitLossEventHref(event: OwnerProfitLossEvent): string | undefined {
+  if (event.sourceParentType === "tenant_invoice" && event.sourceParentId) {
+    return `/rent-income?invoiceId=${encodeURIComponent(event.sourceParentId)}${event.leaseId ? `&leaseId=${encodeURIComponent(event.leaseId)}` : ""}`;
+  }
+  if (event.sourceType === "owner_invoice_line" || event.sourceType === "expense_customer_adjustment") {
+    return `/bills-expenses?sourceType=${event.sourceType}&sourceId=${encodeURIComponent(event.sourceType === "owner_invoice_line" ? event.reversalOfId ?? event.sourceId : event.sourceId)}`;
+  }
 }

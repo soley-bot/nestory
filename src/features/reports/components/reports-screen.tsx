@@ -59,7 +59,7 @@ export function ReportBuilderScreen({
       <ReportsFilters key={queryKey} compact action={`/reports/${viewQuery.report}`} propertyOptions={propertyOptions} unitOptions={unitOptions} ownerOptions={ownerOptions} viewQuery={viewQuery} />
       <div className="workspace-gutter-x pb-4">
         {validation ? <div role={trustedReport.scopeValidation ? "alert" : "status"} className="my-3 rounded-md border border-warning/30 bg-warning-soft/35 px-3 py-2 text-sm"><p className="font-semibold">{trustedReport.scopeValidation ? "Report unavailable" : "Export unavailable"}</p><p>{validation.message}</p></div> : null}
-        <UnitProfitLossWorkspace key={queryKey} report={trustedReport} />
+        <UnitProfitLossWorkspace returnTo={`/reports/${viewQuery.report}?${queryKey}`} key={queryKey} report={trustedReport} />
       </div>
     </WorkspacePage>;
   }

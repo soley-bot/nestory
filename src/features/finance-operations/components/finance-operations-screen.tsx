@@ -98,6 +98,7 @@ import {
   getBusinessDateValue,
   getBusinessMonthValue,
 } from "@/lib/dates/business-date";
+import { ExpenseChangeHistory } from "./expense-change-history";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
@@ -174,6 +175,8 @@ type FinanceOperationsScreenProps = FinanceOperationsData & {
   canViewLeases?: boolean;
   canViewPropertyRecords?: boolean;
   initialBillingLeaseId?: string;
+  initialExpenseId?: string;
+  initialInvoiceId?: string;
   initialExpenseIntent?: "owner" | "tenant";
   initialRentLeaseId?: string;
   openingAuthority?: ReactNode;
@@ -225,7 +228,12 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
           }
         : null,
   );
-  const [modal, setModal] = useState<ModalState | null>(null);
+  const [modal, setModal] = useState<ModalState | null>(() => {
+    const submission = props.expenseSubmissions.find(item => item.id === props.initialExpenseId || item.lines?.some(line => line.submissionId === props.initialExpenseId));
+    if (submission) return { mode: "expense-details", submission };
+    const invoice = props.tenantInvoices.find(item => item.id === props.initialInvoiceId);
+    return invoice ? { mode: "invoice-details", invoice } : null;
+  });
   const [invoicePdfResultHref, setInvoicePdfResultHref] = useState<string | null>(
     null,
   );
@@ -2660,6 +2668,7 @@ function ExpenseDetails({
         </p>
       ) : null}
       <ExpenseLines submission={submission} />
+      {submission.transactionId ? <ExpenseChangeHistory key={submission.transactionId} transactionId={submission.transactionId} /> : null}
       {submission.replacesTransactionId ? <p className="text-sm text-muted-foreground">Replacement for a previous expense. The original remains in history.</p> : null}
       {originalExpense ? <Button variant="outline" onClick={() => onViewRelated(originalExpense)}>View original expense</Button> : null}
       {replacementExpense ? <Button variant="outline" onClick={() => onViewRelated(replacementExpense)}>View replacement expense</Button> : null}
@@ -3346,7 +3355,7 @@ function OwnerExpenseTransactionForm({
       ariaLabel="Record property expense form"
       onCancel={onClose}
       pending={pending}
-      saveLabel={replacement ? replacement.status === "approved" ? "Save correction for review" : "Save changes for review" : "Submit for review"}
+      saveLabel={replacement ? replacement.status === "approved" ? "Save correction" : "Save changes for review" : "Submit for review"}
       savingLabel="Submitting expense"
       state={state}
     >
@@ -3367,11 +3376,11 @@ function OwnerExpenseTransactionForm({
         <input name="replacementTransactionId" type="hidden" value={replacement.transactionId ?? ""} />
         <input name="expectedStatus" type="hidden" value={replacement.status} />
         <p className="text-sm text-muted-foreground">{replacement.status === "approved"
-          ? "The original expense will be reversed when you save. The replacement needs approval before it affects the owner balance."
+          ? "Save updates the expense and its financial effects together. The original, correction reason, and replacement remain in history."
           : "Your changes replace the pending submission. The previous version remains in history."}</p>
-        {replacement.status === "approved" ? <Field label="Reversal date"><DatePickerField name="reversalDate" defaultValue={getBusinessDateValue()} required /></Field> : <input name="reversalDate" type="hidden" value={getBusinessDateValue()} />}
+        {replacement.status === "approved" ? <Field label="Reversal date"><DatePickerField name="reversalDate" defaultValue={replacement.date} required /></Field> : <input name="reversalDate" type="hidden" value={getBusinessDateValue()} />}
         <Field label="Reason for change"><Input name="replacementReason" minLength={3} maxLength={500} required /></Field>
-        {replacement.evidence ? <p className="text-sm text-muted-foreground">Original receipt: {replacement.evidence.fileName}. Upload the receipt again for this replacement; the original attachment stays in history.</p> : null}
+        {replacement.evidence ? <p className="text-sm text-muted-foreground">Original receipt: {replacement.evidence.fileName}. The receipt is retained automatically. Choose another file only if you want to replace it.</p> : null}
       </> : null}
 
       <FormSection
@@ -4049,6 +4058,7 @@ function ExpenseReviewForm({
     <form action={action} className="space-y-4 p-4">
       <input name="decision" type="hidden" value={decision} />
       <ExpenseLines submission={submission} />
+
       <input name={submission.transactionId ? "transactionId" : "submissionId"} type="hidden" value={submission.transactionId ?? submission.id} />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
       <input name="reason" type="hidden" value={reason} />

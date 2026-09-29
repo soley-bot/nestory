@@ -225,7 +225,7 @@ export async function getTransactionReport({
         supabase
           .from("management_fee_occurrences")
           .select(
-            "id, organization_id, property_id, lease_id, fee_date, currency, amount, reversal_of_id, tenant_invoices!inner(unit_id)",
+            "id, organization_id, property_id, lease_id, tenant_invoice_id, fee_date, currency, amount, reversal_of_id, tenant_invoices!inner(unit_id)",
             { count: "exact" },
           )
           .eq("organization_id", organizationId)
@@ -265,7 +265,7 @@ export async function getTransactionReport({
           description: "Management fee",
           amountCents: amount,
           payeeId: null,
-          href: `/leases/${encodeURIComponent(fee.lease_id)}`,
+          href: `/rent-income?invoiceId=${encodeURIComponent(fee.tenant_invoice_id)}`,
           recordType: "property-account-entry",
         });
       }
@@ -284,8 +284,8 @@ export async function getTransactionReport({
           description: event.description,
           amountCents: event.signedAmountCents,
           payeeId: null,
-          href: event.leaseId
-            ? `/leases/${encodeURIComponent(event.leaseId)}`
+          href: event.sourceParentId && event.sourceParentType === "tenant_invoice"
+            ? `/rent-income?invoiceId=${encodeURIComponent(event.sourceParentId)}`
             : accountHref(property.id, event.recognizedOn),
           recordType: "income-obligation",
         });
@@ -323,7 +323,7 @@ export async function getTransactionReport({
           description: event.description,
           amountCents: -event.amountCents,
           payeeId: event.vendorPersonId,
-          href: accountHref(property.id, event.eventDate),
+          href: event.sourceType === "payment_allocation" ? `/bills-expenses?sourceType=payment_allocation&sourceId=${encodeURIComponent(event.sourceId)}` : accountHref(property.id, event.eventDate),
           recordType:
             event.sourceType === "petty_cash_entry"
               ? "petty-cash-entry"
@@ -413,7 +413,7 @@ export async function getTransactionReport({
           description: `${payment.receipt_number} · ${invoice.invoice_number}${payment.reference ? ` · ${payment.reference}` : ""}`,
           amountCents: amount,
           payeeId: null,
-          href: `/leases/${encodeURIComponent(invoice.lease_id)}`,
+          href: `/rent-income?invoiceId=${encodeURIComponent(payment.invoice_id)}`,
           recordType: "receipt",
         });
       }

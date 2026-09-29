@@ -75,7 +75,7 @@ never fills adjacent months automatically.
 
 ### Paid expense to approval to reversal
 
-1. Finance Member or Super Admin submits amount, currency, property scope,
+1. Finance Member, Finance Manager, or Super Admin submits amount, currency, property scope,
    vendor, responsibility, paid-from source, and evidence to
    `expense_submissions`.
 2. Submission is evidence only. It creates no payment, customer charge, Ledger
@@ -84,7 +84,7 @@ never fills adjacent months automatically.
 4. Approval atomically creates the paid expense, payment/allocation, owner or
    tenant effect, activity, and one exact source-linked Ledger event.
 5. Rejection records the reviewer and reason without a financial effect.
-6. Only Super Admin may reverse an approved expense. Reversal appends exact
+6. Super Admin and authorized Finance Manager may reverse an approved expense. Reversal appends exact
    opposite payment, customer, and Ledger evidence; it does not rewrite the
    original transaction.
 
@@ -454,3 +454,16 @@ and production smoke always require explicit authorization.
 Every handoff reports changed behavior, passed and failed checks, checks not
 run, remaining limitations, exact branch/commit state, and hosted state when it
 was in scope.
+
+### Daily financial corrections
+
+Super Admin and Finance Manager can create expenses, edit pending expenses from
+other submitters, and correct or delete approved expenses within their authorized
+property scope. Finance Manager uses the existing approval and correction
+permissions together; other custom roles retain their configured permissions.
+An approved expense correction reverses the original and approves its replacement
+atomically. Every correction retains the actor, time, reason, and before/after
+values. Existing receipts are copied into verified replacement evidence unless
+the operator chooses a new receipt. Original financial evidence remains readable.
+Live report rows open their source expense or rent invoice and retain a return
+link with the report filters. Saved source changes refresh live report totals.

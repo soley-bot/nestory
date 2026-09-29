@@ -12,6 +12,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AnchorHTMLAttributes } from "react";
 
+vi.mock("../expense-history", () => ({ getExpenseHistory: vi.fn().mockResolvedValue([]) }));
+
 const navigation = vi.hoisted(() => ({
   pathname: "/finance",
   replace: vi.fn(),
@@ -218,8 +220,8 @@ describe("FinanceOperationsScreen", () => {
     await user.click(screen.getByRole("tab", { name: "Approved (1)" }));
     await user.click(screen.getByRole("button", { name: "View Sokha Repairs" }));
     await user.click(screen.getByRole("button", { name: "Correct expense" }));
-    expect(screen.getByText(/replacement needs approval before it affects the owner balance/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Save correction for review" })).toBeTruthy();
+    expect(screen.getByText(/Save updates the expense and its financial effects together/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save correction" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Cancel expense" })).toBeNull();
   });
 

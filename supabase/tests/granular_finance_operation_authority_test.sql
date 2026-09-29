@@ -297,9 +297,9 @@ SELECT throws_ok(
     'Unauthorized correction',
     'manager-expense-reversal-1'
   ),
-  '42501',
-  'Not authorized',
-  'Finance Manager cannot call the expense reversal RPC'
+  '23503',
+  'Expense submission not found',
+  'Finance Manager reversal validates the target record'
 );
 RESET ROLE;
 

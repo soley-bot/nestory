@@ -1,5 +1,7 @@
 "use client";
 
+import { withReportReturn } from "../report-return";
+import { buildReportQueryParams } from "../reports.filters";
 import * as React from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
@@ -45,10 +47,12 @@ type DisplayColumn =
     };
 
 export function ReportResultsTable({
-  report,
+  report: inputReport,
   reportRowCount,
   viewQuery,
 }: ReportResultsTableProps) {
+  const origin = `/reports/${viewQuery.report}?${buildReportQueryParams(viewQuery).toString()}`;
+  const report = { ...inputReport, rows: inputReport.rows.map(row => ({ ...row, href: row.href && /^\/(bills-expenses|rent-income)(\?|$)/.test(row.href) ? withReportReturn(row.href, origin) : row.href })) };
   const [activeRow, setActiveRow] = React.useState<TrustedReportRow | null>(
     null,
   );
@@ -297,6 +301,7 @@ function ReportRowDetails({
   viewQuery: ReportsViewQuery;
 }) {
   if (!row) return null;
+  const returnTo = `/reports/${viewQuery.report}?${buildReportQueryParams(viewQuery).toString()}`;
 
   const unitLines = report.kind === "unit-profit-loss" && !report.scopeValidation && report.unitProfitLossLines ? report.unitProfitLossLines.filter((line) => row.id.startsWith("property-level:") ? line.unitId === null && line.propertyId === row.id.slice("property-level:".length) : line.unitId === row.id) : null;
   const hiddenSourceCount = Math.max(
@@ -320,7 +325,7 @@ function ReportRowDetails({
           ) : null}
           {row.href ? (
             <Button asChild size="sm">
-              <Link href={row.href}>Open record</Link>
+              <Link href={withReportReturn(row.href, returnTo)}>Open record</Link>
             </Button>
           ) : null}
         </>
@@ -365,7 +370,7 @@ function ReportRowDetails({
           </section>
         ) : null}
 
-        {unitLines ? <ProfitLossUnitTransactions lines={unitLines} /> : null}
+        {unitLines ? <ProfitLossUnitTransactions returnTo={returnTo} lines={unitLines} /> : null}
         <section aria-labelledby="report-row-sources">
           <h3 className="font-semibold text-foreground" id="report-row-sources">
             Source records
@@ -378,7 +383,7 @@ function ReportRowDetails({
                 source.href ? (
                   <Link
                     className="flex min-h-10 items-center justify-between gap-3 py-2 font-medium text-foreground hover:underline"
-                    href={source.href}
+                    href={/^\/(bills-expenses|rent-income)(\?|$)/.test(source.href) ? withReportReturn(source.href, returnTo) : source.href}
                     key={`${source.recordType}:${source.id}`}
                   >
                     <span className="min-w-0">

@@ -332,6 +332,7 @@ FROM (
     ('00000000-0000-0000-0000-000000000311'::uuid, 'finance.view'::public.organization_permission_key),
     ('00000000-0000-0000-0000-000000000311'::uuid, 'finance.record_payments'::public.organization_permission_key),
     ('00000000-0000-0000-0000-000000000311'::uuid, 'finance.approve_expenses'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000311'::uuid, 'finance.submit_expenses'::public.organization_permission_key),
     ('00000000-0000-0000-0000-000000000311'::uuid, 'finance.correct_records'::public.organization_permission_key),
     ('00000000-0000-0000-0000-000000000311'::uuid, 'finance.close_periods'::public.organization_permission_key),
     ('00000000-0000-0000-0000-000000000311'::uuid, 'finance.publish'::public.organization_permission_key),

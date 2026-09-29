@@ -309,7 +309,8 @@ SELECT is((SELECT count(*) FROM public.expense_submissions AS submission
 SELECT set_config('request.jwt.claim.sub',admin::text,true) FROM tx_state;
 INSERT INTO public.organization_role_permissions (organization_id, role_id, permission_key, granted_by)
 SELECT org, '00000000-0000-0000-0000-000000000311'::uuid, 'finance.submit_expenses'::public.organization_permission_key, admin
-FROM tx_state;
+FROM tx_state ON CONFLICT DO NOTHING;
+DELETE FROM public.organization_role_permissions WHERE role_id='00000000-0000-0000-0000-000000000311' AND permission_key='finance.correct_records';
 SELECT set_config('request.jwt.claim.sub',checker::text,true) FROM tx_state;
 SET LOCAL ROLE authenticated;
 INSERT INTO tx_extra SELECT 'checker-own',(public.submit_expense_transaction(

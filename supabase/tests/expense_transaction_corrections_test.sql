@@ -103,9 +103,6 @@ SELECT org,'00000000-0000-0000-0000-000000000311'::uuid,'finance.submit_expenses
 FROM tx_state ON CONFLICT DO NOTHING;
 SELECT set_config('request.jwt.claim.sub',checker::text,true) FROM tx_state;
 SET LOCAL ROLE authenticated;
-SELECT throws_ok(format('SELECT public.cancel_expense_transaction(%L,%L,%L,%L)',org,id,'Cancel someone else','cancel-other-maker'),
- '42501',NULL,'another staff member cannot cancel the maker transaction')
-FROM tx_state CROSS JOIN correction_cases WHERE kind='correct';
 SELECT lives_ok(format('SELECT public.review_expense_transaction(%L,%L,%L,%L,%L)',org,id,'approve','Reviewed original','correction-original-review'),
  'checker approves original before correction') FROM tx_state CROSS JOIN correction_cases WHERE kind='correct';
 SELECT set_config('request.jwt.claim.sub',maker::text,true) FROM tx_state;
@@ -116,7 +113,7 @@ SELECT throws_ok(format('SELECT public.replace_expense_transaction(%L,%L,%L,%L,C
  org,id,'approved','Fix wrong amount','Correction vendor','USD',pay_from,'owner',payload,'correct-unauthorized'),
  '42501','Not authorized','maker cannot correct approved financial effects')
 FROM tx_state CROSS JOIN tx_lines CROSS JOIN correction_cases WHERE kind='correct';
-SELECT set_config('request.jwt.claim.sub',admin::text,true) FROM tx_state;
+SELECT set_config('request.jwt.claim.sub',checker::text,true) FROM tx_state;
 SELECT throws_ok(format('SELECT public.replace_expense_transaction(%L,%L,%L,%L,CURRENT_DATE,NULL,%L,CURRENT_DATE,%L,%L,NULL,NULL,%L,%L::jsonb,%L)',
  org,id,'approved','Fix wrong amount','Correction vendor','USD',pay_from,'owner',
  jsonb_set(payload,'{1,amount}','"-1.00"'),'correct-invalid'),
@@ -138,7 +135,7 @@ SELECT is((public.replace_expense_transaction(org,id,'approved','Fix wrong amoun
  (SELECT id FROM replacement_cases WHERE kind='correct'),'approved correction retry has same replacement')
 FROM tx_state CROSS JOIN tx_lines CROSS JOIN correction_cases WHERE kind='correct';
 SELECT is((SELECT status FROM public.expense_transactions WHERE id=(SELECT id FROM replacement_cases WHERE kind='correct')),
- 'submitted','approved correction requires separate replacement approval');
+ 'approved','Finance Manager correction approves replacement in the same transaction');
 SELECT is((SELECT count(*) FROM public.expense_submissions s JOIN public.expense_transaction_lines l ON l.submission_id=s.id
  WHERE l.transaction_id=(SELECT id FROM correction_cases WHERE kind='correct') AND s.status='reversed'),2::bigint,
  'all original lines are reversed exactly once');
@@ -186,6 +183,30 @@ SELECT is((SELECT supporting_document_id FROM public.expense_transactions WHERE 
  (SELECT id FROM correction_documents WHERE kind='original'),'original receipt remains attached to original');
 SET CONSTRAINTS ALL IMMEDIATE;
 SELECT pass('deferred evidence uniqueness guards remain satisfied');
+SELECT ok((SELECT previous_values->'expense'->>'external_payee_label'='Correction vendor'
+ AND new_values->'expense'->>'external_payee_label'='Corrected vendor'
+ AND jsonb_array_length(previous_values->'lines')=2
+ AND actor_id=(SELECT checker FROM tx_state)
+ FROM public.activity_logs WHERE entity_id=(SELECT id FROM correction_cases WHERE kind='correct') AND action='corrected'),
+ 'correction retains before and after fields, all lines, and manager actor');
+SELECT set_config('request.jwt.claim.sub',checker::text,true) FROM tx_state;
+SELECT ok(jsonb_array_length(public.get_expense_transaction_history(org,(SELECT id FROM replacement_cases WHERE kind='correct'))) >= 3,
+ 'Finance Manager can inspect replacement history and its original') FROM tx_state;
+SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000901',true);
+SELECT throws_ok(format('SELECT public.get_expense_transaction_history(%L,%L)',org,(SELECT id FROM replacement_cases WHERE kind='correct')),
+ '42501','Not authorized','operations staff cannot inspect financial correction history') FROM tx_state;
+RESET ROLE;
+SELECT set_config('request.jwt.claim.sub',admin::text,true) FROM tx_state;
+INSERT INTO public.organization_branches(id,organization_id,name,code,status)
+SELECT '00000000-0000-4000-8000-000000009999',org,'Correction isolated branch','CORR-ISOLATED','active' FROM tx_state;
+UPDATE public.organization_members SET branch_id='00000000-0000-4000-8000-000000009999'
+WHERE organization_id=(SELECT org FROM tx_state) AND user_id=(SELECT checker FROM tx_state);
+SELECT set_config('request.jwt.claim.sub',checker::text,true) FROM tx_state;
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(format('SELECT public.get_expense_transaction_history(%L,%L)',org,(SELECT id FROM replacement_cases WHERE kind='correct')),
+ '42501','Not authorized','manager cannot read another branch correction history') FROM tx_state;
+SELECT throws_ok(format('SELECT public.reverse_expense_transaction(%L,%L,CURRENT_DATE,%L,%L)',org,(SELECT id FROM replacement_cases WHERE kind='correct'),'Wrong branch','wrong-branch-reverse'),
+ '42501','Not authorized','manager cannot reverse another branch expense') FROM tx_state;
 SELECT finish();
 ROLLBACK;
 

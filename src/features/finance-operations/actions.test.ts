@@ -48,6 +48,8 @@ const {
   unstableRethrow: vi.fn(),
 }));
 
+vi.mock("./retain-expense-evidence", () => ({ retainExpenseEvidence: vi.fn().mockResolvedValue(null) }));
+
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("next/navigation", () => ({ unstable_rethrow: unstableRethrow }));
 vi.mock("@/lib/auth/context", () => ({
