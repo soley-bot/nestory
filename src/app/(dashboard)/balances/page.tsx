@@ -22,27 +22,54 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
   const context = await requireFinanceContext();
   const query = (await searchParams) ?? {};
   const selectedMonth = validMonth(first(query.month)) ?? getBusinessMonthValue();
-  const selectedPropertyId = validUuid(first(query.propertyId));
-  const selectedOwnerPersonId = validUuid(first(query.ownerPersonId));
+  const requestedPropertyId = validUuid(first(query.propertyId));
+  const requestedOwnerPersonId = validUuid(first(query.ownerPersonId));
   const selectedSourceLineId = validUuid(first(query.sourceLineId));
   const selectedView = parseOwnerAccountView(first(query.view));
   const originReportHref = reportReturnHref(first(query.returnTo));
-  const accountReturnHref = withReportReturn(`/balances?${new URLSearchParams({ month: selectedMonth, view: selectedView, ...(first(query.manage) === "1" ? { manage: "1" } : {}), propertyId: selectedPropertyId ?? "", ownerPersonId: selectedOwnerPersonId ?? "" })}`, originReportHref);
   const registerPage = positiveInteger(first(query.page)) ?? 1;
   const periodStart = `${selectedMonth}-01`;
+  const requestedData = await getOwnerBalanceData({
+    currency: "USD",
+    ownerPersonId: requestedOwnerPersonId,
+    periodEnd: periodStart,
+    periodStart,
+    propertyId: requestedPropertyId,
+    registerPage,
+  });
+  const selectedPropertyId =
+    requestedPropertyId &&
+    requestedData.propertyOptions.some((option) => option.id === requestedPropertyId)
+      ? requestedPropertyId
+      : undefined;
+  const selectedOwnerPersonId =
+    requestedOwnerPersonId &&
+    (!requestedPropertyId || Boolean(selectedPropertyId)) &&
+    requestedData.ownerOptions.some(
+      (option) =>
+        option.id === requestedOwnerPersonId &&
+        (!selectedPropertyId || option.propertyIds?.includes(selectedPropertyId)),
+    )
+      ? requestedOwnerPersonId
+      : undefined;
+  const scopeWasSanitized =
+    selectedPropertyId !== requestedPropertyId ||
+    selectedOwnerPersonId !== requestedOwnerPersonId;
+  const data = scopeWasSanitized
+    ? await getOwnerBalanceData({
+        currency: "USD",
+        ownerPersonId: selectedOwnerPersonId,
+        periodEnd: periodStart,
+        periodStart,
+        propertyId: selectedPropertyId,
+        registerPage,
+      })
+    : requestedData;
+  const accountReturnHref = withReportReturn(`/balances?${new URLSearchParams({ month: selectedMonth, view: selectedView, ...(first(query.manage) === "1" ? { manage: "1" } : {}), propertyId: selectedPropertyId ?? "", ownerPersonId: selectedOwnerPersonId ?? "" })}`, originReportHref);
   if (!originReportHref && isStatementReportEnabled(context) && selectedView === "statements" && first(query.manage) !== "1") {
-    const data = await getOwnerBalanceData({ currency: "USD", ownerPersonId: selectedOwnerPersonId, propertyId: selectedPropertyId, periodStart, periodEnd: periodStart, registerPage });
     return <OwnerStatementsReport key={`${selectedMonth}:${selectedPropertyId}:${selectedOwnerPersonId}:${registerPage}:${first(query.reportType)}`} data={data} month={selectedMonth} reportType={["summary", "detail"].includes(first(query.reportType) ?? "") ? first(query.reportType) : "all"} selectedOwnerPersonId={selectedOwnerPersonId} selectedPropertyId={selectedPropertyId} />;
   }
-  const [data, openingData, closeData] = await Promise.all([
-    getOwnerBalanceData({
-      currency: "USD",
-      ownerPersonId: selectedOwnerPersonId,
-      periodEnd: periodStart,
-      periodStart,
-      propertyId: selectedPropertyId,
-      registerPage,
-    }),
+  const [openingData, closeData] = await Promise.all([
     getOpeningBalanceAuthorityData({
       currency: "USD",
       effectiveDate: periodStart,
