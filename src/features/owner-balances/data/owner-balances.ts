@@ -81,9 +81,11 @@ export async function getOwnerBalanceData(
   const context = await requireOwnerBalanceReadContext();
   const supabase = await createSupabaseServerClient();
 
+  // This catalog is already limited to properties the caller may read. Load it
+  // before applying URL filters so stale IDs can be cleared by the page instead
+  // of failing the catalog's optional requested-property authorization check.
   const scopeResult = await supabase.rpc("get_owner_account_read_context", {
     p_organization_id: context.organizationId,
-    p_requested_property_id: scope.propertyId,
   });
   if (scopeResult.error) {
     throw new Error("Unable to load authoritative owner balance scope.");
