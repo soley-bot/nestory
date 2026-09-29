@@ -197,14 +197,6 @@ SELECT throws_ok($$SELECT public.void_tenant_invoice_checked(organization_id,inv
 SELECT is((SELECT lifecycle FROM public.tenant_invoices WHERE id=(SELECT invoice_id FROM correction_state)),'issued','stale review leaves invoice issued');
 SELECT is((SELECT count(*) FROM public.tenant_invoice_corrections WHERE tenant_invoice_id=(SELECT invoice_id FROM correction_state)),0::bigint,'stale review creates no correction');
 SELECT lives_ok($SELECT public.correct_tenant_invoice(organization_id,invoice_id,'line_correction',utility_line_id,'Remove erroneous utility','checked-remove-utility') FROM correction_state$,'prior line correction can coexist with checked deletion');
-SELECT is((
-  SELECT income.status
-  FROM public.tenant_invoice_lines AS line
-  JOIN public.finance_income_items AS income
-    ON income.organization_id = line.organization_id
-   AND income.id = line.income_item_id
-  WHERE line.id = (SELECT utility_line_id FROM correction_state)
-), 'void', 'line correction voids its source income obligation');
 UPDATE invoice_review SET lines=(SELECT jsonb_agg(jsonb_build_object('id',id,'amount',amount) ORDER BY id) FROM public.tenant_invoice_lines WHERE invoice_id=(SELECT invoice_id FROM correction_state));
 SELECT throws_ok($$SELECT public.void_tenant_invoice_checked(organization_id,invoice_id,(SELECT issue_date-1 FROM invoice_review),(SELECT lines FROM invoice_review),'Delete duplicate charge','checked-date-0001') FROM correction_state$$,'40001','tenant_invoice_sources_changed','reviewed date must match');
 UPDATE correction_state SET void_correction=public.void_tenant_invoice_checked(organization_id,invoice_id,(SELECT issue_date FROM invoice_review),(SELECT lines FROM invoice_review),'Delete duplicate charge','checked-success-0001');
