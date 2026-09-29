@@ -174,6 +174,45 @@ describe("authoritative owner balance loader", () => {
     });
   });
 
+  it("returns authorized selectors for a stale property without reading its balances", async () => {
+    const stalePropertyId = "00000000-0000-4000-8000-000000000099";
+    const existingRpc = mocks.rpc.getMockImplementation()!;
+    mocks.rpc.mockImplementation((name: string, args: { p_requested_property_id?: string }) => {
+      if (name !== "get_owner_account_read_context") {
+        throw new Error("A stale property must not reach financial reads");
+      }
+      if (args.p_requested_property_id === stalePropertyId) {
+        return query({ data: null, error: { code: "42501", message: "Not authorized" } });
+      }
+      return existingRpc(name, args);
+    });
+
+    const data = await getOwnerBalanceData({
+      currency: "USD",
+      periodStart: "2026-08-01",
+      periodEnd: "2026-08-01",
+      propertyId: stalePropertyId,
+      ownerPersonId: ownerId,
+    });
+
+    expect(data.propertyOptions).toEqual([{ id: propertyId, label: "Riverside — RS-01" }]);
+    expect(data.accounts).toEqual([]);
+    expect(data.periods).toEqual([]);
+    expect(data.sources).toEqual([]);
+    expect(data.withdrawalCapacity).toBeNull();
+  });
+
+  it("still rejects a denied owner account catalog", async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "Not authorized" } });
+    await expect(getOwnerBalanceData({
+      currency: "USD",
+      periodStart: "2026-08-01",
+      periodEnd: "2026-08-01",
+      propertyId,
+      ownerPersonId: ownerId,
+    })).rejects.toThrow("Unable to load authoritative owner balance scope.");
+  });
+
   it("shows archived contribution units in source history but excludes them from new-entry options", async () => {
     const priorRpc = mocks.rpc.getMockImplementation()!;
     mocks.rpc.mockImplementation((name: string, ...args: unknown[]) => {
