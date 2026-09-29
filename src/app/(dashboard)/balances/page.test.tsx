@@ -134,7 +134,7 @@ describe("BalancesPage opening balance integration", () => {
       userId: "00000000-0000-4000-8000-000000000004",
     });
     mocks.balanceData.mockResolvedValue({
-      ownerOptions: [{ id: ownerId, label: "Nora Owner" }],
+      ownerOptions: [{ id: ownerId, label: "Nora Owner", propertyIds: [propertyId] }],
       periods: [],
       propertyOptions: [{ id: propertyId, label: "Riverside / RS-01" }],
       queue: [],
@@ -246,6 +246,50 @@ describe("BalancesPage opening balance integration", () => {
       .toBe("true");
     expect(screen.getByTestId("owner-close-authority").getAttribute("data-can-reopen"))
       .toBe("true");
+  });
+
+  it("drops stale archived scopes before loading owner close readiness", async () => {
+    const archivedPropertyId = "00000000-0000-4000-8000-000000000099";
+
+    render(
+      await BalancesPage({
+        searchParams: Promise.resolve({
+          month: "2026-08",
+          ownerPersonId: ownerId,
+          propertyId: archivedPropertyId,
+          view: "close",
+        }),
+      }),
+    );
+
+    expect(mocks.balanceData).toHaveBeenNthCalledWith(1, {
+      currency: "USD",
+      ownerPersonId: ownerId,
+      periodEnd: "2026-08-01",
+      periodStart: "2026-08-01",
+      propertyId: archivedPropertyId,
+      registerPage: 1,
+    });
+    expect(mocks.balanceData).toHaveBeenNthCalledWith(2, {
+      currency: "USD",
+      ownerPersonId: undefined,
+      periodEnd: "2026-08-01",
+      periodStart: "2026-08-01",
+      propertyId: undefined,
+      registerPage: 1,
+    });
+    expect(mocks.openingData).toHaveBeenCalledExactlyOnceWith({
+      currency: "USD",
+      effectiveDate: "2026-08-01",
+      ownerPersonId: undefined,
+      propertyId: undefined,
+    });
+    expect(mocks.closeData).toHaveBeenCalledExactlyOnceWith({
+      currency: "USD",
+      monthStart: "2026-08-01",
+      ownerPersonId: undefined,
+      propertyId: undefined,
+    });
   });
 
   it("fails closed on invalid filters instead of passing guessed identifiers", async () => {

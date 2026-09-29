@@ -390,15 +390,35 @@ export async function getTrustedReport({
             propertyIds,
             supabase,
           });
+    const owners: OwnerRow[] = (financeContext.owner_assignments ?? [])
+      .filter(
+        (assignment) =>
+          assignment.archived_at === null &&
+          assignment.is_primary &&
+          visiblePropertyIds.has(assignment.property_id) &&
+          (assignment.started_on === null || assignment.started_on <= period.end) &&
+          (assignment.ended_on === null || assignment.ended_on >= period.start),
+      )
+      .map((assignment) => ({
+        id: assignment.id,
+        ownership_label: null,
+        ownership_percent: null,
+        person_id: assignment.person_id,
+        property_id: assignment.property_id,
+      }));
+    const people: PersonRow[] = (financeContext.people ?? []).map((person) => ({
+      display_name: person.display_name,
+      id: person.id,
+    }));
 
     const report = buildTrustedReport({
       documents: [],
       ledgerEntries: [],
       leases: [],
       maintenanceTasks: [],
-      owners: [],
+      owners,
       ownerProfitLossEvents,
-      people: [],
+      people,
       periodEnd: period.end,
       periodStart: period.start,
       properties,
