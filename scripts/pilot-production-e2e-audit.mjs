@@ -61,7 +61,7 @@ async function visit(page, label, route, expected = []) {
   const status = response?.status() ?? 0;
   const ev = await evidence(page, label);
   status > 0 && status < 400
-    ? pass("route response", { status, durationMs: Date.now() - started, url: page.url(), screenshot: ev.screenshot })
+    ? pass("route response", { httpStatus: status, durationMs: Date.now() - started, url: page.url(), screenshot: ev.screenshot })
     : fail("route response", `HTTP ${status || "unknown"}`, "critical", { url: page.url(), screenshot: ev.screenshot });
   if (new URL(page.url()).pathname === "/login" && route !== "/login") fail("authenticated route", "Redirected to login.", "critical");
   for (const pattern of expected) pattern.test(ev.text) ? pass(`content ${pattern}`) : fail(`content ${pattern}`, "Expected content missing.", "high", { screenshot: ev.screenshot });
