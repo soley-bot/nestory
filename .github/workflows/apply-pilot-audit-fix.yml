@@ -1,0 +1,35 @@
+name: Apply Pilot audit fix
+
+on:
+  push:
+    branches:
+      - codex/pilot-production-e2e-audit
+    paths:
+      - scripts/apply-pilot-audit-fix.py
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out audit branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: codex/pilot-production-e2e-audit
+          fetch-depth: 0
+
+      - name: Patch audit result metadata
+        run: python scripts/apply-pilot-audit-fix.py
+
+      - name: Commit audit fix
+        run: |
+          git config user.name "soley-bot"
+          git config user.email "143jester@gmail.com"
+          git add scripts/pilot-production-e2e-audit.mjs
+          git diff --cached --quiet && exit 1
+          git commit -m "Fix Pilot audit result metadata"
+          git push origin HEAD:codex/pilot-production-e2e-audit
