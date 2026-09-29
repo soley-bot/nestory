@@ -1486,9 +1486,7 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
-    vi.mock("../expense-history", () => ({ getExpenseHistory: vi.fn().mockResolvedValue([]) }));
-
-const navigation = screen.getByRole("navigation", {
+    const navigation = screen.getByRole("navigation", {
       name: "Finance workspace",
     });
     expect(

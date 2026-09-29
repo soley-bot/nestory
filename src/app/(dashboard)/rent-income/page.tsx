@@ -12,12 +12,11 @@ export default async function RentIncomePage({
 } = {}) {
   const context = await requireFinanceContext();
   const query = await searchParams;
-  const db = await createSupabaseServerClient();
   const selectedInvoice = typeof query.invoiceId === "string" && /^[0-9a-f-]{36}$/i.test(query.invoiceId)
-    ? await db.from("tenant_invoices").select("id,property_id").eq("organization_id", context.organizationId).eq("id", query.invoiceId).maybeSingle()
+    ? await (await createSupabaseServerClient()).from("tenant_invoices").select("id,property_id").eq("organization_id", context.organizationId).eq("id", query.invoiceId).maybeSingle()
     : null;
   if (selectedInvoice?.error) throw new Error("Could not load the report invoice.");
-  const data = await getFinanceOperationsData(context.organizationId, selectedInvoice?.data?.property_id, { includeExpenses: false, completeTransactionHistory: Boolean(selectedInvoice?.data) });
+  const data = await getFinanceOperationsData(context.organizationId, selectedInvoice?.data?.property_id, { includeExpenses: false, ...(selectedInvoice?.data ? { completeTransactionHistory: true } : {}) });
   const initialBillingLeaseId =
     query.action === "billing" ? query.leaseId : undefined;
   return (
