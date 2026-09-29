@@ -60,6 +60,11 @@ describe("workspace role capabilities", () => {
     ).toEqual(getWorkspaceCapabilities("super_admin"));
   });
 
+  it("allows expense corrections only with both approval and correction permissions", () => {
+    expect(getWorkspaceCapabilitiesFromPermissions({ isSuperAdmin: false, permissionKeys: new Set(["finance.approve_expenses", "finance.correct_records"]) }).canReverseExpense).toBe(true);
+    expect(getWorkspaceCapabilitiesFromPermissions({ isSuperAdmin: false, permissionKeys: new Set(["finance.approve_expenses"]) }).canReverseExpense).toBe(false);
+  });
+
   it("keeps current role kinds separate from contained legacy role parsing", () => {
     expect(CURRENT_WORKSPACE_ROLE_KINDS).toEqual(["super_admin", "custom"]);
     expect(WORKSPACE_ROLES).toEqual([
@@ -82,7 +87,7 @@ describe("workspace role capabilities", () => {
 
   it.each<[WorkspaceRole, readonly boolean[]]>([
     ["super_admin", [true, true, true, true, true, true, true, true, true]],
-    ["finance_manager", [false, true, false, true, false, true, false, false, false]],
+    ["finance_manager", [false, true, false, true, true, true, true, false, false]],
     ["finance_member", [false, false, false, true, true, false, false, false, false]],
     ["operations_manager", [false, false, false, false, false, false, false, true, true]],
     ["operations_member", [false, false, false, false, false, false, false, false, true]],
@@ -185,9 +190,9 @@ describe("workspace role capabilities", () => {
       canManageAccess: false,
       canManageReconciliationSources: false,
       canPublishOwnerStatement: true,
-      canReverseExpense: false,
+      canReverseExpense: true,
       canReviewOwnerOpeningBalance: true,
-      canSubmitExpense: false,
+      canSubmitExpense: true,
       canUnlockFinancialMonth: false,
     });
   });

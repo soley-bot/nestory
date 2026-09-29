@@ -38,7 +38,7 @@ export default async function UnitFinancePage({
     <FinanceOperationsScreen
       isSuperAdmin={context.isSuperAdmin}
       currentUserId={context.userId}
-      canApproveOwnExpense={context.isSuperAdmin}
+      canApproveOwnExpense={context.capabilities.canReverseExpense}
       {...data}
       canConfigureRent={context.permissionKeys.has("leases.change_terms")}
       canCorrectFinance={context.capabilities.canCorrectFinance}

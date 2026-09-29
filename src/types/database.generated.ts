@@ -11590,6 +11590,10 @@ export type Database = {
           transaction_id: string
         }[]
       }
+      get_expense_transaction_history: {
+        Args: { p_organization_id: string; p_transaction_id: string }
+        Returns: Json
+      }
       get_finance_account_activity_authorities: {
         Args: {
           p_account_id: string

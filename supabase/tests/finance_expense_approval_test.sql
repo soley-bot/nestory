@@ -872,7 +872,7 @@ SELECT results_eq(
   'Finance Manager can load the lease, owner, and funding context needed for review'
 );
 
-SELECT throws_ok(
+SELECT lives_ok(
   format(
     $sql$
       SELECT public.submit_expense(
@@ -886,9 +886,7 @@ SELECT throws_ok(
     unit_id,
     source_id
   ),
-  '42501',
-  'Not authorized',
-  'Finance Manager cannot submit or edit expenses'
+  'Finance Manager can submit expenses in the assigned property'
 )
 FROM expense_approval_state;
 

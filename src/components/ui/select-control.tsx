@@ -166,7 +166,7 @@ export function SelectControl(props: SelectControlProps) {
 
 function toRadixValue(value: string, hasEmptyOption: boolean) {
   if (value === "") {
-    return hasEmptyOption ? EMPTY_VALUE : undefined;
+    return hasEmptyOption ? EMPTY_VALUE : "";
   }
 
   return value;

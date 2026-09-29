@@ -26,6 +26,18 @@ class ResizeObserverStub {
 }
 
 describe("SelectControl", () => {
+  it("keeps an empty controlled selection controlled when it is filled and cleared", () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const options = [{ label: "Operating account", value: "operating" }];
+      const { rerender } = render(<SelectControl ariaLabel="Pay from" value="" options={options} placeholder="Choose account" />);
+      rerender(<SelectControl ariaLabel="Pay from" value="operating" options={options} placeholder="Choose account" />);
+      expect(screen.getByRole("combobox").textContent).toContain("Operating account");
+      rerender(<SelectControl ariaLabel="Pay from" value="" options={options} placeholder="Choose account" />);
+      expect(screen.getByRole("combobox").textContent).toContain("Choose account");
+      expect(warning).not.toHaveBeenCalled();
+    } finally { warning.mockRestore(); }
+  });
   it("adds search to long option lists and submits the selected value", async () => {
     const user = userEvent.setup();
     render(

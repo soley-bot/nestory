@@ -646,6 +646,7 @@ describe("transaction loader source authority", () => {
       currency: "USD",
       reversal_of_id: null,
       lease_id: "lease",
+      tenant_invoice_id: "invoice",
       tenant_invoices: { unit_id: "u1" },
     };
     const { api, calls } = client({

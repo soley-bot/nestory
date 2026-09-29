@@ -148,6 +148,7 @@ export type TrustedReportRow = {
 };
 
 export type UnitProfitLossLine = {
+  sourceHref?: string;
   propertyId?: string;
   unitId?: string | null;
   name?: string;

@@ -299,7 +299,7 @@ SELECT results_eq(
       app_private.legacy_role_has_permission('finance_manager','maintenance.complete')
     FROM fixed_role_state
   $$,
-  $$ VALUES (false, true, true, false, true, true, false, false) $$,
+  $$ VALUES (false, true, true, true, true, true, false, false) $$,
   'Finance Manager legacy transition mapping has the named approved permissions'
 );
 

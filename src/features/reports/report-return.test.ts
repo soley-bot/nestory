@@ -18,6 +18,11 @@ describe("report correction return scope", () => {
     expect(target.pathname).toBe("/properties/p"); expect(target.hash).toBe("#property-ownership");
     expect(reportReturnHref(target.searchParams.get("returnTo"))).toBe(original);
   });
+  it.each(["transactions", "management-fees", "rent-roll", "rent-collections", "unit-profit-loss"])("preserves filters for %s", kind => {
+    const report = `/reports/${kind}?month=2026-09&propertyId=p&unitId=u&query=Cleaning`;
+    const destination = new URL(withReportReturn("/bills-expenses?sourceId=e", report), "https://nestory.invalid");
+    expect(reportReturnHref(destination.searchParams.get("returnTo"))).toBe(report);
+  });
   it.each(["https://evil.test", "//evil.test", "/\\evil.test", "/login", "javascript:alert(1)", ["/balances"]])("rejects an unsafe return target %s", value => {
     expect(reportReturnHref(value)).toBeUndefined();
   });

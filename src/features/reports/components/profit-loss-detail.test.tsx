@@ -7,6 +7,16 @@ import type { UnitProfitLossLine } from "../reports.types";
 afterEach(cleanup);
 const line: UnitProfitLossLine = { amountCents: BigInt(6500), category: "Repairs", categoryCode: "repairs", categoryId: null, currency: "USD", date: "2026-09-09", description: "Roof repair", direction: "expense", id: "repair", property: "Property One", reportingGroup: "expenses", unit: "Property-level" };
 describe("Reference P&L account table", () => {
+  it("opens the source expense with the exact report filters", async () => {
+    const user = userEvent.setup();
+    const returnTo = "/reports/unit-profit-loss?month=2026-09&propertyId=p&unitId=u";
+    render(<ProfitLossDetail lines={[{ ...line, sourceHref: "/bills-expenses?sourceType=owner_invoice_line&sourceId=source" }]} returnTo={returnTo} />);
+    await user.click(screen.getByRole("button", { name: "Expand all" }));
+    const href = new URL(screen.getByRole("link", { name: "Open transaction: Roof repair" }).getAttribute("href")!, "https://nestory.invalid");
+    expect(href.pathname).toBe("/bills-expenses");
+    expect(href.searchParams.get("sourceId")).toBe("source");
+    expect(href.searchParams.get("returnTo")).toBe(returnTo);
+  });
   it("keeps signed totals visible while account details and sections collapse independently", async () => {
     const user = userEvent.setup();
     render(<ProfitLossDetail lines={[line, { ...line, id: "correction", type: "Correction", description: "Repair correction", amountCents: -BigInt(1500) }]} funding={{ contributionCents: BigInt(2000), remainingBalanceCents: BigInt(4000) }} />);

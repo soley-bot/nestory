@@ -382,10 +382,7 @@ export const requireFinanceReviewContext = cache(async () =>
 );
 
 export const requireFinanceReversalContext = cache(async () =>
-  requireCapability("canReverseExpense").then((context) => ({
-    ...context,
-    role: context.role as "super_admin",
-  })),
+  requireCapability("canReverseExpense"),
 );
 
 export const requireFinanceOperationContext = cache(async () =>

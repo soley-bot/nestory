@@ -1,5 +1,6 @@
 "use server";
 
+import { retainExpenseEvidence } from "./retain-expense-evidence";
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
@@ -799,6 +800,12 @@ export async function submitExpenseAction(
           requestClient: supabase,
         });
         evidenceDocumentId = evidence.documentId;
+      } else if (replacement?.success) {
+        evidenceDocumentId = await retainExpenseEvidence({
+          organizationId: context.organizationId, actorId: context.userId,
+          transactionId: replacement.data.replacementTransactionId,
+          propertyId: parsed.data.lines[0].propertyId, idempotencyKey: parsed.data.idempotencyKey,
+        });
       }
     } catch (error) {
       unstable_rethrow(error);
@@ -846,7 +853,7 @@ export async function submitExpenseAction(
     if (error) return expenseWorkflowError(error.message);
     revalidateFinance();
     return {
-      message: replacement?.success ? "Replacement submitted for review. The original is kept in history." : "Paid cost submitted for Finance review.",
+      message: replacement?.success ? replacement.data.expectedStatus === "approved" ? "Expense corrected. Reports and balances are updated; the original is kept in history." : "Changes saved for review. The previous version is kept in history." : "Paid cost submitted for Finance review.",
       status: "success",
     };
   }
@@ -1123,6 +1130,11 @@ function revalidateFinance() {
     "/bills-expenses",
     "/balances",
     "/reports/monthly-owner-activity",
+    "/reports/unit-profit-loss",
+    "/reports/transactions",
+    "/reports/management-fees",
+    "/reports/rent-collections",
+    "/reports/rent-roll",
     "/properties",
   ]) {
     revalidatePath(path);

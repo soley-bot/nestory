@@ -517,9 +517,7 @@ export async function getRentReport({
         viewQuery.transactionStatus !== status
       )
         return [];
-      const href = invoice.lease_id
-        ? `/leases/${invoice.lease_id}?section=rent`
-        : `/finance?query=${encodeURIComponent(invoice.invoice_number)}`;
+      const href = `/rent-income?invoiceId=${encodeURIComponent(invoice.id)}`;
       const sourceLinks: TrustedReportRow["sourceLinks"] = [
         ...invoiceLines.map((line) => ({
           id: line.id,
