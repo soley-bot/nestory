@@ -5,7 +5,8 @@ on:
     branches:
       - codex/pilot-production-e2e-audit
     paths:
-      - scripts/pilot-production-e2e-audit.mjs
+      - scripts/pilot-production-e2e-audit-v2.mjs
+      - .github/workflows/pilot-production-e2e-audit.yml
 
 permissions:
   contents: read
@@ -15,8 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      NESTORY_BASE_URL: https://www.nestory-kh.com
-      AUDIT_ARTIFACT_DIR: artifacts/pilot-production-e2e-audit
+      NESTORY_BASE_URL: https://pilot.nestory-kh.com
+      NESTORY_TEST_EMAIL: 143jester@gmail.com
+      AUDIT_ARTIFACT_DIR: artifacts/pilot-production-e2e-audit-v2
 
     steps:
       - name: Check out repository
@@ -39,7 +41,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          node scripts/pilot-production-e2e-audit.mjs
+          node scripts/pilot-production-e2e-audit-v2.mjs
           status=$?
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
@@ -48,8 +50,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pilot-production-e2e-audit
-          path: artifacts/pilot-production-e2e-audit
+          name: pilot-production-e2e-audit-v2
+          path: artifacts/pilot-production-e2e-audit-v2
           if-no-files-found: error
           retention-days: 7
 
