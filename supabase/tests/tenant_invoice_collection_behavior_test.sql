@@ -6,7 +6,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 -- privileges for invoice and collection writes are asserted separately.
 SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
 
-SELECT plan(36);
+SELECT plan(39);
 
 SELECT ok(
   pg_catalog.strpos(
@@ -252,6 +252,21 @@ SELECT lives_ok(
   'Finance Manager can configure a future lease billing term'
 );
 
+-- Capture the authorized position before cash arrives so the receipt lookup
+-- is checked through the same RLS boundary as the finance workspace.
+SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM tenant_invoice_state), true);
+CREATE TEMP TABLE position_before_collection AS
+SELECT position.property_id, position.cash_held_by_ips, position.available_withdrawal
+FROM public.property_finance_positions AS position
+JOIN public.tenant_invoices AS invoice
+  ON invoice.organization_id = position.organization_id
+ AND invoice.property_id = position.property_id
+WHERE invoice.id = (SELECT through_invoice_id FROM tenant_invoice_state);
+
+SELECT is((SELECT count(*) FROM position_before_collection), 1::bigint,
+  'the authenticated admin can read the collected-rent property position');
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+
 SELECT lives_ok(
   $$
     UPDATE tenant_invoice_state
@@ -278,6 +293,17 @@ SELECT lives_ok(
   $$,
   'Finance Manager can record one append-only IPS tenant payment'
 );
+
+SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM tenant_invoice_state), true);
+SELECT results_eq(
+  $$SELECT position.cash_held_by_ips - baseline.cash_held_by_ips,
+           position.available_withdrawal - baseline.available_withdrawal
+    FROM public.property_finance_positions AS position
+    JOIN position_before_collection AS baseline USING (property_id)$$,
+  $$VALUES (400.00::numeric, 400.00::numeric)$$,
+  'authorized finance positions count a received rent payment exactly once'
+);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 
 SELECT is(
   (SELECT created_by FROM public.tenant_invoice_payments WHERE id = (SELECT payment_id FROM tenant_invoice_state)),
@@ -455,6 +481,18 @@ SELECT results_eq(
   $$VALUES (0.00::numeric, 850.00::numeric, 'unpaid'::text)$$,
   'the reversal restores the invoice balance without editing the payment'
 );
+
+SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM tenant_invoice_state), true);
+SET LOCAL ROLE authenticated;
+SELECT results_eq(
+  $$SELECT position.cash_held_by_ips, position.available_withdrawal
+    FROM public.property_finance_positions AS position
+    JOIN position_before_collection AS baseline USING (property_id)$$,
+  $$SELECT cash_held_by_ips, available_withdrawal FROM position_before_collection$$,
+  'authorized finance positions exclude both reversed and reversing receipts'
+);
+RESET ROLE;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 
 SELECT results_eq(
   $$
