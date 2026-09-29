@@ -7,15 +7,18 @@ const {
   screenSpy,
   scopeFinanceOperationsData,
   getUnitDetail,
+  createSupabaseServerClient,
 } = vi.hoisted(() => ({
     getFinanceOperationsData: vi.fn(),
     requireFinanceContext: vi.fn(),
     screenSpy: vi.fn(),
     scopeFinanceOperationsData: vi.fn((data) => data),
     getUnitDetail: vi.fn(),
+    createSupabaseServerClient: vi.fn(),
   }));
 
 vi.mock("@/lib/auth/context", () => ({ requireFinanceContext }));
+vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient }));
 vi.mock("@/features/finance-operations/data/finance-operations", () => ({
   getFinanceOperationsData,
   scopeFinanceOperationsData,
@@ -38,6 +41,20 @@ import PropertyFinancePage from "@/app/(dashboard)/properties/[propertyId]/finan
 import UnitFinancePage from "@/app/(dashboard)/units/[unitId]/finance/page";
 
 describe("finance routes", () => {
+  it("opens a report invoice without treating it as a first-rent workflow", async () => {
+    const invoiceId = "924aa793-d037-40da-921d-eef45dcf1760";
+    const lookup = { select: vi.fn(), eq: vi.fn(), maybeSingle: vi.fn() };
+    lookup.select.mockReturnValue(lookup);
+    lookup.eq.mockReturnValue(lookup);
+    lookup.maybeSingle.mockResolvedValue({ data: { id: invoiceId, property_id: "property-1" }, error: null });
+    createSupabaseServerClient.mockResolvedValue({ from: vi.fn().mockReturnValue(lookup) });
+    requireFinanceContext.mockResolvedValue({ capabilities: {}, organizationId: "organization-1", organizationName: "Nestory", permissionKeys: new Set(["finance.view"]) });
+    renderToStaticMarkup(await RentIncomePage({ searchParams: Promise.resolve({ invoiceId, leaseId: "lease-1" }) }));
+    expect(screenSpy).toHaveBeenCalledWith(expect.objectContaining({ initialInvoiceId: invoiceId, initialRentLeaseId: undefined }));
+    expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", "property-1", { includeExpenses: false, completeTransactionHistory: true });
+    expect(lookup.eq).toHaveBeenCalledWith("organization_id", "organization-1");
+  });
+
   it.each([
     [[], false],
     [["people.view"], false],
