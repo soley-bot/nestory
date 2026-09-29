@@ -483,6 +483,7 @@ SELECT results_eq(
 );
 
 SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM tenant_invoice_state), true);
+SET LOCAL ROLE authenticated;
 SELECT results_eq(
   $$SELECT position.cash_held_by_ips, position.available_withdrawal
     FROM public.property_finance_positions AS position
@@ -490,6 +491,7 @@ SELECT results_eq(
   $$SELECT cash_held_by_ips, available_withdrawal FROM position_before_collection$$,
   'authorized finance positions exclude both reversed and reversing receipts'
 );
+RESET ROLE;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 
 SELECT results_eq(
