@@ -5,7 +5,7 @@ on:
     branches:
       - codex/pilot-production-e2e-audit
     paths:
-      - scripts/pilot-production-e2e-audit-v2.mjs
+      - scripts/pilot-production-e2e-audit.mjs
       - .github/workflows/pilot-production-e2e-audit.yml
 
 permissions:
@@ -41,7 +41,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          node scripts/pilot-production-e2e-audit-v2.mjs
+          node scripts/pilot-production-e2e-audit.mjs
           status=$?
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
