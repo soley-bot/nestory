@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(46);
+SELECT plan(48);
 
 CREATE TEMP TABLE lease_billing_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -744,6 +744,51 @@ WHERE term.lease_id = (state.create_result ->> 'leaseId')::uuid
 
 SET LOCAL session_replication_role = origin;
 
+-- Reproduce corrected evidence and multiple roles for the same person.
+SET LOCAL app.people_leases_skip_sync = 'on';
+INSERT INTO public.lease_parties (
+  organization_id, lease_id, person_id, party_role, is_primary,
+  evidence_state, business_lifecycle
+)
+SELECT state.organization_id, (state.create_result ->> 'leaseId')::uuid,
+  state.tenant_id, fixture.party_role, fixture.is_primary,
+  fixture.evidence_state, 'planned'
+FROM lease_billing_state AS state
+CROSS JOIN (VALUES
+  ('primary_tenant', true, 'superseded'),
+  ('authorized_occupant', false, 'accepted')
+) AS fixture(party_role, is_primary, evidence_state);
+
+CREATE TEMP TABLE occupant_test_people AS
+SELECT gen_random_uuid() AS id, fixture.*
+FROM (VALUES
+  ('Lease billing tenant', 'accepted', 'planned', NULL::date, NULL::date, false),
+  ('Ended occupant', 'accepted', 'ended', DATE '2026-08-01', DATE '2026-09-15', false),
+  ('Superseded occupant', 'superseded', 'planned', NULL::date, NULL::date, false),
+  ('Voided occupant', 'voided', 'planned', NULL::date, NULL::date, false),
+  ('Cancelled occupant', 'accepted', 'cancelled_before_effective', NULL::date, NULL::date, false),
+  ('Past occupant', 'accepted', 'ended', DATE '2026-07-01', DATE '2026-07-31', false),
+  ('Future occupant', 'accepted', 'planned', DATE '2027-01-01', NULL::date, false),
+  ('Archived occupant', 'accepted', 'planned', NULL::date, NULL::date, true)
+) AS fixture(display_name, evidence_state, lifecycle, started_on, ended_on, archived);
+
+INSERT INTO public.people(id, organization_id, display_name, party_type)
+SELECT occupant.id, state.organization_id, occupant.display_name, 'individual'
+FROM occupant_test_people AS occupant CROSS JOIN lease_billing_state AS state;
+
+INSERT INTO public.lease_parties (
+  organization_id, lease_id, person_id, party_role, evidence_state,
+  business_lifecycle, started_on, started_on_kind, ended_on, ended_on_kind, archived_at
+)
+SELECT state.organization_id, (state.create_result ->> 'leaseId')::uuid,
+  occupant.id, 'co_tenant', occupant.evidence_state, occupant.lifecycle,
+  occupant.started_on, CASE WHEN occupant.started_on IS NULL THEN 'unknown' ELSE 'known' END,
+  occupant.ended_on, CASE WHEN occupant.ended_on IS NULL THEN 'unknown' ELSE 'known' END,
+  CASE WHEN occupant.archived THEN now() END
+FROM occupant_test_people AS occupant CROSS JOIN lease_billing_state AS state;
+
+SET LOCAL app.people_leases_skip_sync = 'off';
+
 UPDATE lease_billing_state AS state
 SET scheduled_result = app_private.try_current_month_rent(
   state.organization_id,
@@ -751,6 +796,40 @@ SET scheduled_result = app_private.try_current_month_rent(
   'scheduled',
   TIMESTAMPTZ '2026-08-31 18:30:00+00'
 );
+
+SELECT is(
+  (SELECT invoice.occupant_labels FROM public.tenant_invoices AS invoice
+   WHERE invoice.id = (state.scheduled_result ->> 'invoiceId')::uuid),
+  ARRAY['Lease billing tenant', 'Ended occupant', 'Lease billing tenant']::text[],
+  'invoice includes accepted overlapping people once per person, preserving distinct same-name people'
+)
+FROM lease_billing_state AS state;
+
+-- Changing evidence later must not rewrite the issued snapshot on retry.
+SET LOCAL app.people_leases_skip_sync = 'on';
+UPDATE public.lease_parties AS party SET evidence_state = 'superseded'
+FROM occupant_test_people AS occupant
+WHERE party.person_id = occupant.id AND occupant.display_name = 'Ended occupant';
+SET LOCAL app.people_leases_skip_sync = 'off';
+
+DO $$
+DECLARE state lease_billing_state;
+BEGIN
+  SELECT * INTO state FROM lease_billing_state;
+  PERFORM app_private.try_current_month_rent(
+    state.organization_id, (state.create_result ->> 'leaseId')::uuid,
+    'scheduled', TIMESTAMPTZ '2026-08-31 18:30:00+00'
+  );
+END;
+$$;
+
+SELECT is(
+  (SELECT invoice.occupant_labels FROM public.tenant_invoices AS invoice
+   WHERE invoice.id = (state.scheduled_result ->> 'invoiceId')::uuid),
+  ARRAY['Lease billing tenant', 'Ended occupant', 'Lease billing tenant']::text[],
+  'generation retry preserves the issued occupant snapshot after relationship changes'
+)
+FROM lease_billing_state AS state;
 
 SELECT is(
   (
