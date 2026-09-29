@@ -58,6 +58,34 @@ describe("financial report scope guard", () => {
     mocks.context.mockResolvedValue({ properties: [{ id: property, code: "P1", name: "Property", archived_at: null }], units: [{ id: unit, property_id: property, unit_number: "A1", archived_at: "2026-08-01" }] });
     expectBlocked(await report({ propertyId: property, unitId: unit }));
   });
+  it("loads the owner identity used by Unit P&L exports", async () => {
+    mocks.context.mockResolvedValue({
+      properties: [{ id: property, code: "P1", name: "Property", archived_at: null }],
+      units: [{ id: unit, property_id: property, unit_number: "A1", archived_at: null }],
+      people: [{
+        id: "owner-1",
+        display_name: "Example Owner",
+        party_type: "owner",
+        archived_at: null,
+      }],
+      owner_assignments: [{
+        id: "ownership-1",
+        property_id: property,
+        person_id: "owner-1",
+        is_primary: true,
+        started_on: "2026-01-01",
+        ended_on: null,
+        archived_at: null,
+      }],
+    });
+
+    const result = await report({ propertyId: property, unitId: unit });
+
+    expect(result.unitProfitLossOwnerProperties).toEqual([
+      { ownerName: "Example Owner", propertyName: "Property" },
+    ]);
+  });
+
   it("keeps a valid empty unit report exportable", async () => {
     const result = await report({ propertyId: property, unitId: unit });
     expect(result.exportValidation).toBeUndefined();
