@@ -21,11 +21,6 @@ BEGIN
 END;
 $$;
 
--- Keep every later fixture/test connection on the same named business date.
--- The local-only guard above prevents this database setting from reaching a
--- hosted environment.
-ALTER DATABASE postgres SET timezone TO 'Asia/Phnom_Penh';
-
 BEGIN;
 
 -- PostgreSQL current_date and now() are transaction-stable. Pin their named
