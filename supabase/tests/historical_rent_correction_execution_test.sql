@@ -841,10 +841,12 @@ FROM lease_rent_state;
 INSERT INTO public.organization_role_permissions(
   organization_id,role_id,permission_key,granted_by
 )
-SELECT organization_id,finance_role_id,'finance.correct_records',super_admin_id
+SELECT organization_id,finance_role_id,
+  'finance.correct_records'::public.organization_permission_key,super_admin_id
 FROM lease_rent_state
 UNION ALL
-SELECT organization_id,finance_role_id,'finance.record_payments',super_admin_id
+SELECT organization_id,finance_role_id,
+  'finance.record_payments'::public.organization_permission_key,super_admin_id
 FROM lease_rent_state;
 SET LOCAL session_replication_role = replica;
 UPDATE public.properties property SET branch_id=state.finance_branch_id
