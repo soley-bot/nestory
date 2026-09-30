@@ -81,4 +81,25 @@ describe("rent invoice visibility", () => {
     expect(isVisibleTenantInvoice(invoice("unpaid", "current"))).toBe(true);
     expect(isVisibleTenantInvoice(invoice("voided", "voided"))).toBe(false);
   });
+
+  it("finds an other-income tenant invoice by a unit number with leading zeros", () => {
+    const otherIncome = invoice("unpaid", "other-income");
+    otherIncome.unitLabel = "Pilot Property · Unit 0009";
+    otherIncome.lines = [{ ...otherIncome.lines[0]!, label: "Other income" }];
+
+    expect(
+      getRentInvoiceView(
+        [otherIncome],
+        new URLSearchParams({ q: "0009" }),
+        "2026-09-28",
+      ).filteredInvoices,
+    ).toEqual([otherIncome]);
+    expect(
+      getRentInvoiceView(
+        [otherIncome],
+        new URLSearchParams({ q: "other income" }),
+        "2026-09-28",
+      ).filteredInvoices,
+    ).toEqual([otherIncome]);
+  });
 });

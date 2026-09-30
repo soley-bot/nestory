@@ -181,6 +181,7 @@ type FinanceOperationsScreenProps = FinanceOperationsData & {
   initialRentLeaseId?: string;
   openingAuthority?: ReactNode;
   organizationName: string;
+  reportReturnHref?: string | null;
   selectedPropertyId?: string | null;
   scope?: {
     id: string;
@@ -499,6 +500,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
             />
           ) : visibleDetailDrawer.mode === "expense-details" ? (
             <ExpenseDetails
+              reportReturnHref={props.reportReturnHref}
               originalExpense={visibleDetailDrawer.submission.replacesTransactionId ? props.expenseSubmissions.find((item) => item.transactionId === visibleDetailDrawer.submission.replacesTransactionId) : undefined}
               replacementExpense={visibleDetailDrawer.submission.replacementTransactionId ? props.expenseSubmissions.find((item) => item.transactionId === visibleDetailDrawer.submission.replacementTransactionId) : undefined}
               onViewRelated={(submission) => setModal({ mode: "expense-details", submission })}
@@ -1741,7 +1743,7 @@ function RentView({
             body={
               invoices.length === 0
                 ? "Rent charges are generated automatically from each active Lease."
-                : "Clear or change the filters to see more invoices."
+                : "Clear or change the filters to see more invoices. Only tenant charges appear here; cash already recorded as income is in Transactions and cannot be received again."
             }
             className="flex-1 rounded-xl border border-border/80 bg-card shadow-sm"
             kind="empty"
@@ -1777,6 +1779,12 @@ function RentView({
                       <p className="truncate font-medium" title={invoice.invoiceNumber}>
                         {invoice.invoiceNumber}
                       </p>
+                      <p
+                        className="truncate text-xs text-foreground"
+                        title={invoice.lines.map((line) => line.label).join(", ")}
+                      >
+                        {invoice.lines.map((line) => line.label).join(", ")}
+                      </p>
                       <p className="truncate text-xs text-muted-foreground">
                         Due {formatDate(invoice.dueDate)}
                       </p>
@@ -1787,9 +1795,9 @@ function RentView({
                       </p>
                       <p
                         className="truncate text-xs text-muted-foreground"
-                        title={invoice.propertyLabel}
+                        title={`${invoice.propertyLabel} · ${invoice.unitLabel}`}
                       >
-                        {invoice.propertyLabel}
+                        {invoice.propertyLabel} · {invoice.unitLabel}
                       </p>
                     </Td>
                     <Td className="overflow-hidden">
@@ -2588,6 +2596,7 @@ function ExpenseLines({ submission }: { submission: ExpenseSubmissionSummary }) 
 }
 
 function ExpenseDetails({
+  reportReturnHref,
   originalExpense,
   replacementExpense,
   onViewRelated,
@@ -2602,6 +2611,7 @@ function ExpenseDetails({
   onReverse,
   submission,
 }: {
+  reportReturnHref?: string | null;
   originalExpense?: ExpenseSubmissionSummary;
   replacementExpense?: ExpenseSubmissionSummary;
   onViewRelated: (submission: ExpenseSubmissionSummary) => void;
@@ -2618,6 +2628,11 @@ function ExpenseDetails({
 }) {
   return (
     <div className="space-y-4 p-4">
+      {reportReturnHref ? (
+        <Link className="inline-flex font-medium underline underline-offset-4" href={reportReturnHref}>
+          Return to report and recheck
+        </Link>
+      ) : null}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="font-semibold">

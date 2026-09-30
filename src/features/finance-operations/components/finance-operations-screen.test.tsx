@@ -1945,11 +1945,23 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByRole("combobox", { name: "Due period" })).not.toBeNull();
     expect(screen.getByRole("combobox", { name: "Overdue at least" })).not.toBeNull();
     expect(screen.getByRole("combobox", { name: "Sort invoices" })).not.toBeNull();
+    expect(screen.getByText(/Riverside Home.*Unit 01/)).not.toBeNull();
+    expect(screen.getByText("Rent")).not.toBeNull();
     const preview = screen.getByRole("button", {
       name: "View invoice INV-202608-001",
     });
     expect(preview.className).toContain("h-8");
     expect(preview.className).toContain("w-8");
+  });
+
+  it("explains where recorded cash went when invoice filters match nothing", () => {
+    navigation.pathname = "/rent-income";
+    navigation.searchParams = new URLSearchParams("q=0009");
+    const input = data();
+    input.tenantInvoices = [tenantInvoice()];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities()} organizationName="Sokha Property Services" view="rent" />);
+    expect(screen.getByText(/Only tenant charges appear here/)).not.toBeNull();
+    expect(screen.getByText(/cash already recorded as income is in Transactions/)).not.toBeNull();
   });
 
   it("applies rent search, property, status, aging, and sort from the URL", () => {

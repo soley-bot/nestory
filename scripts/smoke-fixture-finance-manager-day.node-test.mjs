@@ -6,6 +6,7 @@ import {
   formatFinanceManagerDayFailure,
   getLocalGatewayContainer,
   resolveFinanceManagerDayConfig,
+  verifyReportDownload,
 } from "./smoke-fixture-finance-manager-day.mjs";
 
 test("derives the local API gateway that refreshes after a database reset", () => {
@@ -90,4 +91,20 @@ test("accepts only a local URL and keeps the password out of diagnostics", () =>
     ),
     "Finance Manager day post-petty-cash-entry: journey failed",
   );
+});
+
+test("proves authenticated report responses contain real downloadable file bytes", async () => {
+  const response = (contentType, body, disposition = 'attachment; filename="report"') => ({
+    body: async () => Buffer.from(body, "latin1"),
+    headers: () => ({
+      "content-disposition": disposition,
+      "content-type": contentType,
+    }),
+    ok: () => true,
+  });
+
+  assert.equal(await verifyReportDownload(response("application/pdf", "%PDF-1.7 report"), "application/pdf"), true);
+  assert.equal(await verifyReportDownload(response("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "PK workbook"), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"), true);
+  assert.equal(await verifyReportDownload(response("application/pdf", "<html>Login</html>"), "application/pdf"), false);
+  assert.equal(await verifyReportDownload(response("text/html", "<html>Login</html>", "inline"), "application/pdf"), false);
 });

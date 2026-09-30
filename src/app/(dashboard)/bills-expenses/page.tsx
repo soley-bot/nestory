@@ -21,11 +21,12 @@ export default async function BillsExpensesPage({
         : undefined;
   const context = await requireFinanceContext();
   const source = await resolveExpenseReportSource(context.organizationId, params.sourceType, params.sourceId);
+  const returnTo = reportReturnHref(params.returnTo);
   const expenseMonth = source?.expense_date.slice(0, 7) ?? (typeof params.expenseMonth === "string" && /^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(params.expenseMonth) ? params.expenseMonth : "");
   const data = await getFinanceOperationsData(context.organizationId, undefined, { expenseMonth });
   return (
     <>
-    <ReportReturnNavigation returnTo={reportReturnHref(params.returnTo)} />
+    <ReportReturnNavigation returnTo={returnTo} />
     {params.sourceId && !source ? <p role="alert" className="workspace-gutter-x py-3">This report transaction is unavailable or outside your access.</p> : null}
     <FinanceOperationsScreen
       key={source?.id ?? "expenses"}
@@ -48,6 +49,7 @@ export default async function BillsExpensesPage({
       canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       initialExpenseIntent={initialExpenseIntent}
       organizationName={context.organizationName}
+      reportReturnHref={returnTo}
       expenseMonth={expenseMonth}
       view="expenses"
     />

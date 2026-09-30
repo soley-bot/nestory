@@ -255,6 +255,7 @@ function filterAndSortRentInvoices(
         invoice.propertyLabel,
         invoice.unitLabel,
         ...invoice.occupantLabels,
+        ...(invoice.lines ?? []).map((line) => line.label),
       ])
     ) {
       return false;
