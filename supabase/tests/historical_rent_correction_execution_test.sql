@@ -866,8 +866,30 @@ UPDATE lease_rent_state state SET
     state.organization_id,(SELECT lease_id FROM isolated_paid WHERE name='paid-isolated'),
     state.current_period_start,state.current_period_start,'manual_recovery',state.super_admin_id);
 
+CREATE FUNCTION pg_temp.current_rent_authority_debug(
+  p_organization_id uuid,p_invoice_id uuid,p_due_day integer
+) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+  SELECT jsonb_build_object(
+    'uid',(SELECT auth.uid()),
+    'currentUser',current_user,
+    'sessionUser',session_user,
+    'helper',app_private.can_edit_current_issued_rent(
+      p_organization_id,p_invoice_id,p_due_day
+    )
+  )
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.current_rent_authority_debug(uuid,uuid,integer)
+TO authenticated;
+
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub',(SELECT finance_manager_id::text FROM lease_rent_state),true);
+SELECT diag('authenticated current rent authority diagnostic: ' ||
+  pg_temp.current_rent_authority_debug(
+    organization_id,current_invoice_id,
+    (SELECT extract(day FROM invoice.due_date)::integer
+     FROM public.tenant_invoices invoice WHERE invoice.id=current_invoice_id)
+  )::text)
+FROM lease_rent_state;
 SELECT lives_ok($$SELECT public.preview_historical_rent_correction(
  organization_id,current_invoice_id,1100,
  (SELECT extract(day FROM invoice.due_date)::integer
