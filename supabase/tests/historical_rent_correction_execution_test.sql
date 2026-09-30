@@ -34,7 +34,9 @@ CREATE TEMP TABLE lease_rent_state (
   current_period_start date,
   non_current_period_start date,
   current_invoice_id uuid,
+  current_invoice_due_day integer,
   cross_property_current_invoice_id uuid,
+  cross_property_current_invoice_due_day integer,
   current_retry_result jsonb
 ) ON COMMIT DROP;
 
@@ -866,34 +868,19 @@ UPDATE lease_rent_state state SET
     state.organization_id,(SELECT lease_id FROM isolated_paid WHERE name='paid-isolated'),
     state.current_period_start,state.current_period_start,'manual_recovery',state.super_admin_id);
 
-CREATE FUNCTION pg_temp.current_rent_authority_debug(
-  p_organization_id uuid,p_invoice_id uuid,p_due_day integer
-) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
-  SELECT jsonb_build_object(
-    'uid',(SELECT auth.uid()),
-    'currentUser',current_user,
-    'sessionUser',session_user,
-    'helper',app_private.can_edit_current_issued_rent(
-      p_organization_id,p_invoice_id,p_due_day
-    )
-  )
-$$;
-GRANT EXECUTE ON FUNCTION pg_temp.current_rent_authority_debug(uuid,uuid,integer)
-TO authenticated;
+UPDATE lease_rent_state state SET
+  current_invoice_due_day=extract(day FROM current_invoice.due_date)::integer,
+  cross_property_current_invoice_due_day=
+    extract(day FROM cross_property_invoice.due_date)::integer
+FROM public.tenant_invoices current_invoice,
+  public.tenant_invoices cross_property_invoice
+WHERE current_invoice.id=state.current_invoice_id
+  AND cross_property_invoice.id=state.cross_property_current_invoice_id;
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub',(SELECT finance_manager_id::text FROM lease_rent_state),true);
-SELECT diag('authenticated current rent authority diagnostic: ' ||
-  pg_temp.current_rent_authority_debug(
-    organization_id,current_invoice_id,
-    (SELECT extract(day FROM invoice.due_date)::integer
-     FROM public.tenant_invoices invoice WHERE invoice.id=current_invoice_id)
-  )::text)
-FROM lease_rent_state;
 SELECT lives_ok($$SELECT public.preview_historical_rent_correction(
- organization_id,current_invoice_id,1100,
- (SELECT extract(day FROM invoice.due_date)::integer
-  FROM public.tenant_invoices invoice WHERE invoice.id=current_invoice_id))
+ organization_id,current_invoice_id,1100,current_invoice_due_day)
  FROM lease_rent_state$$,
  'assigned Finance Manager can preview the current issued rent amount');
 SELECT throws_ok($$SELECT public.preview_historical_rent_correction(
@@ -902,8 +889,7 @@ SELECT throws_ok($$SELECT public.preview_historical_rent_correction(
  'assigned Finance Manager cannot change the current invoice due day');
 SELECT throws_ok($$SELECT public.preview_historical_rent_correction(
  organization_id,cross_property_current_invoice_id,1100,
- (SELECT extract(day FROM invoice.due_date)::integer
-  FROM public.tenant_invoices invoice WHERE invoice.id=cross_property_current_invoice_id))
+ cross_property_current_invoice_due_day)
  FROM lease_rent_state$$,'42501','historical_rent_correction_forbidden',
  'Finance Manager cannot preview current rent outside the assigned Property branch');
 SELECT throws_ok($$SELECT pg_temp.preview_case('stale')$$,'42501','historical_rent_correction_forbidden',
