@@ -147,7 +147,7 @@ export function historicalRentCorrectionErrorMessage(error: {
     evidence.includes("historical_rent_correction_forbidden") ||
     evidence.includes("row-level security")
   ) {
-    return "Only a Super Admin can correct historical rent.";
+    return "You can edit only the current issued rent for a property assigned to you. Ask a Super Admin to correct an earlier period.";
   }
 
   return "Nestory could not safely correct this historical rent period. Preview it again and review the blockers.";

@@ -93,6 +93,10 @@ describe("lease detail route", () => {
     expect(getHistoricalRentCorrectionCandidates).toHaveBeenCalledWith(
       "organization-1",
       leaseId,
+      {
+        currentPeriodOnly: false,
+        rentBusinessDate: undefined,
+      },
     );
     expect(detailSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -101,6 +105,54 @@ describe("lease detail route", () => {
         ],
         permissions: expect.objectContaining({
           canCorrectHistoricalRent: true,
+          canEditCurrentRent: false,
+        }),
+      }),
+    );
+  });
+
+  it("loads only the current issued period for a Finance Manager with correction authority", async () => {
+    requirePermission.mockResolvedValue({
+      organizationId: "organization-1",
+      permissionKeys: new Set(["leases.view", "finance.correct_records"]),
+      roleKind: "custom",
+    });
+    getLeasesScreenData.mockResolvedValue({
+      billingFormConfig: {
+        companyOptions: [],
+        operationalTimezone: "Asia/Phnom_Penh",
+        organizationName: "Pilot",
+        rentBusinessDate: "2026-09-30",
+      },
+      leases: [{ id: leaseId, isArchived: false }],
+      propertyOptions: [],
+      tenantOptions: [],
+      unitOptions: [],
+    });
+    getHistoricalRentCorrectionCandidates.mockResolvedValue([
+      { invoiceId, invoiceNumber: "INV-202609-001" },
+    ]);
+
+    await renderPage({
+      action: "edit-current-rent",
+      invoiceId,
+      section: "rent",
+    });
+
+    expect(getHistoricalRentCorrectionCandidates).toHaveBeenCalledWith(
+      "organization-1",
+      leaseId,
+      {
+        currentPeriodOnly: true,
+        rentBusinessDate: "2026-09-30",
+      },
+    );
+    expect(detailSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentRentEditInvoiceId: invoiceId,
+        permissions: expect.objectContaining({
+          canCorrectHistoricalRent: false,
+          canEditCurrentRent: true,
         }),
       }),
     );
@@ -144,6 +196,7 @@ describe("lease detail route", () => {
           canChangeTerms: true,
           canClose: true,
           canCorrectHistoricalRent: false,
+          canEditCurrentRent: false,
           canPrepare: true,
         },
       }),

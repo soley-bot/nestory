@@ -22,7 +22,7 @@ type LeasePageProps = {
 export default async function LeasePage({ params, searchParams }: LeasePageProps) {
   const [{ leaseId }, rawSearchParams] = await Promise.all([params, searchParams]);
   const context = await requirePermission("leases.view");
-  const { paymentFocusRequested, paymentInvoiceId, section } =
+  const { paymentFocusRequested, paymentInvoiceId, rentEditInvoiceId, section } =
     parseLeaseDetailQuery(rawSearchParams);
   const viewQuery = {
     ...parseLeaseSearchParams({ archiveState: "all" }),
@@ -53,10 +53,15 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
   }
 
   const historicalRentCorrectionCandidates =
-    context.roleKind === "super_admin"
+    context.roleKind === "super_admin" ||
+    context.permissionKeys.has("finance.correct_records")
       ? await getHistoricalRentCorrectionCandidates(
           context.organizationId,
           lease.id,
+          {
+            currentPeriodOnly: context.roleKind !== "super_admin",
+            rentBusinessDate: billingFormConfig?.rentBusinessDate,
+          },
         )
       : [];
 
@@ -93,9 +98,18 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
         canChangeTerms: context.permissionKeys.has("leases.change_terms"),
         canClose: context.permissionKeys.has("leases.close"),
         canPrepare: context.permissionKeys.has("leases.prepare"),
+        canEditCurrentRent: context.permissionKeys.has("finance.correct_records"),
         canCorrectHistoricalRent: context.roleKind === "super_admin",
       }}
       historicalRentCorrectionCandidates={historicalRentCorrectionCandidates}
+      currentRentEditInvoiceId={
+        context.permissionKeys.has("finance.correct_records") &&
+        historicalRentCorrectionCandidates.some(
+          (candidate) => candidate.invoiceId === rentEditInvoiceId,
+        )
+          ? rentEditInvoiceId ?? undefined
+          : undefined
+      }
       lease={lease}
       leaseDepositAccounts={getLeaseDepositAccountOptions(
         financeAccountData.groups.flatMap((group) => group.accounts),

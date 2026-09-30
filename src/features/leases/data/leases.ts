@@ -367,10 +367,15 @@ export async function getLeasesScreenData(
 export async function getHistoricalRentCorrectionCandidates(
   organizationId: string,
   leaseId: string,
+  options: {
+    currentPeriodOnly?: boolean;
+    rentBusinessDate?: string;
+  } = {},
 ): Promise<HistoricalRentCorrectionCandidate[]> {
   const supabase = await createSupabaseServerClient();
-  const currentDate = new Date().toISOString().slice(0, 10);
-  const { data: invoices, error: invoiceError } = await supabase
+  const currentDate =
+    options.rentBusinessDate ?? new Date().toISOString().slice(0, 10);
+  let invoiceQuery = supabase
     .from("tenant_invoice_balances")
     .select(
       "id, invoice_number, billing_period_start, billing_period_end, due_date, currency, payment_status, paid_through_ips, collected_by_owner",
@@ -378,8 +383,14 @@ export async function getHistoricalRentCorrectionCandidates(
     .eq("organization_id", organizationId)
     .eq("lease_id", leaseId)
     .eq("lifecycle", "issued")
-    .lte("billing_period_start", currentDate)
-    .order("billing_period_start", { ascending: false });
+    .lte("billing_period_start", currentDate);
+  if (options.currentPeriodOnly) {
+    invoiceQuery = invoiceQuery.gte("billing_period_end", currentDate);
+  }
+  const { data: invoices, error: invoiceError } = await invoiceQuery.order(
+    "billing_period_start",
+    { ascending: false },
+  );
 
   if (invoiceError) {
     throw new Error(

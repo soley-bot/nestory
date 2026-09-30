@@ -519,6 +519,35 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.queryByRole("button", { name: /record.*payment|receive.*(?:cash|payment)|confirm.*(?:collection|cash)/i })).toBeNull();
   });
 
+  it("links an authorized current issued invoice directly to the rent editor", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    const invoice = tenantInvoice();
+    invoice.billingPeriodStart = "2026-09-01";
+    invoice.generationSource = "lease_rules_v1";
+    input.tenantInvoices = [invoice];
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canCorrectFinance: true })}
+        canViewLeases
+        organizationName="IPS"
+        view="rent"
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
+    );
+    expect(
+      within(screen.getByRole("dialog", { name: "Invoice details" }))
+        .getByRole("link", { name: "Edit this month's rent" })
+        .getAttribute("href"),
+    ).toBe(
+      `/leases/${invoice.leaseId}?action=edit-current-rent&invoiceId=${invoice.id}&section=rent`,
+    );
+  });
+
   it.each(["property", "unit"] as const)("retains authorized %s record breadcrumbs", (kind) => {
     render(<FinanceOperationsScreen {...data()} {...financeCapabilities({})} canViewPropertyRecords
       organizationName="IPS" view="rent"

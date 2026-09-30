@@ -6,7 +6,7 @@ import {
   parseHistoricalRentCorrectionInput,
   parseHistoricalRentCorrectionPreviewInput,
 } from "@/features/leases/historical-rent-correction-input";
-import { requireHistoricalRentRecoveryContext } from "@/lib/auth/context";
+import { requireFinanceCorrectionContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 export type HistoricalRentCorrectionBlocker = {
@@ -23,6 +23,7 @@ export type HistoricalRentCorrectionPreview = {
   correctedDueDay: number;
   correctedRentAmount: number;
   immutableEvidence: Record<string, boolean>;
+  ipsRentSettledAmount?: number;
   invoiceId: string;
   invoiceNumber: string;
   managementFeeDelta: number;
@@ -30,6 +31,7 @@ export type HistoricalRentCorrectionPreview = {
   originalDueDay: number;
   originalManagementFeeAmount: number;
   originalRentAmount: number;
+  ownerRentSettledAmount?: number;
   previewHash: string;
   projectedTenantCreditAmount: number;
   rentDelta: number;
@@ -76,7 +78,7 @@ export async function previewHistoricalRentCorrectionAction(
     };
   }
 
-  const context = await requireHistoricalRentRecoveryContext();
+  const context = await requireFinanceCorrectionContext();
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc(
     "preview_historical_rent_correction",
@@ -133,7 +135,7 @@ export async function applyHistoricalRentCorrectionAction(
     };
   }
 
-  const context = await requireHistoricalRentRecoveryContext();
+  const context = await requireFinanceCorrectionContext();
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("correct_historical_rent", {
     p_corrected_due_day: parsed.data.correctedDueDay,
@@ -173,7 +175,7 @@ export async function applyHistoricalRentCorrectionAction(
   return {
     message: parsed.data.correctedManagementFeeAmount !== undefined
       ? "Management fee corrected for this issued period. The recurring billing rule is unchanged."
-      : "Historical rent corrected. Issued evidence was retained.",
+      : "Issued rent updated. Payments and future recurring rent were retained.",
     status: "success",
   };
 }

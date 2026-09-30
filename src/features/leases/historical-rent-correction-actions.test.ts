@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireHistoricalRentRecoveryContext, revalidatePath, rpc } =
+const { requireFinanceCorrectionContext, revalidatePath, rpc } =
   vi.hoisted(() => ({
-    requireHistoricalRentRecoveryContext: vi.fn(),
+    requireFinanceCorrectionContext: vi.fn(),
     revalidatePath: vi.fn(),
     rpc: vi.fn(),
   }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({
-  requireHistoricalRentRecoveryContext,
+  requireFinanceCorrectionContext,
 }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: async () => ({ rpc }),
@@ -25,10 +25,10 @@ const invoiceId = "11111111-1111-4111-8111-111111111111";
 
 describe("historical rent correction actions", () => {
   beforeEach(() => {
-    requireHistoricalRentRecoveryContext.mockReset();
+    requireFinanceCorrectionContext.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
-    requireHistoricalRentRecoveryContext.mockResolvedValue({ organizationId });
+    requireFinanceCorrectionContext.mockResolvedValue({ organizationId });
   });
 
   it("previews through the Super Admin recovery boundary", async () => {
@@ -60,7 +60,7 @@ describe("historical rent correction actions", () => {
       preview: { canApply: true, projectedTenantCreditAmount: 50 },
       status: "preview",
     });
-    expect(requireHistoricalRentRecoveryContext).toHaveBeenCalledOnce();
+    expect(requireFinanceCorrectionContext).toHaveBeenCalledOnce();
     expect(rpc).toHaveBeenCalledWith(
       "preview_historical_rent_correction",
       {
@@ -83,7 +83,7 @@ describe("historical rent correction actions", () => {
     await expect(
       applyHistoricalRentCorrectionAction({}, form),
     ).resolves.toMatchObject({
-      message: "Historical rent corrected. Issued evidence was retained.",
+      message: "Issued rent updated. Payments and future recurring rent were retained.",
       status: "success",
     });
     expect(rpc).toHaveBeenCalledWith("correct_historical_rent", {
