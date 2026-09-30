@@ -2368,23 +2368,25 @@ SELECT public.transfer_owner_balance_component(
   '80000000-0000-0000-0000-000000000012',
   'USD',
   (date_trunc('month', current_date) + interval '1 month')::date,
-  'owner_due_to_ips', (
-    SELECT component.closing_amount
-    FROM public.owner_balance_periods AS period
-    JOIN public.owner_balance_period_components AS component
-      ON component.organization_id = period.organization_id
-      AND component.owner_balance_period_id = period.id
-      AND component.component = 'owner_due_to_ips'
-    WHERE period.organization_id = '00000000-0000-0000-0000-000000000001'
-      AND period.property_id = '10000000-0000-0000-0000-000000000003'
-      AND period.owner_person_id = '80000000-0000-0000-0000-000000000009'
-      AND period.currency = 'USD'
-      AND period.month_start = date_trunc('month', current_date)::date
-  ),
+  'owner_due_to_ips', transfer.closing_amount,
   'Explicit Garden Court owner-payable transfer',
   'FIXTURE-GARDEN-TRANSFER-OWNER-DUE-001', repeat('4', 64),
   'fixture-owner-balance-transfer-owner-due-v1'
-);
+)
+FROM (
+  SELECT component.closing_amount
+  FROM public.owner_balance_periods AS period
+  JOIN public.owner_balance_period_components AS component
+    ON component.organization_id = period.organization_id
+    AND component.owner_balance_period_id = period.id
+    AND component.component = 'owner_due_to_ips'
+  WHERE period.organization_id = '00000000-0000-0000-0000-000000000001'
+    AND period.property_id = '10000000-0000-0000-0000-000000000003'
+    AND period.owner_person_id = '80000000-0000-0000-0000-000000000009'
+    AND period.currency = 'USD'
+    AND period.month_start = date_trunc('month', current_date)::date
+    AND component.closing_amount > 0
+) AS transfer;
 
 SELECT public.generate_owner_balance_period(
   '00000000-0000-0000-0000-000000000001',
