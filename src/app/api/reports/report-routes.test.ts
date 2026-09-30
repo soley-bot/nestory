@@ -13,6 +13,7 @@ import {
   getOwnerStatementMembershipForUser,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { captureUnexpectedServerError } from "@/lib/observability/capture-unexpected-server-error";
 
 vi.mock("@/lib/auth/context", () => ({
   getCurrentUser: vi.fn(),
@@ -34,6 +35,10 @@ vi.mock("@/features/reports/data/owner-statement-artifacts", () => ({
 
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(),
+}));
+
+vi.mock("@/lib/observability/capture-unexpected-server-error", () => ({
+  captureUnexpectedServerError: vi.fn(),
 }));
 
 const handlers = [
@@ -134,7 +139,45 @@ describe("report export routes", () => {
 
     expect(response.status).toBe(403);
     expect(downloadOwnerStatementArtifact).not.toHaveBeenCalled();
+    expect(captureUnexpectedServerError).not.toHaveBeenCalled();
   });
+
+  it.each(handlers)(
+    "captures unexpected %s artifact download failures without changing the response",
+    async (_, handler, __, route) => {
+      const failure = new Error("private artifact failure");
+      vi.mocked(downloadOwnerStatementArtifact).mockRejectedValueOnce(failure);
+
+      const response = await handler(new Request(
+        `http://localhost/api/reports/${route}?artifactId=00000000-0000-4000-8000-000000000009`,
+      ));
+
+      expect(response.status).toBe(409);
+      expect(await response.text()).toBe(
+        "Official Owner Statement artifact is unavailable.",
+      );
+      expect(captureUnexpectedServerError).toHaveBeenCalledWith(
+        failure,
+        route === "pdf"
+          ? "report_pdf_artifact_download"
+          : "report_excel_artifact_download",
+      );
+    },
+  );
+
+  it.each(handlers)(
+    "does not capture expected %s artifact authorization failures",
+    async (_, handler, __, route) => {
+      vi.mocked(getOwnerStatementMembershipForUser).mockResolvedValueOnce(null);
+
+      const response = await handler(new Request(
+        `http://localhost/api/reports/${route}?artifactId=00000000-0000-4000-8000-000000000009`,
+      ));
+
+      expect(response.status).toBe(403);
+      expect(captureUnexpectedServerError).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(handlers)("authorizes Finance Manager %s exports through the report-capability helper", async (_, handler, loader, route) => {
     vi.mocked(loader).mockResolvedValueOnce(

@@ -7,6 +7,7 @@ import {
   getOwnerStatementMembershipForUser,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { captureUnexpectedServerError } from "@/lib/observability/capture-unexpected-server-error";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -41,7 +42,8 @@ export async function GET(request: Request) {
         return textResponse("Owner Statement artifact format mismatch.", 409);
       }
       return attachment(artifact.bytes, artifact.filename, artifact.contentType);
-    } catch {
+    } catch (error) {
+      captureUnexpectedServerError(error, "report_pdf_artifact_download");
       return textResponse("Official Owner Statement artifact is unavailable.", 409);
     }
   }
