@@ -217,17 +217,8 @@ async function removePriorFixtureArtifacts(service: SupabaseClient<Database>) {
 }
 
 function fixtureMonthStart() {
-  const phnomPenhParts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Phnom_Penh",
-      year: "numeric",
-      month: "2-digit",
-    })
-      .formatToParts(new Date())
-      .filter(({ type }) => type === "year" || type === "month")
-      .map(({ type, value }) => [type, Number(value)]),
-  );
-  return new Date(Date.UTC(phnomPenhParts.year, phnomPenhParts.month - 1 + 24, 1))
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 24, 1))
     .toISOString().slice(0, 10);
 }
 

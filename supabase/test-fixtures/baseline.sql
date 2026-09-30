@@ -2450,7 +2450,9 @@ CREATE TEMP TABLE owner_close_fixture_scope (
   month_start date PRIMARY KEY
 ) ON COMMIT DROP;
 INSERT INTO owner_close_fixture_scope (month_start)
-VALUES ((date_trunc('month', current_date) + interval '24 months')::date);
+VALUES ((
+  date_trunc('month', now() AT TIME ZONE 'UTC') + interval '24 months'
+)::date);
 GRANT SELECT ON owner_close_fixture_scope TO authenticated;
 
 SET LOCAL ROLE authenticated;
