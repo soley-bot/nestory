@@ -1912,6 +1912,7 @@ export function toTenantInvoice(
   return [
     {
       balanceDue: Number(row.balance_due ?? 0),
+      billingPeriodEnd: row.billing_period_end ?? undefined,
       billingPeriodStart:
         generation?.billing_period_start ??
         row.billing_period_start ??

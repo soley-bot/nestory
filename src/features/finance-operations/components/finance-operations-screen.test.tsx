@@ -524,6 +524,7 @@ describe("FinanceOperationsScreen", () => {
     const input = data();
     const invoice = tenantInvoice();
     invoice.billingPeriodStart = "2026-09-01";
+    invoice.billingPeriodEnd = "2026-09-30";
     invoice.generationSource = "lease_rules_v1";
     input.tenantInvoices = [invoice];
     render(
@@ -4244,6 +4245,7 @@ function data(): FinanceOperationsData {
 function tenantInvoice(): FinanceOperationsData["tenantInvoices"][number] {
   return {
     balanceDue: 640,
+    billingPeriodEnd: "2026-08-31",
     billingPeriodStart: "2026-08-01",
     collectedByOwner: 0,
     collectionRoute: "direct_to_owner",

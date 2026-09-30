@@ -40,6 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import { findConfiguredAccountId } from "@/features/finance-accounts/finance-account-selection";
 import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
+import { getCalendarDateInTimeZone } from "@/features/leases/lease-billing-rule-state";
 import {
   buildLeaseCurrentRentEditHref,
   buildLeasePaymentResolutionHref,
@@ -470,6 +471,10 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
         >
           {visibleDetailDrawer.mode === "invoice-details" ? (
             <InvoiceDetails
+              businessDate={getCalendarDateInTimeZone(
+                new Date(),
+                props.operationalTimezone ?? "UTC",
+              )}
               canCorrectFinance={props.canCorrectFinance}
               canRecordPayments={props.canRecordPayments}
               canViewLeases={props.canViewLeases ?? false}
@@ -2217,6 +2222,7 @@ function BalancesView({
 }
 
 function InvoiceDetails({
+  businessDate,
   canCorrectFinance,
   canRecordPayments,
   canViewLeases,
@@ -2232,6 +2238,7 @@ function InvoiceDetails({
   pdfResultHref,
   publicationOpen,
 }: {
+  businessDate: string;
   canCorrectFinance: boolean;
   canRecordPayments: boolean;
   canViewLeases: boolean;
@@ -2259,8 +2266,8 @@ function InvoiceDetails({
     canViewLeases &&
     invoice.generationSource === "lease_rules_v1" &&
     invoice.paymentStatus !== "voided" &&
-    invoice.billingPeriodStart.slice(0, 7) ===
-      getBusinessDateValue().slice(0, 7);
+    invoice.billingPeriodStart <= businessDate &&
+    Boolean(invoice.billingPeriodEnd && invoice.billingPeriodEnd >= businessDate);
 
   return (
     <>

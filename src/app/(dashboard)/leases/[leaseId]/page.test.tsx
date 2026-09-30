@@ -158,6 +158,29 @@ describe("lease detail route", () => {
     );
   });
 
+  it("explains when a linked current-rent invoice is no longer eligible", async () => {
+    requirePermission.mockResolvedValue({
+      organizationId: "organization-1",
+      permissionKeys: new Set(["leases.view", "finance.correct_records"]),
+      roleKind: "finance_manager",
+    });
+
+    await renderPage({
+      action: "edit-current-rent",
+      invoiceId,
+      section: "rent",
+    });
+
+    expect(detailSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentRentEditInvoiceId: undefined,
+        routeNotice: expect.objectContaining({
+          message: expect.stringContaining("can no longer be edited"),
+        }),
+      }),
+    );
+  });
+
   it.each([false, true])("delegates property navigation only with properties.view (%s)", async (canViewPropertyRecords) => {
     requirePermission.mockResolvedValue({ organizationId: "organization-1", permissionKeys: new Set([
       "leases.view", "finance.view", ...(canViewPropertyRecords ? ["properties.view"] : []),

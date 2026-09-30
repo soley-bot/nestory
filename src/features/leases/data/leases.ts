@@ -402,6 +402,26 @@ export async function getHistoricalRentCorrectionCandidates(
     .filter((invoiceId): invoiceId is string => Boolean(invoiceId));
   if (invoiceIds.length === 0) return [];
 
+  let currentRentInvoiceIds: Set<string> | null = null;
+  if (options.currentPeriodOnly) {
+    const { data: currentRentInvoices, error: currentRentInvoiceError } =
+      await supabase
+        .from("tenant_invoices")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("lease_id", leaseId)
+        .eq("generation_source", "lease_rules_v1")
+        .in("id", invoiceIds);
+    if (currentRentInvoiceError) {
+      throw new Error(
+        `Could not load current rent invoice eligibility: ${currentRentInvoiceError.message}`,
+      );
+    }
+    currentRentInvoiceIds = new Set(
+      (currentRentInvoices ?? []).map((invoice) => invoice.id),
+    );
+  }
+
   const [{ data: lines, error: lineError }, { data: corrections, error: correctionError }, { data: fees, error: feeError }] =
     await Promise.all([
       supabase
@@ -451,6 +471,9 @@ export async function getHistoricalRentCorrectionCandidates(
   }
 
   return (invoices ?? []).flatMap((invoice) => {
+    if (currentRentInvoiceIds && !currentRentInvoiceIds.has(invoice.id ?? "")) {
+      return [];
+    }
     if (
       !invoice.id ||
       !invoice.invoice_number ||
