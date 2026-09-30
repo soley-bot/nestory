@@ -23,6 +23,13 @@ AS $$
       AND app_private.rent_business_date(p_organization_id)
         BETWEEN invoice.billing_period_start AND invoice.billing_period_end
       AND p_corrected_due_day = extract(day FROM invoice.due_date)::integer
+      AND NOT EXISTS (
+        SELECT 1
+        FROM public.tenant_invoice_corrections AS correction
+        WHERE correction.organization_id = invoice.organization_id
+          AND correction.tenant_invoice_id = invoice.id
+          AND correction.action = 'historical_rent'
+      )
       AND app_private.can_access_property(
         p_organization_id,
         invoice.property_id,
@@ -85,6 +92,28 @@ BEGIN
   new_guard := $guard$IF v_actor_id IS NULL
     OR NOT (
       app_private.is_org_admin(p_organization_id)
+      OR EXISTS (
+        SELECT 1
+        FROM public.tenant_invoices AS replay_invoice
+        WHERE replay_invoice.organization_id = p_organization_id
+          AND replay_invoice.id = p_invoice_id
+          AND replay_invoice.generation_source = 'lease_rules_v1'
+          AND p_corrected_due_day = extract(day FROM replay_invoice.due_date)::integer
+          AND app_private.can_access_property(
+            p_organization_id,
+            replay_invoice.property_id,
+            'finance.correct_records'::public.organization_permission_key
+          )
+      )
+    ) THEN$guard$;
+  IF array_length(string_to_array(definition, old_guard), 1) <> 2 THEN
+    RAISE EXCEPTION 'current_rent_apply_authority_guard_mismatch';
+  END IF;
+  definition := replace(definition, old_guard, new_guard);
+
+  old_guard := $guard$  SELECT invoice.* INTO v_invoice$guard$;
+  new_guard := $guard$  IF NOT (
+      app_private.is_org_admin(p_organization_id)
       OR app_private.can_edit_current_issued_rent(
         p_organization_id,
         p_invoice_id,
@@ -92,9 +121,9 @@ BEGIN
       )
     ) THEN$guard$;
   IF array_length(string_to_array(definition, old_guard), 1) <> 2 THEN
-    RAISE EXCEPTION 'current_rent_apply_authority_guard_mismatch';
+    RAISE EXCEPTION 'current_rent_apply_lock_guard_mismatch';
   END IF;
-  EXECUTE replace(definition, old_guard, new_guard);
+  EXECUTE replace(definition, old_guard, new_guard || E'\n    RAISE EXCEPTION ''historical_rent_correction_forbidden'' USING ERRCODE = ''42501'';\n  END IF;\n\n  SELECT invoice.* INTO v_invoice');
 END;
 $migration$;
 

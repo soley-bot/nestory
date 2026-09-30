@@ -901,6 +901,12 @@ SELECT is(public.correct_historical_rent(
   'finance-manager-current-rent-edit'),current_retry_result,
   'repeated Finance Manager save replays the exact current-rent result')
 FROM lease_rent_state;
+SELECT throws_ok($$SELECT public.correct_historical_rent(
+  organization_id,current_invoice_id,1200,current_invoice_due_day,
+  'Try a second current rent correction',current_preview->>'previewHash',
+  'finance-manager-current-rent-second') FROM lease_rent_state$$,
+  '42501','historical_rent_correction_forbidden',
+  'Finance Manager cannot apply a second correction to the issued month');
 RESET ROLE;
 SELECT is((SELECT balance.total_amount FROM public.tenant_invoice_balances balance
   WHERE balance.id=state.current_invoice_id),1100::numeric,

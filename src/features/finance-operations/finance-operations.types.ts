@@ -279,6 +279,7 @@ export type FinanceOperationsData = {
   ownerInvoices: OwnerInvoiceSummary[];
   payFromAccounts: FinanceAccountOption[];
   operationalTimezone?: string;
+  rentBusinessDate?: string;
   peopleOptions: FinanceOption[];
   positions: PropertyFinancePosition[];
   propertyOptions: FinanceOption[];

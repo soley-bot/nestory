@@ -55,6 +55,7 @@ describe("finance operations initial reads", () => {
     });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
     const result = await getFinanceOperationsData("organization-1");
+    expect(result.rentBusinessDate).toBe("2026-09-30");
     expect(result.rentGenerationExceptions.map(exception => exception.id)).toEqual(["current", "ended", "termless"]);
   });
 
@@ -447,7 +448,9 @@ function createFinanceReadHarness(
       const value = {
         data:
           override?.data ??
-          (this.singleRow ? { operational_timezone: "UTC" } : []),
+          (this.table === "rent_business_date"
+            ? "2026-09-30"
+            : this.singleRow ? { operational_timezone: "UTC" } : []),
         error: override?.error ?? null,
       };
       if (this.taskIds && Array.isArray(value.data)) value.data=value.data.filter(row=>this.taskIds!.includes(row.id));
@@ -467,7 +470,13 @@ function createFinanceReadHarness(
   return {
     client: {
       from: (table: string) => new Query(table),
-      rpc: (name: string) => new Query(name === "get_finance_read_context" ? "scoped_context" : "rpc"),
+      rpc: (name: string) => new Query(
+        name === "get_finance_read_context"
+          ? "scoped_context"
+          : name === "get_lease_rent_business_date"
+            ? "rent_business_date"
+            : "rpc",
+      ),
     },
     maxInFlight: () => peak,
     queries,

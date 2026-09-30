@@ -466,6 +466,15 @@ export async function getFinanceOperationsData(
   if (options.completeTransactionHistory && !propertyId) throw new Error("Choose a property before loading complete transaction history.");
   if (options.accountActivityOnly && (!propertyId || options.completeTransactionHistory)) throw new Error("Recent account activity requires a property and bounded history.");
   const supabase = await createSupabaseServerClient();
+  const rentBusinessDateResult = await supabase.rpc(
+    "get_lease_rent_business_date",
+    { p_organization_id: organizationId },
+  );
+  if (rentBusinessDateResult.error) {
+    throw new Error(
+      `Could not load the rent business date: ${rentBusinessDateResult.error.message}`,
+    );
+  }
   const [
     organizationResult,
     readContext,
@@ -871,6 +880,7 @@ export async function getFinanceOperationsData(
     ),
     payFromAccounts: getPayFromAccountOptions(financeAccounts),
     operationalTimezone,
+    rentBusinessDate: rentBusinessDateResult.data,
     peopleOptions: people
       .filter((person) => person.archived_at === null)
       .map((person) => ({

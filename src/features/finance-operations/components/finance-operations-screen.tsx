@@ -471,10 +471,13 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
         >
           {visibleDetailDrawer.mode === "invoice-details" ? (
             <InvoiceDetails
-              businessDate={getCalendarDateInTimeZone(
-                new Date(),
-                props.operationalTimezone ?? "UTC",
-              )}
+              businessDate={
+                props.rentBusinessDate ??
+                getCalendarDateInTimeZone(
+                  new Date(),
+                  props.operationalTimezone ?? "UTC",
+                )
+              }
               canCorrectFinance={props.canCorrectFinance}
               canRecordPayments={props.canRecordPayments}
               canViewLeases={props.canViewLeases ?? false}
