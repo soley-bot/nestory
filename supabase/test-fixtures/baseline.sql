@@ -1208,14 +1208,16 @@ WHERE invoice.organization_id = runtime.organization_id
   )::date;
 
 UPDATE fixture_runtime AS runtime
-SET garden_exception_id = exception.id
-FROM public.rent_generation_exceptions AS exception
-WHERE exception.organization_id = runtime.organization_id
-  AND exception.lease_id = runtime.garden_exception_lease_id
-  AND exception.billing_period_start = date_trunc(
-    'month', (now() AT TIME ZONE 'UTC')::date
-  )::date
-  AND exception.resolved_at IS NULL;
+SET garden_exception_id = (
+  SELECT exception.id
+  FROM public.rent_generation_exceptions AS exception
+  WHERE exception.organization_id = runtime.organization_id
+    AND exception.lease_id = runtime.garden_exception_lease_id
+    AND exception.resolved_at IS NULL
+  ORDER BY exception.billing_period_start DESC, exception.created_at DESC,
+    exception.id DESC
+  LIMIT 1
+);
 
 DO $$
 DECLARE
