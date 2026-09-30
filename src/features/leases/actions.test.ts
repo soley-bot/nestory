@@ -45,6 +45,16 @@ const tenantPersonId = "80000000-0000-0000-0000-000000000001";
 const unitId = "20000000-0000-0000-0000-000000000001";
 const userId = "40000000-0000-4000-8000-000000000001";
 
+function futureRentTermForm() {
+  const form = new FormData();
+  Object.entries({ leaseId, startDate: "2026-09-01", endDate: "2026-09-30",
+    rentAmount: "613.33", rentDueDay: "7", paymentFrequency: "monthly",
+    supersedesTermId: "50000000-0000-4000-8000-000000000001",
+    idempotencyKey: "60000000-0000-4000-8000-000000000001",
+  }).forEach(([key, value]) => form.set(key, value));
+  return form;
+}
+
 describe("Lease occupancy evidence input", () => {
   beforeEach(() => {
     from.mockReset();
@@ -78,6 +88,39 @@ describe("Lease occupancy evidence input", () => {
       p_start_date: "2026-09-01", p_rent_amount: 1400, p_rent_due_day: 7,
     }));
     expect(revalidatePath).toHaveBeenCalledWith("/reports");
+  });
+
+  it("directs a one-off issued final period to audited historical correction", async () => {
+    const form = futureRentTermForm();
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "22023",
+        details: "issued_rent_change_period_mismatch",
+        message: "Database rejected the requested rent schedule",
+      },
+    });
+
+    await expect(scheduleFutureRentTermAction({}, form)).resolves.toEqual({
+      message: "The term end date must cover the complete issued rent period. For a one-off final-month amount, use Correct historical rent instead.",
+      status: "error",
+    });
+  });
+
+  it("asks the operator to refresh after a concurrent rent schedule change", async () => {
+    const form = futureRentTermForm();
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "40001",
+        message: "Active term changed while scheduling its replacement",
+      },
+    });
+
+    await expect(scheduleFutureRentTermAction({}, form)).resolves.toEqual({
+      message: "The rent schedule changed after this form opened. Refresh the Lease and review the current term before trying again.",
+      status: "error",
+    });
   });
 
   it("explains a database-side verification race during lease save", async () => {

@@ -32,6 +32,67 @@ const lease = {
 };
 
 describe("buildLeaseSummary", () => {
+  it("shows one current party when planned and effective rows share a person identity", () => {
+    const summary = buildLeaseSummary({
+      lease,
+      parties: [
+        {
+          archived_at: null,
+          ended_on: null,
+          id: "planned-party",
+          is_primary: true,
+          lease_id: lease.id,
+          party_role: "tenant",
+          person_id: "person-1",
+          person_name: "Dara Tenant",
+          started_on: null,
+        },
+        {
+          archived_at: null,
+          ended_on: null,
+          id: "effective-party",
+          is_primary: true,
+          lease_id: lease.id,
+          party_role: "tenant",
+          person_id: "person-1",
+          person_name: "Dara Tenant",
+          started_on: "2026-02-01",
+        },
+      ],
+      property,
+      unit,
+    });
+
+    expect(summary.recordCounts.parties).toBe(1);
+    expect(summary.parties).toHaveLength(1);
+    expect(summary.parties[0]).toMatchObject({ id: "effective-party", label: "Dara Tenant" });
+  });
+
+  it("keeps different people who have the same display name", () => {
+    const summary = buildLeaseSummary({
+      lease,
+      parties: ["person-1", "person-2"].map((personId, index) => ({
+        archived_at: null,
+        ended_on: null,
+        id: `party-${index + 1}`,
+        is_primary: index === 0,
+        lease_id: lease.id,
+        party_role: "tenant",
+        person_id: personId,
+        person_name: "Dara Tenant",
+        started_on: "2026-02-01",
+      })),
+      property,
+      unit,
+    });
+
+    expect(summary.recordCounts.parties).toBe(2);
+    expect(summary.parties.map((party) => party.label)).toEqual([
+      "Dara Tenant",
+      "Dara Tenant",
+    ]);
+  });
+
   it("treats an unassigned single-space lease as whole-property placement", () => {
     const summary = buildLeaseSummary({
       lease: {
