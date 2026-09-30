@@ -901,6 +901,7 @@ SELECT is(public.correct_historical_rent(
   'finance-manager-current-rent-edit'),current_retry_result,
   'repeated Finance Manager save replays the exact current-rent result')
 FROM lease_rent_state;
+RESET ROLE;
 SELECT is((SELECT balance.total_amount FROM public.tenant_invoice_balances balance
   WHERE balance.id=state.current_invoice_id),1100::numeric,
   'Finance Manager current-rent correction updates the issued balance')
@@ -919,6 +920,8 @@ SELECT ok(EXISTS(SELECT 1 FROM public.tenant_invoice_corrections correction
     AND correction.reason='Correct the current issued rent amount'),
   'Finance Manager current-rent save appends attributed audit evidence')
 FROM lease_rent_state state;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub',(SELECT finance_manager_id::text FROM lease_rent_state),true);
 SELECT throws_ok($$SELECT public.preview_historical_rent_correction(
  organization_id,current_invoice_id,1100,1)
  FROM lease_rent_state$$,'42501','historical_rent_correction_forbidden',
