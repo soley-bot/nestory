@@ -866,8 +866,27 @@ UPDATE lease_rent_state state SET
     state.organization_id,(SELECT lease_id FROM isolated_paid WHERE name='paid-isolated'),
     state.current_period_start,state.current_period_start,'manual_recovery',state.super_admin_id);
 
-SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub',(SELECT finance_manager_id::text FROM lease_rent_state),true);
+SELECT diag(format(
+  'current rent authority diagnostic: invoice=%s business_date=%s period=%s..%s lifecycle=%s source=%s due_day_match=%s permission=%s branch=%s property_branch=%s helper=%s',
+  invoice.id,
+  app_private.rent_business_date(state.organization_id),
+  invoice.billing_period_start,
+  invoice.billing_period_end,
+  invoice.lifecycle,
+  invoice.generation_source,
+  extract(day FROM invoice.due_date)::integer = extract(day FROM invoice.due_date)::integer,
+  app_private.has_org_permission(state.organization_id,'finance.correct_records'),
+  app_private.current_active_branch_id(state.organization_id),
+  app_private.property_branch_id(state.organization_id,invoice.property_id),
+  app_private.can_edit_current_issued_rent(
+    state.organization_id,invoice.id,extract(day FROM invoice.due_date)::integer
+  )
+))
+FROM lease_rent_state state
+JOIN public.tenant_invoices invoice ON invoice.id=state.current_invoice_id;
+
+SET LOCAL ROLE authenticated;
 SELECT lives_ok($$SELECT public.preview_historical_rent_correction(
  organization_id,current_invoice_id,1100,
  (SELECT extract(day FROM invoice.due_date)::integer
