@@ -20,6 +20,14 @@ AS $$
   SELECT (date_trunc('month', current_date) + interval '2 months')::date
 $$;
 
+CREATE FUNCTION pg_temp.late_payment_date()
+RETURNS date
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT greatest(current_date + 1, date_trunc('month', current_date)::date + 10)
+$$;
+
 SELECT has_table(
   'public',
   'tenant_invoice_rent_segments',
@@ -583,7 +591,7 @@ WITH paid AS (
     '00000000-0000-0000-0000-000000000001',
     (SELECT ips_partial_invoice_id FROM ips_rent_runtime),
     -- Issuance floors the due date at today, even after the 11th.
-    25.00, greatest(current_date + 1, date_trunc('month', current_date)::date + 10),
+    25.00, pg_temp.late_payment_date(),
     (SELECT reconciliation_source_id FROM ips_rent_runtime),
     'Track 5 late settlement',
     pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
@@ -608,7 +616,7 @@ SELECT results_eq(
   $$ VALUES (
     'paid'::text,
     0.00::numeric,
-    greatest(current_date + 1, date_trunc('month', current_date)::date + 10),
+    pg_temp.late_payment_date(),
     true
   ) $$,
   'payment closes the exact tenant balance while preserving its settlement date and issuance-floor timing'
@@ -637,9 +645,8 @@ SELECT is(
     FROM public.get_property_cash_events_page(
       '00000000-0000-0000-0000-000000000001',
       (SELECT central_property_id FROM ips_rent_runtime),
-      'USD', date_trunc('month', current_date)::date,
-      greatest((date_trunc('month', current_date) + interval '1 month - 1 day')::date,
-        current_date + 1),
+      'USD', date_trunc('month', pg_temp.late_payment_date())::date,
+      (date_trunc('month', pg_temp.late_payment_date()) + interval '1 month - 1 day')::date,
       NULL, NULL, NULL, 200
     ) AS cash
     WHERE cash.source_type = 'receipt_allocation'
@@ -694,13 +701,94 @@ SELECT results_eq(
   'owner allocation records the exact held-cash component movement once'
 );
 
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.schedule_authoritative_lease_term(
+      '00000000-0000-0000-0000-000000000001',
+      (SELECT move_lease_id FROM ips_rent_runtime),
+      pg_temp.next_period_start() + 19, pg_temp.following_period_start() + 14,
+      950.00, 'USD', 5, 'monthly',
+      (SELECT move_term_id FROM ips_rent_runtime),
+      'track-5-generated-obligation-drift'
+    )
+  $$,
+  '22023',
+  'issued_rent_change_requires_month_start',
+  'issued rent rejects a mid-month edit and requests a full-month effective date'
+);
+
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true
+);
+
+-- A payment recorded on the final day of a month settles on the following day.
+-- Close its predecessor month first so the following owner period remains a
+-- valid, sequential close rather than making this acceptance test calendar-bound.
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  (SELECT central_property_id FROM ips_rent_runtime),
+  (SELECT central_owner_id FROM ips_rent_runtime),
+  'USD', date_trunc('month', current_date)::date,
+  'track-5-owner-predecessor-period'
+)
+WHERE date_trunc('month', pg_temp.late_payment_date())::date
+  > date_trunc('month', current_date)::date;
+
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
+);
+
+SELECT public.set_financial_month_lock(
+  '00000000-0000-0000-0000-000000000001',
+  date_trunc('month', current_date)::date,
+  true,
+  'Track 5 predecessor close'
+)
+WHERE date_trunc('month', pg_temp.late_payment_date())::date
+  > date_trunc('month', current_date)::date;
+
+SELECT public.review_owner_opening_balance(
+  request.organization_id,
+  request.id,
+  'reject',
+  'Resolve pending fixture correction before Track 5 predecessor close',
+  'track-5-reject-pending-opening-correction'
+)
+FROM public.owner_opening_balance_requests AS request
+WHERE request.organization_id = '00000000-0000-0000-0000-000000000001'
+  AND request.property_id = (SELECT central_property_id FROM ips_rent_runtime)
+  AND request.owner_person_id = (SELECT central_owner_id FROM ips_rent_runtime)
+  AND request.status = 'submitted'
+  AND date_trunc('month', pg_temp.late_payment_date())::date
+    > date_trunc('month', current_date)::date;
+
+SELECT public.close_owner_month(
+  '00000000-0000-0000-0000-000000000001',
+  (SELECT central_property_id FROM ips_rent_runtime),
+  (SELECT central_owner_id FROM ips_rent_runtime),
+  'USD', date_trunc('month', current_date)::date,
+  'Track 5 predecessor close',
+  'track-5-owner-predecessor-close'
+)
+WHERE date_trunc('month', pg_temp.late_payment_date())::date
+  > date_trunc('month', current_date)::date;
+
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true
+);
+
 SELECT lives_ok(
   $$
     SELECT public.generate_owner_balance_period(
       '00000000-0000-0000-0000-000000000001',
       (SELECT central_property_id FROM ips_rent_runtime),
       (SELECT central_owner_id FROM ips_rent_runtime),
-      'USD', date_trunc('month', current_date)::date, 'track-5-owner-period'
+      'USD', date_trunc('month', pg_temp.late_payment_date())::date,
+      'track-5-owner-period'
     )
   $$,
   'the changed rent source rerolls the authoritative owner period'
@@ -714,7 +802,7 @@ SELECT lives_ok(
   $$
     SELECT public.set_financial_month_lock(
       '00000000-0000-0000-0000-000000000001',
-      date_trunc('month', current_date)::date,
+      date_trunc('month', pg_temp.late_payment_date())::date,
       true,
       'Track 5 rent lifecycle close'
     )
@@ -740,7 +828,7 @@ WITH closed AS (
     '00000000-0000-0000-0000-000000000001',
     (SELECT central_property_id FROM ips_rent_runtime),
     (SELECT central_owner_id FROM ips_rent_runtime),
-    'USD', date_trunc('month', current_date)::date,
+    'USD', date_trunc('month', pg_temp.late_payment_date())::date,
     'Track 5 rent-to-statement acceptance',
     'track-5-owner-close'
   ) AS result
@@ -789,29 +877,6 @@ SELECT matches(
   ),
   '^OS-[0-9]{6}-[0-9A-F]{12}$',
   'the reconciled rent source reaches one official numbered Owner Statement'
-);
-
-RESET ROLE;
-
-SELECT pg_catalog.set_config(
-  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
-);
-SET LOCAL ROLE authenticated;
-
-SELECT throws_ok(
-  $$
-    SELECT public.schedule_authoritative_lease_term(
-      '00000000-0000-0000-0000-000000000001',
-      (SELECT move_lease_id FROM ips_rent_runtime),
-      pg_temp.next_period_start() + 19, pg_temp.following_period_start() + 14,
-      950.00, 'USD', 5, 'monthly',
-      (SELECT move_term_id FROM ips_rent_runtime),
-      'track-5-generated-obligation-drift'
-    )
-  $$,
-  '22023',
-  'issued_rent_change_requires_month_start',
-  'issued rent rejects a mid-month edit and requests a full-month effective date'
 );
 
 RESET ROLE;
