@@ -1988,8 +1988,8 @@ FROM (
       '80000000-0000-0000-0000-000000000009'::uuid,
       date_trunc('month', current_date)::date,
       'owner_due_to_ips'::public.owner_balance_component,
-      0.00::numeric,
-      'Garden Court verified zero owner payable opening',
+      100.00::numeric,
+      'Garden Court verified owner payable opening',
       'FIXTURE-GARDEN-OPENING-OWNER-DUE-001', repeat('b', 64),
       'fixture-garden-opening-owner-due-v1'
     ),
