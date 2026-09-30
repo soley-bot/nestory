@@ -38,18 +38,19 @@ REVOKE ALL ON FUNCTION app_private.can_edit_current_issued_rent(uuid, uuid, inte
 COMMENT ON FUNCTION app_private.can_edit_current_issued_rent(uuid, uuid, integer)
 IS 'Fail-closed authority for one current issued lease-rent amount: Super Admin remains on the historical path; ordinary callers need finance.correct_records on the invoice Property exact active assigned branch and cannot change its due date.';
 
-DO $migration$
-DECLARE
-  definition text;
-  old_guard text;
-  new_guard text;
+CREATE OR REPLACE FUNCTION public.preview_historical_rent_correction(
+  p_organization_id uuid,
+  p_invoice_id uuid,
+  p_corrected_rent_amount numeric,
+  p_corrected_due_day integer
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $$
 BEGIN
-  definition := replace(pg_get_functiondef(
-    'public.preview_historical_rent_correction(uuid,uuid,numeric,integer)'::regprocedure
-  ), chr(13), '');
-  old_guard := $guard$IF (SELECT auth.uid()) IS NULL
-    OR NOT app_private.is_org_admin(p_organization_id) THEN$guard$;
-  new_guard := $guard$IF (SELECT auth.uid()) IS NULL
+  IF (SELECT auth.uid()) IS NULL
     OR NOT (
       app_private.is_org_admin(p_organization_id)
       OR app_private.can_edit_current_issued_rent(
@@ -57,12 +58,25 @@ BEGIN
         p_invoice_id,
         p_corrected_due_day
       )
-    ) THEN$guard$;
-  IF array_length(string_to_array(definition, old_guard), 1) <> 2 THEN
-    RAISE EXCEPTION 'current_rent_public_preview_authority_guard_mismatch';
+    ) THEN
+    RAISE EXCEPTION 'historical_rent_correction_forbidden'
+      USING ERRCODE = '42501';
   END IF;
-  EXECUTE replace(definition, old_guard, new_guard);
+  RETURN app_private.build_historical_rent_correction_preview(
+    p_organization_id,
+    p_invoice_id,
+    p_corrected_rent_amount,
+    p_corrected_due_day
+  );
+END;
+$$;
 
+DO $migration$
+DECLARE
+  definition text;
+  old_guard text;
+  new_guard text;
+BEGIN
   definition := replace(pg_get_functiondef(
     'public.correct_historical_rent(uuid,uuid,numeric,integer,text,text,text)'::regprocedure
   ), chr(13), '');
