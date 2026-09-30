@@ -895,6 +895,7 @@ async function addLeasePartyPeople(
     lease_id: string;
     party_role: string;
     person_id: string;
+    started_on: string | null;
   }>,
   organizationId: string,
   supabase: SupabaseServerClient,

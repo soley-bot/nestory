@@ -147,6 +147,23 @@ describe("commercial document authoritative snapshot loading", () => {
     expect(model.occupantLabels).toEqual(["Maly Chan", "Dara Chan"]);
   });
 
+  it("preserves repeated labels in an immutable historical Invoice snapshot", async () => {
+    const client = fakeDataClient({
+      tenantInvoice: {
+        occupant_labels: ["Dara Chan", "Dara Chan"],
+      },
+    });
+
+    const model = await loadTenantInvoicePdfModel(
+      client as unknown as SupabaseClient<Database>,
+      organizationId,
+      invoiceId,
+      publicationInput,
+    );
+
+    expect(model.occupantLabels).toEqual(["Dara Chan", "Dara Chan"]);
+  });
+
   it("builds an authoritative direct-to-owner Invoice because collection route restricts Receipts, not Invoice publication", async () => {
     const client = fakeDataClient({
       source: invoiceSource({

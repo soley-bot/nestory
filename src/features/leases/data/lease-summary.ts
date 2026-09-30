@@ -68,6 +68,7 @@ export type LeasePartyRow = {
   person_name?: string;
   primary_email?: string | null;
   primary_phone?: string | null;
+  started_on?: string | null;
 };
 
 export type LeaseTermRow = {
@@ -259,9 +260,7 @@ export function buildLeaseSummary({
     unitId: lease.unit_id,
   };
   const hrefs = buildLeaseDetailHrefs(lease);
-  const activeParties = parties.filter(
-    (party) => !party.archived_at && !party.ended_on,
-  );
+  const activeParties = consolidateCurrentLeasePartiesForDisplay(parties);
   const activeDocuments = documents;
   const activeTimelineEvents = timelineEvents;
   const recordCounts = {
@@ -347,6 +346,37 @@ export function buildLeaseSummary({
     unitId: lease.unit_id,
     unitLabel,
   };
+}
+
+export function consolidateCurrentLeasePartiesForDisplay(
+  parties: LeasePartyRow[],
+): LeasePartyRow[] {
+  const currentByIdentityAndRole = new Map<string, LeasePartyRow>();
+
+  for (const party of parties) {
+    if (party.archived_at || party.ended_on) continue;
+
+    const key = `${party.person_id}:${party.party_role}`;
+    const current = currentByIdentityAndRole.get(key);
+    if (!current || comparePartyLifecycle(party, current) > 0) {
+      currentByIdentityAndRole.set(key, party);
+    }
+  }
+
+  return [...currentByIdentityAndRole.values()];
+}
+
+function comparePartyLifecycle(left: LeasePartyRow, right: LeasePartyRow) {
+  if (Boolean(left.started_on) !== Boolean(right.started_on)) {
+    return left.started_on ? 1 : -1;
+  }
+
+  const startComparison = (left.started_on ?? "").localeCompare(
+    right.started_on ?? "",
+  );
+  if (startComparison !== 0) return startComparison;
+
+  return left.id.localeCompare(right.id);
 }
 
 export function buildLeaseDetailHrefs(
