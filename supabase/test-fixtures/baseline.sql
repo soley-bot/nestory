@@ -1185,28 +1185,36 @@ SET through_invoice_id = invoice.id
 FROM public.tenant_invoices AS invoice
 WHERE invoice.organization_id = runtime.organization_id
   AND invoice.lease_id = runtime.through_lease_id
-  AND invoice.billing_period_start = date_trunc('month', current_date)::date;
+  AND invoice.billing_period_start = date_trunc(
+    'month', app_private.rent_business_date(runtime.organization_id)
+  )::date;
 
 UPDATE fixture_runtime AS runtime
 SET direct_invoice_id = invoice.id
 FROM public.tenant_invoices AS invoice
 WHERE invoice.organization_id = runtime.organization_id
   AND invoice.lease_id = runtime.direct_lease_id
-  AND invoice.billing_period_start = date_trunc('month', current_date)::date;
+  AND invoice.billing_period_start = date_trunc(
+    'month', app_private.rent_business_date(runtime.organization_id)
+  )::date;
 
 UPDATE fixture_runtime AS runtime
 SET garden_invoice_id = invoice.id
 FROM public.tenant_invoices AS invoice
 WHERE invoice.organization_id = runtime.organization_id
   AND invoice.lease_id = runtime.garden_open_lease_id
-  AND invoice.billing_period_start = date_trunc('month', current_date)::date;
+  AND invoice.billing_period_start = date_trunc(
+    'month', app_private.rent_business_date(runtime.organization_id)
+  )::date;
 
 UPDATE fixture_runtime AS runtime
 SET garden_exception_id = exception.id
 FROM public.rent_generation_exceptions AS exception
 WHERE exception.organization_id = runtime.organization_id
   AND exception.lease_id = runtime.garden_exception_lease_id
-  AND exception.billing_period_start = date_trunc('month', current_date)::date
+  AND exception.billing_period_start = date_trunc(
+    'month', app_private.rent_business_date(runtime.organization_id)
+  )::date
   AND exception.resolved_at IS NULL;
 
 DO $$
