@@ -12,8 +12,11 @@ const ROUTE_IDENTIFIERS: Record<string, string> = {
 const SAFE_PASSTHROUGH_TAGS = new Set(["organization_id", "role", "route"]);
 const SAFE_ENUMERATED_TAGS: Record<string, ReadonlySet<string>> = {
   boundary: new Set(["dashboard", "global"]),
+  error_code: new Set(["report_artifact_download_failed"]),
+  handled: new Set(["true"]),
   has_digest: new Set(["false", "true"]),
   has_stack: new Set(["false", "true"]),
+  operation: new Set(["report_artifact_download"]),
 };
 const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 

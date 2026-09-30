@@ -211,6 +211,31 @@ describe("Sentry event privacy", () => {
     });
   });
 
+  it("retains allowlisted handled-error diagnostics without retaining private values", () => {
+    const event = scrubSentryEvent({
+      type: undefined,
+      exception: {
+        values: [{ type: "Error", value: "Private owner statement failed" }],
+      },
+      message: "operator@example.com could not download a statement",
+      tags: {
+        error_code: "report_artifact_download_failed",
+        handled: "true",
+        operation: "report_artifact_download",
+        route: "/api/reports/pdf",
+      },
+    });
+
+    expect(event?.tags).toEqual({
+      error_code: "report_artifact_download_failed",
+      handled: "true",
+      operation: "report_artifact_download",
+      route: "/api/reports/pdf",
+    });
+    expect(event?.exception?.values?.[0]).toEqual({ type: "Error" });
+    expect(event).not.toHaveProperty("message");
+  });
+
   it("does not derive diagnostic tags from arbitrary values or caller tags", () => {
     const event = scrubSentryEvent({
       type: undefined,

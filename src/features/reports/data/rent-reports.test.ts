@@ -419,6 +419,43 @@ describe("rent reporting", () => {
     ).toBe(true);
   });
 
+  it("builds a large collections report within a bounded in-memory indexing budget", async () => {
+    vi.useRealTimers();
+    const invoices = Array.from({ length: 4000 }, (_, index) =>
+      invoice(`benchmark-${String(index).padStart(4, "0")}`),
+    );
+    const h = harness({
+      tenant_invoice_balances: invoices,
+      tenant_invoice_lines: invoices.map((item) =>
+        line(`line-${item.id}`, String(item.id), "0.01"),
+      ),
+      finance_receipt_allocations: invoices.map((item) =>
+        receipt(`receipt-${item.id}`, `line-${item.id}`, "0.01"),
+      ),
+    });
+
+    const startedAt = performance.now();
+    const report = await getRentReport({
+      organizationId: "org",
+      viewQuery: query(),
+      supabase: h.client,
+    });
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(report.rows).toHaveLength(4000);
+    expect(report.rows[0].sourceLinks.map((link) => link.id)).toEqual([
+      "line-benchmark-0000",
+      "receipt-benchmark-0000",
+    ]);
+    expect(report.summary.map((metric) => metric.value)).toEqual([
+      "USD 40.00",
+      "USD 40.00",
+      "USD 0.00",
+      "USD 0.00",
+    ]);
+    expect(elapsedMs).toBeLessThan(3000);
+  }, 10_000);
+
   it.each([
     "tenant_invoice_balances",
     "tenant_invoice_lines",

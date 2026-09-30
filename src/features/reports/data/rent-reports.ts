@@ -61,6 +61,16 @@ const policySchema = z.object({
 const pageSize = 500;
 const batchSize = 100;
 
+function appendToIndex<T>(index: Map<string, T[]>, key: string, value: T) {
+  const values = index.get(key);
+  if (values) values.push(value);
+  else index.set(key, [value]);
+}
+
+function rentalSpaceKey(propertyId: string, unitId: string | null) {
+  return `${propertyId}:${unitId ?? "property"}`;
+}
+
 /** Require an exact count on every page; truncation and changing counts fail closed. */
 async function readAll<T>(
   source: string,
@@ -207,24 +217,41 @@ export async function getRentReport({
     throw new Error(
       "Rent reports support current-lease occupancy filters only.",
     );
-  const activeLeasesForUnit = (unitId: string | null, propertyId: string) =>
-    context.leases.filter((lease) => {
-      if (
-        lease.unit_id !== unitId ||
-        lease.property_id !== propertyId ||
-        lease.archived_at !== null ||
-        !["active", "notice_given"].includes(lease.status)
-      )
-        return false;
-      // current_leases chooses dates using database CURRENT_DATE. Select the
-      // authoritative term again using the organization's operational date.
-      const terms = context.terms.filter((term) => term.lease_id === lease.id);
-      if (!terms.length)
-        throw new Error("Current lease rent terms are missing or ambiguous.");
-      return terms.some(
-        (term) => term.start_date <= today && term.end_date >= today,
+  const termsByLeaseId = new Map<string, typeof context.terms>();
+  for (const term of context.terms)
+    appendToIndex(termsByLeaseId, term.lease_id, term);
+  const candidateLeasesBySpace = new Map<string, typeof context.leases>();
+  for (const lease of context.leases) {
+    if (
+      lease.archived_at === null &&
+      ["active", "notice_given"].includes(lease.status)
+    )
+      appendToIndex(
+        candidateLeasesBySpace,
+        rentalSpaceKey(lease.property_id, lease.unit_id),
+        lease,
       );
-    });
+  }
+  const activeLeasesForUnit = (unitId: string | null, propertyId: string) =>
+    (candidateLeasesBySpace.get(rentalSpaceKey(propertyId, unitId)) ?? []).filter(
+      (lease) => {
+        if (
+          lease.unit_id !== unitId ||
+          lease.property_id !== propertyId ||
+          lease.archived_at !== null ||
+          !["active", "notice_given"].includes(lease.status)
+        )
+          return false;
+        // current_leases chooses dates using database CURRENT_DATE. Select the
+        // authoritative term again using the organization's operational date.
+        const terms = termsByLeaseId.get(lease.id) ?? [];
+        if (!terms.length)
+          throw new Error("Current lease rent terms are missing or ambiguous.");
+        return terms.some(
+          (term) => term.start_date <= today && term.end_date >= today,
+        );
+      },
+    );
   const filteredUnits = allowedUnits.filter(
     (unit) =>
       (viewQuery.unitId === "all" || unit.id === viewQuery.unitId) &&
@@ -285,7 +312,7 @@ export async function getRentReport({
           );
         const lease = leases[0];
         const terms = lease
-          ? context.terms.filter(
+          ? (termsByLeaseId.get(lease.id) ?? []).filter(
               (term) =>
                 term.lease_id === lease.id &&
                 term.start_date <= today &&
@@ -472,22 +499,40 @@ export async function getRentReport({
           .range(from, to),
     ),
   ]);
+  const linesByInvoiceId = new Map<string, typeof lines>();
+  const invoiceIdsByIncomeItemId = new Map<string, Set<string>>();
+  const invoiceIdByLineId = new Map<string, string>();
+  for (const line of lines) {
+    appendToIndex(linesByInvoiceId, line.invoice_id, line);
+    invoiceIdByLineId.set(line.id, line.invoice_id);
+    if (line.income_item_id) {
+      const invoiceIds = invoiceIdsByIncomeItemId.get(line.income_item_id);
+      if (invoiceIds) invoiceIds.add(line.invoice_id);
+      else
+        invoiceIdsByIncomeItemId.set(
+          line.income_item_id,
+          new Set([line.invoice_id]),
+        );
+    }
+  }
+  const receiptsByInvoiceId = new Map<string, typeof receipts>();
+  for (const receipt of receipts) {
+    for (const invoiceId of
+      invoiceIdsByIncomeItemId.get(receipt.income_item_id) ?? [])
+      appendToIndex(receiptsByInvoiceId, invoiceId, receipt);
+  }
+  const ownerReceiptsByInvoiceId = new Map<string, typeof ownerReceipts>();
+  for (const receipt of ownerReceipts) {
+    const invoiceId = invoiceIdByLineId.get(receipt.invoice_line_id);
+    if (invoiceId)
+      appendToIndex(ownerReceiptsByInvoiceId, invoiceId, receipt);
+  }
   const rows = selectedInvoices
     .flatMap((invoice): TrustedReportRow[] => {
-      const invoiceLines = lines.filter(
-        (line) => line.invoice_id === invoice.id,
-      );
+      const invoiceLines = linesByInvoiceId.get(invoice.id) ?? [];
       if (!invoiceLines.length) return [];
-      const incomeIds = new Set(
-        invoiceLines.map((line) => line.income_item_id),
-      );
-      const lineIds = new Set(invoiceLines.map((line) => line.id));
-      const paid = receipts.filter((receipt) =>
-        incomeIds.has(receipt.income_item_id),
-      );
-      const ownerPaid = ownerReceipts.filter((receipt) =>
-        lineIds.has(receipt.invoice_line_id),
-      );
+      const paid = receiptsByInvoiceId.get(invoice.id) ?? [];
+      const ownerPaid = ownerReceiptsByInvoiceId.get(invoice.id) ?? [];
       const charges = invoiceLines.reduce(
         (sum, line) => sum + line.amount,
         BigInt(0),
