@@ -96,14 +96,17 @@ async function main() {
   const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
   const cwd = path.resolve(scriptDirectory, "..");
 
-  resetLocalFixture(cwd);
+  if (process.env.NESTORY_SKIP_FIXTURE_RESET !== "1") resetLocalFixture(cwd);
   assertDatabaseValue(
     cwd,
-    `SELECT count(*)::text || '|' || min(membership.role)
+    `SELECT count(*)::text || '|' || min(role_record.name) || '|' || min(role_record.status)
        FROM public.organization_members AS membership
        JOIN auth.users AS users ON users.id = membership.user_id
+       JOIN public.organization_roles AS role_record
+         ON role_record.organization_id = membership.organization_id
+        AND role_record.id = membership.custom_role_id
       WHERE users.email = 'finance.manager@nestory.com'`,
-    "1|finance_manager",
+    "1|Finance Manager|active",
     "unique-finance-manager-membership",
   );
   pass("unique-finance-manager-membership");
@@ -114,6 +117,12 @@ async function main() {
 
   try {
     await authenticate(page, config);
+    if (process.env.NESTORY_REPORT_ACCEPTANCE_ONLY === "1") {
+      await assertReportExports(page, config.baseUrl);
+      await assertOtherIncomeTenantCharge(page, config.baseUrl);
+      await assertReportExpenseCorrection(page, config.baseUrl);
+      return;
+    }
     await assertRoutineFinanceAuthority(page, config.baseUrl);
     const financeRequests = await assertFinanceWork(page, config.baseUrl);
     const paidCostRequest = await assertPaidCostReview(page, config.baseUrl);
@@ -788,12 +797,70 @@ async function assertReportExports(page, baseUrl) {
     ["export-excel", excelHref, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
   ]) {
     const response = href ? await page.request.get(new URL(href, baseUrl).toString()) : null;
-    if (!response?.ok() || !response.headers()["content-type"]?.includes(contentType)) {
+    if (!response || !(await verifyReportDownload(response, contentType))) {
       throw new Error(formatFinanceManagerDayFailure(stage, "export failed"));
     }
     pass(stage);
   }
   await requireAbsent(page.getByRole("button", { name: /reconciliation source/i }), "reconciliation-source-configuration");
+}
+
+async function assertReportExpenseCorrection(page, baseUrl) {
+  await gotoPath(
+    page,
+    baseUrl,
+    "/reports/transactions?dateFrom=2026-09-01&dateTo=2026-09-30&query=KH-INV-1042",
+    "report-expense-correction-source",
+  );
+  const details = page.getByRole("button", { name: /View details for/ }).first();
+  await requireVisible(details, "report-expense-correction-row");
+  await details.click();
+  const source = page.locator('a[href^="/bills-expenses?sourceType=payment_allocation"]').first();
+  await requireVisible(source, "report-expense-correction-link");
+  const sourceHref = await source.getAttribute("href");
+  if (!sourceHref || !new URL(sourceHref, baseUrl).searchParams.has("returnTo")) {
+    throw new Error(formatFinanceManagerDayFailure("report-expense-correction-return", "required control missing"));
+  }
+  await gotoPath(page, baseUrl, sourceHref, "report-expense-correction-destination");
+  const returnLink = page.getByRole("link", { name: "Return to report and recheck" });
+  await requireVisible(returnLink, "report-expense-return-link");
+  await returnLink.click();
+  await page.waitForURL((url) => url.pathname === "/reports/transactions", { timeout: 20_000 });
+  await requireVisible(page.getByRole("button", { name: /View details for/ }).first(), "report-expense-correction-recheck");
+}
+
+async function assertOtherIncomeTenantCharge(page, baseUrl) {
+  await gotoPath(page, baseUrl, "/rent-income", "other-income-charge-source");
+  await page.getByRole("button", { name: "Bill tenant" }).click();
+  const dialog = page.getByRole("dialog", { name: "Bill tenant" });
+  await dialog.getByRole("combobox", { name: "Lease" }).click();
+  await page.getByRole("option").first().click();
+  await dialog.getByRole("combobox", { name: "Category" }).click();
+  await page.getByRole("option", { name: /Other income/i }).click();
+  await dialog.getByLabel("Amount").fill("12.34");
+  await dialog.getByLabel("Description").fill("Pilot other income acceptance");
+  await dialog.getByRole("button", { name: "Bill tenant" }).click();
+  await requireVisible(page.getByText("Charge added.", { exact: true }), "other-income-charge-save");
+  await gotoPath(page, baseUrl, "/rent-income?q=Other%20income", "other-income-charge-search");
+  await requireVisible(page.getByText(/Other income/).first(), "other-income-charge-category");
+  const invoice = page.getByRole("button", { name: /View invoice/ }).first();
+  await invoice.click();
+  const details = page.getByRole("dialog", { name: "Invoice details" });
+  await requireVisible(details.getByText("Other income", { exact: true }).first(), "other-income-charge-details");
+  await requireVisible(details.getByRole("button", { name: "Record payment" }), "other-income-charge-settlement");
+  await details.getByRole("button", { name: "Close" }).click();
+}
+
+export async function verifyReportDownload(response, contentType) {
+  if (!response.ok()) return false;
+  const headers = response.headers();
+  if (
+    !headers["content-type"]?.includes(contentType) ||
+    !headers["content-disposition"]?.toLowerCase().startsWith("attachment;")
+  ) return false;
+  const bytes = await response.body();
+  const signature = contentType === "application/pdf" ? "%PDF-" : "PK";
+  return bytes.length > signature.length && bytes.subarray(0, signature.length).toString("latin1") === signature;
 }
 
 function pass(stage) {
