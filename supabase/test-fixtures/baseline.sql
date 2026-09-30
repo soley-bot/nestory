@@ -1213,7 +1213,7 @@ FROM public.rent_generation_exceptions AS exception
 WHERE exception.organization_id = runtime.organization_id
   AND exception.lease_id = runtime.garden_exception_lease_id
   AND exception.billing_period_start = date_trunc(
-    'month', current_date
+    'month', (now() AT TIME ZONE 'UTC')::date
   )::date
   AND exception.resolved_at IS NULL;
 
