@@ -35,6 +35,7 @@ CREATE TEMP TABLE lease_rent_state (
   non_current_period_start date,
   current_invoice_id uuid,
   current_invoice_due_day integer,
+  current_preview jsonb,
   cross_property_current_invoice_id uuid,
   cross_property_current_invoice_due_day integer,
   current_retry_result jsonb
@@ -883,6 +884,36 @@ SELECT lives_ok($$SELECT public.preview_historical_rent_correction(
  organization_id,current_invoice_id,1100,current_invoice_due_day)
  FROM lease_rent_state$$,
  'assigned Finance Manager can preview the current issued rent amount');
+UPDATE lease_rent_state SET current_preview=public.preview_historical_rent_correction(
+  organization_id,current_invoice_id,1100,current_invoice_due_day);
+UPDATE lease_rent_state SET current_retry_result=public.correct_historical_rent(
+  organization_id,current_invoice_id,1100,current_invoice_due_day,
+  'Correct the current issued rent amount',current_preview->>'previewHash',
+  'finance-manager-current-rent-edit');
+SELECT is(public.correct_historical_rent(
+  organization_id,current_invoice_id,1100,current_invoice_due_day,
+  'Correct the current issued rent amount',current_preview->>'previewHash',
+  'finance-manager-current-rent-edit'),current_retry_result,
+  'repeated Finance Manager save replays the exact current-rent result')
+FROM lease_rent_state;
+SELECT is((SELECT balance.total_amount FROM public.tenant_invoice_balances balance
+  WHERE balance.id=state.current_invoice_id),1100::numeric,
+  'Finance Manager current-rent correction updates the issued balance')
+FROM lease_rent_state state;
+SELECT is((SELECT term.rent_amount FROM public.lease_terms term
+  WHERE term.organization_id=state.organization_id
+    AND term.lease_id=state.good_lease_id
+    AND term.authority_kind='authoritative' AND term.archived_at IS NULL
+  ORDER BY term.term_sequence DESC LIMIT 1),1000::numeric,
+  'single-month correction leaves the future recurring rent unchanged')
+FROM lease_rent_state state;
+SELECT ok(EXISTS(SELECT 1 FROM public.tenant_invoice_corrections correction
+  WHERE correction.organization_id=state.organization_id
+    AND correction.tenant_invoice_id=state.current_invoice_id
+    AND correction.created_by=state.finance_manager_id
+    AND correction.reason='Correct the current issued rent amount'),
+  'Finance Manager current-rent save appends attributed audit evidence')
+FROM lease_rent_state state;
 SELECT throws_ok($$SELECT public.preview_historical_rent_correction(
  organization_id,current_invoice_id,1100,1)
  FROM lease_rent_state$$,'42501','historical_rent_correction_forbidden',
