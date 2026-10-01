@@ -97,7 +97,9 @@ function TenantInvoicePaymentFormStateful({
       : "Confirmed date";
   const paymentAmount = Number(amountValue);
   const paymentAmountDisplay =
-    Number.isFinite(paymentAmount) && paymentAmount > 0
+    Number.isFinite(paymentAmount) &&
+    paymentAmount > 0 &&
+    paymentAmount === Number(paymentAmount.toFixed(2))
       ? formatMoneyDisplay(paymentAmount).primary
       : null;
   const actionLabel =

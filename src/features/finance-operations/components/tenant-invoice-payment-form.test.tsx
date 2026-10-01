@@ -99,7 +99,10 @@ describe("TenantInvoicePaymentForm", () => {
     ).toBe("125.50");
   });
 
-  it.each(["", "invalid", "USD 125.50", "-1", "0", "Infinity", "1e309"])(
+  it.each([
+    "", "invalid", "USD 125.50", "-1", "0", "Infinity", "1e309",
+    "1.005", "0.001", "125.501",
+  ])(
     "does not display an amount confirmation for %j",
     (amount) => {
       renderForm({ showAmountInSubmitLabel: true });
@@ -115,6 +118,22 @@ describe("TenantInvoicePaymentForm", () => {
       expect(actionMocks.recordTenantInvoicePaymentAction).not.toHaveBeenCalled();
     },
   );
+
+  it.each([
+    ["0.29", "USD 0.29"],
+    ["1.000", "USD 1.00"],
+  ])("confirms the exact cent amount %s", (amount, display) => {
+    const { container } = renderForm({ showAmountInSubmitLabel: true });
+
+    fireEvent.change(screen.getByLabelText("Amount"), {
+      target: { value: amount },
+    });
+
+    expect(
+      screen.getByRole("button", { name: `Record ${display} payment` }),
+    ).not.toBeNull();
+    expect(new FormData(container.querySelector("form")!).get("amount")).toBe(amount);
+  });
 
   it("keeps the default payment action label unchanged", () => {
     renderForm();
