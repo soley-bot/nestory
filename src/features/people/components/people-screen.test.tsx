@@ -17,7 +17,6 @@ import TenantsPage from "@/app/(dashboard)/tenants/page";
 import VendorsPage from "@/app/(dashboard)/vendors/page";
 import { PeopleScreen } from "@/features/people/components/people-screen";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
-import { getPeopleInsights } from "@/features/people/people.insights";
 import type {
   PeoplePagination,
   PeopleSummary,
@@ -611,7 +610,6 @@ function getPeopleScreen({
       addButtonLabel={lockedRole ? `Add ${lockedRole}` : "Add person"}
       canCreate={canCreate}
       createRole={lockedRole}
-      insights={getPeopleInsights(nextPeople, nextPeople.length)}
       lockedRole={lockedRole}
       pagination={
         pagination ?? {
