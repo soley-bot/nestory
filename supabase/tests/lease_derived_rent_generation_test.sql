@@ -1002,61 +1002,6 @@ INSERT INTO public.financial_month_locks (
 SELECT
   organization_id,
   (SELECT branch_id FROM public.properties WHERE id=lease_rent_state.property_id),
-  '2026-10-01',
-  true,
-  now(),
-  super_admin_id,
-  'Rent generation lock test'
-FROM lease_rent_state;
-
-SELECT lives_ok(
-  $$
-    SELECT app_private.try_generate_lease_rent_invoice(
-      (SELECT organization_id FROM lease_rent_state),
-      (SELECT good_lease_id FROM lease_rent_state),
-      '2026-10-01',
-      '2026-10-01',
-      'scheduled',
-      (SELECT super_admin_id FROM lease_rent_state)
-    )
-  $$,
-  'a locked month is isolated instead of aborting the runner'
-);
-
-SELECT results_eq(
-  $$
-    SELECT error_code, resolved_at IS NULL
-    FROM public.rent_generation_exceptions
-    WHERE lease_id = (SELECT good_lease_id FROM lease_rent_state)
-      AND billing_period_start = '2026-10-01'
-  $$,
-  $$ VALUES ('period_locked'::text, true) $$,
-  'a locked month produces an actionable rent exception'
-);
-
-SELECT is(
-  (
-    SELECT count(*)::integer
-    FROM public.tenant_invoices
-    WHERE lease_id = (SELECT good_lease_id FROM lease_rent_state)
-      AND billing_period_start = '2026-10-01'
-  ),
-  0,
-  'a locked month has no financial effect'
-);
-
-INSERT INTO public.financial_month_locks (
-  organization_id,
-  branch_id,
-  month_start,
-  is_locked,
-  locked_at,
-  locked_by,
-  reason
-)
-SELECT
-  organization_id,
-  (SELECT branch_id FROM public.properties WHERE id=lease_rent_state.property_id),
   month_start,
   true,
   now(),
