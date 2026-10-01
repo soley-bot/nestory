@@ -1,7 +1,7 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path=public,extensions;
-SELECT plan(54);
+SELECT plan(58);
 
 CREATE FUNCTION pg_temp.remaining_relationship_payload(
   p_person_id uuid,
@@ -172,6 +172,13 @@ ALTER TABLE public.lease_parties ENABLE TRIGGER USER;
 ALTER TABLE public.lease_occupancies ENABLE TRIGGER USER;
 UPDATE public.organization_authorization_states SET ordinary_access_enabled=true WHERE organization_id='a1200000-0000-0000-0000-000000000001';
 
+INSERT INTO storage.objects(bucket_id,name,owner_id,metadata) VALUES (
+  'nestory-photos',
+  'a1200000-0000-0000-0000-000000000001/branches/a1300000-0000-0000-0000-000000000001/photos/one.jpg',
+  'a1100000-0000-0000-0000-000000000002',
+  '{"mimetype":"image/jpeg","size":100}'
+);
+
 SELECT set_config('request.jwt.claim.sub','a1100000-0000-0000-0000-000000000002',true);
 SET LOCAL ROLE authenticated;
 SELECT lives_ok($$SELECT public.set_property_rental_structure('a1200000-0000-0000-0000-000000000001','a1500000-0000-0000-0000-000000000001','single_space')$$,'same-branch properties.write edits Property');
@@ -186,10 +193,31 @@ SELECT throws_ok($$SELECT public.update_person('a1600000-0000-0000-0000-00000000
 SELECT lives_ok($$SELECT public.archive_person('a1200000-0000-0000-0000-000000000001','a1600000-0000-0000-0000-000000000001')$$,'same-branch people.archive archives Person');
 SELECT lives_ok($$SELECT public.restore_person('a1200000-0000-0000-0000-000000000001','a1600000-0000-0000-0000-000000000001')$$,'same-branch people.archive restores Person');
 SELECT throws_ok($$SELECT public.archive_person('a1200000-0000-0000-0000-000000000001','a1600000-0000-0000-0000-000000000002')$$,'42501',NULL,'other-branch Person archive denied');
-SELECT lives_ok($$SELECT public.create_asset_photo('a1200000-0000-0000-0000-000000000001','a1500000-0000-0000-0000-000000000001',NULL,'one.jpg','remaining/one.jpg','image/jpeg',100,NULL,false,NULL)$$,'same-branch properties.write creates asset');
+SELECT lives_ok($$SELECT public.create_asset_photo('a1200000-0000-0000-0000-000000000001','a1500000-0000-0000-0000-000000000001',NULL,'one.jpg','a1200000-0000-0000-0000-000000000001/branches/a1300000-0000-0000-0000-000000000001/photos/one.jpg','image/jpeg',100,NULL,false,NULL)$$,'same-branch properties.write creates asset');
 SELECT throws_ok($$SELECT public.create_asset_photo('a1200000-0000-0000-0000-000000000001','a1500000-0000-0000-0000-000000000002',NULL,'two.jpg','remaining/two.jpg','image/jpeg',100,NULL,false,NULL)$$,'42501',NULL,'other-branch asset create denied');
-SELECT lives_ok($$SELECT public.set_asset_photo_cover('a1200000-0000-0000-0000-000000000001',(SELECT id FROM public.asset_photos WHERE storage_path='remaining/one.jpg'))$$,'same-branch properties.write sets asset cover');
-SELECT lives_ok($$SELECT public.archive_asset_photo('a1200000-0000-0000-0000-000000000001',(SELECT id FROM public.asset_photos WHERE storage_path='remaining/one.jpg'))$$,'same-branch properties.archive archives asset');
+SELECT lives_ok($$SELECT public.set_asset_photo_cover('a1200000-0000-0000-0000-000000000001',(SELECT id FROM public.asset_photos WHERE storage_path='a1200000-0000-0000-0000-000000000001/branches/a1300000-0000-0000-0000-000000000001/photos/one.jpg'))$$,'same-branch properties.write sets asset cover');
+SELECT lives_ok($$SELECT public.archive_asset_photo('a1200000-0000-0000-0000-000000000001',(SELECT id FROM public.asset_photos WHERE storage_path='a1200000-0000-0000-0000-000000000001/branches/a1300000-0000-0000-0000-000000000001/photos/one.jpg'))$$,'same-branch properties.archive archives asset');
+
+SELECT set_config('storage.allow_delete_query', 'true', true);
+SELECT throws_ok(
+  $$DELETE FROM storage.objects WHERE bucket_id='nestory-photos' AND name='a1200000-0000-0000-0000-000000000001/branches/a1300000-0000-0000-0000-000000000001/photos/one.jpg'$$,
+  '55000', 'Registered photo bytes cannot be removed or replaced.',
+  'archived registered photo bytes remain protected for an authorized writer'
+);
+SELECT throws_ok(
+  $$SELECT public.create_asset_photo('a1200000-0000-0000-0000-000000000001','a1500000-0000-0000-0000-000000000001',NULL,'missing.jpg','a1200000-0000-0000-0000-000000000001/branches/a1300000-0000-0000-0000-000000000001/photos/missing.jpg','image/jpeg',100)$$,
+  '23503', 'Photo object was not found.',
+  'photo registration requires the uploaded object to exist'
+);
+SELECT throws_ok(
+  $$SELECT public.create_asset_photo('a1200000-0000-0000-0000-000000000001','a1500000-0000-0000-0000-000000000001',NULL,'other.jpg','a1200000-0000-0000-0000-000000000001/branches/a1300000-0000-0000-0000-000000000002/photos/other.jpg','image/jpeg',100)$$,
+  '22023', 'Photo storage path is invalid.',
+  'same-branch Property authority cannot register another branch object'
+);
+SELECT ok(
+  NOT has_function_privilege('authenticated','app_private.create_asset_photo_before_storage_recovery(uuid,uuid,uuid,text,text,text,bigint,text,boolean,date)','EXECUTE'),
+  'the retained photo implementation has no direct authenticated entry point'
+);
 SELECT lives_ok($$SELECT public.archive_lease('a1200000-0000-0000-0000-000000000001','a1700000-0000-0000-0000-000000000001')$$,'same-branch leases.archive archives terminal Lease');
 SELECT throws_ok($$SELECT public.restore_lease('a1200000-0000-0000-0000-000000000001','a1700000-0000-0000-0000-000000000001')$$,'0A000',NULL,'same-branch leases.archive reaches protected restore invariant');
 SELECT throws_ok($$SELECT public.restore_lease('a1200000-0000-0000-0000-000000000001','a1700000-0000-0000-0000-000000000002')$$,'42501',NULL,'other-branch Lease restore denied');

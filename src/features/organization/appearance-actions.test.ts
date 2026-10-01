@@ -148,7 +148,7 @@ describe("updateOrganizationIdentityAction", () => {
 describe("organization logo actions", () => {
   it("uploads a versioned logo, selects it, then removes the previous object", async () => {
     const previousPath = "org-1/logos/00000000-0000-4000-8000-000000000001.png";
-    logoSingle.mockResolvedValue({ data: { logo_storage_path: previousPath }, error: null });
+    logoSingle.mockResolvedValueOnce({ data: { logo_storage_path: previousPath }, error: null });
     rpc.mockResolvedValue({ data: "selected", error: null });
     const form = new FormData();
     form.set("logo", validPngFile());
@@ -185,6 +185,81 @@ describe("organization logo actions", () => {
     expect(remove).toHaveBeenCalledWith([upload.mock.calls[0][0]]);
   });
 
+  it.each(["returned error", "thrown response loss", "missing selected path"])(
+    "recovers committed logo selection after %s without removing its bytes",
+    async (response) => {
+      logoSingle.mockResolvedValueOnce({ data: { logo_storage_path: null }, error: null });
+      logoSingle.mockImplementationOnce(async () => ({
+        data: { logo_storage_path: upload.mock.calls[0][0] },
+        error: null,
+      }));
+      if (response === "returned error") {
+        rpc.mockResolvedValueOnce({ data: null, error: { message: "connection lost" } });
+      } else if (response === "thrown response loss") {
+        rpc.mockRejectedValueOnce(new Error("connection lost"));
+      } else {
+        rpc.mockResolvedValueOnce({ data: null, error: null });
+      }
+
+      await expect(uploadOrganizationLogoAction({}, logoForm())).resolves.toEqual({
+        message: "Company logo updated.",
+        status: "success",
+      });
+      expect(remove).not.toHaveBeenCalled();
+      expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+    },
+  );
+
+  it.each(["error", "missing organization", "throw"])(
+    "retains the logo when reconciliation returns %s",
+    async (failure) => {
+      logoSingle.mockResolvedValueOnce({ data: { logo_storage_path: null }, error: null });
+      if (failure === "throw") logoSingle.mockRejectedValueOnce(new Error("offline"));
+      else logoSingle.mockResolvedValueOnce({ data: null, error: failure === "error" ? { message: "offline" } : null });
+      rpc.mockResolvedValueOnce({ data: null, error: { message: "connection lost" } });
+
+      await expect(uploadOrganizationLogoAction({}, logoForm())).resolves.toMatchObject({ status: "error" });
+      expect(remove).not.toHaveBeenCalled();
+    },
+  );
+
+  it("reports a missing logo object", async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "Company logo object was not found." } });
+
+    await expect(uploadOrganizationLogoAction({}, logoForm())).resolves.toEqual({
+      message: "The uploaded company logo could not be found. Please upload it again.",
+      status: "error",
+    });
+  });
+
+  it.each(["error", "throw"])("preserves save failure when orphan cleanup returns %s", async (failure) => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "pointer failed" } });
+    if (failure === "throw") remove.mockRejectedValueOnce(new Error("cleanup failed"));
+    else remove.mockResolvedValueOnce({ error: { message: "cleanup failed" } });
+
+    await expect(uploadOrganizationLogoAction({}, logoForm())).resolves.toEqual({
+      message: "We could not save the company logo.",
+      status: "error",
+    });
+  });
+
+  it("preserves a previous logo reselected before cleanup", async () => {
+    const previousPath = "org-1/logos/00000000-0000-4000-8000-000000000001.png";
+    logoSingle.mockResolvedValue({ data: { logo_storage_path: previousPath }, error: null });
+    rpc.mockResolvedValueOnce({ data: "selected", error: null });
+
+    await expect(uploadOrganizationLogoAction({}, logoForm())).resolves.toMatchObject({ status: "success" });
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("keeps successful selection when old-logo cleanup throws", async () => {
+    logoSingle.mockResolvedValueOnce({ data: { logo_storage_path: "org-1/logos/old.png" }, error: null });
+    rpc.mockResolvedValueOnce({ data: "selected", error: null });
+    remove.mockRejectedValueOnce(new Error("cleanup failed"));
+
+    await expect(uploadOrganizationLogoAction({}, logoForm())).resolves.toMatchObject({ status: "success" });
+  });
+
   it("rejects invalid image content before opening Storage", async () => {
     const form = new FormData();
     form.set("logo", new File([new Uint8Array([1, 2, 3])], "fake.png", { type: "image/png" }));
@@ -198,7 +273,7 @@ describe("organization logo actions", () => {
 
   it("clears the pointer before deleting the old logo", async () => {
     const previousPath = "org-1/logos/00000000-0000-4000-8000-000000000001.png";
-    logoSingle.mockResolvedValue({ data: { logo_storage_path: previousPath }, error: null });
+    logoSingle.mockResolvedValueOnce({ data: { logo_storage_path: previousPath }, error: null });
     rpc.mockResolvedValue({ data: null, error: null });
 
     await expect(removeOrganizationLogoAction({}, new FormData())).resolves.toEqual({
@@ -218,4 +293,10 @@ function validPngFile() {
   return new File([validPngBytes(512, 256)], "company.png", {
     type: "image/png",
   });
+}
+
+function logoForm() {
+  const form = new FormData();
+  form.set("logo", validPngFile());
+  return form;
 }
