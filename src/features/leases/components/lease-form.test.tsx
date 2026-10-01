@@ -111,6 +111,7 @@ async function advanceToBillingStep(user: TestUser) {
 }
 
 beforeEach(() => {
+  createLeaseActionMock.mockReset();
   createLeaseActionMock.mockResolvedValue({});
   Object.defineProperties(HTMLElement.prototype, {
     hasPointerCapture: { configurable: true, value: () => false },
@@ -333,6 +334,59 @@ describe("LeaseForm current-step validation", () => {
 
     await act(async () => resolveAction({}));
     expect(form.getAttribute("aria-busy")).toBe("false");
+  });
+
+  it("checks skipped steps in order and focuses the first invalid field after navigation", async () => {
+    const user = userEvent.setup();
+    render(
+      <LeaseForm onClose={() => undefined} properties={[]} tenants={[]} units={[]} />,
+    );
+    await advanceToBillingStep(user);
+    await user.click(screen.getByRole("button", { name: "3 Rent and deposit" }));
+    fireEvent.change(screen.getByRole("textbox", { name: /Monthly rent/ }), {
+      target: { value: "0" },
+    });
+    await user.click(screen.getByRole("button", { name: "2 Lease terms" }));
+    setLeaseDates("2026-08-16", "2026-08-15");
+    await user.click(screen.getByRole("button", { name: "1 Tenant" }));
+    await user.click(screen.getByRole("button", { name: "4 Billing setup" }));
+
+    expect(screen.getByRole("heading", { name: "Lease terms" })).not.toBeNull();
+    expect(screen.getByRole("alert").textContent).toBe("End date must be after the start date.");
+    expect(document.activeElement).toBe(screen.getByLabelText("Lease end date"));
+
+    setLeaseDates();
+    await user.click(screen.getByRole("button", { name: "4 Billing setup" }));
+    const rent = screen.getByRole("textbox", { name: /Monthly rent/ });
+    expect(screen.getByRole("heading", { name: "Rent and deposit" })).not.toBeNull();
+    expect(screen.getByRole("alert").textContent).toBe("Enter a rent amount greater than zero.");
+    expect(document.activeElement).toBe(rent);
+
+    fireEvent.change(rent, { target: { value: "1000" } });
+    await user.click(screen.getByRole("button", { name: "4 Billing setup" }));
+    expect(screen.getByRole("heading", { name: "Billing setup" })).not.toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(createLeaseActionMock).not.toHaveBeenCalled();
+  });
+
+  it("rechecks earlier values before final submission", async () => {
+    const user = userEvent.setup();
+    render(
+      <LeaseForm onClose={() => undefined} properties={[]} tenants={[]} units={[]} />,
+    );
+    await advanceToBillingStep(user);
+    setLeaseDates("2026-08-16", "2026-08-15");
+    await user.click(screen.getByRole("button", { name: "Create draft lease" }));
+
+    expect(screen.getByRole("heading", { name: "Lease terms" })).not.toBeNull();
+    expect(screen.getByRole("alert").textContent).toBe("End date must be after the start date.");
+    expect(document.activeElement).toBe(screen.getByLabelText("Lease end date"));
+    expect(createLeaseActionMock).not.toHaveBeenCalled();
+
+    setLeaseDates();
+    await user.click(screen.getByRole("button", { name: "4 Billing setup" }));
+    await user.click(screen.getByRole("button", { name: "Create draft lease" }));
+    expect(createLeaseActionMock).toHaveBeenCalledTimes(1);
   });
 });
 

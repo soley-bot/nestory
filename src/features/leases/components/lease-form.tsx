@@ -97,6 +97,7 @@ export function LeaseForm({
   const [furthestCreateStep, setFurthestCreateStep] = useState(1);
   const [createStepError, setCreateStepError] =
     useState<LeaseCreateStepError | null>(null);
+  const validationFormRef = useRef<HTMLFormElement | null>(null);
   const submitLockedRef = useRef(false);
   const [state, action, pending] = useActionState(
     async (previousState: LeaseActionState, formData: FormData) => {
@@ -190,6 +191,23 @@ export function LeaseForm({
     state.status,
   ]);
 
+  useEffect(() => {
+    if (!createStepError) return;
+
+    const field = Array.from(
+      validationFormRef.current?.querySelectorAll<HTMLElement>(
+        "[data-record-field]",
+      ) ?? [],
+    ).find(
+      (element) => element.dataset.recordField === createStepError.fieldName,
+    );
+    field
+      ?.querySelector<HTMLElement>(
+        "input:not([type='hidden']), textarea, select, button, [tabindex]:not([tabindex='-1'])",
+      )
+      ?.focus();
+  }, [createStepError]);
+
   function handleTenantCreated(
     personId?: string,
     roles?: PersonRoleValue[],
@@ -225,8 +243,28 @@ export function LeaseForm({
       return;
     }
 
+    if (!validateCreateStepRange(form, 1, createLeaseSteps.length)) return;
+
     submitLockedRef.current = true;
     startTransition(() => action(new FormData(form)));
+  }
+
+  function validateCreateStepRange(
+    form: HTMLFormElement,
+    firstStep: number,
+    lastStep: number,
+  ) {
+    const formData = new FormData(form);
+    for (let step = firstStep; step <= lastStep; step += 1) {
+      const error = getLeaseCreateStepError(step, formData);
+      if (!error) continue;
+
+      validationFormRef.current = form;
+      setCreateStep(step);
+      setCreateStepError(error);
+      return false;
+    }
+    return true;
   }
 
   function handleCreateStepChange(form: HTMLFormElement, nextStep: number) {
@@ -234,23 +272,10 @@ export function LeaseForm({
       return;
     }
 
-    if (nextStep > createStep) {
-      const error = getLeaseCreateStepError(createStep, new FormData(form));
-      if (error) {
-        setCreateStepError(error);
-        const field = Array.from(
-          form.querySelectorAll<HTMLElement>("[data-record-field]"),
-        ).find(
-          (element) => element.dataset.recordField === error.fieldName,
-        );
-        field
-          ?.querySelector<HTMLElement>(
-            "input:not([type='hidden']), textarea, select, button, [tabindex]:not([tabindex='-1'])",
-          )
-          ?.focus();
-        return;
-      }
-    }
+    if (
+      nextStep > createStep &&
+      !validateCreateStepRange(form, createStep, nextStep - 1)
+    ) return;
 
     setCreateStepError(null);
     setCreateStep(nextStep);
