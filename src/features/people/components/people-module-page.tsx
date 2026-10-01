@@ -1,4 +1,6 @@
 import { Suspense } from "react";
+import * as Sentry from "@sentry/nextjs";
+import { unstable_rethrow } from "next/navigation";
 import { PeopleScreen } from "@/features/people/components/people-screen";
 import { PeopleScreenSkeleton } from "@/features/people/components/people-screen-skeleton";
 import { PeopleCommandCenter } from "@/features/people/components/people-command-center";
@@ -94,7 +96,16 @@ export async function PeopleInsightsAction({
 }: {
   organizationId: string;
 }) {
-  const insights = await getPeopleInsightsData(organizationId);
+  let insights: Awaited<ReturnType<typeof getPeopleInsightsData>>;
+  try {
+    insights = await getPeopleInsightsData(organizationId);
+  } catch (error) {
+    unstable_rethrow(error);
+    Sentry.captureException(error, {
+      tags: { route: "/people", handled: "true" },
+    });
+    return null;
+  }
 
   return <PeopleCommandCenter insights={insights} />;
 }
