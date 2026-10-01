@@ -318,11 +318,17 @@ export type MaintenanceScreenData = {
   cases: MaintenanceCase[];
   pagination: MaintenancePagination;
   propertyOptions: MaintenancePropertyOption[];
+  queueCounts?: MaintenanceQueueCounts;
   staffOptions: MaintenanceAssigneeOption[];
   summary: MaintenanceSummary;
   unitOptions: MaintenanceUnitOption[];
   vendorOptions: MaintenanceVendorOption[];
 };
+
+export type MaintenanceQueueCounts = Pick<
+  MaintenanceSummary,
+  "completed" | "open" | "overdue" | "readyForReview" | "total" | "upcoming"
+>;
 
 export type MaintenanceActor = {
   branchId?: string;

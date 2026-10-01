@@ -20,6 +20,7 @@ import {
 } from "@/features/maintenance/components/maintenance-work-surfaces";
 import type {
   MaintenanceCase,
+  MaintenanceQueueCounts,
   MaintenanceViewQuery,
 } from "@/features/maintenance/maintenance.types";
 import { getBusinessMonthValue } from "@/lib/dates/business-date";
@@ -384,6 +385,38 @@ describe("maintenance workspace redesign contract", () => {
     expect(
       container.querySelectorAll('[data-maintenance-queue-tab="true"]'),
     ).toHaveLength(expectedLinks.length);
+  });
+
+  it("shows destination counts even when the current filtered list is empty", () => {
+    navigation.searchParams = new URLSearchParams("view=list&review=all&status=completed&page=3&priority=high&query=leak");
+    renderMaintenance({
+      cases: [], showCaseViewTabs: true,
+      queueCounts: { total: 43, open: 29, completed: 11, overdue: 12, upcoming: 17, readyForReview: 8 },
+      viewQuery: { ...defaultViewQuery, review: "all", status: "completed", page: 3, priority: "high", query: "leak" },
+    });
+    const queues = screen.getByRole("navigation", { name: "Maintenance queues" });
+    for (const [label, review] of [["All 43", "all"], ["Inbox 29", "open"], ["Completed 11", "completed"]]) {
+      const href = within(queues).getByRole("link", { name: label }).getAttribute("href")!;
+      const params = new URL(href, "https://fixture.test").searchParams;
+      expect(params.get("review") ?? "open").toBe(review);
+      expect(params.has("status")).toBe(false);
+      expect(params.has("page")).toBe(false);
+      expect(params.get("priority")).toBe("high");
+      expect(params.get("query")).toBe("leak");
+    }
+  });
+
+  it("selects Completed without intersecting the default Open queue", async () => {
+    const user = userEvent.setup();
+    renderMaintenance({ showCaseViewTabs: true });
+    await user.click(screen.getByRole("button", { name: /Filters/ }));
+    await user.click(screen.getByRole("combobox", { name: "Status" }));
+    await user.click(screen.getByRole("option", { name: "Completed" }));
+    const [href] = navigation.replace.mock.calls.at(-1)!;
+    const params = new URL(href, "https://fixture.test").searchParams;
+    expect(params.get("status")).toBe("completed");
+    expect(params.get("review")).toBe("all");
+    expect(params.get("view")).toBe("list");
   });
 
   it("keeps queues separate while grouping search, filters, and view controls in one command bar", async () => {
@@ -800,12 +833,14 @@ describe("maintenance record cards", () => {
 function renderMaintenance({
   actorRole = "super_admin",
   cases = [makeCase()],
+  queueCounts = { total: cases.length, open: cases.length, completed: 0, overdue: 0, upcoming: cases.length, readyForReview: 0 },
   surfaceVariant = "table",
   showCaseViewTabs = false,
   viewQuery = defaultViewQuery,
 }: {
   actorRole?: "super_admin" | "operations_manager" | "operations_member";
   cases?: MaintenanceCase[];
+  queueCounts?: MaintenanceQueueCounts;
   surfaceVariant?: MaintenanceSurfaceVariant;
   showCaseViewTabs?: boolean;
   viewQuery?: MaintenanceViewQuery;
@@ -849,6 +884,7 @@ function renderMaintenance({
         totalPages: cases.length ? 1 : 0,
       }}
       propertyOptions={[{ id: "property-1", label: "Riverside House" }]}
+      queueCounts={queueCounts}
       recordLabel="case"
       staffOptions={[]}
       showCaseViewTabs={showCaseViewTabs}
