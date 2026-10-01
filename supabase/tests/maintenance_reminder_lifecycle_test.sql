@@ -16,7 +16,7 @@ WITH series AS (
     '00000000-0000-0000-0000-000000000211',
     '00000000-0000-0000-0000-000000000101'
   ) RETURNING id, organization_id, created_by
-)
+), revision AS (
 INSERT INTO public.maintenance_recurrence_revisions (
   organization_id, series_id, revision_number, frequency, timezone,
   next_occurrence_at, title, category, priority, reminder_offset_minutes,
@@ -25,7 +25,9 @@ INSERT INTO public.maintenance_recurrence_revisions (
 SELECT organization_id, id, 1, 'monthly', 'UTC',
   '2035-02-15 09:00+00', 'Advance reminder fixture', 'Preventive maintenance',
   'normal', 1440, '2035-02-15 09:00+00', created_by
-FROM series RETURNING series_id;
+FROM series RETURNING series_id
+)
+SELECT series_id FROM revision;
 
 SELECT is(
   (public.run_maintenance_automation('2035-02-14 08:59:59+00', 10)->>'generated')::integer,
