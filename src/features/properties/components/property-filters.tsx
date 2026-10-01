@@ -17,6 +17,7 @@ import {
   DEFAULT_PROPERTY_PAGE_SIZE,
   DEFAULT_PROPERTY_SORT,
   PROPERTY_PAGE_SIZE_OPTIONS,
+  parsePropertySearchParams,
 } from "@/features/properties/property.filters";
 import type { PropertySummary } from "@/features/properties/data/properties";
 import type {
@@ -99,7 +100,10 @@ export function PropertyFilters({
   viewQuery,
 }: PropertyFiltersProps) {
   const pathname = usePathname();
-  const { isPending, replaceParam, search } = navigation;
+  const { isPending, pendingParams, replaceParam, search } = navigation;
+  const selectedQuery = pendingParams
+    ? parsePropertySearchParams(Object.fromEntries(pendingParams))
+    : viewQuery;
   const activeFilterChips = getActivePropertyFilters(viewQuery);
   const activeFilters = activeFilterChips.filter(
     (filter) => filter.param !== "query",
@@ -111,7 +115,7 @@ export function PropertyFilters({
   const propertySuggestions = getPropertySuggestions(properties, query);
 
   return (
-    <div className="w-full min-w-0">
+    <div aria-busy={isPending} className="w-full min-w-0">
       <div>
         <div className="flex flex-col gap-2 text-sm lg:flex-row lg:items-center lg:justify-between">
           <SearchCombo
@@ -159,6 +163,7 @@ export function PropertyFilters({
               <Popover.Portal>
                 <Popover.Content
                   align="end"
+                  aria-busy={isPending}
                   className="z-50 max-h-[min(640px,calc(100vh-8rem))] w-[min(calc(100vw-2rem),440px)] overflow-auto rounded-md border border-border bg-card text-sm shadow-lg"
                   id="property-advanced-search"
                   side="bottom"
@@ -211,7 +216,7 @@ export function PropertyFilters({
                             replaceParam("status", value, "all")
                           }
                           options={statusFilterOptions}
-                          value={viewQuery.status}
+                          value={selectedQuery.status}
                         />
                       </FilterField>
 
@@ -223,7 +228,7 @@ export function PropertyFilters({
                             replaceParam("archiveState", value, "active")
                           }
                           options={archiveFilterOptions}
-                          value={viewQuery.archiveState}
+                          value={selectedQuery.archiveState}
                         />
                       </FilterField>
                     </FilterSection>
@@ -237,7 +242,7 @@ export function PropertyFilters({
                             replaceParam("ownerStatus", value, "all")
                           }
                           options={ownerFilterOptions}
-                          value={viewQuery.ownerStatus}
+                          value={selectedQuery.ownerStatus}
                         />
                       </FilterField>
 
@@ -249,7 +254,7 @@ export function PropertyFilters({
                             replaceParam("leaseStatus", value, "all")
                           }
                           options={leaseFilterOptions}
-                          value={viewQuery.leaseStatus}
+                          value={selectedQuery.leaseStatus}
                         />
                       </FilterField>
 
@@ -261,7 +266,7 @@ export function PropertyFilters({
                             replaceParam("review", value, "all")
                           }
                           options={reviewFilterOptions}
-                          value={viewQuery.review}
+                          value={selectedQuery.review}
                         />
                       </FilterField>
 
@@ -273,7 +278,7 @@ export function PropertyFilters({
                             replaceParam("netStatus", value, "all")
                           }
                           options={netFilterOptions}
-                          value={viewQuery.netStatus}
+                          value={selectedQuery.netStatus}
                         />
                       </FilterField>
                     </FilterSection>
@@ -287,7 +292,7 @@ export function PropertyFilters({
                             replaceParam("sort", value, DEFAULT_PROPERTY_SORT)
                           }
                           options={sortFilterOptions}
-                          value={viewQuery.sort}
+                          value={selectedQuery.sort}
                         />
                       </FilterField>
 
@@ -308,7 +313,7 @@ export function PropertyFilters({
                               value: String(pageSize),
                             }),
                           )}
-                          value={String(viewQuery.pageSize)}
+                          value={String(selectedQuery.pageSize)}
                         />
                       </FilterField>
                     </FilterSection>

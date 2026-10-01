@@ -89,6 +89,17 @@ describe("unit screen report links", () => {
 });
 
 describe("UnitScreen redesign contract", () => {
+  it("applies a rapid filter reversal before the first response arrives", async () => {
+    const user = userEvent.setup();
+    renderUnits();
+    await user.click(screen.getByRole("button", { name: "Filters" }));
+    await user.click(screen.getByRole("combobox", { name: "Filter by operational state", exact: true }));
+    await user.click(screen.getByRole("option", { name: "Vacant", exact: true }));
+    await user.click(screen.getByRole("combobox", { name: "Filter by operational state", exact: true }));
+    await user.click(screen.getByRole("option", { name: "All states", exact: true }));
+    expect(navigation.replace).toHaveBeenLastCalledWith("/units", { scroll: false });
+  });
+
   it("follows cards and table views during history navigation", () => {
     const view = renderUnits();
     for (const params of ["view=cards", "view=table", "view=cards", ""]) {

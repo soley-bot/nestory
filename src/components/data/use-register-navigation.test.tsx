@@ -27,6 +27,25 @@ afterEach(() => {
 });
 
 describe("register navigation", () => {
+  it.each([
+    ["view", "cards", "table"],
+    ["sort", "rent_desc", "property_asc"],
+    ["status", "vacant", "all"],
+    ["pageSize", "100", "50"],
+  ])("retains waiting search text when its own %s response arrives", async (name, value, defaultValue) => {
+    const { result, rerender } = renderHook(() => useRegisterNavigation(""));
+    act(() => result.current.search.onQueryChange("River"));
+    act(() => result.current.replaceParam(name, value, defaultValue));
+    navigation.searchParams = new URLSearchParams(navigation.replace.mock.lastCall![0].split("?")[1]);
+    rerender();
+    expect(result.current.search.query).toBe("River");
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    const params = new URL(navigation.replace.mock.lastCall![0], "http://localhost").searchParams;
+    expect(params.get("query")).toBe("River");
+    expect(params.get(name)).toBe(value);
+    expect(params.has("page")).toBe(false);
+  });
+
   it("retains newer typing when a search response resets the page", async () => {
     const { result, rerender } = renderHook(({ query }) => useRegisterNavigation(query), {
       initialProps: { query: "" },
@@ -79,6 +98,16 @@ describe("register navigation", () => {
       "/units?propertyId=home&page=3&pageSize=25&view=cards",
       { scroll: false },
     );
+  });
+
+  it("discards a waiting draft when an external URL changes scope without changing the query", async () => {
+    const { result, rerender } = renderHook(() => useRegisterNavigation(""));
+    act(() => result.current.search.onQueryChange("River"));
+    navigation.searchParams = new URLSearchParams("propertyId=river");
+    rerender();
+    expect(result.current.search.query).toBe("");
+    await act(() => vi.advanceTimersByTimeAsync(600));
+    expect(navigation.replace).not.toHaveBeenCalled();
   });
 
   it("cancels queued typing on Back even when the applied query has not changed", async () => {

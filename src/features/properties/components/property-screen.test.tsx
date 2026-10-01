@@ -114,6 +114,17 @@ afterEach(() => {
 });
 
 describe("PropertyScreen redesign contract", () => {
+  it("applies a rapid filter reversal before the first response arrives", async () => {
+    const user = userEvent.setup();
+    renderProperties();
+    await user.click(screen.getByRole("button", { name: "Filters" }));
+    await user.click(screen.getByRole("combobox", { name: "Filter by status", exact: true }));
+    await user.click(screen.getByRole("option", { name: "Inactive", exact: true }));
+    await user.click(screen.getByRole("combobox", { name: "Filter by status", exact: true }));
+    await user.click(screen.getByRole("option", { name: "All statuses", exact: true }));
+    expect(navigation.replace).toHaveBeenLastCalledWith("/properties", { scroll: false });
+  });
+
   it("follows cards and table views during history navigation", () => {
     const view = renderProperties();
     for (const params of ["view=cards", "view=table", "view=cards", ""]) {

@@ -13,14 +13,25 @@ export function useRegisterNavigation(appliedQuery: string) {
   const committed = searchParams.toString();
   const pending = useRef({ source: committed, query: committed, requests: [] as string[] });
   const [isPending, startTransition] = useTransition();
-  const [navigationVersion, setNavigationVersion] = useState(0);
-  const scope = new URLSearchParams(committed);
-  scope.delete("query");
-  scope.delete("page");
+  const [navigation, setNavigation] = useState({
+    source: committed,
+    requests: [] as string[],
+    version: 0,
+  });
+  let currentNavigation = navigation;
+  if (navigation.source !== committed) {
+    const acknowledgement = navigation.requests.lastIndexOf(committed);
+    currentNavigation = {
+      source: committed,
+      requests: acknowledgement >= 0 ? navigation.requests.slice(acknowledgement + 1) : [],
+      version: navigation.version + (acknowledgement >= 0 ? 0 : 1),
+    };
+    setNavigation(currentNavigation);
+  }
   const search = useRegisterSearch(
     appliedQuery,
     (value) => replaceParam("query", value, ""),
-    `${pathname}?${scope.toString()}:${navigationVersion}`,
+    `${pathname}:${currentNavigation.version}`,
   );
 
   function synchronize() {
@@ -54,6 +65,11 @@ export function useRegisterNavigation(appliedQuery: string) {
     }
     const query = nextParams.toString();
     pending.current = { ...current, query, requests: [...current.requests, query] };
+    setNavigation((previous) => ({
+      ...previous,
+      source: committed,
+      requests: [...current.requests, query],
+    }));
     startTransition(() => {
       router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     });
@@ -62,7 +78,11 @@ export function useRegisterNavigation(appliedQuery: string) {
   function cancelPending() {
     pending.current = { source: committed, query: committed, requests: [] };
     search.cancelPending();
-    setNavigationVersion((value) => value + 1);
+    setNavigation((previous) => ({
+      source: committed,
+      requests: [],
+      version: previous.version + 1,
+    }));
   }
 
   const onHistoryNavigation = useEffectEvent(() => {
@@ -74,5 +94,7 @@ export function useRegisterNavigation(appliedQuery: string) {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  return { cancelPending, isPending, replaceParam, search };
+  const pendingQuery = currentNavigation.requests.at(-1);
+  const pendingParams = pendingQuery === undefined ? null : new URLSearchParams(pendingQuery);
+  return { cancelPending, isPending, pendingParams, replaceParam, search };
 }

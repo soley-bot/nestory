@@ -13,6 +13,7 @@ import {
   DEFAULT_UNIT_PAGE_SIZE,
   DEFAULT_UNIT_SORT,
   UNIT_PAGE_SIZE_OPTIONS,
+  parseUnitSearchParams,
 } from "@/features/units/unit.filters";
 import {
   type UnitDisplayMode,
@@ -37,7 +38,10 @@ export function UnitFilters({
   viewQuery,
 }: UnitFiltersProps) {
   const pathname = usePathname();
-  const { isPending, replaceParam, search } = navigation;
+  const { isPending, pendingParams, replaceParam, search } = navigation;
+  const selectedQuery = pendingParams
+    ? parseUnitSearchParams(Object.fromEntries(pendingParams))
+    : viewQuery;
   // Sort order and page size change presentation, not which units are shown, so
   // they are not counted as filters.
   const activeFilters = [
@@ -54,7 +58,7 @@ export function UnitFilters({
   const compactSelectClassName = "h-8 w-full px-2 text-sm";
 
   return (
-    <div className="w-full min-w-0">
+    <div aria-busy={isPending} className="w-full min-w-0">
       <div>
         <div className="flex flex-col gap-2 text-sm lg:flex-row lg:items-center lg:justify-between">
           <SearchCombo
@@ -96,6 +100,7 @@ export function UnitFilters({
               <Popover.Portal>
                 <Popover.Content
                   align="end"
+                  aria-busy={isPending}
                   className="z-50 w-[min(calc(100vw-2rem),460px)] rounded-md border border-border bg-card text-sm shadow-lg"
                   id="unit-advanced-search"
                   side="bottom"
@@ -119,7 +124,7 @@ export function UnitFilters({
                             value: property.id,
                           })),
                         ]}
-                        value={viewQuery.propertyId}
+                        value={selectedQuery.propertyId}
                       />
                     </FilterField>
 
@@ -135,7 +140,7 @@ export function UnitFilters({
                           { label: "Occupied", value: "occupied" },
                           { label: "No lease", value: "unoccupied" },
                         ]}
-                        value={viewQuery.occupancy}
+                        value={selectedQuery.occupancy}
                       />
                     </FilterField>
 
@@ -154,7 +159,7 @@ export function UnitFilters({
                           { label: "Maintenance", value: "maintenance" },
                           { label: "Inactive", value: "inactive" },
                         ]}
-                        value={viewQuery.status}
+                        value={selectedQuery.status}
                       />
                     </FilterField>
 
@@ -169,7 +174,7 @@ export function UnitFilters({
                           { label: "All units", value: "all" },
                           { label: "No active lease", value: "missing" },
                         ]}
-                        value={viewQuery.leaseStatus}
+                        value={selectedQuery.leaseStatus}
                       />
                     </FilterField>
 
@@ -189,7 +194,7 @@ export function UnitFilters({
                           { label: "Archived", value: "archived" },
                           { label: "All records", value: "all" },
                         ]}
-                        value={viewQuery.archiveState}
+                        value={selectedQuery.archiveState}
                       />
                     </FilterField>
 
@@ -207,7 +212,7 @@ export function UnitFilters({
                           { label: "Rent", value: "rent_desc" },
                           { label: "Ledger net", value: "net_desc" },
                         ]}
-                        value={viewQuery.sort}
+                        value={selectedQuery.sort}
                       />
                     </FilterField>
 
@@ -226,7 +231,7 @@ export function UnitFilters({
                           label: String(pageSize),
                           value: String(pageSize),
                         }))}
-                        value={String(viewQuery.pageSize)}
+                        value={String(selectedQuery.pageSize)}
                       />
                     </FilterField>
                   </div>
