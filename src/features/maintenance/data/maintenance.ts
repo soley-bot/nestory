@@ -344,6 +344,56 @@ export async function getMaintenanceScreenData(
   };
 }
 
+export async function getMaintenanceCreateFormOptions(
+  organizationId: string,
+  actor: MaintenanceActor,
+  capabilities: Pick<MaintenanceCapabilities, "canAssignCase">,
+): Promise<Pick<
+  MaintenanceScreenData,
+  "branchOptions" | "propertyOptions" | "staffOptions" | "unitOptions" | "vendorOptions"
+>> {
+  if (actor.workflowMode === "assigned" || !capabilities.canAssignCase) {
+    throw new Error("Maintenance creation options are unavailable.");
+  }
+  const supabase = await createSupabaseServerClient();
+  const memberIdentities = await getMaintenanceMemberIdentities(supabase, organizationId);
+  const [references, vendorOptions] = await Promise.all([
+    getMaintenanceReferenceRows({
+      additionalPersonIds: memberIdentities.map((identity) => identity.personId),
+      organizationId,
+      referencedOnly: false,
+      referenceTasks: [],
+      supabase,
+      visiblePersonTasks: [],
+    }),
+    getMaintenanceVendorOptions(supabase, organizationId),
+  ]);
+  const activePersonIds = new Set(
+    references.people
+      .filter((person) => person.archived_at === null)
+      .map((person) => person.id),
+  );
+  const staffPersonIds = new Set(references.staffRoles.map((role) => role.person_id));
+  const people = references.people.map((person) => ({
+    id: person.id, label: person.display_name,
+  }));
+  return {
+    branchOptions: toBranchOptions(references.branches),
+    propertyOptions: toPropertyOptions(references.properties),
+    staffOptions: memberIdentities.flatMap((identity) =>
+      getExecutableMaintenanceAssigneeOptions({
+        activePersonIds,
+        branchId: identity.branchId,
+        memberIdentities,
+        people,
+        staffPersonIds,
+      }).filter((option) => option.id === identity.personId),
+    ),
+    unitOptions: toUnitOptions(references.units, indexById(references.properties)),
+    vendorOptions,
+  };
+}
+
 export function scopeMaintenanceMutableOptions(
   actor: MaintenanceActor,
   options: Pick<
