@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(15);
+SELECT plan(21);
 
 CREATE TEMP TABLE import_lease_person_state (
   property_id uuid,
@@ -149,6 +149,69 @@ SELECT is((SELECT result ->> 'status' FROM import_lease_person_state), 'failed',
 SELECT is((SELECT row_status FROM public.import_rows WHERE import_run_id = (SELECT run_id FROM import_lease_person_state)), 'failed', 'invalid financial terms fail the checked import row');
 SELECT is((SELECT count(*) FROM public.leases WHERE organization_id = 'a7040000-0000-4000-8000-000000000001' AND unit_id = (SELECT invalid_unit_id FROM import_lease_person_state)), 0::bigint, 'invalid financial terms leave no partial attributed lease');
 SELECT is((SELECT count(*) FROM public.lease_terms WHERE organization_id = 'a7040000-0000-4000-8000-000000000001'), 1::bigint, 'invalid financial terms leave no additional rent authority');
+
+RESET ROLE;
+INSERT INTO public.people(id, organization_id, display_name, primary_email, party_type)
+VALUES ('a7040000-0000-4000-8000-000000000009', 'a7040000-0000-4000-8000-000000000001',
+  U&'\0009\00A0Padded Lease Company\FEFF\2028', U&'\0009\00A0padded-lease@example.test\FEFF\2028', 'company');
+INSERT INTO public.person_roles(organization_id, person_id, role, status)
+VALUES ('a7040000-0000-4000-8000-000000000001', 'a7040000-0000-4000-8000-000000000009', 'tenant', 'active');
+INSERT INTO public.person_branch_relationships(organization_id, person_id, branch_id)
+VALUES ('a7040000-0000-4000-8000-000000000001', 'a7040000-0000-4000-8000-000000000009', 'a7040000-0000-4000-8000-000000000006');
+
+CREATE FUNCTION pg_temp.stage_padded_attribution_lease(p_mapping jsonb, p_raw jsonb, p_property_id uuid, p_unit_id uuid)
+RETURNS uuid LANGUAGE sql AS $$
+  SELECT (public.stage_import_run_v1(
+    'a7040000-0000-4000-8000-000000000001', 'leases', 'padded-tenant.csv', 10::bigint, 'text/csv',
+    '["Tenant ID","Tenant Name","Tenant Email","Rent"]', p_mapping,
+    jsonb_build_array(jsonb_build_object(
+      'source_row_number', 2, 'row_status', 'ready', 'action_label', 'Create', 'raw_data', p_raw,
+      'normalized_data', jsonb_build_object(
+        'propertyId', p_property_id, 'unitId', p_unit_id,
+        'tenantPersonId', 'a7040000-0000-4000-8000-000000000009',
+        'leaseStartDate', '2033-01-01', 'leaseEndDate', '2033-12-31',
+        'monthlyRentAmount', '1300', 'rentDueDay', '5', 'paymentFrequency', 'monthly',
+        'termStatus', 'upcoming', 'depositAmount', '', 'status', 'draft'
+      ), 'issues', '[]'::jsonb
+    ))
+  ) ->> 'runId')::uuid;
+$$;
+
+SET LOCAL ROLE authenticated;
+UPDATE import_lease_person_state SET unit_id = public.create_unit(
+  'a7040000-0000-4000-8000-000000000001', property_id, 'PAD-EMAIL', NULL, NULL, NULL, NULL, 'vacant');
+UPDATE import_lease_person_state SET run_id = pg_temp.stage_padded_attribution_lease(
+  '{"tenantName":"Tenant Name","tenantEmail":"Tenant Email"}',
+  jsonb_build_object('Tenant Name', U&'\0009\00A0Padded Lease Company\FEFF\2028',
+    'Tenant Email', U&'\0009\00A0padded-lease@example.test\FEFF\2028', 'Case', 'padded-lease-email'),
+  property_id, unit_id);
+UPDATE import_lease_person_state SET result = public.commit_generic_import_run(run_id, 'a7040000-0000-4000-8000-000000000001');
+SELECT is((SELECT result ->> 'status' FROM import_lease_person_state), 'committed', 'padded Lease email resolves the stored padded tenant email through public commit');
+SELECT is((SELECT primary_tenant_person_id FROM public.leases WHERE id = (SELECT result_lease_id FROM public.import_rows WHERE import_run_id = (SELECT run_id FROM import_lease_person_state))),
+  'a7040000-0000-4000-8000-000000000009'::uuid, 'padded Lease email retains the exact company tenant attribution');
+
+UPDATE import_lease_person_state SET unit_id = public.create_unit(
+  'a7040000-0000-4000-8000-000000000001', property_id, 'PAD-NAME', NULL, NULL, NULL, NULL, 'vacant');
+UPDATE import_lease_person_state SET run_id = pg_temp.stage_padded_attribution_lease(
+  '{"tenantName":"Tenant Name"}',
+  jsonb_build_object('Tenant Name', U&'\2029Padded Lease Company\3000', 'Case', 'padded-lease-name'),
+  property_id, unit_id);
+UPDATE import_lease_person_state SET result = public.commit_generic_import_run(run_id, 'a7040000-0000-4000-8000-000000000001');
+SELECT is((SELECT result ->> 'status' FROM import_lease_person_state), 'committed', 'padded Lease name resolves the stored padded tenant name through public commit');
+SELECT is((SELECT primary_tenant_person_id FROM public.leases WHERE id = (SELECT result_lease_id FROM public.import_rows WHERE import_run_id = (SELECT run_id FROM import_lease_person_state))),
+  'a7040000-0000-4000-8000-000000000009'::uuid, 'padded Lease name retains the exact company tenant attribution');
+
+UPDATE import_lease_person_state SET unit_id = public.create_unit(
+  'a7040000-0000-4000-8000-000000000001', property_id, 'PAD-ID', NULL, NULL, NULL, NULL, 'vacant');
+UPDATE import_lease_person_state SET run_id = pg_temp.stage_padded_attribution_lease(
+  '{"tenantPersonId":"Tenant ID","tenantName":"Tenant Name","tenantEmail":"Tenant Email"}',
+  jsonb_build_object('Tenant ID', U&'\0009\00A0a7040000-0000-4000-8000-000000000009\FEFF\2028',
+    'Tenant Name', U&'\2029Padded Lease Company\3000', 'Tenant Email', U&'\1680padded-lease@example.test\205F',
+    'Case', 'padded-lease-id'), property_id, unit_id);
+UPDATE import_lease_person_state SET result = public.commit_generic_import_run(run_id, 'a7040000-0000-4000-8000-000000000001');
+SELECT is((SELECT result ->> 'status' FROM import_lease_person_state), 'committed', 'padded explicit Lease ID and padded matching email pass the identity consistency check');
+SELECT is((SELECT primary_tenant_person_id FROM public.leases WHERE id = (SELECT result_lease_id FROM public.import_rows WHERE import_run_id = (SELECT run_id FROM import_lease_person_state))),
+  'a7040000-0000-4000-8000-000000000009'::uuid, 'padded explicit Lease ID retains the exact company tenant attribution');
 
 RESET ROLE;
 SELECT * FROM finish();

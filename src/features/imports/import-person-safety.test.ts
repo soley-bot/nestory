@@ -47,6 +47,15 @@ function preview(type: ImportType, csv: string, references = referenceData) {
   });
 }
 
+function previewRaw(type: ImportType, raw: Record<string, string>, references = referenceData) {
+  return buildGenericImportPreviewRows({
+    mapping: autoMapImportHeaders(type, Object.keys(raw)),
+    records: [{ raw, rowNumber: 2 }],
+    referenceData: references,
+    type,
+  });
+}
+
 function leaseCsv(email: string, personId = "") {
   return [
     "Property Code,Unit no.,Tenant Email,Tenant Name,Tenant Person ID,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Status",
@@ -55,6 +64,64 @@ function leaseCsv(email: string, personId = "") {
 }
 
 describe("person import safety", () => {
+  it("matches padded raw and stored identities with the preview's whitespace semantics", () => {
+    const padding = "\t\u00a0\u2028\ufeff";
+    const [row] = previewRaw("people", {
+      "Display Name": `${padding}Sok Dara${padding}`,
+      Roles: "tenant",
+      Email: `${padding}SECOND@example.com${padding}`,
+    }, {
+      ...referenceData,
+      people: referenceData.people.map((person) => ({
+        ...person,
+        displayName: `${padding}${person.displayName}${padding}`,
+        primaryEmail: `${padding}${person.primaryEmail}${padding}`,
+      })),
+    });
+    expect(row.actionLabel).toBe("Update");
+    expect(row.normalizedData.existingPersonId).toBe(secondPersonId);
+    expect(row.normalizedData.primaryEmail).toBe("SECOND@example.com");
+  });
+
+  it("resolves a padded explicit person ID before a replacement email", () => {
+    const [row] = previewRaw("people", {
+      "Display Name": "Sok Dara",
+      Roles: "tenant",
+      "Person ID": `\t\u00a0${secondPersonId}\ufeff`,
+      Email: "replacement@example.com",
+    });
+    expect(row.actionLabel).toBe("Update");
+    expect(row.normalizedData.existingPersonId).toBe(secondPersonId);
+    expect(row.normalizedData.primaryEmail).toBe("replacement@example.com");
+  });
+
+  it("previews whitespace-only optional cells as clears while preserving party type", () => {
+    const [row] = previewRaw("people", {
+      "Display Name": "Sok Dara",
+      Roles: "tenant",
+      "Person ID": secondPersonId,
+      Email: "\t",
+      Phone: "\u00a0",
+      "Legal Name": "\ufeff",
+      "Tax ID": "\u2028",
+      Notes: "\t\u00a0\u2028\ufeff",
+      "Party Type": "\t\u00a0\u2028\ufeff",
+    });
+    expect(row.actionLabel).toBe("Update");
+    expect(row.normalizedData).toMatchObject({
+      primaryEmail: null, primaryPhone: null, legalName: null, taxIdentifier: null, notes: null,
+    });
+    expect(row.normalizedData).not.toHaveProperty("partyType");
+    expect(row.issues).toContainEqual(expect.objectContaining({
+      level: "warning",
+      message: "Will clear: Email, Phone, Legal name, Tax ID, Notes.",
+    }));
+    expect(row.issues).toContainEqual(expect.objectContaining({
+      level: "warning",
+      message: "Blank party type keeps the existing type.",
+    }));
+  });
+
   it("maps an explicit person ID before broad name aliases regardless of header order", () => {
     const [row] = preview("people", `Person ID,Display Name,Roles\n${secondPersonId},Sok Dara,tenant`);
     expect(row.actionLabel).toBe("Update");
@@ -183,6 +250,23 @@ describe("person import safety", () => {
 });
 
 describe("lease tenant attribution", () => {
+  it("resolves padded tenant ID and email consistently with the raw preview", () => {
+    const padding = "\t\u00a0\u2028\ufeff";
+    const raw = parseCsv(leaseCsv("second@example.com", secondPersonId)).records[0].raw;
+    raw["Tenant Person ID"] = `${padding}${secondPersonId}${padding}`;
+    raw["Tenant Email"] = `${padding}SECOND@example.com${padding}`;
+    raw["Tenant Name"] = `${padding}Sok Dara${padding}`;
+    const [row] = previewRaw("leases", raw, {
+      ...referenceData,
+      people: referenceData.people.map((person) => ({
+        ...person,
+        primaryEmail: `${padding}${person.primaryEmail}${padding}`,
+      })),
+    });
+    expect(row.actionLabel).toBe("Create");
+    expect(row.normalizedData.tenantPersonId).toBe(secondPersonId);
+  });
+
   it("maps an explicit tenant ID before broad tenant name aliases regardless of header order", () => {
     const [row] = preview("leases", [
       "Tenant Person ID,Property Code,Unit no.,Tenant Name,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Status",

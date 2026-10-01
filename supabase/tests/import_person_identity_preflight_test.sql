@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(34);
+SELECT plan(40);
 
 CREATE TEMP TABLE import_identity_state (
   run_id uuid,
@@ -196,6 +196,50 @@ UPDATE import_identity_state SET run_id = pg_temp.stage_identity_import('leases'
 SELECT throws_ok(format('SELECT public.commit_generic_import_run(%L,%L)', (SELECT run_id FROM import_identity_state), 'a7050000-0000-4000-8000-000000000001'),
   '23514', 'Re-upload this import: person identity is ambiguous; map an explicit person ID.', 'same-name Lease identity without email requires an explicit tenant ID');
 SELECT is((SELECT count(*) FROM public.leases WHERE organization_id = 'a7050000-0000-4000-8000-000000000001'), 0::bigint, 'ambiguous tenant names never create a Lease');
+
+RESET ROLE;
+INSERT INTO public.people(id, organization_id, display_name, primary_email, party_type, notes)
+VALUES
+  ('a7050000-0000-4000-8000-000000000008', 'a7050000-0000-4000-8000-000000000001',
+   U&'\0009\00A0Stored Padded Email\FEFF\2028', U&'\0009\00A0padded-email@example.test\FEFF\2028', 'company', 'Padded email company notes'),
+  ('a7050000-0000-4000-8000-000000000009', 'a7050000-0000-4000-8000-000000000001',
+   U&'\0009\00A0Stored Padded Name\FEFF\2028', U&'\2029padded-name@example.test\3000', 'company', 'Padded name company notes');
+INSERT INTO public.person_roles(organization_id, person_id, role, status)
+VALUES
+  ('a7050000-0000-4000-8000-000000000001', 'a7050000-0000-4000-8000-000000000008', 'tenant', 'active'),
+  ('a7050000-0000-4000-8000-000000000001', 'a7050000-0000-4000-8000-000000000009', 'tenant', 'active');
+SET LOCAL ROLE authenticated;
+
+UPDATE import_identity_state SET run_id = pg_temp.stage_identity_import('people',
+  '{"displayName":"Name","primaryEmail":"Email","roles":"Roles"}',
+  jsonb_build_array(jsonb_set(pg_temp.legacy_person_row(2, jsonb_build_object(
+    'Name', U&'\0009\00A0Stored Padded Email\FEFF\2028',
+    'Email', U&'\0009\00A0padded-email@example.test\FEFF\2028', 'Roles', 'tenant', 'Case', 'padded-email'),
+    'a7050000-0000-4000-8000-000000000008'), '{normalized_data,displayName}', '"Stored Padded Email"')));
+UPDATE import_identity_state SET result = public.commit_generic_import_run(run_id, 'a7050000-0000-4000-8000-000000000001');
+SELECT is((SELECT result ->> 'status' FROM import_identity_state), 'committed', 'padded raw email resolves the stored padded person email through public commit');
+SELECT is((SELECT primary_email FROM public.people WHERE id = 'a7050000-0000-4000-8000-000000000008'), 'padded-email@example.test', 'mapped padded email stores the same trimmed value as preview');
+
+UPDATE import_identity_state SET run_id = pg_temp.stage_identity_import('people',
+  '{"displayName":"Name","roles":"Roles"}',
+  jsonb_build_array(jsonb_set(pg_temp.legacy_person_row(2, jsonb_build_object(
+    'Name', U&'\0009\00A0Stored Padded Name\FEFF\2028', 'Roles', 'tenant', 'Case', 'padded-name'),
+    'a7050000-0000-4000-8000-000000000009'), '{normalized_data,displayName}', '"Stored Padded Name"')));
+UPDATE import_identity_state SET result = public.commit_generic_import_run(run_id, 'a7050000-0000-4000-8000-000000000001');
+SELECT is((SELECT result ->> 'status' FROM import_identity_state), 'committed', 'padded raw name resolves the stored padded display name through public commit');
+SELECT is((SELECT display_name FROM public.people WHERE id = 'a7050000-0000-4000-8000-000000000009'), 'Stored Padded Name', 'padded name identity retains the canonical normalized display name');
+
+UPDATE import_identity_state SET run_id = pg_temp.stage_identity_import('people',
+  '{"personId":"ID","displayName":"Name","primaryEmail":"Email","roles":"Roles"}',
+  jsonb_build_array(jsonb_set(pg_temp.legacy_person_row(2, jsonb_build_object(
+    'ID', U&'\0009\00A0a7050000-0000-4000-8000-000000000008\FEFF\2028',
+    'Name', U&'\2029Stored Padded Email\3000', 'Email', U&'\1680padded-email@example.test\205F',
+    'Roles', 'tenant', 'Case', 'padded-explicit-id'),
+    'a7050000-0000-4000-8000-000000000008'), '{normalized_data,displayName}', '"Stored Padded Email"')));
+UPDATE import_identity_state SET result = public.commit_generic_import_run(run_id, 'a7050000-0000-4000-8000-000000000001');
+SELECT is((SELECT result ->> 'status' FROM import_identity_state), 'committed', 'padded explicit People ID commits the selected person');
+SELECT is((SELECT jsonb_build_object('partyType', party_type, 'notes', notes) FROM public.people WHERE id = 'a7050000-0000-4000-8000-000000000008'),
+  '{"partyType":"company","notes":"Padded email company notes"}'::jsonb, 'padded identity resolution preserves unmapped company type and notes');
 
 RESET ROLE;
 SELECT * FROM finish();

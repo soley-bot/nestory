@@ -1,3 +1,16 @@
+CREATE FUNCTION app_private.trim_import_cell(p_value text)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE STRICT PARALLEL SAFE
+SET search_path = ''
+AS $$
+  SELECT pg_catalog.btrim(p_value, U&'\0009\000A\000B\000C\000D\0020\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000\FEFF');
+$$;
+
+ALTER FUNCTION app_private.trim_import_cell(text) OWNER TO postgres;
+REVOKE ALL ON FUNCTION app_private.trim_import_cell(text)
+  FROM PUBLIC, anon, authenticated, service_role;
+
 CREATE FUNCTION app_private.update_person_preserving_unmapped_fields_for_import(
   p_person_id uuid,
   p_organization_id uuid,
@@ -29,28 +42,28 @@ BEGIN
     p_organization_id,
     p_normalized_data ->> 'displayName',
     CASE
-      WHEN NULLIF(p_mapping ->> 'legalName', '') IS NOT NULL THEN p_raw_data ->> (p_mapping ->> 'legalName')
+      WHEN NULLIF(p_mapping ->> 'legalName', '') IS NOT NULL THEN app_private.trim_import_cell(p_raw_data ->> (p_mapping ->> 'legalName'))
       ELSE v_person.legal_name
     END,
     CASE
-      WHEN NULLIF(pg_catalog.btrim(p_raw_data ->> (p_mapping ->> 'partyType')), '') IS NOT NULL
+      WHEN NULLIF(app_private.trim_import_cell(p_raw_data ->> (p_mapping ->> 'partyType')), '') IS NOT NULL
         THEN p_normalized_data ->> 'partyType'
       ELSE v_person.party_type
     END,
     CASE
-      WHEN NULLIF(p_mapping ->> 'primaryEmail', '') IS NOT NULL THEN p_raw_data ->> (p_mapping ->> 'primaryEmail')
+      WHEN NULLIF(p_mapping ->> 'primaryEmail', '') IS NOT NULL THEN app_private.trim_import_cell(p_raw_data ->> (p_mapping ->> 'primaryEmail'))
       ELSE v_person.primary_email
     END,
     CASE
-      WHEN NULLIF(p_mapping ->> 'primaryPhone', '') IS NOT NULL THEN p_raw_data ->> (p_mapping ->> 'primaryPhone')
+      WHEN NULLIF(p_mapping ->> 'primaryPhone', '') IS NOT NULL THEN app_private.trim_import_cell(p_raw_data ->> (p_mapping ->> 'primaryPhone'))
       ELSE v_person.primary_phone
     END,
     CASE
-      WHEN NULLIF(p_mapping ->> 'taxIdentifier', '') IS NOT NULL THEN p_raw_data ->> (p_mapping ->> 'taxIdentifier')
+      WHEN NULLIF(p_mapping ->> 'taxIdentifier', '') IS NOT NULL THEN app_private.trim_import_cell(p_raw_data ->> (p_mapping ->> 'taxIdentifier'))
       ELSE v_person.tax_identifier
     END,
     CASE
-      WHEN NULLIF(p_mapping ->> 'notes', '') IS NOT NULL THEN p_raw_data ->> (p_mapping ->> 'notes')
+      WHEN NULLIF(p_mapping ->> 'notes', '') IS NOT NULL THEN app_private.trim_import_cell(p_raw_data ->> (p_mapping ->> 'notes'))
       ELSE v_person.notes
     END,
     p_roles
@@ -124,13 +137,13 @@ DECLARE
   v_problem text;
 BEGIN
   IF p_import_type = 'people' THEN
-    v_person_id_text := NULLIF(pg_catalog.btrim(p_raw_data ->> (p_mapping ->> 'personId')), '');
-    v_email := NULLIF(pg_catalog.lower(pg_catalog.btrim(p_raw_data ->> (p_mapping ->> 'primaryEmail'))), '');
-    v_name := NULLIF(pg_catalog.lower(pg_catalog.btrim(p_raw_data ->> (p_mapping ->> 'displayName'))), '');
+    v_person_id_text := NULLIF(app_private.trim_import_cell(p_raw_data ->> (p_mapping ->> 'personId')), '');
+    v_email := NULLIF(pg_catalog.lower(app_private.trim_import_cell(p_raw_data ->> (p_mapping ->> 'primaryEmail'))), '');
+    v_name := NULLIF(pg_catalog.lower(app_private.trim_import_cell(p_raw_data ->> (p_mapping ->> 'displayName'))), '');
   ELSIF p_import_type = 'leases' THEN
-    v_person_id_text := NULLIF(pg_catalog.btrim(p_raw_data ->> (p_mapping ->> 'tenantPersonId')), '');
-    v_email := NULLIF(pg_catalog.lower(pg_catalog.btrim(p_raw_data ->> (p_mapping ->> 'tenantEmail'))), '');
-    v_name := NULLIF(pg_catalog.lower(pg_catalog.btrim(p_raw_data ->> (p_mapping ->> 'tenantName'))), '');
+    v_person_id_text := NULLIF(app_private.trim_import_cell(p_raw_data ->> (p_mapping ->> 'tenantPersonId')), '');
+    v_email := NULLIF(pg_catalog.lower(app_private.trim_import_cell(p_raw_data ->> (p_mapping ->> 'tenantEmail'))), '');
+    v_name := NULLIF(pg_catalog.lower(app_private.trim_import_cell(p_raw_data ->> (p_mapping ->> 'tenantName'))), '');
   ELSE
     RAISE EXCEPTION 'Unsupported person identity import type' USING ERRCODE = '22023';
   END IF;
@@ -144,7 +157,7 @@ BEGIN
   END;
 
   IF v_person_id IS NOT NULL THEN
-    SELECT person.id, pg_catalog.lower(pg_catalog.btrim(coalesce(person.primary_email, '')))
+    SELECT person.id, pg_catalog.lower(app_private.trim_import_cell(coalesce(person.primary_email, '')))
     INTO v_matched_id, v_matched_email
     FROM public.people AS person
     WHERE person.organization_id = p_organization_id
@@ -166,8 +179,8 @@ BEGIN
       WHERE person.organization_id = p_organization_id
         AND person.archived_at IS NULL
         AND CASE WHEN v_email IS NOT NULL
-          THEN pg_catalog.lower(pg_catalog.btrim(person.primary_email)) = v_email
-          ELSE pg_catalog.lower(pg_catalog.btrim(person.display_name)) = v_name
+          THEN pg_catalog.lower(app_private.trim_import_cell(person.primary_email)) = v_email
+          ELSE pg_catalog.lower(app_private.trim_import_cell(person.display_name)) = v_name
         END
       ORDER BY person.id
       FOR UPDATE

@@ -2,7 +2,26 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(24);
+SELECT plan(29);
+
+SELECT ok(
+  NOT has_function_privilege('authenticated', 'app_private.trim_import_cell(text)', 'EXECUTE'),
+  'authenticated cannot invoke the private import trim helper directly'
+);
+SELECT is(
+  app_private.trim_import_cell(
+    U&'\0009\000A\000B\000C\000D\0020\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000\FEFF'
+    || 'core' ||
+    U&'\0009\000A\000B\000C\000D\0020\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000\FEFF'
+  ),
+  'core',
+  'import trim removes every ECMAScript trim character at both cell boundaries'
+);
+SELECT is(
+  app_private.trim_import_cell(U&'\0085\180E\200Bcore\0085\180E\200B'),
+  U&'\0085\180E\200Bcore\0085\180E\200B',
+  'import trim preserves characters outside the ECMAScript whitespace set'
+);
 
 CREATE TEMP TABLE import_person_state (
   run_id uuid,
@@ -308,6 +327,45 @@ SELECT is(
     AND person_id = 'a7030000-0000-4000-8000-000000000003' AND role = 'tenant' AND status = 'active' AND archived_at IS NULL),
   1::bigint,
   'person preservation keeps canonical role synchronization'
+);
+
+SELECT public.update_person(
+  'a7030000-0000-4000-8000-000000000003', 'a7030000-0000-4000-8000-000000000001',
+  'Renamed Company', 'Before whitespace legal', 'company', 'before-whitespace@example.test',
+  '+10000000123', 'BEFORE-TAX', 'Before whitespace notes', ARRAY['tenant']::text[]
+);
+
+UPDATE import_person_state
+SET run_id = (public.stage_import_run_v1(
+  'a7030000-0000-4000-8000-000000000001', 'people', 'mapped-unicode-whitespace.csv', 10::bigint, 'text/csv',
+  '["ID","Name","Legal","Type","Email","Phone","Tax","Notes","Roles"]',
+  '{"personId":"ID","displayName":"Name","legalName":"Legal","partyType":"Type","primaryEmail":"Email","primaryPhone":"Phone","taxIdentifier":"Tax","notes":"Notes","roles":"Roles"}',
+  jsonb_build_array(jsonb_build_object(
+    'source_row_number', 2, 'row_status', 'warning', 'action_label', 'Update',
+    'raw_data', jsonb_build_object(
+      'ID', U&'\0009\00A0a7030000-0000-4000-8000-000000000003\FEFF\2028',
+      'Name', 'Renamed Company', 'Legal', U&'\0009\00A0\FEFF\2028',
+      'Type', U&'\0009\00A0\FEFF\2028', 'Email', U&'\0009\00A0\FEFF\2028',
+      'Phone', U&'\000A\2003\2029', 'Tax', U&'\1680\202F\205F',
+      'Notes', U&'\000D\3000\FEFF', 'Roles', 'tenant'
+    ),
+    'normalized_data', jsonb_build_object(
+      'existingPersonId', 'a7030000-0000-4000-8000-000000000003', 'displayName', 'Renamed Company',
+      'legalName', NULL, 'partyType', 'individual', 'primaryEmail', NULL, 'primaryPhone', NULL,
+      'taxIdentifier', NULL, 'notes', NULL, 'roles', jsonb_build_array('tenant')
+    ), 'issues', jsonb_build_array(jsonb_build_object('level', 'warning', 'message', 'Mapped blanks clear nullable fields and keep the existing party type.'))
+  ))
+) ->> 'runId')::uuid;
+
+UPDATE import_person_state
+SET result = public.commit_generic_import_run(run_id, 'a7030000-0000-4000-8000-000000000001');
+SELECT is((SELECT result ->> 'status' FROM import_person_state), 'committed', 'whitespace-only mapped cells commit with the same blank semantics as preview');
+SELECT is(
+  (SELECT jsonb_build_object('legalName', legal_name, 'partyType', party_type, 'primaryEmail', primary_email,
+    'primaryPhone', primary_phone, 'taxIdentifier', tax_identifier, 'notes', notes)
+   FROM public.people WHERE id = 'a7030000-0000-4000-8000-000000000003'),
+  '{"legalName":null,"partyType":"company","primaryEmail":null,"primaryPhone":null,"taxIdentifier":null,"notes":null}'::jsonb,
+  'tabs and Unicode whitespace clear all mapped nullable fields while preserving company type'
 );
 
 RESET ROLE;
