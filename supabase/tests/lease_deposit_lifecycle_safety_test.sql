@@ -12,12 +12,6 @@ CREATE TEMP TABLE deposit_safety_state (
 INSERT INTO deposit_safety_state DEFAULT VALUES;
 GRANT SELECT, UPDATE ON deposit_safety_state TO authenticated;
 
-INSERT INTO public.properties (id, organization_id, name, code, property_type, status, rental_structure, branch_id)
-SELECT property_id, '00000000-0000-0000-0000-000000000001', 'Deposit lifecycle fixture',
-  'DS-' || left(property_id::text, 8), 'house', 'active', 'single_space',
-  (SELECT branch_id FROM public.properties WHERE id = '10000000-0000-0000-0000-000000000001')
-FROM deposit_safety_state;
-
 CREATE FUNCTION pg_temp.deposit_safety_command(p_type text, p_amount numeric, p_key text)
 RETURNS uuid LANGUAGE plpgsql AS $$
 DECLARE v_id uuid; v_deposit uuid; v_account uuid;
@@ -41,6 +35,14 @@ $$;
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
 SET LOCAL ROLE authenticated;
+UPDATE deposit_safety_state SET property_id = public.create_property_minimal(
+  '00000000-0000-0000-0000-000000000001',
+  (SELECT branch_id FROM public.properties WHERE id = '10000000-0000-0000-0000-000000000001'),
+  'Deposit lifecycle fixture', 'DS-' || left(property_id::text, 8), 'house', NULL,
+  current_date, 'deposit-safety-property:' || property_id::text, NULL, NULL, NULL);
+SELECT public.set_property_rental_structure(
+  '00000000-0000-0000-0000-000000000001', property_id, 'single_space')
+FROM deposit_safety_state;
 UPDATE deposit_safety_state SET creation = public.create_property_lease(
   '00000000-0000-0000-0000-000000000001', property_id,
   '80000000-0000-0000-0000-000000000001', current_date - 30, current_date + 335,
