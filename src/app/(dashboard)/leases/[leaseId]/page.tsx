@@ -54,7 +54,8 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
 
   const historicalRentCorrectionCandidates =
     context.roleKind === "super_admin" ||
-    context.permissionKeys.has("finance.correct_records")
+    (context.permissionKeys.has("finance.correct_records") &&
+      context.permissionKeys.has("finance.view"))
       ? await getHistoricalRentCorrectionCandidates(
           context.organizationId,
           lease.id,
@@ -107,12 +108,14 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
         canChangeTerms: context.permissionKeys.has("leases.change_terms"),
         canClose: context.permissionKeys.has("leases.close"),
         canPrepare: context.permissionKeys.has("leases.prepare"),
-        canEditCurrentRent: context.permissionKeys.has("finance.correct_records"),
+        canEditCurrentRent:
+          context.permissionKeys.has("finance.correct_records") && canViewFinance,
         canCorrectHistoricalRent: context.roleKind === "super_admin",
       }}
       historicalRentCorrectionCandidates={historicalRentCorrectionCandidates}
       currentRentEditInvoiceId={
         context.permissionKeys.has("finance.correct_records") &&
+        canViewFinance &&
         currentRentCandidate
           ? rentEditInvoiceId ?? undefined
           : undefined

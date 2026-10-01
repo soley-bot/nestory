@@ -114,7 +114,11 @@ describe("lease detail route", () => {
   it("loads only the current issued period for a Finance Manager with correction authority", async () => {
     requirePermission.mockResolvedValue({
       organizationId: "organization-1",
-      permissionKeys: new Set(["leases.view", "finance.correct_records"]),
+      permissionKeys: new Set([
+        "leases.view",
+        "finance.view",
+        "finance.correct_records",
+      ]),
       roleKind: "custom",
     });
     getLeasesScreenData.mockResolvedValue({
