@@ -103,7 +103,7 @@ function ownerStatementSheetXml(model: OwnerStatementPublicationModel, presentat
     [], [{ style: 1, span: 5, value: "Owner Statement" }], [],
     [{ style: 9, span: 5, value: ownerStatementPeriod(model.monthStart) }], [],
     [{ style: 4, span: 9, value: `Owner: ${presentation?.ownerName ?? "Not provided"} | Property: ${presentation?.propertyLabel ?? "Not provided"}` }],
-    [{ style: 4, span: 9, value: `Currency: ${model.currency} | Tenant deposits held separately: ${centsDecimal(BigInt(cash.depositCents))}` }], [],
+    [{ style: 4, span: 9, value: `Currency: ${model.currency}` }], [],
     ["Date", "Type", "Property", "Unit", "Name", "Category", "Cash Out", "Cash In", "Balance"].map(value => ({ style: 2, value })),
     balance("Opening balance", cash.openingCents),
     ...cash.transactions.filter(line => line.cashInCents !== 0 || line.cashOutCents !== 0).map(line => {
