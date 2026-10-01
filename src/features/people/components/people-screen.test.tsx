@@ -16,7 +16,7 @@ import StaffPage from "@/app/(dashboard)/staff/page";
 import TenantsPage from "@/app/(dashboard)/tenants/page";
 import VendorsPage from "@/app/(dashboard)/vendors/page";
 import { PeopleScreen } from "@/features/people/components/people-screen";
-import { DEFAULT_PEOPLE_PAGE_SIZE } from "@/features/people/people.filters";
+import { DEFAULT_PEOPLE_PAGE_SIZE, parsePeopleSearchParams } from "@/features/people/people.filters";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
 import type {
   PeoplePagination,
@@ -368,9 +368,53 @@ describe("People route family redesign contract", () => {
     expect(filteredState.getAttribute("data-kind")).toBe("filtered");
     expect(screen.queryByText("No people yet")).toBeNull();
     expect(within(filteredState).queryByRole("button", { name: "Add person" })).toBeNull();
-    expect(within(filteredState).getByRole("link", { name: "Clear filters" }).getAttribute("href")).toBe("/people");
-    expect(screen.getByRole("link", { name: "Reset people filters" }).getAttribute("href")).toBe("/people");
+    expect(within(filteredState).getByRole("link", { name: "Clear filters" }).getAttribute("href")).toBe("/people?pageSize=50");
+    expect(screen.getByRole("link", { name: "Reset people filters" }).getAttribute("href")).toBe("/people?pageSize=50");
     expect(screen.getByRole("button", { name: /^Filters/ }).textContent).toBe(badge);
+  });
+
+  it.each([10, 25, 50, 100])("preserves %i rows across every filter reset while clearing page and selection", async pageSize => {
+    const user = userEvent.setup();
+    const params = {
+      pageSize: String(pageSize), page: "7", query: "missing", status: "missing_contact",
+      archiveState: "archived", sort: "updated_desc", role: "owner",
+      personId: "11111111-1111-4111-8111-111111111111",
+    };
+    navigation.searchParams = new URLSearchParams(params);
+    renderPeople({ people: [], viewQuery: parsePeopleSearchParams(params) });
+    const expectedHref = pageSize === 10 ? "/people" : `/people?pageSize=${pageSize}`;
+
+    expect(screen.getByRole("link", { name: "Clear filters" }).getAttribute("href")).toBe(expectedHref);
+    expect(screen.getByRole("link", { name: "Reset people filters" }).getAttribute("href")).toBe(expectedHref);
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
+    expect(screen.getByRole("link", { name: /^Reset$/ }).getAttribute("href")).toBe(expectedHref);
+    expect(screen.getByRole("combobox", { name: "Rows per page" }).textContent).toBe(String(pageSize));
+
+    const resetParams = Object.fromEntries(new URL(expectedHref, "https://nestory.test").searchParams);
+    expect(parsePeopleSearchParams(resetParams)).toEqual({ ...defaultViewQuery, pageSize });
+  });
+
+  it.each([
+    ["/tenants", "tenant"],
+    ["/owners", "owner"],
+    ["/vendors", "vendor"],
+    ["/staff", "staff"],
+  ] as const)("keeps the %s role register when clearing filters", (pathname, lockedRole) => {
+    navigation.pathname = pathname;
+    navigation.searchParams = new URLSearchParams("pageSize=50&query=missing&role=owner&page=3");
+    renderPeople({ people: [], lockedRole, viewQuery: { ...defaultViewQuery, role: lockedRole, pageSize: 50, page: 3, query: "missing" } });
+
+    expect(screen.getByRole("link", { name: "Clear filters" }).getAttribute("href")).toBe(`${pathname}?pageSize=50`);
+    expect(screen.getByRole("link", { name: "Reset people filters" }).getAttribute("href")).toBe(`${pathname}?pageSize=50`);
+  });
+
+  it("uses the validated row count instead of retaining an invalid URL value on reset", () => {
+    const params = { pageSize: "999", query: "missing", page: "4" };
+    navigation.searchParams = new URLSearchParams(params);
+    renderPeople({ people: [], viewQuery: parsePeopleSearchParams(params) });
+
+    expect(screen.getByRole("link", { name: "Clear filters" }).getAttribute("href")).toBe("/people");
+    expect(screen.getByRole("link", { name: "Reset people filters" }).getAttribute("href")).toBe("/people");
   });
 
   it("does not open action=create when creation is unauthorized", () => {
