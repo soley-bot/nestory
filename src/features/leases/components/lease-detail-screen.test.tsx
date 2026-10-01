@@ -23,6 +23,7 @@ import type {
 } from "@/features/leases/lease.types";
 
 const historicalCorrectionMocks = vi.hoisted(() => ({ apply: vi.fn(), preview: vi.fn() }));
+const depositActionMocks = vi.hoisted(() => ({ record: vi.fn() }));
 const actionMocks = vi.hoisted(() => ({
   confirmOwnerCollectionAction: vi.fn(),
   recordTenantInvoicePaymentAction: vi.fn(),
@@ -60,7 +61,7 @@ vi.mock("@/features/leases/actions", () => ({
   cancelLeaseActivationAction: async () => ({}),
   createLeaseAction: async () => ({}),
   recordCurrentLeaseOccupancyEvidenceAction: async () => ({}),
-  recordLeaseDepositEventAction: async () => ({}),
+  recordLeaseDepositEventAction: (...args: unknown[]) => depositActionMocks.record(...args),
   restoreLeaseAction: async () => ({}),
   reverseLeaseDepositEventAction: async () => ({}),
   scheduleLeaseActivationAction: async () => ({}),
@@ -82,6 +83,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 beforeEach(() => {
+  depositActionMocks.record.mockReset().mockResolvedValue({});
   historicalCorrectionMocks.apply.mockReset();
   historicalCorrectionMocks.preview.mockReset();
   actionMocks.confirmOwnerCollectionAction.mockReset();
@@ -906,6 +908,91 @@ describe("LeaseDetailScreen", () => {
       within(drawer).getByRole("button", { name: "Undo entry" }),
     ).not.toBeNull();
     expect(screen.queryByText(/received \/ /)).toBeNull();
+  });
+
+  it("keeps the deposit retry key stable while editing the submission", async () => {
+    const user = userEvent.setup();
+    renderDetail("rent");
+    await user.click(screen.getByRole("button", { name: "Manage deposit" }));
+    const drawer = screen.getByRole("dialog", { name: "Manage security deposit" });
+    const key = drawer.querySelector<HTMLInputElement>('input[name="idempotencyKey"]')?.value;
+    expect(key).toMatch(/^deposit:.+:.+$/);
+    await user.type(within(drawer).getByLabelText("Receipt or note"), "Receipt 1001");
+    expect(drawer.querySelector<HTMLInputElement>('input[name="idempotencyKey"]')?.value).toBe(key);
+  });
+
+  it("offers only a refund when settling an archived ended Lease", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    Object.assign(lease, { isArchived: true, statusValue: "ended", statusLabel: "Ended" });
+    Object.assign(lease.deposits[0]!, { heldBalance: 400, heldBalanceCents: 40000 });
+    renderDetail("rent", lease);
+    await user.click(screen.getByRole("button", { name: "Settle deposit" }));
+    const drawer = screen.getByRole("dialog", { name: "Manage security deposit" });
+    expect(within(drawer).getByRole("button", { name: "Save deposit activity" })).not.toBeNull();
+    expect(within(drawer).queryByRole("button", { name: "Undo entry" })).toBeNull();
+    await user.click(within(drawer).getByRole("combobox", { name: "Deposit activity" }));
+    expect(screen.getByRole("option", { name: "Deposit refunded" })).not.toBeNull();
+    expect(screen.queryByRole("option", { name: "Deposit received" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Deposit retained" })).toBeNull();
+  });
+
+  it("preserves the deposit payload and key after a lost-response error", async () => {
+    const user = userEvent.setup();
+    const submissions: Record<string, FormDataEntryValue>[] = [];
+    depositActionMocks.record.mockImplementation(async (_state, form: FormData) => {
+      submissions.push(Object.fromEntries(form.entries()));
+      return { status: "error", message: "Deposit response unavailable. Retry the same entry." };
+    });
+    const lease = makeLease();
+    Object.assign(lease.deposits[0]!, { heldBalance: 400, heldBalanceCents: 40000 });
+    renderDetail("rent", lease);
+    await user.click(screen.getByRole("button", { name: "Manage deposit" }));
+    const drawer = screen.getByRole("dialog", { name: "Manage security deposit" });
+    await user.click(within(drawer).getByRole("combobox", { name: "Deposit activity" }));
+    await user.click(screen.getByRole("option", { name: "Deposit refunded" }));
+    await user.click(within(drawer).getByRole("combobox", { name: "Deposit liability account" }));
+    await user.click(screen.getByRole("option", { name: "Other current liability" }));
+    await user.type(within(drawer).getByLabelText("Amount"), "50.25");
+    await user.type(within(drawer).getByLabelText("Receipt or note"), "Refund 1001");
+    fireEvent.input(drawer.querySelector('input[name="eventDate"]')!, { target: { value: "2026-09-29" } });
+    const save = within(drawer).getByRole("button", { name: "Save deposit activity" });
+    await user.click(save);
+    await waitFor(() => expect(submissions).toHaveLength(1));
+    expect(await within(drawer).findByText("Deposit response unavailable. Retry the same entry.")).not.toBeNull();
+    expect((within(drawer).getByLabelText("Amount") as HTMLInputElement).value).toBe("50.25");
+    expect((within(drawer).getByLabelText("Receipt or note") as HTMLInputElement).value).toBe("Refund 1001");
+    await user.click(save);
+    await waitFor(() => expect(submissions).toHaveLength(2));
+    expect(submissions[1]).toEqual(submissions[0]);
+    expect(submissions[0]).toMatchObject({ amount: "50.25", reference: "Refund 1001", eventDate: "2026-09-29", eventType: "refunded" });
+    expect(submissions[0]?.idempotencyKey).toMatch(/^deposit:.+:.+$/);
+  });
+
+  it("allows correction of a refund on an archived ended Lease", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    Object.assign(lease, { isArchived: true, statusValue: "ended", statusLabel: "Ended" });
+    lease.deposits[0]!.events = [
+      { id: "received-event", eventType: "received", eventDate: "2026-09-28", amountDisplay: lease.deposits[0]!.amountDisplay, reference: "Receipt", reversible: true },
+      { id: "refunded-event", eventType: "refunded", eventDate: "2026-09-29", amountDisplay: lease.deposits[0]!.amountDisplay, reference: "Mistaken refund", reversible: true },
+    ];
+    renderDetail("rent", lease);
+    await user.click(screen.getByRole("button", { name: "View deposit" }));
+    const drawer = screen.getByRole("dialog", { name: "Manage security deposit" });
+    expect(within(drawer).getAllByRole("button", { name: "Undo entry" })).toHaveLength(1);
+    expect(within(drawer).getByRole("button", { name: "Undo entry" }).closest("form")?.querySelector<HTMLInputElement>('input[name="eventId"]')?.value).toBe("refunded-event");
+  });
+
+  it("keeps archived deposit settlement unavailable to a view-only role", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    Object.assign(lease, { isArchived: true, statusValue: "ended", statusLabel: "Ended" });
+    Object.assign(lease.deposits[0]!, { heldBalance: 400, heldBalanceCents: 40000 });
+    renderDetail("rent", lease, { ...allLeasePermissions, canChangeTerms: false });
+    await user.click(screen.getByRole("button", { name: "View deposit" }));
+    const drawer = screen.getByRole("dialog", { name: "Manage security deposit" });
+    expect(within(drawer).queryByRole("button", { name: "Save deposit activity" })).toBeNull();
   });
 
   it("hides only the receipt choice once the deposit obligation is fully received", async () => {

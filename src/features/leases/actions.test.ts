@@ -638,11 +638,12 @@ describe("Lease occupancy evidence input", () => {
     formData.set("leaseDepositId", leaseDepositId);
     formData.set("liabilityAccountId", liabilityAccountId);
     formData.set("reference", "Receipt 1001");
+    formData.set("idempotencyKey", "deposit-receipt-retry-1001");
 
     await expect(
       recordLeaseDepositEventAction({}, formData),
     ).resolves.toMatchObject({ status: "success" });
-    expect(rpc).toHaveBeenCalledWith("record_lease_deposit_event_with_account", {
+    expect(rpc).toHaveBeenCalledWith("record_lease_deposit_event_idempotent", {
       p_amount: 500,
       p_event_date: "2027-05-03",
       p_event_type: "received",
@@ -650,8 +651,19 @@ describe("Lease occupancy evidence input", () => {
       p_liability_account_id: liabilityAccountId,
       p_organization_id: organizationId,
       p_reference: "Receipt 1001",
+      p_idempotency_key: "deposit-receipt-retry-1001",
     });
     expect(requirePermission).toHaveBeenCalledWith("leases.change_terms");
+  });
+
+  it("rejects a deposit submission without a stable retry key", async () => {
+    const formData = new FormData();
+    Object.entries({ amount: "50", eventDate: "2027-05-03", eventType: "refunded",
+      leaseDepositId: "50000000-0000-0000-0000-000000000001",
+      liabilityAccountId: "70000000-0000-0000-0000-000000000001", reference: "Refund 1001",
+    }).forEach(([key, value]) => formData.set(key, value));
+    await expect(recordLeaseDepositEventAction({}, formData)).resolves.toMatchObject({ status: "error" });
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("reverses deposit activity with a deterministic PostgreSQL fixture identifier", async () => {

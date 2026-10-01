@@ -249,7 +249,11 @@ function LeaseRentAndDeposit({
             <Button onClick={onManageDeposit} variant="outline">
               {permissions.canChangeTerms && !lease.isArchived
                 ? "Manage deposit"
-                : "View deposit"}
+                : permissions.canChangeTerms
+                  && ["ended", "terminated", "cancelled"].includes(lease.statusValue)
+                  && lease.deposits.some((deposit) => deposit.heldBalanceCents > 0)
+                  ? "Settle deposit"
+                  : "View deposit"}
             </Button>
           ) : null}
         </div>
