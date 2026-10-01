@@ -18,11 +18,13 @@ import type { PeopleViewQuery } from "@/features/people/people.types";
 import { cn } from "@/lib/utils";
 
 type PeopleFiltersProps = {
+  resetHref: string;
   searchPlaceholder?: string;
   viewQuery: PeopleViewQuery;
 };
 
 export function PeopleFilters({
+  resetHref,
   searchPlaceholder = "Search name, contact, property or unit",
   viewQuery,
 }: PeopleFiltersProps) {
@@ -37,7 +39,6 @@ export function PeopleFilters({
     viewQuery.status !== "all",
     viewQuery.archiveState !== DEFAULT_PEOPLE_ARCHIVE_STATE,
     viewQuery.sort !== DEFAULT_PEOPLE_SORT,
-    viewQuery.pageSize !== DEFAULT_PEOPLE_PAGE_SIZE,
   ].filter(Boolean).length;
   const hasSearchQuery = viewQuery.query.trim().length > 0;
   const hasAdvancedFilters = activeFilters > 0;
@@ -118,7 +119,7 @@ export function PeopleFilters({
                       {hasAnyFilters ? (
                         <Link
                           className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          href={pathname}
+                          href={resetHref}
                           scroll={false}
                         >
                           <RotateCcw size={13} />
@@ -228,7 +229,7 @@ export function PeopleFilters({
               <Link
                 aria-label="Reset people filters"
                 className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-card px-2 text-primary transition-colors hover:bg-muted hover:text-primary"
-                href={pathname}
+                href={resetHref}
                 scroll={false}
                 title="Reset filters"
               >

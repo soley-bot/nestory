@@ -13,7 +13,10 @@ import {
   TransientFeedback,
   type TransientFeedbackAction,
 } from "@/components/ui/transient-feedback";
-import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
+import {
+  buildHref,
+  removeActionSearchParam as getHrefWithoutActionParam,
+} from "@/lib/url/href";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
 import {
   ArchivePersonPanel,
@@ -23,6 +26,7 @@ import { PersonForm } from "@/features/people/components/person-form";
 import { PeopleFilters } from "@/features/people/components/people-filters";
 import { PeopleTable } from "@/features/people/components/people-table";
 import { formatRole } from "@/features/people/people.labels";
+import { DEFAULT_PEOPLE_PAGE_SIZE } from "@/features/people/people.filters";
 import type {
   PeoplePagination,
   PeopleSummary,
@@ -124,6 +128,11 @@ export function PeopleScreen({
   }, [canCreate, pathname, router, searchParams]);
 
   const hasFilters = hasActivePeopleFilters(viewQuery);
+  const resetFiltersHref = buildHref(pathname, {
+    pageSize: viewQuery.pageSize === DEFAULT_PEOPLE_PAGE_SIZE
+      ? undefined
+      : String(viewQuery.pageSize),
+  });
   const peopleList = (
     <section
       className="flex min-w-0 flex-col bg-background"
@@ -131,6 +140,7 @@ export function PeopleScreen({
     >
       <div className="shrink-0 border-b border-border px-4 py-3 sm:px-6">
         <PeopleFilters
+          resetHref={resetFiltersHref}
           searchPlaceholder={searchPlaceholder}
           viewQuery={viewQuery}
         />
@@ -141,7 +151,7 @@ export function PeopleScreen({
             hasFilters ? (
               <Link
                 className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-                href={pathname}
+                href={resetFiltersHref}
                 scroll={false}
               >
                 Clear filters
@@ -390,8 +400,7 @@ function hasActivePeopleFilters(viewQuery: PeopleViewQuery) {
     viewQuery.query.trim().length > 0 ||
     viewQuery.status !== "all" ||
     viewQuery.archiveState !== "active" ||
-    viewQuery.sort !== "name_asc" ||
-    viewQuery.pageSize !== 50
+    viewQuery.sort !== "name_asc"
   );
 }
 
