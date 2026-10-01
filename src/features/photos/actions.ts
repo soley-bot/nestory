@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { validateUploadedFileContent } from "@/lib/uploads/upload-content";
+import { reconcilePhotoUpload } from "@/features/photos/storage-cleanup";
 
 type PhotoFieldErrors = {
   caption?: string[];
@@ -164,26 +165,33 @@ export async function createAssetPhotoAction(
     };
   }
 
-  const { data: photoId, error } = await supabase.rpc("create_asset_photo", {
-    p_caption: parsed.data.caption || null,
-    p_file_name: file.name,
-    p_is_cover: readString(formData, "isCover") === "true",
-    p_mime_type: verifiedFile.contentType,
-    p_organization_id: context.organizationId,
-    p_property_id: parsed.data.propertyId,
-    p_size_bytes: verifiedFile.bytes.byteLength,
-    p_storage_path: storagePath,
-    p_taken_at: parsed.data.takenAt || null,
-    p_unit_id: unitId,
-  });
+  const { data: photoId, error } = await Promise.resolve(
+    supabase.rpc("create_asset_photo", {
+      p_caption: parsed.data.caption || null,
+      p_file_name: file.name,
+      p_is_cover: readString(formData, "isCover") === "true",
+      p_mime_type: verifiedFile.contentType,
+      p_organization_id: context.organizationId,
+      p_property_id: parsed.data.propertyId,
+      p_size_bytes: verifiedFile.bytes.byteLength,
+      p_storage_path: storagePath,
+      p_taken_at: parsed.data.takenAt || null,
+      p_unit_id: unitId,
+    }),
+  ).catch(() => ({ data: null, error: { message: "" } }));
 
   if (error || !photoId) {
-    await supabase.storage.from("nestory-photos").remove([storagePath]);
-
-    return {
-      message: photoActionErrorMessage(error?.message ?? ""),
-      status: "error",
-    };
+    const recovery = await reconcilePhotoUpload(
+      supabase,
+      context.organizationId,
+      storagePath,
+    );
+    if (recovery !== "registered") {
+      return {
+        message: photoActionErrorMessage(error?.message ?? ""),
+        status: "error",
+      };
+    }
   }
 
   revalidatePhotoPaths({
