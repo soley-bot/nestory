@@ -93,7 +93,7 @@ async function verifyLegacyArtifacts(
     const registered = model.artifacts.find(artifact => artifact.format === candidate.format);
     const existing = await bucket.download(path);
     if (existing.error) {
-      if (!registered && String(existing.error.statusCode) === "404") continue;
+      if (!registered && ["404", "NoSuchKey", "not_found"].includes(String(existing.error.statusCode))) continue;
       throw new Error("Existing Owner Statement artifact could not be verified before freezing presentation.");
     }
     if (!existing.data) throw new Error("Existing Owner Statement artifact bytes are unavailable.");

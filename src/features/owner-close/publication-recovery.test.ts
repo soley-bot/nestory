@@ -165,6 +165,13 @@ describe("Owner Statement publication presentation recovery", () => {
     expect(fixture.upload).not.toHaveBeenCalled();
   });
 
+  it.each(["NoSuchKey", "not_found"])("recognizes a missing old object reported as %s", async code => {
+    const fixture = await setup();
+    fixture.missingObjectCode = code;
+    await fixture.publish();
+    expect(fixture.model.artifacts).toHaveLength(2);
+  });
+
   it.each(["missing", "hash-mismatch"])("refuses to adopt a legacy registered artifact with %s bytes", async failure => {
     const fixture = await setup();
     fixture.stored.set("pdf", buildOwnerStatementPdf(fixture.model, fixture.presentation));
@@ -197,6 +204,7 @@ async function setup() {
     freezeWinner: null as unknown,
     failedRpc: null as string | null,
     failedRead: false,
+    missingObjectCode: "404",
     interrupt: null as string | null,
     stored: new Map<string, Uint8Array>(),
     upload: vi.fn(),
@@ -216,7 +224,7 @@ async function setup() {
       const bytes = fixture.stored.get(formatOf(path));
       return fixture.failedRead ? { data: null, error: { statusCode: "503" } }
         : bytes ? { data: new Blob([new Uint8Array(bytes)]), error: null }
-          : { data: null, error: { statusCode: "404" } };
+          : { data: null, error: { statusCode: fixture.missingObjectCode } };
     }),
     upload: fixture.upload.mockImplementation(async (path: string, bytes: Uint8Array, options: { upsert: boolean }) => {
       expect(fixture.snapshot).not.toBeNull();
