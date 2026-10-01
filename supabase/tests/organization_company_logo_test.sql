@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(17);
+SELECT plan(21);
 
 SELECT has_column(
   'public',
@@ -136,6 +136,19 @@ SELECT ok(
   'logo selection appends organization activity evidence'
 );
 
+SELECT set_config('storage.allow_delete_query', 'true', true);
+SELECT throws_ok(
+  format(
+    'DELETE FROM storage.objects WHERE bucket_id = %L AND name = %L',
+    'organization-assets',
+    organization_id::text || '/logos/' || logo_id::text || '.png'
+  ),
+  '55000',
+  'Selected company logo bytes cannot be removed or replaced.',
+  'selected logo bytes remain protected for an authorized Super Admin'
+)
+FROM company_logo_state;
+
 SELECT throws_ok(
   format(
     'SELECT public.update_organization_logo(%L, %L)',
@@ -151,6 +164,41 @@ FROM company_logo_state;
 SELECT lives_ok(
   format('SELECT public.update_organization_logo(%L, NULL)', organization_id),
   'Super Admin can clear the company logo pointer'
+)
+FROM company_logo_state;
+
+SELECT set_config('storage.allow_delete_query', 'true', true);
+SELECT lives_ok(
+  format(
+    'DELETE FROM storage.objects WHERE bucket_id = %L AND name = %L',
+    'organization-assets',
+    organization_id::text || '/logos/' || logo_id::text || '.png'
+  ),
+  'Super Admin can remove the unselected logo object'
+)
+FROM company_logo_state;
+
+SELECT throws_ok(
+  format(
+    'SELECT public.update_organization_logo(%L, %L)',
+    organization_id,
+    organization_id::text || '/logos/' || logo_id::text || '.png'
+  ),
+  '23503',
+  'Company logo object was not found.',
+  'selection reports a deleted logo object'
+)
+FROM company_logo_state;
+
+SELECT lives_ok(
+  format(
+    'INSERT INTO storage.objects (bucket_id, name, owner_id, metadata) VALUES (%L, %L, %L, %L::jsonb)',
+    'organization-assets',
+    organization_id::text || '/logos/' || logo_id::text || '.png',
+    super_admin_id::text,
+    '{"mimetype":"image/png","size":1024}'
+  ),
+  'logo fixture can be uploaded again after cleanup'
 )
 FROM company_logo_state;
 
