@@ -18,35 +18,22 @@ import { Modal } from "@/components/ui/modal";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { DocumentForm } from "@/features/documents/components/document-screen";
 import { LeaseForm } from "@/features/leases/components/lease-form";
-import type {
-  LeaseBillingFormConfig,
-  LeaseTenantOption,
-} from "@/features/leases/lease.types";
 import { MaintenanceForm } from "@/features/maintenance/components/maintenance-screen";
-import type {
-  MaintenanceActor,
-  MaintenanceAssigneeOption,
-  MaintenanceBranchOption,
-  MaintenancePropertyOption,
-  MaintenanceUnitOption,
-  MaintenanceVendorOption,
-} from "@/features/maintenance/maintenance.types";
 import {
   ArchiveUnitPanel,
   RestoreUnitPanel,
 } from "@/features/units/components/unit-drawer-panels";
 import { UnitDetailView } from "@/features/units/components/unit-detail-view";
 import { UnitForm } from "@/features/units/components/unit-form";
+import { UnitFormOptions } from "@/features/units/components/unit-form-options";
 import {
   UnitLeaseDetailsPanel,
   UnitLedgerEntryPanel,
   UnitMaintenanceCasePanel,
 } from "@/features/units/components/unit-related-record-panels";
 import type { UnitRecordSection } from "@/features/units/unit-detail-route";
-import type {
-  UnitDetail,
-  UnitPropertyOption,
-} from "@/features/units/unit.types";
+import type { UnitDetail } from "@/features/units/unit.types";
+import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
 import { formatDate } from "@/lib/dates/format";
 
 type DrawerState =
@@ -68,35 +55,19 @@ type ConfirmationState = {
 
 type UnitDetailScreenProps = {
   activeSection: UnitRecordSection;
-  billingFormConfig?: LeaseBillingFormConfig;
   canArchive: boolean;
   canRecordDepositReceipt: boolean;
   canWrite: boolean;
-  maintenanceFormOptions: {
-    actor: MaintenanceActor;
-    branches: MaintenanceBranchOption[];
-    canRecordActualCost: boolean;
-    properties: MaintenancePropertyOption[];
-    staff: MaintenanceAssigneeOption[];
-    units: MaintenanceUnitOption[];
-    vendors: MaintenanceVendorOption[];
-  };
-  propertyOptions: UnitPropertyOption[];
-  tenantOptions: LeaseTenantOption[];
   sourceTaskId?: string;
   unit: UnitDetail;
 };
 
 export function UnitDetailScreen({
   activeSection,
-  billingFormConfig,
   canArchive,
   canRecordDepositReceipt,
   canWrite,
-  maintenanceFormOptions,
-  propertyOptions,
   sourceTaskId,
-  tenantOptions,
   unit,
 }: UnitDetailScreenProps) {
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
@@ -253,7 +224,7 @@ export function UnitDetailScreen({
             mode="edit"
             onClose={() => setDrawer(null)}
             onSuccess={setStatusMessage}
-            properties={propertyOptions}
+            properties={[toCurrentPropertyOption(drawer.unit)]}
             unit={drawer.unit}
           />
         </SideDrawer>
@@ -275,10 +246,7 @@ export function UnitDetailScreen({
               mode="create"
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
-              properties={propertyOptions.map((property) => ({
-                id: property.id,
-                label: property.label,
-              }))}
+              properties={[toCurrentPropertyOption(drawer.unit)]}
               units={[
                 {
                   id: drawer.unit.id,
@@ -288,49 +256,67 @@ export function UnitDetailScreen({
               ]}
             />
           ) : drawer.mode === "create-lease" ? (
-            <LeaseForm
-              billingFormConfig={billingFormConfig}
-              canRecordDepositReceipt={canRecordDepositReceipt}
-              createContext={{
-                propertyId: drawer.unit.propertyId,
-                propertyLabel: drawer.unit.propertyName,
-                unitId: drawer.unit.id,
-                unitLabel: `Unit ${drawer.unit.unitNumber}`,
-              }}
-              onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
-              properties={[
-                {
-                  id: drawer.unit.propertyId,
-                  label: drawer.unit.propertyName,
-                },
-              ]}
-              tenants={tenantOptions}
-              units={[
-                {
-                  id: drawer.unit.id,
-                  label: `Unit ${drawer.unit.unitNumber}`,
-                  propertyId: drawer.unit.propertyId,
-                },
-              ]}
-            />
+            <UnitFormOptions
+              key={`lease:${drawer.unit.id}:${drawer.unit.propertyId}`}
+              mode="lease"
+              propertyId={drawer.unit.propertyId}
+              unitId={drawer.unit.id}
+            >
+              {(options) => (
+                <LeaseForm
+                  billingFormConfig={options.billingFormConfig}
+                  canRecordDepositReceipt={canRecordDepositReceipt}
+                  createContext={{
+                    propertyId: drawer.unit.propertyId,
+                    propertyLabel: drawer.unit.propertyName,
+                    unitId: drawer.unit.id,
+                    unitLabel: `Unit ${drawer.unit.unitNumber}`,
+                  }}
+                  onClose={() => setDrawer(null)}
+                  onSuccess={setStatusMessage}
+                  properties={[
+                    {
+                      id: drawer.unit.propertyId,
+                      label: drawer.unit.propertyName,
+                    },
+                  ]}
+                  tenants={options.tenants}
+                  units={[
+                    {
+                      id: drawer.unit.id,
+                      label: `Unit ${drawer.unit.unitNumber}`,
+                      propertyId: drawer.unit.propertyId,
+                    },
+                  ]}
+                />
+              )}
+            </UnitFormOptions>
           ) : drawer.mode === "create-maintenance" ? (
-            <MaintenanceForm
-              actor={maintenanceFormOptions.actor}
-              branches={maintenanceFormOptions.branches}
-              canRecordActualCost={maintenanceFormOptions.canRecordActualCost}
-              initialValues={{
-                propertyId: drawer.unit.propertyId,
-                unitId: drawer.unit.id,
-              }}
-              mode="create"
-              onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
-              properties={maintenanceFormOptions.properties}
-              staff={maintenanceFormOptions.staff}
-              units={maintenanceFormOptions.units}
-              vendors={maintenanceFormOptions.vendors}
-            />
+            <UnitFormOptions
+              key={`maintenance:${drawer.unit.id}:${drawer.unit.propertyId}`}
+              mode="maintenance"
+              propertyId={drawer.unit.propertyId}
+              unitId={drawer.unit.id}
+            >
+              {(options) => (
+                <MaintenanceForm
+                  actor={options.actor}
+                  branches={options.branches}
+                  canRecordActualCost={options.canRecordActualCost}
+                  initialValues={{
+                    propertyId: drawer.unit.propertyId,
+                    unitId: drawer.unit.id,
+                  }}
+                  mode="create"
+                  onClose={() => setDrawer(null)}
+                  onSuccess={setStatusMessage}
+                  properties={options.properties}
+                  staff={options.staff}
+                  units={options.units}
+                  vendors={options.vendors}
+                />
+              )}
+            </UnitFormOptions>
           ) : drawer.mode === "lease-detail" ? (
             drawer.unit.activeLease && drawer.unit.hrefs.lease ? (
               <UnitLeaseDetailsPanel
@@ -381,6 +367,16 @@ export function UnitDetailScreen({
       ) : null}
     </div>
   );
+}
+
+function toCurrentPropertyOption(unit: UnitDetail) {
+  return {
+    id: unit.propertyId,
+    label: formatPropertyOptionLabel({
+      code: unit.propertyCode,
+      name: unit.propertyName,
+    }),
+  };
 }
 
 function getUnitDrawerTitle(drawer: Exclude<DrawerState, { mode: "edit" }>) {
