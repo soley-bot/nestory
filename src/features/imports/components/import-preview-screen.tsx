@@ -403,6 +403,15 @@ export function ImportPreviewScreen({
               </div>
             </details>
 
+            {selectedType === "people" ? (
+              <p className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
+                Unmapped optional fields keep existing values. Mapped blank email,
+                phone, legal name, tax ID, and notes clear existing values. Blank
+                party type keeps the existing type; new people default to Individual.
+                Use Person ID to select a person when names or emails are shared.
+              </p>
+            ) : null}
+
             <div
               aria-label="Import preview rows"
               className="max-w-full overflow-x-auto"
@@ -978,8 +987,17 @@ function buildFixTemplateCsvHref({
     buildImportTemplateCsv(type, referenceData),
   ).headers;
   const templateMapping = autoMapImportHeaders(type, templateHeaders);
+  const repairHeaders = type === "people"
+    ? templateHeaders.filter((templateHeader) => {
+      const fieldKey = Object.entries(templateMapping).find(
+        ([, mappedHeader]) => mappedHeader === templateHeader,
+      )?.[0];
+      const field = getImportTypeConfig(type).fields.find((candidate) => candidate.key === fieldKey);
+      return field?.required || fieldKey === "personId" || Boolean(fieldKey && mapping[fieldKey]);
+    })
+    : templateHeaders;
   const templateRows = rows.map((row) =>
-    templateHeaders.map((templateHeader) => {
+    repairHeaders.map((templateHeader) => {
       const fieldKey = Object.entries(templateMapping).find(
         ([, mappedHeader]) => mappedHeader === templateHeader,
       )?.[0];
@@ -989,7 +1007,7 @@ function buildFixTemplateCsvHref({
     }),
   );
 
-  return buildCsvHref([templateHeaders, ...templateRows]);
+  return buildCsvHref([repairHeaders, ...templateRows]);
 }
 
 function buildCsvHref(rows: string[][]) {
