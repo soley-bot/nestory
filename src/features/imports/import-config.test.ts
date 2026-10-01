@@ -3,9 +3,14 @@ import {
   autoMapImportHeaders,
   buildGenericImportPreviewRows,
   buildImportTemplateCsv,
+  getGenericImportCleanupItems,
   getGenericImportStats,
 } from "@/features/imports/import-config";
-import type { ImportReferenceData } from "@/features/imports/import.types";
+import type {
+  GenericImportPreviewRow,
+  ImportReferenceData,
+  ImportType,
+} from "@/features/imports/import.types";
 import { parseCsv } from "@/features/imports/unit-import";
 
 const referenceData: ImportReferenceData = {
@@ -39,6 +44,106 @@ const referenceData: ImportReferenceData = {
 };
 
 describe("import config", () => {
+  it("returns empty diagnostics for no preview rows", () => {
+    expect(getGenericImportStats([])).toStrictEqual({
+      errorCount: 0,
+      readyCount: 0,
+      totalCount: 0,
+      warningCount: 0,
+    });
+    expect(getGenericImportCleanupItems("units", [])).toStrictEqual([]);
+    expect(getGenericImportCleanupItems("properties", [])).toStrictEqual([]);
+  });
+
+  it("counts rows once per severity and keeps warning-only rows ready without mutation", () => {
+    const rows = [
+      frozenGenericPreviewRow({
+        issues: [
+          { level: "error", message: "Missing target" },
+          { level: "error", message: "Missing label" },
+          { level: "warning", message: "Preview-only field" },
+        ],
+      }),
+      frozenGenericPreviewRow({
+        issues: [
+          { level: "warning", message: "Preview-only field" },
+          { level: "warning", message: "Review source" },
+        ],
+      }),
+      frozenGenericPreviewRow(),
+    ];
+    Object.freeze(rows);
+
+    expect(getGenericImportStats(rows)).toStrictEqual({
+      errorCount: 1,
+      readyCount: 2,
+      totalCount: 3,
+      warningCount: 2,
+    });
+  });
+
+  it.each([
+    ["units", "Not mapped"],
+    ["properties", "Properties"],
+    ["people", "People"],
+    ["leases", "Leases"],
+  ] satisfies [ImportType, string][])("preserves ordered %s cleanup issues and label fallbacks without mutation", (type, fallback) => {
+    const rows = [
+      frozenGenericPreviewRow({
+        issues: [
+          { level: "warning", message: "Review source" },
+          {
+            actionHref: "/properties?action=create",
+            actionLabel: "Add property",
+            level: "error",
+            message: "Missing target",
+          },
+        ],
+        primaryLabel: "",
+        sourceRowNumber: 9,
+        targetLabel: "",
+      }),
+      frozenGenericPreviewRow({ sourceRowNumber: 5 }),
+      frozenGenericPreviewRow({
+        issues: [{ level: "error", message: "Missing label" }],
+        primaryLabel: "\t",
+        sourceRowNumber: 3,
+        targetLabel: " ",
+      }),
+    ];
+    Object.freeze(rows);
+
+    expect(getGenericImportCleanupItems(type, rows)).toStrictEqual([
+      {
+        actionHref: undefined,
+        actionLabel: undefined,
+        level: "warning",
+        message: "Review source",
+        propertyLabel: fallback,
+        sourceRowNumber: 9,
+        unitNumber: "Not mapped",
+      },
+      {
+        actionHref: "/properties?action=create",
+        actionLabel: "Add property",
+        level: "error",
+        message: "Missing target",
+        propertyLabel: fallback,
+        sourceRowNumber: 9,
+        unitNumber: "Not mapped",
+      },
+      {
+        actionHref: undefined,
+        actionLabel: undefined,
+        level: "error",
+        message: "Missing label",
+        propertyLabel: " ",
+        sourceRowNumber: 3,
+        unitNumber: "\t",
+      },
+    ]);
+  });
+
   it.each([
     ["people", "Person ID"],
     ["leases", "Tenant Person ID"],
@@ -434,3 +539,27 @@ describe("import config", () => {
     expect(rows.every((row) => row.issues.length === 0)).toBe(true);
   });
 });
+
+function frozenGenericPreviewRow(
+  overrides: Partial<GenericImportPreviewRow> = {},
+): GenericImportPreviewRow {
+  const row: GenericImportPreviewRow = {
+    actionLabel: "Create",
+    amountLabel: "",
+    issues: [],
+    normalizedData: {},
+    primaryLabel: "12A",
+    raw: {},
+    secondaryLabel: "",
+    sourceRowNumber: 2,
+    statusLabel: "",
+    targetLabel: "CTR",
+    ...overrides,
+  };
+  row.issues.forEach((issue) => Object.freeze(issue));
+  Object.freeze(row.issues);
+  Object.freeze(row.normalizedData);
+  Object.freeze(row.raw);
+  Object.freeze(row);
+  return row;
+}
