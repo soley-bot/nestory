@@ -1,5 +1,7 @@
 "use client"
 
+import type { MouseEvent } from "react"
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +19,7 @@ type ConfirmationDialogProps = {
   confirmLabel?: string
   description: string
   onCancel: () => void
-  onConfirm?: () => void
+  onConfirm?: (event: MouseEvent<HTMLButtonElement>) => void
   open: boolean
   title: string
 }

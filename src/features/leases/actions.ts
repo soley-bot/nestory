@@ -90,7 +90,15 @@ const termStatusSchema = z.enum([
   "terminated",
   "upcoming",
 ]);
-const depositEventSchema = z.object({ amount: z.coerce.number().positive("Enter a positive amount."), eventDate: dateSchema, eventType: z.enum(["received", "retained", "refunded"]), leaseDepositId: postgresUuid("Choose a lease deposit."), liabilityAccountId: postgresUuid("Choose a deposit liability account."), reference: z.string().trim().max(200) });
+const depositEventSchema = z.object({
+  amount: z.coerce.number().positive("Enter a positive amount."),
+  eventDate: dateSchema,
+  eventType: z.enum(["received", "retained", "refunded"]),
+  idempotencyKey: z.string().trim().min(8).max(200),
+  leaseDepositId: postgresUuid("Choose a lease deposit."),
+  liabilityAccountId: postgresUuid("Choose a deposit liability account."),
+  reference: z.string().trim().max(200),
+});
 const currentOccupancyEvidenceSchema = z
   .object({
     actualMoveInDate: dateSchema,
@@ -1371,12 +1379,17 @@ function isLeaseUnitTermConflict(message: string) {
 
 export async function recordLeaseDepositEventAction(_state: LeaseActionState, formData: FormData): Promise<LeaseActionState> {
   const context = await requirePermission("leases.change_terms");
-  const parsed = depositEventSchema.safeParse({ amount: readString(formData, "amount"), eventDate: readString(formData, "eventDate"), eventType: readString(formData, "eventType"), leaseDepositId: readString(formData, "leaseDepositId"), liabilityAccountId: readString(formData, "liabilityAccountId"), reference: readString(formData, "reference") });
+  const parsed = depositEventSchema.safeParse({ amount: readString(formData, "amount"), eventDate: readString(formData, "eventDate"), eventType: readString(formData, "eventType"), idempotencyKey: readString(formData, "idempotencyKey"), leaseDepositId: readString(formData, "leaseDepositId"), liabilityAccountId: readString(formData, "liabilityAccountId"), reference: readString(formData, "reference") });
   if (!parsed.success) return invalidFormState(parsed.error);
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("record_lease_deposit_event_with_account", { p_organization_id: context.organizationId, p_lease_deposit_id: parsed.data.leaseDepositId, p_liability_account_id: parsed.data.liabilityAccountId, p_event_type: parsed.data.eventType, p_event_date: parsed.data.eventDate, p_amount: parsed.data.amount, p_reference: parsed.data.reference });
-  if (error) return { message: leaseActionErrorMessage(error), status: "error" };
-  revalidatePath("/leases"); revalidatePath("/overview");
+  const { error } = await supabase.rpc("record_lease_deposit_event_idempotent", { p_organization_id: context.organizationId, p_lease_deposit_id: parsed.data.leaseDepositId, p_liability_account_id: parsed.data.liabilityAccountId, p_event_type: parsed.data.eventType, p_event_date: parsed.data.eventDate, p_amount: parsed.data.amount, p_reference: parsed.data.reference, p_idempotency_key: parsed.data.idempotencyKey });
+  if (error) return {
+    message: error.message.includes("Conflicting financial idempotency request")
+      ? "This request was already saved with different details. Refresh the deposit history before trying again."
+      : leaseActionErrorMessage(error),
+    status: "error",
+  };
+  revalidatePath("/leases"); revalidatePath("/overview"); revalidatePath("/ledger"); revalidatePath("/timeline");
   return { message: "Deposit activity saved.", status: "success" };
 }
 

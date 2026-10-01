@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { ImageUp } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -28,22 +28,42 @@ export function CompanyLogoEditor({
 }) {
   const router = useRouter();
   const [selectedFileName, setSelectedFileName] = useState("");
-  const [uploadState, uploadAction, uploading] = useActionState(
-    uploadOrganizationLogoAction,
+  const [state, setState] = useState(initialState);
+  const actionPendingRef = useRef(false);
+  const [, uploadAction, uploading] = useActionState(
+    async (previousState: OrganizationActionState, formData: FormData) => {
+      try {
+        const result = await uploadOrganizationLogoAction(
+          previousState,
+          formData,
+        );
+        setState(result);
+        if (result.status === "success") router.refresh();
+        return result;
+      } finally {
+        actionPendingRef.current = false;
+      }
+    },
     initialState,
   );
-  const [removeState, removeAction, removing] = useActionState(
-    removeOrganizationLogoAction,
+  const [, removeAction, removing] = useActionState(
+    async (previousState: OrganizationActionState, formData: FormData) => {
+      try {
+        const result = await removeOrganizationLogoAction(
+          previousState,
+          formData,
+        );
+        setState(result);
+        if (result.status === "success") router.refresh();
+        return result;
+      } finally {
+        actionPendingRef.current = false;
+      }
+    },
     initialState,
   );
   const hasLogo = Boolean(logoStoragePath);
-  const state = removeState.status ? removeState : uploadState;
-
-  useEffect(() => {
-    if (uploadState.status === "success" || removeState.status === "success") {
-      router.refresh();
-    }
-  }, [removeState.status, router, uploadState.status]);
+  const pending = uploading || removing;
 
   return (
     <Card className="min-w-0" size="sm">
@@ -74,10 +94,25 @@ export function CompanyLogoEditor({
           </div>
 
           <div className="min-w-0 flex-1 space-y-2">
-            <form action={uploadAction}>
+            <form
+              action={uploadAction}
+              onSubmit={(event) => {
+                if (pending || actionPendingRef.current) {
+                  event.preventDefault();
+                  return;
+                }
+                actionPendingRef.current = true;
+                setState(initialState);
+              }}
+            >
               <div className="flex flex-wrap items-center gap-2">
                 <label
-                  className="inline-flex h-8 cursor-pointer items-center rounded-lg border border-input bg-background px-2.5 text-sm font-medium hover:bg-muted"
+                  className={cn(
+                    "inline-flex h-8 items-center rounded-lg border border-input bg-background px-2.5 text-sm font-medium",
+                    pending
+                      ? "cursor-not-allowed opacity-50"
+                      : "cursor-pointer hover:bg-muted",
+                  )}
                   htmlFor="company-logo-file"
                 >
                   Choose file
@@ -86,15 +121,18 @@ export function CompanyLogoEditor({
                   accept="image/png,image/jpeg"
                   aria-label="Company logo file"
                   className="sr-only"
+                  disabled={pending}
                   id="company-logo-file"
                   name="logo"
-                  onChange={(event) =>
-                    setSelectedFileName(event.target.files?.[0]?.name ?? "")
-                  }
+                  onChange={(event) => {
+                    if (pending || actionPendingRef.current) return;
+                    setSelectedFileName(event.target.files?.[0]?.name ?? "");
+                    setState(initialState);
+                  }}
                   required
                   type="file"
                 />
-                <Button disabled={uploading} type="submit">
+                <Button disabled={pending} type="submit">
                   {uploading
                     ? "Uploading…"
                     : hasLogo
@@ -117,11 +155,19 @@ export function CompanyLogoEditor({
                 <form
                   action={removeAction}
                   onSubmit={(event) => {
-                    if (!window.confirm("Remove this company logo?"))
+                    if (
+                      pending ||
+                      actionPendingRef.current ||
+                      !window.confirm("Remove this company logo?")
+                    ) {
                       event.preventDefault();
+                      return;
+                    }
+                    actionPendingRef.current = true;
+                    setState(initialState);
                   }}
                 >
-                  <Button disabled={removing} type="submit" variant="ghost">
+                  <Button disabled={pending} type="submit" variant="ghost">
                     {removing ? "Removing…" : "Remove logo"}
                   </Button>
                 </form>
