@@ -69,9 +69,9 @@ export function PortfolioWorkspace({
         role="toolbar"
         aria-label="Dashboard filters"
       >
-        <div className="inline-flex items-center gap-1 rounded-lg bg-muted p-1">
+        <div className="inline-flex w-full min-w-0 flex-col gap-1 rounded-lg bg-muted p-1 sm:w-auto sm:flex-row sm:items-center">
           <OverviewPropertyPicker options={data.propertyOptions} query={query} />
-          <OverviewMonthPicker className="border-0 bg-background px-2.5 shadow-xs" query={query} />
+          <OverviewMonthPicker className="w-full shrink-0 whitespace-nowrap border-0 bg-background px-2.5 shadow-xs sm:w-auto" query={query} />
         </div>
       </div>
 
