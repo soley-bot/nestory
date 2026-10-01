@@ -15,7 +15,7 @@ import { requirePrivilegedStepUp } from "@/lib/auth/privileged-step-up-guard";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { buildOwnerStatementXlsx } from "@/features/reports/data/excel";
 import { buildOwnerStatementPdf } from "@/features/reports/data/pdf";
-import { loadOwnerStatementPresentation } from "@/features/reports/data/owner-statement-presentation";
+import { loadFrozenOwnerStatementPresentation } from "@/features/reports/data/owner-statement-rendering";
 import { loadOwnerStatementPublication } from "@/features/reports/data/owner-statement-report";
 
 const uuid = z.string().regex(
@@ -184,7 +184,16 @@ async function completeOwnerStatementPublication(
   if (model.statementNumber !== statementNumber || model.publicationId !== publicationId) {
     throw new Error("Owner Statement publication identity changed during rendering.");
   }
-  const presentation = await loadOwnerStatementPresentation(supabase, model);
+  const registeredFormats = new Set(model.artifacts.map((artifact) => artifact.format));
+  if (registeredFormats.has("pdf") && registeredFormats.has("xlsx")) {
+    finish(null);
+    return;
+  }
+  const admin = await requirePrivilegedStepUp(
+    { organizationId, userId: actorId },
+    supabase,
+  );
+  const presentation = await loadFrozenOwnerStatementPresentation(supabase, admin, model, actorId);
 
   const artifacts = [
     {
@@ -201,13 +210,8 @@ async function completeOwnerStatementPublication(
       format: "xlsx" as const,
     },
   ];
-  const admin = await requirePrivilegedStepUp(
-    { organizationId, userId: actorId },
-    supabase,
-  );
   const bucket = supabase.storage.from("owner-statements");
   const adminBucket = admin.storage.from("owner-statements");
-  const registeredFormats = new Set((model.artifacts ?? []).map((artifact) => artifact.format));
 
   for (const artifact of artifacts) {
     if (registeredFormats.has(artifact.format)) continue;

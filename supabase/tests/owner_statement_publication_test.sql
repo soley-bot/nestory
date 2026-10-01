@@ -757,5 +757,126 @@ SELECT throws_ok(
   'direct publication mutation is denied'
 );
 
+RESET ROLE;
+
+SELECT ok(
+  (SELECT relrowsecurity AND relforcerowsecurity FROM pg_catalog.pg_class
+   WHERE oid = 'app_private.owner_statement_renderings'::regclass)
+  AND NOT pg_catalog.has_table_privilege('authenticated', 'app_private.owner_statement_renderings', 'SELECT,INSERT,UPDATE,DELETE')
+  AND NOT pg_catalog.has_table_privilege('anon', 'app_private.owner_statement_renderings', 'SELECT,INSERT,UPDATE,DELETE')
+  AND NOT pg_catalog.has_table_privilege('service_role', 'app_private.owner_statement_renderings', 'SELECT,INSERT,UPDATE,DELETE'),
+  'frozen rendering snapshots are private with forced RLS and no direct application access'
+);
+
+SELECT ok(
+  pg_catalog.has_function_privilege('service_role', signature, 'EXECUTE')
+  AND NOT pg_catalog.has_function_privilege('authenticated', signature, 'EXECUTE')
+  AND NOT pg_catalog.has_function_privilege('anon', signature, 'EXECUTE'),
+  'only the trusted server can call ' || signature
+)
+FROM (VALUES
+  ('public.get_owner_statement_rendering(uuid,uuid,uuid)'),
+  ('public.freeze_owner_statement_rendering(uuid,uuid,uuid,jsonb)')
+) AS functions(signature);
+
+SET LOCAL ROLE service_role;
+
+SELECT is(
+  public.get_owner_statement_rendering(
+    '00000000-0000-0000-0000-000000000001', publication_one_id,
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  NULL::jsonb,
+  'older complete publications are not backfilled with current branding'
+)
+FROM owner_statement_test_runtime;
+
+SELECT is(
+  public.freeze_owner_statement_rendering(
+    '00000000-0000-0000-0000-000000000001', publication_four_id,
+    '00000000-0000-0000-0000-000000000101',
+    '{"rendererVersion":"owner-statement-v1","presentation":{"organizationName":"Original company","logo":null}}'::jsonb
+  ),
+  '{"rendererVersion":"owner-statement-v1","presentation":{"organizationName":"Original company","logo":null}}'::jsonb,
+  'the first presentation is retained before artifact upload'
+)
+FROM owner_statement_test_runtime;
+
+SELECT is(
+  public.freeze_owner_statement_rendering(
+    '00000000-0000-0000-0000-000000000001', publication_four_id,
+    '00000000-0000-0000-0000-000000000101',
+    '{"rendererVersion":"owner-statement-v1","presentation":{"organizationName":"Changed company","logo":{"base64":"changed"}}}'::jsonb
+  ),
+  '{"rendererVersion":"owner-statement-v1","presentation":{"organizationName":"Original company","logo":null}}'::jsonb,
+  'a retry returns the first presentation instead of overwriting branding'
+)
+FROM owner_statement_test_runtime;
+
+SELECT is(
+  public.get_owner_statement_rendering(
+    '00000000-0000-0000-0000-000000000001', publication_four_id,
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  '{"rendererVersion":"owner-statement-v1","presentation":{"organizationName":"Original company","logo":null}}'::jsonb,
+  'a retry reads the retained presentation'
+)
+FROM owner_statement_test_runtime;
+
+SELECT throws_ok(
+  pg_catalog.format(
+    'SELECT public.get_owner_statement_rendering(%L,%L,%L)',
+    '00000000-0000-0000-0000-000000000002', publication_four_id,
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  '42501', 'owner_statement_rendering_forbidden',
+  'snapshot reads reject a cross-organization publication'
+)
+FROM owner_statement_test_runtime;
+
+SELECT throws_ok(
+  pg_catalog.format(
+    'SELECT public.freeze_owner_statement_rendering(%L,%L,%L,%L::jsonb)',
+    '00000000-0000-0000-0000-000000000001', publication_four_id,
+    'ffffffff-ffff-4fff-8fff-ffffffffffff',
+    '{"rendererVersion":"owner-statement-v1","presentation":{}}'
+  ),
+  '42501', 'owner_statement_rendering_forbidden',
+  'snapshot writes reject an unaffiliated actor even on replay'
+)
+FROM owner_statement_test_runtime;
+
+RESET ROLE;
+
+SELECT throws_ok(
+  pg_catalog.format(
+    'UPDATE app_private.owner_statement_renderings SET snapshot = %L::jsonb WHERE publication_id = %L',
+    '{"rendererVersion":"owner-statement-v1","presentation":{}}', publication_four_id
+  ),
+  '55000', 'owner_statement_rendering_immutable',
+  'even a privileged direct update cannot replace frozen presentation'
+)
+FROM owner_statement_test_runtime;
+
+SELECT throws_ok(
+  pg_catalog.format(
+    'DELETE FROM app_private.owner_statement_renderings WHERE publication_id = %L', publication_four_id
+  ),
+  '55000', 'owner_statement_rendering_immutable',
+  'even a privileged direct delete cannot remove frozen presentation'
+)
+FROM owner_statement_test_runtime;
+
+SELECT is(
+  publication.content_hash,
+  pg_catalog.encode(extensions.digest(app_private.owner_statement_canonical_payload(
+    publication.organization_id, publication.id
+  )::text, 'sha256'), 'hex'),
+  'retaining presentation leaves immutable accounting content hashes unchanged'
+)
+FROM owner_statement_test_runtime AS runtime
+JOIN public.owner_statement_publications AS publication
+  ON publication.id IN (runtime.publication_one_id, runtime.publication_four_id);
+
 SELECT * FROM finish();
 ROLLBACK;

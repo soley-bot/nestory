@@ -49,8 +49,8 @@ vi.mock("@/lib/db/admin", () => ({
 vi.mock("@/features/reports/data/owner-statement-report", () => ({
   loadOwnerStatementPublication: mocks.loadPublication,
 }));
-vi.mock("@/features/reports/data/owner-statement-presentation", () => ({
-  loadOwnerStatementPresentation: mocks.loadPresentation,
+vi.mock("@/features/reports/data/owner-statement-rendering", () => ({
+  loadFrozenOwnerStatementPresentation: mocks.loadPresentation,
 }));
 vi.mock("@/features/reports/data/pdf", () => ({
   buildOwnerStatementPdf: mocks.buildPdf,
