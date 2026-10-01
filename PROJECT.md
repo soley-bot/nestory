@@ -377,9 +377,11 @@ Authenticated Nestory is quiet, neutral, dense operating software:
   giving every filter permanent visual weight.
 - Top-level Properties, People, Maintenance, Finance work, Timeline, Documents,
   and Ledger surfaces share one Layer 1 register contract: a clear title,
-  record count and primary action; one controls row; one dominant table or
-  queue; explicit record navigation; and pagination attached to that surface.
-  Domain columns, attention states, and actions remain feature-owned.
+  record count and primary action; one controls row by default; one dominant
+  table or queue; explicit record navigation; and pagination attached to that
+  surface. An extra controls row follows the same demonstrated-task, keyboard,
+  zoom and hierarchy criteria above. Domain columns, attention states, and
+  actions remain feature-owned.
 - A desktop register may use one restrained bordered surface for its filters and
   rows while retaining captions, semantic headers, keyboard behavior, and
   accessible selection state. Avoid nested decorative card shells.
