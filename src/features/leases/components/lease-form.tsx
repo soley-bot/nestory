@@ -437,7 +437,7 @@ export function LeaseForm({
           <div
             hidden={createStep !== 1}
             onChangeCapture={clearCreateStepError}
-            onInputCapture={clearCreateStepError}
+            onInput={clearCreateStepError}
           >
             <FormSection title="Tenant">
               {createContext ? (
@@ -487,7 +487,7 @@ export function LeaseForm({
         <div
           hidden={!isEditMode && createStep !== 2}
           onChangeCapture={clearCreateStepError}
-          onInputCapture={clearCreateStepError}
+          onInput={clearCreateStepError}
         >
           <FormSection
             title={isEditMode ? "Lease period" : "Lease terms"}
@@ -578,7 +578,7 @@ export function LeaseForm({
         <div
           hidden={!isEditMode && createStep !== 3}
           onChangeCapture={clearCreateStepError}
-          onInputCapture={clearCreateStepError}
+          onInput={clearCreateStepError}
         >
           <FormSection
             title="Rent and deposit"

@@ -233,7 +233,7 @@ export function RecordForm({
           updateDirty();
         }}
         onClickCapture={updateDirty}
-        onInputCapture={(event) => {
+        onInput={(event) => {
           recordEditedField(event.target);
           updateDirty();
         }}
