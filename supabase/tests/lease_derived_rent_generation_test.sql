@@ -1002,7 +1002,7 @@ INSERT INTO public.financial_month_locks (
 SELECT
   organization_id,
   (SELECT branch_id FROM public.properties WHERE id=lease_rent_state.property_id),
-  '2027-03-01',
+  '2027-06-01',
   true,
   now(),
   super_admin_id,
@@ -1014,8 +1014,8 @@ SELECT lives_ok(
     SELECT app_private.try_generate_lease_rent_invoice(
       (SELECT organization_id FROM lease_rent_state),
       (SELECT good_lease_id FROM lease_rent_state),
-      '2027-03-01',
-      '2027-03-01',
+      '2027-06-01',
+      '2027-06-01',
       'scheduled',
       (SELECT super_admin_id FROM lease_rent_state)
     )
@@ -1028,7 +1028,7 @@ SELECT results_eq(
     SELECT error_code, resolved_at IS NULL
     FROM public.rent_generation_exceptions
     WHERE lease_id = (SELECT good_lease_id FROM lease_rent_state)
-      AND billing_period_start = '2027-03-01'
+      AND billing_period_start = '2027-06-01'
   $$,
   $$ VALUES ('period_locked'::text, true) $$,
   'a distinct locked month produces an actionable rent exception'
@@ -1039,7 +1039,7 @@ SELECT is(
     SELECT count(*)::integer
     FROM public.tenant_invoices
     WHERE lease_id = (SELECT good_lease_id FROM lease_rent_state)
-      AND billing_period_start = '2027-03-01'
+      AND billing_period_start = '2027-06-01'
   ),
   0,
   'a distinct locked month has no financial effect'
