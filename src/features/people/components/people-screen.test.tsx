@@ -350,7 +350,7 @@ describe("People route family redesign contract", () => {
     expect(screen.queryByText("No matching people")).toBeNull();
     expect(screen.queryByRole("link", { name: "Clear filters" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Reset people filters" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Filters", exact: true }).textContent).toBe("Filters");
+    expect(screen.getByRole("button", { name: /^Filters$/ }).textContent).toBe("Filters");
 
     await user.click(within(emptyState).getByRole("button", { name: "Add person" }));
     expect(screen.getByRole("dialog", { name: "Add person" })).not.toBeNull();
