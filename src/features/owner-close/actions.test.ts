@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -5,7 +6,11 @@ const mocks = vi.hoisted(() => ({
   adminFrom: vi.fn(),
   adminRpc: vi.fn(),
   buildPdf: vi.fn(() => new Uint8Array([1, 2, 3])),
-  buildXlsx: vi.fn(() => new Uint8Array([4, 5])),
+  buildXlsx: vi.fn((
+    _model: unknown,
+    _presentation: unknown,
+    options?: { includeDepositSummary?: boolean },
+  ) => new Uint8Array(options?.includeDepositSummary ? [4, 6] : [4, 5])),
   download: vi.fn(),
   from: vi.fn(),
   loadPresentation: vi.fn(),
@@ -436,6 +441,43 @@ describe("owner close checked actions", () => {
     }))).rejects.toThrow("do not match");
 
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("resumes an XLSX uploaded by the prior compatible renderer", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: { publication_id: publicationId, statement_number: "OS-202608-000000000000" },
+      error: null,
+    });
+    mocks.loadPublication.mockResolvedValueOnce({
+      artifacts: [{ format: "pdf" }],
+      publicationId,
+      statementNumber: "OS-202608-000000000000",
+    });
+    mocks.upload.mockResolvedValueOnce({
+      data: null,
+      error: { message: "The resource already exists", statusCode: "409" },
+    });
+    mocks.download.mockResolvedValueOnce({
+      data: new Blob([new Uint8Array([4, 6])]),
+      error: null,
+    });
+    mocks.adminDownload.mockResolvedValueOnce({
+      data: new Blob([new Uint8Array([4, 6])]),
+      error: null,
+    });
+
+    await publishOwnerStatementAction(form({
+      idempotencyKey: "owner-statement-compatible-xlsx-r1",
+      revisionId,
+    }));
+
+    expect(mocks.adminRpc).toHaveBeenLastCalledWith(
+      "register_owner_statement_artifact_verified",
+      expect.objectContaining({
+        p_format: "xlsx",
+        p_sha256: createHash("sha256").update(new Uint8Array([4, 6])).digest("hex"),
+      }),
+    );
   });
 
   it("rejects rounded, zero, and noncanonical corrections before authority", async () => {
