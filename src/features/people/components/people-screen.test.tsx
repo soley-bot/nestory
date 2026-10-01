@@ -336,6 +336,43 @@ describe("People route family redesign contract", () => {
     expect(screen.queryByRole("button", { name: "Add person" })).toBeNull();
   });
 
+  it.each([25, 50, 100])("keeps the true empty state and add action with %i rows selected", async pageSize => {
+    const user = userEvent.setup();
+    navigation.searchParams = new URLSearchParams(`pageSize=${pageSize}`);
+    renderPeople({
+      people: [],
+      viewQuery: { ...defaultViewQuery, pageSize },
+      pagination: { from: 0, page: 1, pageSize, to: 0, totalCount: 0, totalPages: 1 },
+    });
+
+    const emptyState = screen.getByText("No people yet").closest("section")!;
+    expect(emptyState.getAttribute("data-kind")).toBe("empty");
+    expect(screen.queryByText("No matching people")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Clear filters" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Reset people filters" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Filters", exact: true }).textContent).toBe("Filters");
+
+    await user.click(within(emptyState).getByRole("button", { name: "Add person" }));
+    expect(screen.getByRole("dialog", { name: "Add person" })).not.toBeNull();
+  });
+
+  it.each([
+    { filters: { query: "missing" }, queryString: "query=missing", badge: "Filters" },
+    { filters: { status: "missing_contact" }, queryString: "status=missing_contact", badge: "Filters1" },
+    { filters: { archiveState: "archived" }, queryString: "archiveState=archived", badge: "Filters1" },
+  ] as const)("recognizes $queryString without counting the selected row size", ({ filters, queryString, badge }) => {
+    navigation.searchParams = new URLSearchParams(`pageSize=50&${queryString}`);
+    renderPeople({ people: [], viewQuery: { ...defaultViewQuery, pageSize: 50, ...filters } });
+
+    const filteredState = screen.getByText("No matching people").closest("section")!;
+    expect(filteredState.getAttribute("data-kind")).toBe("filtered");
+    expect(screen.queryByText("No people yet")).toBeNull();
+    expect(within(filteredState).queryByRole("button", { name: "Add person" })).toBeNull();
+    expect(within(filteredState).getByRole("link", { name: "Clear filters" }).getAttribute("href")).toBe("/people");
+    expect(screen.getByRole("link", { name: "Reset people filters" }).getAttribute("href")).toBe("/people");
+    expect(screen.getByRole("button", { name: /^Filters/ }).textContent).toBe(badge);
+  });
+
   it("does not open action=create when creation is unauthorized", () => {
     navigation.searchParams = new URLSearchParams("action=create");
     renderPeople({ canCreate: false, people: [] });

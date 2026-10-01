@@ -37,7 +37,6 @@ export function PeopleFilters({
     viewQuery.status !== "all",
     viewQuery.archiveState !== DEFAULT_PEOPLE_ARCHIVE_STATE,
     viewQuery.sort !== DEFAULT_PEOPLE_SORT,
-    viewQuery.pageSize !== DEFAULT_PEOPLE_PAGE_SIZE,
   ].filter(Boolean).length;
   const hasSearchQuery = viewQuery.query.trim().length > 0;
   const hasAdvancedFilters = activeFilters > 0;
