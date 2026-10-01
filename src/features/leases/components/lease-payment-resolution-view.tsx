@@ -96,7 +96,7 @@ export function LeasePaymentResolutionView({
               onSuccess={onPaymentSuccess}
               ownerLabel={resolution.ownerLabel}
               payFromAccounts={resolution.payFromAccounts}
-              submitLabel={`Record ${balanceDisplay} payment`}
+              showAmountInSubmitLabel
             />
           ) : (
             <ReadOnlyPaymentSummary

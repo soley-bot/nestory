@@ -5,7 +5,10 @@ import { XIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
-import type { DraftStatus } from "@/components/ui/draft-action-bar";
+import {
+  OverlayDismissalContext,
+  type OverlayDraftGuard,
+} from "@/components/ui/overlay-dismissal-context";
 import { useOverlayPortalContainer } from "@/components/ui/overlay-portal-container";
 import {
   Sheet,
@@ -15,35 +18,15 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-type DrawerDraftGuard = {
-  onDiscard?: () => void;
-  status: DraftStatus;
-};
-
-type DrawerDismissalContextValue = {
-  portalContainer: HTMLElement | null;
-  registerDraftGuard: (guard: DrawerDraftGuard) => () => void;
-  requestClose: () => void;
-};
-
-const DrawerDismissalContext =
-  React.createContext<DrawerDismissalContextValue | null>(null);
-
-export function useDrawerDraftGuard(guard: DrawerDraftGuard) {
-  const context = React.useContext(DrawerDismissalContext);
-
-  React.useEffect(() => context?.registerDraftGuard(guard), [context, guard]);
-}
-
-export function useDrawerCloseRequest(fallback: () => void) {
-  const context = React.useContext(DrawerDismissalContext);
-  return context?.requestClose ?? fallback;
-}
+export {
+  useOverlayDraftGuard as useDrawerDraftGuard,
+  useOverlayCloseRequest as useDrawerCloseRequest,
+} from "@/components/ui/overlay-dismissal-context";
 
 export function useDrawerPortalContainer() {
   const overlayPortalContainer = useOverlayPortalContainer();
   const drawerPortalContainer = React.useContext(
-    DrawerDismissalContext,
+    OverlayDismissalContext,
   )?.portalContainer;
 
   return overlayPortalContainer === undefined
@@ -72,7 +55,7 @@ export function SideDrawer({
   summary,
   title,
 }: SideDrawerProps) {
-  const draftGuardRef = React.useRef<DrawerDraftGuard | null>(null);
+  const draftGuardRef = React.useRef<OverlayDraftGuard | null>(null);
   const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const previouslyFocusedElementRef = React.useRef<HTMLElement | null>(
     typeof document !== "undefined" &&
@@ -97,7 +80,7 @@ export function SideDrawer({
     }, 0);
   }, []);
 
-  const registerDraftGuard = React.useCallback((guard: DrawerDraftGuard) => {
+  const registerDraftGuard = React.useCallback((guard: OverlayDraftGuard) => {
     draftGuardRef.current = guard;
     return () => {
       if (draftGuardRef.current === guard) draftGuardRef.current = null;
@@ -141,7 +124,7 @@ export function SideDrawer({
   );
 
   return (
-    <DrawerDismissalContext.Provider value={dismissalContext}>
+    <OverlayDismissalContext.Provider value={dismissalContext}>
       <Sheet
         onOpenChange={(nextOpen) => {
           if (!nextOpen) requestClose();
@@ -248,6 +231,6 @@ export function SideDrawer({
             : "Saving is still in progress"
         }
       />
-    </DrawerDismissalContext.Provider>
+    </OverlayDismissalContext.Provider>
   );
 }

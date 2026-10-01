@@ -2,6 +2,7 @@
 
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   LeasePaymentResolutionData,
@@ -72,6 +73,25 @@ describe("LeasePaymentResolutionView", () => {
       "Recent activity",
       "Upcoming",
     ]);
+  });
+
+  it("updates the payment confirmation when a partial amount is entered", async () => {
+    const user = userEvent.setup();
+    renderResolution();
+    const amount = screen.getByLabelText("Amount");
+
+    await user.clear(amount);
+    await user.type(amount, "125.50");
+
+    expect(
+      screen.getByRole("button", { name: "Record USD 125.50 payment" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Record USD 258.00 payment" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("USD 258.00 was due 05 Aug 2026 for August rent."),
+    ).toBeVisible();
   });
 
   it.each([
