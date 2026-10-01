@@ -57,6 +57,7 @@ vi.mock("next/link", () => ({
 
 import { FinanceOperationsScreen } from "./finance-operations-screen";
 import type { FinanceOperationsData } from "../finance-operations.types";
+import { getBusinessDateValue } from "@/lib/dates/business-date";
 
 beforeAll(() => {
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
@@ -523,8 +524,12 @@ describe("FinanceOperationsScreen", () => {
     const user = userEvent.setup();
     const input = data();
     const invoice = tenantInvoice();
-    invoice.billingPeriodStart = "2026-09-01";
-    invoice.billingPeriodEnd = "2026-09-30";
+    const businessDate = getBusinessDateValue();
+    const [year, month] = businessDate.split("-").map(Number);
+    invoice.billingPeriodStart = `${businessDate.slice(0, 7)}-01`;
+    invoice.billingPeriodEnd = new Date(Date.UTC(year, month, 0))
+      .toISOString()
+      .slice(0, 10);
     invoice.generationSource = "lease_rules_v1";
     input.tenantInvoices = [invoice];
     render(
