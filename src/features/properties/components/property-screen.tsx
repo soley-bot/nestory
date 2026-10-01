@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Building2, CheckCircle2, Circle, CircleAlert, ListChecks, Plus } from "lucide-react";
+import { useRegisterNavigation } from "@/components/data/use-register-navigation";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { PageHeader } from "@/components/layout/page-header";
@@ -67,6 +68,7 @@ export function PropertyScreen({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const navigation = useRegisterNavigation(viewQuery.query);
   const createInitialValues = getPropertyCreateInitialValues(
     searchParams,
     ownerOptions,
@@ -76,9 +78,8 @@ export function PropertyScreen({
       ? { initialValues: createInitialValues, mode: "create" }
       : null,
   );
-  const [displayMode, setDisplayMode] = useState<PropertyDisplayMode>(() =>
-    searchParams.get("view") === "cards" ? "cards" : "table",
-  );
+  const displayMode: PropertyDisplayMode =
+    searchParams.get("view") === "cards" ? "cards" : "table";
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const reviewContext = getPropertyReviewContext(viewQuery);
   const openPropertyAction = (nextDrawer: DrawerState) => {
@@ -86,38 +87,14 @@ export function PropertyScreen({
     setDrawer(nextDrawer);
   };
   const openPropertyRecord = (propertyId: string) => {
+    navigation.cancelPending();
     router.push(`/properties/${propertyId}`);
   };
   const changeDisplayMode = (mode: PropertyDisplayMode) => {
-    setDisplayMode(mode);
-
-    const nextParams = new URLSearchParams(searchParams.toString());
-
-    if (mode === "table") {
-      nextParams.delete("view");
-    } else {
-      nextParams.set("view", mode);
-    }
-
-    const queryString = nextParams.toString();
-    router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
-      scroll: false,
-    });
+    navigation.replaceParam("view", mode, "table");
   };
   const changeSort = (sort: PropertySortKey) => {
-    const nextParams = new URLSearchParams(searchParams.toString());
-
-    if (sort === DEFAULT_PROPERTY_SORT) {
-      nextParams.delete("sort");
-    } else {
-      nextParams.set("sort", sort);
-    }
-
-    nextParams.delete("page");
-    const queryString = nextParams.toString();
-    router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
-      scroll: false,
-    });
+    navigation.replaceParam("sort", sort, DEFAULT_PROPERTY_SORT);
   };
 
   useEffect(() => {
@@ -186,6 +163,7 @@ export function PropertyScreen({
         data-slot="property-list-toolbar"
       >
         <PropertyFilters
+          navigation={navigation}
           displayMode={displayMode}
           onDisplayModeChange={changeDisplayMode}
           onOpenProperty={openPropertyRecord}
@@ -200,6 +178,7 @@ export function PropertyScreen({
               <Link
                 className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={pathname}
+                onNavigate={navigation.cancelPending}
                 scroll={false}
               >
                 Clear filters
@@ -226,7 +205,11 @@ export function PropertyScreen({
               sort={viewQuery.sort}
             />
           </div>
-          <PaginationControls pagination={pagination} />
+          <div onClickCapture={(event) => {
+            if ((event.target as Element).closest("a")) navigation.cancelPending();
+          }}>
+            <PaginationControls pagination={pagination} />
+          </div>
         </>
       )}
     </section>
@@ -248,7 +231,7 @@ export function PropertyScreen({
       }
     >
       <div className="flex min-w-0 flex-col">
-        <PropertyPortfolioSummaryNav summary={portfolioSummary} />
+        <PropertyPortfolioSummaryNav onNavigate={navigation.cancelPending} summary={portfolioSummary} />
 
       {statusMessage ? (
         <div className="shrink-0 px-4 py-2 sm:px-6">
@@ -329,8 +312,10 @@ export function PropertyScreen({
 }
 
 function PropertyPortfolioSummaryNav({
+  onNavigate,
   summary,
 }: {
+  onNavigate: () => void;
   summary: PropertyPortfolioSummary;
 }) {
   const items = [
@@ -370,6 +355,7 @@ function PropertyPortfolioSummaryNav({
           className="group flex min-w-0 items-center gap-2 border-t border-border py-2.5 first:border-t-0 sm:border-l sm:border-t-0 sm:px-5 sm:py-0 sm:first:border-l-0 sm:first:pl-0"
           data-slot="portfolio-summary-item"
           href={item.href}
+          onNavigate={onNavigate}
           key={item.href}
           prefetch={false}
         >

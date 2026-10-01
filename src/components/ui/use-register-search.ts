@@ -6,8 +6,10 @@ import { useEffect, useEffectEvent, useState, type FormEvent } from "react";
 export function useRegisterSearch(
   appliedQuery: string,
   onApply: (query: string) => void,
+  navigationKey = "",
 ) {
   const [state, setState] = useState({
+    navigationKey,
     source: appliedQuery,
     value: appliedQuery,
     submitted: [] as string[],
@@ -15,9 +17,12 @@ export function useRegisterSearch(
   const [composing, setComposing] = useState(false);
   const [paused, setPaused] = useState(false);
   let current = state;
-  if (state.source !== appliedQuery) {
-    const acknowledgement = state.submitted.indexOf(appliedQuery);
+  if (state.source !== appliedQuery || state.navigationKey !== navigationKey) {
+    const acknowledgement = state.navigationKey === navigationKey
+      ? state.submitted.indexOf(appliedQuery)
+      : -1;
     current = {
+      navigationKey,
       source: appliedQuery,
       value: acknowledgement >= 0 ? state.value : appliedQuery,
       submitted:

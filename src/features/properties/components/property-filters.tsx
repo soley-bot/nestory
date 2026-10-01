@@ -1,9 +1,8 @@
 "use client";
 
 import * as Popover from "@radix-ui/react-popover";
-import { useTransition } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   LayoutGrid,
   RotateCcw,
@@ -11,7 +10,7 @@ import {
   Table2,
   X,
 } from "lucide-react";
-import { useRegisterSearch } from "@/components/ui/use-register-search";
+import type { RegisterNavigation } from "@/components/data/use-register-navigation";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import {
@@ -83,6 +82,7 @@ const sortFilterOptions = [
 ] satisfies SelectOption[];
 
 type PropertyFiltersProps = {
+  navigation: RegisterNavigation;
   displayMode: PropertyDisplayMode;
   onDisplayModeChange: (mode: PropertyDisplayMode) => void;
   onOpenProperty: (propertyId: string) => void;
@@ -91,6 +91,7 @@ type PropertyFiltersProps = {
 };
 
 export function PropertyFilters({
+  navigation,
   displayMode,
   onDisplayModeChange,
   onOpenProperty,
@@ -98,12 +99,7 @@ export function PropertyFilters({
   viewQuery,
 }: PropertyFiltersProps) {
   const pathname = usePathname();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
-  const search = useRegisterSearch(viewQuery.query, (value) =>
-    replaceParam("query", value, ""),
-  );
+  const { isPending, replaceParam, search } = navigation;
   const activeFilterChips = getActivePropertyFilters(viewQuery);
   const activeFilters = activeFilterChips.filter(
     (filter) => filter.param !== "query",
@@ -113,25 +109,6 @@ export function PropertyFilters({
   const query = search.query;
   const compactSelectClassName = "h-8 w-full px-2 text-sm";
   const propertySuggestions = getPropertySuggestions(properties, query);
-
-  function replaceParam(name: string, value: string, defaultValue: string) {
-    const nextParams = new URLSearchParams(searchParams.toString());
-
-    if (value === defaultValue || value.trim() === "") {
-      nextParams.delete(name);
-    } else {
-      nextParams.set(name, value);
-    }
-
-    nextParams.delete("page");
-    const queryString = nextParams.toString();
-
-    startTransition(() => {
-      router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
-        scroll: false,
-      });
-    });
-  }
 
   return (
     <div className="w-full min-w-0">
@@ -196,6 +173,7 @@ export function PropertyFilters({
                         <Link
                           className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                           href={pathname}
+                          onNavigate={navigation.cancelPending}
                           scroll={false}
                         >
                           <RotateCcw size={13} />
@@ -359,6 +337,7 @@ export function PropertyFilters({
                 aria-label="Reset property filters"
                 className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-card px-2 text-primary outline-none transition-colors hover:bg-muted hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
                 href={pathname}
+                onNavigate={navigation.cancelPending}
                 scroll={false}
                 title="Reset filters"
               >
