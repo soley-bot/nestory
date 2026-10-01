@@ -1,16 +1,14 @@
 "use client";
 
 import {
-  useCallback,
   useEffect,
   useId,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type KeyboardEvent,
 } from "react";
-import { createPortal } from "react-dom";
+import * as Popover from "@radix-ui/react-popover";
 import { Check, ChevronsUpDown, Search, X } from "lucide-react";
 import { useDrawerPortalContainer } from "@/components/ui/side-drawer";
 import type { PersonSelectOption } from "@/features/people/person-select";
@@ -68,12 +66,12 @@ export function PersonSelect({
 }: PersonSelectProps) {
   const listboxId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
-  const listboxRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const portalContainer = useDrawerPortalContainer();
   const [internalValue, setInternalValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const selectedValue = value ?? internalValue;
   const previousValueRef = useRef(selectedValue);
@@ -89,7 +87,7 @@ export function PersonSelect({
     return next;
   }, [includeArchived, options, preservedOption, selectedValue]);
   const visibleOptions = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const normalizedQuery = (query ?? "").trim().toLocaleLowerCase();
     const candidates = allowExternal
       ? [
           ...normalizedOptions,
@@ -136,33 +134,6 @@ export function PersonSelect({
       ? getOptionId(listboxId, activeOption.id)
       : undefined;
 
-  const updateFloatingPosition = useCallback(() => {
-    if (!portalContainer || !rootRef.current || !listboxRef.current) {
-      return;
-    }
-
-    const anchorRect = rootRef.current.getBoundingClientRect();
-    const containingBlock = portalContainer.parentElement ?? portalContainer;
-    const containingBlockRect = containingBlock.getBoundingClientRect();
-    const viewportPadding = 16;
-    const listboxGap = 4;
-    const spaceBelow = window.innerHeight - anchorRect.bottom - viewportPadding;
-    const spaceAbove = anchorRect.top - viewportPadding;
-    const placeAbove = spaceBelow < 180 && spaceAbove > spaceBelow;
-    const availableSpace = placeAbove ? spaceAbove : spaceBelow;
-    const maxHeight = Math.max(96, Math.min(280, availableSpace));
-
-    const listbox = listboxRef.current;
-    listbox.style.left = `${anchorRect.left - containingBlockRect.left}px`;
-    listbox.style.maxHeight = `${maxHeight}px`;
-    listbox.style.top = `${
-      placeAbove
-        ? anchorRect.top - containingBlockRect.top - maxHeight - listboxGap
-        : anchorRect.bottom - containingBlockRect.top + listboxGap
-    }px`;
-    listbox.style.width = `${anchorRect.width}px`;
-  }, [portalContainer]);
-
   useEffect(() => {
     if (previousValueRef.current === selectedValue) {
       return;
@@ -174,48 +145,37 @@ export function PersonSelect({
     );
   }, [selectedValue]);
 
-  useEffect(() => {
-    function onPointerDown(event: PointerEvent) {
-      const target = event.target as Node;
-      if (
-        !rootRef.current?.contains(target) &&
-        !listboxRef.current?.contains(target)
-      ) {
-        setOpen(false);
-      }
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (nextOpen) {
+      setActiveIndex(
+        Math.max(0, visibleOptions.findIndex((option) => option.id === selectedValue)),
+      );
+    } else {
+      setQuery(null);
     }
-
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, []);
-
-  useLayoutEffect(() => {
-    if (!open || !portalContainer) {
-      return;
-    }
-
-    updateFloatingPosition();
-    window.addEventListener("resize", updateFloatingPosition);
-    document.addEventListener("scroll", updateFloatingPosition, true);
-
-    return () => {
-      window.removeEventListener("resize", updateFloatingPosition);
-      document.removeEventListener("scroll", updateFloatingPosition, true);
-    };
-  }, [open, portalContainer, updateFloatingPosition]);
+  }
 
   function choose(nextValue: string) {
+    if (disabled || inputRef.current?.matches(":disabled")) {
+      return;
+    }
     if (value === undefined) {
       setInternalValue(nextValue);
     }
     onValueChange?.(nextValue);
+    inputRef.current?.focus();
     setOpen(false);
-    setQuery("");
+    setQuery(null);
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
+      if (!open) {
+        handleOpenChange(true);
+        return;
+      }
       setOpen(true);
       setActiveIndex((current) => {
         const direction = event.key === "ArrowDown" ? 1 : -1;
@@ -224,12 +184,11 @@ export function PersonSelect({
           Math.min(visibleOptions.length - 1, current + direction),
         );
       });
-    } else if (event.key === "Enter" && open && activeOption) {
+    } else if (event.key === "Enter" && open) {
       event.preventDefault();
-      choose(activeOption.id);
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      setOpen(false);
+      if (activeOption) {
+        choose(activeOption.id);
+      }
     }
   }
 
@@ -240,14 +199,8 @@ export function PersonSelect({
           ? `${context} person options`
           : `${roles.join(" or ")} person options`
       }
-      className={cn(
-        "z-[80] max-h-[280px] overflow-y-auto rounded-md border border-border bg-card p-1 shadow-lg",
-        portalContainer
-          ? "absolute"
-          : "absolute left-0 right-0 top-[calc(100%+4px)]",
-      )}
+      className="z-[80] max-h-[min(280px,var(--radix-popover-content-available-height))] w-[var(--radix-popover-trigger-width)] overflow-y-auto rounded-md border border-border bg-card p-1 shadow-lg"
       id={listboxId}
-      ref={listboxRef}
       role="listbox"
     >
       {visibleOptions.length === 0 ? (
@@ -263,10 +216,13 @@ export function PersonSelect({
               option.id === activeOption?.id && "bg-muted",
             )}
             id={getOptionId(listboxId, option.id)}
+            disabled={disabled}
             key={option.id}
             onClick={() => choose(option.id)}
+            onMouseDown={(event) => event.preventDefault()}
             onMouseEnter={() => setActiveIndex(index)}
             role="option"
+            tabIndex={-1}
             type="button"
           >
             <span className="min-w-0 flex-1">
@@ -278,7 +234,7 @@ export function PersonSelect({
               </span>
             </span>
             {option.id === selectedValue ? (
-              <Check className="shrink-0 text-primary" size={15} />
+              <Check aria-hidden="true" className="shrink-0 text-primary" size={15} />
             ) : null}
           </button>
         ))
@@ -287,78 +243,89 @@ export function PersonSelect({
   ) : null;
 
   return (
-    <div className={cn("relative", className)} ref={rootRef}>
-      <input
-        name={name}
-        ref={hiddenInputRef}
-        type="hidden"
-        value={selectedValue === externalValue ? "" : selectedValue}
-      />
-      <div className="relative">
-        <Search
-          aria-hidden="true"
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-          size={15}
-        />
+    <Popover.Root onOpenChange={handleOpenChange} open={open}>
+      <div className={cn("relative", className)} ref={rootRef}>
         <input
-          aria-autocomplete="list"
-          aria-activedescendant={activeOptionId}
-          aria-controls={listboxId}
-          aria-describedby={ariaDescribedBy}
-          aria-expanded={open}
-          aria-haspopup="listbox"
-          aria-invalid={ariaInvalid}
-          aria-label={ariaLabel ?? context ?? "Choose a person"}
-          aria-labelledby={ariaLabelledBy}
-          aria-required={ariaRequired}
-          className={cn(
-            // Height and radius track the shared Input and SelectControl, so a
-            // person picker sitting beside either one lines up with it.
-            "h-8 w-full rounded-lg border border-input bg-card pl-9 text-sm text-foreground shadow-sm outline-none transition placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60",
-            allowClear && selectedOption ? "pr-16" : "pr-9",
-          )}
-          disabled={disabled}
-          onChange={(event) => {
-            setQuery(event.currentTarget.value);
-            setActiveIndex(0);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          onKeyDown={onKeyDown}
-          placeholder={selectedOption && !open ? "" : placeholder}
-          role="combobox"
-          value={open ? query : ""}
+          name={name}
+          ref={hiddenInputRef}
+          type="hidden"
+          value={selectedValue === externalValue ? "" : selectedValue}
         />
-        <ChevronsUpDown
-          aria-hidden="true"
-          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-          size={15}
-        />
-        {allowClear && selectedOption ? (
-          <button
-            aria-label={`Clear ${context ?? "selected person"}`}
-            className="absolute right-8 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            onClick={() => choose("")}
-            type="button"
+        <Popover.Anchor asChild>
+          <div className="relative">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              size={15}
+            />
+            <input
+              aria-autocomplete="list"
+              aria-activedescendant={activeOptionId}
+              aria-controls={listboxId}
+              aria-describedby={ariaDescribedBy}
+              aria-expanded={open}
+              aria-haspopup="listbox"
+              aria-invalid={ariaInvalid}
+              aria-label={ariaLabel ?? context ?? "Choose a person"}
+              aria-labelledby={ariaLabelledBy}
+              aria-required={ariaRequired}
+              className={cn(
+                "h-8 w-full rounded-lg border border-input bg-card pl-9 text-sm text-foreground shadow-sm outline-none transition placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+                allowClear && selectedOption ? "pr-16" : "pr-9",
+              )}
+              disabled={disabled}
+              onChange={(event) => {
+                setQuery(event.currentTarget.value);
+                setActiveIndex(0);
+                setOpen(true);
+              }}
+              onClick={() => {
+                if (!open) handleOpenChange(true);
+              }}
+              onFocus={() => handleOpenChange(true)}
+              onKeyDown={onKeyDown}
+              placeholder={placeholder}
+              ref={inputRef}
+              role="combobox"
+              value={open && query !== null ? query : selectedOption?.label ?? ""}
+            />
+            <ChevronsUpDown
+              aria-hidden="true"
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              size={15}
+            />
+            {allowClear && selectedOption ? (
+              <button
+                aria-label={`Clear ${context ?? "selected person"}`}
+                className="absolute right-8 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                disabled={disabled}
+                onClick={() => choose("")}
+                type="button"
+              >
+                <X aria-hidden="true" size={14} />
+              </button>
+            ) : null}
+          </div>
+        </Popover.Anchor>
+        <Popover.Portal container={portalContainer ?? undefined}>
+          <Popover.Content
+            align="start"
+            asChild
+            onCloseAutoFocus={(event) => event.preventDefault()}
+            onEscapeKeyDown={(event) => event.stopPropagation()}
+            onInteractOutside={(event) => {
+              if (rootRef.current?.contains(event.detail.originalEvent.target as Node)) {
+                event.preventDefault();
+              }
+            }}
+            onOpenAutoFocus={(event) => event.preventDefault()}
+            sideOffset={4}
           >
-            <X aria-hidden="true" size={14} />
-          </button>
-        ) : null}
+            {listbox}
+          </Popover.Content>
+        </Popover.Portal>
       </div>
-      {selectedOption && !open ? (
-        <div
-          className={cn(
-            "pointer-events-none absolute inset-y-0 left-9 flex min-w-0 items-center",
-            allowClear ? "right-16" : "right-9",
-          )}
-        >
-          <span className="truncate text-sm text-foreground">
-            {selectedOption.label}
-          </span>
-        </div>
-      ) : null}
-      {portalContainer ? createPortal(listbox, portalContainer) : listbox}
-    </div>
+    </Popover.Root>
   );
 }
 
