@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(8);
+SELECT no_plan();
 
 CREATE TEMP TABLE deposit_safety_state (
   property_id uuid DEFAULT gen_random_uuid(),
@@ -13,22 +13,25 @@ CREATE TEMP TABLE deposit_safety_state (
 INSERT INTO deposit_safety_state DEFAULT VALUES;
 GRANT SELECT, UPDATE ON deposit_safety_state TO authenticated;
 
-CREATE FUNCTION pg_temp.deposit_safety_command(p_type text, p_amount numeric, p_key text)
+CREATE FUNCTION pg_temp.deposit_safety_command(
+  p_type text, p_amount numeric, p_key text, p_date date DEFAULT current_date,
+  p_reference text DEFAULT NULL, p_account uuid DEFAULT NULL, p_deposit uuid DEFAULT NULL
+)
 RETURNS uuid LANGUAGE plpgsql AS $$
 DECLARE v_id uuid; v_deposit uuid; v_account uuid;
 BEGIN
-  SELECT deposit_id INTO v_deposit FROM deposit_safety_state;
-  SELECT account_id INTO v_account FROM public.finance_account_roles
+  SELECT coalesce(p_deposit, deposit_id) INTO v_deposit FROM deposit_safety_state;
+  SELECT coalesce(p_account, account_id) INTO v_account FROM public.finance_account_roles
   WHERE organization_id = '00000000-0000-0000-0000-000000000001'
     AND role_code = 'security_deposits';
   IF to_regprocedure('public.record_lease_deposit_event_idempotent(uuid,uuid,uuid,text,date,numeric,text,text)') IS NOT NULL THEN
     EXECUTE 'SELECT public.record_lease_deposit_event_idempotent($1,$2,$3,$4,$5,$6,$7,$8)'
       INTO v_id USING '00000000-0000-0000-0000-000000000001'::uuid, v_deposit,
-      v_account, p_type, current_date, p_amount, p_key, p_key;
+      v_account, p_type, p_date, p_amount, coalesce(p_reference, p_key), p_key;
   ELSE
     v_id := public.record_lease_deposit_event_with_account(
       '00000000-0000-0000-0000-000000000001', v_deposit, v_account,
-      p_type, current_date, p_amount, p_key);
+      p_type, p_date, p_amount, coalesce(p_reference, p_key));
   END IF;
   RETURN v_id;
 END;
@@ -69,6 +72,43 @@ SELECT is((SELECT count(*) FROM public.lease_deposit_events WHERE reference = 'd
 SELECT is((SELECT count(*) FROM public.ledger_entries WHERE source_id IN (
   SELECT id FROM public.lease_deposit_events WHERE reference = 'deposit-safety-refund')),
   1::bigint, 'refund retry records one Ledger projection');
+SELECT is(pg_temp.deposit_safety_command('received', 100.00, 'deposit-safety-receipt'),
+  (SELECT id FROM public.lease_deposit_events WHERE reference = 'deposit-safety-receipt'),
+  'receipt replay returns its original identity with normalized numeric scale');
+SELECT is(pg_temp.deposit_safety_command('refunded', 50, 'deposit-safety-refund'),
+  (SELECT id FROM public.lease_deposit_events WHERE reference = 'deposit-safety-refund'),
+  'refund replay returns its original identity');
+SELECT throws_matching($$SELECT pg_temp.deposit_safety_command('received', 101, 'deposit-safety-receipt')$$,
+  'Conflicting financial idempotency request', 'retry key binds amount');
+SELECT throws_matching($$SELECT pg_temp.deposit_safety_command('refunded', 100, 'deposit-safety-receipt')$$,
+  'Conflicting financial idempotency request', 'retry key binds event type');
+SELECT throws_matching($$SELECT pg_temp.deposit_safety_command('received', 100, 'deposit-safety-receipt', current_date + 1)$$,
+  'Conflicting financial idempotency request', 'retry key binds date');
+SELECT throws_matching($$SELECT pg_temp.deposit_safety_command('received', 100, 'deposit-safety-receipt', current_date, 'Different receipt')$$,
+  'Conflicting financial idempotency request', 'retry key binds reference');
+SELECT throws_matching($$SELECT pg_temp.deposit_safety_command('received', 100, 'deposit-safety-receipt', current_date, NULL,
+  '88000000-0000-0000-0000-000000000999')$$,
+  'Conflicting financial idempotency request', 'retry key binds liability account');
+SELECT throws_matching($$SELECT pg_temp.deposit_safety_command('refunded', 51, 'deposit-safety-over-refund')$$,
+  'exceeds held deposit balance', 'fresh refund cannot overspend held cash');
+SELECT throws_matching($$SELECT pg_temp.deposit_safety_command('received', 0.001, 'deposit-safety-subcent')$$,
+  'Valid deposit activity', 'subcent receipt cannot silently change recorded cash');
+SELECT throws_matching($$SELECT pg_temp.deposit_safety_command('received', 'NaN'::numeric, 'deposit-safety-nan')$$,
+  'Valid deposit activity', 'non-finite deposit amount is rejected');
+SELECT throws_matching($$SELECT pg_temp.deposit_safety_command('applied', 1, 'deposit-safety-applied')$$,
+  'Valid deposit activity', 'new UI command does not complete deposit-to-rent work');
+
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000801', true);
+SELECT throws_matching($$SELECT pg_temp.deposit_safety_command('received', 100, 'deposit-safety-receipt')$$,
+  'Not authorized', 'completed retry remains protected by current property authorization');
+SELECT set_config('request.jwt.claim.sub', '', true);
+SELECT throws_matching($$SELECT pg_temp.deposit_safety_command('received', 100, 'deposit-safety-receipt')$$,
+  'Not authenticated', 'completed retry cannot bypass authentication');
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
+SELECT throws_matching($$SELECT public.record_lease_deposit_event_idempotent(
+  '00000000-0000-0000-0000-000000000002', (SELECT deposit_id FROM deposit_safety_state),
+  NULL, 'received', current_date, 100, 'deposit-safety-receipt', 'deposit-safety-receipt')$$,
+  'Not authorized', 'cross-organization deposit identity is rejected');
 
 UPDATE deposit_safety_state SET activation = public.transition_lease_lifecycle(
   '00000000-0000-0000-0000-000000000001', (creation ->> 'leaseId')::uuid,
@@ -90,5 +130,51 @@ SELECT throws_matching($$SELECT public.restore_lease('00000000-0000-0000-0000-00
   'checked relationship', 'deposit settlement does not bypass the checked restore boundary');
 SELECT has_function('public', 'record_lease_deposit_event_idempotent',
   ARRAY['uuid','uuid','uuid','text','date','numeric','text','text'], 'checked deposit command accepts an idempotency key');
+SELECT throws_matching($$SELECT pg_temp.deposit_safety_command('received', 1, 'deposit-safety-archived-receipt')$$,
+  'Not authorized|not found', 'archived Lease cannot accept a fresh receipt');
+SELECT throws_matching($$SELECT pg_temp.deposit_safety_command('retained', 1, 'deposit-safety-archived-retained')$$,
+  'Not authorized|not found', 'archived recovery is limited to cash refund');
+SELECT throws_matching($$SELECT pg_temp.deposit_safety_command('refunded', 1, 'deposit-safety-archived-over-refund')$$,
+  'exceeds held deposit balance', 'archived refund cannot exceed remaining custody');
+SELECT lives_ok($$SELECT public.reverse_lease_deposit_event(
+  '00000000-0000-0000-0000-000000000001',
+  (SELECT id FROM public.lease_deposit_events WHERE reference = 'deposit-safety-archived-refund'),
+  current_date, 'deposit-safety-refund-reversal')$$,
+  'mistaken archived refund can be corrected through the checked reversal command');
+SELECT is(pg_temp.deposit_safety_command('refunded', 50, 'deposit-safety-archived-refund'),
+  (SELECT id FROM public.lease_deposit_events WHERE reference = 'deposit-safety-archived-refund'),
+  'retry of a reversed refund returns its original event without reposting');
+SELECT lives_ok($$SELECT pg_temp.deposit_safety_command('refunded', 50, 'deposit-safety-corrected-refund')$$,
+  'corrected archived refund uses a fresh command identity');
+SELECT is((SELECT count(*) FROM public.ledger_entries reversal JOIN public.ledger_entries original
+  ON original.id = reversal.reversal_of_ledger_entry_id WHERE original.source_id = (
+    SELECT id FROM public.lease_deposit_events WHERE reference = 'deposit-safety-archived-refund')),
+  1::bigint, 'archived refund correction retains one linked Ledger reversal');
+SELECT is((SELECT count(DISTINCT liability_account_id) FROM public.lease_deposit_events
+  WHERE lease_deposit_id = (SELECT deposit_id FROM deposit_safety_state)),
+  1::bigint, 'refund correction preserves liability account identity');
+SELECT public.set_financial_month_lock('00000000-0000-0000-0000-000000000001',
+  date_trunc('month', current_date)::date, true, 'Deposit safety closed-month fixture');
+SELECT lives_ok($$SELECT pg_temp.deposit_safety_command('received', 100, 'deposit-safety-receipt')$$,
+  'lost-response receipt retry survives later archive and month close without cash writes');
+SELECT lives_ok($$SELECT pg_temp.deposit_safety_command('refunded', 50, 'deposit-safety-archived-refund')$$,
+  'completed archived refund retry survives later month close without cash writes');
+SELECT throws_matching($$SELECT pg_temp.deposit_safety_command('refunded', 1, 'deposit-safety-closed-refund')$$,
+  'Financial month is locked', 'fresh archived refund still respects a closed month');
+SELECT is((SELECT count(*) FROM public.activity_logs WHERE action = 'lease_deposit_event_recorded'
+  AND entity_id = (SELECT (creation ->> 'leaseId')::uuid FROM deposit_safety_state)),
+  4::bigint, 'each receipt/refund has one audit event and retries add none');
+SELECT is((SELECT count(*) FROM public.lease_deposit_events WHERE lease_deposit_id = (SELECT deposit_id FROM deposit_safety_state)),
+  5::bigint, 'rejections and post-close replays add no deposit events');
+SELECT ok(NOT has_function_privilege('anon',
+  'public.record_lease_deposit_event_idempotent(uuid,uuid,uuid,text,date,numeric,text,text)', 'EXECUTE')
+  AND NOT has_function_privilege('service_role',
+  'public.record_lease_deposit_event_idempotent(uuid,uuid,uuid,text,date,numeric,text,text)', 'EXECUTE'),
+  'new financial command does not grant anonymous or service-role execution');
+RESET ROLE;
+SELECT is((SELECT count(*) FROM app_private.financial_idempotency_requests
+  WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+    AND operation = 'record_lease_deposit_event' AND idempotency_key LIKE 'deposit-safety-%'),
+  4::bigint, 'rejected requests leave no persistent idempotency claims');
 SELECT * FROM finish();
 ROLLBACK;
