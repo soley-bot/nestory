@@ -9,13 +9,14 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import OwnersPage from "@/app/(dashboard)/owners/page";
 import PeoplePage from "@/app/(dashboard)/people/page";
 import StaffPage from "@/app/(dashboard)/staff/page";
 import TenantsPage from "@/app/(dashboard)/tenants/page";
 import VendorsPage from "@/app/(dashboard)/vendors/page";
 import { PeopleScreen } from "@/features/people/components/people-screen";
+import { DEFAULT_PEOPLE_PAGE_SIZE } from "@/features/people/people.filters";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
 import type {
   PeoplePagination,
@@ -89,7 +90,7 @@ vi.mock("@/lib/auth/context", () => ({
 const defaultViewQuery: PeopleViewQuery = {
   archiveState: "active",
   page: 1,
-  pageSize: 50,
+  pageSize: DEFAULT_PEOPLE_PAGE_SIZE,
   personId: null,
   query: "",
   role: "all",
@@ -101,6 +102,15 @@ const people = [
   makePerson("person-1", "Alice Tenant", "tenant"),
   makePerson("person-2", "Nora Owner", "owner"),
 ];
+
+beforeAll(() => {
+  Object.defineProperties(HTMLElement.prototype, {
+    hasPointerCapture: { configurable: true, value: () => false },
+    releasePointerCapture: { configurable: true, value: () => undefined },
+    scrollIntoView: { configurable: true, value: () => undefined },
+    setPointerCapture: { configurable: true, value: () => undefined },
+  });
+});
 
 beforeEach(() => {
   navigation.pathname = "/people";
@@ -212,7 +222,7 @@ describe("People route family redesign contract", () => {
 
   it("preserves role and search parameters in pagination links", () => {
     navigation.searchParams = new URLSearchParams(
-      "role=owner&query=Alice+Tenant&page=2",
+      "role=owner&query=Alice+Tenant&pageSize=50&page=2",
     );
     renderPeople({
       pagination: {
@@ -227,10 +237,63 @@ describe("People route family redesign contract", () => {
 
     expect(
       screen.getByRole("link", { name: "Previous" }).getAttribute("href"),
-    ).toBe("/people?role=owner&query=Alice+Tenant");
+    ).toBe("/people?role=owner&query=Alice+Tenant&pageSize=50");
     expect(
       screen.getByRole("link", { name: "Next" }).getAttribute("href"),
-    ).toBe("/people?role=owner&query=Alice+Tenant&page=3");
+    ).toBe("/people?role=owner&query=Alice+Tenant&pageSize=50&page=3");
+  });
+
+  it.each([25, 50, 100])("selects %i rows and resets the page while preserving the view", async (pageSize) => {
+    const user = userEvent.setup();
+    navigation.searchParams = new URLSearchParams(
+      "role=owner&query=Demo&archiveState=all&page=7",
+    );
+    renderPeople({
+      viewQuery: { ...defaultViewQuery, role: "owner", query: "Demo", archiveState: "all", page: 7 },
+    });
+
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
+    await user.click(screen.getByRole("combobox", { name: "Rows per page" }));
+    await user.click(screen.getByRole("option", { name: String(pageSize) }));
+
+    expect(navigation.replace).toHaveBeenLastCalledWith(
+      `/people?role=owner&query=Demo&archiveState=all&pageSize=${pageSize}`,
+      { scroll: false },
+    );
+  });
+
+  it("returns to 10 rows without a redundant page-size parameter or stale page", async () => {
+    const user = userEvent.setup();
+    navigation.searchParams = new URLSearchParams(
+      "role=owner&query=Demo&pageSize=50&page=3",
+    );
+    renderPeople({
+      viewQuery: { ...defaultViewQuery, role: "owner", query: "Demo", pageSize: 50, page: 3 },
+    });
+
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
+    await user.click(screen.getByRole("combobox", { name: "Rows per page" }));
+    await user.click(screen.getByRole("option", { name: "10" }));
+
+    expect(navigation.replace).toHaveBeenLastCalledWith(
+      "/people?role=owner&query=Demo", { scroll: false },
+    );
+  });
+
+  it("resets the page for a status filter and keeps the chosen larger page size", async () => {
+    const user = userEvent.setup();
+    navigation.searchParams = new URLSearchParams("role=owner&pageSize=25&page=4");
+    renderPeople({
+      viewQuery: { ...defaultViewQuery, role: "owner", pageSize: 25, page: 4 },
+    });
+
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
+    await user.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    await user.click(screen.getByRole("option", { name: "Missing contact" }));
+
+    expect(navigation.replace).toHaveBeenLastCalledWith(
+      "/people?role=owner&pageSize=25&status=missing_contact", { scroll: false },
+    );
   });
 
   it.each([1024, 390])(
@@ -615,7 +678,7 @@ function getPeopleScreen({
         pagination ?? {
           from: nextPeople.length > 0 ? 1 : 0,
           page: 1,
-          pageSize: 50,
+          pageSize: DEFAULT_PEOPLE_PAGE_SIZE,
           to: nextPeople.length,
           totalCount: nextPeople.length,
           totalPages: nextPeople.length > 0 ? 1 : 0,

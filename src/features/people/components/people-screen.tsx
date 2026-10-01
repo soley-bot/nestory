@@ -23,6 +23,7 @@ import { PersonForm } from "@/features/people/components/person-form";
 import { PeopleFilters } from "@/features/people/components/people-filters";
 import { PeopleTable } from "@/features/people/components/people-table";
 import { formatRole } from "@/features/people/people.labels";
+import { DEFAULT_PEOPLE_PAGE_SIZE } from "@/features/people/people.filters";
 import type {
   PeoplePagination,
   PeopleSummary,
@@ -391,7 +392,7 @@ function hasActivePeopleFilters(viewQuery: PeopleViewQuery) {
     viewQuery.status !== "all" ||
     viewQuery.archiveState !== "active" ||
     viewQuery.sort !== "name_asc" ||
-    viewQuery.pageSize !== 50
+    viewQuery.pageSize !== DEFAULT_PEOPLE_PAGE_SIZE
   );
 }
 

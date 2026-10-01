@@ -17,13 +17,19 @@ describe("parsePeopleSearchParams", () => {
     expect(parsePeopleSearchParams({})).toEqual({
       archiveState: DEFAULT_PEOPLE_ARCHIVE_STATE,
       page: 1,
-      pageSize: DEFAULT_PEOPLE_PAGE_SIZE,
+      pageSize: 10,
       personId: null,
       query: "",
       role: "all",
       sort: DEFAULT_PEOPLE_SORT,
       status: "all",
     });
+  });
+
+  it.each([10, 25, 50, 100])("preserves an explicit %i-row page size", (pageSize) => {
+    expect(
+      parsePeopleSearchParams({ pageSize: String(pageSize), page: "2" }),
+    ).toMatchObject({ page: 2, pageSize });
   });
 
   it("keeps valid filters and clamps unsafe values", () => {
