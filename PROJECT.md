@@ -6,8 +6,62 @@ leases, rent, paid costs, maintenance, documents, and operational history.
 
 This is the repository's durable product contract. Runtime code, database
 contracts, generated types, tests, and merged Git history take precedence when
-they disagree with it. Update this file in the same change whenever a durable
-product boundary changes.
+describing what is implemented. The product direction below guides future work;
+it does not grant permissions or make planned workflows available. Update this
+file in the same change whenever a durable product boundary changes.
+
+## Product Direction — Staff Workflow First
+
+Nestory should help property-management staff finish daily work quickly: find a
+property or tenant, prepare a lease, collect rent, correct a mistake, coordinate
+a repair, and explain an owner's activity. Use DoorLoop as a workflow reference,
+adapted to Nestory's operating model and customers. Improve complete tasks rather
+than pursuing feature parity or a visual copy.
+
+Prefer contextual actions, useful defaults, visible balances and effects, short
+forms, and an understandable correction history. Routine work should use the
+staff member's configured capability within their assigned scope. Reserve
+administrator involvement for governance and specifically privileged recovery,
+not as a default solution to every difficult workflow.
+
+Use little text and familiar language. Prefer clear labels and short actionable
+errors over accounting or implementation jargon, repeated explanations and
+instructional paragraphs. Reveal secondary help when it aids a decision.
+Keep accessible labels and meaningful distinctions such as charge versus
+payment, refund versus reversal, and live report versus saved statement.
+
+Product and presentation conventions are revisable. Replace an unnecessary
+restriction with a checked, auditable workflow; do not remove a server guard
+before its replacement is implemented and verified. Archive/restore, correction,
+reversal/replacement, and draft deletion have different effects and must use
+clear operator language. A blocked action must explain the dependency and offer
+the next authorized step when one exists.
+
+Load the visible work first. Fetch forms, history, media and secondary insights
+on intent or independently when appropriate. Any next-page prefetch must be
+bounded, cancelable, scope-keyed, and justified by measurements. Financial totals
+cover the complete selected scope through a separate aggregate; pagination must
+not turn them into page totals.
+
+Refactor as part of delivering these workflows: smaller cohesive feature
+modules, shared UI and validation for demonstrated reuse, clear server-loader
+and database-authority boundaries, consistent typed errors, and removal of
+confirmed duplication. Use focused before/after regressions. Avoid a big-bang
+rewrite, cosmetic churn, speculative abstractions, and more branching inside an
+already oversized Finance component. Keep behavior changes and refactors
+separate where practical. Do not add explanatory code comments.
+
+Organization/property isolation, authentication, checked permissions, exact
+money, source-linked audit and correction lineage, idempotency, stale/dependency
+checks, migration gates and protected release procedures remain mandatory.
+Existing closed-period rights, deposit policy, maker-checker requirements and
+other financial business decisions remain in force until specifically changed.
+
+The restriction matrix, architecture priorities, implementation phases and
+implemented-versus-planned register are in
+[Staff Workflow Product Direction](docs/product/staff-workflow-direction.md).
+That document and this section supersede conflicting product preferences in
+older design goals; historical specifications and evidence are retained.
 
 ## Product Boundary
 
@@ -52,8 +106,10 @@ are the authority for public and protected destinations.
 1. Property is the operating root. A `single_space` property is leased directly
    with `leases.unit_id = NULL`; a `multi_unit` property is leased through its
    Units. Nestory never creates a fake Unit for a whole-property lease.
-2. Super Admin creates a contextual lease with one authoritative `lease_terms`
-   record and explicit party and occupancy evidence.
+2. A user with the configured lease preparation permission creates a contextual
+   lease in authorized property scope with one authoritative `lease_terms`
+   record and explicit party and occupancy evidence. Activation and term changes
+   retain their separate checked permissions.
 3. An effective `lease_billing_terms` record owns the collection route,
    recipient, management fee, and the lease-owned billing rules used to
    generate rent. New leases do not depend on a global Rent policy.
@@ -72,6 +128,14 @@ allocation, receipt, owner-effect, Ledger-projection, and reversal contracts as
 generated rent. A manual base-rent charge cannot duplicate an existing
 Lease-month. Historical recovery creates only the selected completed month and
 never fills adjacent months automatically.
+
+An issued current-month rent invoice has an **Edit this month's rent** action
+for Super Admin and the authorized Finance Manager in assigned property scope.
+It requires a reason and checked balance preview, preserves prior payments and
+future recurring terms, and records correction lineage. Overpayment,
+owner-cash dependencies, locked or closed periods, stale previews and duplicate
+commands retain their checked safeguards. This capability does not grant
+general historical editing or closed-month reopening.
 
 ### Paid expense to approval to reversal
 
@@ -220,7 +284,7 @@ Documents and photos use private Storage buckets plus organization-scoped
 metadata. Upload, link, archive, and evidence access must remain rollback-safe.
 Documents referenced by expense history are immutable evidence.
 
-The operational report-builder catalog contains only:
+The currently implemented operational report-builder catalog contains:
 
 - Monthly Owner Activity
 - Unit Profit and Loss
@@ -236,7 +300,13 @@ publications but cannot close, reopen, or publish. A separate Management Fee
 Statement and any balance that requires invented opening authority remain
 unavailable.
 
-## Deliberate Limitations
+## Current Limitations And Pending Decisions
+
+These describe the current implementation, not permanent product prohibitions.
+Evaluate improvements against staff needs and the phased roadmap. Financial
+policy, currency, access, external services and durable automation require their
+own explicit decisions and implementation evidence; this direction does not
+silently enable them.
 
 - The database currency enum currently supports USD only.
 - Human-entered expenses are costs the company already paid. Unpaid vendor
@@ -271,8 +341,11 @@ reconciliation source merely to populate a screen or export.
 - Direct browser writes never replace an RPC-owned workflow.
 - Direct table DML is revoked for protected financial and history records.
 - Public and anonymous function execution is revoked unless explicitly needed.
-- Archive/restore is the normal record lifecycle. Hard deletion requires an
-  explicit product decision.
+- Archive/restore remains the normal lifecycle for established records. Design
+  audited deletion for unused drafts as a separate workflow with a checked
+  dependency/retention boundary. Financial or referenced evidence is corrected,
+  voided, reversed or superseded through its source workflow, not erased. No new
+  hard-delete capability is enabled by this document.
 - Preserve source identity, evidence, activity, correction or reversal lineage,
   and idempotency across every material write.
 - Store money in exact database numeric values with explicit currency. Do not
@@ -297,8 +370,9 @@ Authenticated Nestory is quiet, neutral, dense operating software:
 - Dashboard cash flow shows actual Ledger activity only. Contractual expected
   rent is a separate labeled view, and a period with no Ledger activity shows
   an empty state rather than a zero-valued chart.
-- Keep one visible workspace title/action composition and one dominant work
-  surface. Use no more than one secondary controls row below it.
+- Prefer one visible workspace title/action composition and one dominant work
+  surface. A second controls row or comparison surface is acceptable when a
+  demonstrated staff task needs it and keyboard, zoom and hierarchy remain clear.
 - Keep primary search visible. Disclose advanced URL-backed filters instead of
   giving every filter permanent visual weight.
 - Top-level Properties, People, Maintenance, Finance work, Timeline, Documents,
@@ -311,9 +385,10 @@ Authenticated Nestory is quiet, neutral, dense operating software:
   accessible selection state. Avoid nested decorative card shells.
 - Keep primary records and common actions early in the viewport. Desktop
   workspaces use the remaining viewport height and internal scrolling.
-- Do not reserve a persistent side inspector beside operational tables. Where a
-  quick view exists, row click or Enter opens it with managed focus. Otherwise
-  use an explicit record link and do not make a passive row appear interactive.
+- Prefer an on-demand inspector beside operational tables. A persistent
+  comparison panel may be used when workflow evidence supports it. Where a quick
+  view exists, row click or Enter opens it with managed focus. Otherwise use an
+  explicit record link and do not make a passive row appear interactive.
 - Use shared drawers for focused create, edit, archive, restore, and upload work.
 - Keep one global `Search or jump` surface. Results stay server-scoped and raw
   UUIDs remain out of ordinary operator labels.
@@ -358,7 +433,7 @@ overflow. Serious accessibility failures block UI readiness.
 
 ## Technology And Repository Shape
 
-- Next.js 16.2.9 App Router and React 19
+- Next.js 16.3.8 App Router and React 19
 - TypeScript, Tailwind CSS 4, Zod 4, and shadcn/Radix UI primitives
 - Supabase Auth, PostgreSQL, RLS, RPCs, private Storage, and Cron
 - Vitest, Testing Library, Playwright, ESLint, TypeScript, and pgTAP
@@ -389,14 +464,16 @@ Use Node.js 24:
 ```powershell
 npm ci
 npm run supabase:start
-npm run db:reset
-npm run db:test:fixture
 npm run dev
 ```
 
-Normal local resets contain no business records. `npm run db:test:fixture`
-loads the guarded disposable five-role fixture documented at the top of
-`supabase/test-fixtures/baseline.sql`.
+Starting an existing local instance does not prove it is disposable. Do not
+reset or load fixtures into a shared or unverified database. For a new isolated
+disposable instance, verify the target, contents and port/project separation
+before following `npm run db:reset` and `npm run db:test:fixture`. The latter
+loads the guarded five-role fixture documented at the top of
+`supabase/test-fixtures/baseline.sql`. Use disposable CI or read-only/synthetic
+checks when the existing local database must be preserved.
 
 The guarded local fixture contains one organization, five fixed-role logins,
 four properties (three operating stories and one isolated owner-close story),
@@ -437,8 +514,10 @@ intended.
 ## Verification And Release Boundary
 
 Use the smallest check that proves a change, then expand according to blast
-radius. Database work requires an empty local reset, fixture load, generated
-types, schema lint, pgTAP, and the applicable concurrency harnesses. Auth,
+radius. Database work requires empty-database reproduction and fixture checks
+in an isolated disposable local or CI instance, generated types, schema lint,
+pgTAP, and the applicable concurrency harnesses. It never requires resetting
+an existing shared database. Auth,
 layout, upload, import, maintenance, and report changes also require a real
 local browser smoke with disposable credentials.
 
