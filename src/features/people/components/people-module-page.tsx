@@ -1,6 +1,9 @@
 import { Suspense } from "react";
+import * as Sentry from "@sentry/nextjs";
+import { unstable_rethrow } from "next/navigation";
 import { PeopleScreen } from "@/features/people/components/people-screen";
 import { PeopleScreenSkeleton } from "@/features/people/components/people-screen-skeleton";
+import { PeopleCommandCenter } from "@/features/people/components/people-command-center";
 import { getAccessByPersonId } from "@/features/organization/data";
 import { getPeopleInsightsData } from "@/features/people/data/people-insights";
 import { getPeopleScreenData } from "@/features/people/data/people";
@@ -43,12 +46,10 @@ export async function PeopleModulePageContent({
   const viewQuery = parsePeopleSearchParams(
     config.role ? { ...params, role: config.role } : params,
   );
-  const [{ pagination, people }, insights] = await Promise.all([
-    getPeopleScreenData(context.organizationId, viewQuery),
-    config.showInsights
-      ? getPeopleInsightsData(context.organizationId)
-      : Promise.resolve(undefined),
-  ]);
+  const { pagination, people } = await getPeopleScreenData(
+    context.organizationId,
+    viewQuery,
+  );
   const initialPersonId = viewQuery.personId ?? undefined;
   const activeStaffIds = people.flatMap((person) =>
     !person.isArchived &&
@@ -72,7 +73,13 @@ export async function PeopleModulePageContent({
       }
       createRole={config.createRole}
       initialPersonId={initialPersonId}
-      insights={insights}
+      insightsAction={
+        config.showInsights ? (
+          <Suspense fallback={<PeopleInsightsActionFallback />}>
+            <PeopleInsightsAction organizationId={context.organizationId} />
+          </Suspense>
+        ) : undefined
+      }
       key={initialPersonId ?? config.role ?? "people"}
       lockedRole={config.role}
       pagination={pagination}
@@ -80,6 +87,35 @@ export async function PeopleModulePageContent({
       searchPlaceholder={config.searchPlaceholder}
       title={config.title}
       viewQuery={viewQuery}
+    />
+  );
+}
+
+export async function PeopleInsightsAction({
+  organizationId,
+}: {
+  organizationId: string;
+}) {
+  let insights: Awaited<ReturnType<typeof getPeopleInsightsData>>;
+  try {
+    insights = await getPeopleInsightsData(organizationId);
+  } catch (error) {
+    unstable_rethrow(error);
+    Sentry.captureException(error, {
+      tags: { route: "/people", handled: "true" },
+    });
+    return null;
+  }
+
+  return <PeopleCommandCenter insights={insights} />;
+}
+
+function PeopleInsightsActionFallback() {
+  return (
+    <span
+      aria-label="Loading people insights"
+      className="h-8 w-24 animate-pulse rounded-md bg-muted"
+      role="status"
     />
   );
 }
