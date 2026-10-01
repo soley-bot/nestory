@@ -114,14 +114,22 @@ afterEach(() => {
 });
 
 describe("PropertyScreen redesign contract", () => {
+  it("reverses the net sort when clicked twice before a response arrives", () => {
+    renderProperties();
+    const sort = screen.getByRole("button", { name: "Sort properties by net" });
+    fireEvent.click(sort);
+    fireEvent.click(sort);
+    expect(navigation.replace).toHaveBeenLastCalledWith("/properties?sort=net_asc", { scroll: false });
+  });
+
   it("applies a rapid filter reversal before the first response arrives", async () => {
     const user = userEvent.setup();
     renderProperties();
     await user.click(screen.getByRole("button", { name: "Filters" }));
-    await user.click(screen.getByRole("combobox", { name: "Filter by status", exact: true }));
-    await user.click(screen.getByRole("option", { name: "Inactive", exact: true }));
-    await user.click(screen.getByRole("combobox", { name: "Filter by status", exact: true }));
-    await user.click(screen.getByRole("option", { name: "All statuses", exact: true }));
+    await user.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    await user.click(screen.getByRole("option", { name: "Inactive" }));
+    await user.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    await user.click(screen.getByRole("option", { name: "All statuses" }));
     expect(navigation.replace).toHaveBeenLastCalledWith("/properties", { scroll: false });
   });
 

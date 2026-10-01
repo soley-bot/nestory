@@ -199,6 +199,11 @@ export function PropertyScreen({
           <div className="min-h-0 flex-1">
             <PropertiesTable
               displayMode={displayMode}
+              onNetSortChange={() => navigation.replaceParam(
+                "sort",
+                (sort) => sort === "net_desc" ? "net_asc" : "net_desc",
+                DEFAULT_PROPERTY_SORT,
+              )}
               onOpenProperty={openPropertyRecord}
               onSortChange={changeSort}
               properties={properties}

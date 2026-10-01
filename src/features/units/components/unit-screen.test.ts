@@ -93,10 +93,10 @@ describe("UnitScreen redesign contract", () => {
     const user = userEvent.setup();
     renderUnits();
     await user.click(screen.getByRole("button", { name: "Filters" }));
-    await user.click(screen.getByRole("combobox", { name: "Filter by operational state", exact: true }));
-    await user.click(screen.getByRole("option", { name: "Vacant", exact: true }));
-    await user.click(screen.getByRole("combobox", { name: "Filter by operational state", exact: true }));
-    await user.click(screen.getByRole("option", { name: "All states", exact: true }));
+    await user.click(screen.getByRole("combobox", { name: "Filter by operational state" }));
+    await user.click(screen.getByRole("option", { name: "Vacant" }));
+    await user.click(screen.getByRole("combobox", { name: "Filter by operational state" }));
+    await user.click(screen.getByRole("option", { name: "All states" }));
     expect(navigation.replace).toHaveBeenLastCalledWith("/units", { scroll: false });
   });
 

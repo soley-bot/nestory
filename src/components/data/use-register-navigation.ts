@@ -52,13 +52,16 @@ export function useRegisterNavigation(appliedQuery: string) {
     synchronizeCommitted();
   }, [committed]);
 
-  function replaceParam(name: string, value: string, defaultValue: string) {
+  function replaceParam(name: string, value: string | ((current: string) => string), defaultValue: string) {
     const current = synchronize();
     const nextParams = new URLSearchParams(current.query);
-    if (value === defaultValue || value.trim() === "") {
+    const nextValue = typeof value === "function"
+      ? value(nextParams.get(name) ?? defaultValue)
+      : value;
+    if (nextValue === defaultValue || nextValue.trim() === "") {
       nextParams.delete(name);
     } else {
-      nextParams.set(name, value);
+      nextParams.set(name, nextValue);
     }
     if (name !== "view") {
       nextParams.delete("page");
