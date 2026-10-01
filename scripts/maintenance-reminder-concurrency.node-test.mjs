@@ -122,6 +122,35 @@ test("concurrent scheduler retries generate and deliver one advance occurrence",
 });
 
 for (const release of ["COMMIT", "ROLLBACK"]) {
+  test(`a locked recurrence revision is skipped and ${release.toLowerCase()} controls the next reminder boundary`, async () => {
+    const taskId = createTask("monthly");
+    run(`UPDATE public.notification_outbox SET status='cancelled' WHERE task_id='${taskId}';`);
+    const seriesId = run(`SELECT recurrence_series_id FROM public.tasks WHERE id='${taskId}';`);
+    const first = session(transaction(`UPDATE public.maintenance_recurrence_revisions
+      SET reminder_offset_minutes=0 WHERE series_id='${seriesId}' AND superseded_at IS NULL;
+      SELECT 'maintenance_revision_held';`));
+    let second;
+    try {
+      await waitUntil(() => first.stdout.includes("maintenance_revision_held"), "recurrence revision update", first);
+      second = session(transaction(automation + " SELECT 'maintenance_revision_skipped';"));
+      await waitUntil(() => second.stdout.includes("maintenance_revision_skipped"), "nonblocking recurrence skip", second);
+      const skipped = await finish(second);
+      assert.match(skipped.stdout, /"generated": 0/);
+      assert.match(skipped.stdout, /"delivered": 0/);
+      await finish(first, release);
+      const retried = JSON.parse(run(automation));
+      assert.equal(retried.generated, release === "COMMIT" ? 0 : 1);
+      assert.equal(retried.delivered, release === "COMMIT" ? 0 : 1);
+      assert.equal(run(`SELECT count(*) FROM public.tasks WHERE recurrence_series_id='${seriesId}'
+        AND recurrence_occurrence_at='2039-02-15 02:00+00';`), release === "COMMIT" ? "0" : "1");
+    } finally {
+      await cleanup(first, second);
+      run(`UPDATE public.maintenance_recurrence_series SET lifecycle='paused' WHERE id='${seriesId}';`);
+    }
+  });
+}
+
+for (const release of ["COMMIT", "ROLLBACK"]) {
   test(`a locked cancellation is skipped and ${release.toLowerCase()} is revalidated on retry`, async () => {
     const id = createTask();
     const first = session(transaction(`UPDATE public.tasks SET status='cancelled' WHERE id='${id}';

@@ -208,6 +208,17 @@ SELECT is(current_setting('DateStyle'), 'SQL, DMY',
 SET LOCAL timezone TO 'UTC';
 SET LOCAL datestyle TO 'ISO, YMD';
 
+UPDATE public.notification_outbox
+SET event_key = 'maintenance-reminder-v1:' || task_id::text || ':14/02/2035 16:00:00 +07'
+WHERE task_id = (SELECT id FROM lifecycle_tasks WHERE title = 'Retry fixture');
+UPDATE public.tasks SET title = 'Delivered reminder with legacy session identity'
+WHERE id = (SELECT id FROM lifecycle_tasks WHERE title = 'Retry fixture');
+SELECT is((SELECT count(*)::integer FROM public.notification_outbox WHERE task_id =
+  (SELECT id FROM lifecycle_tasks WHERE title = 'Retry fixture')),
+  1, 'an existing non-UTC event identity is reused without rewriting delivery history');
+SELECT is((public.run_maintenance_automation('2035-02-14 10:00+00', 100)->>'delivered')::integer,
+  0, 'legacy session formatting cannot replay an already delivered reminder');
+
 UPDATE public.notification_outbox SET status = 'retry', next_attempt_at = '2035-02-14 11:00+00'
 WHERE task_id = (SELECT id FROM lifecycle_tasks WHERE title = 'Cancel fixture');
 UPDATE public.tasks SET reminder_date = NULL, reminder_time = NULL
@@ -294,6 +305,23 @@ SELECT results_eq(
              '2032-03-13 13:00+00'::timestamptz) $$,
   'local task dates and UTC reminder delivery remain coherent across DST'
 );
+UPDATE public.maintenance_recurrence_series SET lifecycle = 'paused';
+
+CREATE TEMP TABLE dst_fold_series AS
+SELECT pg_temp.reminder_series('America/New_York', '2032-11-07 07:30+00',
+  '2032-11-07 07:30+00', 120) AS id;
+SELECT is((public.run_maintenance_automation('2032-11-07 05:29:59+00', 10)->>'generated')::integer,
+  0, 'an autumn DST reminder waits for its exact instant before the repeated hour');
+SELECT is((public.run_maintenance_automation('2032-11-07 05:30+00', 10)->>'delivered')::integer,
+  1, 'an autumn DST reminder delivers in the first repeated hour rather than an hour late');
+SELECT is((SELECT scheduled_for FROM public.notification_outbox AS outbox
+  JOIN public.tasks AS task ON task.id = outbox.task_id
+  WHERE task.recurrence_series_id = (SELECT id FROM dst_fold_series)),
+  '2032-11-07 05:30+00'::timestamptz, 'the recurrence retains its exact elapsed-minute reminder instant');
+UPDATE public.tasks SET title = 'DST fold reminder edited'
+WHERE recurrence_series_id = (SELECT id FROM dst_fold_series);
+SELECT is((public.run_maintenance_automation('2032-11-07 06:30+00', 10)->>'delivered')::integer,
+  0, 'replaying the second repeated hour cannot duplicate the first delivery');
 UPDATE public.maintenance_recurrence_series SET lifecycle = 'paused';
 
 CREATE TEMP TABLE effective_series AS

@@ -3,18 +3,24 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path TO ''
+SET timezone TO 'UTC'
+SET datestyle TO 'ISO, YMD'
 AS $$
 DECLARE
   v_timezone text;
   v_scheduled_for timestamptz;
+  v_occurrence_reminder_at timestamptz;
   v_event_key text;
   v_actionable boolean := NEW.reminder_date IS NOT NULL
     AND NEW.archived_at IS NULL
     AND NEW.status IN ('pending', 'scheduled', 'in_progress', 'blocked');
 BEGIN
   IF v_actionable THEN
-    SELECT coalesce(revision.timezone, organization.operational_timezone)
-    INTO STRICT v_timezone
+    SELECT coalesce(revision.timezone, organization.operational_timezone),
+      NEW.recurrence_occurrence_at - pg_catalog.make_interval(
+        mins => revision.reminder_offset_minutes
+      )
+    INTO STRICT v_timezone, v_occurrence_reminder_at
     FROM public.organizations AS organization
     LEFT JOIN public.maintenance_recurrence_revisions AS revision
       ON revision.organization_id = NEW.organization_id
@@ -23,9 +29,21 @@ BEGIN
     v_scheduled_for := (
       NEW.reminder_date + coalesce(NEW.reminder_time, '00:00'::time)
     ) AT TIME ZONE v_timezone;
-    v_event_key := pg_catalog.concat_ws(
+    IF pg_catalog.timezone(v_timezone, v_occurrence_reminder_at) =
+      NEW.reminder_date + coalesce(NEW.reminder_time, '00:00'::time) THEN
+      v_scheduled_for := v_occurrence_reminder_at;
+    END IF;
+    SELECT outbox.event_key INTO v_event_key
+    FROM public.notification_outbox AS outbox
+    WHERE outbox.organization_id = NEW.organization_id
+      AND outbox.task_id = NEW.id
+      AND outbox.event_type = 'maintenance_reminder'
+      AND outbox.scheduled_for = v_scheduled_for
+    ORDER BY (outbox.status = 'delivered') DESC, outbox.created_at, outbox.id
+    LIMIT 1;
+    v_event_key := coalesce(v_event_key, pg_catalog.concat_ws(
       ':', 'maintenance-reminder-v1', NEW.id, v_scheduled_for
-    );
+    ));
   END IF;
 
   UPDATE public.notification_outbox
@@ -99,6 +117,7 @@ DECLARE
   v_task record;
   v_timezone text;
   v_scheduled_for timestamptz;
+  v_occurrence_reminder_at timestamptz;
   v_examined integer := 0;
   v_processed integer := 0;
 BEGIN
@@ -258,8 +277,11 @@ BEGIN
     FOR UPDATE OF task SKIP LOCKED
     LIMIT p_limit
   LOOP
-    SELECT coalesce(revision.timezone, organization.operational_timezone)
-    INTO STRICT v_timezone
+    SELECT coalesce(revision.timezone, organization.operational_timezone),
+      v_task.recurrence_occurrence_at - pg_catalog.make_interval(
+        mins => revision.reminder_offset_minutes
+      )
+    INTO STRICT v_timezone, v_occurrence_reminder_at
     FROM public.organizations AS organization
     LEFT JOIN public.maintenance_recurrence_revisions AS revision
       ON revision.organization_id = v_task.organization_id
@@ -268,6 +290,10 @@ BEGIN
     v_scheduled_for := (
       v_task.reminder_date + coalesce(v_task.reminder_time, '00:00'::time)
     ) AT TIME ZONE v_timezone;
+    IF pg_catalog.timezone(v_timezone, v_occurrence_reminder_at) =
+      v_task.reminder_date + coalesce(v_task.reminder_time, '00:00'::time) THEN
+      v_scheduled_for := v_occurrence_reminder_at;
+    END IF;
 
     FOR v_outbox IN
       SELECT outbox.*
