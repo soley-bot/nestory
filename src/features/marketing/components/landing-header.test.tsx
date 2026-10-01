@@ -16,6 +16,7 @@ beforeEach(() => {
     return frameId;
   });
   vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
+  vi.stubGlobal("scrollTo", vi.fn());
   vi.stubGlobal("matchMedia", () => ({
     matches: false,
     addEventListener: vi.fn(),
@@ -58,6 +59,21 @@ describe("LandingHeader", () => {
     runFrames();
     expect(document.activeElement).toBe(operations);
     expect(operations.scrollIntoView).toHaveBeenCalledWith({ block: "start", behavior: "instant" });
+  });
+
+  it("returns focus to the menu when history restores the hero", () => {
+    window.history.replaceState(null, "", "/#workspace");
+    renderSections();
+    runFrames();
+    act(() => {
+      window.history.replaceState(null, "", "/");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    runFrames();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Open menu" }));
+    expect(window.scrollTo).toHaveBeenCalledWith({ left: 0, top: 0, behavior: "instant" });
+    expect(frames.size).toBe(0);
   });
 
   it.each(["Workspace", "Operations"])("scrolls and focuses %s after the menu closes", async (label) => {

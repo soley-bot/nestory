@@ -5,7 +5,7 @@ Verified on 2026-10-01 in an isolated local checkout. These are local previews, 
 ## Changes
 
 - Workspace and Operations scroll and receive keyboard focus after the menu finishes closing. Reopening, unmounting, or changing history cancels stale navigation. Repeat links avoid duplicate history entries. Cross-page section links and direct hashes receive focus too.
-- Escape and Close preserve ordinary dialog focus restoration. The menu scrolls on short screens without overlapping the header.
+- Escape and Close preserve ordinary dialog focus restoration. Back to the hero returns focus to the menu button without overriding the browser's restored scroll position. The menu scrolls on short screens without overlapping the header.
 - The landing page and request introduction use shorter, concrete copy. The dashboard preview is labeled as sample data. The phone request form starts within the first screen, instead of below a long introduction.
 - Public forms retain entered details and the selected unit range after a rejected submission. Invalid fields or the save error receive focus. Pending submissions are locked. Navigating between demo and information URLs selects the correct intent.
 - The confirmation no longer claims a follow-up has been queued. Demo scheduling and account setup are explicitly separate. The existing validation, rate limiter, honeypot behavior, and database command are unchanged.
@@ -16,7 +16,7 @@ The earlier live audit reported a changed hash with the viewport left at the her
 
 Local verification passed:
 
-- `npx vitest run src/features/marketing src/app/request/page.test.tsx`: 6 files, 34 tests.
+- `npx vitest run src/features/marketing src/app/request/page.test.tsx`: 6 files, 35 tests.
 - `npx tsc --noEmit` and `npm run lint`.
 - Repository secret scan and `git diff --check`.
 - Chromium at 1440×1000, 390×844, and 667×320: section viewport/focus, keyboard activation, Escape, repeated hash, Back/Forward, history while the menu is open, reduced motion, short-screen scrolling, and section links from the request page.

@@ -35,6 +35,7 @@ export function LandingHeader({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const menuOpen = useRef(false);
+  const menuTrigger = useRef<HTMLButtonElement>(null);
   const dialogPresent = useRef(false);
   const pendingSection = useRef<SectionNavigation | null>(null);
   const scrollFrame = useRef<number | null>(null);
@@ -47,19 +48,24 @@ export function LandingHeader({
     scrollFrame.current = requestAnimationFrame(() => {
       scrollFrame.current = null;
       if (menuOpen.current || window.location.href !== navigation.fromUrl) return;
-      const target = document.getElementById(navigation.hash.slice(1));
+      const target = navigation.hash
+        ? document.getElementById(navigation.hash.slice(1))
+        : menuTrigger.current;
       if (!target) return;
       if (navigation.href && window.location.hash !== navigation.hash) {
         window.history.pushState(null, "", navigation.href);
       }
       target.focus({ preventScroll: true });
-      target.scrollIntoView({ block: "start", behavior: navigation.behavior });
+      if (navigation.hash) {
+        target.scrollIntoView({ block: "start", behavior: navigation.behavior });
+      }
     });
   }, [cancelScroll]);
 
   useEffect(() => {
     function handleHistory() {
       cancelScroll();
+      window.scrollTo({ left: window.scrollX, top: window.scrollY, behavior: "instant" });
       const hash = window.location.hash;
       const hasTarget = ["#workspace", "#operations"].includes(hash)
         && document.getElementById(hash.slice(1));
@@ -72,6 +78,8 @@ export function LandingHeader({
         };
         if (dialogPresent.current) pendingSection.current = navigation;
         else scrollToSection(navigation);
+      } else if (!hash && window.location.pathname === "/" && !dialogPresent.current) {
+        scrollToSection({ hash, fromUrl: window.location.href, behavior: "instant" });
       }
       menuOpen.current = false;
       setIsOpen(false);
@@ -164,6 +172,7 @@ export function LandingHeader({
               <Button
                 aria-label="Open menu"
                 className={quietControlClass}
+                ref={menuTrigger}
                 size="icon"
                 variant="ghost"
               >
