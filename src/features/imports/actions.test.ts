@@ -398,6 +398,63 @@ describe("stageImportRunAction", () => {
     });
   });
 
+  it("revalidates ambiguous person identity on the server before staging", async () => {
+    const client = atomicStageClient(importRunRecord("staged", { blocked: 1, ready: 0 }));
+    mocks.createSupabaseServerClient.mockResolvedValue(client.value);
+    mocks.getImportReferenceData.mockResolvedValue({
+      leaseOccupancies: [], properties: [], units: [],
+      people: ["first", "second"].map((email, index) => ({
+        displayName: "Same Name", id: `person-${index}`, label: `Same Name (${email}@example.com)`,
+        primaryEmail: `${email}@example.com`, roles: ["tenant"],
+      })),
+    });
+    const formData = importPayloadForm("people-draft");
+    const payload = JSON.parse(String(formData.get("payload")));
+    formData.set("payload", JSON.stringify({
+      ...payload, importType: "people", headers: ["Display Name", "Roles"],
+      mapping: { displayName: "Display Name", roles: "Roles" },
+      records: [{ raw: { "Display Name": "Same Name", Roles: "tenant" }, rowNumber: 2 }],
+      normalizedData: { existingPersonId: "person-0" },
+    }));
+
+    await stageImportRunAction({}, formData);
+
+    expect(client.rpc.mock.calls[0][1].p_rows[0]).toMatchObject({
+      action_label: "Needs review", row_status: "error",
+      normalized_data: { existingPersonId: null },
+    });
+  });
+
+  it("stages unmapped fields as absent and mapped blanks as explicit clears", async () => {
+    const client = atomicStageClient(importRunRecord("staged", { warnings: 1 }));
+    mocks.createSupabaseServerClient.mockResolvedValue(client.value);
+    mocks.getImportReferenceData.mockResolvedValue({
+      leaseOccupancies: [], properties: [], units: [],
+      people: [{
+        displayName: "Company", id: "person-1", label: "Company (company@example.com)",
+        primaryEmail: "company@example.com", roles: ["tenant"],
+      }],
+    });
+    const formData = importPayloadForm("people-draft");
+    const payload = JSON.parse(String(formData.get("payload")));
+    formData.set("payload", JSON.stringify({
+      ...payload, importType: "people", headers: ["Display Name", "Roles", "Phone"],
+      mapping: { displayName: "Display Name", roles: "Roles", primaryPhone: "Phone" },
+      records: [{ raw: { "Display Name": "Company", Roles: "tenant", Phone: "" }, rowNumber: 2 }],
+    }));
+
+    await stageImportRunAction({}, formData);
+
+    const stagedRow = client.rpc.mock.calls[0][1].p_rows[0];
+    expect(stagedRow).toMatchObject({
+      action_label: "Update", row_status: "warning",
+      normalized_data: { existingPersonId: "person-1", primaryPhone: null },
+    });
+    expect(stagedRow.normalized_data).not.toHaveProperty("partyType");
+    expect(stagedRow.normalized_data).not.toHaveProperty("primaryEmail");
+    expect(stagedRow.normalized_data).not.toHaveProperty("legalName");
+  });
+
   it("stages only through the atomic RPC and returns its stored immutable summary", async () => {
     const stagedRun = importRunRecord("staged", {
       sourceFileName: "original-properties.csv",

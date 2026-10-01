@@ -403,6 +403,15 @@ export function ImportPreviewScreen({
               </div>
             </details>
 
+            {selectedType === "people" ? (
+              <p className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
+                Unmapped optional fields keep existing values. Mapped blank email,
+                phone, legal name, tax ID, and notes clear existing values. Blank
+                party type keeps the existing type; new people default to Individual.
+                Use Person ID to select a person when names or emails are shared.
+              </p>
+            ) : null}
+
             <div
               aria-label="Import preview rows"
               className="max-w-full overflow-x-auto"

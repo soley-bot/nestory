@@ -43,6 +43,7 @@ export const importTypeConfigs: Record<ImportType, ImportTypeConfig> = {
       { key: "property", label: "Property", required: true },
       { key: "unitNumber", label: "Unit no.", required: true },
       { key: "tenantEmail", label: "Tenant email" },
+      { key: "tenantPersonId", label: "Tenant person ID" },
       { key: "tenantName", label: "Tenant name", required: true },
       { key: "leaseStartDate", label: "Start date", required: true },
       { key: "leaseEndDate", label: "End date", required: true },
@@ -102,6 +103,7 @@ export const importTypeConfigs: Record<ImportType, ImportTypeConfig> = {
     description:
       "Bring in tenants, owners, vendors, and staff before linking leases.",
     fields: [
+      { key: "personId", label: "Person ID" },
       { key: "displayName", label: "Display name", required: true },
       { key: "roles", label: "Roles", required: true },
       { key: "partyType", label: "Party type" },
@@ -209,6 +211,7 @@ const fieldCandidates: Record<ImportType, Record<string, string[]>> = {
     status: ["status", "leasestatus"],
     tenantEmail: ["tenantemail", "email"],
     tenantName: ["tenant", "tenantname", "name"],
+    tenantPersonId: ["tenantpersonid", "tenantid", "personid"],
     termStatus: ["termstatus", "renttermstatus"],
     unitNumber: ["unit", "unitno", "unitnumber", "room"],
   },
@@ -217,6 +220,7 @@ const fieldCandidates: Record<ImportType, Record<string, string[]>> = {
     legalName: ["legalname", "registeredname"],
     notes: ["notes", "note", "remark", "remarks"],
     partyType: ["partytype", "type", "persontype"],
+    personId: ["personid", "existingpersonid"],
     primaryEmail: ["email", "primaryemail"],
     primaryPhone: ["phone", "primaryphone", "mobile"],
     roles: ["roles", "role"],
@@ -689,9 +693,10 @@ function duplicateKeyForRow(
   }
 
   if (type === "people") {
+    const personId = normalizeLookup(String(row.normalizedData.existingPersonId ?? ""));
     const email = normalizeLookup(String(row.normalizedData.primaryEmail ?? ""));
 
-    return email || normalizeLookup(String(row.normalizedData.displayName ?? ""));
+    return personId || email || normalizeLookup(String(row.normalizedData.displayName ?? ""));
   }
 
   return [
@@ -784,10 +789,18 @@ function buildPeoplePreviewRow({
   const displayName = readMappedValue(record.raw, mapping.displayName);
   const roles = parseRoles(readMappedValue(record.raw, mapping.roles));
   const primaryEmail = readMappedValue(record.raw, mapping.primaryEmail);
-  const partyType =
-    normalizePartyType(readMappedValue(record.raw, mapping.partyType)) ??
-    "individual";
-  const existing = findPerson(referenceData, primaryEmail, displayName);
+  const partyTypeValue = readMappedValue(record.raw, mapping.partyType);
+  const partyType = normalizePartyType(partyTypeValue);
+  const personMatch = findPerson({
+    displayName,
+    email: primaryEmail,
+    personId: readMappedValue(record.raw, mapping.personId),
+    personIdLabel: "Person ID",
+    referenceData,
+  });
+  const existing = personMatch.person;
+
+  if (personMatch.issue) issues.push(personMatch.issue);
 
   requireValue(issues, mapping.displayName, displayName, "Display name");
   requireValue(issues, mapping.roles, roles.join(","), "Roles");
@@ -796,11 +809,37 @@ function buildPeoplePreviewRow({
     issues.push({ level: "error", message: "Email is not valid." });
   }
 
+  if (partyTypeValue && !partyType) {
+    issues.push({ level: "error", message: "Party type must be individual or company." });
+  }
+
   if (roles.length === 0) {
     issues.push({
       level: "error",
       message: "Roles must include tenant, owner, vendor, or staff.",
     });
+  }
+
+  const optionalFields: Record<string, unknown> = {};
+  const clearedFields: string[] = [];
+
+  for (const field of importTypeConfigs.people.fields) {
+    if (!["primaryEmail", "primaryPhone", "legalName", "taxIdentifier", "notes"].includes(field.key)) continue;
+    if (!mapping[field.key]) continue;
+
+    const value = readMappedValue(record.raw, mapping[field.key]);
+    optionalFields[field.key] = value || null;
+    if (existing && !value) clearedFields.push(field.label);
+  }
+
+  if (partyTypeValue || !existing) {
+    optionalFields.partyType = partyType ?? "individual";
+  } else if (mapping.partyType) {
+    issues.push({ level: "warning", message: "Blank party type keeps the existing type." });
+  }
+
+  if (clearedFields.length > 0) {
+    issues.push({ level: "warning", message: `Will clear: ${clearedFields.join(", ")}.` });
   }
 
   return {
@@ -814,13 +853,8 @@ function buildPeoplePreviewRow({
     normalizedData: {
       displayName,
       existingPersonId: existing?.id ?? null,
-      legalName: readMappedValue(record.raw, mapping.legalName) || null,
-      notes: readMappedValue(record.raw, mapping.notes) || null,
-      partyType,
-      primaryEmail: primaryEmail || null,
-      primaryPhone: readMappedValue(record.raw, mapping.primaryPhone) || null,
       roles,
-      taxIdentifier: readMappedValue(record.raw, mapping.taxIdentifier) || null,
+      ...optionalFields,
     },
     primaryLabel: displayName || "Not mapped",
     raw: record.raw,
@@ -853,7 +887,24 @@ function buildLeasePreviewRow({
     : undefined;
   const tenantEmail = readMappedValue(record.raw, mapping.tenantEmail);
   const tenantName = readMappedValue(record.raw, mapping.tenantName);
-  const tenant = findPerson(referenceData, tenantEmail, tenantName);
+  const tenantPersonId = readMappedValue(record.raw, mapping.tenantPersonId);
+  const tenantMatch = findPerson({
+    displayName: tenantName,
+    email: tenantEmail,
+    personId: tenantPersonId,
+    personIdLabel: "Tenant person ID",
+    referenceData,
+  });
+  const conflictingTenantEmail = Boolean(
+    tenantPersonId && tenantEmail && tenantMatch.person &&
+    normalizeLookup(tenantMatch.person.primaryEmail ?? "") !== normalizeLookup(tenantEmail),
+  );
+  const tenant = conflictingTenantEmail ? undefined : tenantMatch.person;
+
+  if (tenantMatch.issue) issues.push(tenantMatch.issue);
+  if (conflictingTenantEmail) {
+    issues.push({ level: "error", message: "Tenant person ID and email must identify the same person." });
+  }
   const leaseStartDate = readMappedValue(record.raw, mapping.leaseStartDate);
   const leaseEndDate = readMappedValue(record.raw, mapping.leaseEndDate);
   const scheduledMoveInDate = readMappedValue(
@@ -921,7 +972,7 @@ function buildLeasePreviewRow({
     });
   }
 
-  if ((tenantName || tenantEmail) && !tenant) {
+  if ((tenantName || tenantEmail) && !tenant && !tenantMatch.issue && !conflictingTenantEmail) {
     issues.push({
       actionHref: "/people?action=create",
       actionLabel: "Add person",
@@ -1093,27 +1144,48 @@ function findProperty(referenceData: ImportReferenceData, value: string) {
   );
 }
 
-function findPerson(
-  referenceData: ImportReferenceData,
-  email: string,
-  displayName: string,
-) {
+function findPerson({
+  displayName,
+  email,
+  personId,
+  personIdLabel,
+  referenceData,
+}: {
+  displayName: string;
+  email: string;
+  personId: string;
+  personIdLabel: string;
+  referenceData: ImportReferenceData;
+}): { person?: ImportReferenceData["people"][number]; issue?: UnitImportIssue } {
   const normalizedEmail = normalizeLookup(email);
   const normalizedName = normalizeLookup(displayName);
 
-  if (normalizedEmail) {
-    const emailMatch = referenceData.people.find(
-      (person) => normalizeLookup(person.primaryEmail ?? "") === normalizedEmail,
+  if (personId) {
+    const person = referenceData.people.find(
+      (candidate) => normalizeLookup(candidate.id) === normalizeLookup(personId),
     );
 
-    if (emailMatch) {
-      return emailMatch;
-    }
+    return person
+      ? { person }
+      : { issue: { level: "error", message: `${personIdLabel} "${personId}" was not found in People.` } };
   }
 
-  return referenceData.people.find(
-    (person) => normalizeLookup(person.displayName) === normalizedName,
+  const matches = referenceData.people.filter(
+    (person) => normalizedEmail
+      ? normalizeLookup(person.primaryEmail ?? "") === normalizedEmail
+      : Boolean(normalizedName) && normalizeLookup(person.displayName) === normalizedName,
   );
+
+  if (matches.length > 1) {
+    return {
+      issue: {
+        level: "error",
+        message: `Multiple people match this ${normalizedEmail ? "email" : "name"}. Map ${personIdLabel} to select one: ${matches.map((person) => `${person.label} [${person.id}]`).join("; ")}.`,
+      },
+    };
+  }
+
+  return { person: matches[0] };
 }
 
 function requireValue(

@@ -1,13 +1,46 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   getCurrentImportAction,
   ImportPreviewScreen,
 } from "@/features/imports/components/import-preview-screen";
 
+beforeAll(() => {
+  Object.defineProperties(HTMLElement.prototype, {
+    hasPointerCapture: { configurable: true, value: () => false },
+    releasePointerCapture: { configurable: true, value: () => undefined },
+    scrollIntoView: { configurable: true, value: () => undefined },
+    setPointerCapture: { configurable: true, value: () => undefined },
+  });
+});
+
 describe("ImportPreviewScreen", () => {
+  it("shows field-preservation semantics and row-specific mapped blank clears", async () => {
+    const user = userEvent.setup();
+    const { container } = renderImport([], {
+      leaseOccupancies: [], properties: [], units: [],
+      people: [{
+        displayName: "Company", id: "person-1", label: "Company (company@example.com)",
+        primaryEmail: "company@example.com", roles: ["tenant"],
+      }],
+    });
+    await user.click(screen.getByRole("combobox", { name: "Import type" }));
+    await user.click(await screen.findByRole("option", { name: "People" }));
+    const csv = "Display Name,Roles,Phone,Party Type\nCompany,tenant,,";
+    const file = new File([csv], "people.csv", { type: "text/csv" });
+    Object.defineProperty(file, "text", { value: async () => csv });
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
+
+    const rows = await screen.findByRole("region", { name: "Import preview rows" });
+    expect(within(rows).getByText("Will clear: Phone.")).toBeTruthy();
+    expect(within(rows).getByText("Blank party type keeps the existing type.")).toBeTruthy();
+    expect(screen.getByText(/Unmapped optional fields keep existing values/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Import 1 ready row" })).toBeTruthy();
+  });
+
   it("rejects an oversized CSV before reading it into browser memory", async () => {
     const file = new File(["Property Code\nCTR"], "oversized.csv", {
       type: "text/csv",
@@ -145,16 +178,14 @@ afterEach(cleanup);
 
 function renderImport(
   recentRuns: Parameters<typeof ImportPreviewScreen>[0]["recentRuns"] = [],
+  referenceData: Parameters<typeof ImportPreviewScreen>[0]["referenceData"] = {
+    leaseOccupancies: [], people: [], properties: [], units: [],
+  },
 ) {
   return render(
     <ImportPreviewScreen
       recentRuns={recentRuns}
-      referenceData={{
-        leaseOccupancies: [],
-        people: [],
-        properties: [],
-        units: [],
-      }}
+      referenceData={referenceData}
       savedMappings={[]}
     />,
   );
