@@ -151,7 +151,7 @@ function requestFailureState(): PublicInterestRequestState {
 
 function requestReceivedState(): PublicInterestRequestState {
   return {
-    message: "We can contact you at the email you provided. Demo scheduling and account setup are arranged separately.",
+    message: "Demo scheduling and account setup are arranged separately.",
     status: "success",
   };
 }

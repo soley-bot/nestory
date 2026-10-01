@@ -7,7 +7,7 @@ Verified on 2026-10-01 in an isolated local checkout. These are local previews, 
 - Workspace and Operations scroll and receive keyboard focus after the menu finishes closing. Reopening, unmounting, or changing history cancels stale navigation. Repeat links avoid duplicate history entries. Cross-page section links and direct hashes receive focus too.
 - Escape and Close preserve ordinary dialog focus restoration. Back to the hero returns focus to the menu button without overriding the browser's restored scroll position. The menu scrolls on short screens without overlapping the header.
 - The landing page and request introduction use shorter, concrete copy. The dashboard preview is labeled as sample data. The phone request form starts within the first screen, instead of below a long introduction.
-- Public forms retain entered details and the selected unit range after a rejected submission. Invalid fields or the save error receive focus. Pending submissions are locked. Navigating between demo and information URLs selects the correct intent.
+- Public forms retain entered details and the selected unit range after a rejected or interrupted submission. Invalid fields or the request error receive focus. Pending submissions are locked. Navigating between demo and information URLs selects the correct intent.
 - The confirmation no longer claims a follow-up has been queued. Demo scheduling and account setup are explicitly separate. The existing validation, rate limiter, honeypot behavior, and database command are unchanged.
 
 ## Evidence
@@ -16,7 +16,7 @@ The earlier live audit reported a changed hash with the viewport left at the her
 
 Local verification passed:
 
-- `npx vitest run src/features/marketing src/app/request/page.test.tsx`: 6 files, 35 tests.
+- `npx vitest run src/features/marketing src/app/request/page.test.tsx`: 6 files, 36 tests.
 - `npx tsc --noEmit` and `npm run lint`.
 - Repository secret scan and `git diff --check`.
 - Chromium at 1440×1000, 390×844, and 667×320: section viewport/focus, keyboard activation, Escape, repeated hash, Back/Forward, history while the menu is open, reduced motion, short-screen scrolling, and section links from the request page.
@@ -24,7 +24,18 @@ Local verification passed:
 
 Submission checks used `landing-fixture@example.invalid` and an unconfigured local server. Accepted/pending confirmation states and database responses were tested with mocked actions/RPC fixtures. No real leads or customer records were submitted. Authenticated shared components, database/security configuration, and migrations were not modified.
 
-The repo-wide `test:ui-copy` check has two pre-existing failures, also present on main: `src/features/leases/actions.ts` ("Owner payment") and `src/features/reports/data/report-export-parity.test.ts` ("Opening authority"). They are outside this change. Local development also reported blocked Next devtools styles and used fallback fonts because Google Fonts was unavailable; these captures do not establish production console or font behavior.
+The repo-wide `test:ui-copy` check has two pre-existing failures, verified again on main `bd49dc1b` and left unchanged for the direction worker:
+
+- `src/features/leases/actions.ts:1341` matches "Owner payment": `A related expense or owner payment has already used this rent. Review those linked transactions before saving. Nothing was changed.`
+- `src/features/reports/data/report-export-parity.test.ts:71` matches "Opening authority" in the test title: `shows unavailable opening authority rather than a fabricated zero or final balance`.
+
+Local development also reported blocked Next devtools styles and used fallback fonts because Google Fonts was unavailable; these captures do not establish production console or font behavior.
+
+## Follow-up internal review
+
+The branch was refreshed onto main `37571680`, including PR185 and PR187. Review reproduced a connection failure that threw out of the action and unmounted the form, losing entered details. The public form now catches that failure and displays "Request not confirmed", preserving the details for a retry without claiming whether the server saved the request. A regression test first failed on the original behavior and now passes, including a successful mocked retry. The pending test now also attempts a repeated submission and checks that only one action is called.
+
+Chromium checks for both request intents interrupted POST requests before they reached the server, confirmed retained text and unit range plus error focus, then retried against the unconfigured local server. No customer records were written. The neutral confirmation also omits the contact promise because the existing rate limiter uses that same response for limited requests. Rate limiting, honeypot behavior, validation, and database commands remain unchanged. The original before/after images remain representative of the initial landing and request screens; this review changes request error handling and confirmation text.
 
 ## Before and after
 

@@ -76,7 +76,7 @@ describe("submitPublicInterestRequest", () => {
       const state = await submitPublicInterestRequest({}, validFormData());
 
       expect(state).toEqual({
-        message: "We can contact you at the email you provided. Demo scheduling and account setup are arranged separately.",
+        message: "Demo scheduling and account setup are arranged separately.",
         status: "success",
       });
     },

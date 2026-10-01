@@ -23,13 +23,27 @@ const portfolioSizeOptions = [
   { label: "500+ units", value: "500+" },
 ];
 
+async function submitRequest(
+  state: PublicInterestRequestState,
+  formData: FormData,
+): Promise<PublicInterestRequestState> {
+  try {
+    return await submitPublicInterestRequest(state, formData);
+  } catch {
+    return {
+      status: "error",
+      message: "We could not confirm your request. Please try again.",
+    };
+  }
+}
+
 export function PublicInterestForm({
   initialRequestType,
 }: {
   initialRequestType: "demo" | "information";
 }) {
   const [state, action, pending] = useActionState(
-    submitPublicInterestRequest,
+    submitRequest,
     initialState,
   );
   const [requestType, setRequestType] = useState(initialRequestType);
@@ -215,7 +229,7 @@ export function PublicInterestForm({
             <ErrorState
               className="min-h-0 rounded-md border border-danger/30 bg-danger-soft px-3 py-3"
               message={state.message}
-              title="Request not saved"
+              title="Request not confirmed"
             />
           </div>
         ) : null}
