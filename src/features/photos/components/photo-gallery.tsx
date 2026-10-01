@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import type { ReactNode } from "react";
-import { Archive, ImageIcon, Star, X } from "lucide-react";
+import { unstable_rethrow } from "next/navigation";
+import type { ReactNode, RefObject } from "react";
+import { Archive, Expand, ImageIcon, LoaderCircle, Star, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
@@ -20,6 +21,7 @@ import {
   type PhotoActionState,
 } from "@/features/photos/actions";
 import type { AssetPhoto } from "@/features/photos/photo.types";
+import { PhotoViewer } from "@/features/photos/components/photo-viewer";
 import { formatDate } from "@/lib/dates/format";
 
 const initialState: PhotoActionState = {};
@@ -28,6 +30,10 @@ type PhotoPreview = {
   name: string;
   url: string;
 };
+
+type PhotoIntent = "cover" | "archive";
+type PendingPhotoAction = { photoId: string; intent: PhotoIntent };
+type PhotoActionFeedback = PhotoActionState & { photoId?: string };
 
 export function PhotoGallery({
   canArchive = true,
@@ -52,7 +58,52 @@ export function PhotoGallery({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [dropzoneKey, setDropzoneKey] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
+  const galleryTitleRef = useRef<HTMLHeadingElement>(null);
   const openPhotoPickerRef = useRef<(() => void) | null>(null);
+  const photoActionInFlightRef = useRef(false);
+  const photoActionFocusRef = useRef<HTMLButtonElement | null>(null);
+  const [pendingPhotoAction, setPendingPhotoAction] =
+    useState<PendingPhotoAction | null>(null);
+  const [photoActionState, setPhotoActionState] = useState<PhotoActionFeedback>({});
+
+  const handlePhotoAction = (photoId: string, intent: PhotoIntent, button: HTMLButtonElement) => {
+    if (photoActionInFlightRef.current) return;
+    photoActionInFlightRef.current = true;
+    photoActionFocusRef.current = document.activeElement === button ? button : null;
+    setPendingPhotoAction({ photoId, intent });
+    setPhotoActionState({});
+
+    startTransition(async () => {
+      const formData = new FormData();
+      formData.set("photoId", photoId);
+      try {
+        const action = intent === "cover"
+          ? setAssetPhotoCoverAction
+          : archiveAssetPhotoAction;
+        setPhotoActionState({ ...await action(formData), photoId });
+      } catch (error) {
+        unstable_rethrow(error);
+        setPhotoActionState({
+          photoId,
+          message: intent === "cover"
+            ? "Could not set the cover. Try again."
+            : "Could not archive the photo. Try again.",
+          status: "error",
+        });
+      } finally {
+        photoActionInFlightRef.current = false;
+        setPendingPhotoAction(null);
+      }
+    });
+  };
+
+  useEffect(() => {
+    const focusedAction = photoActionFocusRef.current;
+    if (focusedAction && !focusedAction.isConnected) {
+      photoActionFocusRef.current = null;
+      if (document.activeElement === document.body) galleryTitleRef.current?.focus();
+    }
+  }, [photos]);
 
   useEffect(() => {
     return () => {
@@ -107,11 +158,17 @@ export function PhotoGallery({
   };
 
   return (
-    <section>
+    <section onFocusCapture={(event) => {
+      if (event.target !== photoActionFocusRef.current) photoActionFocusRef.current = null;
+    }}>
       <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
         <div className="flex items-center gap-2">
           <ImageIcon className="text-muted-foreground" size={16} />
-          <h2 className="text-sm font-semibold">{title}</h2>
+          <h2
+            className="text-sm font-semibold focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4"
+            ref={galleryTitleRef}
+            tabIndex={-1}
+          >{title}</h2>
         </div>
         {canWrite ? (
           <Button onClick={() => setUploadOpen(true)} type="button" variant="outline">
@@ -120,6 +177,23 @@ export function PhotoGallery({
           </Button>
         ) : null}
       </div>
+
+      {pendingPhotoAction ? (
+        <p className="sr-only" role="status">
+          {pendingPhotoAction.intent === "cover" ? "Setting cover..." : "Archiving..."}
+        </p>
+      ) : null}
+      {photoActionState.message && (
+        photoActionState.status !== "error" ||
+        !photos.some((photo) => photo.id === photoActionState.photoId)
+      ) ? (
+        <p
+          className={`mt-3 text-sm ${photoActionState.status === "error" ? "text-danger" : "text-success"}`}
+          role={photoActionState.status === "error" ? "alert" : "status"}
+        >
+          {photoActionState.message}
+        </p>
+      ) : null}
 
       {photos.length === 0 ? (
         <p className="py-5 text-sm text-muted-foreground">{emptyLabel}</p>
@@ -137,7 +211,13 @@ export function PhotoGallery({
                   <PhotoCard
                     canArchive={canArchive}
                     canWrite={canWrite}
+                    errorMessage={photoActionState.status === "error" && photoActionState.photoId === photo.id
+                      ? photoActionState.message
+                      : undefined}
+                    fallbackFocusRef={galleryTitleRef}
                     key={photo.id}
+                    onAction={handlePhotoAction}
+                    pendingAction={pendingPhotoAction}
                     photo={photo}
                   />
                 ))}
@@ -287,35 +367,62 @@ function SelectedPhotoPreview({
 function PhotoCard({
   canArchive,
   canWrite,
+  errorMessage,
+  fallbackFocusRef,
+  onAction,
+  pendingAction,
   photo,
 }: {
   canArchive: boolean;
   canWrite: boolean;
+  errorMessage?: string;
+  fallbackFocusRef: RefObject<HTMLElement | null>;
+  onAction: (photoId: string, intent: PhotoIntent, button: HTMLButtonElement) => void;
+  pendingAction: PendingPhotoAction | null;
   photo: AssetPhoto;
 }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const failed = !photo.url || failedUrl === photo.url;
+  const settingCover = pendingAction?.photoId === photo.id && pendingAction.intent === "cover";
+  const archiving = pendingAction?.photoId === photo.id && pendingAction.intent === "archive";
+
   return (
     <article className="overflow-hidden rounded-md border border-border bg-muted/40">
-      <div className="relative aspect-[4/3] bg-muted">
-        {photo.url ? (
-          <Image
-            alt={photo.caption || photo.fileName}
-            className="size-full object-cover"
-            fill
-            sizes="(min-width: 1536px) 300px, (min-width: 640px) 50vw, 100vw"
-            src={photo.url}
-            unoptimized
-          />
-        ) : (
-          <div className="flex size-full items-center justify-center text-muted-foreground">
-            <ImageIcon size={22} />
-          </div>
-        )}
-        {photo.isCover ? (
-          <div className="absolute left-2 top-2">
-            <Badge tone="accent">Cover</Badge>
-          </div>
-        ) : null}
-      </div>
+      <PhotoViewer fallbackFocusRef={fallbackFocusRef} photo={photo}>
+        <button
+          aria-label={`View photo: ${photo.caption || photo.fileName}`}
+          className="group relative block aspect-[4/3] w-full bg-muted focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px] disabled:cursor-default"
+          disabled={!photo.url}
+          type="button"
+        >
+          {!failed && photo.url ? (
+            <Image
+              alt=""
+              className="size-full object-cover"
+              fill
+              onError={() => setFailedUrl(photo.url ?? null)}
+              sizes="(min-width: 1536px) 300px, (min-width: 640px) 50vw, 100vw"
+              src={photo.url}
+              unoptimized
+            />
+          ) : (
+            <span className="flex size-full flex-col items-center justify-center gap-2 text-muted-foreground">
+              <ImageIcon aria-hidden="true" size={22} />
+              <span className="text-sm">Photo unavailable</span>
+            </span>
+          )}
+          {photo.isCover ? (
+            <span className="absolute left-2 top-2">
+              <Badge tone="accent">Cover</Badge>
+            </span>
+          ) : null}
+          {photo.url ? (
+            <span className="absolute bottom-2 right-2 flex size-9 items-center justify-center rounded-md bg-card/95 text-foreground shadow-sm transition-colors group-hover:bg-card">
+              <Expand aria-hidden="true" size={16} />
+            </span>
+          ) : null}
+        </button>
+      </PhotoViewer>
 
       <div className="space-y-3 p-3">
         <div className="min-w-0">
@@ -327,43 +434,43 @@ function PhotoCard({
           </p>
         </div>
 
+        {errorMessage ? (
+          <p className="text-sm text-danger" role="alert">{errorMessage}</p>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           {canWrite && !photo.isCover ? (
-            <PhotoActionForm action={setAssetPhotoCoverAction} photoId={photo.id}>
-              <Button type="submit" variant="secondary">
-                <Star size={14} />
-                Set cover
-              </Button>
-            </PhotoActionForm>
+            <Button
+              aria-disabled={settingCover || undefined}
+              className="h-11 aria-disabled:pointer-events-none aria-disabled:opacity-50 sm:h-8"
+              disabled={Boolean(pendingAction) && !settingCover}
+              onClick={(event) => onAction(photo.id, "cover", event.currentTarget)}
+              type="button"
+              variant="secondary"
+            >
+              {settingCover ? (
+                <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" size={14} />
+              ) : <Star aria-hidden="true" size={14} />}
+              {settingCover ? "Setting cover..." : "Set cover"}
+            </Button>
           ) : null}
           {canArchive ? (
-            <PhotoActionForm action={archiveAssetPhotoAction} photoId={photo.id}>
-              <Button type="submit" variant="ghost">
-                <Archive size={14} />
-                Archive
-              </Button>
-            </PhotoActionForm>
+            <Button
+              aria-disabled={archiving || undefined}
+              className="h-11 aria-disabled:pointer-events-none aria-disabled:opacity-50 sm:h-8"
+              disabled={Boolean(pendingAction) && !archiving}
+              onClick={(event) => onAction(photo.id, "archive", event.currentTarget)}
+              type="button"
+              variant="ghost"
+            >
+              {archiving ? (
+                <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" size={14} />
+              ) : <Archive aria-hidden="true" size={14} />}
+              {archiving ? "Archiving..." : "Archive"}
+            </Button>
           ) : null}
         </div>
       </div>
     </article>
-  );
-}
-
-function PhotoActionForm({
-  action,
-  children,
-  photoId,
-}: {
-  action: (formData: FormData) => Promise<void>;
-  children: ReactNode;
-  photoId: string;
-}) {
-  return (
-    <form action={action}>
-      <input name="photoId" type="hidden" value={photoId} />
-      {children}
-    </form>
   );
 }
 

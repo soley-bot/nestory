@@ -690,7 +690,7 @@ describe("PropertyScreen redesign contract", () => {
       expect(screen.queryByRole("dialog", { name: "Create owner" })).toBeNull();
     });
     expect(screen.getByDisplayValue("Draft Property")).toBeTruthy();
-    expect(screen.getByText("New Owner")).toBeTruthy();
+    expect(screen.getByDisplayValue("New Owner")).toBeTruthy();
     expect(
       document.querySelector<HTMLInputElement>(
         'input[name="ownerPersonId"]',
