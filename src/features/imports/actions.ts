@@ -645,6 +645,10 @@ function revalidateImportPaths(importType: ImportType) {
 }
 
 function importRunErrorMessage(message: string) {
+  if (message.startsWith("Re-upload this import:")) {
+    return "This staged import needs its person matches reviewed. Re-upload the CSV and resolve shared names or emails before importing.";
+  }
+
   if (message.includes("Incomplete staged import must be re-uploaded")) {
     return "This staged import cannot be resumed. Re-upload the CSV to create a fresh run.";
   }

@@ -5,6 +5,9 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SELECT plan(15);
 
 CREATE TEMP TABLE import_lease_person_state (
+  property_id uuid,
+  unit_id uuid,
+  invalid_unit_id uuid,
   run_id uuid,
   result jsonb,
   first_person jsonb,
@@ -55,13 +58,25 @@ VALUES
   ('a7040000-0000-4000-8000-000000000001', 'a7040000-0000-4000-8000-000000000003', 'a7040000-0000-4000-8000-000000000006'),
   ('a7040000-0000-4000-8000-000000000001', 'a7040000-0000-4000-8000-000000000004', 'a7040000-0000-4000-8000-000000000006');
 
-INSERT INTO public.properties(id, organization_id, branch_id, name, code, property_type, rental_structure, status)
-VALUES ('a7040000-0000-4000-8000-000000000005', 'a7040000-0000-4000-8000-000000000001', 'a7040000-0000-4000-8000-000000000006', 'Import attribution property', 'IMP-ATTR', 'apartment', 'multi_unit', 'active');
+SET LOCAL ROLE authenticated;
 
-INSERT INTO public.units(id, organization_id, property_id, unit_number, status, current_rent_amount, current_rent_currency)
-VALUES
-  ('a7040000-0000-4000-8000-000000000007', 'a7040000-0000-4000-8000-000000000001', 'a7040000-0000-4000-8000-000000000005', 'ATTR-01', 'vacant', 1300, 'USD'),
-  ('a7040000-0000-4000-8000-000000000008', 'a7040000-0000-4000-8000-000000000001', 'a7040000-0000-4000-8000-000000000005', 'ATTR-02', 'vacant', 1300, 'USD');
+UPDATE import_lease_person_state
+SET property_id = public.create_property_minimal(
+  'a7040000-0000-4000-8000-000000000001', 'a7040000-0000-4000-8000-000000000006',
+  'Import attribution property', 'IMP-ATTR', 'Apartment', NULL, NULL,
+  'import-attribution-property', NULL, NULL, NULL
+);
+
+SELECT public.set_property_rental_structure(
+  'a7040000-0000-4000-8000-000000000001',
+  (SELECT property_id FROM import_lease_person_state), 'multi_unit'
+);
+
+UPDATE import_lease_person_state
+SET unit_id = public.create_unit(
+    'a7040000-0000-4000-8000-000000000001', property_id, 'ATTR-01', NULL, NULL, NULL, NULL, 'vacant'),
+  invalid_unit_id = public.create_unit(
+    'a7040000-0000-4000-8000-000000000001', property_id, 'ATTR-02', NULL, NULL, NULL, NULL, 'vacant');
 
 UPDATE import_lease_person_state
 SET first_person = (SELECT to_jsonb(person) FROM public.people person WHERE id = 'a7040000-0000-4000-8000-000000000003'),
@@ -73,7 +88,10 @@ UPDATE import_lease_person_state
 SET run_id = (public.stage_import_run_v1(
   'a7040000-0000-4000-8000-000000000001', 'leases', 'second-same-name-tenant.csv', 10::bigint, 'text/csv',
   '["Tenant Name","Tenant Email","Rent"]', '{"tenantName":"Tenant Name","tenantEmail":"Tenant Email","monthlyRentAmount":"Rent"}',
-  '[{"source_row_number":2,"row_status":"ready","action_label":"Create","raw_data":{"Tenant Name":"Shared Tenant Name","Tenant Email":"second-tenant@example.test","Rent":"1300"},"normalized_data":{"propertyId":"a7040000-0000-4000-8000-000000000005","unitId":"a7040000-0000-4000-8000-000000000007","tenantPersonId":"a7040000-0000-4000-8000-000000000004","tenantName":"Shared Tenant Name","tenantEmail":"second-tenant@example.test","leaseStartDate":"2033-01-01","leaseEndDate":"2033-12-31","monthlyRentAmount":"1300","rentDueDay":"5","paymentFrequency":"monthly","termStatus":"upcoming","depositAmount":"","status":"draft"},"issues":[]}]'
+  pg_catalog.replace(pg_catalog.replace(
+    '[{"source_row_number":2,"row_status":"ready","action_label":"Create","raw_data":{"Tenant Name":"Shared Tenant Name","Tenant Email":"second-tenant@example.test","Rent":"1300"},"normalized_data":{"propertyId":"a7040000-0000-4000-8000-000000000005","unitId":"a7040000-0000-4000-8000-000000000007","tenantPersonId":"a7040000-0000-4000-8000-000000000004","tenantName":"Shared Tenant Name","tenantEmail":"second-tenant@example.test","leaseStartDate":"2033-01-01","leaseEndDate":"2033-12-31","monthlyRentAmount":"1300","rentDueDay":"5","paymentFrequency":"monthly","termStatus":"upcoming","depositAmount":"","status":"draft"},"issues":[]}]',
+    'a7040000-0000-4000-8000-000000000005', property_id::text),
+    'a7040000-0000-4000-8000-000000000007', unit_id::text)::jsonb
 ) ->> 'runId')::uuid;
 
 UPDATE import_lease_person_state
@@ -102,7 +120,7 @@ SELECT is(
   (SELECT jsonb_build_object('unitId', occupancy.unit_id, 'sourceRowId', occupancy.source_import_row_id, 'evidenceState', occupancy.evidence_state)
    FROM public.lease_occupancies occupancy JOIN public.import_rows rows ON occupancy.id = rows.result_lease_occupancy_id
    WHERE rows.import_run_id = (SELECT run_id FROM import_lease_person_state)),
-  (SELECT jsonb_build_object('unitId', 'a7040000-0000-4000-8000-000000000007'::uuid, 'sourceRowId', id, 'evidenceState', 'accepted')
+  (SELECT jsonb_build_object('unitId', (SELECT unit_id FROM import_lease_person_state), 'sourceRowId', id, 'evidenceState', 'accepted')
    FROM public.import_rows WHERE import_run_id = (SELECT run_id FROM import_lease_person_state)),
   'lease attribution retains checked import occupancy scope and evidence'
 );
@@ -118,7 +136,10 @@ UPDATE import_lease_person_state
 SET run_id = (public.stage_import_run_v1(
   'a7040000-0000-4000-8000-000000000001', 'leases', 'negative-rent-attribution.csv', 10::bigint, 'text/csv',
   '["Tenant Name","Tenant Email","Rent"]', '{"tenantName":"Tenant Name","tenantEmail":"Tenant Email","monthlyRentAmount":"Rent"}',
-  '[{"source_row_number":2,"row_status":"ready","action_label":"Create","raw_data":{"Tenant Name":"Shared Tenant Name","Tenant Email":"second-tenant@example.test","Rent":"-1"},"normalized_data":{"propertyId":"a7040000-0000-4000-8000-000000000005","unitId":"a7040000-0000-4000-8000-000000000008","tenantPersonId":"a7040000-0000-4000-8000-000000000004","tenantName":"Shared Tenant Name","tenantEmail":"second-tenant@example.test","leaseStartDate":"2033-01-01","leaseEndDate":"2033-12-31","monthlyRentAmount":"-1","rentDueDay":"5","paymentFrequency":"monthly","termStatus":"upcoming","depositAmount":"","status":"draft"},"issues":[]}]'
+  pg_catalog.replace(pg_catalog.replace(
+    '[{"source_row_number":2,"row_status":"ready","action_label":"Create","raw_data":{"Tenant Name":"Shared Tenant Name","Tenant Email":"second-tenant@example.test","Rent":"-1"},"normalized_data":{"propertyId":"a7040000-0000-4000-8000-000000000005","unitId":"a7040000-0000-4000-8000-000000000008","tenantPersonId":"a7040000-0000-4000-8000-000000000004","tenantName":"Shared Tenant Name","tenantEmail":"second-tenant@example.test","leaseStartDate":"2033-01-01","leaseEndDate":"2033-12-31","monthlyRentAmount":"-1","rentDueDay":"5","paymentFrequency":"monthly","termStatus":"upcoming","depositAmount":"","status":"draft"},"issues":[]}]',
+    'a7040000-0000-4000-8000-000000000005', property_id::text),
+    'a7040000-0000-4000-8000-000000000008', invalid_unit_id::text)::jsonb
 ) ->> 'runId')::uuid;
 
 UPDATE import_lease_person_state
@@ -126,7 +147,7 @@ SET result = public.commit_generic_import_run(run_id, 'a7040000-0000-4000-8000-0
 
 SELECT is((SELECT result ->> 'status' FROM import_lease_person_state), 'failed', 'resolved tenant attribution retains the negative-rent safeguard');
 SELECT is((SELECT row_status FROM public.import_rows WHERE import_run_id = (SELECT run_id FROM import_lease_person_state)), 'failed', 'invalid financial terms fail the checked import row');
-SELECT is((SELECT count(*) FROM public.leases WHERE organization_id = 'a7040000-0000-4000-8000-000000000001' AND unit_id = 'a7040000-0000-4000-8000-000000000008'), 0::bigint, 'invalid financial terms leave no partial attributed lease');
+SELECT is((SELECT count(*) FROM public.leases WHERE organization_id = 'a7040000-0000-4000-8000-000000000001' AND unit_id = (SELECT invalid_unit_id FROM import_lease_person_state)), 0::bigint, 'invalid financial terms leave no partial attributed lease');
 SELECT is((SELECT count(*) FROM public.lease_terms WHERE organization_id = 'a7040000-0000-4000-8000-000000000001'), 1::bigint, 'invalid financial terms leave no additional rent authority');
 
 RESET ROLE;

@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(22);
+SELECT plan(24);
 
 CREATE TEMP TABLE import_person_state (
   run_id uuid,
@@ -79,15 +79,15 @@ VALUES (
 );
 
 SELECT ok(
-  NOT has_function_privilege('anon', 'app_private.update_person_preserving_unmapped_fields_for_import(uuid,uuid,jsonb,text[])', 'EXECUTE'),
+  NOT has_function_privilege('anon', 'app_private.update_person_preserving_unmapped_fields_for_import(uuid,uuid,jsonb,jsonb,jsonb,text[])', 'EXECUTE'),
   'anon cannot invoke the private import person writer'
 );
 SELECT ok(
-  NOT has_function_privilege('authenticated', 'app_private.update_person_preserving_unmapped_fields_for_import(uuid,uuid,jsonb,text[])', 'EXECUTE'),
+  NOT has_function_privilege('authenticated', 'app_private.update_person_preserving_unmapped_fields_for_import(uuid,uuid,jsonb,jsonb,jsonb,text[])', 'EXECUTE'),
   'authenticated cannot invoke the private import person writer directly'
 );
 SELECT ok(
-  NOT has_function_privilege('service_role', 'app_private.update_person_preserving_unmapped_fields_for_import(uuid,uuid,jsonb,text[])', 'EXECUTE'),
+  NOT has_function_privilege('service_role', 'app_private.update_person_preserving_unmapped_fields_for_import(uuid,uuid,jsonb,jsonb,jsonb,text[])', 'EXECUTE'),
   'service role cannot invoke the private import person writer directly'
 );
 
@@ -99,7 +99,7 @@ SET run_id = (public.stage_import_run_v1(
   'a7030000-0000-4000-8000-000000000001',
   'people', 'unmapped-company-fields.csv', 10::bigint, 'text/csv',
   '["ID","Name","Roles"]', '{"personId":"ID","displayName":"Name","roles":"Roles"}',
-  '[{"source_row_number":2,"row_status":"ready","action_label":"Update","raw_data":{"ID":"a7030000-0000-4000-8000-000000000003","Name":"Renamed Company","Roles":"tenant"},"normalized_data":{"existingPersonId":"a7030000-0000-4000-8000-000000000003","displayName":"Renamed Company","roles":["tenant"]},"issues":[]}]'
+  '[{"source_row_number":2,"row_status":"ready","action_label":"Update","raw_data":{"ID":"a7030000-0000-4000-8000-000000000003","Name":"Renamed Company","Roles":"tenant"},"normalized_data":{"existingPersonId":"a7030000-0000-4000-8000-000000000003","displayName":"Renamed Company","roles":["tenant"],"legalName":null,"partyType":"individual","primaryEmail":null,"primaryPhone":null,"taxIdentifier":null,"notes":null},"issues":[]}]'
 ) ->> 'runId')::uuid;
 
 RESET ROLE;
@@ -114,7 +114,7 @@ SET result = public.commit_generic_import_run(run_id, 'a7030000-0000-4000-8000-0
 SELECT is(
   (SELECT result FROM import_person_state),
   '{"status":"committed","created":0,"updated":1,"failed":0,"skipped":0}'::jsonb,
-  'public checked commit updates a person with unmapped optional fields'
+  'public checked commit safely resumes legacy normalized nulls and default party type'
 );
 SELECT is(
   (SELECT jsonb_build_object('legalName', legal_name, 'partyType', party_type, 'primaryEmail', primary_email,
@@ -181,7 +181,7 @@ SET run_id = (public.stage_import_run_v1(
   'people', 'mapped-person-values.csv', 10::bigint, 'text/csv',
   '["ID","Name","Type","Email","Notes","Roles"]',
   '{"personId":"ID","displayName":"Name","partyType":"Type","primaryEmail":"Email","notes":"Notes","roles":"Roles"}',
-  '[{"source_row_number":2,"row_status":"ready","action_label":"Update","raw_data":{"ID":"a7030000-0000-4000-8000-000000000003","Name":"Renamed Company","Type":"individual","Email":"updated@example.test","Notes":"Updated notes","Roles":"tenant"},"normalized_data":{"existingPersonId":"a7030000-0000-4000-8000-000000000003","displayName":"Renamed Company","partyType":"individual","primaryEmail":"updated@example.test","notes":"Updated notes","roles":["tenant"]},"issues":[]}]'
+  '[{"source_row_number":2,"row_status":"ready","action_label":"Update","raw_data":{"ID":"a7030000-0000-4000-8000-000000000003","Name":"Renamed Company","Type":" Person ","Email":"updated@example.test","Notes":"Updated notes","Roles":"tenant"},"normalized_data":{"existingPersonId":"a7030000-0000-4000-8000-000000000003","displayName":"Renamed Company","partyType":"individual","primaryEmail":"updated@example.test","notes":"Updated notes","roles":["tenant"]},"issues":[]}]'
 ) ->> 'runId')::uuid;
 
 UPDATE import_person_state
@@ -197,6 +197,28 @@ SELECT is(
    FROM public.people WHERE id = 'a7030000-0000-4000-8000-000000000003'),
   '{"legalName":null,"partyType":"individual","primaryEmail":"updated@example.test","primaryPhone":null,"taxIdentifier":null,"notes":"Updated notes"}'::jsonb,
   'explicit mapped party type, email, and notes change while omitted null fields stay null'
+);
+
+UPDATE import_person_state
+SET run_id = (public.stage_import_run_v1(
+  'a7030000-0000-4000-8000-000000000001',
+  'people', 'mapped-company-alias.csv', 10::bigint, 'text/csv',
+  '["ID","Name","Type","Roles"]',
+  '{"personId":"ID","displayName":"Name","partyType":"Type","roles":"Roles"}',
+  '[{"source_row_number":2,"row_status":"ready","action_label":"Update","raw_data":{"ID":"a7030000-0000-4000-8000-000000000003","Name":"Renamed Company","Type":" BuSiNeSs ","Roles":"tenant"},"normalized_data":{"existingPersonId":"a7030000-0000-4000-8000-000000000003","displayName":"Renamed Company","partyType":"company","roles":["tenant"]},"issues":[]}]'
+) ->> 'runId')::uuid;
+
+UPDATE import_person_state
+SET result = public.commit_generic_import_run(run_id, 'a7030000-0000-4000-8000-000000000001');
+
+SELECT is(
+  (SELECT result ->> 'status' FROM import_person_state), 'committed',
+  'mapped party type aliases retain preview normalization'
+);
+SELECT is(
+  (SELECT party_type FROM public.people WHERE id = 'a7030000-0000-4000-8000-000000000003'),
+  'company',
+  'mixed-case Business with surrounding spaces applies the normalized company type'
 );
 
 UPDATE import_person_state
@@ -237,17 +259,16 @@ SET run_id = (public.stage_import_run_v1(
   '[{"source_row_number":2,"row_status":"ready","action_label":"Update","raw_data":{"ID":"a7030000-0000-4000-8000-000000000005","Name":"Must not update foreign person","Roles":"tenant"},"normalized_data":{"existingPersonId":"a7030000-0000-4000-8000-000000000005","displayName":"Must not update foreign person","roles":["tenant"]},"issues":[]}]'
 ) ->> 'runId')::uuid;
 
-UPDATE import_person_state
-SET result = public.commit_generic_import_run(run_id, 'a7030000-0000-4000-8000-000000000001');
-
-SELECT is(
-  (SELECT result ->> 'status' FROM import_person_state), 'failed',
-  'an explicit person ID from another organization cannot commit'
+SELECT throws_ok(
+  format('SELECT public.commit_generic_import_run(%L, %L)',
+    (SELECT run_id FROM import_person_state), 'a7030000-0000-4000-8000-000000000001'),
+  '23514', 'Re-upload this import: the mapped person ID is unavailable in this organization.',
+  'an explicit person ID from another organization is rejected before commit'
 );
 SELECT is(
-  (SELECT error_message FROM public.import_rows WHERE import_run_id = (SELECT run_id FROM import_person_state)),
-  'Person not found',
-  'cross-organization selection is rejected before updating the person'
+  (SELECT status FROM public.import_runs WHERE id = (SELECT run_id FROM import_person_state)),
+  'staged',
+  'rejected cross-organization selection leaves the complete run staged'
 );
 
 RESET ROLE;

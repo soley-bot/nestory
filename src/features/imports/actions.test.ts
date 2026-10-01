@@ -316,7 +316,20 @@ describe("commitStagedImportRunAction", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("surfaces the re-upload requirement when Past Imports resumes an incomplete run", async () => {
+  it.each([
+    {
+      errorMessage: "Incomplete staged import must be re-uploaded before commit",
+      expectedMessage:
+        "This staged import cannot be resumed. Re-upload the CSV to create a fresh run.",
+      reason: "an incomplete run",
+    },
+    {
+      errorMessage: "Re-upload this import: selected person was not found",
+      expectedMessage:
+        "This staged import needs its person matches reviewed. Re-upload the CSV and resolve shared names or emails before importing.",
+      reason: "a stale person match",
+    },
+  ])("surfaces the re-upload requirement when Past Imports resumes $reason", async ({ errorMessage, expectedMessage }) => {
     const selectedRuns = [
       {
         created_count: 0,
@@ -361,7 +374,7 @@ describe("commitStagedImportRunAction", () => {
     });
     const rpc = vi.fn().mockResolvedValue({
       data: null,
-      error: { message: "Incomplete staged import must be re-uploaded before commit" },
+      error: { message: errorMessage },
     });
     mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
@@ -373,8 +386,7 @@ describe("commitStagedImportRunAction", () => {
     const result = await commitStagedImportRunAction({}, formData);
 
     expect(result).toEqual({
-      message:
-        "This staged import cannot be resumed. Re-upload the CSV to create a fresh run.",
+      message: expectedMessage,
       runId: "75aa9d2c-ae7f-40a0-b384-45970cdfa16a",
       runStatus: "staged",
       status: "error",
