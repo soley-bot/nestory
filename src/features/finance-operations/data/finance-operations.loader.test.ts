@@ -124,6 +124,77 @@ describe("finance operations initial reads", () => {
     expect(result.expenseSubmissions).toEqual([]);
     expect(harness.queries.some(query => ["expense_submissions", "expense_transactions", "expense_transaction_lines", "tasks"].includes(query.table))).toBe(false);
   });
+  it("omits expense hydration without changing portfolio balances, billing, or payment links", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-30T05:00:00Z"));
+    try {
+      const baselineHarness = createFinanceReadHarness(portfolioReviewFixture());
+      const baselineRpc = vi.spyOn(baselineHarness.client, "rpc");
+      vi.mocked(createSupabaseServerClient).mockResolvedValue(baselineHarness.client as never);
+      const baseline = await getFinanceOperationsData("organization-1");
+
+      const workHarness = createFinanceReadHarness(portfolioReviewFixture());
+      const workRpc = vi.spyOn(workHarness.client, "rpc");
+      vi.mocked(createSupabaseServerClient).mockResolvedValue(workHarness.client as never);
+      const work = await getFinanceOperationsData("organization-1", undefined, { includeExpenses: false });
+
+      expect(baseline.expenseSubmissions).toEqual([
+        expect.objectContaining({
+          id: "transaction-1",
+          internalCost: 200,
+          customerTotal: 220,
+          maintenanceTask: expect.objectContaining({ title: "Repair tap" }),
+          lines: [expect.objectContaining({ submissionId: "expense-1", amount: 200 })],
+        }),
+      ]);
+      expect(work).toEqual({ ...baseline, expenseSubmissions: [] });
+      expect(work.positions).toEqual([
+        expect.objectContaining({ propertyId: "property-1", rentIncome: 780, ownerExpense: 200, runningBalance: 502, availableWithdrawal: 140 }),
+        expect.objectContaining({ propertyId: "property-2", rentIncome: 1200, ownerExpense: 300, runningBalance: 900, availableWithdrawal: 900 }),
+      ]);
+      expect(work.tenantInvoices).toEqual([
+        expect.objectContaining({
+          id: "invoice-1", totalAmount: 780, balanceDue: 640, paidThroughIps: 140,
+          generationSource: "scheduled",
+          lines: [expect.objectContaining({ id: "rent-line-1", amount: 780, balanceDue: 640 })],
+          settlements: [expect.objectContaining({
+            id: "payment-1", amount: 140, route: "through_ips", receiptNumber: "RCPT-1",
+            receipt: expect.objectContaining({ href: "/api/finance/documents/receipt-artifact-1" }),
+          })],
+        }),
+        expect.objectContaining({ id: "invoice-2", totalAmount: 780, balanceDue: 0, collectedByOwner: 780, settlements: [expect.objectContaining({ id: "confirmation-1", amount: 780, route: "direct_to_owner" })] }),
+      ]);
+      expect(work.ownerInvoices).toEqual([expect.objectContaining({ id: "owner-invoice-1", totalAmount: 250, paidByOwner: 30, paidFromHeldCash: 20, balanceDue: 200 })]);
+      expect(work.leases).toEqual([expect.objectContaining({
+        id: "lease-1", monthlyRent: 780, expectedCurrentBillingRuleId: "billing-1",
+        billing: expect.objectContaining({ id: "billing-1", collectionRoute: "through_ips", managementFeeValue: 10 }),
+        billingPreview: { startDate: "2026-08-01", endDate: "2027-07-31", firstMonthRent: 780, finalMonthRent: 780 },
+      })]);
+      expect(work.rentGenerationExceptions).toEqual([expect.objectContaining({ id: "exception-1", leaseId: "lease-1", propertyId: "property-1" })]);
+      expect(work.peopleOptions).toContainEqual(expect.objectContaining({ id: "tenant-1", partyType: "individual" }));
+      expect(work.operationalTimezone).toBe("Asia/Phnom_Penh");
+      expect(work.rentBusinessDate).toBe("2026-09-30");
+
+      for (const table of ["expense_submissions", "expense_transactions", "expense_transaction_lines", "tasks"]) {
+        expect(baselineHarness.queries.some(query => query.table === table)).toBe(true);
+        expect(workHarness.queries.some(query => query.table === table)).toBe(false);
+      }
+      for (const name of ["get_expense_transaction_child_links", "get_paid_cost_submission_evidence", "get_finance_submission_actor_labels"]) {
+        expect(baselineRpc.mock.calls.map(([name]) => name)).toContain(name);
+        expect(workRpc.mock.calls.map(([name]) => name)).not.toContain(name);
+      }
+      expect(workRpc).toHaveBeenCalledWith("get_finance_read_context", { p_organization_id: "organization-1" });
+      expect(workRpc).toHaveBeenCalledWith("get_lease_rent_business_date", { p_organization_id: "organization-1" });
+      const financialTables = ["property_finance_positions", "tenant_invoice_balances", "owner_invoice_balances", "tenant_invoice_payments", "owner_collection_confirmations"];
+      for (const table of financialTables) {
+        const queries = workHarness.queries.filter(query => query.table === table);
+        expect(queries.length).toBeGreaterThan(0);
+        for (const query of queries) expect(query.filters).toContainEqual(["organization_id", "organization-1"]);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("retains archived lease context without offering it for new charges", async () => {
     const harness=createFinanceReadHarness({properties:{data:[{id:"property-1",code:"P",name:"Property",archived_at:null}]},units:{data:[{id:"unit-1",property_id:"property-1",unit_number:"101",archived_at:null}]},current_leases:{data:[{id:"old-lease",property_id:"property-1",unit_id:"unit-1",primary_tenant_person_id:"tenant",tenant_name:"Former tenant",status:"ended",lease_start_date:"2025-01-01",lease_end_date:"2025-12-31",monthly_rent_amount:500,archived_at:"2026-01-01"}]}});
     vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
@@ -480,6 +551,67 @@ function createFinanceReadHarness(
     },
     maxInFlight: () => peak,
     queries,
+  };
+}
+
+function portfolioReviewFixture(): Record<string, QueryResult> {
+  return {
+    organizations: { data: { operational_timezone: "Asia/Phnom_Penh" } },
+    properties: { data: [
+      { id: "property-1", code: "P-01", name: "Palm House", archived_at: null },
+      { id: "property-2", code: "P-02", name: "River House", archived_at: null },
+    ] },
+    units: { data: [{ id: "unit-1", property_id: "property-1", unit_number: "101", archived_at: null }] },
+    people: { data: [
+      { id: "tenant-1", display_name: "Dara Tenant", party_type: "individual", archived_at: null },
+      { id: "owner-1", display_name: "Sokha Owner", party_type: "individual", archived_at: null },
+      { id: "owner-2", display_name: "River Owner", party_type: "individual", archived_at: null },
+    ] },
+    property_owners: { data: [1, 2].map(number => ({
+      id: `ownership-${number}`, property_id: `property-${number}`, person_id: `owner-${number}`,
+      is_primary: true, started_on: "2026-01-01", ended_on: null, archived_at: null,
+    })) },
+    current_leases: { data: [{
+      id: "lease-1", property_id: "property-1", unit_id: "unit-1", primary_tenant_person_id: "tenant-1",
+      tenant_name: "Dara Tenant", status: "active", monthly_rent_amount: 780,
+      lease_start_date: "2026-08-01", lease_end_date: "2027-07-31", archived_at: null,
+    }] },
+    lease_terms: { data: [{ lease_id: "lease-1", start_date: "2026-08-01", end_date: "2027-07-31", rent_amount: 780 }] },
+    lease_billing_terms: { data: [{
+      id: "billing-1", organization_id: "organization-1", property_id: "property-1", lease_id: "lease-1",
+      archived_at: null, created_at: "2026-08-01T00:00:00Z", effective_from: "2026-08-01", effective_to: "2027-07-31",
+      billing_recipient_kind: "individual", billing_recipient_person_id: "tenant-1",
+      charge_management_fee_when_active: true, charge_through_lease_end: true, collection_route: "through_ips",
+      final_period_prorated_amount: null, first_period_prorated_amount: null, full_management_fee_during_proration: true,
+      lease_end_proration_rule: "actual_days", lease_start_proration_rule: "actual_days",
+      management_fee_mode: "percentage", management_fee_value: 10, mid_period_rent_change_rule: "next_full_month",
+      rent_calculation_timezone: "Asia/Phnom_Penh", rule_source: "lease_default_v1", short_month_due_day_rule: "last_calendar_day",
+    }] },
+    tenant_invoice_balances: { data: [
+      { id: "invoice-1", property_id: "property-1", unit_id: "unit-1", lease_id: "lease-1", invoice_number: "INV-09", issue_date: "2026-09-01", due_date: "2026-09-05", collection_route: "through_ips", total_amount: 780, paid_through_ips: 140, collected_by_owner: 0, balance_due: 640, payment_status: "partial", recipient_label: "Dara Tenant" },
+      { id: "invoice-2", property_id: "property-1", unit_id: "unit-1", lease_id: "lease-1", invoice_number: "INV-08", issue_date: "2026-08-01", due_date: "2026-08-05", collection_route: "direct_to_owner", total_amount: 780, paid_through_ips: 0, collected_by_owner: 780, balance_due: 0, payment_status: "paid", recipient_label: "Dara Tenant" },
+    ] },
+    tenant_invoice_line_balances: { data: [1, 2].map(number => ({ id: `rent-line-${number}`, invoice_id: `invoice-${number}`, amount: 780, balance_due: number === 1 ? 640 : 0, customer_label: "Rent", line_type: "rent", sort_order: 0 })) },
+    tenant_invoices: { data: [1, 2].map(number => ({ id: `invoice-${number}`, billing_period_start: number === 1 ? "2026-09-01" : "2026-08-01", generation_source: "scheduled", is_prorated: false })) },
+    tenant_invoice_payments: { data: [{ id: "payment-1", invoice_id: "invoice-1", received_date: "2026-09-03", amount: 140, reference: "BANK-140", reversal_of_id: null, reversal_reason: null }] },
+    owner_collection_confirmations: { data: [{ id: "confirmation-1", invoice_id: "invoice-2", confirmed_date: "2026-08-05", amount: 780, reference: "OWNER-780", reversal_of_id: null, reversal_reason: null }] },
+    tenant_commercial_document_artifacts: { data: [{ id: "receipt-artifact-1", organization_id: "organization-1", source_kind: "receipt", source_id: "payment-1", document_number: "RCPT-1", publication_status: "published", published_at: "2026-09-03T05:00:00Z", presentation_snapshot: null }] },
+    owner_invoice_balances: { data: [{ id: "owner-invoice-1", property_id: "property-1", owner_person_id: "owner-1", invoice_number: "OWNER-09", due_date: "2026-09-10", total_amount: 250, paid_by_owner: 30, paid_from_held_cash: 20, balance_due: 200, payment_status: "partial" }] },
+    property_finance_positions: { data: [
+      { property_id: "property-1", property_code: "P-01", property_name: "Palm House", owner_person_id: "owner-1", rent_income: 780, management_fee_expense: 78, owner_expense: 200, withdrawals: 0, running_balance: 502, cash_held_by_ips: 140, available_withdrawal: 140, owner_owes_ips: 200 },
+      { property_id: "property-2", property_code: "P-02", property_name: "River House", owner_person_id: "owner-2", rent_income: 1200, management_fee_expense: 0, owner_expense: 300, withdrawals: 0, running_balance: 900, cash_held_by_ips: 900, available_withdrawal: 900, owner_owes_ips: 0 },
+    ] },
+    rent_generation_exceptions: { data: [{ id: "exception-1", property_id: "property-1", lease_id: "lease-1", attempt_count: 2, billing_period_start: "2026-09-01", error_code: "billing_recipient_invalid", last_attempt_at: "2026-09-01T00:00:00Z", safe_message: "Review billing recipient", resolved_at: null }] },
+    expense_submissions: { data: [{
+      id: "expense-1", property_id: "property-1", unit_id: "unit-1", source_type: "maintenance_task", source_id: "task-1",
+      expense_date: "2026-09-08", status: "submitted", responsibility: "owner", submitted_by: "staff-1", submitted_at: "2026-09-08T00:00:00Z",
+      internal_cost_amount: 200, internal_markup_amount: 20, customer_total_amount: 220, customer_category: "repairs_maintenance",
+      vendor_label: "Tap Repairs", reference: "Repair invoice", reconciliation_source_id: null,
+      previously_approved_amount: null, recorded_total_amount: null, reviewed_at: null, review_reason: null, reversal_reason: null,
+    }] },
+    expense_transactions: { data: [{ id: "transaction-1", expense_date: "2026-09-08", submitted_at: "2026-09-08T00:00:00Z", status: "submitted", external_payee_label: "Tap Repairs", payee_label: "Tap Repairs", payee_person_id: null, reference: "Repair invoice" }] },
+    expense_transaction_lines: { data: [{ transaction_id: "transaction-1", submission_id: "expense-1", sort_order: 0, description: "Tap repair", owner_cash_amount: null, category_account_id: "repairs-account" }] },
+    tasks: { data: [{ id: "task-1", title: "Repair tap", description: "Kitchen tap leaks", status: "completed", completed_at: "2026-09-08T00:00:00Z" }] },
   };
 }
 

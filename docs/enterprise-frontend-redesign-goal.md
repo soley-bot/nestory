@@ -1,5 +1,12 @@
 # Goal: Research-led enterprise frontend redesign
 
+**Historical scope:** This completed redesign goal and its checklists record that
+project's decisions and evidence. Current product direction is defined by
+[`PROJECT.md`](../PROJECT.md) and
+[Staff Workflow Product Direction](product/staff-workflow-direction.md).
+Their later product decisions supersede conflicting preferences here; they do
+not waive security, financial contracts, or verification and release gates.
+
 **Status:** Complete on the isolated review branch
 **Scope:** Entire Nestory application
 **Delivery boundary:** Review-ready isolated local branch; do not push, merge, deploy, or modify production

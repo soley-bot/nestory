@@ -316,7 +316,20 @@ describe("commitStagedImportRunAction", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("surfaces the re-upload requirement when Past Imports resumes an incomplete run", async () => {
+  it.each([
+    {
+      errorMessage: "Incomplete staged import must be re-uploaded before commit",
+      expectedMessage:
+        "This staged import cannot be resumed. Re-upload the CSV to create a fresh run.",
+      reason: "an incomplete run",
+    },
+    {
+      errorMessage: "Re-upload this import: selected person was not found",
+      expectedMessage:
+        "This staged import needs its person matches reviewed. Re-upload the CSV and resolve shared names or emails before importing.",
+      reason: "a stale person match",
+    },
+  ])("surfaces the re-upload requirement when Past Imports resumes $reason", async ({ errorMessage, expectedMessage }) => {
     const selectedRuns = [
       {
         created_count: 0,
@@ -361,7 +374,7 @@ describe("commitStagedImportRunAction", () => {
     });
     const rpc = vi.fn().mockResolvedValue({
       data: null,
-      error: { message: "Incomplete staged import must be re-uploaded before commit" },
+      error: { message: errorMessage },
     });
     mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
@@ -373,8 +386,7 @@ describe("commitStagedImportRunAction", () => {
     const result = await commitStagedImportRunAction({}, formData);
 
     expect(result).toEqual({
-      message:
-        "This staged import cannot be resumed. Re-upload the CSV to create a fresh run.",
+      message: expectedMessage,
       runId: "75aa9d2c-ae7f-40a0-b384-45970cdfa16a",
       runStatus: "staged",
       status: "error",
@@ -396,6 +408,63 @@ describe("stageImportRunAction", () => {
       properties: [],
       units: [],
     });
+  });
+
+  it("revalidates ambiguous person identity on the server before staging", async () => {
+    const client = atomicStageClient(importRunRecord("staged", { blocked: 1, ready: 0 }));
+    mocks.createSupabaseServerClient.mockResolvedValue(client.value);
+    mocks.getImportReferenceData.mockResolvedValue({
+      leaseOccupancies: [], properties: [], units: [],
+      people: ["first", "second"].map((email, index) => ({
+        displayName: "Same Name", id: `person-${index}`, label: `Same Name (${email}@example.com)`,
+        primaryEmail: `${email}@example.com`, roles: ["tenant"],
+      })),
+    });
+    const formData = importPayloadForm("people-draft");
+    const payload = JSON.parse(String(formData.get("payload")));
+    formData.set("payload", JSON.stringify({
+      ...payload, importType: "people", headers: ["Display Name", "Roles"],
+      mapping: { displayName: "Display Name", roles: "Roles" },
+      records: [{ raw: { "Display Name": "Same Name", Roles: "tenant" }, rowNumber: 2 }],
+      normalizedData: { existingPersonId: "person-0" },
+    }));
+
+    await stageImportRunAction({}, formData);
+
+    expect(client.rpc.mock.calls[0][1].p_rows[0]).toMatchObject({
+      action_label: "Needs review", row_status: "error",
+      normalized_data: { existingPersonId: null },
+    });
+  });
+
+  it("stages unmapped fields as absent and mapped blanks as explicit clears", async () => {
+    const client = atomicStageClient(importRunRecord("staged", { warnings: 1 }));
+    mocks.createSupabaseServerClient.mockResolvedValue(client.value);
+    mocks.getImportReferenceData.mockResolvedValue({
+      leaseOccupancies: [], properties: [], units: [],
+      people: [{
+        displayName: "Company", id: "person-1", label: "Company (company@example.com)",
+        primaryEmail: "company@example.com", roles: ["tenant"],
+      }],
+    });
+    const formData = importPayloadForm("people-draft");
+    const payload = JSON.parse(String(formData.get("payload")));
+    formData.set("payload", JSON.stringify({
+      ...payload, importType: "people", headers: ["Display Name", "Roles", "Phone"],
+      mapping: { displayName: "Display Name", roles: "Roles", primaryPhone: "Phone" },
+      records: [{ raw: { "Display Name": "Company", Roles: "tenant", Phone: "" }, rowNumber: 2 }],
+    }));
+
+    await stageImportRunAction({}, formData);
+
+    const stagedRow = client.rpc.mock.calls[0][1].p_rows[0];
+    expect(stagedRow).toMatchObject({
+      action_label: "Update", row_status: "warning",
+      normalized_data: { existingPersonId: "person-1", primaryPhone: null },
+    });
+    expect(stagedRow.normalized_data).not.toHaveProperty("partyType");
+    expect(stagedRow.normalized_data).not.toHaveProperty("primaryEmail");
+    expect(stagedRow.normalized_data).not.toHaveProperty("legalName");
   });
 
   it("stages only through the atomic RPC and returns its stored immutable summary", async () => {

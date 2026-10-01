@@ -89,12 +89,14 @@ describe("UnitPage authority", () => {
     expect(getUnitDetail).toHaveBeenCalledWith("organization-1", "unit-a");
     expect(screen.props.canArchive).toBe(true);
     expect(screen.props.canWrite).toBe(true);
-    expect(screen.props.maintenanceFormOptions.actor).toEqual({
-      branchId: "branch-a",
-      dataScope: "branch",
-      personId: "person-a",
-      workflowMode: "coordinator",
-    });
+    expect(screen.props.maintenanceFormOptions).toBeUndefined();
+    expect(screen.props.propertyOptions).toBeUndefined();
+    expect(screen.props.tenantOptions).toBeUndefined();
+    expect(screen.props.billingFormConfig).toBeUndefined();
+    expect(getPropertySummaries).not.toHaveBeenCalled();
+    expect(getPersonSelectOptions).not.toHaveBeenCalled();
+    expect(getLeaseBillingFormConfig).not.toHaveBeenCalled();
+    expect(getMaintenanceScreenData).not.toHaveBeenCalled();
   });
 
   it("fails a guessed or cross-branch Unit through the RLS-protected loader", async () => {
@@ -113,5 +115,29 @@ describe("UnitPage authority", () => {
 
     expect(screen.type).toBe(UnitNotFound);
     expect(getMaintenanceScreenData).not.toHaveBeenCalled();
+    expect(getPropertySummaries).not.toHaveBeenCalled();
+    expect(getPersonSelectOptions).not.toHaveBeenCalled();
+    expect(getLeaseBillingFormConfig).not.toHaveBeenCalled();
+  });
+
+  it("resets form state when the record, user, branch or permissions change", async () => {
+    const context = {
+      branchId: "branch-a", isSuperAdmin: false, organizationId: "organization-1",
+      permissionKeys: new Set(["properties.view"]), personId: "person-a", userId: "user-a",
+    };
+    const renderPage = () => UnitPage({ params: Promise.resolve({ unitId: "unit-a" }), searchParams: Promise.resolve({}) });
+    requirePermission.mockResolvedValue(context);
+    getUnitDetail.mockResolvedValue({ id: "unit-a", propertyId: "property-a" });
+    const baseline = await renderPage();
+    for (const change of [
+      { branchId: "branch-b" }, { userId: "user-b" }, { personId: "person-b" },
+      { permissionKeys: new Set(["properties.view", "leases.prepare"]) },
+    ]) {
+      requirePermission.mockResolvedValue({ ...context, ...change });
+      expect((await renderPage()).key).not.toBe(baseline.key);
+    }
+    requirePermission.mockResolvedValue(context);
+    getUnitDetail.mockResolvedValue({ id: "unit-b", propertyId: "property-a" });
+    expect((await renderPage()).key).not.toBe(baseline.key);
   });
 });
