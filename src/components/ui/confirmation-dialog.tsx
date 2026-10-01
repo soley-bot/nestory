@@ -40,7 +40,7 @@ export function ConfirmationDialog({
       open={open}
     >
       <AlertDialogContent aria-label={ariaLabel}>
-        <AlertDialogHeader>
+        <AlertDialogHeader className="place-items-start text-left">
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
