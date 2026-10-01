@@ -7,6 +7,8 @@ import {
   getCurrentImportAction,
   ImportPreviewScreen,
 } from "@/features/imports/components/import-preview-screen";
+import { autoMapImportHeaders, buildGenericImportPreviewRows } from "@/features/imports/import-config";
+import { parseCsv } from "@/features/imports/unit-import";
 
 beforeAll(() => {
   Object.defineProperties(HTMLElement.prototype, {
@@ -18,6 +20,51 @@ beforeAll(() => {
 });
 
 describe("ImportPreviewScreen", () => {
+  it.each([
+    ["people", "People", "Person ID", "Display Name,Roles,Email,Phone\nShared Tenant,tenant,shared@example.com,"],
+    ["leases", "Leases", "Tenant Person ID", "Property Code,Unit no.,Tenant Name,Tenant Email,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Status\nCTR,12A,Shared Tenant,shared@example.com,2026-01-01,2026-12-31,850,10,Monthly,Active,Active"],
+  ] as const)("allows the %s fix template to resolve a shared identity", async (type, label, idHeader, csv) => {
+    const user = userEvent.setup();
+    const references = {
+      leaseOccupancies: [],
+      people: ["33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444"].map((id) => ({
+        displayName: "Shared Tenant", id, label: "Shared Tenant (shared@example.com)",
+        primaryEmail: "shared@example.com", roles: ["tenant"],
+      })),
+      properties: [{ code: "CTR", id: "property-1", label: "CTR", name: "Central" }],
+      units: [{ id: "unit-1", label: "CTR - 12A", propertyCode: "CTR", propertyId: "property-1", unitNumber: "12A" }],
+    };
+    const { container } = renderImport([], references);
+    await user.click(screen.getByRole("combobox", { name: "Import type" }));
+    await user.click(await screen.findByRole("option", { name: label }));
+    const file = new File([csv], `${type}.csv`, { type: "text/csv" });
+    Object.defineProperty(file, "text", { value: async () => csv });
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
+    const link = await screen.findByRole("link", { name: "Fix template" });
+    const href = link.getAttribute("href")!;
+    const repaired = parseCsv(decodeURIComponent(href.slice(href.indexOf(",") + 1)));
+    expect(repaired.headers).toContain(idHeader);
+    expect(repaired.records[0].raw[idHeader]).toBe("");
+    repaired.records[0].raw[idHeader] = references.people[1].id;
+    const [row] = buildGenericImportPreviewRows({
+      mapping: autoMapImportHeaders(type, repaired.headers),
+      records: repaired.records,
+      referenceData: references,
+      type,
+    });
+    expect(row.issues.filter((issue) => issue.level === "error")).toEqual([]);
+    expect(row.normalizedData[type === "people" ? "existingPersonId" : "tenantPersonId"]).toBe(references.people[1].id);
+    if (type === "people") {
+      for (const field of ["partyType", "legalName", "taxIdentifier", "notes"]) {
+        expect(row.normalizedData).not.toHaveProperty(field);
+      }
+      expect(row.normalizedData.primaryPhone).toBeNull();
+      expect(row.issues).toContainEqual(expect.objectContaining({
+        level: "warning", message: "Will clear: Phone.",
+      }));
+    }
+  });
+
   it("shows field-preservation semantics and row-specific mapped blank clears", async () => {
     const user = userEvent.setup();
     const { container } = renderImport([], {

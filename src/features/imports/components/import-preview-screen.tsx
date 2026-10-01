@@ -987,8 +987,17 @@ function buildFixTemplateCsvHref({
     buildImportTemplateCsv(type, referenceData),
   ).headers;
   const templateMapping = autoMapImportHeaders(type, templateHeaders);
+  const repairHeaders = type === "people"
+    ? templateHeaders.filter((templateHeader) => {
+      const fieldKey = Object.entries(templateMapping).find(
+        ([, mappedHeader]) => mappedHeader === templateHeader,
+      )?.[0];
+      const field = getImportTypeConfig(type).fields.find((candidate) => candidate.key === fieldKey);
+      return field?.required || fieldKey === "personId" || Boolean(fieldKey && mapping[fieldKey]);
+    })
+    : templateHeaders;
   const templateRows = rows.map((row) =>
-    templateHeaders.map((templateHeader) => {
+    repairHeaders.map((templateHeader) => {
       const fieldKey = Object.entries(templateMapping).find(
         ([, mappedHeader]) => mappedHeader === templateHeader,
       )?.[0];
@@ -998,7 +1007,7 @@ function buildFixTemplateCsvHref({
     }),
   );
 
-  return buildCsvHref([templateHeaders, ...templateRows]);
+  return buildCsvHref([repairHeaders, ...templateRows]);
 }
 
 function buildCsvHref(rows: string[][]) {

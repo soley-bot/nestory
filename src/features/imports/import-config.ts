@@ -78,6 +78,7 @@ export const importTypeConfigs: Record<ImportType, ImportTypeConfig> = {
         "Scheduled Move-out",
         "Actual Move-in",
         "Actual Move-out",
+        "Tenant Person ID",
       ],
       [
         "CTR",
@@ -95,6 +96,7 @@ export const importTypeConfigs: Record<ImportType, ImportTypeConfig> = {
         "2025-12-28",
         "2027-01-02",
         "2026-01-02",
+        "",
         "",
       ],
     ],
@@ -124,6 +126,7 @@ export const importTypeConfigs: Record<ImportType, ImportTypeConfig> = {
         "Legal Name",
         "Tax ID",
         "Notes",
+        "Person ID",
       ],
       [
         "Sok Dara",
@@ -131,6 +134,7 @@ export const importTypeConfigs: Record<ImportType, ImportTypeConfig> = {
         "Individual",
         "tenant@example.com",
         "+855 12 345 678",
+        "",
         "",
         "",
         "",
@@ -396,6 +400,7 @@ function buildImportTemplateRows(
           "",
           "",
           "",
+          person.id,
         ]),
     ];
   }
@@ -418,6 +423,7 @@ function buildImportTemplateRows(
           "",
           "",
           "Active",
+          "",
           "",
           "",
           "",

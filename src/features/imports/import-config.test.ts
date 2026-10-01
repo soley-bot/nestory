@@ -39,6 +39,40 @@ const referenceData: ImportReferenceData = {
 };
 
 describe("import config", () => {
+  it.each([
+    ["people", "Person ID"],
+    ["leases", "Tenant Person ID"],
+  ] as const)("includes the explicit identity column in the %s download", (type, idHeader) => {
+    const parsed = parseCsv(buildImportTemplateCsv(type));
+    expect(parsed.headers).toContain(idHeader);
+    expect(parsed.records[0].raw[idHeader]).toBe("");
+    expect(parsed.records[0].raw[type === "people" ? "Display Name" : "Tenant Name"]).toBe("Sok Dara");
+  });
+
+  it("prefills People IDs so shared identities remain distinct when re-uploaded", () => {
+    const sharedReferences = {
+      ...referenceData,
+      people: [referenceData.people[0], {
+        ...referenceData.people[0],
+        id: "44444444-4444-4444-8444-444444444444",
+      }],
+    };
+    const parsed = parseCsv(buildImportTemplateCsv("people", sharedReferences));
+    expect(parsed.records.map((record) => record.raw["Person ID"])).toEqual(
+      sharedReferences.people.map((person) => person.id),
+    );
+    const rows = buildGenericImportPreviewRows({
+      mapping: autoMapImportHeaders("people", parsed.headers),
+      records: parsed.records,
+      referenceData: sharedReferences,
+      type: "people",
+    });
+    expect(getGenericImportStats(rows).readyCount).toBe(2);
+    expect(rows.map((row) => row.normalizedData.existingPersonId)).toEqual(
+      sharedReferences.people.map((person) => person.id),
+    );
+  });
+
   it("builds property templates and create/update previews", () => {
     const template = buildImportTemplateCsv("properties");
     const parsed = parseCsv(
@@ -100,8 +134,8 @@ describe("import config", () => {
     const template = buildImportTemplateCsv("leases", referenceData);
 
     expect(template.split("\r\n")).toEqual([
-      "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Deposit,Status,Scheduled Move-in,Scheduled Move-out,Actual Move-in,Actual Move-out",
-      "CTR,12A,,,,,,,,,,Active,,,,",
+      "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Deposit,Status,Scheduled Move-in,Scheduled Move-out,Actual Move-in,Actual Move-out,Tenant Person ID",
+      "CTR,12A,,,,,,,,,,Active,,,,,",
     ]);
   });
 
