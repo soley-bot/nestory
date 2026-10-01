@@ -12401,6 +12401,19 @@ export type Database = {
         }
         Returns: string
       }
+      record_lease_deposit_event_idempotent: {
+        Args: {
+          p_amount: number
+          p_event_date: string
+          p_event_type: string
+          p_idempotency_key: string
+          p_lease_deposit_id: string
+          p_liability_account_id: string
+          p_organization_id: string
+          p_reference: string
+        }
+        Returns: string
+      }
       record_lease_deposit_event_with_account: {
         Args: {
           p_amount: number
