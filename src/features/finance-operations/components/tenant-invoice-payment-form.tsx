@@ -43,6 +43,7 @@ type TenantInvoicePaymentFormProps = {
   onSuccess: (message: string) => void;
   ownerLabel: string;
   payFromAccounts: FinanceAccountOption[];
+  showAmountInSubmitLabel?: boolean;
   submitLabel?: string;
 };
 
@@ -64,6 +65,7 @@ function TenantInvoicePaymentFormStateful({
   onSuccess,
   ownerLabel,
   payFromAccounts,
+  showAmountInSubmitLabel,
   submitLabel,
 }: TenantInvoicePaymentFormProps) {
   const idempotencyKey = useStableActionId(
@@ -74,6 +76,7 @@ function TenantInvoicePaymentFormStateful({
       ? recordTenantInvoicePaymentAction
       : confirmOwnerCollectionAction;
   const [state, formAction] = useActionState(action, {});
+  const [amountValue, setAmountValue] = useState(String(invoice.balanceDue));
   const errorId = useId();
   const errorRef = useRef<HTMLParagraphElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -92,10 +95,19 @@ function TenantInvoicePaymentFormStateful({
     invoice.collectionRoute === "through_ips"
       ? "Received date"
       : "Confirmed date";
+  const paymentAmount = Number(amountValue);
+  const paymentAmountDisplay =
+    Number.isFinite(paymentAmount) &&
+    paymentAmount > 0 &&
+    paymentAmount === Number(paymentAmount.toFixed(2))
+      ? formatMoneyDisplay(paymentAmount).primary
+      : null;
   const actionLabel =
     submitLabel ??
     (invoice.collectionRoute === "through_ips"
-      ? "Record payment"
+      ? showAmountInSubmitLabel && paymentAmountDisplay
+        ? `Record ${paymentAmountDisplay} payment`
+        : "Record payment"
       : "Confirm collected");
 
   useEffect(() => {
@@ -157,9 +169,10 @@ function TenantInvoicePaymentFormStateful({
         <Field label="Amount">
           <NumberInput
             className="h-10 text-lg font-semibold tabular-nums md:text-lg"
-            defaultValue={invoice.balanceDue}
             name="amount"
+            onChange={(event) => setAmountValue(event.target.value)}
             required
+            value={amountValue}
           />
         </Field>
         <Field label={settlementDateLabel}>
@@ -278,8 +291,7 @@ function captureSafeUncontrolledValues(form: HTMLFormElement) {
   for (const entry of Array.from(form.elements)) {
     if (
       entry instanceof HTMLInputElement &&
-      (entry.name === "amount" ||
-        entry.name === "reference" ||
+      (entry.name === "reference" ||
         entry.name.startsWith("allocation:"))
     ) {
       values.set(entry.name, entry.value);
