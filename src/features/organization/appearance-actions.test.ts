@@ -185,7 +185,7 @@ describe("organization logo actions", () => {
     expect(remove).toHaveBeenCalledWith([upload.mock.calls[0][0]]);
   });
 
-  it.each(["returned error", "thrown response loss"])(
+  it.each(["returned error", "thrown response loss", "missing selected path"])(
     "recovers committed logo selection after %s without removing its bytes",
     async (response) => {
       logoSingle.mockResolvedValueOnce({ data: { logo_storage_path: null }, error: null });
@@ -195,8 +195,10 @@ describe("organization logo actions", () => {
       }));
       if (response === "returned error") {
         rpc.mockResolvedValueOnce({ data: null, error: { message: "connection lost" } });
-      } else {
+      } else if (response === "thrown response loss") {
         rpc.mockRejectedValueOnce(new Error("connection lost"));
+      } else {
+        rpc.mockResolvedValueOnce({ data: null, error: null });
       }
 
       await expect(uploadOrganizationLogoAction({}, logoForm())).resolves.toEqual({

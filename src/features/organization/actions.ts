@@ -238,13 +238,13 @@ export async function uploadOrganizationLogoAction(
     };
   }
 
-  const { error } = await Promise.resolve(
+  const { data: selectedPath, error } = await Promise.resolve(
     supabase.rpc("update_organization_logo", {
       p_logo_storage_path: storagePath,
       p_organization_id: context.organizationId,
     }),
-  ).catch(() => ({ error: { message: "" } }));
-  if (error) {
+  ).catch(() => ({ data: null, error: { message: "" } }));
+  if (error || !selectedPath) {
     const recovery = await removeUnselectedCompanyLogoObject(
       supabase,
       context.organizationId,
@@ -252,7 +252,7 @@ export async function uploadOrganizationLogoAction(
     );
     if (recovery !== "selected") {
       return {
-        message: error.message.includes("Company logo object was not found")
+        message: error?.message.includes("Company logo object was not found")
           ? "The uploaded company logo could not be found. Please upload it again."
           : "We could not save the company logo.",
         status: "error",
