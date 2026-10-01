@@ -34,7 +34,7 @@ SELECT is((SELECT rent_income FROM public.property_finance_positions
  WHERE property_id='dd150000-0000-4000-8000-000000000002'),0::numeric,'contribution is not rental income');
 UPDATE owner_date_state SET later=public.record_owner_distribution('dd150000-0000-4000-8000-000000000001',
  'dd150000-0000-4000-8000-000000000002','dd150000-0000-4000-8000-000000000003',
- 'USD',100,current_date-5,'Later payout','date-test-later');
+ 'USD',100,(date_trunc('month',current_date)-interval '1 day')::date,'Later payout','date-test-later');
 UPDATE owner_date_state SET original=public.record_owner_distribution('dd150000-0000-4000-8000-000000000001',
  'dd150000-0000-4000-8000-000000000002','dd150000-0000-4000-8000-000000000003',
  'USD',400,current_date,'Original payout','date-test-original');
@@ -83,13 +83,13 @@ SELECT throws_ok($$SELECT public.correct_owner_distribution('dd150000-0000-4000-
  '23514','owner_distribution_already_reversed','already corrected original cannot be corrected twice');
 SELECT public.set_financial_month_lock('dd150000-0000-4000-8000-000000000001',current_date,true,'Protect correction test');
 SELECT throws_ok($$SELECT public.correct_owner_distribution('dd150000-0000-4000-8000-000000000001',
- (later->>'property_withdrawal_id')::uuid,current_date-4,100,'Later payout','Correct actual bank date','date-test-closed') FROM owner_date_state$$,
+ (later->>'property_withdrawal_id')::uuid,current_date,100,'Later payout','Correct actual bank date','date-test-closed') FROM owner_date_state$$,
  NULL,NULL,'closed financial period blocks correction');
 SELECT public.set_financial_month_lock('dd150000-0000-4000-8000-000000000001',current_date,false,'Release correction test');
 -- A known user key must never cause the correction to reuse a separate payout.
 SELECT public.record_owner_distribution('dd150000-0000-4000-8000-000000000001',
  'dd150000-0000-4000-8000-000000000002','dd150000-0000-4000-8000-000000000003',
- 'USD',100,current_date-4,'Later payout','date-replacement:date-test-preclaimed');
+ 'USD',100,current_date,'Later payout','date-replacement:date-test-preclaimed');
 CREATE TEMP TABLE reserved_cash_before AS SELECT c.* FROM public.owner_cash_source_consumptions c
  JOIN public.owner_component_movements m ON m.id=c.consumer_movement_id
  JOIN public.owner_event_owner_allocations a ON a.id=m.owner_event_owner_allocation_id
@@ -97,7 +97,7 @@ CREATE TEMP TABLE reserved_cash_before AS SELECT c.* FROM public.owner_cash_sour
  WHERE s.source_line_id=(SELECT (corrected->>'withdrawalId')::uuid FROM owner_date_state);
 SELECT ok((SELECT count(*)>0 FROM reserved_cash_before),'earlier payout has real cash reservations before forward correction');
 SELECT lives_ok($$SELECT public.correct_owner_distribution('dd150000-0000-4000-8000-000000000001',
- (later->>'property_withdrawal_id')::uuid,current_date-4,100,'Later payout',
+ (later->>'property_withdrawal_id')::uuid,current_date,100,'Later payout',
  'Actual bank date correction','date-test-preclaimed') FROM owner_date_state$$,
  'forward correction succeeds even when an attacker preclaimed the old derived key');
 SELECT is((SELECT sum(signed_amount) FROM public.owner_component_movements
@@ -126,7 +126,7 @@ SELECT is((SELECT reference FROM public.property_withdrawals WHERE id=(SELECT (c
 SELECT throws_ok($$SELECT public.correct_owner_distribution('dd150000-0000-4000-8000-000000000001',(corrected->>'reversalId')::uuid,current_date,350,'Bad reversal','Correct bank statement','reversal-again') FROM owner_date_state$$,'23514','owner_distribution_already_reversed','reversal rows cannot be corrected');
 SELECT set_config('request.jwt.claim.sub','dd150000-0000-4000-8000-000000000099',true);
 SELECT throws_ok($$SELECT public.correct_owner_distribution('dd150000-0000-4000-8000-000000000001',
- (later->>'property_withdrawal_id')::uuid,current_date-4,100,'Later payout','Correct actual bank date','date-test-denied') FROM owner_date_state$$,
+ (later->>'property_withdrawal_id')::uuid,current_date,100,'Later payout','Correct actual bank date','date-test-denied') FROM owner_date_state$$,
  '42501','owner_distribution_correction_forbidden','unauthorized actor cannot correct distribution');
 RESET ROLE;
 SELECT is((SELECT count(*) FROM public.activity_logs WHERE organization_id='dd150000-0000-4000-8000-000000000001'

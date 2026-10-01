@@ -1185,29 +1185,39 @@ SET through_invoice_id = invoice.id
 FROM public.tenant_invoices AS invoice
 WHERE invoice.organization_id = runtime.organization_id
   AND invoice.lease_id = runtime.through_lease_id
-  AND invoice.billing_period_start = date_trunc('month', current_date)::date;
+  AND invoice.billing_period_start = date_trunc(
+    'month', public.get_lease_rent_business_date(runtime.organization_id)
+  )::date;
 
 UPDATE fixture_runtime AS runtime
 SET direct_invoice_id = invoice.id
 FROM public.tenant_invoices AS invoice
 WHERE invoice.organization_id = runtime.organization_id
   AND invoice.lease_id = runtime.direct_lease_id
-  AND invoice.billing_period_start = date_trunc('month', current_date)::date;
+  AND invoice.billing_period_start = date_trunc(
+    'month', public.get_lease_rent_business_date(runtime.organization_id)
+  )::date;
 
 UPDATE fixture_runtime AS runtime
 SET garden_invoice_id = invoice.id
 FROM public.tenant_invoices AS invoice
 WHERE invoice.organization_id = runtime.organization_id
   AND invoice.lease_id = runtime.garden_open_lease_id
-  AND invoice.billing_period_start = date_trunc('month', current_date)::date;
+  AND invoice.billing_period_start = date_trunc(
+    'month', public.get_lease_rent_business_date(runtime.organization_id)
+  )::date;
 
 UPDATE fixture_runtime AS runtime
-SET garden_exception_id = exception.id
-FROM public.rent_generation_exceptions AS exception
-WHERE exception.organization_id = runtime.organization_id
-  AND exception.lease_id = runtime.garden_exception_lease_id
-  AND exception.billing_period_start = date_trunc('month', current_date)::date
-  AND exception.resolved_at IS NULL;
+SET garden_exception_id = (
+  SELECT exception.id
+  FROM public.rent_generation_exceptions AS exception
+  WHERE exception.organization_id = runtime.organization_id
+    AND exception.lease_id = runtime.garden_exception_lease_id
+    AND exception.resolved_at IS NULL
+  ORDER BY exception.billing_period_start DESC, exception.created_at DESC,
+    exception.id DESC
+  LIMIT 1
+);
 
 DO $$
 DECLARE
@@ -1978,8 +1988,8 @@ FROM (
       '80000000-0000-0000-0000-000000000009'::uuid,
       date_trunc('month', current_date)::date,
       'owner_due_to_ips'::public.owner_balance_component,
-      0.00::numeric,
-      'Garden Court verified zero owner payable opening',
+      100.00::numeric,
+      'Garden Court verified owner payable opening',
       'FIXTURE-GARDEN-OPENING-OWNER-DUE-001', repeat('b', 64),
       'fixture-garden-opening-owner-due-v1'
     ),
@@ -2358,23 +2368,25 @@ SELECT public.transfer_owner_balance_component(
   '80000000-0000-0000-0000-000000000012',
   'USD',
   (date_trunc('month', current_date) + interval '1 month')::date,
-  'owner_due_to_ips', (
-    SELECT component.closing_amount
-    FROM public.owner_balance_periods AS period
-    JOIN public.owner_balance_period_components AS component
-      ON component.organization_id = period.organization_id
-      AND component.owner_balance_period_id = period.id
-      AND component.component = 'owner_due_to_ips'
-    WHERE period.organization_id = '00000000-0000-0000-0000-000000000001'
-      AND period.property_id = '10000000-0000-0000-0000-000000000003'
-      AND period.owner_person_id = '80000000-0000-0000-0000-000000000009'
-      AND period.currency = 'USD'
-      AND period.month_start = date_trunc('month', current_date)::date
-  ),
+  'owner_due_to_ips', transfer.closing_amount,
   'Explicit Garden Court owner-payable transfer',
   'FIXTURE-GARDEN-TRANSFER-OWNER-DUE-001', repeat('4', 64),
   'fixture-owner-balance-transfer-owner-due-v1'
-);
+)
+FROM (
+  SELECT component.closing_amount
+  FROM public.owner_balance_periods AS period
+  JOIN public.owner_balance_period_components AS component
+    ON component.organization_id = period.organization_id
+    AND component.owner_balance_period_id = period.id
+    AND component.component = 'owner_due_to_ips'
+  WHERE period.organization_id = '00000000-0000-0000-0000-000000000001'
+    AND period.property_id = '10000000-0000-0000-0000-000000000003'
+    AND period.owner_person_id = '80000000-0000-0000-0000-000000000009'
+    AND period.currency = 'USD'
+    AND period.month_start = date_trunc('month', current_date)::date
+    AND component.closing_amount > 0
+) AS transfer;
 
 SELECT public.generate_owner_balance_period(
   '00000000-0000-0000-0000-000000000001',
@@ -2438,7 +2450,9 @@ CREATE TEMP TABLE owner_close_fixture_scope (
   month_start date PRIMARY KEY
 ) ON COMMIT DROP;
 INSERT INTO owner_close_fixture_scope (month_start)
-VALUES ((date_trunc('month', current_date) + interval '24 months')::date);
+VALUES ((
+  date_trunc('month', now() AT TIME ZONE 'UTC') + interval '24 months'
+)::date);
 GRANT SELECT ON owner_close_fixture_scope TO authenticated;
 
 SET LOCAL ROLE authenticated;

@@ -7,6 +7,9 @@ CREATE TEMP TABLE lease_rent_state (
   missing_policy_organization_id uuid NOT NULL DEFAULT 'a1000000-0000-0000-0000-000000000002',
   super_admin_id uuid NOT NULL DEFAULT 'a1000000-0000-0000-0000-000000000101',
   finance_manager_id uuid NOT NULL DEFAULT 'a1000000-0000-0000-0000-000000000102',
+  finance_branch_id uuid NOT NULL DEFAULT 'a1000000-0000-0000-0000-000000000201',
+  other_branch_id uuid NOT NULL DEFAULT 'a1000000-0000-0000-0000-000000000202',
+  finance_role_id uuid NOT NULL DEFAULT 'a1000000-0000-0000-0000-000000000301',
   property_id uuid NOT NULL DEFAULT 'a2000000-0000-0000-0000-000000000001',
   good_unit_id uuid NOT NULL DEFAULT 'a3000000-0000-0000-0000-000000000001',
   blocked_unit_id uuid NOT NULL DEFAULT 'a3000000-0000-0000-0000-000000000002',
@@ -30,6 +33,11 @@ CREATE TEMP TABLE lease_rent_state (
   current_business_date date,
   current_period_start date,
   non_current_period_start date,
+  current_invoice_id uuid,
+  current_invoice_due_day integer,
+  current_preview jsonb,
+  cross_property_current_invoice_id uuid,
+  cross_property_current_invoice_due_day integer,
   current_retry_result jsonb
 ) ON COMMIT DROP;
 
@@ -813,7 +821,122 @@ SELECT ok((SELECT preview->'blockers' @>
 SELECT throws_ok($$SELECT pg_temp.apply_case('retired')$$,'55000','historical_rent_correction_blocked',
  'retired sources cannot produce a new replay receipt');
 
+-- Convert the Finance Manager fixture to the current custom-role/branch model
+-- and create two current issued periods on different branches. All fixture
+-- changes remain inside this test transaction.
+RESET ROLE;
+INSERT INTO public.organization_branches(
+  id,organization_id,name,code,status,created_by,updated_by
+)
+SELECT finance_branch_id,organization_id,'Finance branch','FIN','active',super_admin_id,super_admin_id
+FROM lease_rent_state
+UNION ALL
+SELECT other_branch_id,organization_id,'Other branch','OTHER','active',super_admin_id,super_admin_id
+FROM lease_rent_state;
+INSERT INTO public.organization_roles(
+  id,organization_id,name,status,created_by,updated_by
+)
+SELECT finance_role_id,organization_id,'Finance Manager','active',super_admin_id,super_admin_id
+FROM lease_rent_state;
+INSERT INTO public.organization_role_permissions(
+  organization_id,role_id,permission_key,granted_by
+)
+SELECT organization_id,finance_role_id,
+  'finance.correct_records'::public.organization_permission_key,super_admin_id
+FROM lease_rent_state
+UNION ALL
+SELECT organization_id,finance_role_id,
+  'finance.record_payments'::public.organization_permission_key,super_admin_id
+FROM lease_rent_state;
+SET LOCAL session_replication_role = replica;
+UPDATE public.properties property SET branch_id=state.finance_branch_id
+FROM lease_rent_state state
+WHERE property.organization_id=state.organization_id AND property.id=state.property_id;
+UPDATE public.properties property SET branch_id=state.other_branch_id
+FROM lease_rent_state state
+WHERE property.organization_id=state.organization_id
+  AND property.id=(SELECT property_id FROM isolated_paid WHERE name='paid-isolated');
+UPDATE public.organization_members member
+SET role='custom',branch_id=state.finance_branch_id,custom_role_id=state.finance_role_id
+FROM lease_rent_state state
+WHERE member.organization_id=state.organization_id AND member.user_id=state.finance_manager_id;
+UPDATE public.organization_authorization_states authorization_state
+SET ordinary_access_enabled=true
+FROM lease_rent_state state
+WHERE authorization_state.organization_id=state.organization_id;
+SET LOCAL session_replication_role = origin;
+
+UPDATE lease_rent_state state SET
+  current_invoice_id=app_private.generate_simple_lease_rent_invoice(
+    state.organization_id,state.good_lease_id,state.current_period_start,
+    state.current_period_start,'manual_recovery',state.super_admin_id),
+  cross_property_current_invoice_id=app_private.generate_simple_lease_rent_invoice(
+    state.organization_id,(SELECT lease_id FROM isolated_paid WHERE name='paid-isolated'),
+    state.current_period_start,state.current_period_start,'manual_recovery',state.super_admin_id);
+
+UPDATE lease_rent_state state SET
+  current_invoice_due_day=extract(day FROM current_invoice.due_date)::integer,
+  cross_property_current_invoice_due_day=
+    extract(day FROM cross_property_invoice.due_date)::integer
+FROM public.tenant_invoices current_invoice,
+  public.tenant_invoices cross_property_invoice
+WHERE current_invoice.id=state.current_invoice_id
+  AND cross_property_invoice.id=state.cross_property_current_invoice_id;
+
+SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub',(SELECT finance_manager_id::text FROM lease_rent_state),true);
+SELECT lives_ok($$SELECT public.preview_historical_rent_correction(
+ organization_id,current_invoice_id,1100,current_invoice_due_day)
+ FROM lease_rent_state$$,
+ 'assigned Finance Manager can preview the current issued rent amount');
+UPDATE lease_rent_state SET current_preview=public.preview_historical_rent_correction(
+  organization_id,current_invoice_id,1100,current_invoice_due_day);
+UPDATE lease_rent_state SET current_retry_result=public.correct_historical_rent(
+  organization_id,current_invoice_id,1100,current_invoice_due_day,
+  'Correct the current issued rent amount',current_preview->>'previewHash',
+  'finance-manager-current-rent-edit');
+SELECT is(public.correct_historical_rent(
+  organization_id,current_invoice_id,1100,current_invoice_due_day,
+  'Correct the current issued rent amount',current_preview->>'previewHash',
+  'finance-manager-current-rent-edit'),current_retry_result,
+  'repeated Finance Manager save replays the exact current-rent result')
+FROM lease_rent_state;
+SELECT throws_ok($$SELECT public.correct_historical_rent(
+  organization_id,current_invoice_id,1200,current_invoice_due_day,
+  'Try a second current rent correction',current_preview->>'previewHash',
+  'finance-manager-current-rent-second') FROM lease_rent_state$$,
+  '42501','historical_rent_correction_forbidden',
+  'Finance Manager cannot apply a second correction to the issued month');
+RESET ROLE;
+SELECT is((SELECT balance.total_amount FROM public.tenant_invoice_balances balance
+  WHERE balance.id=state.current_invoice_id),1100::numeric,
+  'Finance Manager current-rent correction updates the issued balance')
+FROM lease_rent_state state;
+SELECT is((SELECT term.rent_amount FROM public.lease_terms term
+  WHERE term.organization_id=state.organization_id
+    AND term.lease_id=state.good_lease_id
+    AND term.authority_kind='authoritative' AND term.archived_at IS NULL
+  ORDER BY term.term_sequence DESC LIMIT 1),1000::numeric,
+  'single-month correction leaves the future recurring rent unchanged')
+FROM lease_rent_state state;
+SELECT ok(EXISTS(SELECT 1 FROM public.tenant_invoice_corrections correction
+  WHERE correction.organization_id=state.organization_id
+    AND correction.tenant_invoice_id=state.current_invoice_id
+    AND correction.created_by=state.finance_manager_id
+    AND correction.reason='Correct the current issued rent amount'),
+  'Finance Manager current-rent save appends attributed audit evidence')
+FROM lease_rent_state state;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub',(SELECT finance_manager_id::text FROM lease_rent_state),true);
+SELECT throws_ok($$SELECT public.preview_historical_rent_correction(
+ organization_id,current_invoice_id,1100,1)
+ FROM lease_rent_state$$,'42501','historical_rent_correction_forbidden',
+ 'assigned Finance Manager cannot change the current invoice due day');
+SELECT throws_ok($$SELECT public.preview_historical_rent_correction(
+ organization_id,cross_property_current_invoice_id,1100,
+ cross_property_current_invoice_due_day)
+ FROM lease_rent_state$$,'42501','historical_rent_correction_forbidden',
+ 'Finance Manager cannot preview current rent outside the assigned Property branch');
 SELECT throws_ok($$SELECT pg_temp.preview_case('stale')$$,'42501','historical_rent_correction_forbidden',
  'finance correction permission alone cannot preview historical rent');
 SELECT throws_ok($$SELECT pg_temp.apply_case('unpaid-increase')$$,'42501','historical_rent_correction_forbidden',

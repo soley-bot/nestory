@@ -497,6 +497,76 @@ describe("LeaseDetailScreen", () => {
     ).toBeNull();
   });
 
+  it("gives Finance Managers a current-month rent edit with reason and balance preview", async () => {
+    const user = userEvent.setup();
+    const invoiceId = "11111111-1111-4111-8111-111111111111";
+    historicalCorrectionMocks.preview.mockResolvedValue({
+      status: "preview",
+      preview: {
+        blockers: [],
+        canApply: true,
+        correctedDueDate: "2026-09-05",
+        correctedDueDay: 5,
+        correctedRentAmount: 1100,
+        immutableEvidence: { receiptsRetained: true },
+        invoiceId,
+        invoiceNumber: "INV-202609-001",
+        ipsRentSettledAmount: 400,
+        managementFeeDelta: 10,
+        originalDueDate: "2026-09-05",
+        originalDueDay: 5,
+        originalRentAmount: 1000,
+        ownerRentSettledAmount: 0,
+        previewHash: "a".repeat(64),
+        projectedTenantCreditAmount: 0,
+        rentDelta: 100,
+      },
+    });
+    renderDetail(
+      "rent",
+      makeLease(),
+      { ...allLeasePermissions, canEditCurrentRent: true },
+      {
+        billingFormConfig: {
+          companyOptions: [],
+          operationalTimezone: "Asia/Phnom_Penh",
+          organizationName: "Pilot",
+          rentBusinessDate: "2026-09-30",
+        },
+        historicalRentCorrectionCandidates: [{
+          billingPeriodEnd: "2026-09-30",
+          billingPeriodStart: "2026-09-01",
+          currency: "USD",
+          invoiceId,
+          invoiceNumber: "INV-202609-001",
+          originalDueDate: "2026-09-05",
+          originalDueDay: 5,
+          originalRentAmount: 1000,
+          paymentStatus: "partly_paid",
+          settledAmount: 400,
+        }],
+      },
+    );
+
+    await user.click(screen.getByRole("button", { name: "Manage lease" }));
+    expect(screen.queryByRole("menuitem", { name: "Correct management fee" })).toBeNull();
+    await user.click(screen.getByRole("menuitem", { name: "Edit this month's rent" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit this month's rent" });
+    expect(within(dialog).queryByLabelText("Corrected due day")).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText("Corrected rent amount"), {
+      target: { value: "1100" },
+    });
+    await user.type(
+      within(dialog).getByLabelText("Reason"),
+      "Signed correction for this month",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Preview correction" }));
+    expect(await within(dialog).findByText("Payments retained")).not.toBeNull();
+    expect(within(dialog).getByText("Rent balance after edit")).not.toBeNull();
+    expect(within(dialog).getByText("700.00")).not.toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Save this month's rent" })).not.toBeNull();
+  });
+
   it.each([false, true])("describes correction cash honestly without promising tenant credit (blocked: %s)", async (blocked) => {
     const user = userEvent.setup();
     const invoiceId = "11111111-1111-4111-8111-111111111111";

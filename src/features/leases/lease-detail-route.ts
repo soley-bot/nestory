@@ -5,6 +5,7 @@ export type LeaseRecordSection = "overview" | "rent" | "occupancy" | "files";
 export type LeaseDetailQuery = {
   paymentFocusRequested: boolean;
   paymentInvoiceId: string | null;
+  rentEditInvoiceId: string | null;
   section: LeaseRecordSection;
 };
 
@@ -25,6 +26,7 @@ export function parseLeaseDetailQuery(
   const action = firstValue(searchParams.action);
   const invoiceId = firstValue(searchParams.invoiceId)?.trim();
   const paymentFocusRequested = action === "record-payment";
+  const rentEditRequested = action === "edit-current-rent";
 
   return {
     paymentFocusRequested,
@@ -32,10 +34,28 @@ export function parseLeaseDetailQuery(
       paymentFocusRequested && invoiceId && databaseIdPattern.test(invoiceId)
         ? invoiceId
         : null,
+    rentEditInvoiceId:
+      rentEditRequested && invoiceId && databaseIdPattern.test(invoiceId)
+        ? invoiceId
+        : null,
     section: leaseRecordSections.has(section as LeaseRecordSection)
       ? (section as LeaseRecordSection)
       : "overview",
   };
+}
+
+export function buildLeaseCurrentRentEditHref({
+  invoiceId,
+  leaseId,
+}: {
+  invoiceId: string;
+  leaseId: string;
+}) {
+  return buildHref(`/leases/${leaseId}`, {
+    action: "edit-current-rent",
+    invoiceId,
+    section: "rent",
+  });
 }
 
 export function buildLeasePaymentResolutionHref({

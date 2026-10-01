@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildLeaseCurrentRentEditHref,
   buildLeasePaymentResolutionHref,
   buildLeaseRecordHref,
   parseLeaseDetailQuery,
@@ -10,11 +11,13 @@ describe("lease detail route", () => {
     expect(parseLeaseDetailQuery({})).toEqual({
       paymentFocusRequested: false,
       paymentInvoiceId: null,
+      rentEditInvoiceId: null,
       section: "overview",
     });
     expect(parseLeaseDetailQuery({ section: "unknown" })).toEqual({
       paymentFocusRequested: false,
       paymentInvoiceId: null,
+      rentEditInvoiceId: null,
       section: "overview",
     });
   });
@@ -25,6 +28,7 @@ describe("lease detail route", () => {
       expect(parseLeaseDetailQuery({ section })).toEqual({
         paymentFocusRequested: false,
         paymentInvoiceId: null,
+        rentEditInvoiceId: null,
         section,
       });
     },
@@ -40,14 +44,37 @@ describe("lease detail route", () => {
     ).toEqual({
       paymentFocusRequested: true,
       paymentInvoiceId: "30000000-0000-0000-0000-000000000001",
+      rentEditInvoiceId: null,
       section: "rent",
     });
+  });
+
+  it("parses and builds an exact current-rent invoice action", () => {
+    const invoiceId = "30000000-0000-0000-0000-000000000001";
+    expect(
+      parseLeaseDetailQuery({
+        action: "edit-current-rent",
+        invoiceId,
+        section: "rent",
+      }),
+    ).toEqual({
+      paymentFocusRequested: false,
+      paymentInvoiceId: null,
+      rentEditInvoiceId: invoiceId,
+      section: "rent",
+    });
+    expect(
+      buildLeaseCurrentRentEditHref({ invoiceId, leaseId: "lease-1" }),
+    ).toBe(
+      `/leases/lease-1?action=edit-current-rent&invoiceId=${invoiceId}&section=rent`,
+    );
   });
 
   it("marks exact payment actions with missing or malformed invoice IDs as requested but invalid", () => {
     expect(parseLeaseDetailQuery({ action: "record-payment" })).toEqual({
       paymentFocusRequested: true,
       paymentInvoiceId: null,
+      rentEditInvoiceId: null,
       section: "overview",
     });
     expect(
@@ -58,6 +85,7 @@ describe("lease detail route", () => {
     ).toEqual({
       paymentFocusRequested: true,
       paymentInvoiceId: null,
+      rentEditInvoiceId: null,
       section: "overview",
     });
     expect(
@@ -68,6 +96,7 @@ describe("lease detail route", () => {
     ).toEqual({
       paymentFocusRequested: true,
       paymentInvoiceId: null,
+      rentEditInvoiceId: null,
       section: "overview",
     });
   });
@@ -78,6 +107,7 @@ describe("lease detail route", () => {
     ).toEqual({
       paymentFocusRequested: false,
       paymentInvoiceId: null,
+      rentEditInvoiceId: null,
       section: "overview",
     });
   });
@@ -95,6 +125,7 @@ describe("lease detail route", () => {
     ).toEqual({
       paymentFocusRequested: true,
       paymentInvoiceId: "30000000-0000-0000-0000-000000000001",
+      rentEditInvoiceId: null,
       section: "rent",
     });
   });

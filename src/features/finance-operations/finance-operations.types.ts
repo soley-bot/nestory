@@ -101,6 +101,7 @@ export type TenantInvoiceSettlement = {
 
 export type TenantInvoiceSummary = {
   balanceDue: number;
+  billingPeriodEnd?: string;
   billingPeriodStart: string;
   collectedByOwner: number;
   collectionRoute: "direct_to_owner" | "through_ips";
@@ -278,6 +279,7 @@ export type FinanceOperationsData = {
   ownerInvoices: OwnerInvoiceSummary[];
   payFromAccounts: FinanceAccountOption[];
   operationalTimezone?: string;
+  rentBusinessDate?: string;
   peopleOptions: FinanceOption[];
   positions: PropertyFinancePosition[];
   propertyOptions: FinanceOption[];

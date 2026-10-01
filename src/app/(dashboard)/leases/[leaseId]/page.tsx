@@ -22,7 +22,7 @@ type LeasePageProps = {
 export default async function LeasePage({ params, searchParams }: LeasePageProps) {
   const [{ leaseId }, rawSearchParams] = await Promise.all([params, searchParams]);
   const context = await requirePermission("leases.view");
-  const { paymentFocusRequested, paymentInvoiceId, section } =
+  const { paymentFocusRequested, paymentInvoiceId, rentEditInvoiceId, section } =
     parseLeaseDetailQuery(rawSearchParams);
   const viewQuery = {
     ...parseLeaseSearchParams({ archiveState: "all" }),
@@ -53,10 +53,16 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
   }
 
   const historicalRentCorrectionCandidates =
-    context.roleKind === "super_admin"
+    context.roleKind === "super_admin" ||
+    (context.permissionKeys.has("finance.correct_records") &&
+      context.permissionKeys.has("finance.view"))
       ? await getHistoricalRentCorrectionCandidates(
           context.organizationId,
           lease.id,
+          {
+            currentPeriodOnly: context.roleKind !== "super_admin",
+            rentBusinessDate: billingFormConfig?.rentBusinessDate,
+          },
         )
       : [];
 
@@ -71,7 +77,7 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
       ? paymentResolution
       : undefined;
   const canViewFinance = context.permissionKeys.has("finance.view");
-  const routeNotice = paymentFocusRequested
+  const paymentRouteNotice = paymentFocusRequested
     ? getPaymentRouteNotice({
         canViewFinance,
         leaseId,
@@ -79,6 +85,15 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
         paymentResolution,
       })
     : undefined;
+  const currentRentCandidate = historicalRentCorrectionCandidates.find(
+    (candidate) => candidate.invoiceId === rentEditInvoiceId,
+  );
+  const routeNotice = rentEditInvoiceId && !currentRentCandidate
+    ? {
+        message:
+          "This month's rent can no longer be edited here. It may already have been corrected or is no longer the current issued rent.",
+      }
+    : paymentRouteNotice;
 
   return (
     <LeaseDetailScreen
@@ -93,9 +108,18 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
         canChangeTerms: context.permissionKeys.has("leases.change_terms"),
         canClose: context.permissionKeys.has("leases.close"),
         canPrepare: context.permissionKeys.has("leases.prepare"),
+        canEditCurrentRent:
+          context.permissionKeys.has("finance.correct_records") && canViewFinance,
         canCorrectHistoricalRent: context.roleKind === "super_admin",
       }}
       historicalRentCorrectionCandidates={historicalRentCorrectionCandidates}
+      currentRentEditInvoiceId={
+        context.permissionKeys.has("finance.correct_records") &&
+        canViewFinance &&
+        currentRentCandidate
+          ? rentEditInvoiceId ?? undefined
+          : undefined
+      }
       lease={lease}
       leaseDepositAccounts={getLeaseDepositAccountOptions(
         financeAccountData.groups.flatMap((group) => group.accounts),

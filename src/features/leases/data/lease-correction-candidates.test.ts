@@ -43,4 +43,34 @@ describe("issued fee correction candidates", () => {
     expect(queries.tenant_invoice_balances).toContainEqual({ field: "billing_period_start", op: "lte", value: expect.any(String) });
     expect(queries.tenant_invoice_corrections).toContainEqual({ field: "action", op: "in", value: ["historical_rent", "management_fee"] });
   });
+
+  it("excludes non-scheduled invoices from the delegated current-period editor", async () => {
+    const invoices = ["scheduled", "manual"].map((id) => ({
+      id, invoice_number: id, billing_period_start: "2026-09-01", billing_period_end: "2026-09-30",
+      due_date: "2026-09-05", currency: "USD", payment_status: "unpaid",
+      paid_through_ips: 0, collected_by_owner: 0,
+    }));
+    const tables: Record<string, unknown[]> = {
+      tenant_invoice_balances: invoices,
+      tenant_invoices: [{ id: "scheduled" }],
+      tenant_invoice_lines: invoices.map(({ id }) => ({ id: `line-${id}`, invoice_id: id, amount: 1450 })),
+      tenant_invoice_corrections: [],
+      management_fee_occurrences: [],
+    };
+    createSupabaseServerClient.mockResolvedValue({ from: (table: string) => {
+      const query = {
+        select: () => query, order: () => query, eq: () => query, is: () => query,
+        in: () => query, lte: () => query, gte: () => query,
+        then: (resolve: (value: unknown) => void) => Promise.resolve({ data: tables[table], error: null }).then(resolve),
+      };
+      return query;
+    } });
+
+    const candidates = await getHistoricalRentCorrectionCandidates("org", "lease", {
+      currentPeriodOnly: true,
+      rentBusinessDate: "2026-09-30",
+    });
+
+    expect(candidates.map((candidate) => candidate.invoiceId)).toEqual(["scheduled"]);
+  });
 });

@@ -40,7 +40,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import { findConfiguredAccountId } from "@/features/finance-accounts/finance-account-selection";
 import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
-import { buildLeasePaymentResolutionHref } from "@/features/leases/lease-detail-route";
+import { getCalendarDateInTimeZone } from "@/features/leases/lease-billing-rule-state";
+import {
+  buildLeaseCurrentRentEditHref,
+  buildLeasePaymentResolutionHref,
+} from "@/features/leases/lease-detail-route";
 import type { LeaseBillingRule } from "@/features/leases/lease.types";
 import {
   createManualTenantChargeAction,
@@ -467,8 +471,16 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
         >
           {visibleDetailDrawer.mode === "invoice-details" ? (
             <InvoiceDetails
+              businessDate={
+                props.rentBusinessDate ??
+                getCalendarDateInTimeZone(
+                  new Date(),
+                  props.operationalTimezone ?? "UTC",
+                )
+              }
               canCorrectFinance={props.canCorrectFinance}
               canRecordPayments={props.canRecordPayments}
+              canViewLeases={props.canViewLeases ?? false}
               invoice={visibleDetailDrawer.invoice}
               pdf={visibleDetailDrawer.invoice.pdf}
               pdfResultHref={invoicePdfResultHref}
@@ -2213,8 +2225,10 @@ function BalancesView({
 }
 
 function InvoiceDetails({
+  businessDate,
   canCorrectFinance,
   canRecordPayments,
+  canViewLeases,
   invoice,
   onCorrect,
   onPublicationClose,
@@ -2227,8 +2241,10 @@ function InvoiceDetails({
   pdfResultHref,
   publicationOpen,
 }: {
+  businessDate: string;
   canCorrectFinance: boolean;
   canRecordPayments: boolean;
+  canViewLeases: boolean;
   invoice: TenantInvoiceSummary;
   onCorrect: () => void;
   onPublicationClose: () => void;
@@ -2248,6 +2264,13 @@ function InvoiceDetails({
   const pdfHref = pdf.href ?? pdfResultHref;
   const canPublishPdf =
     canRecordPayments && invoice.paymentStatus !== "voided" && !pdfHref;
+  const canEditCurrentRent =
+    canCorrectFinance &&
+    canViewLeases &&
+    invoice.generationSource === "lease_rules_v1" &&
+    invoice.paymentStatus !== "voided" &&
+    invoice.billingPeriodStart <= businessDate &&
+    Boolean(invoice.billingPeriodEnd && invoice.billingPeriodEnd >= businessDate);
 
   return (
     <>
@@ -2346,6 +2369,18 @@ function InvoiceDetails({
       <FormFooter>
         <span />
         <div className="flex flex-wrap justify-end gap-2">
+          {canEditCurrentRent ? (
+            <Button asChild variant="outline">
+              <Link
+                href={buildLeaseCurrentRentEditHref({
+                  invoiceId: invoice.id,
+                  leaseId: invoice.leaseId,
+                })}
+              >
+                Edit this month&apos;s rent
+              </Link>
+            </Button>
+          ) : null}
           <TenantInvoiceVoidControl
             canCorrectFinance={canCorrectFinance}
             invoice={invoice}

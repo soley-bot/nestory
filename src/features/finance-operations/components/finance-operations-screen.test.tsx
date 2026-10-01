@@ -57,6 +57,7 @@ vi.mock("next/link", () => ({
 
 import { FinanceOperationsScreen } from "./finance-operations-screen";
 import type { FinanceOperationsData } from "../finance-operations.types";
+import { getBusinessDateValue } from "@/lib/dates/business-date";
 
 beforeAll(() => {
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
@@ -517,6 +518,40 @@ describe("FinanceOperationsScreen", () => {
     await user.click(screen.getByRole("button", { name: "View invoice INV-202608-001" }));
     expect(screen.getByRole("dialog", { name: "Invoice details" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /record.*payment|receive.*(?:cash|payment)|confirm.*(?:collection|cash)/i })).toBeNull();
+  });
+
+  it("links an authorized current issued invoice directly to the rent editor", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    const invoice = tenantInvoice();
+    const businessDate = getBusinessDateValue();
+    const [year, month] = businessDate.split("-").map(Number);
+    invoice.billingPeriodStart = `${businessDate.slice(0, 7)}-01`;
+    invoice.billingPeriodEnd = new Date(Date.UTC(year, month, 0))
+      .toISOString()
+      .slice(0, 10);
+    invoice.generationSource = "lease_rules_v1";
+    input.tenantInvoices = [invoice];
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canCorrectFinance: true })}
+        canViewLeases
+        organizationName="IPS"
+        view="rent"
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
+    );
+    expect(
+      within(screen.getByRole("dialog", { name: "Invoice details" }))
+        .getByRole("link", { name: "Edit this month's rent" })
+        .getAttribute("href"),
+    ).toBe(
+      `/leases/${invoice.leaseId}?action=edit-current-rent&invoiceId=${invoice.id}&section=rent`,
+    );
   });
 
   it.each(["property", "unit"] as const)("retains authorized %s record breadcrumbs", (kind) => {
@@ -4215,6 +4250,7 @@ function data(): FinanceOperationsData {
 function tenantInvoice(): FinanceOperationsData["tenantInvoices"][number] {
   return {
     balanceDue: 640,
+    billingPeriodEnd: "2026-08-31",
     billingPeriodStart: "2026-08-01",
     collectedByOwner: 0,
     collectionRoute: "direct_to_owner",

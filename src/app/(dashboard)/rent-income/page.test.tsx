@@ -23,6 +23,7 @@ vi.mock(
           props.initialBillingLeaseId ?? "",
         )}
         data-initial-rent-lease-id={String(props.initialRentLeaseId ?? "")}
+        data-can-view-leases={String(props.canViewLeases ?? false)}
         data-testid="finance-operations"
       />
     ),
@@ -49,7 +50,7 @@ describe("RentIncomePage repair routing", () => {
       },
       organizationId: "organization-1",
       organizationName: "IPS",
-      permissionKeys: new Set(["leases.change_terms"]),
+      permissionKeys: new Set(["leases.change_terms", "leases.view"]),
     });
     mocks.financeData.mockResolvedValue({});
   });
@@ -69,6 +70,11 @@ describe("RentIncomePage repair routing", () => {
         .getByTestId("finance-operations")
         .getAttribute("data-initial-billing-lease-id"),
     ).toBe("lease-1");
+    expect(
+      screen
+        .getByTestId("finance-operations")
+        .getAttribute("data-can-view-leases"),
+    ).toBe("true");
   });
 
   it("does not open billing for unrelated query actions", async () => {
