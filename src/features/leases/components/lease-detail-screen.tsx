@@ -401,7 +401,9 @@ export function LeaseDetailScreen({
             />
           ) : drawer.mode === "deposit" ? (
             <LeaseDepositPanel
-              canManage={permissions.canChangeTerms && !lease.isArchived}
+              canManage={permissions.canChangeTerms && (
+                !lease.isArchived || ["ended", "terminated", "cancelled"].includes(lease.statusValue)
+              )}
               lease={lease}
               leaseDepositAccounts={leaseDepositAccounts}
               onClose={() => setDrawer(null)}
@@ -526,6 +528,16 @@ export function LeaseDetailScreen({
   );
 }
 
+function preserveDepositSubmission(form: HTMLFormElement | null) {
+  if (!form) return;
+  const preserveSubmission = (event: Event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+  form.addEventListener("reset", preserveSubmission, true);
+  return () => form.removeEventListener("reset", preserveSubmission, true);
+}
+
 function LeaseDepositPanel({
   canManage,
   lease,
@@ -540,6 +552,7 @@ function LeaseDepositPanel({
   onSuccess: (message: string) => void;
 }) {
   const router = useRouter();
+  const [idempotencyKey] = useState(() => `deposit:${crypto.randomUUID()}`);
   const [depositState, recordDepositEvent, depositPending] = useActionState(
     recordLeaseDepositEventAction,
     initialActionState,
@@ -581,7 +594,7 @@ function LeaseDepositPanel({
       </div>
 
       {lease.deposits.map((deposit) => {
-        const activityOptions = getDepositActivityOptions(deposit);
+        const activityOptions = getDepositActivityOptions(deposit, lease.isArchived);
 
         return (
           <section className="space-y-4" key={deposit.id}>
@@ -618,7 +631,7 @@ function LeaseDepositPanel({
                           </span>
                         ) : null}
                       </span>
-                      {canManage && event.reversible ? (
+                      {canManage && event.reversible && (!lease.isArchived || event.eventType === "refunded") ? (
                         <form action={reverseDepositEvent}>
                           <input name="eventId" type="hidden" value={event.id} />
                           <input
@@ -650,12 +663,14 @@ function LeaseDepositPanel({
               <form
                 action={recordDepositEvent}
                 className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2"
+                ref={preserveDepositSubmission}
               >
                 <input
                   name="leaseDepositId"
                   type="hidden"
                   value={deposit.id}
                 />
+                <input name="idempotencyKey" type="hidden" value={`${idempotencyKey}:${deposit.id}`} />
                 <DepositField label="Activity">
                   <SelectControl
                     ariaLabel="Deposit activity"
@@ -742,7 +757,12 @@ function DepositActionMessage({ state }: { state: LeaseActionState }) {
   ) : null;
 }
 
-function getDepositActivityOptions(deposit: LeaseDepositContext) {
+function getDepositActivityOptions(deposit: LeaseDepositContext, isArchived: boolean) {
+  if (isArchived) {
+    return deposit.heldBalanceCents > 0
+      ? [{ label: "Deposit refunded", value: "refunded" }]
+      : [];
+  }
   return [
     ...(deposit.amountCents > 0 && deposit.heldBalanceCents < deposit.amountCents
       ? [{ label: "Deposit received", value: "received" }]

@@ -29,6 +29,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - name: Set up Node.js
@@ -78,6 +79,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -151,6 +153,9 @@ jobs:
 
       - name: Test legacy deposit default concurrency
         run: npm run leases:test-deposit-default
+
+      - name: Test deposit lifecycle and idempotency concurrency
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/lease-deposit-lifecycle-concurrency.node-test.mjs
 
       - name: Test historical rent correction concurrency
         run: npm run rent:test-correction-concurrency
