@@ -146,7 +146,7 @@ describe("OverviewScreen", () => {
     expect(within(toolbar).queryByText("Period", { exact: true })).toBeNull();
     expect(within(toolbar).getByRole("button", { name: "Change property, currently All properties" })).toBeTruthy();
     expect(within(toolbar).getByRole("button", { name: "Change reporting month, currently August 2026" })).toBeTruthy();
-    expect(classTokens(within(toolbar).getByRole("button", { name: "Change property, currently All properties" }))).toContain("w-64");
+    expect(classTokens(within(toolbar).getByRole("button", { name: "Change property, currently All properties" }))).toContain("sm:w-64");
     expect(cashFlow.querySelector('[data-slot="dashboard-cash-flow-chart"]')).toBeNull();
     expect(classTokens(cashFlow.querySelector('[data-slot="dashboard-cash-flow-empty"]')!)).toContain("min-h-40");
     expect(within(properties).getByRole("link", { name: "View all properties" }).getAttribute("href")).toBe("/properties");
