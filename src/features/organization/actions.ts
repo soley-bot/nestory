@@ -20,6 +20,7 @@ import {
   getCompanyLogoStoragePath,
   validateCompanyLogo,
 } from "@/features/organization/company-logo";
+import { removeUnselectedCompanyLogoObject } from "@/features/organization/storage-cleanup";
 
 export type OrganizationActionState = {
   message?: string;
@@ -237,17 +238,34 @@ export async function uploadOrganizationLogoAction(
     };
   }
 
-  const { error } = await supabase.rpc("update_organization_logo", {
-    p_logo_storage_path: storagePath,
-    p_organization_id: context.organizationId,
-  });
+  const { error } = await Promise.resolve(
+    supabase.rpc("update_organization_logo", {
+      p_logo_storage_path: storagePath,
+      p_organization_id: context.organizationId,
+    }),
+  ).catch(() => ({ error: { message: "" } }));
   if (error) {
-    await bucket.remove([storagePath]);
-    return { message: "We could not save the company logo.", status: "error" };
+    const recovery = await removeUnselectedCompanyLogoObject(
+      supabase,
+      context.organizationId,
+      storagePath,
+    );
+    if (recovery !== "selected") {
+      return {
+        message: error.message.includes("Company logo object was not found")
+          ? "The uploaded company logo could not be found. Please upload it again."
+          : "We could not save the company logo.",
+        status: "error",
+      };
+    }
   }
 
   if (previousPath && previousPath !== storagePath) {
-    await bucket.remove([previousPath]);
+    await removeUnselectedCompanyLogoObject(
+      supabase,
+      context.organizationId,
+      previousPath,
+    );
   }
   revalidateBranding();
   return { message: "Company logo updated.", status: "success" };
@@ -277,7 +295,11 @@ export async function removeOrganizationLogoAction(
   }
 
   if (previousPath) {
-    await supabase.storage.from("organization-assets").remove([previousPath]);
+    await removeUnselectedCompanyLogoObject(
+      supabase,
+      context.organizationId,
+      previousPath,
+    );
   }
   revalidateBranding();
   return { message: "Company logo removed.", status: "success" };
