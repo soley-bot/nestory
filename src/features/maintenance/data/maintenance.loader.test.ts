@@ -1,7 +1,7 @@
 import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
 import { createPortfolioSearch } from "@/lib/search/portfolio";
 import { describe, expect, it, vi } from "vitest";
-import { getMaintenanceScreenData } from "@/features/maintenance/data/maintenance";
+import { getMaintenanceCreateFormOptions, getMaintenanceScreenData } from "@/features/maintenance/data/maintenance";
 import type {
   MaintenanceActor,
   MaintenanceViewQuery,
@@ -15,6 +15,33 @@ vi.mock("@/lib/db/server", () => ({
 }));
 
 describe("getMaintenanceScreenData reference loading", () => {
+  it("loads creation options without reading cases, totals, evidence or history", async () => {
+    const supabase = createMaintenanceSupabaseStub();
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+    const result = await getMaintenanceCreateFormOptions("org-1", {
+      branchId: "branch-visible", dataScope: "branch", workflowMode: "coordinator",
+    }, { canAssignCase: true });
+    expect(supabase.fromCalls).not.toContain("tasks");
+    expect(supabase.fromCalls).not.toContain("activity_logs");
+    expect(supabase.fromCalls).not.toContain("documents");
+    expect(vi.mocked(supabase.client.rpc).mock.calls.map(([name]) => name)).toEqual([
+      "get_maintenance_execution_members", "get_maintenance_vendor_options",
+    ]);
+    expect(supabase.inCalls.find((call) => call.table === "people")?.values).toEqual(["member-option"]);
+    expect(result.staffOptions).toEqual([{ branchId: "branch-visible", id: "member-option", label: "Active Member" }]);
+    expect(result.vendorOptions).toEqual([{ id: "active-vendor", label: "Active Vendor" }]);
+    expect(supabase.eqCalls.every((call) => call.filters.some(([column, value]) => column === "organization_id" && value === "org-1"))).toBe(true);
+  });
+
+  it.each([
+    [{ dataScope: "branch", workflowMode: "coordinator" }, false],
+    [{ dataScope: "assigned", workflowMode: "assigned" }, true],
+  ] as const)("denies creation-directory reads without assignment authority (%s)", async (actor, canAssignCase) => {
+    vi.mocked(createSupabaseServerClient).mockClear();
+    await expect(getMaintenanceCreateFormOptions("org-1", actor, { canAssignCase })).rejects.toThrow("unavailable");
+    expect(createSupabaseServerClient).not.toHaveBeenCalled();
+  });
+
   it("keeps branch scope and matching summary totals during a broad owner search", async () => {
     vi.mocked(loadPortfolioSearch).mockResolvedValue(createPortfolioSearch(Array.from({ length: 400 }, (_, index) => ({ id: index ? `20000000-0000-4000-8000-${String(index).padStart(12, "0")}` : "property-visible", code: `P${index}`, name: "Property", ownerNames: ["Shared Owner"] })), []));
     const supabase = createMaintenanceSupabaseStub();

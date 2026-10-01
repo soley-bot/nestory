@@ -11,7 +11,7 @@ import {
 import { act } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { UnitDetailScreen } from "@/features/units/components/unit-detail-screen";
 import { buildUnitDetail } from "@/features/units/data/unit-summary";
 
@@ -22,6 +22,7 @@ vi.mock("@/features/leases/actions", () => ({
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   window.history.replaceState({}, "", "/");
 });
 
@@ -29,7 +30,53 @@ beforeAll(() => {
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
 });
 
+beforeEach(() => {
+  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    const mode = new URL(url, "http://localhost").searchParams.get("mode");
+    return Response.json({
+      mode, unitId: "unit-1", propertyId: "property-1",
+      options: mode === "lease" ? {
+        billingFormConfig: { companyOptions: [], operationalTimezone: "UTC", organizationName: "Nestory" },
+        tenants: [{ archived: false, description: "Tenant", id: "person-tenant", label: "Dara Tenant", roles: ["tenant"] }],
+      } : {
+        actor: { dataScope: "organization", workflowMode: "coordinator" },
+        branches: [], canRecordActualCost: true,
+        properties: [{ id: "property-1", label: "CTR / Central Residence" }],
+        staff: [], units: [{ id: "unit-1", label: "Unit 12A", propertyId: "property-1" }], vendors: [],
+      },
+    });
+  }));
+});
+
 describe("UnitDetailScreen focused operating record", () => {
+  it("does not load form options while viewing, editing or uploading a unit document", () => {
+    renderUnitDetail();
+    expect(fetch).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("form", { name: "Edit unit form" })).toBeTruthy();
+    expect(fetch).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Close drawer" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Files" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add unit document" }));
+    expect(screen.getByRole("form", { name: "Upload document form" })).toBeTruthy();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("requests lease options only after intent and aborts when the drawer closes", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockReturnValue(new Promise(() => {}));
+    renderUnitDetail({ initialSection: "lease", unit: availableUnitDetail });
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Create draft lease" }));
+    expect(screen.getByRole("status").textContent).toBe("Loading form…");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const signal = fetchMock.mock.calls[0][1]?.signal;
+    fireEvent.click(screen.getByRole("button", { name: "Close drawer" }));
+    expect(signal?.aborted).toBe(true);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("uses the property-style header and five focused sections", () => {
     const { container } = renderUnitDetail();
 
@@ -118,7 +165,7 @@ describe("UnitDetailScreen focused operating record", () => {
     expect(within(dialog).queryByText(/timeline, ledger, lease/i)).toBeNull();
   });
 
-  it("creates a maintenance case without leaving the unit record", () => {
+  it("creates a maintenance case without leaving the unit record", async () => {
     renderUnitDetail({ initialSection: "maintenance" });
 
     const panel = screen.getByRole("tabpanel", { name: "Maintenance" });
@@ -127,6 +174,7 @@ describe("UnitDetailScreen focused operating record", () => {
     fireEvent.click(within(panel).getByRole("button", { name: "New case" }));
 
     const drawer = screen.getByRole("dialog", { name: "New maintenance case" });
+    await waitFor(() => expect(drawer.querySelector("form")).toBeTruthy());
     expect(drawer.querySelector("form")).toBeTruthy();
     expect(within(drawer).getAllByText("CTR / Central Residence")).toHaveLength(2);
     expect(within(drawer).getAllByText("Unit 12A")).toHaveLength(2);
@@ -175,7 +223,7 @@ describe("UnitDetailScreen focused operating record", () => {
     expect(within(drawer).getByRole("link", { name: "Open full lease" })).toBeTruthy();
   });
 
-  it("creates a Lease inside the available Unit without reselecting placement", () => {
+  it("creates a Lease inside the available Unit without reselecting placement", async () => {
     renderUnitDetail({ initialSection: "lease", unit: availableUnitDetail });
 
     const panel = screen.getByRole("tabpanel", { name: "Lease" });
@@ -184,7 +232,7 @@ describe("UnitDetailScreen focused operating record", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create draft lease" }));
 
     const drawer = screen.getByRole("dialog", { name: "Create lease" });
-    const form = within(drawer).getByRole("form", { name: "Add lease form" });
+    const form = await within(drawer).findByRole("form", { name: "Add lease form" });
     expect(within(drawer).getByText("Central Residence")).toBeTruthy();
     expect(within(drawer).getByText("Unit 12A")).toBeTruthy();
     expect(within(drawer).queryByRole("combobox", { name: /Property/ })).toBeNull();
@@ -343,25 +391,6 @@ function buildUnitDetailElement({
       canArchive={canArchive}
       canRecordDepositReceipt
       canWrite={canWrite}
-      maintenanceFormOptions={{
-        actor: { dataScope: "organization", workflowMode: "coordinator" },
-        branches: [],
-        canRecordActualCost: true,
-        properties: [{ id: "property-1", label: "CTR / Central Residence" }],
-        staff: [],
-        units: [{ id: "unit-1", label: "Unit 12A", propertyId: "property-1" }],
-        vendors: [],
-      }}
-      propertyOptions={[{ id: "property-1", label: "CTR / Central Residence" }]}
-      tenantOptions={[
-        {
-          archived: false,
-          description: "Tenant",
-          id: "person-tenant",
-          label: "Dara Tenant",
-          roles: ["tenant"],
-        },
-      ]}
       unit={unit}
     />
   );
