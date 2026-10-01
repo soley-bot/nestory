@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode, type RefObject } from "react";
 import Image from "next/image";
 import { ImageIcon, LoaderCircle, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,13 +13,26 @@ import {
 } from "@/components/ui/dialog";
 import type { AssetPhoto } from "@/features/photos/photo.types";
 
-export function PhotoViewer({ children, photo }: { children: ReactNode; photo: AssetPhoto }) {
+export function PhotoViewer({ children, fallbackFocusRef, photo }: {
+  children: ReactNode;
+  fallbackFocusRef: RefObject<HTMLElement | null>;
+  photo: AssetPhoto;
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
   return (
     <Dialog>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogTrigger asChild ref={triggerRef}>{children}</DialogTrigger>
       <DialogContent
         aria-describedby={undefined}
         className="grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-[min(96vw,1200px)]"
+        onCloseAutoFocus={(event) => {
+          const fallback = fallbackFocusRef.current;
+          if (!triggerRef.current?.isConnected && fallback?.isConnected) {
+            event.preventDefault();
+            fallback.focus();
+          }
+        }}
         showCloseButton={false}
         style={{ height: "min(90dvh, 900px)" }}
       >

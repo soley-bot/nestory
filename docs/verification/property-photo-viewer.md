@@ -1,6 +1,6 @@
 # Property photo viewer verification
 
-Verified on 2026-10-01 from `codex/property-photo-viewer`, rebased onto main `1254e43b` after PR183 merged.
+Verified on 2026-10-01 from `codex/property-photo-viewer`, rebased onto main `37571680` after PR183, PR185, and PR187 merged.
 
 ## Result
 
@@ -12,8 +12,8 @@ Set cover and Archive show pending labels, block repeated and competing requests
 
 - `npm run lint`: passed.
 - `npx tsc --noEmit`: passed.
-- `npx vitest run src/features/photos/components/photo-gallery.test.tsx src/features/photos/actions.test.ts src/features/organization/company-logo.test.ts`: 35 passed, including the released PR182 upload recovery cases.
-- `npx vitest run src/features/properties/components/property-detail-screen.test.tsx src/features/properties/data/property-detail.test.ts src/features/units/components/unit-detail-screen.test.tsx src/components/ui/side-drawer-confirmation.test.tsx`: 46 passed.
+- `npx vitest run src/features/photos/components/photo-gallery.test.tsx src/features/photos/actions.test.ts src/features/organization/company-logo.test.ts`: 41 passed, including the released PR182 upload recovery cases and keyboard focus through pending actions and photo removal.
+- `npx vitest run src/features/properties/components/property-detail-screen.test.tsx src/features/properties/data/property-detail.test.ts src/features/units/components/unit-detail-screen.test.tsx src/components/ui/side-drawer-confirmation.test.tsx`: 48 passed.
 - `node scripts/verify-repository-secrets.mjs`: passed.
 - `git diff --check`: passed.
 
@@ -29,6 +29,12 @@ Playwright CLI exercised the actual gallery, shared dialog components, Next.js I
 - Delayed cover and archive: repeated clicks produced one request per attempt; other gallery actions stayed disabled while viewing remained available.
 - Returned cover error and thrown archive error: readable feedback, safe text, successful retry, no premature cover change or removal.
 - Successful archive: card removed and confirmation retained. Broken original: unavailable message and working Close.
+- Opening a photo during its pending archive: successful removal closes the viewer, focuses the surviving gallery heading, and lets Tab continue to Add photo.
+- Viewer inside the existing SideDrawer: Escape closes the photo and restores its thumbnail, then closes the drawer and restores its trigger.
+- Fresh signed URL while viewing: load, error, and zoom state reset; a previously failed image recovers.
+- Keyboard Set cover and Archive: initiating control retains focus while pending and after errors, repeated Enter produces one request, and retry works. Successful control removal focuses the gallery heading; another open viewer keeps its own focus.
+
+A fresh internal review found the pending-archive and pending-action focus cases above. The photo viewer now falls back to the gallery heading only when its thumbnail has been removed; normal dismissal still restores the thumbnail. Initiating action controls use an accessible disabled state with the existing request lock so keyboard focus remains available for retry. Focus moves to the heading after a successful action removes that control, unless the user has moved elsewhere. The regressions pass in component tests and the browser fixture.
 
 Before captures render main's unmodified gallery; after captures render this branch with identical fixture data. All screenshots are local previews, not production captures.
 

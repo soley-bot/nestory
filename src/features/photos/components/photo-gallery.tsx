@@ -3,7 +3,7 @@
 import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { unstable_rethrow } from "next/navigation";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { Archive, Expand, ImageIcon, LoaderCircle, Star, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,15 +58,18 @@ export function PhotoGallery({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [dropzoneKey, setDropzoneKey] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
+  const galleryTitleRef = useRef<HTMLHeadingElement>(null);
   const openPhotoPickerRef = useRef<(() => void) | null>(null);
   const photoActionInFlightRef = useRef(false);
+  const photoActionFocusRef = useRef<HTMLButtonElement | null>(null);
   const [pendingPhotoAction, setPendingPhotoAction] =
     useState<PendingPhotoAction | null>(null);
   const [photoActionState, setPhotoActionState] = useState<PhotoActionFeedback>({});
 
-  const handlePhotoAction = (photoId: string, intent: PhotoIntent) => {
+  const handlePhotoAction = (photoId: string, intent: PhotoIntent, button: HTMLButtonElement) => {
     if (photoActionInFlightRef.current) return;
     photoActionInFlightRef.current = true;
+    photoActionFocusRef.current = document.activeElement === button ? button : null;
     setPendingPhotoAction({ photoId, intent });
     setPhotoActionState({});
 
@@ -93,6 +96,14 @@ export function PhotoGallery({
       }
     });
   };
+
+  useEffect(() => {
+    const focusedAction = photoActionFocusRef.current;
+    if (focusedAction && !focusedAction.isConnected) {
+      photoActionFocusRef.current = null;
+      if (document.activeElement === document.body) galleryTitleRef.current?.focus();
+    }
+  }, [photos]);
 
   useEffect(() => {
     return () => {
@@ -147,11 +158,17 @@ export function PhotoGallery({
   };
 
   return (
-    <section>
+    <section onFocusCapture={(event) => {
+      if (event.target !== photoActionFocusRef.current) photoActionFocusRef.current = null;
+    }}>
       <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
         <div className="flex items-center gap-2">
           <ImageIcon className="text-muted-foreground" size={16} />
-          <h2 className="text-sm font-semibold">{title}</h2>
+          <h2
+            className="text-sm font-semibold focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4"
+            ref={galleryTitleRef}
+            tabIndex={-1}
+          >{title}</h2>
         </div>
         {canWrite ? (
           <Button onClick={() => setUploadOpen(true)} type="button" variant="outline">
@@ -197,6 +214,7 @@ export function PhotoGallery({
                     errorMessage={photoActionState.status === "error" && photoActionState.photoId === photo.id
                       ? photoActionState.message
                       : undefined}
+                    fallbackFocusRef={galleryTitleRef}
                     key={photo.id}
                     onAction={handlePhotoAction}
                     pendingAction={pendingPhotoAction}
@@ -350,6 +368,7 @@ function PhotoCard({
   canArchive,
   canWrite,
   errorMessage,
+  fallbackFocusRef,
   onAction,
   pendingAction,
   photo,
@@ -357,7 +376,8 @@ function PhotoCard({
   canArchive: boolean;
   canWrite: boolean;
   errorMessage?: string;
-  onAction: (photoId: string, intent: PhotoIntent) => void;
+  fallbackFocusRef: RefObject<HTMLElement | null>;
+  onAction: (photoId: string, intent: PhotoIntent, button: HTMLButtonElement) => void;
   pendingAction: PendingPhotoAction | null;
   photo: AssetPhoto;
 }) {
@@ -368,7 +388,7 @@ function PhotoCard({
 
   return (
     <article className="overflow-hidden rounded-md border border-border bg-muted/40">
-      <PhotoViewer photo={photo}>
+      <PhotoViewer fallbackFocusRef={fallbackFocusRef} photo={photo}>
         <button
           aria-label={`View photo: ${photo.caption || photo.fileName}`}
           className="group relative block aspect-[4/3] w-full bg-muted focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px] disabled:cursor-default"
@@ -420,9 +440,10 @@ function PhotoCard({
         <div className="flex flex-wrap gap-2">
           {canWrite && !photo.isCover ? (
             <Button
-              className="h-11 sm:h-8"
-              disabled={Boolean(pendingAction)}
-              onClick={() => onAction(photo.id, "cover")}
+              aria-disabled={settingCover || undefined}
+              className="h-11 aria-disabled:pointer-events-none aria-disabled:opacity-50 sm:h-8"
+              disabled={Boolean(pendingAction) && !settingCover}
+              onClick={(event) => onAction(photo.id, "cover", event.currentTarget)}
               type="button"
               variant="secondary"
             >
@@ -434,9 +455,10 @@ function PhotoCard({
           ) : null}
           {canArchive ? (
             <Button
-              className="h-11 sm:h-8"
-              disabled={Boolean(pendingAction)}
-              onClick={() => onAction(photo.id, "archive")}
+              aria-disabled={archiving || undefined}
+              className="h-11 aria-disabled:pointer-events-none aria-disabled:opacity-50 sm:h-8"
+              disabled={Boolean(pendingAction) && !archiving}
+              onClick={(event) => onAction(photo.id, "archive", event.currentTarget)}
               type="button"
               variant="ghost"
             >

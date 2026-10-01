@@ -161,7 +161,7 @@ describe("PhotoGallery action feedback", () => {
     expect(actions.cover).toHaveBeenCalledTimes(1);
     expect(actions.cover.mock.calls[0][0].get("photoId")).toBe(photo.id);
     expect(actions.archive).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Setting cover..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Setting cover..." })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("status")).toHaveTextContent("Setting cover...");
     expect(coverButtons[1]).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "View photo: Kitchen" }));
@@ -178,7 +178,7 @@ describe("PhotoGallery action feedback", () => {
     actions.archive.mockReturnValueOnce(result.promise);
     const { rerender } = render(gallery());
     await user.click(screen.getByRole("button", { name: "Archive" }));
-    expect(screen.getByRole("button", { name: "Archiving..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Archiving..." })).toHaveAttribute("aria-disabled", "true");
     await act(async () => result.resolve({ message: "Could not archive the photo. Try again.", status: "error" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Could not archive the photo. Try again.");
     expect(within(screen.getByRole("button", { name: "Archive" }).closest("article")!).getByRole("alert"))
@@ -189,6 +189,71 @@ describe("PhotoGallery action feedback", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     rerender(gallery([]));
     expect(screen.getByRole("status")).toHaveTextContent("Photo archived.");
+  });
+
+  it("returns focus to the gallery when an open photo is removed by a pending archive", async () => {
+    const user = userEvent.setup();
+    const result = deferred();
+    actions.archive.mockReturnValueOnce(result.promise);
+    const { rerender } = render(gallery());
+    await user.click(screen.getByRole("button", { name: "Archive" }));
+    await user.click(screen.getByRole("button", { name: "View photo: Lobby" }));
+    expect(screen.getByRole("button", { name: "Close photo" })).toHaveFocus();
+    await act(async () => result.resolve({ message: "Photo archived.", status: "success" }));
+    rerender(gallery([]));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Photos" })).toHaveFocus());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent("Photo archived.");
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Add photo" })).toHaveFocus();
+  });
+
+  it.each(["cover", "archive"])("keeps keyboard focus on a pending %s action and its retry", async (intent) => {
+    const user = userEvent.setup();
+    const result = deferred();
+    const action = actions[intent as "cover" | "archive"];
+    action.mockReturnValueOnce(result.promise);
+    render(gallery());
+    const button = screen.getByRole("button", { name: intent === "cover" ? "Set cover" : "Archive" });
+    button.focus();
+    await user.keyboard("{Enter}{Enter}");
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveFocus();
+    await act(async () => result.resolve({ message: "Try again.", status: "error" }));
+    expect(button).not.toHaveAttribute("aria-disabled");
+    expect(button).toHaveFocus();
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(action).toHaveBeenCalledTimes(2));
+  });
+
+  it.each(["cover", "archive"])("returns keyboard focus to the gallery when a successful %s removes its action", async (intent) => {
+    const user = userEvent.setup();
+    const result = deferred();
+    actions[intent as "cover" | "archive"].mockReturnValueOnce(result.promise);
+    const { rerender } = render(gallery());
+    screen.getByRole("button", { name: intent === "cover" ? "Set cover" : "Archive" }).focus();
+    await user.keyboard("{Enter}");
+    await act(async () => result.resolve({ message: "Photo updated.", status: "success" }));
+    rerender(gallery(intent === "cover" ? [{ ...viewablePhoto, isCover: true }] : []));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Photos" })).toHaveFocus());
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Add photo" })).toHaveFocus();
+  });
+
+  it("leaves focus in another viewer when a pending archive removes its card", async () => {
+    const user = userEvent.setup();
+    const result = deferred();
+    actions.archive.mockReturnValueOnce(result.promise);
+    const kitchen = { ...viewablePhoto, id: "photo-2", caption: "Kitchen" };
+    const { rerender } = render(gallery([viewablePhoto, kitchen]));
+    screen.getAllByRole("button", { name: "Archive" })[0].focus();
+    await user.keyboard("{Enter}");
+    await user.click(screen.getByRole("button", { name: "View photo: Kitchen" }));
+    await act(async () => result.resolve({ message: "Photo archived.", status: "success" }));
+    rerender(gallery([kitchen]));
+    expect(screen.getByRole("dialog", { name: "Kitchen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close photo" })).toHaveFocus();
   });
 
   it.each(["cover", "archive"])("recovers from a thrown %s error with safe feedback", async (intent) => {
