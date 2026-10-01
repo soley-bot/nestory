@@ -74,7 +74,7 @@ export function buildTrustedReportXlsx(report: TrustedReport, presentation?: Rep
 export function buildOwnerStatementXlsx(
   model: OwnerStatementPublicationModel,
   presentation?: OwnerStatementPresentation,
-  options: { includeDepositSummary?: boolean } = {},
+  options: { includeDepositSummary?: boolean; headerLayout?: "legacy" } = {},
 ) {
   const files = {
     "[Content_Types].xml": strToU8(contentTypesXml()),
@@ -82,11 +82,12 @@ export function buildOwnerStatementXlsx(
     "docProps/app.xml": strToU8(ownerStatementAppPropertiesXml()),
     "docProps/core.xml": strToU8(ownerStatementCorePropertiesXml(model)),
     "xl/_rels/workbook.xml.rels": strToU8(workbookRelationshipsXml()),
-    "xl/styles.xml": strToU8(profitLossStylesXml()),
+    "xl/styles.xml": strToU8(profitLossStylesXml(options.headerLayout !== "legacy")),
     "xl/workbook.xml": strToU8(ownerStatementWorkbookXml()),
     "xl/worksheets/sheet1.xml": strToU8(ownerStatementSheetXml(model, presentation, options)),
   };
-  if (presentation?.logo) addCompanyLogo(files, presentation.logo);
+  if (presentation?.logo) addCompanyLogo(files, presentation.logo,
+    options.headerLayout === "legacy" ? undefined : { column: 7, width: 300, height: 112 });
   // ZIP stores local DOS date fields. A fixed local calendar value keeps the
   // official workbook byte-identical across clock buckets and host time zones.
   return zipSync(files, { level: 6, mtime: new Date(1980, 0, 1, 0, 0, 0) });
@@ -102,17 +103,23 @@ type OwnerWorkbookCell = {
 function ownerStatementSheetXml(
   model: OwnerStatementPublicationModel,
   presentation: OwnerStatementPresentation | undefined,
-  options: { includeDepositSummary?: boolean },
+  options: { includeDepositSummary?: boolean; headerLayout?: "legacy" },
 ) {
   const cash = ownerStatementCash(model);
   const money = (cents: number): OwnerWorkbookCell => ({ style: 3, type: "number", value: centsDecimal(BigInt(cents)) });
   const balance = (label: string, cents: number): OwnerWorkbookCell[] => [{ style: 2, span: 8, value: label }, { ...money(cents), style: 8 }];
+  const modernHeader = options.headerLayout !== "legacy";
+  const titleSpan = modernHeader ? (presentation?.logo ? 7 : 9) : 5;
   const rows: OwnerWorkbookCell[][] = [
-    [], [{ style: 1, span: 5, value: "Owner Statement" }], [],
-    [{ style: 9, span: 5, value: ownerStatementPeriod(model.monthStart) }], [],
-    [{ style: 4, span: 9, value: `Owner: ${presentation?.ownerName ?? "Not provided"} | Property: ${presentation?.propertyLabel ?? "Not provided"}` }],
+    [], [{ style: 1, span: titleSpan, value: "Owner Statement" }],
+    modernHeader ? [{ style: 12, span: titleSpan, value: presentation?.organizationName ?? "Not provided" }] : [],
+    [{ style: 9, span: titleSpan, value: ownerStatementPeriod(model.monthStart) }], [],
+    modernHeader ? [
+      { style: 11, span: 4, value: `Owner: ${presentation?.ownerName ?? "Not provided"}` },
+      { style: 11, span: 5, value: `Property: ${presentation?.propertyLabel ?? "Not provided"}` },
+    ] : [{ style: 4, span: 9, value: `Owner: ${presentation?.ownerName ?? "Not provided"} | Property: ${presentation?.propertyLabel ?? "Not provided"}` }],
     [{
-      style: 4,
+      style: modernHeader ? 11 : 4,
       span: 9,
       value: options.includeDepositSummary
         ? `Currency: ${model.currency} | Tenant deposits held separately: ${centsDecimal(BigInt(cash.depositCents))}`
@@ -207,7 +214,7 @@ function profitLossSheetXml(report: TrustedReport, hasLogo: boolean) {
   return hasLogo ? sheet.replace("</worksheet>", '<drawing xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId1"/></worksheet>') : sheet;
 }
 
-function profitLossStylesXml() {
+function profitLossStylesXml(includeHeaderStyles = false) {
   const style = (font = 0, fill = 0, border = 0, number = 0, align = "left") =>
     `<xf numFmtId="${number}" fontId="${font}" fillId="${fill}" borderId="${border}" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="${align}" vertical="center" wrapText="1"/></xf>`;
   return xml(`<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
@@ -216,7 +223,7 @@ function profitLossStylesXml() {
     `<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE7EEF5"/><bgColor indexed="64"/></patternFill></fill></fills>` +
     `<borders count="3"><border/><border><top style="thin"><color rgb="FFCBD5E1"/></top><bottom style="thin"><color rgb="FFCBD5E1"/></bottom></border><border><bottom style="hair"><color rgb="FFE2E8F0"/></bottom></border></borders>` +
     `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
-    `<cellXfs count="11">${[style(), style(1), style(2, 2, 1), style(0, 0, 2, 164, "right"), style(0, 0, 2), style(0, 0, 2, 165), style(), style(), style(2, 2, 1, 164, "right"), style(3), style(2, 0, 1)].join("")}</cellXfs>` +
+    `<cellXfs count="${includeHeaderStyles ? 13 : 11}">${[style(), style(1), style(2, 2, 1), style(0, 0, 2, 164, "right"), style(0, 0, 2), style(0, 0, 2, 165), style(), style(), style(2, 2, 1, 164, "right"), style(3), style(2, 0, 1), ...(includeHeaderStyles ? [style(), style(2)] : [])].join("")}</cellXfs>` +
     `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`);
 }
 

@@ -806,10 +806,10 @@ SELECT is(
   public.freeze_owner_statement_rendering(
     '00000000-0000-0000-0000-000000000001', publication_four_id,
     '00000000-0000-0000-0000-000000000101',
-    '{"rendererVersion":"owner-statement-v1","presentation":{"organizationName":"Changed company","logo":{"base64":"changed"}}}'::jsonb
+    '{"rendererVersion":"owner-statement-v2","presentation":{"organizationName":"Changed company","logo":{"base64":"changed"}}}'::jsonb
   ),
   '{"rendererVersion":"owner-statement-v1","presentation":{"organizationName":"Original company","logo":null}}'::jsonb,
-  'a retry returns the first presentation instead of overwriting branding'
+  'a retry returns the first presentation and renderer version instead of overwriting branding'
 )
 FROM owner_statement_test_runtime;
 
@@ -820,6 +820,17 @@ SELECT is(
   ),
   '{"rendererVersion":"owner-statement-v1","presentation":{"organizationName":"Original company","logo":null}}'::jsonb,
   'a retry reads the retained presentation'
+)
+FROM owner_statement_test_runtime;
+
+SELECT is(
+  public.freeze_owner_statement_rendering(
+    '00000000-0000-0000-0000-000000000001', publication_two_id,
+    '00000000-0000-0000-0000-000000000101',
+    '{"rendererVersion":"owner-statement-v2","presentation":{"organizationName":"Layout fixture","logo":null}}'::jsonb
+  )->>'rendererVersion',
+  'owner-statement-v2',
+  'the current Excel header renderer version can be retained'
 )
 FROM owner_statement_test_runtime;
 

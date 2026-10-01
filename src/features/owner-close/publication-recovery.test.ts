@@ -83,7 +83,7 @@ describe("Owner Statement publication presentation recovery", () => {
   it.each([false, true])("adopts matching legacy artifacts including PR178 compatibility (registered PDF: %s)", async registered => {
     const fixture = await setup();
     const pdf = buildOwnerStatementPdf(fixture.model, fixture.presentation);
-    const xlsx = buildOwnerStatementXlsx(fixture.model, fixture.presentation, { includeDepositSummary: true });
+    const xlsx = buildOwnerStatementXlsx(fixture.model, fixture.presentation, { headerLayout: "legacy", includeDepositSummary: true });
     fixture.stored.set("pdf", pdf);
     fixture.stored.set("xlsx", xlsx);
     if (registered) fixture.register("pdf");
@@ -98,7 +98,7 @@ describe("Owner Statement publication presentation recovery", () => {
     const fixture = await setup();
     fixture.stored.set(format, format === "pdf"
       ? buildOwnerStatementPdf(fixture.model, fixture.presentation)
-      : buildOwnerStatementXlsx(fixture.model, fixture.presentation, { includeDepositSummary: true }));
+      : buildOwnerStatementXlsx(fixture.model, fixture.presentation, { headerLayout: "legacy", includeDepositSummary: true }));
     fixture.register(format);
     fixture.presentation.logo = undefined;
     await expect(fixture.resume()).rejects.toThrow("Restore the original presentation");
@@ -110,7 +110,7 @@ describe("Owner Statement publication presentation recovery", () => {
   it("keeps complete older statements independent of live branding and the snapshot service", async () => {
     const fixture = await setup();
     fixture.stored.set("pdf", buildOwnerStatementPdf(fixture.model, fixture.presentation));
-    fixture.stored.set("xlsx", buildOwnerStatementXlsx(fixture.model, fixture.presentation, { includeDepositSummary: true }));
+    fixture.stored.set("xlsx", buildOwnerStatementXlsx(fixture.model, fixture.presentation, { headerLayout: "legacy", includeDepositSummary: true }));
     fixture.register("pdf");
     fixture.register("xlsx");
     mocks.loadPresentation.mockRejectedValue(new Error("Live branding unavailable"));
@@ -155,6 +155,30 @@ describe("Owner Statement publication presentation recovery", () => {
     await expect(fixture.resume()).rejects.toThrow(/invalid|unsupported/);
     expect(mocks.loadPresentation).toHaveBeenCalledOnce();
     expect(fixture.upload).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("retains the previous Excel header without a deposit summary (registered: %s)", async registered => {
+    const fixture = await setup();
+    const original = buildOwnerStatementXlsx(fixture.model, fixture.presentation, { headerLayout: "legacy" });
+    fixture.stored.set("xlsx", original);
+    if (registered) fixture.register("xlsx");
+    await fixture.resume();
+    expect(fixture.stored.get("xlsx")).toEqual(original);
+    expect(fixture.model.artifacts.find(item => item.format === "xlsx")?.sha256).toBe(hash(original));
+    expect(fixture.snapshot).toMatchObject({ rendererVersion: "owner-statement-v2" });
+  });
+
+  it("replays a frozen v1 presentation with its original Excel header", async () => {
+    const fixture = await setup();
+    const original = buildOwnerStatementXlsx(fixture.model, fixture.presentation, { headerLayout: "legacy" });
+    fixture.interrupt = "before-pdf";
+    await expect(fixture.publish()).rejects.toThrow();
+    (fixture.snapshot as { rendererVersion: string }).rendererVersion = "owner-statement-v1";
+    fixture.presentation.logo = await logo("red");
+    fixture.interrupt = null;
+    await fixture.resume();
+    expect(fixture.stored.get("xlsx")).toEqual(original);
+    expect(mocks.loadPresentation).toHaveBeenCalledOnce();
   });
 
   it("fails closed on an ambiguous old artifact read", async () => {

@@ -202,10 +202,13 @@ async function completeOwnerStatementPublication(
       format: "pdf" as const,
     },
     {
-      bytes: buildOwnerStatementXlsx(model, presentation),
-      compatibleExistingBytes: buildOwnerStatementXlsx(model, presentation, {
-        includeDepositSummary: true,
+      bytes: buildOwnerStatementXlsx(model, presentation, {
+        headerLayout: presentation.rendererVersion === "owner-statement-v1" ? "legacy" : undefined,
       }),
+      compatibleExistingBytes: [
+        buildOwnerStatementXlsx(model, presentation, { headerLayout: "legacy" }),
+        buildOwnerStatementXlsx(model, presentation, { headerLayout: "legacy", includeDepositSummary: true }),
+      ],
       contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       format: "xlsx" as const,
     },
@@ -317,7 +320,7 @@ async function uploadOrVerifyArtifact(
   path: string,
   bytes: Uint8Array,
   contentType: string,
-  compatibleExistingBytes?: Uint8Array,
+  compatibleExistingBytes: Uint8Array[] = [],
 ) {
   const expectedHash = sha256Hex(bytes);
   const upload = await bucket.upload(path, bytes, { contentType, upsert: false });
@@ -335,12 +338,9 @@ async function uploadOrVerifyArtifact(
   if (existingBytes.byteLength === bytes.byteLength && existingHash === expectedHash) {
     return { bytes: existingBytes, hash: existingHash };
   }
-  const compatibleHash = compatibleExistingBytes && sha256Hex(compatibleExistingBytes);
-  if (
-    compatibleExistingBytes &&
-    existingBytes.byteLength === compatibleExistingBytes.byteLength &&
-    existingHash === compatibleHash
-  ) return { bytes: existingBytes, hash: existingHash };
+  if (compatibleExistingBytes.some(candidate =>
+    existingBytes.byteLength === candidate.byteLength && existingHash === sha256Hex(candidate)
+  )) return { bytes: existingBytes, hash: existingHash };
   throw new Error("Existing Owner Statement artifact bytes do not match this publication.");
 }
 

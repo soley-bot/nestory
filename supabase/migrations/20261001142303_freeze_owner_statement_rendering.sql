@@ -10,7 +10,7 @@ CREATE TABLE app_private.owner_statement_renderings (
     ON DELETE RESTRICT,
   CONSTRAINT owner_statement_renderings_snapshot_check CHECK (
     pg_catalog.jsonb_typeof(snapshot) = 'object'
-    AND snapshot->>'rendererVersion' IS NOT DISTINCT FROM 'owner-statement-v1'
+    AND COALESCE(snapshot->>'rendererVersion' IN ('owner-statement-v1', 'owner-statement-v2'), false)
     AND pg_catalog.jsonb_typeof(snapshot->'presentation') IS NOT DISTINCT FROM 'object'
     AND pg_catalog.octet_length(snapshot::text) <= 8388608
   )
