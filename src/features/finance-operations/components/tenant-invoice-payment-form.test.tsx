@@ -69,6 +69,63 @@ describe("TenantInvoicePaymentForm", () => {
     ).toBe(false);
   });
 
+  it("labels and submits the entered partial payment amount", async () => {
+    const user = userEvent.setup();
+    actionMocks.recordTenantInvoicePaymentAction.mockResolvedValueOnce({
+      message: "Payment recorded.",
+      paymentId: "payment-partial",
+      publicationStatus: "published",
+      status: "success",
+    });
+    const { container } = renderForm({ showAmountInSubmitLabel: true });
+    const amount = screen.getByLabelText("Amount");
+
+    await user.clear(amount);
+    await user.type(amount, "125.50");
+
+    expect(
+      screen.getByRole("button", { name: "Record USD 125.50 payment" }),
+    ).not.toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Record USD 258.00 payment" }),
+    ).toBeNull();
+    fireEvent.submit(container.querySelector("form")!);
+
+    await waitFor(() => {
+      expect(actionMocks.recordTenantInvoicePaymentAction).toHaveBeenCalledOnce();
+    });
+    expect(
+      actionMocks.recordTenantInvoicePaymentAction.mock.calls[0][1].get("amount"),
+    ).toBe("125.50");
+  });
+
+  it.each(["", "invalid", "USD 125.50", "-1", "0", "Infinity", "1e309"])(
+    "does not display an amount confirmation for %j",
+    (amount) => {
+      renderForm({ showAmountInSubmitLabel: true });
+
+      fireEvent.change(screen.getByLabelText("Amount"), {
+        target: { value: amount },
+      });
+
+      expect(screen.getByRole("button", { name: "Record payment" })).not.toBeNull();
+      expect(
+        screen.queryByRole("button", { name: /Record USD .* payment/ }),
+      ).toBeNull();
+      expect(actionMocks.recordTenantInvoicePaymentAction).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps the default payment action label unchanged", () => {
+    renderForm();
+
+    fireEvent.change(screen.getByLabelText("Amount"), {
+      target: { value: "125.50" },
+    });
+
+    expect(screen.getByRole("button", { name: "Record payment" })).not.toBeNull();
+  });
+
   it("keeps multiple receiving accounts explicit and shows automatic owner allocation", () => {
     const { container } = renderForm({
       payFromAccounts: [
@@ -391,7 +448,7 @@ describe("TenantInvoicePaymentForm", () => {
       message: "The selected receiving account is unavailable.",
       status: "error",
     });
-    const { container } = renderForm();
+    const { container } = renderForm({ showAmountInSubmitLabel: true });
     const amount = screen.getByLabelText("Amount");
     const reference = screen.getByLabelText("Reference (optional)");
 
@@ -408,6 +465,9 @@ describe("TenantInvoicePaymentForm", () => {
     });
     expect((amount as HTMLInputElement).value).toBe("125.50");
     expect((reference as HTMLInputElement).value).toBe("Bank transfer 42");
+    expect(
+      screen.getByRole("button", { name: "Record USD 125.50 payment" }),
+    ).not.toBeNull();
   });
 
   it("restores safe inputs and refocuses feedback for consecutive errors", async () => {
@@ -489,6 +549,7 @@ function renderForm({
   onSuccess = vi.fn(),
   ownerLabel = "Sokha Vannak",
   payFromAccounts = [account()],
+  showAmountInSubmitLabel,
   submitLabel,
 }: {
   invoice?: TenantInvoiceSummary;
@@ -496,6 +557,7 @@ function renderForm({
   onSuccess?: (message: string) => void;
   ownerLabel?: string;
   payFromAccounts?: FinanceAccountOption[];
+  showAmountInSubmitLabel?: boolean;
   submitLabel?: string;
 } = {}) {
   return render(
@@ -505,6 +567,7 @@ function renderForm({
       onSuccess,
       ownerLabel,
       payFromAccounts,
+      showAmountInSubmitLabel,
       submitLabel,
     }),
   );
@@ -516,6 +579,7 @@ function paymentForm({
   onSuccess = vi.fn(),
   ownerLabel = "Sokha Vannak",
   payFromAccounts = [account()],
+  showAmountInSubmitLabel,
   submitLabel,
 }: {
   invoice: TenantInvoiceSummary;
@@ -523,6 +587,7 @@ function paymentForm({
   onSuccess?: (message: string) => void;
   ownerLabel?: string;
   payFromAccounts?: FinanceAccountOption[];
+  showAmountInSubmitLabel?: boolean;
   submitLabel?: string;
 }) {
   return (
@@ -532,6 +597,7 @@ function paymentForm({
       onSuccess={onSuccess}
       ownerLabel={ownerLabel}
       payFromAccounts={payFromAccounts}
+      showAmountInSubmitLabel={showAmountInSubmitLabel}
       submitLabel={submitLabel}
     />
   );

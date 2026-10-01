@@ -20,9 +20,9 @@ import {
   type DraftStatus,
 } from "@/components/ui/draft-action-bar";
 import {
-  useDrawerCloseRequest,
-  useDrawerDraftGuard,
-} from "@/components/ui/side-drawer";
+  useOverlayCloseRequest,
+  useOverlayDraftGuard,
+} from "@/components/ui/overlay-dismissal-context";
 import { cn } from "@/lib/utils";
 
 export type RecordFormActionState = {
@@ -130,8 +130,8 @@ export function RecordForm({
     () => ({ onDiscard: onCancel, status }),
     [onCancel, status],
   );
-  useDrawerDraftGuard(guard);
-  const requestClose = useDrawerCloseRequest(onCancel);
+  useOverlayDraftGuard(guard);
+  const requestClose = useOverlayCloseRequest(onCancel);
 
   useEffect(() => {
     if (!pending) {

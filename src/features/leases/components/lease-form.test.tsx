@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -71,6 +72,44 @@ vi.mock("@/features/people/components/person-form", () => ({
 
 import { LeaseForm } from "@/features/leases/components/lease-form";
 
+type TestUser = ReturnType<typeof userEvent.setup>;
+
+async function advanceToLeaseTerms(user: TestUser) {
+  await user.click(screen.getByRole("button", { name: "New tenant" }));
+  await user.click(
+    screen.getByRole("button", { name: "Complete individual tenant" }),
+  );
+  await user.click(screen.getByRole("button", { name: "Next" }));
+}
+
+function setLeaseDates(startDate = "2026-08-16", endDate = "2027-07-15") {
+  const form = screen.getByRole("form", { name: "Add lease form" });
+  fireEvent.input(form.elements.namedItem("leaseStartDate")!, {
+    target: { value: startDate },
+  });
+  fireEvent.input(form.elements.namedItem("leaseEndDate")!, {
+    target: { value: endDate },
+  });
+}
+
+async function advanceToRentStep(user: TestUser) {
+  await advanceToLeaseTerms(user);
+  setLeaseDates();
+  await user.click(screen.getByRole("button", { name: "Next" }));
+}
+
+async function advanceToBillingStep(user: TestUser) {
+  await advanceToRentStep(user);
+  const form = screen.getByRole("form", { name: "Add lease form" });
+  fireEvent.change(form.elements.namedItem("monthlyRentAmount")!, {
+    target: { value: "1000" },
+  });
+  fireEvent.change(form.elements.namedItem("rentDueDay")!, {
+    target: { value: "5" },
+  });
+  await user.click(screen.getByRole("button", { name: "Next" }));
+}
+
 beforeEach(() => {
   createLeaseActionMock.mockResolvedValue({});
   Object.defineProperties(HTMLElement.prototype, {
@@ -90,6 +129,213 @@ afterEach(() => {
   delete (HTMLElement.prototype as Partial<HTMLElement>).setPointerCapture;
 });
 
+describe("LeaseForm current-step validation", () => {
+  it("requires a selected tenant and leaves later empty steps out of Next validation", async () => {
+    const user = userEvent.setup();
+    render(
+      <LeaseForm
+        onClose={() => undefined}
+        properties={[]}
+        tenants={[
+          {
+            archived: false,
+            description: "Tenant",
+            id: "11111111-1111-4111-8111-111111111111",
+            label: "Ari Tenant",
+            partyType: "individual",
+            roles: ["tenant"],
+          },
+        ]}
+        units={[]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(screen.getByRole("alert").textContent).toBe("Choose a tenant.");
+    const tenantPicker = screen.getByRole("combobox", { name: /Tenant/ });
+    expect(document.activeElement).toBe(tenantPicker);
+    expect(screen.getByRole("button", { name: "2 Lease terms" }).hasAttribute("disabled")).toBe(true);
+
+    await user.type(tenantPicker, "Ari");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("alert").textContent).toBe("Choose a tenant.");
+    expect(createLeaseActionMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("option", { name: /Ari Tenant/ }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(screen.getByRole("heading", { name: "Lease terms" })).not.toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(createLeaseActionMock).not.toHaveBeenCalled();
+  });
+
+  it("requires both dates and rejects an edited end date before or on the start date", async () => {
+    const user = userEvent.setup();
+    render(
+      <LeaseForm onClose={() => undefined} properties={[]} tenants={[]} units={[]} />,
+    );
+    await advanceToLeaseTerms(user);
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("alert").textContent).toBe("Choose a date.");
+    expect(document.activeElement).toBe(screen.getByLabelText("Lease start date"));
+
+    const form = screen.getByRole("form", { name: "Add lease form" });
+    fireEvent.input(form.elements.namedItem("leaseStartDate")!, {
+      target: { value: "2026-08-16" },
+    });
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("alert").textContent).toBe("Choose a date.");
+    expect(document.activeElement).toBe(screen.getByLabelText("Lease end date"));
+
+    for (const endDate of ["2026-08-15", "2026-08-16"]) {
+      fireEvent.input(form.elements.namedItem("leaseEndDate")!, {
+        target: { value: endDate },
+      });
+      await user.click(screen.getByRole("button", { name: "Next" }));
+      expect(screen.getByRole("alert").textContent).toBe("End date must be after the start date.");
+      expect(screen.getByRole("heading", { name: "Lease terms" })).not.toBeNull();
+    }
+
+    setLeaseDates();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("heading", { name: "Rent and deposit" })).not.toBeNull();
+    expect(createLeaseActionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid edited rent, due day and deposit before advancing", async () => {
+    const user = userEvent.setup();
+    render(
+      <LeaseForm onClose={() => undefined} properties={[]} tenants={[]} units={[]} />,
+    );
+    await advanceToRentStep(user);
+    const rent = screen.getByRole("textbox", { name: /Monthly rent/ });
+    const dueDay = screen.getByRole("textbox", { name: /Due each month on/ });
+    const deposit = screen.getByRole("textbox", { name: "Deposit required" });
+
+    for (const value of ["", "0", "not a number"]) {
+      fireEvent.change(rent, { target: { value } });
+      await user.click(screen.getByRole("button", { name: "Next" }));
+      expect(screen.getByRole("alert").textContent).toBe("Enter a rent amount greater than zero.");
+      expect(document.activeElement).toBe(rent);
+    }
+    await user.clear(rent);
+    await user.type(rent, "1000");
+
+    for (const value of ["", "32", "2.5"]) {
+      fireEvent.change(dueDay, { target: { value } });
+      await user.click(screen.getByRole("button", { name: "Next" }));
+      expect(screen.getByRole("alert").textContent).toBe("Enter a due day from 1 to 31.");
+      expect(document.activeElement).toBe(dueDay);
+    }
+    await user.clear(dueDay);
+    await user.type(dueDay, "5");
+
+    for (const value of ["-1", "not a number"]) {
+      fireEvent.change(deposit, { target: { value } });
+      await user.click(screen.getByRole("button", { name: "Next" }));
+      expect(screen.getByRole("alert").textContent).toBe("Enter a valid non-negative deposit.");
+      expect(document.activeElement).toBe(deposit);
+    }
+    await user.clear(deposit);
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(screen.getByRole("heading", { name: "Billing setup" })).not.toBeNull();
+    expect(createLeaseActionMock).not.toHaveBeenCalled();
+  }, 15_000);
+
+  it("validates the optional deposit receipt and permits correcting it", async () => {
+    const user = userEvent.setup();
+    render(
+      <LeaseForm canRecordDepositReceipt onClose={() => undefined} properties={[]} tenants={[]} units={[]} />,
+    );
+    await advanceToRentStep(user);
+    const form = screen.getByRole("form", { name: "Add lease form" });
+    fireEvent.change(form.elements.namedItem("monthlyRentAmount")!, {
+      target: { value: "1000" },
+    });
+    fireEvent.change(form.elements.namedItem("rentDueDay")!, {
+      target: { value: "5" },
+    });
+    await user.click(screen.getByRole("combobox", { name: "Deposit received?" }));
+    await user.click(screen.getByRole("option", { name: "Yes, received" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("alert").textContent).toBe("Enter the required deposit before recording its receipt.");
+
+    fireEvent.change(form.elements.namedItem("depositAmount")!, {
+      target: { value: "750" },
+    });
+    for (const [value, message] of [
+      ["0", "Enter a received amount greater than zero."],
+      ["751", "Received amount cannot exceed the required deposit."],
+    ]) {
+      fireEvent.change(form.elements.namedItem("depositReceivedAmount")!, {
+        target: { value },
+      });
+      await user.click(screen.getByRole("button", { name: "Next" }));
+      expect(screen.getByRole("alert").textContent).toBe(message);
+    }
+    fireEvent.change(form.elements.namedItem("depositReceivedAmount")!, {
+      target: { value: "750" },
+    });
+    fireEvent.input(form.elements.namedItem("depositReceivedOn")!, {
+      target: { value: "" },
+    });
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("alert").textContent).toBe("Choose when the deposit was received.");
+    expect(document.activeElement).toBe(screen.getByLabelText("Received on"));
+
+    await user.click(screen.getByLabelText("Received on"));
+    await user.click(screen.getByRole("button", { name: "Today", exact: true }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("heading", { name: "Billing setup" })).not.toBeNull();
+    expect(createLeaseActionMock).not.toHaveBeenCalled();
+  }, 15_000);
+
+  it("keeps a visited later step behind validation after editing earlier dates", async () => {
+    const user = userEvent.setup();
+    render(
+      <LeaseForm onClose={() => undefined} properties={[]} tenants={[]} units={[]} />,
+    );
+    await advanceToBillingStep(user);
+    await user.click(screen.getByRole("button", { name: "2 Lease terms" }));
+    setLeaseDates("2026-08-16", "2026-08-15");
+    await user.click(screen.getByRole("button", { name: "4 Billing setup" }));
+
+    expect(screen.getByRole("heading", { name: "Lease terms" })).not.toBeNull();
+    expect(screen.getByRole("alert").textContent).toBe("End date must be after the start date.");
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Tenant" })).not.toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("submits the final step once while its server action is pending", async () => {
+    const user = userEvent.setup();
+    let resolveAction: (value: object) => void = () => undefined;
+    createLeaseActionMock.mockReturnValueOnce(new Promise((resolve) => {
+      resolveAction = resolve;
+    }));
+    render(
+      <LeaseForm onClose={() => undefined} properties={[]} tenants={[]} units={[]} />,
+    );
+    await advanceToBillingStep(user);
+    const form = screen.getByRole("form", { name: "Add lease form" });
+
+    await act(async () => {
+      fireEvent.submit(form);
+      fireEvent.submit(form);
+    });
+    expect(createLeaseActionMock).toHaveBeenCalledTimes(1);
+    expect(form.getAttribute("aria-busy")).toBe("true");
+    fireEvent.submit(form);
+    expect(createLeaseActionMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => resolveAction({}));
+    expect(form.getAttribute("aria-busy")).toBe("false");
+  });
+});
+
 describe("LeaseForm inline tenant billing recipient", () => {
   it("returns to the step containing a server validation error", async () => {
     const user = userEvent.setup();
@@ -106,9 +352,7 @@ describe("LeaseForm inline tenant billing recipient", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Next" }));
-    await user.click(screen.getByRole("button", { name: "Next" }));
-    await user.click(screen.getByRole("button", { name: "Next" }));
+    await advanceToBillingStep(user);
     await user.click(
       screen.getByRole("button", { name: "Create draft lease" }),
     );
@@ -141,9 +385,7 @@ describe("LeaseForm inline tenant billing recipient", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Next" }));
-    await user.click(screen.getByRole("button", { name: "Next" }));
-    await user.click(screen.getByRole("button", { name: "Next" }));
+    await advanceToBillingStep(user);
     await user.click(
       screen.getByRole("button", { name: "Create draft lease" }),
     );
@@ -245,8 +487,7 @@ describe("LeaseForm inline tenant billing recipient", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Next" }));
-    await user.click(screen.getByRole("button", { name: "Next" }));
+    await advanceToRentStep(user);
 
     const form = screen.getByRole("form", { name: "Add lease form" });
     expect(screen.getByText("Deposit required")).not.toBeNull();
@@ -283,8 +524,7 @@ describe("LeaseForm inline tenant billing recipient", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Next" }));
-    await user.click(screen.getByRole("button", { name: "Next" }));
+    await advanceToRentStep(user);
 
     const form = screen.getByRole("form", { name: "Add lease form" });
     fireEvent.input(form.elements.namedItem("leaseStartDate")!, {
@@ -373,9 +613,7 @@ describe("LeaseForm inline tenant billing recipient", () => {
         await user.click(await screen.findByRole("option", { name: option }));
       };
 
-      await user.click(screen.getByRole("button", { name: "Next" }));
-      await user.click(screen.getByRole("button", { name: "Next" }));
-      await user.click(screen.getByRole("button", { name: "Next" }));
+      await advanceToBillingStep(user);
       await user.click(
         screen.getByRole("button", { name: "Change billing setup" }),
       );

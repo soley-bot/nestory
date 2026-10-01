@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useActionState, useEffect, useState } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { ArrowRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
@@ -73,6 +73,11 @@ type LeaseFormInitialValues = Partial<
   Pick<LeaseFormValues, "propertyId" | "tenantPersonId" | "unitId">
 >;
 
+type LeaseCreateStepError = {
+  fieldName: string;
+  message: string;
+};
+
 export function LeaseForm({
   billingFormConfig,
   canRecordDepositReceipt = false,
@@ -90,21 +95,28 @@ export function LeaseForm({
   const isEditMode = mode === "edit";
   const [createStep, setCreateStep] = useState(1);
   const [furthestCreateStep, setFurthestCreateStep] = useState(1);
+  const [createStepError, setCreateStepError] =
+    useState<LeaseCreateStepError | null>(null);
+  const submitLockedRef = useRef(false);
   const [state, action, pending] = useActionState(
     async (previousState: LeaseActionState, formData: FormData) => {
-      const nextState = await (isEditMode
-        ? updateLeaseAction(previousState, formData)
-        : createLeaseAction(previousState, formData));
+      try {
+        const nextState = await (isEditMode
+          ? updateLeaseAction(previousState, formData)
+          : createLeaseAction(previousState, formData));
 
-      if (!isEditMode && nextState.status === "error" && nextState.fieldErrors) {
-        const errorStep = getCreateStepForFieldErrors(nextState.fieldErrors);
-        if (errorStep !== null) {
-          setCreateStep(errorStep);
-          setFurthestCreateStep((current) => Math.max(current, errorStep));
+        if (!isEditMode && nextState.status === "error" && nextState.fieldErrors) {
+          const errorStep = getCreateStepForFieldErrors(nextState.fieldErrors);
+          if (errorStep !== null) {
+            setCreateStep(errorStep);
+            setFurthestCreateStep((current) => Math.max(current, errorStep));
+          }
         }
-      }
 
-      return nextState;
+        return nextState;
+      } finally {
+        submitLockedRef.current = false;
+      }
     },
     initialState,
   );
@@ -204,14 +216,49 @@ export function LeaseForm({
   }
 
   function handleCreateStepSave(form: HTMLFormElement) {
-    if (createStep < createLeaseSteps.length) {
-      const nextStep = createStep + 1;
-      setCreateStep(nextStep);
-      setFurthestCreateStep((current) => Math.max(current, nextStep));
+    if (pending || submitLockedRef.current) {
       return;
     }
 
+    if (createStep < createLeaseSteps.length) {
+      handleCreateStepChange(form, createStep + 1);
+      return;
+    }
+
+    submitLockedRef.current = true;
     startTransition(() => action(new FormData(form)));
+  }
+
+  function handleCreateStepChange(form: HTMLFormElement, nextStep: number) {
+    if (pending || submitLockedRef.current) {
+      return;
+    }
+
+    if (nextStep > createStep) {
+      const error = getLeaseCreateStepError(createStep, new FormData(form));
+      if (error) {
+        setCreateStepError(error);
+        const field = Array.from(
+          form.querySelectorAll<HTMLElement>("[data-record-field]"),
+        ).find(
+          (element) => element.dataset.recordField === error.fieldName,
+        );
+        field
+          ?.querySelector<HTMLElement>(
+            "input:not([type='hidden']), textarea, select, button, [tabindex]:not([tabindex='-1'])",
+          )
+          ?.focus();
+        return;
+      }
+    }
+
+    setCreateStepError(null);
+    setCreateStep(nextStep);
+    setFurthestCreateStep((current) => Math.max(current, nextStep));
+  }
+
+  function clearCreateStepError() {
+    setCreateStepError(null);
   }
 
   return (
@@ -274,7 +321,10 @@ export function LeaseForm({
                             : "border-border/60 text-muted-foreground/55"
                       }`}
                       disabled={!available}
-                      onClick={() => setCreateStep(item.step)}
+                      onClick={(event) => {
+                        const form = event.currentTarget.form;
+                        if (form) handleCreateStepChange(form, item.step);
+                      }}
                       type="button"
                     >
                       <span className="mr-1 tabular-nums text-muted-foreground">
@@ -287,6 +337,15 @@ export function LeaseForm({
               })}
             </ol>
           </nav>
+        ) : null}
+
+        {createStepError ? (
+          <p
+            className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
+            role="alert"
+          >
+            {createStepError.message}
+          </p>
         ) : null}
 
         {!isEditMode && state.status === "success" && state.leaseId ? (
@@ -350,7 +409,11 @@ export function LeaseForm({
         )}
 
         {!isEditMode ? (
-          <div hidden={createStep !== 1}>
+          <div
+            hidden={createStep !== 1}
+            onChangeCapture={clearCreateStepError}
+            onInputCapture={clearCreateStepError}
+          >
             <FormSection title="Tenant">
               {createContext ? (
                 <div className="flex flex-wrap items-center gap-1.5 border-b border-border/70 pb-3 text-sm">
@@ -396,7 +459,11 @@ export function LeaseForm({
           </div>
         ) : null}
 
-        <div hidden={!isEditMode && createStep !== 2}>
+        <div
+          hidden={!isEditMode && createStep !== 2}
+          onChangeCapture={clearCreateStepError}
+          onInputCapture={clearCreateStepError}
+        >
           <FormSection
             title={isEditMode ? "Lease period" : "Lease terms"}
           >
@@ -483,7 +550,11 @@ export function LeaseForm({
           </FormSection>
         </div>
 
-        <div hidden={!isEditMode && createStep !== 3}>
+        <div
+          hidden={!isEditMode && createStep !== 3}
+          onChangeCapture={clearCreateStepError}
+          onInputCapture={clearCreateStepError}
+        >
           <FormSection
             title="Rent and deposit"
           >
@@ -682,9 +753,12 @@ export function LeaseForm({
         {!isEditMode && createStep > 1 ? (
           <div>
             <Button
-              onClick={() =>
-                setCreateStep((current) => Math.max(1, current - 1))
-              }
+              onClick={(event) => {
+                const form = event.currentTarget.form;
+                if (form) {
+                  handleCreateStepChange(form, Math.max(1, createStep - 1));
+                }
+              }}
               type="button"
               variant="ghost"
             >
@@ -709,6 +783,80 @@ export function LeaseForm({
       </Modal>
     </>
   );
+}
+
+function getLeaseCreateStepError(
+  step: number,
+  formData: FormData,
+): LeaseCreateStepError | null {
+  const readValue = (name: string) => String(formData.get(name) ?? "").trim();
+  const invalid = (fieldName: string, message: string) => ({ fieldName, message });
+  const isDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+  if (step === 1 && !readValue("tenantPersonId")) {
+    return invalid("tenantPersonId", "Choose a tenant.");
+  }
+
+  if (step === 2) {
+    const startDate = readValue("leaseStartDate");
+    const endDate = readValue("leaseEndDate");
+    if (!isDate(startDate)) return invalid("leaseStartDate", "Choose a date.");
+    if (!isDate(endDate)) return invalid("leaseEndDate", "Choose a date.");
+    if (endDate <= startDate) {
+      return invalid("leaseEndDate", "End date must be after the start date.");
+    }
+  }
+
+  if (step === 3) {
+    const rentAmount = Number(readValue("monthlyRentAmount"));
+    if (!Number.isFinite(rentAmount) || rentAmount <= 0) {
+      return invalid(
+        "monthlyRentAmount",
+        "Enter a rent amount greater than zero.",
+      );
+    }
+
+    const rentDueDay = Number(readValue("rentDueDay"));
+    if (!Number.isInteger(rentDueDay) || rentDueDay < 1 || rentDueDay > 31) {
+      return invalid("rentDueDay", "Enter a due day from 1 to 31.");
+    }
+
+    const depositValue = readValue("depositAmount");
+    const depositAmount = Number(depositValue);
+    if (depositValue && (!Number.isFinite(depositAmount) || depositAmount < 0)) {
+      return invalid("depositAmount", "Enter a valid non-negative deposit.");
+    }
+
+    if (readValue("depositReceived") === "yes") {
+      if (!depositValue || depositAmount <= 0) {
+        return invalid(
+          "depositAmount",
+          "Enter the required deposit before recording its receipt.",
+        );
+      }
+
+      const receivedAmount = Number(
+        readValue("depositReceivedAmount") || depositValue,
+      );
+      if (!Number.isFinite(receivedAmount) || receivedAmount <= 0) {
+        return invalid(
+          "depositReceivedAmount",
+          "Enter a received amount greater than zero.",
+        );
+      }
+      if (receivedAmount > depositAmount) {
+        return invalid(
+          "depositReceivedAmount",
+          "Received amount cannot exceed the required deposit.",
+        );
+      }
+      if (!isDate(readValue("depositReceivedOn"))) {
+        return invalid("depositReceivedOn", "Choose when the deposit was received.");
+      }
+    }
+  }
+
+  return null;
 }
 
 function getCreateStepForFieldErrors(
