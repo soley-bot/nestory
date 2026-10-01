@@ -1,5 +1,12 @@
 # Enterprise frontend redesign system
 
+**Current guidance:** This document retains the historical redesign architecture.
+Use [`PROJECT.md`](../../PROJECT.md) and
+[Staff Workflow Product Direction](../product/staff-workflow-direction.md) for
+later product decisions. In particular, layout conventions are defaults rather
+than blanket workflow prohibitions, and historical role examples do not grant
+or remove current checked permissions.
+
 **Status:** Approved goal translated to implementation architecture
 **Research:** `docs/research/enterprise-frontend-redesign-research.md`
 **Scope:** all 47 routes in `config/ui-route-coverage.json`, all five workspace roles, public/auth/system states, light/dark, desktop/tablet/mobile
