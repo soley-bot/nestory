@@ -12,6 +12,15 @@ import RequestPage from "@/app/request/page";
 afterEach(cleanup);
 
 describe("RequestPage", () => {
+  it("updates the selected intent when navigating between request URLs", async () => {
+    const { rerender } = render(await RequestPage({
+      searchParams: Promise.resolve({ intent: "information" }),
+    }));
+    expect((screen.getByRole("radio", { name: "Information" }) as HTMLInputElement).checked).toBe(true);
+    rerender(await RequestPage({ searchParams: Promise.resolve({ intent: "demo" }) }));
+    expect((screen.getByRole("radio", { name: "Demo" }) as HTMLInputElement).checked).toBe(true);
+  });
+
   it("keeps public request interactions and supporting accents neutral", async () => {
     render(
       await RequestPage({
@@ -20,19 +29,12 @@ describe("RequestPage", () => {
     );
 
     const themeControl = screen.getByRole("button", { name: "Display theme" });
-    const eyebrow = screen.getByText("Managed access");
-    const signIn = screen.getByRole("link", {
-      name: "Sign in to your workspace",
-    });
-    const firstNote = screen.getByText(
-      "A guided look at the operating record, not a generic product tour",
-    );
+    const heading = screen.getByRole("heading", { name: "Talk to Nestory." });
+    const signIn = screen.getAllByRole("link", { name: "Sign in" }).at(-1);
 
     expect(themeControl.className).toContain("focus-visible:ring-ring/50");
     expect(themeControl.className).not.toContain("--landing-accent");
-    expect(eyebrow.className).toContain("text-muted-foreground");
-    expect(signIn.className).toContain("text-foreground");
-    expect(firstNote.parentElement?.querySelector("svg")?.getAttribute("class"))
-      .toContain("text-muted-foreground");
+    expect(heading).not.toBeNull();
+    expect(signIn?.className).toContain("text-foreground");
   });
 });

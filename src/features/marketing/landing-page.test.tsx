@@ -29,7 +29,7 @@ describe("LandingPage enterprise composition", () => {
 
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("heading", {
-      name: "What if your whole portfolio stayed under control?",
+      name: "Manage your properties in one place.",
     })).toBeTruthy();
 
     const editorial = screen.getByRole("img", {
@@ -45,9 +45,9 @@ describe("LandingPage enterprise composition", () => {
     render(<LandingPage />);
 
     const section = screen.getByRole("region", {
-      name: "The same record, from request to close.",
+      name: "Keep your team on the same page.",
     });
-    expect(section.textContent).toContain("The same record, from request to close");
+    expect(section.textContent).toContain("Keep your team on the same page");
     expect(section.textContent).toContain("Maintenance");
     expect(section.textContent).toContain("Finance");
     expect(section.textContent).toContain("Reporting");
@@ -67,7 +67,7 @@ describe("LandingPage enterprise composition", () => {
 
     expect(finalSection).not.toBeNull();
     const informationAction = within(finalSection as HTMLElement).getByRole("link", {
-      name: "Request information",
+      name: "Get information",
     });
 
     expect(informationAction.getAttribute("data-slot")).toBe("button");
