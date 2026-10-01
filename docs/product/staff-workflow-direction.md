@@ -56,7 +56,7 @@ direction. Availability is governed by the current code and the status column.
 | Narrow correction paths fail closed without a clear repair route. | Guided correction: select the source, enter the change and reason, preview the effect, validate dependencies, save audit lineage and show the result. | Existing safe correction machinery is the starting point. New correction types are planned; missing authority continues to block until implemented. |
 | Archive/restore is the only normal lifecycle; every deletion waits for an unspecified decision. | Keep archive/restore for established records; design checked deletion for unused drafts, and use void/reversal/replacement for financial mistakes. | Draft deletion and consistent undo are planned. No referenced or financial evidence is erased, and no new hard-delete API is authorized by this document. |
 | Read-only Ledger can be mistaken for a ban on correcting money records. | Offer correction from the operational source and show the resulting history in Ledger and reports. | Ledger projection remains immutable. Source corrections retain reason, preview, payments and dependencies. |
-| Initial records and queues wait for hidden dropdowns, histories and portfolio datasets. | Minimum visible data first, independent aggregates, on-intent forms/history/media, then one bounded next-page load when useful. | People Insights streaming is implemented; PR184 pagination and PR185 Unit options are separate pending releases at this checkpoint. Finance and derived register fallbacks remain planned. |
+| Initial records and queues wait for hidden dropdowns, histories and portfolio datasets. | Minimum visible data first, independent aggregates, on-intent forms/history/media, then one bounded next-page load when useful. | People Insights streaming and PR185 Unit options on intent are implemented. PR184 pagination remains a separate pending release at this checkpoint. Finance and derived register fallbacks remain planned. |
 | At most one secondary controls row; never keep a persistent inspector. | Use these as defaults, with an accessible comparison panel or extra controls when a demonstrated task needs them. | Documentation relaxed now. UI changes still need task, keyboard and zoom evidence. |
 | Repeated paragraphs and accounting/implementation jargon compensate for unclear screens. | Use familiar labels, short actionable errors and secondary help on demand; make the affected scope and consequence clear. | Direction revised now. Audit copy alongside each workflow slice; retain accessible labels and financial distinctions. |
 | Current report catalog, monthly-only setup and browser-only reminders read as permanent prohibitions. | Treat them as current gaps. Add a report or durable workflow when its sources, operating need and delivery model are defined. | Roadmap only. No accounting books, automation, portal, external messages or payment integration added. |
@@ -119,7 +119,7 @@ practical. Follow the owner's preference against explanatory code comments.
 | Phase | Bounded delivery | Exit evidence |
 | --- | --- | --- |
 | 0 — Direction and baseline | Merge this documentation separately. Inventory common staff tasks, observed blockers, current authority and release states. Prioritize with the pilot; distinguish software release from an operator's financial correction. | Agreed task list, baseline requests/payload and permitted synthetic scenarios; no new business permission implied. |
-| 1 — Fast visible work | Complete the separate PR184/185 release queue, then split one Finance or register loader at a time. Defer hidden forms/history/media, preserve separate aggregates, and add bounded cancelable prefetch only after its loader is safe. | Time to usable rows and payload measured honestly; equivalent totals/scope/sort/page/URL; slow/error/stale/cancel browser cases. |
+| 1 — Fast visible work | Build on released PR185 Unit options, complete the separate PR184 pagination release, then split one Finance or register loader at a time. Defer hidden forms/history/media, preserve separate aggregates, and add bounded cancelable prefetch only after its loader is safe. | Time to usable rows and payload measured honestly; equivalent totals/scope/sort/page/URL; slow/error/stale/cancel browser cases. |
 | 2 — Routine edits and recoveries | Inventory existing edit/correction/archive/restore commands. Put actions at source rows and records. Consolidate reason/preview/result presentation and readable dependency guidance without changing command authority. | Increase/decrease, unpaid/partial/paid, duplicate, stale, dependent cash, closed period, audit, future terms and denied-role/property cases. |
 | 3 — Audited lifecycle improvements | Design unused-draft deletion and consistent recovery/undo against explicit dependency and retention contracts. Implement one record family at a time after deciding its semantics. | Server-enforced eligibility, concurrency and idempotency; audit/tombstone and restore expectations; preserved referenced evidence. |
 | 4 — Capability and product expansion | Decide specific historical/deposit/assignment policies and select valuable reporting, recurrence or communication work. Design the required backend, authority and operating model before enabling it. | Recorded business decisions, financial/role contracts, service cost and authorization where applicable, focused migration and release evidence. |
@@ -169,9 +169,14 @@ marketing performance claims as Nestory requirements.
   current-month correction and its audits and safeguards. It does not imply
   historical-period authority. Other released corrections remain governed by
   their checked contracts.
-- PR184 (10-row People default) and PR185 (Unit options on intent) are distinct
-  implementation PRs. Their CI/review and protected release state must be checked
-  separately; this document does not claim they are live.
+- PR185 (Unit options on intent) is implemented and released at main
+  `bd49dc1b1485cd373052a4d0039414dd5c11f9df`. Protected workflow
+  [36880716182](https://github.com/soley-bot/nestory/actions/runs/36880716182)
+  passed all deployment and preservation gates. Both production aliases were
+  verified READY on that SHA on 2026-10-01.
+- PR184 (10-row People default) remains a separate implementation PR at this
+  checkpoint. Its exact-head CI, review and protected release must complete
+  before claiming it is live.
 - Finance query separation, general audited draft deletion/undo, broader
   corrections, durable automation and new financial policies are planned.
   No runtime refactor or policy change is concealed in this documentation PR.

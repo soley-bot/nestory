@@ -129,13 +129,15 @@ generated rent. A manual base-rent charge cannot duplicate an existing
 Lease-month. Historical recovery creates only the selected completed month and
 never fills adjacent months automatically.
 
-An issued current-month rent invoice has an **Edit this month's rent** action
-for Super Admin and the authorized Finance Manager in assigned property scope.
-It requires a reason and checked balance preview, preserves prior payments and
+An authorized Finance Manager can use **Edit this month's rent** for an issued
+current-month rent invoice within assigned property scope. The Super Admin
+lease action remains **Correct historical rent**, reflecting its existing
+broader authority. A correction requires a reason and checked balance preview,
+preserves prior payments and
 future recurring terms, and records correction lineage. Overpayment,
 owner-cash dependencies, locked or closed periods, stale previews and duplicate
-commands retain their checked safeguards. This capability does not grant
-general historical editing or closed-month reopening.
+commands retain their checked safeguards. The Finance Manager capability does
+not grant general historical editing or closed-month reopening.
 
 ### Paid expense to approval to reversal
 
