@@ -9,7 +9,7 @@ assert.equal(process.env.GITHUB_ACTIONS, "true", "Maintenance concurrency fixtur
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const organizationId = "00000000-0000-0000-0000-000000000001";
 const actorId = "00000000-0000-0000-0000-000000000101";
-const runAt = "2039-02-14 09:00+00";
+const runAt = "2039-02-14 02:00+00";
 const inventory = spawnSync("docker", ["ps", "--filter", "name=^/supabase_db_", "--format", "{{.Names}}"], {
   cwd: repoRoot, encoding: "utf8", shell: false,
 });
@@ -86,6 +86,7 @@ function createTask(frequency = "none") {
 }
 
 before(() => {
+  assert.equal(run(`SELECT operational_timezone FROM public.organizations WHERE id='${organizationId}';`), "Asia/Phnom_Penh");
   run(`UPDATE public.maintenance_recurrence_series SET lifecycle='paused';
     UPDATE public.notification_outbox SET status='cancelled' WHERE status IN ('pending','retry','processing');`);
 });
@@ -109,7 +110,7 @@ test("concurrent scheduler retries generate and deliver one advance occurrence",
     assert.match(replayed.stdout, /"generated": 0/);
     assert.match(replayed.stdout, /"delivered": 0/);
     assert.equal(run(`SELECT count(*) FROM public.tasks WHERE recurrence_series_id='${seriesId}'
-      AND recurrence_occurrence_at='2039-02-15 09:00+00';`), "1");
+      AND recurrence_occurrence_at='2039-02-15 02:00+00';`), "1");
     assert.equal(run(`SELECT count(*) FROM public.notification_delivery_attempts AS attempt
       JOIN public.notification_outbox AS outbox ON outbox.id=attempt.outbox_id
       JOIN public.tasks AS task ON task.id=outbox.task_id
