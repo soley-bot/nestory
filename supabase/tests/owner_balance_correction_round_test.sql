@@ -1,5 +1,7 @@
 BEGIN;
 
+SET LOCAL TIME ZONE 'Asia/Phnom_Penh';
+
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SELECT no_plan();
 

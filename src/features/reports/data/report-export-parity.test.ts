@@ -68,7 +68,7 @@ describe("PDF and XLSX accounting presentation", () => {
     }
     savePreview("profit-loss-owner-funding", buildTrustedReportPdf({ organizationName: "IPS", report: funded }), buildTrustedReportXlsx(funded));
   });
-  it("shows unavailable opening authority rather than a fabricated zero or final balance", () => {
+  it("keeps an unavailable remaining balance explicit in both exports", () => {
     const funded = { ...report, unitProfitLossFunding: { contributionCents: BigInt(68200), remainingBalanceCents: null, unavailableReason: "Review Owner Accounts for this month." } };
     const pdf = Buffer.from(buildTrustedReportPdf({ organizationName: "IPS", report: funded })).toString("latin1");
     const sheet = strFromU8(unzipSync(buildTrustedReportXlsx(funded))["xl/worksheets/sheet1.xml"]!);

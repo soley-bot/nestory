@@ -1338,7 +1338,7 @@ function leaseActionErrorMessage(error: {
   if (errorMessage.includes("rent_change_requires_linked_review") || errorMessage.includes("historical_rent_correction_blocked")) {
     const detail = error.details ?? "";
     if (detail.includes("historical_rent_tenant_credit_unsupported")) return "The new rent is below the amount already collected. Resolve the excess payment before reducing this month's rent.";
-    if (detail.includes("historical_rent_dependent_owner_cash")) return "A related expense or owner payment has already used this rent. Review those linked transactions before saving. Nothing was changed.";
+    if (detail.includes("historical_rent_dependent_owner_cash")) return "This rent has already been used for an expense or a transfer to the owner. Review those transactions before changing the rent. Nothing was changed.";
     if (detail.includes("owner_close") || detail.includes("financial_month_locked")) return "An affected financial month is closed. Reopen that month before changing its rent. Nothing was changed.";
     return "A linked payment needs review before this rent can change. Open the issued rent correction preview for details. Nothing was changed.";
   }
