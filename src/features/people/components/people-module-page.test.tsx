@@ -22,7 +22,10 @@ vi.mock("@/features/people/data/people", () => ({ getPeopleScreenData }));
 vi.mock("@/features/people/people.filters", () => ({ parsePeopleSearchParams }));
 vi.mock("@/lib/auth/context", () => ({ requirePermission }));
 
-import { PeopleModulePageContent } from "./people-module-page";
+import {
+  PeopleInsightsAction,
+  PeopleModulePageContent,
+} from "./people-module-page";
 
 describe("PeopleModulePageContent", () => {
   beforeEach(() => {
@@ -101,6 +104,38 @@ describe("PeopleModulePageContent", () => {
     });
 
     expect(getAccessByPersonId).not.toHaveBeenCalled();
+  });
+
+  it("does not block the people register on insights", async () => {
+    getPeopleScreenData.mockResolvedValue({
+      pagination: { totalCount: 0 },
+      people: [],
+    });
+    getPeopleInsightsData.mockReturnValue(new Promise(() => undefined));
+
+    await PeopleModulePageContent({
+      config: {
+        addButtonLabel: "Add person",
+        searchPlaceholder: "Search people",
+        showInsights: true,
+        title: "People",
+      },
+      searchParams: Promise.resolve({}),
+    });
+
+    expect(getPeopleScreenData).toHaveBeenCalledWith(
+      "organization-1",
+      expect.anything(),
+    );
+    expect(getPeopleInsightsData).not.toHaveBeenCalled();
+  });
+
+  it("loads insights through the organization-scoped streamed action", async () => {
+    getPeopleInsightsData.mockResolvedValue({ metrics: [] });
+
+    await PeopleInsightsAction({ organizationId: "organization-1" });
+
+    expect(getPeopleInsightsData).toHaveBeenCalledWith("organization-1");
   });
 });
 

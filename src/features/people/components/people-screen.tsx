@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, UsersRound } from "lucide-react";
@@ -20,11 +20,9 @@ import {
   RestorePersonPanel,
 } from "@/features/people/components/person-drawer-panels";
 import { PersonForm } from "@/features/people/components/person-form";
-import { PeopleCommandCenter } from "@/features/people/components/people-command-center";
 import { PeopleFilters } from "@/features/people/components/people-filters";
 import { PeopleTable } from "@/features/people/components/people-table";
 import { formatRole } from "@/features/people/people.labels";
-import type { PeopleInsights } from "@/features/people/people.insights";
 import type {
   PeoplePagination,
   PeopleSummary,
@@ -50,7 +48,7 @@ type PeopleScreenProps = {
   createRole?: PersonRoleValue;
   description?: string;
   initialPersonId?: string;
-  insights?: PeopleInsights;
+  insightsAction?: ReactNode;
   lockedRole?: PersonRoleValue;
   pagination: PeoplePagination;
   people: PeopleSummary[];
@@ -65,7 +63,7 @@ export function PeopleScreen({
   canCreate = true,
   createRole,
   initialPersonId,
-  insights,
+  insightsAction,
   lockedRole,
   pagination,
   people,
@@ -184,7 +182,7 @@ export function PeopleScreen({
     <WorkspacePage
       actions={
         <>
-          {insights ? <PeopleCommandCenter insights={insights} /> : null}
+          {insightsAction}
           {canCreate ? (
             <Button
               onClick={() => openPeopleAction({ mode: "create" })}
