@@ -181,9 +181,23 @@ describe("official owner statement workbook", () => {
     }
     expect(statement).toContain("01 Aug 2026 - 31 Aug 2026");
     expect(statement).toContain("Not provided");
+    expect(statement).toContain("Currency: USD");
+    expect(statement).not.toContain("Tenant deposits held separately");
     expect(statement).not.toContain("source trace");
+    for (const label of ["Date", "Category", "Cash Out", "Cash In", "Opening balance", "Total", "Closing balance"]) {
+      expect(statement).toContain(`>${label}</t>`);
+    }
     expect(statement).toMatch(/<c r="[A-Z]+\d+" s="\d+"><v>1250\.00<\/v><\/c>/);
     expect(statement).not.toContain("#REF!");
+
+    const compatibleExisting = strFromU8(
+      unzipSync(buildOwnerStatementXlsx(model, undefined, { includeDepositSummary: true }))[
+        "xl/worksheets/sheet1.xml"
+      ],
+    );
+    expect(compatibleExisting).toContain(
+      "Currency: USD | Tenant deposits held separately: 800.00",
+    );
   });
 
   it("is byte-identical across ZIP timestamp buckets and host time zones", () => {

@@ -153,9 +153,14 @@ describe("PDF and XLSX accounting presentation", () => {
     expect(text).toContain("$800.00");
     expect(text).toContain("Sample Tenant");
     expect(sheet).toContain("Xavier");
+    expect(sheet).toContain("Currency: USD");
+    expect(sheet).not.toContain("Tenant deposits held separately");
     for (const label of ["Opening balance", "Closing balance", "Category", "Name", "Unit A1"]) {
       expect(text).toContain(label);
       expect(sheet).toContain(label);
+    }
+    for (const amount of ["1250.00", "568.00", "700.00", "1382.00"]) {
+      expect(sheet).toContain(`<v>${amount}</v>`);
     }
     expect(sheet).toContain("<v>1382.00</v>");
     expect(sheet).not.toContain("Not recorded");

@@ -194,6 +194,9 @@ async function completeOwnerStatementPublication(
     },
     {
       bytes: buildOwnerStatementXlsx(model, presentation),
+      compatibleExistingBytes: buildOwnerStatementXlsx(model, presentation, {
+        includeDepositSummary: true,
+      }),
       contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       format: "xlsx" as const,
     },
@@ -214,13 +217,12 @@ async function completeOwnerStatementPublication(
       statementNumber,
       artifact.format,
     );
-    const expectedHash = sha256Hex(artifact.bytes);
-    await uploadOrVerifyArtifact(
+    const selectedArtifact = await uploadOrVerifyArtifact(
       bucket,
       storagePath,
       artifact.bytes,
       artifact.contentType,
-      expectedHash,
+      artifact.compatibleExistingBytes,
     );
 
     const object = await admin.rpc("get_owner_statement_artifact_object", {
@@ -241,8 +243,8 @@ async function completeOwnerStatementPublication(
     const retainedBytes = new Uint8Array(await retained.data.arrayBuffer());
     const retainedHash = sha256Hex(retainedBytes);
     if (
-      retainedBytes.byteLength !== artifact.bytes.byteLength ||
-      retainedHash !== expectedHash ||
+      retainedBytes.byteLength !== selectedArtifact.bytes.byteLength ||
+      retainedHash !== selectedArtifact.hash ||
       objectIdentity.metadataSizeBytes !== retainedBytes.byteLength ||
       objectIdentity.contentType !== artifact.contentType
     ) {
@@ -311,10 +313,11 @@ async function uploadOrVerifyArtifact(
   path: string,
   bytes: Uint8Array,
   contentType: string,
-  expectedHash: string,
+  compatibleExistingBytes?: Uint8Array,
 ) {
+  const expectedHash = sha256Hex(bytes);
   const upload = await bucket.upload(path, bytes, { contentType, upsert: false });
-  if (!upload.error) return;
+  if (!upload.error) return { bytes, hash: expectedHash };
   if (!isExistingObjectError(upload.error)) {
     throw new Error("Owner Statement artifact upload failed.");
   }
@@ -324,9 +327,17 @@ async function uploadOrVerifyArtifact(
     throw new Error("Existing Owner Statement artifact could not be verified.");
   }
   const existingBytes = new Uint8Array(await existing.data.arrayBuffer());
-  if (existingBytes.byteLength !== bytes.byteLength || sha256Hex(existingBytes) !== expectedHash) {
-    throw new Error("Existing Owner Statement artifact bytes do not match this publication.");
+  const existingHash = sha256Hex(existingBytes);
+  if (existingBytes.byteLength === bytes.byteLength && existingHash === expectedHash) {
+    return { bytes: existingBytes, hash: existingHash };
   }
+  const compatibleHash = compatibleExistingBytes && sha256Hex(compatibleExistingBytes);
+  if (
+    compatibleExistingBytes &&
+    existingBytes.byteLength === compatibleExistingBytes.byteLength &&
+    existingHash === compatibleHash
+  ) return { bytes: existingBytes, hash: existingHash };
+  throw new Error("Existing Owner Statement artifact bytes do not match this publication.");
 }
 
 function requiredArtifactObject(value: unknown) {

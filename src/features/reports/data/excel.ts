@@ -71,7 +71,11 @@ export function buildTrustedReportXlsx(report: TrustedReport, presentation?: Rep
   return zipSync(files, { level: 6 });
 }
 
-export function buildOwnerStatementXlsx(model: OwnerStatementPublicationModel, presentation?: OwnerStatementPresentation) {
+export function buildOwnerStatementXlsx(
+  model: OwnerStatementPublicationModel,
+  presentation?: OwnerStatementPresentation,
+  options: { includeDepositSummary?: boolean } = {},
+) {
   const files = {
     "[Content_Types].xml": strToU8(contentTypesXml()),
     "_rels/.rels": strToU8(rootRelationshipsXml()),
@@ -80,7 +84,7 @@ export function buildOwnerStatementXlsx(model: OwnerStatementPublicationModel, p
     "xl/_rels/workbook.xml.rels": strToU8(workbookRelationshipsXml()),
     "xl/styles.xml": strToU8(profitLossStylesXml()),
     "xl/workbook.xml": strToU8(ownerStatementWorkbookXml()),
-    "xl/worksheets/sheet1.xml": strToU8(ownerStatementSheetXml(model, presentation)),
+    "xl/worksheets/sheet1.xml": strToU8(ownerStatementSheetXml(model, presentation, options)),
   };
   if (presentation?.logo) addCompanyLogo(files, presentation.logo);
   // ZIP stores local DOS date fields. A fixed local calendar value keeps the
@@ -95,7 +99,11 @@ type OwnerWorkbookCell = {
   value: string;
 };
 
-function ownerStatementSheetXml(model: OwnerStatementPublicationModel, presentation?: OwnerStatementPresentation) {
+function ownerStatementSheetXml(
+  model: OwnerStatementPublicationModel,
+  presentation: OwnerStatementPresentation | undefined,
+  options: { includeDepositSummary?: boolean },
+) {
   const cash = ownerStatementCash(model);
   const money = (cents: number): OwnerWorkbookCell => ({ style: 3, type: "number", value: centsDecimal(BigInt(cents)) });
   const balance = (label: string, cents: number): OwnerWorkbookCell[] => [{ style: 2, span: 8, value: label }, { ...money(cents), style: 8 }];
@@ -103,7 +111,13 @@ function ownerStatementSheetXml(model: OwnerStatementPublicationModel, presentat
     [], [{ style: 1, span: 5, value: "Owner Statement" }], [],
     [{ style: 9, span: 5, value: ownerStatementPeriod(model.monthStart) }], [],
     [{ style: 4, span: 9, value: `Owner: ${presentation?.ownerName ?? "Not provided"} | Property: ${presentation?.propertyLabel ?? "Not provided"}` }],
-    [{ style: 4, span: 9, value: `Currency: ${model.currency} | Tenant deposits held separately: ${centsDecimal(BigInt(cash.depositCents))}` }], [],
+    [{
+      style: 4,
+      span: 9,
+      value: options.includeDepositSummary
+        ? `Currency: ${model.currency} | Tenant deposits held separately: ${centsDecimal(BigInt(cash.depositCents))}`
+        : `Currency: ${model.currency}`,
+    }], [],
     ["Date", "Type", "Property", "Unit", "Name", "Category", "Cash Out", "Cash In", "Balance"].map(value => ({ style: 2, value })),
     balance("Opening balance", cash.openingCents),
     ...cash.transactions.filter(line => line.cashInCents !== 0 || line.cashOutCents !== 0).map(line => {
