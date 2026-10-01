@@ -7,7 +7,9 @@ export default async function FinancePage(_props: {
 } = {}) {
   void _props;
   const context = await requireFinanceContext();
-  const data = await getFinanceOperationsData(context.organizationId);
+  const data = await getFinanceOperationsData(context.organizationId, undefined, {
+    includeExpenses: false,
+  });
 
   return (
     <FinanceOperationsScreen
