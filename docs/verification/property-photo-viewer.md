@@ -1,6 +1,6 @@
 # Property photo viewer verification
 
-Verified on 2026-10-01 from `codex/property-photo-viewer`, based on main `eddf073c`.
+Verified on 2026-10-01 from `codex/property-photo-viewer`, rebased onto main `1254e43b` after PR183 merged.
 
 ## Result
 
@@ -25,11 +25,22 @@ Playwright CLI exercised the actual gallery, shared dialog components, Next.js I
 - Mobile 390 x 844: contained dialog, 44 px viewer controls, full-size horizontal and vertical panning, fit toggle, backdrop dismissal, restored focus.
 - Narrow mobile 320 x 568 and landscape 844 x 390: dialog remains inside the viewport; keyboard opening and Escape work.
 - Viewer WCAG 2 A/AA and WCAG 2.1 AA axe scan: zero violations, 15 checks passed.
+- Gallery with card-local action errors: zero WCAG violations, 14 checks passed.
 - Delayed cover and archive: repeated clicks produced one request per attempt; other gallery actions stayed disabled while viewing remained available.
 - Returned cover error and thrown archive error: readable feedback, safe text, successful retry, no premature cover change or removal.
 - Successful archive: card removed and confirmation retained. Broken original: unavailable message and working Close.
 
-| Desktop viewer | Mobile viewer |
+Before captures render main's unmodified gallery; after captures render this branch with identical fixture data. All screenshots are local previews, not production captures.
+
+| Desktop before | Desktop after |
+| --- | --- |
+| ![Before: cropped desktop gallery](property-photo-viewer-assets/before-desktop.png) | ![After: desktop gallery with viewing controls](property-photo-viewer-assets/after-desktop.png) |
+
+| Mobile before | Mobile after |
+| --- | --- |
+| ![Before: cropped mobile gallery](property-photo-viewer-assets/before-mobile.png) | ![After: mobile gallery with viewing controls](property-photo-viewer-assets/after-mobile.png) |
+
+| Desktop viewer preview | Mobile viewer preview |
 | --- | --- |
 | ![Desktop photo viewer](property-photo-viewer-assets/desktop.png) | ![Mobile photo viewer](property-photo-viewer-assets/mobile.png) |
 
