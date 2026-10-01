@@ -1,4 +1,6 @@
 BEGIN;
+SET LOCAL timezone TO 'UTC';
+SET LOCAL datestyle TO 'ISO, YMD';
 
 SELECT no_plan();
 
@@ -182,6 +184,29 @@ WHERE id = (SELECT id FROM lifecycle_tasks WHERE title = 'Retry fixture');
 SELECT is((SELECT payload->>'title' FROM public.notification_outbox WHERE task_id =
   (SELECT id FROM lifecycle_tasks WHERE title = 'Retry fixture')),
   'Retry fixture edited', 'task edits preserve delivered reminder evidence');
+
+CREATE TEMP TABLE delivered_event_identity AS
+SELECT event_key FROM public.notification_outbox WHERE task_id =
+  (SELECT id FROM lifecycle_tasks WHERE title = 'Retry fixture');
+SET LOCAL timezone TO 'Asia/Phnom_Penh';
+SET LOCAL datestyle TO 'SQL, DMY';
+UPDATE public.tasks SET title = 'Delivered reminder edited from another session'
+WHERE id = (SELECT id FROM lifecycle_tasks WHERE title = 'Retry fixture');
+SELECT is((SELECT count(*)::integer FROM public.notification_outbox WHERE task_id =
+  (SELECT id FROM lifecycle_tasks WHERE title = 'Retry fixture')),
+  1, 'session timezone and date format cannot create another reminder event');
+SELECT is((public.run_maintenance_automation('2035-02-14 10:00+00', 100)->>'delivered')::integer,
+  0, 'editing a delivered reminder from another session cannot deliver it again');
+SELECT is((SELECT event_key FROM public.notification_outbox WHERE task_id =
+  (SELECT id FROM lifecycle_tasks WHERE title = 'Retry fixture') AND status = 'delivered'
+  ORDER BY delivered_at, id LIMIT 1),
+  (SELECT event_key FROM delivered_event_identity), 'the existing UTC reminder identity is retained');
+SELECT is(current_setting('TimeZone'), 'Asia/Phnom_Penh',
+  'reminder enqueue restores the caller session timezone');
+SELECT is(current_setting('DateStyle'), 'SQL, DMY',
+  'reminder enqueue restores the caller session date format');
+SET LOCAL timezone TO 'UTC';
+SET LOCAL datestyle TO 'ISO, YMD';
 
 UPDATE public.notification_outbox SET status = 'retry', next_attempt_at = '2035-02-14 11:00+00'
 WHERE task_id = (SELECT id FROM lifecycle_tasks WHERE title = 'Cancel fixture');
