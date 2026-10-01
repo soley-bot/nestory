@@ -4,6 +4,7 @@ SELECT plan(8);
 
 CREATE TEMP TABLE deposit_safety_state (
   property_id uuid DEFAULT gen_random_uuid(),
+  person_id uuid,
   creation jsonb,
   activation jsonb,
   ending jsonb,
@@ -43,9 +44,13 @@ UPDATE deposit_safety_state SET property_id = public.create_property_minimal(
 SELECT public.set_property_rental_structure(
   '00000000-0000-0000-0000-000000000001', property_id, 'single_space')
 FROM deposit_safety_state;
+UPDATE deposit_safety_state SET person_id = public.create_person(
+  '00000000-0000-0000-0000-000000000001', 'Deposit safety tenant', NULL,
+  'individual', NULL, NULL, NULL, NULL, ARRAY['tenant'],
+  (SELECT branch_id FROM public.properties WHERE id = property_id));
 UPDATE deposit_safety_state SET creation = public.create_property_lease(
   '00000000-0000-0000-0000-000000000001', property_id,
-  '80000000-0000-0000-0000-000000000001', current_date - 30, current_date + 335,
+  person_id, current_date - 30, current_date + 335,
   1100, 'USD', 1, 'monthly', 'draft', 500, 'USD', 'draft', 'deposit-safety-create');
 UPDATE deposit_safety_state SET deposit_id = (
   SELECT id FROM public.lease_deposits WHERE lease_id = (creation ->> 'leaseId')::uuid);
