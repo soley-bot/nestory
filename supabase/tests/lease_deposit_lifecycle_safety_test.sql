@@ -12,9 +12,10 @@ CREATE TEMP TABLE deposit_safety_state (
 INSERT INTO deposit_safety_state DEFAULT VALUES;
 GRANT SELECT, UPDATE ON deposit_safety_state TO authenticated;
 
-INSERT INTO public.properties (id, organization_id, name, code, property_type, status, rental_structure)
+INSERT INTO public.properties (id, organization_id, name, code, property_type, status, rental_structure, branch_id)
 SELECT property_id, '00000000-0000-0000-0000-000000000001', 'Deposit lifecycle fixture',
-  'DS-' || left(property_id::text, 8), 'house', 'active', 'single_space'
+  'DS-' || left(property_id::text, 8), 'house', 'active', 'single_space',
+  (SELECT branch_id FROM public.properties WHERE id = '10000000-0000-0000-0000-000000000001')
 FROM deposit_safety_state;
 
 CREATE FUNCTION pg_temp.deposit_safety_command(p_type text, p_amount numeric, p_key text)
