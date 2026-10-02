@@ -10,8 +10,11 @@ import type {
   UnitImportMapping,
 } from "@/features/imports/import.types";
 import {
+  getImportPreviewCleanupItems,
+  getImportPreviewStats,
+} from "@/features/imports/import-preview-diagnostics";
+import {
   buildUnitImportPreviewRows,
-  getUnitImportCleanupItems,
   toCommitRows,
   unitImportFields,
 } from "@/features/imports/unit-import";
@@ -477,63 +480,21 @@ export function buildGenericImportPreviewRows({
 }
 
 export function getGenericImportStats(rows: GenericImportPreviewRow[]) {
-  const errorCount = rows.filter((row) =>
-    row.issues.some((issue) => issue.level === "error"),
-  ).length;
-  const warningCount = rows.filter((row) =>
-    row.issues.some((issue) => issue.level === "warning"),
-  ).length;
-
-  return {
-    errorCount,
-    readyCount: rows.length - errorCount,
-    totalCount: rows.length,
-    warningCount,
-  };
+  return getImportPreviewStats(rows);
 }
 
 export function getGenericImportCleanupItems(
   type: ImportType,
   rows: GenericImportPreviewRow[],
 ): UnitImportCleanupItem[] {
-  if (type === "units") {
-    return getUnitImportCleanupItems(
-      rows.map((row) => ({
-        actionLabel:
-          row.actionLabel === "Needs review" ? "Needs review" : "Create or update",
-        currentRentAmount: null,
-        floor: row.secondaryLabel.replace(/^Floor /, ""),
-        inclusionLabel: "",
-        issues: row.issues,
-        mappedFields: {
-          currentRentAmount: false,
-          floor: false,
-          sizeSqm: false,
-          status: false,
-        },
-        propertyId: "",
-        propertyLabel: row.targetLabel,
-        raw: row.raw,
-        remark: "",
-        sizeSqm: null,
-        sourceRowNumber: row.sourceRowNumber,
-        status: "vacant",
-        typeLabel: "",
-        unitNumber: row.primaryLabel,
-      })),
-    );
-  }
-
-  return rows.flatMap((row) =>
-    row.issues.map((issue) => ({
-      actionHref: issue.actionHref,
-      actionLabel: issue.actionLabel,
-      level: issue.level,
-      message: issue.message,
-      propertyLabel: row.targetLabel || importTypeConfigs[type].label,
+  return getImportPreviewCleanupItems(
+    rows.map((row) => ({
+      issues: row.issues,
+      propertyLabel: row.targetLabel,
       sourceRowNumber: row.sourceRowNumber,
-      unitNumber: row.primaryLabel || "Not mapped",
+      unitNumber: row.primaryLabel,
     })),
+    type === "units" ? "Not mapped" : importTypeConfigs[type].label,
   );
 }
 
