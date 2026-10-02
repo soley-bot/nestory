@@ -10,22 +10,22 @@ import { LandingHeader } from "./components/landing-header";
 import { LandingScrollMotion } from "./components/landing-scroll-motion";
 
 const heroStats = [
-  { label: "Portfolio", text: "properties, units, owners, tenants" },
+  { label: "Properties", text: "units, owners, tenants" },
   { label: "Rent", text: "collections, balances, deposits" },
   { label: "Operations", text: "leases, maintenance, records" },
 ] as const;
 
 const coordinatedWork = [
   {
-    description: "Requests stay attached to the property, unit, assignee, and evidence.",
+    description: "Track requests, who handles them, and the work completed.",
     label: "Maintenance",
   },
   {
-    description: "Approvals, bills, rent, and owner balances share one traceable ledger.",
+    description: "Review rent, bills, and owner balances.",
     label: "Finance",
   },
   {
-    description: "Current records become credible reports without rebuilding the story.",
+    description: "Build reports from your property records.",
     label: "Reporting",
   },
 ] as const;
@@ -61,10 +61,10 @@ export function LandingPage({ nonce }: { nonce?: string }) {
         <div className="mx-auto flex w-full max-w-[1360px] flex-1 items-center px-6 py-16 sm:px-10 lg:px-14">
           <div className="max-w-3xl landing-hero-copy">
             <h1 className="font-display text-4xl font-semibold leading-tight text-[var(--landing-heading)] drop-shadow-[0_2px_18px_rgb(0_0_0_/_30%)] sm:text-5xl lg:text-6xl">
-              What if your whole portfolio stayed under control?
+              Manage your properties in one place.
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-[var(--landing-muted)]">
-              Property operations, connected from the portfolio to each record.
+              Track rent, leases, and maintenance with Nestory.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Link
@@ -78,7 +78,7 @@ export function LandingPage({ nonce }: { nonce?: string }) {
                 className="inline-flex min-h-11 items-center px-4 text-xs font-semibold uppercase tracking-widest text-white/90 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-white"
                 href="/request?intent=information"
               >
-                Request information
+                Get information
               </Link>
             </div>
           </div>
@@ -98,22 +98,23 @@ export function LandingPage({ nonce }: { nonce?: string }) {
         </div>
       </section>
 
-      <section className="px-6 py-20 sm:px-10 lg:px-14 lg:py-28" data-landing-reveal id="workspace">
+      <section aria-labelledby="workspace-title" className="px-6 py-20 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--landing-accent)] sm:px-10 lg:px-14 lg:py-28" data-landing-reveal id="workspace" tabIndex={-1}>
         <div className="mx-auto max-w-[1360px]">
           <div className="grid gap-8 border-b border-[var(--landing-border)] pb-10 md:grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] md:items-end">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--landing-subtle)]">
-                One operating record
+                Your workspace
               </p>
-              <h2 className="mt-4 max-w-xl font-display text-3xl font-semibold leading-tight text-[var(--landing-heading)] sm:text-4xl">
-                See the work that needs a decision.
+              <h2 className="mt-4 max-w-xl font-display text-3xl font-semibold leading-tight text-[var(--landing-heading)] sm:text-4xl" id="workspace-title">
+                Know what needs attention.
               </h2>
             </div>
             <p className="max-w-2xl text-base leading-7 text-[var(--landing-muted)] md:justify-self-end">
-              Nestory keeps leases, money, maintenance, documents, and activity connected—then gives each role the view and actions it can legitimately use.
+              See rent balances, lease dates, and open maintenance in one view.
             </p>
           </div>
           <div className="mt-10 lg:mt-12">
+            <p className="mb-3 text-xs text-[var(--landing-subtle)]">Preview with sample data</p>
             <ControlPreview />
           </div>
         </div>
@@ -121,9 +122,10 @@ export function LandingPage({ nonce }: { nonce?: string }) {
 
       <section
         aria-labelledby="coordinated-work-title"
-        className="border-y border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--landing-bg)_94%,var(--landing-accent))] px-6 py-20 sm:px-10 lg:px-14 lg:py-28"
+        className="border-y border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--landing-bg)_94%,var(--landing-accent))] px-6 py-20 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--landing-accent)] sm:px-10 lg:px-14 lg:py-28"
         data-landing-reveal
         id="operations"
+        tabIndex={-1}
       >
         <div className="mx-auto grid max-w-[1360px] gap-10 lg:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.72fr)] lg:items-center">
           <figure className="min-w-0">
@@ -136,24 +138,15 @@ export function LandingPage({ nonce }: { nonce?: string }) {
                 src="/property-operations-team-editorial.webp"
               />
             </div>
-            <figcaption className="mt-3 text-xs leading-5 text-[var(--landing-subtle)]">
-              Property, Finance, and Operations working from the same current record.
-            </figcaption>
           </figure>
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--landing-subtle)]">
-              Coordinated property work
-            </p>
             <h2
               className="mt-4 font-display text-3xl font-semibold leading-tight text-[var(--landing-heading)] sm:text-4xl"
               id="coordinated-work-title"
             >
-              The same record, from request to close.
+              Keep your team on the same page.
             </h2>
-            <p className="mt-5 max-w-xl text-base leading-7 text-[var(--landing-muted)]">
-              The interface changes by responsibility, while the underlying property story stays intact.
-            </p>
             <dl className="mt-8 border-t border-[var(--landing-border)]">
               {coordinatedWork.map((item) => (
                 <div className="grid gap-2 border-b border-[var(--landing-border)] py-5 sm:grid-cols-[120px_minmax(0,1fr)]" key={item.label}>
@@ -172,14 +165,11 @@ export function LandingPage({ nonce }: { nonce?: string }) {
       <section className="px-6 py-20 sm:px-10 lg:px-14 lg:py-28" data-landing-reveal id="start">
         <div className="mx-auto grid max-w-[1360px] gap-10 lg:grid-cols-[minmax(0,0.65fr)_minmax(300px,0.35fr)] lg:items-end">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--landing-subtle)]">
-              Ready for the operating day
-            </p>
             <h2 className="mt-4 max-w-4xl font-display text-3xl font-semibold leading-tight text-[var(--landing-heading)] sm:text-4xl lg:text-5xl">
-              Bring the portfolio into one operating record.
+              See how Nestory fits your properties.
             </h2>
             <p className="mt-5 max-w-2xl text-base leading-7 text-[var(--landing-muted)]">
-              Nestory provisions each client workspace and its first administrator. Tell us how your portfolio works today.
+              Request a demo or ask a question.
             </p>
           </div>
           <div className="flex flex-wrap gap-3 lg:justify-end">
@@ -195,7 +185,7 @@ export function LandingPage({ nonce }: { nonce?: string }) {
               className="h-auto min-h-12 rounded-full px-6 text-xs font-semibold uppercase tracking-widest"
               variant="outline"
             >
-              <Link href="/request?intent=information">Request information</Link>
+              <Link href="/request?intent=information">Get information</Link>
             </Button>
           </div>
         </div>
@@ -206,7 +196,7 @@ export function LandingPage({ nonce }: { nonce?: string }) {
           <div>
             <p className="font-display text-2xl font-semibold">Nestory</p>
             <p className="mt-3 max-w-md text-sm leading-6 text-[var(--landing-inverse-muted)]">
-              Quiet operating software for properties, leases, rent, maintenance, documents, and reporting.
+              Property management, in one place.
             </p>
           </div>
           <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-[var(--landing-inverse-muted)]">
