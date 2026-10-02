@@ -39,6 +39,7 @@ import type {
   MaintenanceLinkedDocument,
   MaintenanceActor,
   MaintenancePriority,
+  MaintenanceQueueCounts,
   MaintenanceProgressState,
   MaintenancePropertyOption,
   MaintenancePropertyStat,
@@ -71,6 +72,8 @@ import {
 
 const taskSelect =
   "id, tenant_request_id, property_id, unit_id, branch_id, assignee_person_id, title, description, category, priority, status, blocked_reason, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, actual_cost_date, actual_cost_document_id, actual_cost_reference, checklist, recurrence_frequency, timeline_event_id, completed_at, created_at, archived_at";
+const queueTaskSelect = "id, status, due_date, title, description, category, priority, property_id, unit_id";
+type MaintenanceTaskProjection = typeof taskSelect | typeof queueTaskSelect;
 const propertySelect = "id, code, name";
 const unitSelect = "id, property_id, unit_number";
 const personSelect = "id, organization_id, display_name, archived_at";
@@ -114,6 +117,10 @@ type MaintenanceTaskRow = {
   unit_id: string | null;
   vendor_person_id: string | null;
 };
+
+type MaintenanceQueueTaskRow = Pick<MaintenanceTaskRow,
+  "id" | "status" | "due_date" | "title" | "description" | "category" | "priority" | "property_id" | "unit_id"
+>;
 
 type PropertyRow = {
   code: string;
@@ -181,13 +188,20 @@ export async function getMaintenanceScreenData(
   viewQuery: MaintenanceViewQuery = parseMaintenanceSearchParams({}),
   actor?: MaintenanceActor,
   capabilities: Pick<MaintenanceCapabilities, "canAssignCase"> = { canAssignCase: false },
+  { includeQueueCounts = false }: { includeQueueCounts?: boolean } = {},
 ): Promise<MaintenanceScreenData> {
   const supabase = await createSupabaseServerClient();
   const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
   const now = new Date();
   const today = toIsoDate(now);
   const currentTime = toIsoTime(now);
-  const [pagedTasks, summaryTaskRows] = await Promise.all([
+  const queueViewQuery: MaintenanceViewQuery = {
+    ...viewQuery, page: 1, review: "all", status: "all", taskId: "all",
+  };
+  const needsQueueRows = includeQueueCounts && (
+    viewQuery.review !== "all" || viewQuery.status !== "all" || viewQuery.taskId !== "all"
+  );
+  const [pagedTasks, summaryTaskRows, queueTaskRows] = await Promise.all([
     getPagedTaskRows(supabase, organizationId, viewQuery, today, currentTime, actor, portfolio),
     getSummaryTaskRows(
       supabase,
@@ -198,6 +212,9 @@ export async function getMaintenanceScreenData(
       actor,
       portfolio,
     ),
+    needsQueueRows
+      ? getSummaryTaskRows<MaintenanceQueueTaskRow>(supabase, organizationId, queueViewQuery, today, currentTime, actor, portfolio, queueTaskSelect)
+      : Promise.resolve(undefined),
   ]);
   const referenceTaskRows = uniqueTaskRows([
     ...pagedTasks.rows,
@@ -339,6 +356,7 @@ export async function getMaintenanceScreenData(
       latestReviewInstruction: reopenInstructionByTaskId.get(maintenanceCase.id),
     })),
     pagination: pagedTasks.pagination,
+    queueCounts: includeQueueCounts ? buildMaintenanceQueueCounts(queueTaskRows ?? summaryTaskRows, today) : undefined,
     ...mutableOptions,
     summary: buildMaintenanceSummary(summaryCases, viewQuery.month),
   };
@@ -554,6 +572,23 @@ export function buildMaintenanceSummary(
   };
 }
 
+function buildMaintenanceQueueCounts(
+  tasks: Array<Pick<MaintenanceTaskRow, "due_date" | "status">>,
+  today: string,
+): MaintenanceQueueCounts {
+  const facts = tasks.map(task => getMaintenanceTaskFacts({
+    dueDate: task.due_date, priority: "normal", status: task.status,
+  }, today));
+  return {
+    completed: facts.filter(task => task.status === "completed").length,
+    open: facts.filter(task => task.isOpen).length,
+    overdue: facts.filter(task => task.isOverdue).length,
+    readyForReview: facts.filter(task => task.status === "ready_for_review").length,
+    total: facts.length,
+    upcoming: facts.filter(task => task.progressState === "upcoming" || task.progressState === "due_today").length,
+  };
+}
+
 async function getPagedTaskRows(
   supabase: SupabaseServerClient,
   organizationId: string,
@@ -613,7 +648,7 @@ async function getPagedTaskRows(
   };
 }
 
-async function getSummaryTaskRows(
+async function getSummaryTaskRows<Row extends MaintenanceTaskRow | MaintenanceQueueTaskRow = MaintenanceTaskRow>(
   supabase: SupabaseServerClient,
   organizationId: string,
   viewQuery: MaintenanceViewQuery,
@@ -621,13 +656,14 @@ async function getSummaryTaskRows(
   currentTime: string,
   actor?: MaintenanceActor,
   portfolio?: PortfolioSearch,
+  projection: MaintenanceTaskProjection = taskSelect,
 ) {
   if (needsBoundedSearch(taskSearchGroups(viewQuery, portfolio))) {
-    const result = await buildTasksQuery(supabase, organizationId, viewQuery, today, currentTime, actor, portfolio).range(0, Number.MAX_SAFE_INTEGER);
+    const result = await buildTasksQuery(supabase, organizationId, viewQuery, today, currentTime, actor, portfolio, projection).range(0, Number.MAX_SAFE_INTEGER);
     if (result.error) throw new Error(`Could not load maintenance summary: ${result.error.message}`);
-    return (result.data ?? []) as MaintenanceTaskRow[];
+    return (result.data ?? []) as Row[];
   }
-  const rows: MaintenanceTaskRow[] = [];
+  const rows: Row[] = [];
   let from = 0;
   let totalCount: number | null = null;
 
@@ -640,6 +676,7 @@ async function getSummaryTaskRows(
       currentTime,
       actor,
       portfolio,
+      projection,
     ).range(from, from + MAINTENANCE_QUERY_BATCH_SIZE - 1);
 
     if (result.error) {
@@ -647,7 +684,7 @@ async function getSummaryTaskRows(
     }
 
     totalCount = result.count ?? totalCount;
-    const batch = (result.data ?? []) as MaintenanceTaskRow[];
+    const batch = (result.data ?? []) as Row[];
     rows.push(...batch);
 
     if (batch.length < MAINTENANCE_QUERY_BATCH_SIZE) {
@@ -668,10 +705,11 @@ function buildTasksQuery(
   currentTime: string,
   actor?: MaintenanceActor,
   portfolio?: PortfolioSearch,
+  projection: MaintenanceTaskProjection = taskSelect,
 ) {
   const groups = taskSearchGroups(viewQuery, portfolio);
-  return { range: (from: number, to: number) => readBoundedSearch(groups, (start, end, filters) =>
-    buildFilteredTasksQuery(supabase, organizationId, viewQuery, today, currentTime, actor, filters).order("id").range(start, end), from, to) };
+  return { range: (from: number, to: number) => readBoundedSearch<Awaited<MaintenanceTaskQuery>>(groups, (start, end, filters) =>
+    buildFilteredTasksQuery(supabase, organizationId, viewQuery, today, currentTime, actor, filters, projection).order("id").range(start, end), from, to) };
 }
 
 function taskSearchGroups(viewQuery: MaintenanceViewQuery, portfolio?: PortfolioSearch) {
@@ -686,8 +724,9 @@ function buildFilteredTasksQuery(
   currentTime: string,
   actor: MaintenanceActor | undefined,
   filters: string[],
+  projection: MaintenanceTaskProjection,
 ) {
-  let query = createBaseTaskQuery(supabase, organizationId);
+  let query = createBaseTaskQuery(supabase, organizationId, projection);
 
   query = applyActorTaskScope(query, actor);
 
@@ -728,10 +767,12 @@ function buildFilteredTasksQuery(
 function createBaseTaskQuery(
   supabase: SupabaseServerClient,
   organizationId: string,
+  projection: MaintenanceTaskProjection = taskSelect,
 ) {
-  return supabase
-    .from("tasks")
-    .select(taskSelect, { count: "exact" })
+  const table = supabase.from("tasks");
+  return (projection === queueTaskSelect
+    ? table.select(queueTaskSelect, { count: "exact" })
+    : table.select(taskSelect, { count: "exact" }))
     .eq("organization_id", organizationId);
 }
 

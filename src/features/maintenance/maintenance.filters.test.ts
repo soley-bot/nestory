@@ -6,6 +6,24 @@ const taskId = "33333333-3333-4333-8333-333333333333";
 const unitId = "22222222-2222-4222-8222-222222222222";
 
 describe("parseMaintenanceSearchParams", () => {
+  it("preserves explicit All instead of applying the default Open queue", () => {
+    expect(parseMaintenanceSearchParams({ review: "all" }).review).toBe("all");
+    expect(parseMaintenanceSearchParams({ review: ["all", "open"] }).review).toBe("all");
+  });
+
+  it.each(["completed", "cancelled", "ready_for_review"])(
+    "keeps a status-only %s link free of the implicit Open queue",
+    (status) => {
+      expect(parseMaintenanceSearchParams({ status })).toMatchObject({ review: "all", status });
+    },
+  );
+
+  it("preserves an explicitly requested review alongside a status filter", () => {
+    expect(parseMaintenanceSearchParams({ review: "overdue", status: "blocked" })).toMatchObject({
+      review: "overdue", status: "blocked",
+    });
+  });
+
   it("preserves the completion review queue and submitted status", () => {
     expect(
       parseMaintenanceSearchParams({

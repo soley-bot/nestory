@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getMaintenanceListHref } from "@/features/maintenance/maintenance.hrefs";
+import { buildMaintenanceTabHref, getMaintenanceListHref } from "@/features/maintenance/maintenance.hrefs";
+import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance.filters";
 import {
   getMaintenanceWorkspaceNavItems,
   MAINTENANCE_ATTENTION_FILTER_OPTIONS,
@@ -9,6 +10,29 @@ import {
 import type { MaintenanceViewQuery } from "@/features/maintenance/maintenance.types";
 
 describe("maintenance screen report links", () => {
+  it.each(["/tasks", "/recurring-tasks", "/inspections", "/work-orders"])(
+    "preserves explicit Open on %s instead of restoring its route preset", (pathname) => {
+      const href = buildMaintenanceTabHref(pathname, new URLSearchParams("review=all&page=4&status=completed"), "open");
+      const params = new URL(href, "https://fixture.test").searchParams;
+      expect(params.get("review")).toBe("open");
+      expect(params.has("page")).toBe(false);
+      expect(params.has("status")).toBe(false);
+    },
+  );
+
+  it.each(["board", "calendar", "templates"])("preserves explicit Open in %s links", (view) => {
+    const query = parseMaintenanceSearchParams({ view, review: "open" });
+    for (const href of [getMaintenanceListHref(query), buildMaintenanceTabHref("/maintenance", new URLSearchParams({ view }), "open")]) {
+      expect(new URL(href, "https://fixture.test").searchParams.get("review")).toBe("open");
+    }
+  });
+
+  it("preserves an explicit Open and status intersection in list links", () => {
+    const params = new URL(getMaintenanceListHref(parseMaintenanceSearchParams({ review: "open", status: "blocked" })), "https://fixture.test").searchParams;
+    expect(params.get("review")).toBe("open");
+    expect(parseMaintenanceSearchParams(Object.fromEntries(params))).toMatchObject({ review: "open", status: "blocked" });
+  });
+
   it("keeps canonical aggregate vocabulary and filter option order", () => {
     expect(MAINTENANCE_PRIORITY_FILTER_OPTIONS.map((option) => option.label)).toEqual([
       "All priorities",

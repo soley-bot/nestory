@@ -1,0 +1,408 @@
+[
+  {
+    "name": "before-all-desktop",
+    "width": 1440,
+    "params": {
+      "month": "2026-06",
+      "pageSize": "10",
+      "priority": "high",
+      "propertyId": "10000000-0000-4000-8000-000000000001",
+      "query": "leak",
+      "unitId": "20000000-0000-4000-8000-000000000001",
+      "view": "list",
+      "review": "all"
+    },
+    "review": "open",
+    "pagination": {
+      "from": 1,
+      "page": 1,
+      "pageSize": 10,
+      "to": 10,
+      "totalCount": 30,
+      "totalPages": 3
+    },
+    "summary": {
+      "total": 30,
+      "open": 30,
+      "completed": 0
+    },
+    "ids": [
+      "overdue-0",
+      "overdue-1",
+      "overdue-10",
+      "overdue-11",
+      "overdue-2",
+      "overdue-3",
+      "overdue-4",
+      "overdue-5",
+      "overdue-6",
+      "overdue-7"
+    ],
+    "links": [
+      {
+        "text": "Workspace",
+        "href": "/overview"
+      },
+      {
+        "text": "Inbox 30",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list"
+      },
+      {
+        "text": "Review 8",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=review_completion"
+      },
+      {
+        "text": "Overdue 12",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=overdue"
+      },
+      {
+        "text": "Upcoming 17",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=upcoming"
+      },
+      {
+        "text": "Completed 0",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=completed"
+      },
+      {
+        "text": "All 30",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=all"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-0"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-1"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-10"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-11"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-2"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-3"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-4"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-5"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-6"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-7"
+      },
+      {
+        "text": "Next",
+        "href": "/maintenance?month=2026-06&pageSize=10&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=all&page=2"
+      }
+    ]
+  },
+  {
+    "name": "before-all-mobile",
+    "width": 390,
+    "params": {
+      "month": "2026-06",
+      "pageSize": "10",
+      "priority": "high",
+      "propertyId": "10000000-0000-4000-8000-000000000001",
+      "query": "leak",
+      "unitId": "20000000-0000-4000-8000-000000000001",
+      "view": "list",
+      "review": "all"
+    },
+    "review": "open",
+    "pagination": {
+      "from": 1,
+      "page": 1,
+      "pageSize": 10,
+      "to": 10,
+      "totalCount": 30,
+      "totalPages": 3
+    },
+    "summary": {
+      "total": 30,
+      "open": 30,
+      "completed": 0
+    },
+    "ids": [
+      "overdue-0",
+      "overdue-1",
+      "overdue-10",
+      "overdue-11",
+      "overdue-2",
+      "overdue-3",
+      "overdue-4",
+      "overdue-5",
+      "overdue-6",
+      "overdue-7"
+    ],
+    "links": [
+      {
+        "text": "Workspace",
+        "href": "/overview"
+      },
+      {
+        "text": "Inbox 30",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list"
+      },
+      {
+        "text": "Review 8",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=review_completion"
+      },
+      {
+        "text": "Overdue 12",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=overdue"
+      },
+      {
+        "text": "Upcoming 17",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=upcoming"
+      },
+      {
+        "text": "Completed 0",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=completed"
+      },
+      {
+        "text": "All 30",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=all"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-0"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-1"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-10"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-11"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-2"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-3"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-4"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-5"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-6"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-7"
+      },
+      {
+        "text": "Next",
+        "href": "/maintenance?month=2026-06&pageSize=10&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=all&page=2"
+      }
+    ]
+  },
+  {
+    "name": "before-open-desktop",
+    "width": 1440,
+    "params": {
+      "month": "2026-06",
+      "pageSize": "10",
+      "priority": "high",
+      "propertyId": "10000000-0000-4000-8000-000000000001",
+      "query": "leak",
+      "unitId": "20000000-0000-4000-8000-000000000001",
+      "view": "list",
+      "review": "open"
+    },
+    "review": "open",
+    "pagination": {
+      "from": 1,
+      "page": 1,
+      "pageSize": 10,
+      "to": 10,
+      "totalCount": 30,
+      "totalPages": 3
+    },
+    "summary": {
+      "total": 30,
+      "open": 30,
+      "completed": 0
+    },
+    "ids": [
+      "overdue-0",
+      "overdue-1",
+      "overdue-10",
+      "overdue-11",
+      "overdue-2",
+      "overdue-3",
+      "overdue-4",
+      "overdue-5",
+      "overdue-6",
+      "overdue-7"
+    ],
+    "links": [
+      {
+        "text": "Workspace",
+        "href": "/overview"
+      },
+      {
+        "text": "Inbox 30",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list"
+      },
+      {
+        "text": "Review 8",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=review_completion"
+      },
+      {
+        "text": "Overdue 12",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=overdue"
+      },
+      {
+        "text": "Upcoming 17",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=upcoming"
+      },
+      {
+        "text": "Completed 0",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=completed"
+      },
+      {
+        "text": "All 30",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=all"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-0"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-1"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-10"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-11"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-2"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-3"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-4"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-5"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-6"
+      },
+      {
+        "text": "Leak repair",
+        "href": "/maintenance?archiveState=all&taskId=overdue-7"
+      },
+      {
+        "text": "Next",
+        "href": "/maintenance?month=2026-06&pageSize=10&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=open&page=2"
+      }
+    ]
+  },
+  {
+    "name": "before-completed-status-desktop",
+    "width": 1440,
+    "params": {
+      "month": "2026-06",
+      "pageSize": "10",
+      "priority": "high",
+      "propertyId": "10000000-0000-4000-8000-000000000001",
+      "query": "leak",
+      "unitId": "20000000-0000-4000-8000-000000000001",
+      "view": "list",
+      "review": "all",
+      "status": "completed"
+    },
+    "review": "open",
+    "pagination": {
+      "from": 0,
+      "page": 1,
+      "pageSize": 10,
+      "to": 0,
+      "totalCount": 0,
+      "totalPages": 1
+    },
+    "summary": {
+      "total": 0,
+      "open": 0,
+      "completed": 0
+    },
+    "ids": [],
+    "links": [
+      {
+        "text": "Workspace",
+        "href": "/overview"
+      },
+      {
+        "text": "Inbox 0",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list"
+      },
+      {
+        "text": "Review 0",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=review_completion"
+      },
+      {
+        "text": "Overdue 0",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=overdue"
+      },
+      {
+        "text": "Upcoming 0",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=upcoming"
+      },
+      {
+        "text": "Completed 0",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=completed"
+      },
+      {
+        "text": "All 0",
+        "href": "/maintenance?month=2026-06&priority=high&propertyId=10000000-0000-4000-8000-000000000001&query=leak&unitId=20000000-0000-4000-8000-000000000001&view=list&review=all"
+      },
+      {
+        "text": "Clear filters",
+        "href": "/maintenance?pageSize=10&view=list"
+      }
+    ]
+  }
+]

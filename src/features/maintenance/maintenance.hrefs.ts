@@ -100,7 +100,9 @@ export function getMaintenanceListHref(
   if (next.priority !== "all") params.set("priority", next.priority);
   if (next.propertyId !== "all") params.set("propertyId", next.propertyId);
   if (next.query) params.set("query", next.query);
-  if (next.review !== "open") params.set("review", next.review);
+  if (next.review !== "open" || next.status !== "all" || (next.view !== "inbox" && next.view !== "list")) {
+    params.set("review", next.review);
+  }
   if (next.scope !== "focused") params.set("scope", next.scope);
   if (next.sort !== DEFAULT_MAINTENANCE_SORT) params.set("sort", next.sort);
   if (next.status !== "all") params.set("status", next.status);
@@ -126,7 +128,7 @@ export function buildMaintenanceSavedViewHref(
   nextParams.delete("status");
   nextParams.delete("taskId");
 
-  if (review === "open") {
+  if (review === "open" && pathname === "/maintenance") {
     nextParams.delete("review");
   } else {
     nextParams.set("review", review);
@@ -187,7 +189,8 @@ export function buildMaintenanceTabHref(
 ) {
   const nextParams = new URLSearchParams(searchParams.toString());
 
-  if (review === "open") {
+  const view = nextParams.get("view");
+  if (review === "open" && pathname === "/maintenance" && (!view || view === "inbox" || view === "list")) {
     nextParams.delete("review");
   } else {
     nextParams.set("review", review);

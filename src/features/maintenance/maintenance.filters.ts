@@ -27,6 +27,8 @@ export const DEFAULT_MAINTENANCE_SORT: MaintenanceSortKey = "due_asc";
 export function parseMaintenanceSearchParams(
   params: MaintenanceSearchParams,
 ): MaintenanceViewQuery {
+  const status = parseStatus(params.status);
+  const defaultReview = !getFirstSearchParam(params.review) && status !== "all" ? "all" : "open";
   return {
     archiveState: parseArchiveState(params.archiveState),
     month: parseMonth(params.month),
@@ -35,10 +37,10 @@ export function parseMaintenanceSearchParams(
     priority: parsePriority(params.priority),
     propertyId: getUuidOrAllSearchParam(params.propertyId),
     query: getTrimmedSearchParam(params.query),
-    review: parseReview(params.review),
+    review: parseReview(params.review, defaultReview),
     scope: parseScope(params.scope),
     sort: parseSort(params.sort),
-    status: parseStatus(params.status),
+    status,
     taskId: getUuidOrAllSearchParam(params.taskId),
     unitId: getUuidOrAllSearchParam(params.unitId),
     view: parseCasesView(params.view),
@@ -92,10 +94,12 @@ function parsePriority(
 
 function parseReview(
   value: string | string[] | undefined,
+  fallback: "all" | "open",
 ): MaintenanceReviewFilter {
   const candidate = getFirstSearchParam(value);
 
-  return candidate === "open" ||
+  return candidate === "all" ||
+    candidate === "open" ||
     candidate === "overdue" ||
     candidate === "scheduled" ||
     candidate === "upcoming" ||
@@ -108,7 +112,7 @@ function parseReview(
     candidate === "review_completion" ||
     candidate === "completed"
     ? candidate
-    : "open";
+    : fallback;
 }
 
 function parseCasesView(value: string | string[] | undefined): MaintenanceCasesView {
