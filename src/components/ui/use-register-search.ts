@@ -6,8 +6,10 @@ import { useEffect, useEffectEvent, useState, type FormEvent } from "react";
 export function useRegisterSearch(
   appliedQuery: string,
   onApply: (query: string) => void,
+  navigationKey = "",
 ) {
   const [state, setState] = useState({
+    navigationKey,
     source: appliedQuery,
     value: appliedQuery,
     submitted: [] as string[],
@@ -15,9 +17,12 @@ export function useRegisterSearch(
   const [composing, setComposing] = useState(false);
   const [paused, setPaused] = useState(false);
   let current = state;
-  if (state.source !== appliedQuery) {
-    const acknowledgement = state.submitted.indexOf(appliedQuery);
+  if (state.source !== appliedQuery || state.navigationKey !== navigationKey) {
+    const acknowledgement = state.navigationKey === navigationKey
+      ? state.submitted.indexOf(appliedQuery)
+      : -1;
     current = {
+      navigationKey,
       source: appliedQuery,
       value: acknowledgement >= 0 ? state.value : appliedQuery,
       submitted:
@@ -29,14 +34,15 @@ export function useRegisterSearch(
   }
   const query = current.value;
 
+  function expectResponse(value: string) {
+    setState(previous => ({ ...previous, submitted: [...previous.submitted, value] }));
+  }
+
   function submit() {
     const next = query.trim();
     if (composing || next === appliedQuery || current.submitted.at(-1) === next)
       return;
-    setState((previous) => ({
-      ...previous,
-      submitted: [...previous.submitted, next],
-    }));
+    expectResponse(next);
     onApply(next);
   }
   const applyLatest = useEffectEvent(submit);
@@ -47,12 +53,17 @@ export function useRegisterSearch(
   }, [query, appliedQuery, composing, paused]);
 
   return {
+    expectResponse,
     query,
     onQueryChange(value: string) {
       setPaused(false);
       setState((previous) => ({ ...previous, value }));
     },
     cancelPending() { setPaused(true); },
+    reset(value: string) {
+      setPaused(true);
+      setState(previous => ({ ...previous, value, submitted: [...previous.submitted, value.trim()] }));
+    },
     onCompositionChange: setComposing,
     onSubmit(event: FormEvent<HTMLFormElement>) {
       event.preventDefault();

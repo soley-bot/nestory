@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, UsersRound } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
+import { useFilterNavigation } from "@/components/data/use-filter-navigation";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -26,7 +27,7 @@ import { PersonForm } from "@/features/people/components/person-form";
 import { PeopleFilters } from "@/features/people/components/people-filters";
 import { PeopleTable } from "@/features/people/components/people-table";
 import { formatRole } from "@/features/people/people.labels";
-import { DEFAULT_PEOPLE_PAGE_SIZE } from "@/features/people/people.filters";
+import { DEFAULT_PEOPLE_PAGE_SIZE, parsePeopleSearchParams } from "@/features/people/people.filters";
 import type {
   PeoplePagination,
   PeopleSummary,
@@ -78,6 +79,7 @@ export function PeopleScreen({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const filterNavigation = useFilterNavigation(viewQuery.query, "query", true);
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
     canCreate && searchParams.get("action") === "create"
       ? { mode: "create" }
@@ -128,18 +130,27 @@ export function PeopleScreen({
   }, [canCreate, pathname, router, searchParams]);
 
   const hasFilters = hasActivePeopleFilters(viewQuery);
+  const requestedPageSize = filterNavigation.params
+    ? parsePeopleSearchParams(Object.fromEntries(filterNavigation.params)).pageSize
+    : viewQuery.pageSize;
   const resetFiltersHref = buildHref(pathname, {
-    pageSize: viewQuery.pageSize === DEFAULT_PEOPLE_PAGE_SIZE
+    pageSize: requestedPageSize === DEFAULT_PEOPLE_PAGE_SIZE
       ? undefined
-      : String(viewQuery.pageSize),
+      : String(requestedPageSize),
   });
   const peopleList = (
     <section
       className="flex min-w-0 flex-col bg-background"
       data-slot="people-list-surface"
+      onClickCapture={event => {
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+        if (link && !link.hasAttribute("data-filter-reset") && (!link.getAttribute("target") || link.getAttribute("target") === "_self")) filterNavigation.cancelPending();
+      }}
     >
       <div className="shrink-0 border-b border-border px-4 py-3 sm:px-6">
         <PeopleFilters
+          navigation={filterNavigation}
           resetHref={resetFiltersHref}
           searchPlaceholder={searchPlaceholder}
           viewQuery={viewQuery}
@@ -152,6 +163,8 @@ export function PeopleScreen({
               <Link
                 className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={resetFiltersHref}
+                data-filter-reset
+                onNavigate={event => { event.preventDefault(); filterNavigation.reset(new URLSearchParams(resetFiltersHref.split("?")[1]), "push"); }}
                 scroll={false}
               >
                 Clear filters

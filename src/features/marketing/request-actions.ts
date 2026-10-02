@@ -151,7 +151,7 @@ function requestFailureState(): PublicInterestRequestState {
 
 function requestReceivedState(): PublicInterestRequestState {
   return {
-    message: "Your request is in. We will follow up at your work email.",
+    message: "Demo scheduling and account setup are arranged separately.",
     status: "success",
   };
 }

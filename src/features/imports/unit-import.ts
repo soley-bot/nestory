@@ -9,6 +9,10 @@ import type {
   UnitImportPreviewRow,
   UnitImportStatus,
 } from "@/features/imports/import.types";
+import {
+  getImportPreviewCleanupItems,
+  getImportPreviewStats,
+} from "@/features/imports/import-preview-diagnostics";
 
 export const MAX_IMPORT_CELL_CHARACTERS = 10_000;
 export const MAX_IMPORT_COLUMNS = 100;
@@ -178,35 +182,13 @@ export function buildUnitImportPreviewRows({
 }
 
 export function getUnitImportStats(rows: UnitImportPreviewRow[]) {
-  const errorCount = rows.filter((row) =>
-    row.issues.some((issue) => issue.level === "error"),
-  ).length;
-  const warningCount = rows.filter((row) =>
-    row.issues.some((issue) => issue.level === "warning"),
-  ).length;
-
-  return {
-    errorCount,
-    readyCount: rows.length - errorCount,
-    totalCount: rows.length,
-    warningCount,
-  };
+  return getImportPreviewStats(rows);
 }
 
 export function getUnitImportCleanupItems(
   rows: UnitImportPreviewRow[],
 ): UnitImportCleanupItem[] {
-  return rows.flatMap((row) =>
-    row.issues.map((issue) => ({
-      actionHref: issue.actionHref,
-      actionLabel: issue.actionLabel,
-      level: issue.level,
-      message: issue.message,
-      propertyLabel: row.propertyLabel || "Not mapped",
-      sourceRowNumber: row.sourceRowNumber,
-      unitNumber: row.unitNumber || "Not mapped",
-    })),
-  );
+  return getImportPreviewCleanupItems(rows, "Not mapped");
 }
 
 export function toCommitRows(

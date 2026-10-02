@@ -111,6 +111,7 @@ import type {
   MaintenancePagination,
   MaintenanceChecklistItem,
   MaintenancePropertyOption,
+  MaintenanceQueueCounts,
   MaintenanceReminderNotification,
   MaintenanceStatus,
   MaintenanceSummary,
@@ -167,6 +168,7 @@ type MaintenanceScreenProps = {
   listLabel?: string;
   pagination: MaintenancePagination;
   propertyOptions: MaintenancePropertyOption[];
+  queueCounts?: MaintenanceQueueCounts;
   recordLabel?: string;
   reminders?: MaintenanceReminderNotification[];
   showFilters?: boolean;
@@ -195,6 +197,7 @@ export function MaintenanceScreen({
   listLabel = "maintenance cases",
   pagination,
   propertyOptions,
+  queueCounts,
   recordLabel = "maintenance case",
   reminders = [],
   showFilters = true,
@@ -573,7 +576,7 @@ export function MaintenanceScreen({
           <MaintenanceCasesCommandBar
             listLabel={listLabel}
             properties={propertyOptions}
-            summary={summary}
+            queueCounts={queueCounts}
             units={unitOptions}
             viewQuery={normalizedViewQuery}
           />
@@ -665,13 +668,13 @@ export function MaintenanceScreen({
 function MaintenanceCasesCommandBar({
   listLabel,
   properties,
-  summary,
+  queueCounts,
   units,
   viewQuery,
 }: {
   listLabel: string;
   properties: MaintenancePropertyOption[];
-  summary: MaintenanceSummary;
+  queueCounts?: MaintenanceQueueCounts;
   units: MaintenanceUnitOption[];
   viewQuery: MaintenanceViewQuery;
 }) {
@@ -695,7 +698,7 @@ function MaintenanceCasesCommandBar({
     nextParams.delete("page");
     nextParams.delete("taskId");
 
-    if (!value || value === defaultValue) {
+    if (!value || (value === defaultValue && name !== "review")) {
       nextParams.delete(name);
     } else {
       nextParams.set(name, value);
@@ -759,7 +762,7 @@ function MaintenanceCasesCommandBar({
               pathname,
               searchParams,
               viewQuery,
-              summary,
+              queueCounts,
             ).map((tab) => (
               <Link
                 className={cn(
@@ -896,7 +899,7 @@ function MaintenanceFilters({
     nextParams.delete("page");
     nextParams.delete("taskId");
 
-    if (!value || value === defaultValue) {
+    if (!value || (value === defaultValue && name !== "review")) {
       nextParams.delete(name);
     } else {
       nextParams.set(name, value);
@@ -2414,7 +2417,7 @@ function getMaintenanceSavedViewTabs(
   pathname: string,
   searchParams: { toString(): string },
   viewQuery: MaintenanceViewQuery,
-  summary: MaintenanceSummary,
+  queueCounts?: MaintenanceQueueCounts,
 ) {
   return MAINTENANCE_SAVED_VIEW_TABS.map((tab) => ({
     ...tab,
@@ -2423,7 +2426,7 @@ function getMaintenanceSavedViewTabs(
       viewQuery.status === "all" &&
       viewQuery.review === tab.review,
     href: buildMaintenanceSavedViewHref(pathname, searchParams, tab.review),
-    label: `${tab.label} ${summary[tab.summaryKey]}`,
+    label: queueCounts ? `${tab.label} ${queueCounts[tab.summaryKey]}` : tab.label,
   }));
 }
 

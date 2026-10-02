@@ -128,10 +128,35 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
 describe("People route family redesign contract", () => {
+  it.each(["Next", "Alice Tenant"])("cancels draft search before delayed %s link navigation", async name => {
+    vi.useFakeTimers();
+    renderPeople({ pagination: { from: 1, to: 10, page: 1, pageSize: 10, totalCount: 30, totalPages: 3 } });
+    const input = screen.getByRole("textbox", { name: "Search people" });
+    fireEvent.change(input, { target: { value: "Never apply" } });
+    const link = screen.getAllByRole("link", { name })[0];
+    link.addEventListener("click", event => event.preventDefault());
+    fireEvent.click(link);
+    await act(() => vi.advanceTimersByTimeAsync(1500));
+    expect(navigation.replace).not.toHaveBeenCalled();
+    expect((input as HTMLInputElement).value).toBe("");
+  });
+
+  it("keeps the current draft when opening a person in another tab", async () => {
+    vi.useFakeTimers();
+    renderPeople();
+    const input = screen.getByRole("textbox", { name: "Search people" });
+    fireEvent.change(input, { target: { value: "River" } });
+    const link = screen.getAllByRole("link", { name: "Alice Tenant" })[0];
+    link.addEventListener("click", event => event.preventDefault());
+    fireEvent.click(link, { ctrlKey: true });
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    expect(navigation.replace).toHaveBeenLastCalledWith("/people?query=River", { scroll: false });
+  });
   it("routes every People alias through the same workspace with the correct initial lens", async () => {
     const routes = [
       [PeoplePage({ searchParams: Promise.resolve({}) }), "all", "People"],
