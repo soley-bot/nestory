@@ -1,9 +1,8 @@
 "use client";
 
 import * as Popover from "@radix-ui/react-popover";
-import { useTransition } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   LayoutGrid,
   RotateCcw,
@@ -11,13 +10,14 @@ import {
   Table2,
   X,
 } from "lucide-react";
-import { useRegisterSearch } from "@/components/ui/use-register-search";
+import type { RegisterNavigation } from "@/components/data/use-register-navigation";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import {
   DEFAULT_PROPERTY_PAGE_SIZE,
   DEFAULT_PROPERTY_SORT,
   PROPERTY_PAGE_SIZE_OPTIONS,
+  parsePropertySearchParams,
 } from "@/features/properties/property.filters";
 import type { PropertySummary } from "@/features/properties/data/properties";
 import type {
@@ -83,6 +83,7 @@ const sortFilterOptions = [
 ] satisfies SelectOption[];
 
 type PropertyFiltersProps = {
+  navigation: RegisterNavigation;
   displayMode: PropertyDisplayMode;
   onDisplayModeChange: (mode: PropertyDisplayMode) => void;
   onOpenProperty: (propertyId: string) => void;
@@ -91,6 +92,7 @@ type PropertyFiltersProps = {
 };
 
 export function PropertyFilters({
+  navigation,
   displayMode,
   onDisplayModeChange,
   onOpenProperty,
@@ -98,12 +100,10 @@ export function PropertyFilters({
   viewQuery,
 }: PropertyFiltersProps) {
   const pathname = usePathname();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
-  const search = useRegisterSearch(viewQuery.query, (value) =>
-    replaceParam("query", value, ""),
-  );
+  const { isPending, pendingParams, replaceParam, search } = navigation;
+  const selectedQuery = pendingParams
+    ? parsePropertySearchParams(Object.fromEntries(pendingParams))
+    : viewQuery;
   const activeFilterChips = getActivePropertyFilters(viewQuery);
   const activeFilters = activeFilterChips.filter(
     (filter) => filter.param !== "query",
@@ -114,27 +114,8 @@ export function PropertyFilters({
   const compactSelectClassName = "h-8 w-full px-2 text-sm";
   const propertySuggestions = getPropertySuggestions(properties, query);
 
-  function replaceParam(name: string, value: string, defaultValue: string) {
-    const nextParams = new URLSearchParams(searchParams.toString());
-
-    if (value === defaultValue || value.trim() === "") {
-      nextParams.delete(name);
-    } else {
-      nextParams.set(name, value);
-    }
-
-    nextParams.delete("page");
-    const queryString = nextParams.toString();
-
-    startTransition(() => {
-      router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
-        scroll: false,
-      });
-    });
-  }
-
   return (
-    <div className="w-full min-w-0">
+    <div aria-busy={isPending} className="w-full min-w-0">
       <div>
         <div className="flex flex-col gap-2 text-sm lg:flex-row lg:items-center lg:justify-between">
           <SearchCombo
@@ -182,6 +163,7 @@ export function PropertyFilters({
               <Popover.Portal>
                 <Popover.Content
                   align="end"
+                  aria-busy={isPending}
                   className="z-50 max-h-[min(640px,calc(100vh-8rem))] w-[min(calc(100vw-2rem),440px)] overflow-auto rounded-md border border-border bg-card text-sm shadow-lg"
                   id="property-advanced-search"
                   side="bottom"
@@ -196,6 +178,7 @@ export function PropertyFilters({
                         <Link
                           className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                           href={pathname}
+                          onNavigate={navigation.cancelPending}
                           scroll={false}
                         >
                           <RotateCcw size={13} />
@@ -210,13 +193,14 @@ export function PropertyFilters({
                             <ActiveFilterChip
                               key={filter.param}
                               filter={filter}
-                              onRemove={() =>
+                              onRemove={() => {
+                                if (filter.param === "query") search.reset(filter.defaultValue);
                                 replaceParam(
                                   filter.param,
                                   filter.defaultValue,
                                   filter.defaultValue,
-                                )
-                              }
+                                );
+                              }}
                             />
                           ))
                         : null}
@@ -233,7 +217,7 @@ export function PropertyFilters({
                             replaceParam("status", value, "all")
                           }
                           options={statusFilterOptions}
-                          value={viewQuery.status}
+                          value={selectedQuery.status}
                         />
                       </FilterField>
 
@@ -245,7 +229,7 @@ export function PropertyFilters({
                             replaceParam("archiveState", value, "active")
                           }
                           options={archiveFilterOptions}
-                          value={viewQuery.archiveState}
+                          value={selectedQuery.archiveState}
                         />
                       </FilterField>
                     </FilterSection>
@@ -259,7 +243,7 @@ export function PropertyFilters({
                             replaceParam("ownerStatus", value, "all")
                           }
                           options={ownerFilterOptions}
-                          value={viewQuery.ownerStatus}
+                          value={selectedQuery.ownerStatus}
                         />
                       </FilterField>
 
@@ -271,7 +255,7 @@ export function PropertyFilters({
                             replaceParam("leaseStatus", value, "all")
                           }
                           options={leaseFilterOptions}
-                          value={viewQuery.leaseStatus}
+                          value={selectedQuery.leaseStatus}
                         />
                       </FilterField>
 
@@ -283,7 +267,7 @@ export function PropertyFilters({
                             replaceParam("review", value, "all")
                           }
                           options={reviewFilterOptions}
-                          value={viewQuery.review}
+                          value={selectedQuery.review}
                         />
                       </FilterField>
 
@@ -295,7 +279,7 @@ export function PropertyFilters({
                             replaceParam("netStatus", value, "all")
                           }
                           options={netFilterOptions}
-                          value={viewQuery.netStatus}
+                          value={selectedQuery.netStatus}
                         />
                       </FilterField>
                     </FilterSection>
@@ -309,7 +293,7 @@ export function PropertyFilters({
                             replaceParam("sort", value, DEFAULT_PROPERTY_SORT)
                           }
                           options={sortFilterOptions}
-                          value={viewQuery.sort}
+                          value={selectedQuery.sort}
                         />
                       </FilterField>
 
@@ -330,7 +314,7 @@ export function PropertyFilters({
                               value: String(pageSize),
                             }),
                           )}
-                          value={String(viewQuery.pageSize)}
+                          value={String(selectedQuery.pageSize)}
                         />
                       </FilterField>
                     </FilterSection>
@@ -359,6 +343,7 @@ export function PropertyFilters({
                 aria-label="Reset property filters"
                 className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-card px-2 text-primary outline-none transition-colors hover:bg-muted hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
                 href={pathname}
+                onNavigate={navigation.cancelPending}
                 scroll={false}
                 title="Reset filters"
               >

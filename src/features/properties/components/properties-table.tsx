@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 
 type PropertiesTableProps = {
   displayMode: PropertyDisplayMode;
+  onNetSortChange: () => void;
   onOpenProperty: (id: string) => void;
   onSortChange: (sort: PropertySortKey) => void;
   properties: PropertySummary[];
@@ -24,6 +25,7 @@ type PropertiesTableProps = {
 
 export function PropertiesTable({
   displayMode,
+  onNetSortChange,
   onOpenProperty,
   onSortChange,
   properties,
@@ -87,9 +89,7 @@ export function PropertiesTable({
                     align="right"
                     direction={sort === "net_asc" ? "ascending" : "descending"}
                     label="Net"
-                    onClick={() =>
-                      onSortChange(sort === "net_desc" ? "net_asc" : "net_desc")
-                    }
+                    onClick={onNetSortChange}
                     sortLabel="Sort properties by net"
                   />
                   <SortableHeader

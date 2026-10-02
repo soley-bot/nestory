@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -70,6 +71,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -87,6 +89,55 @@ describe("unit screen report links", () => {
 });
 
 describe("UnitScreen redesign contract", () => {
+  it("applies a rapid filter reversal before the first response arrives", async () => {
+    const user = userEvent.setup();
+    renderUnits();
+    await user.click(screen.getByRole("button", { name: "Filters" }));
+    await user.click(screen.getByRole("combobox", { name: "Filter by operational state" }));
+    await user.click(screen.getByRole("option", { name: "Vacant" }));
+    await user.click(screen.getByRole("combobox", { name: "Filter by operational state" }));
+    await user.click(screen.getByRole("option", { name: "All states" }));
+    expect(navigation.replace).toHaveBeenLastCalledWith("/units", { scroll: false });
+  });
+
+  it("follows cards and table views during history navigation", () => {
+    const view = renderUnits();
+    for (const params of ["view=cards", "view=table", "view=cards", ""]) {
+      navigation.searchParams = new URLSearchParams(params);
+      view.rerenderView();
+      expect(screen.getByTitle("Cards view").getAttribute("aria-pressed")).toBe(
+        String(params === "view=cards"),
+      );
+      expect(Boolean(screen.queryByRole("table"))).toBe(params !== "view=cards");
+    }
+    expect(navigation.replace).not.toHaveBeenCalled();
+  });
+
+  it("combines rapid sort and view changes without restoring the old page", () => {
+    navigation.searchParams = new URLSearchParams("status=vacant&page=3");
+    renderUnits({ viewQuery: { ...defaultViewQuery, status: "vacant", page: 3 } });
+    fireEvent.click(screen.getByRole("button", { name: "Sort units by rent" }));
+    fireEvent.click(screen.getByTitle("Cards view"));
+    expect(navigation.replace).toHaveBeenLastCalledWith(
+      "/units?status=vacant&sort=rent_desc&view=cards",
+      { scroll: false },
+    );
+  });
+
+  it("discards an unsent search when navigation changes property with the same query", async () => {
+    vi.useFakeTimers();
+    const view = renderUnits();
+    fireEvent.change(screen.getByRole("textbox", { name: "Search units" }), {
+      target: { value: "Riverside" },
+    });
+    navigation.searchParams = new URLSearchParams("propertyId=property-1");
+    view.rerenderView({ ...defaultViewQuery, propertyId: "property-1" });
+    expect(screen.getByRole<HTMLInputElement>("textbox", { name: "Search units" }).value).toBe("");
+    await act(() => vi.advanceTimersByTimeAsync(600));
+    expect(navigation.replace).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
   it("renders one page heading and places the primary action in the header", () => {
     const { container } = renderUnits();
 
@@ -394,8 +445,7 @@ function renderUnits({
   units?: typeof units;
   viewQuery?: UnitViewQuery;
 } = {}) {
-  return render(
-    createElement(UnitScreen, {
+  const props = {
       canCreate,
       pagination: {
         from: nextUnits.length > 0 ? 1 : 0,
@@ -411,8 +461,13 @@ function renderUnits({
       ],
       units: nextUnits,
       viewQuery,
-    }),
-  );
+  };
+  const result = render(createElement(UnitScreen, props));
+  return {
+    ...result,
+    rerenderView: (nextViewQuery = viewQuery) =>
+      result.rerender(createElement(UnitScreen, { ...props, viewQuery: nextViewQuery })),
+  };
 }
 
 function makeUnit(
