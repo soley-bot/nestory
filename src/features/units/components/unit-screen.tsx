@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FileText, Plus } from "lucide-react";
+import { useRegisterNavigation } from "@/components/data/use-register-navigation";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
@@ -49,6 +50,7 @@ export function UnitScreen({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const navigation = useRegisterNavigation(viewQuery.query);
   const isVacantReview = viewQuery.status === "vacant";
   const isOccupancyReview = viewQuery.occupancy === "unoccupied";
   const isLeaseReview = viewQuery.leaseStatus === "missing";
@@ -71,43 +73,18 @@ export function UnitScreen({
       ? { initialValues: createInitialValues, mode: "create" }
       : null,
   );
-  const [displayMode, setDisplayMode] = useState<UnitDisplayMode>(() =>
-    searchParams.get("view") === "cards" ? "cards" : "table",
-  );
+  const displayMode: UnitDisplayMode =
+    searchParams.get("view") === "cards" ? "cards" : "table";
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const openUnitRecord = (unitId: string) => {
+    navigation.cancelPending();
     router.push(`/units/${unitId}`);
   };
   const changeSort = (sort: UnitSortKey) => {
-    const nextParams = new URLSearchParams(searchParams.toString());
-
-    if (sort === DEFAULT_UNIT_SORT) {
-      nextParams.delete("sort");
-    } else {
-      nextParams.set("sort", sort);
-    }
-
-    nextParams.delete("page");
-    const queryString = nextParams.toString();
-    router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
-      scroll: false,
-    });
+    navigation.replaceParam("sort", sort, DEFAULT_UNIT_SORT);
   };
   const changeDisplayMode = (mode: UnitDisplayMode) => {
-    setDisplayMode(mode);
-
-    const nextParams = new URLSearchParams(searchParams.toString());
-
-    if (mode === "table") {
-      nextParams.delete("view");
-    } else {
-      nextParams.set("view", mode);
-    }
-
-    const queryString = nextParams.toString();
-    router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
-      scroll: false,
-    });
+    navigation.replaceParam("view", mode, "table");
   };
 
   useEffect(() => {
@@ -147,6 +124,7 @@ export function UnitScreen({
               <Link
                 className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={pathname}
+                onNavigate={navigation.cancelPending}
                 scroll={false}
               >
                 Clear filters
@@ -174,7 +152,9 @@ export function UnitScreen({
               units={units}
             />
           </div>
-          <div className="mx-3">
+          <div className="mx-3" onClickCapture={(event) => {
+            if ((event.target as Element).closest("a")) navigation.cancelPending();
+          }}>
             <PaginationControls pagination={pagination} />
           </div>
         </>
@@ -208,6 +188,7 @@ export function UnitScreen({
       title="Units"
       toolbar={
         <UnitFilters
+          navigation={navigation}
           displayMode={displayMode}
           onDisplayModeChange={changeDisplayMode}
           properties={propertyOptions}

@@ -1,20 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { LandingHeader } from "@/features/marketing/components/landing-header";
 import { PublicInterestForm } from "@/features/marketing/components/public-interest-form";
 
 export const metadata: Metadata = {
   description:
-    "Request information or a guided demo of Nestory property operations software.",
+    "Ask about Nestory property management software or request a demo.",
   title: "Request information or a demo",
 };
-
-const requestNotes = [
-  "A guided look at the operating record, not a generic product tour",
-  "We confirm your portfolio and priorities before creating a workspace",
-  "Client workspaces stay managed and invite-only",
-];
 
 export default async function RequestPage({
   searchParams,
@@ -39,46 +33,26 @@ export default async function RequestPage({
 
           <div className="mt-10 grid gap-12 lg:grid-cols-[minmax(0,0.8fr)_minmax(420px,0.72fr)] lg:items-start lg:gap-20">
             <div className="lg:sticky lg:top-32">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-                Managed access
-              </p>
-              <h1 className="mt-5 max-w-2xl font-display text-4xl font-semibold leading-[1.06] text-[var(--landing-heading)] sm:text-5xl">
-                Start with the operating brief.
+              <h1 className="max-w-2xl font-display text-4xl font-semibold leading-[1.06] text-[var(--landing-heading)] sm:text-5xl">
+                Talk to Nestory.
               </h1>
               <p className="mt-6 max-w-xl text-base leading-7 text-[var(--landing-muted)]">
-                Tell us about the portfolio and the work you need to keep under
-                control. We will use that context for a focused follow-up.
+                Tell us about your properties and what you need.
               </p>
 
-              <div className="mt-10 border-t border-[var(--landing-border)]">
-                {requestNotes.map((note) => (
-                  <div
-                    className="grid grid-cols-[22px_minmax(0,1fr)] gap-3 border-b border-[var(--landing-border)] py-4 text-sm leading-6 text-[var(--landing-muted)]"
-                    key={note}
-                  >
-                    <Check
-                      aria-hidden="true"
-                      className="mt-1 text-muted-foreground"
-                      size={15}
-                    />
-                    <p>{note}</p>
-                  </div>
-                ))}
-              </div>
-
-              <p className="mt-8 text-sm leading-6 text-[var(--landing-muted)]">
-                Already invited?{" "}
+              <p className="mt-6 text-sm leading-6 text-[var(--landing-muted)]">
+                Already have an account?{" "}
                 <Link
                   className="font-semibold text-foreground underline-offset-4 transition-colors hover:text-muted-foreground hover:underline"
                   href="/login"
                 >
-                  Sign in to your workspace
+                  Sign in
                 </Link>
                 .
               </p>
             </div>
 
-            <PublicInterestForm initialRequestType={initialRequestType} />
+            <PublicInterestForm initialRequestType={initialRequestType} key={initialRequestType} />
           </div>
         </div>
       </section>

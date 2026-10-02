@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -101,6 +102,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   document.querySelectorAll("#workspace-page-tools").forEach((node) => node.remove());
   delete (HTMLElement.prototype as Partial<HTMLElement>).hasPointerCapture;
   delete (HTMLElement.prototype as Partial<HTMLElement>).releasePointerCapture;
@@ -112,6 +114,78 @@ afterEach(() => {
 });
 
 describe("PropertyScreen redesign contract", () => {
+  it("cancels newer typing when removing the Search filter before a response", async () => {
+    vi.useFakeTimers();
+    navigation.searchParams = new URLSearchParams("query=River&status=active");
+    const view = renderProperties({ viewQuery: { ...defaultViewQuery, query: "River", status: "active" } });
+    fireEvent.change(screen.getByLabelText("Search properties", { selector: "input" }), { target: { value: "Riverside" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+    fireEvent.click(screen.getByTitle("Remove Search filter"));
+    await act(() => vi.advanceTimersByTimeAsync(1500));
+    expect(navigation.replace).toHaveBeenCalledTimes(1);
+    expect(navigation.replace).toHaveBeenLastCalledWith("/properties?status=active", { scroll: false });
+    navigation.searchParams = new URLSearchParams("status=active");
+    view.rerenderView({ ...defaultViewQuery, status: "active" });
+    expect(screen.getByLabelText<HTMLInputElement>("Search properties", { selector: "input" }).value).toBe("");
+  });
+
+  it("reverses the net sort when clicked twice before a response arrives", () => {
+    renderProperties();
+    const sort = screen.getByRole("button", { name: "Sort properties by net" });
+    fireEvent.click(sort);
+    fireEvent.click(sort);
+    expect(navigation.replace).toHaveBeenLastCalledWith("/properties?sort=net_asc", { scroll: false });
+  });
+
+  it("applies a rapid filter reversal before the first response arrives", async () => {
+    const user = userEvent.setup();
+    renderProperties();
+    await user.click(screen.getByRole("button", { name: "Filters" }));
+    await user.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    await user.click(screen.getByRole("option", { name: "Inactive" }));
+    await user.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    await user.click(screen.getByRole("option", { name: "All statuses" }));
+    expect(navigation.replace).toHaveBeenLastCalledWith("/properties", { scroll: false });
+  });
+
+  it("follows cards and table views during history navigation", () => {
+    const view = renderProperties();
+    for (const params of ["view=cards", "view=table", "view=cards", ""]) {
+      navigation.searchParams = new URLSearchParams(params);
+      view.rerenderView();
+      expect(screen.getByTitle("Cards view").getAttribute("aria-pressed")).toBe(
+        String(params === "view=cards"),
+      );
+      expect(Boolean(screen.queryByRole("table"))).toBe(params !== "view=cards");
+    }
+    expect(navigation.replace).not.toHaveBeenCalled();
+  });
+
+  it("combines rapid sort and view changes without restoring the old page", () => {
+    navigation.searchParams = new URLSearchParams("status=active&page=3");
+    renderProperties({ viewQuery: { ...defaultViewQuery, status: "active", page: 3 } });
+    fireEvent.click(screen.getByRole("button", { name: "Sort properties by net" }));
+    fireEvent.click(screen.getByTitle("Cards view"));
+    expect(navigation.replace).toHaveBeenLastCalledWith(
+      "/properties?status=active&sort=net_desc&view=cards",
+      { scroll: false },
+    );
+  });
+
+  it("discards an unsent search when navigation changes scope with the same query", async () => {
+    vi.useFakeTimers();
+    const view = renderProperties();
+    fireEvent.change(screen.getByLabelText("Search properties", { selector: "input" }), {
+      target: { value: "Riverside" },
+    });
+    navigation.searchParams = new URLSearchParams("status=inactive");
+    view.rerenderView({ ...defaultViewQuery, status: "inactive" });
+    expect(screen.getByLabelText<HTMLInputElement>("Search properties", { selector: "input" }).value).toBe("");
+    await act(() => vi.advanceTimersByTimeAsync(600));
+    expect(navigation.replace).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
   it("asks only for basic identity during creation and leaves detailed setup on the record", () => {
     render(
       <PropertyForm mode="create" onClose={vi.fn()} ownerOptions={[]} />,
@@ -769,7 +843,12 @@ function renderProperties({
     viewQuery,
   };
 
-  return render(<PropertyScreen {...props} />);
+  const result = render(<PropertyScreen {...props} />);
+  return {
+    ...result,
+    rerenderView: (nextViewQuery = viewQuery) =>
+      result.rerender(<PropertyScreen {...props} viewQuery={nextViewQuery} />),
+  };
 }
 
 function makeProperty(id: string, code: string, name: string) {

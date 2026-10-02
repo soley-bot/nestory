@@ -2,7 +2,7 @@
 
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { NestoryLogo } from "@/components/brand/nestory-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -21,12 +21,106 @@ const navItems = [
   { href: "/request?intent=demo", label: "Request a demo" },
 ] as const;
 
+type SectionNavigation = {
+  hash: string;
+  fromUrl: string;
+  href?: string;
+};
+
 export function LandingHeader({
   tone = "page",
 }: {
   tone?: "hero" | "page" | "semantic";
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const menuOpen = useRef(false);
+  const menuTrigger = useRef<HTMLButtonElement>(null);
+  const dialogPresent = useRef(false);
+  const pendingSection = useRef<SectionNavigation | null>(null);
+  const scrollFrame = useRef<number | null>(null);
+  const cancelScroll = useCallback(() => {
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+    scrollFrame.current = null;
+  }, []);
+  const scrollToSection = useCallback((navigation: SectionNavigation) => {
+    cancelScroll();
+    scrollFrame.current = requestAnimationFrame(() => {
+      scrollFrame.current = null;
+      if (menuOpen.current || window.location.href !== navigation.fromUrl) return;
+      const target = navigation.hash
+        ? document.getElementById(navigation.hash.slice(1))
+        : menuTrigger.current;
+      if (!target) return;
+      if (navigation.href && window.location.hash !== navigation.hash) {
+        window.history.pushState(null, "", navigation.href);
+      }
+      target.focus({ preventScroll: true });
+      if (navigation.hash) {
+        target.scrollIntoView({ block: "start", behavior: "instant" });
+      }
+    });
+  }, [cancelScroll]);
+
+  useEffect(() => {
+    function handleHistory() {
+      cancelScroll();
+      const hash = window.location.hash;
+      const hasTarget = ["#workspace", "#operations"].includes(hash)
+        && document.getElementById(hash.slice(1));
+      pendingSection.current = null;
+      if (hasTarget) {
+        const navigation: SectionNavigation = {
+          hash,
+          fromUrl: window.location.href,
+        };
+        if (dialogPresent.current) pendingSection.current = navigation;
+        else scrollToSection(navigation);
+      } else if (!hash && window.location.pathname === "/" && !dialogPresent.current) {
+        scrollToSection({ hash, fromUrl: window.location.href });
+      }
+      menuOpen.current = false;
+      setIsOpen(false);
+    }
+    window.addEventListener("popstate", handleHistory);
+    window.addEventListener("hashchange", handleHistory);
+    if (["#workspace", "#operations"].includes(window.location.hash)) {
+      scrollToSection({
+        hash: window.location.hash,
+        fromUrl: window.location.href,
+      });
+    }
+    return () => {
+      window.removeEventListener("popstate", handleHistory);
+      window.removeEventListener("hashchange", handleHistory);
+      cancelScroll();
+    };
+  }, [cancelScroll, scrollToSection]);
+
+  function handleOpenChange(open: boolean) {
+    menuOpen.current = open;
+    if (open) {
+      pendingSection.current = null;
+      cancelScroll();
+    }
+    setIsOpen(open);
+  }
+
+  function handleSectionClick(event: MouseEvent<HTMLAnchorElement>, href: string) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey
+      || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const hash = href.startsWith("/#") ? href.slice(1) : "";
+    if (window.location.pathname === "/" && hash
+      && document.getElementById(hash.slice(1))) {
+      event.preventDefault();
+      pendingSection.current = {
+        hash,
+        href,
+        fromUrl: window.location.href,
+      };
+    }
+    handleOpenChange(false);
+  }
+
   const isHeroTone = tone === "hero";
   const isSemanticTone = tone === "semantic";
   const logoClass = isHeroTone
@@ -39,7 +133,7 @@ export function LandingHeader({
       : "text-[var(--landing-heading)] hover:bg-black/5 hover:text-[var(--landing-heading)] focus-visible:ring-[var(--landing-accent)]";
 
   return (
-    <Dialog onOpenChange={setIsOpen} open={isOpen}>
+    <Dialog onOpenChange={handleOpenChange} open={isOpen}>
       <header className="absolute inset-x-0 top-0 z-40">
         <div className="mx-auto flex h-24 max-w-[1360px] items-start justify-between px-6 pt-7 sm:px-10 lg:px-14">
           <Link aria-label="Nestory home" className={logoClass} href="/">
@@ -59,7 +153,7 @@ export function LandingHeader({
               className="hidden min-h-9 items-center whitespace-nowrap rounded-sm px-1 outline-none transition-colors hover:text-current focus-visible:ring-2 sm:inline-flex"
               href="/request?intent=demo"
             >
-              Request demo
+              Request a demo
             </Link>
             <Link
               className="inline-flex min-h-9 items-center whitespace-nowrap rounded-sm px-1 outline-none transition-colors hover:text-current focus-visible:ring-2"
@@ -72,6 +166,7 @@ export function LandingHeader({
               <Button
                 aria-label="Open menu"
                 className={quietControlClass}
+                ref={menuTrigger}
                 size="icon"
                 variant="ghost"
               >
@@ -83,16 +178,26 @@ export function LandingHeader({
       </header>
 
       <DialogContent
-        className="inset-0 left-0 top-0 h-svh w-screen max-w-none translate-x-0 translate-y-0 gap-0 rounded-none bg-[#090a0c] p-0 text-white ring-0 sm:max-w-none"
+        className="inset-0 left-0 top-0 flex h-svh w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-y-auto rounded-none bg-[#090a0c] p-0 text-white ring-0 sm:max-w-none"
+        aria-describedby={undefined}
+        onOpenAutoFocus={() => { dialogPresent.current = true; }}
+        onCloseAutoFocus={(event) => {
+          dialogPresent.current = false;
+          const navigation = pendingSection.current;
+          pendingSection.current = null;
+          if (!navigation) return;
+          event.preventDefault();
+          scrollToSection(navigation);
+        }}
         showCloseButton={false}
       >
         <DialogTitle className="sr-only">Nestory navigation</DialogTitle>
-        <div className="mx-auto flex h-24 w-full max-w-[1360px] items-start justify-between px-6 pt-7 sm:px-10 lg:px-14">
+        <div className="mx-auto flex h-24 w-full max-w-[1360px] shrink-0 items-start justify-between px-6 pt-7 sm:px-10 lg:px-14">
           <Link
             aria-label="Nestory home"
             className="leading-none text-white"
             href="/"
-            onClick={() => setIsOpen(false)}
+            onNavigate={() => handleOpenChange(false)}
           >
             <LandingLogo hero />
           </Link>
@@ -100,7 +205,7 @@ export function LandingHeader({
             <Link
               className="inline-flex min-h-9 items-center rounded-sm px-1 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-white"
               href="/login"
-              onClick={() => setIsOpen(false)}
+              onNavigate={() => handleOpenChange(false)}
             >
               Sign in
             </Link>
@@ -120,7 +225,7 @@ export function LandingHeader({
 
         <nav
           aria-label="Landing page sections"
-          className="flex min-h-[calc(100svh-6rem)] items-center justify-center px-6 pb-16"
+          className="flex flex-1 items-center justify-center px-6 py-8"
         >
           <div className="space-y-4 text-center">
             {navItems.map((item) => (
@@ -128,7 +233,7 @@ export function LandingHeader({
                 className="font-display block rounded-sm text-4xl font-semibold leading-none text-white/70 outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:text-5xl lg:text-6xl"
                 href={item.href}
                 key={item.href}
-                onClick={() => setIsOpen(false)}
+                onClick={(event) => handleSectionClick(event, item.href)}
               >
                 {item.label}
               </Link>
@@ -136,7 +241,7 @@ export function LandingHeader({
             <Link
               className="font-display block rounded-sm pt-6 text-3xl font-semibold leading-none text-white/70 outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:text-4xl lg:text-5xl"
               href="/login"
-              onClick={() => setIsOpen(false)}
+              onNavigate={() => handleOpenChange(false)}
             >
               Sign in
             </Link>

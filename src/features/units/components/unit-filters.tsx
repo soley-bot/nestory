@@ -2,11 +2,10 @@
 
 import * as Popover from "@radix-ui/react-popover";
 import type { ReactNode } from "react";
-import { useTransition } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { LayoutGrid, RotateCcw, SlidersHorizontal, Table2 } from "lucide-react";
-import { useRegisterSearch } from "@/components/ui/use-register-search";
+import type { RegisterNavigation } from "@/components/data/use-register-navigation";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import {
@@ -14,6 +13,7 @@ import {
   DEFAULT_UNIT_PAGE_SIZE,
   DEFAULT_UNIT_SORT,
   UNIT_PAGE_SIZE_OPTIONS,
+  parseUnitSearchParams,
 } from "@/features/units/unit.filters";
 import {
   type UnitDisplayMode,
@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type UnitFiltersProps = {
+  navigation: RegisterNavigation;
   displayMode: UnitDisplayMode;
   onDisplayModeChange: (mode: UnitDisplayMode) => void;
   properties: UnitPropertyOption[];
@@ -30,18 +31,17 @@ type UnitFiltersProps = {
 };
 
 export function UnitFilters({
+  navigation,
   displayMode,
   onDisplayModeChange,
   properties,
   viewQuery,
 }: UnitFiltersProps) {
   const pathname = usePathname();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
-  const search = useRegisterSearch(viewQuery.query, (value) =>
-    replaceParam("query", value, ""),
-  );
+  const { isPending, pendingParams, replaceParam, search } = navigation;
+  const selectedQuery = pendingParams
+    ? parseUnitSearchParams(Object.fromEntries(pendingParams))
+    : viewQuery;
   // Sort order and page size change presentation, not which units are shown, so
   // they are not counted as filters.
   const activeFilters = [
@@ -57,27 +57,8 @@ export function UnitFilters({
   const query = search.query;
   const compactSelectClassName = "h-8 w-full px-2 text-sm";
 
-  function replaceParam(name: string, value: string, defaultValue: string) {
-    const nextParams = new URLSearchParams(searchParams.toString());
-
-    if (value === defaultValue || value.trim() === "") {
-      nextParams.delete(name);
-    } else {
-      nextParams.set(name, value);
-    }
-
-    nextParams.delete("page");
-    const queryString = nextParams.toString();
-
-    startTransition(() => {
-      router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
-        scroll: false,
-      });
-    });
-  }
-
   return (
-    <div className="w-full min-w-0">
+    <div aria-busy={isPending} className="w-full min-w-0">
       <div>
         <div className="flex flex-col gap-2 text-sm lg:flex-row lg:items-center lg:justify-between">
           <SearchCombo
@@ -119,6 +100,7 @@ export function UnitFilters({
               <Popover.Portal>
                 <Popover.Content
                   align="end"
+                  aria-busy={isPending}
                   className="z-50 w-[min(calc(100vw-2rem),460px)] rounded-md border border-border bg-card text-sm shadow-lg"
                   id="unit-advanced-search"
                   side="bottom"
@@ -142,7 +124,7 @@ export function UnitFilters({
                             value: property.id,
                           })),
                         ]}
-                        value={viewQuery.propertyId}
+                        value={selectedQuery.propertyId}
                       />
                     </FilterField>
 
@@ -158,7 +140,7 @@ export function UnitFilters({
                           { label: "Occupied", value: "occupied" },
                           { label: "No lease", value: "unoccupied" },
                         ]}
-                        value={viewQuery.occupancy}
+                        value={selectedQuery.occupancy}
                       />
                     </FilterField>
 
@@ -177,7 +159,7 @@ export function UnitFilters({
                           { label: "Maintenance", value: "maintenance" },
                           { label: "Inactive", value: "inactive" },
                         ]}
-                        value={viewQuery.status}
+                        value={selectedQuery.status}
                       />
                     </FilterField>
 
@@ -192,7 +174,7 @@ export function UnitFilters({
                           { label: "All units", value: "all" },
                           { label: "No active lease", value: "missing" },
                         ]}
-                        value={viewQuery.leaseStatus}
+                        value={selectedQuery.leaseStatus}
                       />
                     </FilterField>
 
@@ -212,7 +194,7 @@ export function UnitFilters({
                           { label: "Archived", value: "archived" },
                           { label: "All records", value: "all" },
                         ]}
-                        value={viewQuery.archiveState}
+                        value={selectedQuery.archiveState}
                       />
                     </FilterField>
 
@@ -230,7 +212,7 @@ export function UnitFilters({
                           { label: "Rent", value: "rent_desc" },
                           { label: "Ledger net", value: "net_desc" },
                         ]}
-                        value={viewQuery.sort}
+                        value={selectedQuery.sort}
                       />
                     </FilterField>
 
@@ -249,7 +231,7 @@ export function UnitFilters({
                           label: String(pageSize),
                           value: String(pageSize),
                         }))}
-                        value={String(viewQuery.pageSize)}
+                        value={String(selectedQuery.pageSize)}
                       />
                     </FilterField>
                   </div>
@@ -261,7 +243,7 @@ export function UnitFilters({
                 aria-label="Reset unit filters"
                 className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-card px-2 text-primary outline-none transition-colors hover:bg-muted hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
                 href={pathname}
-                onClick={() => search.onQueryChange("")}
+                onNavigate={navigation.cancelPending}
                 scroll={false}
                 title="Reset filters"
               >
