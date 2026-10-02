@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search-input";
@@ -50,10 +50,22 @@ export function SearchCombo({
   submitLabel,
   suggestions = [],
 }: SearchComboProps) {
+  const listboxId = useId();
+  const composing = useRef(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [activeSuggestionId, setActiveSuggestionId] = useState<string | null>(null);
   const hasScope = scopeOptions.length > 1;
   const hasSuggestions =
     suggestionsOpen && suggestions.length > 0 && Boolean(onSuggestionSelect);
+  const activeSuggestion = hasSuggestions
+    ? suggestions.find(suggestion => suggestion.id === activeSuggestionId)
+    : undefined;
+
+  function selectSuggestion(suggestion: SearchComboSuggestion) {
+    setSuggestionsOpen(false);
+    setActiveSuggestionId(null);
+    onSuggestionSelect?.(suggestion);
+  }
 
   return (
     <form
@@ -81,15 +93,41 @@ export function SearchCombo({
               size={16}
             />
             <SearchInput
-              onCompositionStart={() => onCompositionChange?.(true)}
-              onCompositionEnd={() => onCompositionChange?.(false)}
+              aria-activedescendant={activeSuggestion ? `${listboxId}-${encodeURIComponent(activeSuggestion.id)}` : undefined}
+              aria-autocomplete={onSuggestionSelect ? "list" : undefined}
+              aria-controls={hasSuggestions ? listboxId : undefined}
+              aria-expanded={onSuggestionSelect ? hasSuggestions : undefined}
+              aria-haspopup={onSuggestionSelect ? "listbox" : undefined}
+              role={onSuggestionSelect ? "combobox" : undefined}
+              onCompositionStart={() => { composing.current = true; onCompositionChange?.(true); }}
+              onCompositionEnd={() => { composing.current = false; onCompositionChange?.(false); }}
               className="h-8 rounded-none border-0 bg-transparent pl-9 shadow-none focus:border-transparent focus:ring-0"
-              onBlur={() => setSuggestionsOpen(false)}
+              onBlur={() => { setSuggestionsOpen(false); setActiveSuggestionId(null); }}
               onChange={(event) => {
                 setSuggestionsOpen(true);
+                setActiveSuggestionId(null);
                 onQueryChange?.(event.currentTarget.value);
               }}
               onFocus={() => setSuggestionsOpen(true)}
+              onKeyDown={event => {
+                if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) return;
+                if ((event.key === "ArrowDown" || event.key === "ArrowUp") && suggestions.length && onSuggestionSelect) {
+                  event.preventDefault();
+                  const index = suggestions.findIndex(suggestion => suggestion.id === activeSuggestion?.id);
+                  const next = index < 0
+                    ? event.key === "ArrowDown" ? 0 : suggestions.length - 1
+                    : Math.max(0, Math.min(suggestions.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)));
+                  setSuggestionsOpen(true);
+                  setActiveSuggestionId(suggestions[next].id);
+                } else if (event.key === "Enter" && activeSuggestion) {
+                  event.preventDefault();
+                  selectSuggestion(activeSuggestion);
+                } else if (event.key === "Escape" && hasSuggestions) {
+                  event.preventDefault();
+                  setSuggestionsOpen(false);
+                  setActiveSuggestionId(null);
+                }
+              }}
               placeholder={placeholder}
               value={query}
             />
@@ -98,7 +136,7 @@ export function SearchCombo({
             <button
               aria-label={`Clear ${ariaLabel.toLowerCase()}`}
               className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-              onClick={() => { setSuggestionsOpen(false); onQueryChange(""); }}
+              onClick={() => { setSuggestionsOpen(false); setActiveSuggestionId(null); onQueryChange(""); }}
               type="button"
             >
               <X size={14} />
@@ -106,16 +144,18 @@ export function SearchCombo({
           ) : null}
         </div>
         {hasSuggestions ? (
-          <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 overflow-hidden rounded-md border border-border bg-card p-1 shadow-lg">
+          <div aria-label={`${ariaLabel} suggestions`} id={listboxId} role="listbox" className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 overflow-hidden rounded-md border border-border bg-card p-1 shadow-lg">
             {suggestions.map((suggestion) => (
               <button
-                className="flex min-h-10 w-full min-w-0 items-center justify-between gap-3 rounded px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+                aria-selected={suggestion.id === activeSuggestion?.id}
+                className={cn("flex min-h-10 w-full min-w-0 items-center justify-between gap-3 rounded px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none", suggestion.id === activeSuggestion?.id && "bg-muted")}
+                id={`${listboxId}-${encodeURIComponent(suggestion.id)}`}
                 key={suggestion.id}
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  setSuggestionsOpen(false);
-                  onSuggestionSelect?.(suggestion);
-                }}
+                onClick={() => selectSuggestion(suggestion)}
+                onMouseEnter={() => setActiveSuggestionId(suggestion.id)}
+                role="option"
+                tabIndex={-1}
                 type="button"
               >
                 <span className="min-w-0">
