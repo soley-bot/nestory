@@ -5,6 +5,7 @@ import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance
 import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
 import type { MaintenanceViewQuery } from "@/features/maintenance/maintenance.types";
 import { requirePermission } from "@/lib/auth/context";
+import { getFirstSearchParam } from "@/lib/validation/search-params";
 
 type MaintenancePageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -17,14 +18,15 @@ export default async function MaintenancePage({
   const capabilities = getMaintenanceCapabilities(context);
 
   const params = await searchParams;
-  const viewQuery = normalizeCasesViewQuery(parseMaintenanceSearchParams(params));
+  const parsedViewQuery = parseMaintenanceSearchParams(params);
+  const viewQuery = normalizeCasesViewQuery(parsedViewQuery, getFirstSearchParam(params.review) === parsedViewQuery.review);
   const routeConfig = getCasesRouteConfig(viewQuery);
   const data = await getMaintenanceScreenData(context.organizationId, viewQuery, {
     branchId: context.branchId,
     dataScope: context.isSuperAdmin ? "organization" : "branch",
     personId: context.personId,
     workflowMode: "coordinator",
-  }, capabilities);
+  }, capabilities, { includeQueueCounts: true });
   const initialTaskId = viewQuery.taskId === "all" ? undefined : viewQuery.taskId;
 
   return (
@@ -45,6 +47,7 @@ export default async function MaintenancePage({
       listLabel="cases"
       pagination={data.pagination}
       propertyOptions={data.propertyOptions}
+      queueCounts={data.queueCounts}
       recordLabel="case"
       staffOptions={data.staffOptions}
       showCaseViewTabs
@@ -62,10 +65,13 @@ export default async function MaintenancePage({
 
 function normalizeCasesViewQuery(
   viewQuery: MaintenanceViewQuery,
+  hasExplicitReview: boolean,
 ): MaintenanceViewQuery {
   if (viewQuery.view === "inbox") {
     return { ...viewQuery, view: "list" };
   }
+
+  if (hasExplicitReview) return viewQuery;
 
   if (viewQuery.view === "board" && viewQuery.review === "open") {
     return { ...viewQuery, review: "work_orders" };
