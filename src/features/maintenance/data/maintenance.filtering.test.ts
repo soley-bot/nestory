@@ -56,6 +56,15 @@ describe("Maintenance filtering and queue destinations", () => {
     }
   });
 
+  it("keeps an explicit Open and Completed intersection empty without changing queue counts", async () => {
+    installFixture();
+    const result = await load({ review: "open", status: "completed" }, true);
+    expect(result.cases).toEqual([]);
+    expect(result.pagination.totalCount).toBe(0);
+    expect(result.summary.total).toBe(0);
+    expect(result.queueCounts).toEqual(queueCounts);
+  });
+
   it("counts each queue's destination while keeping the displayed summary filtered", async () => {
     installFixture();
     const source = { ...scopedParams, review: "all", status: "completed", page: "2", sort: "cost_desc" };

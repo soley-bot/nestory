@@ -698,7 +698,7 @@ function MaintenanceCasesCommandBar({
     nextParams.delete("page");
     nextParams.delete("taskId");
 
-    if (!value || value === defaultValue) {
+    if (!value || (value === defaultValue && name !== "review")) {
       nextParams.delete(name);
     } else {
       nextParams.set(name, value);
@@ -899,7 +899,7 @@ function MaintenanceFilters({
     nextParams.delete("page");
     nextParams.delete("taskId");
 
-    if (!value || value === defaultValue) {
+    if (!value || (value === defaultValue && name !== "review")) {
       nextParams.delete(name);
     } else {
       nextParams.set(name, value);

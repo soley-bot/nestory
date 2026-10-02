@@ -24,6 +24,7 @@ import type {
   MaintenanceViewQuery,
 } from "@/features/maintenance/maintenance.types";
 import { getBusinessMonthValue } from "@/lib/dates/business-date";
+import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance.filters";
 
 const navigation = vi.hoisted(() => ({
   pathname: "/maintenance",
@@ -417,6 +418,37 @@ describe("maintenance workspace redesign contract", () => {
     expect(params.get("status")).toBe("completed");
     expect(params.get("review")).toBe("all");
     expect(params.get("view")).toBe("list");
+  });
+
+  it.each([true, false])("preserves Attention Open after a status selection (case controls: %s)", async (showCaseViewTabs) => {
+    const user = userEvent.setup();
+    navigation.searchParams = new URLSearchParams("view=list&review=all&status=completed&page=3&priority=high&query=leak");
+    renderMaintenance({
+      showCaseViewTabs,
+      viewQuery: { ...defaultViewQuery, review: "all", status: "completed", page: 3, priority: "high", query: "leak" },
+    });
+    if (showCaseViewTabs) await user.click(screen.getByRole("button", { name: /Filters/ }));
+    await user.click(screen.getByRole("combobox", { name: "Attention filter" }));
+    await user.click(screen.getByRole("option", { name: "Open queue" }));
+    const [href] = navigation.replace.mock.calls.at(-1)!;
+    const params = new URL(href, "https://fixture.test").searchParams;
+    expect(parseMaintenanceSearchParams(Object.fromEntries(params))).toMatchObject({
+      review: "open", status: "completed", priority: "high", query: "leak", page: 1,
+    });
+    expect(params.get("review")).toBe("open");
+  });
+
+  it.each(["board", "calendar", "templates"] as const)("preserves explicit Attention Open on %s", async (view) => {
+    const user = userEvent.setup();
+    navigation.searchParams = new URLSearchParams({ view, review: "all" });
+    renderMaintenance({ showCaseViewTabs: true, viewQuery: { ...defaultViewQuery, review: "all", view } });
+    await user.click(screen.getByRole("button", { name: /Filters/ }));
+    await user.click(screen.getByRole("combobox", { name: "Attention filter" }));
+    await user.click(screen.getByRole("option", { name: "Open queue" }));
+    const [href] = navigation.replace.mock.calls.at(-1)!;
+    const params = new URL(href, "https://fixture.test").searchParams;
+    expect(params.get("review")).toBe("open");
+    expect(params.get("view")).toBe(view);
   });
 
   it("keeps queues separate while grouping search, filters, and view controls in one command bar", async () => {
