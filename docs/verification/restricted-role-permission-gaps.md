@@ -62,6 +62,8 @@ The two retained failures are allowed same-branch maintenance archive and restor
 
 The task-specific disposable database was stopped and its volumes removed using its exact project ID after verification. No shared stack was stopped or reset.
 
+The maintenance other-branch denial currently passes while the same-branch helper ACL is broken. That denial alone does not prove the intended branch predicate executes; rerun both allow and deny cases after the operational worker repairs the RPC. Property and Unit boundary assertions execute independently of this maintenance failure.
+
 Reproduce application checks with:
 
 ```powershell
