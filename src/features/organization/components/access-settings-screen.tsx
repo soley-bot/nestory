@@ -113,6 +113,7 @@ export function AccessSettingsScreen({
     <AccessWorkspace
       branches={branches}
       currentUserId={currentUserId}
+      embedded={embedded}
       focusedInvitationId={focusedInvitationId}
       focusedMemberId={focusedMemberId}
       inviteDefaults={inviteDefaults}
@@ -139,6 +140,7 @@ export function AccessSettingsScreen({
 function AccessWorkspace({
   branches,
   currentUserId,
+  embedded = false,
   focusedInvitationId,
   focusedMemberId,
   inviteDefaults,
@@ -272,9 +274,10 @@ function AccessWorkspace({
 
   return (
     <div
-      // Same gutter ramp as PageHeader and the sibling Settings sections, so
-      // moving between Settings tabs does not shift the content sideways.
-      className="mx-auto grid w-full max-w-6xl min-w-0 gap-3 px-4 py-4 sm:px-6"
+      className={cn(
+        "mx-auto grid w-full max-w-6xl min-w-0 gap-3",
+        !embedded && "workspace-gutter-x py-4",
+      )}
       data-testid="access-surface"
     >
       {/*
