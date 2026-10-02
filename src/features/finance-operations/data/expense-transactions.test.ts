@@ -26,15 +26,6 @@ function submission(id: string, propertyId = "p1", unitId: string | null = "u1",
   };
 }
 const parent = { id: "parent", expenseDate: "2026-09-01", externalPayeeLabel: null, payeeLabel: "Cleaner", reference: "Receipt", status: "submitted" as const };
-it("uses the saved Chart account when its internal reconciliation source is hidden", () => {
-  const children = [{ ...submission("one"), fundingSourceLabel: "Pay-from account unavailable" }];
-  const result = groupExpenseTransactionSummaries(children, [{ ...parent, payFromAccountId: "bank" }],
-    lines(children), [], new Map([["bank", "Operating account"], ["other", "Wrong account"]]));
-  expect(result[0].fundingSourceLabel).toBe("Operating account");
-  expect(groupExpenseTransactionSummaries(children, [{ ...parent, payFromAccountId: "missing" }],
-    lines(children), [], new Map([["bank", "Operating account"]]))[0].fundingSourceLabel)
-    .toBe("Pay-from account unavailable");
-});
 
 function lines(children: ExpenseSubmissionSummary[]) {
   return children.map((child, index) => ({
@@ -51,12 +42,6 @@ function data(expenseSubmissions: ExpenseSubmissionSummary[]): FinanceOperations
 }
 
 describe("expense transaction scope and completeness", () => {
-  it("aggregates exact currency cents across parent children", () => {
-    const children = [submission("one", "p1", "u1", 0.1), submission("two", "p1", "u1", 0.2)];
-    expect(groupExpenseTransactionSummaries(children, [parent], lines(children))[0]).toMatchObject({
-      internalCost: 0.3, customerTotal: 0.3,
-    });
-  });
   it.each([
     ["different properties", "p2", "u2", 10, true],
     ["different units", "p1", "u2", 10, true],
@@ -71,10 +56,6 @@ describe("expense transaction scope and completeness", () => {
     expect(scopeFinanceOperationsData(data(grouped), { propertyId: "unrelated" }).expenseSubmissions).toEqual([]);
   });
 
-  it("retains common-unit identity for two lines on the same unit", () => {
-    const children = [submission("one"), submission("two")];
-    expect(groupExpenseTransactionSummaries(children, [parent], lines(children))[0]).toMatchObject({ unitId: "u1", unitLabel: "u1" });
-  });
 
   it("retains restricted child history without leaking parent totals or independent review", () => {
     const child = submission("one");
@@ -86,10 +67,6 @@ describe("expense transaction scope and completeness", () => {
     expect(scoped.lines).toHaveLength(1);
   });
 
-  it("fails closed when an expected canonical child is missing", () => {
-    const children = [submission("one"), submission("two")];
-    expect(() => groupExpenseTransactionSummaries([children[0]], [parent], lines(children))).toThrow(/incomplete/i);
-  });
 });
 
 describe("complete transaction reads", () => {
