@@ -1,6 +1,6 @@
 # Restricted-role CRUD and permission-gap review
 
-Baseline: `9b9d7a86a7937d3eff0cd7e84611eaebe2cba04a` (main). This change adds tests and a proposal only. All four pilot users remain SuperAdmin; no live assignments, authorization state, customer rows, migrations, or production permissions are changed.
+Baseline: `9b9d7a86a7937d3eff0cd7e84611eaebe2cba04a` (main). This draft adds tests, a proposal and one unreleased forward migration fixing maintenance lifecycle execution context. All four pilot users remain SuperAdmin; no live assignments, authorization state, customer rows or production permissions are changed.
 
 ## Scope and isolation
 
@@ -20,7 +20,7 @@ Every ordinary allow below also requires active membership, active custom role, 
 | Deposit received/retained/refunded events | `leases.change_terms` in application and database | Separate deposit recording authority; decide whether receipt/refund/retention need distinct keys or finance payment authority |
 | Deposit reversal | `leases.change_terms` | Separate reversal authority; decide whether `finance.correct_records` is required in addition |
 | Maintenance read/create/assign/complete/review | Existing corresponding `maintenance.*` keys; completion retains actor/assignment constraints | Retain workflow split |
-| Maintenance archive/restore | Application requires SuperAdmin; database RPC predicate specifies branch-scoped `maintenance.create_assign`, but execution fails with `42501: permission denied for function assert_property_permission` | Choose SuperAdmin-only RPC enforcement or an explicit delegated archive permission; align UI, action and RPC together |
+| Maintenance archive/restore | Application requires SuperAdmin; existing database RPC predicate specifies branch-scoped `maintenance.create_assign`. Baseline execution context is broken; the draft migration restores that existing predicate without changing application access | Choose SuperAdmin-only RPC enforcement or an explicit delegated archive permission; align UI, action and RPC together |
 | Maintenance evidence upload | `canUploadMaintenanceEvidence` is false for every custom role, including roles with all catalog permissions | Keep restriction until approved; if delegated, introduce evidence upload authority and checked case/storage scope |
 | Finance read/payment/expense submission/approval/correction/period close | Existing corresponding `finance.*` keys | Retain split; decide any approval separation requirements independently |
 | Finance report read and PDF/Excel export | `finance.publish` projects `canReadFinanceReports`; endpoints use report membership helper | Separate report read and export authority from official publication |
@@ -32,7 +32,7 @@ Suggested new keys in unit tests are placeholders (`maintenance.evidence`, `main
 
 ## Evidence and coverage
 
-New tests live in separate files to avoid overlap with ordinary-record and finance UI changes:
+Tests live in separate files to avoid overlap with ordinary-record and finance UI changes:
 
 - `src/lib/auth/restricted-role-gaps.test.ts`: every individual permission cannot grant unrelated operations; A and B single-branch contexts; all-permission custom role still cannot archive/upload maintenance evidence/administer access; finance report-publication coupling; unimplemented granular keys rejected.
 - `src/features/leases/restricted-deposit-authority.test.ts`: record/reverse actions require term permission before database access; authorized company wins over forged form input; linked-ID database denial propagates as an error.
@@ -44,25 +44,35 @@ Existing database suites additionally exercise People links, Lease mutation/life
 
 Route unit tests mock membership and data/storage loaders. They demonstrate application ordering and company binding, not actual row isolation or HTTP PostgREST authorization. SQL tests execute as authenticated and validate database/RPC enforcement. A full browser journey, live PostgREST HTTP CRUD, binary Storage download/upload, and export content comparison with two real branch datasets require a separate disposable full-stack acceptance run. None of those is inferred from mocked route passes.
 
-## Verification result
+## Minimal execution-context repair requiring release review
 
-Executed on the baseline in this isolated checkout:
+Migration `20261002161351_maintenance_lifecycle_execution_context.sql` consists of four ALTER FUNCTION statements: set `SECURITY DEFINER` and an empty `search_path` on `public.archive_maintenance_task(uuid,uuid)` and `public.restore_maintenance_task(uuid,uuid)`.
+
+The baseline RPCs are owned by postgres but run as invokers. Their authenticated-only EXECUTE ACL allows entry; their private `assert_property_permission` helper has only postgres EXECUTE, so caller-context execution fails with SQLSTATE 42501 before reaching the existing authorization predicate. Protected task UPDATE and activity-log INSERT also require the checked mutation execution context. The repair elevates only these two authenticated entrypoints to their existing owner, after which their unchanged `auth.uid()` and exact company/Property permission guards control the operation. Their bodies and lifecycle/audit logic are unchanged.
+
+No GRANT/REVOKE, owner changes, helper ACL changes, new keys, role changes, branch policy changes or staff UI delegation are included. Metadata before/after showed identical RPC ACLs `{postgres=X/postgres,authenticated=X/postgres}` and helper ACL `{postgres=X/postgres}`. The helper remains inaccessible even to an authenticated application SuperAdmin.
+
+The earlier SQL test calls reversed the task/company UUID positions. This was corrected; a baseline rerun with named `p_task_id`/`p_organization_id` arguments still reproduced both helper failures. The final tests now verify real persisted archive/restore state, actor attribution, audit rows and forbidden-scope preservation, rather than treating absence of an exception as sufficient evidence.
+
+This draft preserves the existing database predicate `maintenance.create_assign` and the existing SuperAdmin-only application gate. Restoring the already-coded database behavior is distinct from approving broader staff UI rights. Review the two SECURITY DEFINER changes specifically before merge/release; keep the product authority decision below separate. No production migration was applied.
+
+## Verification result
 
 | Check | Result |
 | --- | --- |
-| Seven targeted Vitest files (four new suites plus permission context, membership and existing report routes) | Passed: 89 tests, including 45 new tests |
-| ESLint on all four new TypeScript test files | Passed |
-| TypeScript `tsc --noEmit` | Passed |
-| Staged diff whitespace and repository secret scan | Passed |
-| Six targeted pgTAP suites listed above plus `scoped_lease_finance_read_context_test.sql` | 349 assertions: 347 passed, 2 failed |
-| New direct-ID pgTAP suite | 26 assertions: 24 passed, 2 failed |
-| Browser, PostgREST HTTP, binary Storage and two-branch export contents | Not run; database-only stack and mocked application route tests |
+| Corrected unchanged baseline regression | Reproduced: 24/26 passed, same two helper execution failures |
+| Final expanded direct-ID/lifecycle pgTAP suite | Passed: 48/48 assertions |
+| Seven database suites after the draft patch, including maintenance cost handoff | Passed: 442 assertions |
+| Additional legacy `maintenance_role_workflow_test.sql` | Setup failed before assertions: synthetic user `00000000-0000-0000-0000-000000000101` absent in the empty stack |
+| Existing seven targeted Vitest files | Previously passed: 89 tests, including 45 new tests; TypeScript files unchanged by this SQL repair |
+| Existing ESLint and TypeScript `tsc --noEmit` | Previously passed; no TypeScript edits in this follow-up |
+| Migration discipline against origin/main | Passed: 191 immutable base migrations, one forward migration |
+| Post-patch SQL lint and final workspace verification | Not run to completion: execution server disconnected |
+| Browser, PostgREST HTTP, binary Storage and two-branch export contents | Not run |
 
-The two retained failures are allowed same-branch maintenance archive and restore under `maintenance.create_assign`. Both fail with SQLSTATE `42501`, `permission denied for function assert_property_permission`. The RPCs call an internal helper that authenticated callers cannot execute. Their predicate expresses delegated authority while the application insists on SuperAdmin. The draft intentionally exposes these failures and does not grant helper EXECUTE or expand production access. The other five existing SQL suites pass (323 assertions). Early fixture setup/status errors and the Property active-Unit lifecycle guard were corrected before the final run; they are not remaining failures.
+Successful post-patch database suites: `restricted_role_direct_id_crud_test.sql`, `custom_role_domain_authority_test.sql`, `core_domain_mutation_authority_test.sql`, `remaining_core_domain_mutation_authority_test.sql`, `remaining_branch_scope_domain_enforcement_test.sql`, `scoped_lease_finance_read_context_test.sql`, `maintenance_cost_handoff_test.sql`. The new suite verifies allowed same-branch custom create/assign and same-company SuperAdmin lifecycle operations; denied missing permission, cross-branch/company, mismatched IDs, missing tasks and missing identity; archive/restore attribution and audit; helper privacy and authenticated-only entrypoint ACLs.
 
-The task-specific disposable database was stopped and its volumes removed using its exact project ID after verification. No shared stack was stopped or reset.
-
-The maintenance other-branch denial currently passes while the same-branch helper ACL is broken. That denial alone does not prove the intended branch predicate executes; rerun both allow and deny cases after the operational worker repairs the RPC. Property and Unit boundary assertions execute independently of this maintenance failure.
+The first disposable stack was removed after the original review. The follow-up rebuilt the same task-specific stack to reproduce and repair the failure. Cleanup of that rebuilt stack is pending because the execution server disconnected after successful SQL verification. Only project ID `nestory-restricted-task10-20261002` may be stopped/removed; no shared stack may be reset or stopped.
 
 Reproduce application checks with:
 
@@ -74,12 +84,12 @@ npx eslint src/lib/auth/restricted-role-gaps.test.ts src/app/api/reports/restric
 Run database tests only in a newly created disposable local stack with a unique project ID and unused ports. The test command does not provision or reset a database:
 
 ```powershell
-npx supabase test db --local --workdir ../restricted-role-disposable supabase/tests/restricted_role_direct_id_crud_test.sql supabase/tests/custom_role_domain_authority_test.sql supabase/tests/core_domain_mutation_authority_test.sql supabase/tests/remaining_core_domain_mutation_authority_test.sql supabase/tests/remaining_branch_scope_domain_enforcement_test.sql supabase/tests/scoped_lease_finance_read_context_test.sql
+npx supabase test db --local --workdir ../restricted-role-disposable supabase/tests/restricted_role_direct_id_crud_test.sql supabase/tests/custom_role_domain_authority_test.sql supabase/tests/core_domain_mutation_authority_test.sql supabase/tests/remaining_core_domain_mutation_authority_test.sql supabase/tests/remaining_branch_scope_domain_enforcement_test.sql supabase/tests/scoped_lease_finance_read_context_test.sql supabase/tests/maintenance_cost_handoff_test.sql
 ```
 
 ## Required business decisions
 
-1. Does maintenance archive/restore remain SuperAdmin-only, or may selected coordinators archive? The RPC predicate delegates it through create/assign, but its private-helper ACL prevents successful execution. Decide intended authority before repairing the RPC; selecting SuperAdmin-only requires tightening its predicate as well.
+1. Does maintenance archive/restore remain SuperAdmin-only, or may selected coordinators archive? The draft repairs the execution context without changing the existing create/assign predicate or the application SuperAdmin gate. Choosing SuperAdmin-only database authority or delegated staff UI access would be a separate policy change.
 2. Who may upload maintenance evidence: assigned executor, coordinator, reviewer, or a separate evidence role? May they replace/archive evidence, and does access persist after task completion/archive? Decide upload and lifecycle authority separately.
 3. Should lease term editors move deposit money? Decide authority independently for receipt, retention, refund and reversal, including any finance approval/correction requirement.
 4. Can report readers export PDF/Excel without publishing official statements? Decide read, export and official publish separately, including whether every report type follows the same matrix.
