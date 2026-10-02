@@ -2,13 +2,12 @@
 
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
 import { RecordField } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
-import { StatusNotice } from "@/components/ui/status-notice";
 import { Textarea } from "@/components/ui/textarea";
 import {
   submitPublicInterestRequest,
@@ -24,22 +23,54 @@ const portfolioSizeOptions = [
   { label: "500+ units", value: "500+" },
 ];
 
+async function submitRequest(
+  state: PublicInterestRequestState,
+  formData: FormData,
+): Promise<PublicInterestRequestState> {
+  try {
+    return await submitPublicInterestRequest(state, formData);
+  } catch {
+    return {
+      status: "error",
+      message: "We could not confirm your request. Please try again.",
+    };
+  }
+}
+
 export function PublicInterestForm({
   initialRequestType,
 }: {
   initialRequestType: "demo" | "information";
 }) {
   const [state, action, pending] = useActionState(
-    submitPublicInterestRequest,
+    submitRequest,
     initialState,
   );
   const [requestType, setRequestType] = useState(initialRequestType);
+  const formRef = useRef<HTMLFormElement>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const submitLocked = useRef(false);
+
+  useEffect(() => {
+    if (!pending) submitLocked.current = false;
+  }, [pending]);
+
+  useEffect(() => {
+    if (state.status === "success") resultRef.current?.focus();
+    if (state.status === "error") {
+      const invalidField = formRef.current?.querySelector<HTMLElement>("[aria-invalid='true']");
+      (invalidField ?? errorRef.current)?.focus();
+    }
+  }, [state]);
 
   if (state.status === "success") {
     return (
       <div
         className="flex min-h-[430px] flex-col justify-between rounded-xl border border-border bg-card p-6 text-card-foreground shadow-sm sm:p-8"
+        ref={resultRef}
         role="status"
+        tabIndex={-1}
       >
         <div>
           <CheckCircle2
@@ -48,21 +79,12 @@ export function PublicInterestForm({
             size={30}
             strokeWidth={1.6}
           />
-          <p className="mt-8 text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-            Request received
-          </p>
-          <h2 className="mt-4 font-display text-3xl font-semibold leading-tight text-foreground">
-            We have your operating brief.
+          <h2 className="mt-8 font-display text-3xl font-semibold leading-tight text-foreground">
+            Thank you for your interest.
           </h2>
           <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
-            We will use the context you shared to prepare a focused follow-up.
+            {state.message ?? "Demo scheduling and account setup are arranged separately."}
           </p>
-          <StatusNotice
-            className="mt-6"
-            message={state.message ?? "We will follow up at your work email."}
-            title="Follow-up queued"
-            tone="success"
-          />
         </div>
         <div className="mt-10 flex flex-wrap gap-4">
           <Link
@@ -83,6 +105,14 @@ export function PublicInterestForm({
       aria-busy={pending ? "true" : "false"}
       aria-label="Request information or a demo"
       className="rounded-xl border border-border bg-card p-5 text-card-foreground shadow-sm sm:p-7"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (pending || submitLocked.current) return;
+        submitLocked.current = true;
+        const formData = new FormData(event.currentTarget);
+        startTransition(() => action(formData));
+      }}
+      ref={formRef}
     >
       <fieldset className="space-y-5 border-0 p-0" disabled={pending}>
         <legend className="sr-only">Request details</legend>
@@ -99,18 +129,18 @@ export function PublicInterestForm({
 
         <fieldset className="border-0 p-0">
           <legend className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            I want to
+            Request
           </legend>
           <div className="mt-3 grid grid-cols-2 rounded-lg border border-border bg-muted/30 p-1">
             <RequestTypeOption
               active={requestType === "information"}
-              label="Request information"
+              label="Information"
               onSelect={setRequestType}
               value="information"
             />
             <RequestTypeOption
               active={requestType === "demo"}
-              label="Request a demo"
+              label="Demo"
               onSelect={setRequestType}
               value="demo"
             />
@@ -170,11 +200,11 @@ export function PublicInterestForm({
           </RecordField>
           <RecordField
             error={state.fieldErrors?.portfolioSize?.[0]}
-            label="Portfolio size"
+            label="Number of units (optional)"
             name="portfolioSize"
           >
             <SelectControl
-              ariaLabel="Portfolio size"
+              ariaLabel="Number of units"
               name="portfolioSize"
               options={portfolioSizeOptions}
               placeholder="Choose a range"
@@ -184,22 +214,24 @@ export function PublicInterestForm({
 
         <RecordField
           error={state.fieldErrors?.message?.[0]}
-          label="What should we understand about your operation?"
+          label="How can we help? (optional)"
           name="message"
         >
           <Textarea
             maxLength={1200}
             name="message"
-            rows={5}
+            rows={3}
           />
         </RecordField>
 
         {state.message ? (
-          <ErrorState
-            className="min-h-0 rounded-md border border-danger/30 bg-danger-soft px-3 py-3"
-            message={state.message}
-            title="Request not saved"
-          />
+          <div ref={errorRef} tabIndex={-1}>
+            <ErrorState
+              className="min-h-0 rounded-md border border-danger/30 bg-danger-soft px-3 py-3"
+              message={state.message}
+              title="Request not confirmed"
+            />
+          </div>
         ) : null}
 
         <Button
@@ -211,12 +243,12 @@ export function PublicInterestForm({
             ? "Sending request"
             : requestType === "demo"
               ? "Request a demo"
-              : "Request information"}
+              : "Get information"}
           <ArrowRight aria-hidden="true" size={15} />
         </Button>
         <p className="text-xs leading-5 text-muted-foreground">
-          By submitting, you ask Nestory to contact you about this request. No
-          workspace is created automatically.
+          You agree to be contacted about this request. Demo scheduling and
+          account setup are arranged separately.
         </p>
       </fieldset>
     </form>
