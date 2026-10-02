@@ -138,7 +138,7 @@ describe("People route family redesign contract", () => {
     renderPeople({ pagination: { from: 1, to: 10, page: 1, pageSize: 10, totalCount: 30, totalPages: 3 } });
     const input = screen.getByRole("textbox", { name: "Search people" });
     fireEvent.change(input, { target: { value: "Never apply" } });
-    const link = screen.getAllByRole("link", { name, exact: true })[0];
+    const link = screen.getAllByRole("link", { name })[0];
     link.addEventListener("click", event => event.preventDefault());
     fireEvent.click(link);
     await act(() => vi.advanceTimersByTimeAsync(1500));
@@ -151,7 +151,7 @@ describe("People route family redesign contract", () => {
     renderPeople();
     const input = screen.getByRole("textbox", { name: "Search people" });
     fireEvent.change(input, { target: { value: "River" } });
-    const link = screen.getAllByRole("link", { name: "Alice Tenant", exact: true })[0];
+    const link = screen.getAllByRole("link", { name: "Alice Tenant" })[0];
     link.addEventListener("click", event => event.preventDefault());
     fireEvent.click(link, { ctrlKey: true });
     await act(() => vi.advanceTimersByTimeAsync(500));
