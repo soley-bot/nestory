@@ -131,6 +131,11 @@ it("restores newer search text and URL when acknowledgements arrive in reverse o
   navigation.params = first; rerender();
   expect(result.current.search.query).toBe("Riverside");
   expect(lastParams().get("query")).toBe("Riverside");
+  act(() => result.current.search.onQueryChange("Riverton"));
+  navigation.params = "query=Riverside"; rerender();
+  expect(result.current.search.query).toBe("Riverton");
+  await act(() => vi.advanceTimersByTimeAsync(500));
+  expect(lastParams().get("query")).toBe("Riverton");
 });
 
 it("preserves the latest controls when a superseded criteria response arrives last", () => {

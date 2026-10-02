@@ -45,7 +45,9 @@ export function useFilterNavigation(appliedQuery: string, queryParam: string, re
   const synchronizeCommitted = useEffectEvent(() => {
     synchronize();
     if (currentNavigation.target && currentNavigation.target !== source) {
-      navigate(new URLSearchParams(currentNavigation.target.slice(currentNavigation.target.indexOf("?") + 1)));
+      const params = new URLSearchParams(currentNavigation.target.slice(currentNavigation.target.indexOf("?") + 1));
+      search.expectResponse(params.get(queryParam) ?? "");
+      navigate(params);
     }
   });
   useEffect(() => { synchronizeCommitted(); }, [source]);

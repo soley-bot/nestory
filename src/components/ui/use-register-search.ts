@@ -34,14 +34,15 @@ export function useRegisterSearch(
   }
   const query = current.value;
 
+  function expectResponse(value: string) {
+    setState(previous => ({ ...previous, submitted: [...previous.submitted, value] }));
+  }
+
   function submit() {
     const next = query.trim();
     if (composing || next === appliedQuery || current.submitted.at(-1) === next)
       return;
-    setState((previous) => ({
-      ...previous,
-      submitted: [...previous.submitted, next],
-    }));
+    expectResponse(next);
     onApply(next);
   }
   const applyLatest = useEffectEvent(submit);
@@ -52,6 +53,7 @@ export function useRegisterSearch(
   }, [query, appliedQuery, composing, paused]);
 
   return {
+    expectResponse,
     query,
     onQueryChange(value: string) {
       setPaused(false);
