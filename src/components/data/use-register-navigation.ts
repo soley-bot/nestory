@@ -15,6 +15,7 @@ export function useRegisterNavigation(appliedQuery: string) {
   const [isPending, startTransition] = useTransition();
   const [navigation, setNavigation] = useState({
     source: committed,
+    target: null as string | null,
     requests: [] as string[],
     version: 0,
   });
@@ -23,7 +24,8 @@ export function useRegisterNavigation(appliedQuery: string) {
     const acknowledgement = navigation.requests.lastIndexOf(committed);
     currentNavigation = {
       source: committed,
-      requests: acknowledgement >= 0 ? navigation.requests.slice(acknowledgement + 1) : [],
+      target: acknowledgement >= 0 ? navigation.target : null,
+      requests: acknowledgement >= 0 ? navigation.requests.filter((_, index) => index !== acknowledgement) : [],
       version: navigation.version + (acknowledgement >= 0 ? 0 : 1),
     };
     setNavigation(currentNavigation);
@@ -41,13 +43,18 @@ export function useRegisterNavigation(appliedQuery: string) {
       pending.current = {
         source: committed,
         query: acknowledgement >= 0 ? current.query : committed,
-        requests: acknowledgement >= 0 ? current.requests.slice(acknowledgement + 1) : [],
+        requests: acknowledgement >= 0 ? current.requests.filter((_, index) => index !== acknowledgement) : [],
       };
     }
     return pending.current;
   }
 
-  const synchronizeCommitted = useEffectEvent(synchronize);
+  const synchronizeCommitted = useEffectEvent(() => {
+    synchronize();
+    if (currentNavigation.target !== null && currentNavigation.target !== committed) {
+      navigate(currentNavigation.target);
+    }
+  });
   useEffect(() => {
     synchronizeCommitted();
   }, [committed]);
@@ -66,11 +73,16 @@ export function useRegisterNavigation(appliedQuery: string) {
     if (name !== "view") {
       nextParams.delete("page");
     }
-    const query = nextParams.toString();
+    navigate(nextParams.toString());
+  }
+
+  function navigate(query: string) {
+    const current = synchronize();
     pending.current = { ...current, query, requests: [...current.requests, query] };
     setNavigation((previous) => ({
       ...previous,
       source: committed,
+      target: query,
       requests: [...current.requests, query],
     }));
     startTransition(() => {
@@ -83,6 +95,7 @@ export function useRegisterNavigation(appliedQuery: string) {
     search.cancelPending();
     setNavigation((previous) => ({
       source: committed,
+      target: null,
       requests: [],
       version: previous.version + 1,
     }));
@@ -97,7 +110,7 @@ export function useRegisterNavigation(appliedQuery: string) {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  const pendingQuery = currentNavigation.requests.at(-1);
-  const pendingParams = pendingQuery === undefined ? null : new URLSearchParams(pendingQuery);
+  const pendingQuery = currentNavigation.target;
+  const pendingParams = pendingQuery === null ? null : new URLSearchParams(pendingQuery);
   return { cancelPending, isPending, pendingParams, replaceParam, search };
 }

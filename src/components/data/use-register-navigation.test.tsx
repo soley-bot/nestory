@@ -27,6 +27,37 @@ afterEach(() => {
 });
 
 describe("register navigation", () => {
+  it("retains the latest search and URL when an older response arrives last", async () => {
+    const { result, rerender } = renderHook(() => useRegisterNavigation(navigation.searchParams.get("query") ?? ""));
+    act(() => result.current.search.onQueryChange("River"));
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    const first = navigation.replace.mock.lastCall![0];
+    act(() => result.current.search.onQueryChange("Riverside"));
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    const latest = navigation.replace.mock.lastCall![0];
+    navigation.searchParams = new URLSearchParams(latest.split("?")[1]);
+    rerender();
+    navigation.searchParams = new URLSearchParams(first.split("?")[1]);
+    rerender();
+    expect(result.current.search.query).toBe("Riverside");
+    expect(result.current.pendingParams?.get("query")).toBe("Riverside");
+    expect(navigation.replace).toHaveBeenLastCalledWith(latest, { scroll: false });
+  });
+
+  it("retains the latest criteria when an older response arrives last", () => {
+    const { result, rerender } = renderHook(() => useRegisterNavigation(""));
+    act(() => result.current.replaceParam("status", "vacant", "all"));
+    const first = navigation.replace.mock.lastCall![0];
+    act(() => result.current.replaceParam("sort", "rent_desc", "property_asc"));
+    const latest = navigation.replace.mock.lastCall![0];
+    navigation.searchParams = new URLSearchParams(latest.split("?")[1]);
+    rerender();
+    navigation.searchParams = new URLSearchParams(first.split("?")[1]);
+    rerender();
+    expect(result.current.pendingParams?.get("sort")).toBe("rent_desc");
+    expect(navigation.replace).toHaveBeenLastCalledWith(latest, { scroll: false });
+  });
+
   it.each([
     ["view", "cards", "table"],
     ["sort", "rent_desc", "property_asc"],
