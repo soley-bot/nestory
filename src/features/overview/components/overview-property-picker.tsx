@@ -30,7 +30,7 @@ export function OverviewPropertyPicker({
       <DropdownMenuTrigger asChild>
         <Button
           aria-label={`Change property, currently ${currentLabel}`}
-          className="w-64 justify-between"
+          className="w-full min-w-0 justify-between sm:w-64"
           size="sm"
           variant="outline"
         >
