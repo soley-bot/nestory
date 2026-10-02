@@ -334,7 +334,7 @@ async function requireCapability(
   const context = await requireWorkspaceContext();
 
   if (!context.capabilities[capability]) {
-    redirect("/no-access");
+    redirect("/no-access?reason=capability");
   }
 
   return context;
@@ -344,7 +344,7 @@ export async function requirePermission(permission: PermissionKey) {
   const context = await requireWorkspaceContext();
 
   if (!hasPermission(context.permissionContext, permission)) {
-    redirect("/no-access");
+    redirect("/no-access?reason=capability");
   }
 
   return context;

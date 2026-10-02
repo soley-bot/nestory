@@ -5,11 +5,11 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import {
   RECOVERY_MARKER_COOKIE,
-  verifyRecoveryMarker,
 } from "@/lib/auth/recovery-marker";
+import { getPasswordRecoveryUser } from "@/lib/auth/recovery-session";
+import { getLoginPath, safeLoginNextPath } from "@/lib/auth/login-redirect";
 import { recordPasswordCredentialProof } from "@/lib/auth/password-credential-proof";
 import { newPasswordSchema } from "@/lib/auth/password-policy";
-import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type AuthFieldErrors = {
@@ -90,7 +90,7 @@ export async function loginAction(
     };
   }
 
-  redirect(WORKSPACE_ENTRY_PATH);
+  redirect(safeLoginNextPath(readString(formData, "next")));
 }
 
 export async function requestPasswordRecoveryAction(
@@ -128,9 +128,8 @@ export async function updatePasswordAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data, error: userError } = await supabase.auth.getUser();
-
-  if (userError || !data.user) {
+  const recoveryUser = await getPasswordRecoveryUser(supabase);
+  if (!recoveryUser) {
     return {
       message: "Open a fresh password recovery link and try again.",
       status: "error",
@@ -138,21 +137,6 @@ export async function updatePasswordAction(
   }
 
   const cookieStore = await cookies();
-  let recoveryMarkerValid = false;
-  try {
-    recoveryMarkerValid = verifyRecoveryMarker(
-      cookieStore.get(RECOVERY_MARKER_COOKIE)?.value,
-      data.user.id,
-    );
-  } catch {
-    recoveryMarkerValid = false;
-  }
-  if (!recoveryMarkerValid) {
-    return {
-      message: "Open a fresh password recovery link and try again.",
-      status: "error",
-    };
-  }
 
   const { error } = await supabase.auth.updateUser({
     password: parsed.data.password,
@@ -166,7 +150,7 @@ export async function updatePasswordAction(
   }
 
   const proofRecorded = await recordPasswordCredentialProof(
-    data.user.id,
+    recoveryUser.id,
     "password_recovery",
   );
   if (!proofRecorded) {
@@ -183,8 +167,8 @@ export async function updatePasswordAction(
   redirect("/login?password=updated");
 }
 
-export async function signOutAction() {
+export async function signOutAction(formData?: FormData) {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
-  redirect("/login");
+  redirect(getLoginPath(formData ? readString(formData, "next") : null));
 }

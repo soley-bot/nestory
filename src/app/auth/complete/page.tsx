@@ -8,6 +8,8 @@ type AuthCompletePageProps = {
     next?: string | string[];
     token_hash?: string | string[];
     type?: string | string[];
+    error?: string | string[];
+    error_code?: string | string[];
   }>;
 };
 
@@ -23,8 +25,9 @@ export default async function AuthCompletePage({
   const tokenHash = firstValue(params.token_hash);
   const type = firstValue(params.type);
   const nextPath = safeAuthNextPath(requestedNext ?? null);
+  const failed = Boolean(params.error || params.error_code);
 
-  if (tokenHash && type === "recovery") {
+  if (!failed && tokenHash && type === "recovery") {
     return (
       <AuthPageShell
         description="Confirm that you want to continue before we verify this one-time link."
@@ -44,12 +47,5 @@ export default async function AuthCompletePage({
     );
   }
 
-  return (
-    <AuthPageShell
-      description="Keep this page open."
-      title="Signing you in"
-    >
-      <ImplicitSessionCompletion nextPath={nextPath} />
-    </AuthPageShell>
-  );
+  return <ImplicitSessionCompletion key={`${failed}:${nextPath}`} failed={failed} nextPath={nextPath} />;
 }

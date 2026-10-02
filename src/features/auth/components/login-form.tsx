@@ -16,13 +16,14 @@ function FieldError({ errors, id }: { errors?: string[]; id: string }) {
   return <p className="mt-2 text-xs leading-5 text-danger" id={id}>{errors[0]}</p>;
 }
 
-export function LoginForm() {
+export function LoginForm({ nextPath }: { nextPath?: string }) {
   const [state, action, pending] = useActionState(loginAction, initialState);
   const emailErrorId = useId();
   const passwordErrorId = useId();
 
   return (
     <form action={action} className="space-y-5">
+      <input name="next" type="hidden" value={nextPath ?? "/workspace"} />
       {state.message ? (
         <p
           className="rounded-md border border-danger/25 bg-danger-soft px-3.5 py-3 text-sm leading-5 text-danger"

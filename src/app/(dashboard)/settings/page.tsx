@@ -14,7 +14,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
     : null;
   const href = legacyHref ?? getSettingsLandingHref(context.role);
 
-  redirect(href ?? "/no-access");
+  redirect(href ?? "/no-access?reason=capability");
 }
 
 function legacySectionHref(value: string | string[] | undefined) {

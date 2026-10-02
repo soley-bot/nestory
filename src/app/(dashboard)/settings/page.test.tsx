@@ -38,14 +38,14 @@ describe("SettingsPage", () => {
 
     await expect(
       SettingsPage({ searchParams: Promise.resolve({}) }),
-    ).rejects.toThrow("redirect:/no-access");
+    ).rejects.toThrow("redirect:/no-access?reason=capability");
   });
 
-  it("sends roles without Settings capability to no access", async () => {
-    requireWorkspaceContext.mockResolvedValue({ role: "operations_manager" });
+  it.each(["operations_manager", "custom"])("explains the Settings capability denial for %s", async (role) => {
+    requireWorkspaceContext.mockResolvedValue({ role });
 
     await expect(
       SettingsPage({ searchParams: Promise.resolve({}) }),
-    ).rejects.toThrow("redirect:/no-access");
+    ).rejects.toThrow("redirect:/no-access?reason=capability");
   });
 });
