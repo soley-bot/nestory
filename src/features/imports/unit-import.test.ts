@@ -3,11 +3,15 @@ import {
   autoMapUnitImportHeaders,
   buildUnitImportPreviewRows,
   getUnitImportCleanupItems,
+  getUnitImportStats,
   mergeUnitImportUpdate,
   parseCsv,
   toCommitRows,
 } from "@/features/imports/unit-import";
-import type { ImportPropertyOption } from "@/features/imports/import.types";
+import type {
+  ImportPropertyOption,
+  UnitImportPreviewRow,
+} from "@/features/imports/import.types";
 
 const properties: ImportPropertyOption[] = [
   {
@@ -19,6 +23,67 @@ const properties: ImportPropertyOption[] = [
 ];
 
 describe("unit import", () => {
+  it("returns empty diagnostics for no preview rows", () => {
+    expect(getUnitImportStats([])).toStrictEqual({
+      errorCount: 0,
+      readyCount: 0,
+      totalCount: 0,
+      warningCount: 0,
+    });
+    expect(getUnitImportCleanupItems([])).toStrictEqual([]);
+  });
+
+  it("counts rows once per severity and keeps warning-only rows ready without mutation", () => {
+    const rows = [
+      frozenUnitPreviewRow({
+        issues: [
+          { level: "error", message: "Missing property" },
+          { level: "error", message: "Missing unit" },
+          { level: "warning", message: "Missing rent" },
+        ],
+      }),
+      frozenUnitPreviewRow({
+        issues: [
+          { level: "warning", message: "Missing rent" },
+          { level: "warning", message: "Preview-only field" },
+        ],
+      }),
+      frozenUnitPreviewRow(),
+    ];
+    Object.freeze(rows);
+
+    expect(getUnitImportStats(rows)).toStrictEqual({
+      errorCount: 1,
+      readyCount: 2,
+      totalCount: 3,
+      warningCount: 2,
+    });
+  });
+
+  it.each([
+    ["CTR", "12A", "CTR", "12A"],
+    ["", "", "Not mapped", "Not mapped"],
+    [" ", "\t", " ", "\t"],
+  ])("preserves cleanup labels %j and %j without mutation", (propertyLabel, unitNumber, expectedProperty, expectedUnit) => {
+    const rows = [frozenUnitPreviewRow({
+      issues: [{ level: "warning", message: "Missing rent" }],
+      propertyLabel,
+      sourceRowNumber: 7,
+      unitNumber,
+    })];
+    Object.freeze(rows);
+
+    expect(getUnitImportCleanupItems(rows)).toStrictEqual([{
+      actionHref: undefined,
+      actionLabel: undefined,
+      level: "warning",
+      message: "Missing rent",
+      propertyLabel: expectedProperty,
+      sourceRowNumber: 7,
+      unitNumber: expectedUnit,
+    }]);
+  });
+
   it("rejects CSVs with more than 500 data rows before building preview records", () => {
     const csv = [
       "Property Code,Unit no.",
@@ -253,3 +318,37 @@ describe("unit import", () => {
     );
   });
 });
+
+function frozenUnitPreviewRow(
+  overrides: Partial<UnitImportPreviewRow> = {},
+): UnitImportPreviewRow {
+  const row: UnitImportPreviewRow = {
+    actionLabel: "Create or update",
+    currentRentAmount: null,
+    floor: "",
+    inclusionLabel: "",
+    issues: [],
+    mappedFields: {
+      currentRentAmount: false,
+      floor: false,
+      sizeSqm: false,
+      status: false,
+    },
+    propertyId: "",
+    propertyLabel: "CTR",
+    raw: {},
+    remark: "",
+    sizeSqm: null,
+    sourceRowNumber: 2,
+    status: "vacant",
+    typeLabel: "",
+    unitNumber: "12A",
+    ...overrides,
+  };
+  row.issues.forEach((issue) => Object.freeze(issue));
+  Object.freeze(row.issues);
+  Object.freeze(row.mappedFields);
+  Object.freeze(row.raw);
+  Object.freeze(row);
+  return row;
+}
