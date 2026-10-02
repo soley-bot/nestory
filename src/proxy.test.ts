@@ -87,6 +87,19 @@ describe("proxy", () => {
     createServerClient.mockReturnValue({ auth: { getClaims } });
   });
 
+  it.each([
+    ["/properties?status=active", "/properties?status=active"],
+    ["/accept-invite?invitation=11111111-1111-4111-8111-111111111111", "/accept-invite?invitation=11111111-1111-4111-8111-111111111111"],
+    ["//evil.test", "/workspace"],
+    ["/login?next=/properties", "/workspace"],
+    ["/auth/confirm?token_hash=test", "/workspace"],
+  ])("resumes an authenticated login visit only at a safe page: %s", async (next, expected) => {
+    getClaims.mockResolvedValue({ data: { claims: { sub: "user-1" } }, error: null });
+    const response = await proxy(new NextRequest(`https://app.nestory-kh.com/login?${new URLSearchParams({ next })}`));
+    expect(response.headers.get("location")).toBe(`https://app.nestory-kh.com${expected}`);
+    expectAuthRefreshHeaders(response);
+  });
+
   it("keeps refreshed Auth cookies valid on company subdomains", async () => {
     process.env.APP_ROOT_DOMAIN = "nestory-kh.com";
     getClaims.mockResolvedValue({ data: { claims: null }, error: null });
@@ -131,7 +144,7 @@ describe("proxy", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
-      "http://localhost:3000/login",
+      "http://localhost:3000/login?next=%2Ftasks%3Freview%3Dopen",
     );
     expect(response.headers.get("x-action-redirect")).toBeNull();
     expectAuthRefreshHeaders(response);
@@ -146,7 +159,7 @@ describe("proxy", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
-      "https://app.nestory-kh.com/login",
+      "https://app.nestory-kh.com/login?next=%2Ftasks%3Freview%3Dopen",
     );
     expect(response.headers.get("x-action-redirect")).toBeNull();
     expect(response.headers.get("x-frame-options")).toBe("DENY");
@@ -165,7 +178,7 @@ describe("proxy", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
-    expect(response.headers.get("x-action-redirect")).toBe("/login;replace");
+    expect(response.headers.get("x-action-redirect")).toBe("/login?next=%2Fsettings%2Forganization;replace");
     expect(response.headers.get("content-type")).toBe("text/plain");
     expect(response.headers.get("x-frame-options")).toBe("DENY");
     expect(response.headers.get("content-security-policy")).toContain(
@@ -186,7 +199,7 @@ describe("proxy", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
-    expect(response.headers.get("x-action-redirect")).toBe("/login;replace");
+    expect(response.headers.get("x-action-redirect")).toBe("/login?next=%2Fsettings%2Forganization;replace");
     expect(response.headers.get("content-type")).toBe("text/plain");
     expect(response.headers.get("x-frame-options")).toBe("DENY");
     expectInvalidRefreshStatePreserved(response);
@@ -217,7 +230,7 @@ describe("proxy", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("x-action-redirect")).toBe("/login;replace");
+    expect(response.headers.get("x-action-redirect")).toBe("/login?next=%2Fsettings%2Forganization;replace");
     expect(response.cookies.get("sb-refresh")?.value).toBe("rotated");
     expect(response.cookies.get("sb-stale")?.value).toBe("");
     expect(response.cookies.get("sb-stale")?.maxAge).toBe(0);
@@ -318,10 +331,10 @@ describe("proxy", () => {
       return { data: { claims: null }, error: new Error("expired") };
     });
 
-    const response = await proxy(new NextRequest("https://app.nestory-kh.com/tasks"));
+    const response = await proxy(new NextRequest("https://app.nestory-kh.com/tasks?review=open"));
 
     expect(response.headers.get("location")).toBe(
-      "https://app.nestory-kh.com/login",
+      "https://app.nestory-kh.com/login?next=%2Ftasks%3Freview%3Dopen",
     );
     expect(response.cookies.get("sb-stale")?.value).toBe("");
     expect(response.headers.get("cache-control")).toBe(

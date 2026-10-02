@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getAuthCookieOptions } from "@/lib/auth/tenant";
 import { getSupabaseEnv } from "@/lib/db/env";
 import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
+import { getLoginPath, safeLoginNextPath } from "@/lib/auth/login-redirect";
 import {
   BROWSER_SECURITY_HEADERS,
   buildContentSecurityPolicy,
@@ -36,8 +37,12 @@ function redirectToLogin(
   currentResponse: NextResponse,
 ) {
   const url = request.nextUrl.clone();
-  url.pathname = "/login";
-  url.search = "";
+  const loginUrl = new URL(
+    getLoginPath(`${request.nextUrl.pathname}${request.nextUrl.search}`),
+    request.url,
+  );
+  url.pathname = loginUrl.pathname;
+  url.search = loginUrl.search;
   const redirect = isServerActionRequest(request)
     ? createSecureServerActionRedirect(
       url,
@@ -54,8 +59,14 @@ function redirectToWorkspace(
   currentResponse: NextResponse,
 ) {
   const url = request.nextUrl.clone();
-  url.pathname = WORKSPACE_ENTRY_PATH;
-  url.search = "";
+  const destination = new URL(
+    request.nextUrl.pathname === "/login"
+      ? safeLoginNextPath(request.nextUrl.searchParams.get("next"))
+      : WORKSPACE_ENTRY_PATH,
+    request.url,
+  );
+  url.pathname = destination.pathname;
+  url.search = destination.search;
   return applyAuthNoStoreHeaders(
     createSecureRedirect(url, currentResponse, contentSecurityPolicy),
   );
@@ -158,7 +169,7 @@ function createSecureServerActionRedirect(
   const redirect = new NextResponse(null, { status: 200 });
   copyRedirectResponseHeaders(currentResponse, redirect);
   redirect.headers.set("content-type", "text/plain");
-  redirect.headers.set("x-action-redirect", `${url.pathname};replace`);
+  redirect.headers.set("x-action-redirect", `${url.pathname}${url.search};replace`);
   for (const cookie of currentResponse.cookies.getAll()) {
     redirect.cookies.set(cookie);
   }

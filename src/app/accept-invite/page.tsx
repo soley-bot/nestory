@@ -5,6 +5,7 @@ import { AcceptInvitationForm } from "@/features/auth/components/accept-invitati
 import { AuthPageShell } from "@/features/auth/components/auth-page-shell";
 import { getInvitationAcceptance } from "@/features/auth/invitation-acceptance";
 import { formatWorkspaceAccessRole } from "@/features/organization/access-status";
+import { getLoginPath, safeLoginNextPath } from "@/lib/auth/login-redirect";
 
 export default async function AcceptInvitePage({
   searchParams,
@@ -14,6 +15,7 @@ export default async function AcceptInvitePage({
   const params = await searchParams;
   const invitationId = typeof params.invitation === "string" ? params.invitation : "";
   const invitation = await getInvitationAcceptance(invitationId);
+  const nextPath = safeLoginNextPath(`/accept-invite?invitation=${invitationId}`);
 
   return (
     <AuthPageShell
@@ -24,7 +26,7 @@ export default async function AcceptInvitePage({
       {invitation.state === "signed_out" ? (
         <div className="space-y-4 text-sm leading-6 text-muted-foreground">
           <p>Open the link in your invitation email to continue.</p>
-          <Link className="font-semibold text-foreground" href="/login">
+          <Link className="font-semibold text-foreground" href={getLoginPath(nextPath)}>
             Sign in with an existing account
           </Link>
         </div>
@@ -39,6 +41,7 @@ export default async function AcceptInvitePage({
             .
           </p>
           <form action={signOutAction}>
+            <input name="next" type="hidden" value={nextPath} />
             <Button className="h-11 w-full" type="submit" variant="outline">
               Sign in with another account
             </Button>
