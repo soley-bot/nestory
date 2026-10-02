@@ -78,6 +78,77 @@ describe("finance routes", () => {
     });
   });
 
+  it.each(["expenses", "rent", "account", "transactions"])(
+    "keeps portfolio review scoped to authenticated finance context despite a %s query",
+    async view => {
+      requireFinanceContext.mockResolvedValue({
+        capabilities: {
+          canCorrectFinance: false,
+          canOperateFinance: true,
+          canReadFinanceReports: true,
+          canRecoverHistoricalRent: false,
+          canReviewExpense: true,
+          canReverseExpense: false,
+          canRetryCurrentRent: true,
+          canSubmitExpense: true,
+        },
+        isSuperAdmin: false,
+        organizationId: "assigned-organization",
+        organizationName: "Assigned workspace",
+        permissionKeys: new Set(["finance.view", "leases.view"]),
+        role: "finance_manager",
+        userId: "finance-manager-1",
+      });
+      const positions = [{ propertyId: "assigned-property", rentIncome: 1980, ownerExpense: 500, availableWithdrawal: 1040 }];
+      getFinanceOperationsData.mockResolvedValue({
+        expenseSubmissions: [], positions, rentGenerationExceptions: [], tenantInvoices: [],
+      });
+
+      renderToStaticMarkup(await FinancePage({ searchParams: Promise.resolve({
+        view, organizationId: "other-organization", propertyId: "other-property", action: "create",
+      }) }));
+
+      expect(requireFinanceContext).toHaveBeenCalledOnce();
+      expect(getFinanceOperationsData).toHaveBeenCalledExactlyOnceWith("assigned-organization", undefined, { includeExpenses: false });
+      expect(screenSpy).toHaveBeenCalledWith(expect.objectContaining({
+        canApproveOwnExpense: false,
+        canConfigureRent: false,
+        canCorrectFinance: false,
+        canManageFinanceCategories: false,
+        canRecordOwnerCash: true,
+        canRecordPayments: true,
+        canReadFinanceReports: true,
+        canRecoverRent: false,
+        canReviewExpense: true,
+        canReverseExpense: false,
+        canRetryCurrentRent: true,
+        canSubmitExpense: true,
+        canViewLeases: true,
+        canViewPropertyRecords: false,
+        currentUserId: "finance-manager-1",
+        isSuperAdmin: false,
+        organizationName: "Assigned workspace",
+        expenseSubmissions: [],
+        positions,
+        view: "work",
+      }));
+      expect(screenSpy.mock.calls[0][0]).not.toHaveProperty("initialExpenseIntent");
+      expect(screenSpy.mock.calls[0][0]).not.toHaveProperty("scope");
+    },
+  );
+
+  it.each(["Sign in required", "Finance access denied"])(
+    "does not read portfolio data when the finance guard rejects: %s",
+    async message => {
+      requireFinanceContext.mockRejectedValue(new Error(message));
+
+      await expect(FinancePage({ searchParams: Promise.resolve({ view: "expenses" }) })).rejects.toThrow(message);
+
+      expect(getFinanceOperationsData).not.toHaveBeenCalled();
+      expect(screenSpy).not.toHaveBeenCalled();
+    },
+  );
+
   it("uses bounded referenced activity on the owner account route", async () => {
     requireFinanceContext.mockResolvedValue({ capabilities: {}, organizationId: "organization-1", organizationName: "IPS", permissionKeys: new Set(["finance.view"]) });
     getFinanceOperationsData.mockResolvedValue({ propertyOptions: [{ id: "property-1", label: "Riverside" }] });

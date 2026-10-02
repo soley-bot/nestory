@@ -59,6 +59,7 @@ export function SelectControl(props: SelectControlProps) {
   } = props;
   const [uncontrolledValue, setUncontrolledValue] = useState(defaultValue);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const selectedValue = value ?? uncontrolledValue;
   const previousValueRef = useRef(selectedValue);
   const hasEmptyOption = options.some((option) => option.value === "");
@@ -77,6 +78,7 @@ export function SelectControl(props: SelectControlProps) {
   }, [selectedValue]);
 
   function handleValueChange(nextValue: string) {
+    if (disabled || triggerRef.current?.matches(":disabled")) return;
     if (value === undefined) {
       setUncontrolledValue(nextValue);
     }
@@ -101,6 +103,7 @@ export function SelectControl(props: SelectControlProps) {
         <SearchableSelectControl
           aria-describedby={ariaDescribedBy}
           aria-invalid={ariaInvalid}
+          aria-labelledby={ariaLabelledBy}
           aria-required={ariaRequired ?? required}
           ariaLabel={ariaLabel}
           className={cn(
@@ -130,6 +133,7 @@ export function SelectControl(props: SelectControlProps) {
         value={radixValue}
       >
         <SelectTrigger
+          ref={triggerRef}
           aria-describedby={ariaDescribedBy}
           aria-invalid={ariaInvalid}
           aria-label={ariaLabel}

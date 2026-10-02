@@ -26,6 +26,7 @@ vi.mock("@/lib/db/server", () => ({
 import {
   archiveAssetPhotoAction,
   createAssetPhotoAction,
+  setAssetPhotoCoverAction,
 } from "@/features/photos/actions";
 import {
   invalidJpegFile,
@@ -116,6 +117,53 @@ describe("photo action authority and storage scope", () => {
     await archiveAssetPhotoAction(formData);
 
     expect(mocks.requirePermission).toHaveBeenCalledWith("properties.archive");
+  });
+
+  describe.each([
+    { action: setAssetPhotoCoverAction, permission: "properties.write", rpc: "set_asset_photo_cover", success: "Cover updated.", failure: "Could not set the cover. Try again." },
+    { action: archiveAssetPhotoAction, permission: "properties.archive", rpc: "archive_asset_photo", success: "Photo archived.", failure: "Could not archive the photo. Try again." },
+  ])("$rpc feedback", ({ action, permission, rpc, success, failure }) => {
+    it("returns confirmed success and revalidates the property and unit", async () => {
+      const unitId = "40000000-0000-4000-8000-000000000001";
+      mocks.registrationSingle.mockResolvedValueOnce({ data: { property_id: propertyId, unit_id: unitId }, error: null });
+      const form = new FormData();
+      form.set("photoId", photoId);
+      await expect(action(form)).resolves.toEqual({ message: success, status: "success" });
+      expect(mocks.requirePermission).toHaveBeenCalledWith(permission);
+      expect(mocks.rpc).toHaveBeenCalledWith(rpc, { p_organization_id: organizationId, p_photo_id: photoId });
+      expect(mocks.revalidatePath).toHaveBeenCalledWith(`/properties/${propertyId}`);
+      expect(mocks.revalidatePath).toHaveBeenCalledWith(`/units/${unitId}`);
+      expect(mocks.storageFrom).not.toHaveBeenCalled();
+    });
+
+    it("returns safe RPC errors without reporting success or revalidating", async () => {
+      mocks.registrationSingle.mockResolvedValueOnce({ data: { property_id: propertyId, unit_id: null }, error: null });
+      mocks.rpc.mockResolvedValueOnce({ error: { message: "private database detail" } });
+      const form = new FormData();
+      form.set("photoId", photoId);
+      await expect(action(form)).resolves.toEqual({ message: failure, status: "error" });
+      expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    });
+
+    it("rejects invalid IDs before querying or mutating", async () => {
+      const form = new FormData();
+      form.set("photoId", "invalid");
+      await expect(action(form)).resolves.toEqual({ message: "Choose a photo.", status: "error" });
+      expect(mocks.from).not.toHaveBeenCalled();
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it.each(["missing", "read failure"])("reports an unavailable photo on %s without mutating", async (reason) => {
+      mocks.registrationSingle.mockResolvedValueOnce({ data: null, error: reason === "read failure" ? { message: "private detail" } : null });
+      const form = new FormData();
+      form.set("photoId", photoId);
+      await expect(action(form)).resolves.toEqual({ message: "Photo unavailable. Refresh and try again.", status: "error" });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+      expect(mocks.revalidatePath).not.toHaveBeenCalled();
+      const query = mocks.from.mock.results[0].value;
+      expect(query.eq).toHaveBeenCalledWith("organization_id", organizationId);
+      expect(query.eq).toHaveBeenCalledWith("id", photoId);
+    });
   });
 
   it.each(["returned error", "thrown response loss", "missing response id"])(

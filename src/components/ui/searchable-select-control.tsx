@@ -24,6 +24,7 @@ export type SearchableSelectControlOption = {
 type SearchableSelectControlProps = {
   "aria-describedby"?: string;
   "aria-invalid"?: boolean | "false" | "true";
+  "aria-labelledby"?: string;
   "aria-required"?: boolean | "false" | "true";
   ariaLabel: string;
   className?: string;
@@ -42,6 +43,7 @@ type SearchableSelectControlProps = {
 export function SearchableSelectControl({
   "aria-describedby": ariaDescribedBy,
   "aria-invalid": ariaInvalid,
+  "aria-labelledby": ariaLabelledBy,
   "aria-required": ariaRequired,
   ariaLabel,
   className,
@@ -57,6 +59,9 @@ export function SearchableSelectControl({
   value,
 }: SearchableSelectControlProps) {
   const listboxId = useId();
+  const searchLabelId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const tabbingAwayRef = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const portalContainer = useDrawerPortalContainer();
   const [open, setOpen] = useState(false);
@@ -83,10 +88,13 @@ export function SearchableSelectControl({
         .includes(normalizedQuery),
     );
   }, [options, query]);
-  const activeOption = visibleOptions[activeIndex] ?? visibleOptions[0];
+  const activeOption = visibleOptions[activeIndex]?.disabled
+    ? visibleOptions.find((option) => !option.disabled)
+    : visibleOptions[activeIndex] ??
+      visibleOptions.find((option) => !option.disabled);
 
   function choose(option: SearchableSelectControlOption) {
-    if (option.disabled) {
+    if (option.disabled || disabled || triggerRef.current?.matches(":disabled")) {
       return;
     }
 
@@ -97,21 +105,33 @@ export function SearchableSelectControl({
   }
 
   function onSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    const enabledOptions = visibleOptions.filter((option) => !option.disabled);
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       const direction = event.key === "ArrowDown" ? 1 : -1;
-      setActiveIndex((current) =>
-        Math.max(0, Math.min(visibleOptions.length - 1, current + direction)),
-      );
+      const currentIndex = activeOption ? enabledOptions.indexOf(activeOption) : -1;
+      const nextOption =
+        enabledOptions[
+          Math.max(0, Math.min(enabledOptions.length - 1, currentIndex + direction))
+        ];
+      setActiveIndex(nextOption ? visibleOptions.indexOf(nextOption) : 0);
     } else if (event.key === "Home") {
       event.preventDefault();
-      setActiveIndex(0);
+      setActiveIndex(visibleOptions.indexOf(enabledOptions[0]));
     } else if (event.key === "End") {
       event.preventDefault();
-      setActiveIndex(Math.max(0, visibleOptions.length - 1));
+      setActiveIndex(
+        visibleOptions.indexOf(enabledOptions[enabledOptions.length - 1]),
+      );
     } else if (event.key === "Enter" && activeOption) {
       event.preventDefault();
       choose(activeOption);
+    } else if (event.key === "Tab") {
+      tabbingAwayRef.current = true;
+      triggerRef.current?.focus();
+      setOpen(false);
+      setQuery("");
+      setActiveIndex(0);
     }
   }
 
@@ -123,6 +143,11 @@ export function SearchableSelectControl({
       <Popover.Root
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen);
+          if (nextOpen) {
+            setActiveIndex(
+              Math.max(0, options.findIndex((option) => option.value === value)),
+            );
+          }
           if (!nextOpen) {
             setQuery("");
             setActiveIndex(0);
@@ -136,14 +161,26 @@ export function SearchableSelectControl({
             aria-describedby={ariaDescribedBy}
             aria-expanded={open}
             aria-haspopup="listbox"
+            aria-invalid={ariaInvalid}
             aria-label={ariaLabel}
+            aria-labelledby={ariaLabelledBy}
             aria-required={ariaRequired ?? required}
             className={cn(
-              "flex min-h-11 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-input bg-card px-3 py-2 text-left shadow-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60",
+              "flex min-h-11 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-input bg-card px-3 py-2 text-left shadow-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
               className,
             )}
             disabled={disabled}
             data-invalid={ariaInvalid === true || ariaInvalid === "true"}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                setActiveIndex(
+                  Math.max(0, options.findIndex((option) => option.value === value)),
+                );
+                setOpen(true);
+              }
+            }}
+            ref={triggerRef}
             role={triggerRole}
             type="button"
           >
@@ -171,10 +208,19 @@ export function SearchableSelectControl({
               event.preventDefault();
               searchRef.current?.focus();
             }}
+            onCloseAutoFocus={(event) => {
+              if (tabbingAwayRef.current) {
+                event.preventDefault();
+                tabbingAwayRef.current = false;
+              }
+            }}
+            onEscapeKeyDown={(event) => event.stopPropagation()}
             sideOffset={4}
           >
             <label className="relative block">
-              <span className="sr-only">Search {ariaLabel}</span>
+              <span className="sr-only" id={searchLabelId}>
+                {ariaLabelledBy ? "Search" : `Search ${ariaLabel}`}
+              </span>
               <Search
                 aria-hidden="true"
                 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -189,7 +235,11 @@ export function SearchableSelectControl({
                 aria-autocomplete="list"
                 aria-controls={listboxId}
                 aria-expanded={open}
+                aria-describedby={ariaDescribedBy}
                 aria-invalid={ariaInvalid}
+                aria-labelledby={
+                  ariaLabelledBy ? `${searchLabelId} ${ariaLabelledBy}` : undefined
+                }
                 className="h-9 w-full rounded-md border border-input bg-card pl-9 pr-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring"
                 onChange={(event) => {
                   setQuery(event.currentTarget.value);
@@ -220,12 +270,13 @@ export function SearchableSelectControl({
                       "flex min-h-11 w-full min-w-0 items-center gap-3 rounded px-2.5 py-2 text-left outline-none transition-colors hover:bg-muted focus-visible:bg-muted disabled:pointer-events-none disabled:opacity-50",
                       activeOption?.value === option.value && "bg-muted",
                     )}
-                    disabled={option.disabled}
+                    disabled={disabled || option.disabled}
                     id={`${listboxId}-${encodeURIComponent(option.value)}`}
                     key={option.value}
                     onClick={() => choose(option)}
                     onMouseEnter={() => setActiveIndex(index)}
                     role="option"
+                    tabIndex={-1}
                     type="button"
                   >
                     <span className="min-w-0 flex-1">

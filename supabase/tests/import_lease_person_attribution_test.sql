@@ -1,0 +1,218 @@
+BEGIN;
+
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+
+SELECT plan(21);
+
+CREATE TEMP TABLE import_lease_person_state (
+  property_id uuid,
+  unit_id uuid,
+  invalid_unit_id uuid,
+  run_id uuid,
+  result jsonb,
+  first_person jsonb,
+  second_person jsonb
+) ON COMMIT DROP;
+
+INSERT INTO import_lease_person_state DEFAULT VALUES;
+GRANT SELECT, UPDATE ON import_lease_person_state TO authenticated;
+
+INSERT INTO auth.users (
+  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
+  email_change_token_current, reauthentication_token, raw_app_meta_data,
+  raw_user_meta_data, created_at, updated_at
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000000',
+  'a7040000-0000-4000-8000-000000000002',
+  'authenticated', 'authenticated', 'import-lease-attribution@example.test',
+  extensions.crypt('import-lease-attribution', extensions.gen_salt('bf')), now(),
+  '', '', '', '', '', '',
+  '{"provider":"email","providers":["email"]}', '{}', now(), now()
+);
+
+INSERT INTO public.organizations(id, name, slug)
+VALUES ('a7040000-0000-4000-8000-000000000001', 'Import lease attribution', 'import-lease-attribution');
+
+INSERT INTO public.organization_members(organization_id, user_id, role)
+VALUES ('a7040000-0000-4000-8000-000000000001', 'a7040000-0000-4000-8000-000000000002', 'super_admin');
+
+INSERT INTO public.organization_branches(id, organization_id, name, code)
+VALUES ('a7040000-0000-4000-8000-000000000006', 'a7040000-0000-4000-8000-000000000001', 'Import attribution branch', 'IMPORT-ATTR');
+
+SELECT set_config('request.jwt.claim.sub', 'a7040000-0000-4000-8000-000000000002', true);
+
+INSERT INTO public.people(id, organization_id, display_name, primary_email, primary_phone, party_type, notes)
+VALUES
+  ('a7040000-0000-4000-8000-000000000003', 'a7040000-0000-4000-8000-000000000001', 'Shared Tenant Name', 'first-tenant@example.test', '+10000000003', 'individual', 'First tenant notes'),
+  ('a7040000-0000-4000-8000-000000000004', 'a7040000-0000-4000-8000-000000000001', 'Shared Tenant Name', 'second-tenant@example.test', '+10000000004', 'company', 'Second tenant notes');
+
+INSERT INTO public.person_roles(organization_id, person_id, role, status)
+VALUES
+  ('a7040000-0000-4000-8000-000000000001', 'a7040000-0000-4000-8000-000000000003', 'tenant', 'active'),
+  ('a7040000-0000-4000-8000-000000000001', 'a7040000-0000-4000-8000-000000000004', 'tenant', 'active');
+
+INSERT INTO public.person_branch_relationships(organization_id, person_id, branch_id)
+VALUES
+  ('a7040000-0000-4000-8000-000000000001', 'a7040000-0000-4000-8000-000000000003', 'a7040000-0000-4000-8000-000000000006'),
+  ('a7040000-0000-4000-8000-000000000001', 'a7040000-0000-4000-8000-000000000004', 'a7040000-0000-4000-8000-000000000006');
+
+SET LOCAL ROLE authenticated;
+
+UPDATE import_lease_person_state
+SET property_id = public.create_property_minimal(
+  'a7040000-0000-4000-8000-000000000001', 'a7040000-0000-4000-8000-000000000006',
+  'Import attribution property', 'IMP-ATTR', 'Apartment', NULL, NULL,
+  'import-attribution-property', NULL, NULL, NULL
+);
+
+SELECT public.set_property_rental_structure(
+  'a7040000-0000-4000-8000-000000000001',
+  (SELECT property_id FROM import_lease_person_state), 'multi_unit'
+);
+
+UPDATE import_lease_person_state
+SET unit_id = public.create_unit(
+    'a7040000-0000-4000-8000-000000000001', property_id, 'ATTR-01', NULL, NULL, NULL, NULL, 'vacant'),
+  invalid_unit_id = public.create_unit(
+    'a7040000-0000-4000-8000-000000000001', property_id, 'ATTR-02', NULL, NULL, NULL, NULL, 'vacant');
+
+UPDATE import_lease_person_state
+SET first_person = (SELECT to_jsonb(person) FROM public.people person WHERE id = 'a7040000-0000-4000-8000-000000000003'),
+  second_person = (SELECT to_jsonb(person) FROM public.people person WHERE id = 'a7040000-0000-4000-8000-000000000004');
+
+SET LOCAL ROLE authenticated;
+
+UPDATE import_lease_person_state
+SET run_id = (public.stage_import_run_v1(
+  'a7040000-0000-4000-8000-000000000001', 'leases', 'second-same-name-tenant.csv', 10::bigint, 'text/csv',
+  '["Tenant Name","Tenant Email","Rent"]', '{"tenantName":"Tenant Name","tenantEmail":"Tenant Email","monthlyRentAmount":"Rent"}',
+  pg_catalog.replace(pg_catalog.replace(
+    '[{"source_row_number":2,"row_status":"ready","action_label":"Create","raw_data":{"Tenant Name":"Shared Tenant Name","Tenant Email":"second-tenant@example.test","Rent":"1300"},"normalized_data":{"propertyId":"a7040000-0000-4000-8000-000000000005","unitId":"a7040000-0000-4000-8000-000000000007","tenantPersonId":"a7040000-0000-4000-8000-000000000004","tenantName":"Shared Tenant Name","tenantEmail":"second-tenant@example.test","leaseStartDate":"2033-01-01","leaseEndDate":"2033-12-31","monthlyRentAmount":"1300","rentDueDay":"5","paymentFrequency":"monthly","termStatus":"upcoming","depositAmount":"","status":"draft"},"issues":[]}]',
+    'a7040000-0000-4000-8000-000000000005', property_id::text),
+    'a7040000-0000-4000-8000-000000000007', unit_id::text)::jsonb
+) ->> 'runId')::uuid;
+
+UPDATE import_lease_person_state
+SET result = public.commit_generic_import_run(run_id, 'a7040000-0000-4000-8000-000000000001');
+
+SELECT is((SELECT result ->> 'status' FROM import_lease_person_state), 'committed', 'checked lease commit accepts the second same-name tenant resolved by email');
+SELECT is((SELECT row_status FROM public.import_rows WHERE import_run_id = (SELECT run_id FROM import_lease_person_state)), 'committed', 'the resolved tenant row is committed');
+SELECT is(
+  (SELECT primary_tenant_person_id FROM public.leases WHERE id = (SELECT result_lease_id FROM public.import_rows WHERE import_run_id = (SELECT run_id FROM import_lease_person_state))),
+  'a7040000-0000-4000-8000-000000000004'::uuid,
+  'the canonical lease points to the second same-name person'
+);
+SELECT is(
+  (SELECT jsonb_build_object('personId', party.person_id, 'sourceRowId', party.source_import_row_id, 'evidenceState', party.evidence_state, 'recordSource', party.record_source)
+   FROM public.lease_parties party JOIN public.import_rows rows ON party.id = rows.result_lease_party_id
+   WHERE rows.import_run_id = (SELECT run_id FROM import_lease_person_state)),
+  (SELECT jsonb_build_object('personId', 'a7040000-0000-4000-8000-000000000004'::uuid, 'sourceRowId', id, 'evidenceState', 'accepted', 'recordSource', 'imported_explicit')
+   FROM public.import_rows WHERE import_run_id = (SELECT run_id FROM import_lease_person_state)),
+  'accepted import party evidence carries the exact resolved tenant ID and source row'
+);
+SELECT is((SELECT count(*) FROM public.lease_parties WHERE organization_id = 'a7040000-0000-4000-8000-000000000001' AND person_id = 'a7040000-0000-4000-8000-000000000003'), 0::bigint, 'the first same-name person receives no lease party attribution');
+SELECT is((SELECT count(*) FROM public.leases WHERE organization_id = 'a7040000-0000-4000-8000-000000000001' AND primary_tenant_person_id = 'a7040000-0000-4000-8000-000000000003'), 0::bigint, 'the first same-name person receives no canonical lease attribution');
+SELECT is((SELECT to_jsonb(person) FROM public.people person WHERE id = 'a7040000-0000-4000-8000-000000000003'), (SELECT first_person FROM import_lease_person_state), 'lease import leaves the unselected same-name person unchanged');
+SELECT is((SELECT to_jsonb(person) FROM public.people person WHERE id = 'a7040000-0000-4000-8000-000000000004'), (SELECT second_person FROM import_lease_person_state), 'lease import preserves the selected tenant contact fields and company type');
+SELECT is(
+  (SELECT jsonb_build_object('unitId', occupancy.unit_id, 'sourceRowId', occupancy.source_import_row_id, 'evidenceState', occupancy.evidence_state)
+   FROM public.lease_occupancies occupancy JOIN public.import_rows rows ON occupancy.id = rows.result_lease_occupancy_id
+   WHERE rows.import_run_id = (SELECT run_id FROM import_lease_person_state)),
+  (SELECT jsonb_build_object('unitId', (SELECT unit_id FROM import_lease_person_state), 'sourceRowId', id, 'evidenceState', 'accepted')
+   FROM public.import_rows WHERE import_run_id = (SELECT run_id FROM import_lease_person_state)),
+  'lease attribution retains checked import occupancy scope and evidence'
+);
+SELECT is((SELECT count(*) FROM public.lease_occupancy_participants WHERE organization_id = 'a7040000-0000-4000-8000-000000000001'), 0::bigint, 'lease import does not infer person residence from primary party attribution');
+SELECT is(
+  (SELECT jsonb_build_object('rent', rent_amount, 'currency', rent_currency, 'dueDay', rent_due_day, 'frequency', payment_frequency, 'status', status)
+   FROM public.lease_terms WHERE lease_id = (SELECT result_lease_id FROM public.import_rows WHERE import_run_id = (SELECT run_id FROM import_lease_person_state))),
+  '{"rent":1300,"currency":"USD","dueDay":5,"frequency":"monthly","status":"upcoming"}'::jsonb,
+  'tenant attribution retains explicit authoritative rent amount, due day, frequency, and term status'
+);
+
+UPDATE import_lease_person_state
+SET run_id = (public.stage_import_run_v1(
+  'a7040000-0000-4000-8000-000000000001', 'leases', 'negative-rent-attribution.csv', 10::bigint, 'text/csv',
+  '["Tenant Name","Tenant Email","Rent"]', '{"tenantName":"Tenant Name","tenantEmail":"Tenant Email","monthlyRentAmount":"Rent"}',
+  pg_catalog.replace(pg_catalog.replace(
+    '[{"source_row_number":2,"row_status":"ready","action_label":"Create","raw_data":{"Tenant Name":"Shared Tenant Name","Tenant Email":"second-tenant@example.test","Rent":"-1"},"normalized_data":{"propertyId":"a7040000-0000-4000-8000-000000000005","unitId":"a7040000-0000-4000-8000-000000000008","tenantPersonId":"a7040000-0000-4000-8000-000000000004","tenantName":"Shared Tenant Name","tenantEmail":"second-tenant@example.test","leaseStartDate":"2033-01-01","leaseEndDate":"2033-12-31","monthlyRentAmount":"-1","rentDueDay":"5","paymentFrequency":"monthly","termStatus":"upcoming","depositAmount":"","status":"draft"},"issues":[]}]',
+    'a7040000-0000-4000-8000-000000000005', property_id::text),
+    'a7040000-0000-4000-8000-000000000008', invalid_unit_id::text)::jsonb
+) ->> 'runId')::uuid;
+
+UPDATE import_lease_person_state
+SET result = public.commit_generic_import_run(run_id, 'a7040000-0000-4000-8000-000000000001');
+
+SELECT is((SELECT result ->> 'status' FROM import_lease_person_state), 'failed', 'resolved tenant attribution retains the negative-rent safeguard');
+SELECT is((SELECT row_status FROM public.import_rows WHERE import_run_id = (SELECT run_id FROM import_lease_person_state)), 'failed', 'invalid financial terms fail the checked import row');
+SELECT is((SELECT count(*) FROM public.leases WHERE organization_id = 'a7040000-0000-4000-8000-000000000001' AND unit_id = (SELECT invalid_unit_id FROM import_lease_person_state)), 0::bigint, 'invalid financial terms leave no partial attributed lease');
+SELECT is((SELECT count(*) FROM public.lease_terms WHERE organization_id = 'a7040000-0000-4000-8000-000000000001'), 1::bigint, 'invalid financial terms leave no additional rent authority');
+
+RESET ROLE;
+INSERT INTO public.people(id, organization_id, display_name, primary_email, party_type)
+VALUES ('a7040000-0000-4000-8000-000000000009', 'a7040000-0000-4000-8000-000000000001',
+  U&'\0009\00A0Padded Lease Company\FEFF\2028', U&'\0009\00A0padded-lease@example.test\FEFF\2028', 'company');
+INSERT INTO public.person_roles(organization_id, person_id, role, status)
+VALUES ('a7040000-0000-4000-8000-000000000001', 'a7040000-0000-4000-8000-000000000009', 'tenant', 'active');
+INSERT INTO public.person_branch_relationships(organization_id, person_id, branch_id)
+VALUES ('a7040000-0000-4000-8000-000000000001', 'a7040000-0000-4000-8000-000000000009', 'a7040000-0000-4000-8000-000000000006');
+
+CREATE FUNCTION pg_temp.stage_padded_attribution_lease(p_mapping jsonb, p_raw jsonb, p_property_id uuid, p_unit_id uuid)
+RETURNS uuid LANGUAGE sql AS $$
+  SELECT (public.stage_import_run_v1(
+    'a7040000-0000-4000-8000-000000000001', 'leases', 'padded-tenant.csv', 10::bigint, 'text/csv',
+    '["Tenant ID","Tenant Name","Tenant Email","Rent"]', p_mapping,
+    jsonb_build_array(jsonb_build_object(
+      'source_row_number', 2, 'row_status', 'ready', 'action_label', 'Create', 'raw_data', p_raw,
+      'normalized_data', jsonb_build_object(
+        'propertyId', p_property_id, 'unitId', p_unit_id,
+        'tenantPersonId', 'a7040000-0000-4000-8000-000000000009',
+        'leaseStartDate', '2033-01-01', 'leaseEndDate', '2033-12-31',
+        'monthlyRentAmount', '1300', 'rentDueDay', '5', 'paymentFrequency', 'monthly',
+        'termStatus', 'upcoming', 'depositAmount', '', 'status', 'draft'
+      ), 'issues', '[]'::jsonb
+    ))
+  ) ->> 'runId')::uuid;
+$$;
+
+SET LOCAL ROLE authenticated;
+UPDATE import_lease_person_state SET unit_id = public.create_unit(
+  'a7040000-0000-4000-8000-000000000001', property_id, 'PAD-EMAIL', NULL, NULL, NULL, NULL, 'vacant');
+UPDATE import_lease_person_state SET run_id = pg_temp.stage_padded_attribution_lease(
+  '{"tenantName":"Tenant Name","tenantEmail":"Tenant Email"}',
+  jsonb_build_object('Tenant Name', U&'\0009\00A0Padded Lease Company\FEFF\2028',
+    'Tenant Email', U&'\0009\00A0padded-lease@example.test\FEFF\2028', 'Case', 'padded-lease-email'),
+  property_id, unit_id);
+UPDATE import_lease_person_state SET result = public.commit_generic_import_run(run_id, 'a7040000-0000-4000-8000-000000000001');
+SELECT is((SELECT result ->> 'status' FROM import_lease_person_state), 'committed', 'padded Lease email resolves the stored padded tenant email through public commit');
+SELECT is((SELECT primary_tenant_person_id FROM public.leases WHERE id = (SELECT result_lease_id FROM public.import_rows WHERE import_run_id = (SELECT run_id FROM import_lease_person_state))),
+  'a7040000-0000-4000-8000-000000000009'::uuid, 'padded Lease email retains the exact company tenant attribution');
+
+UPDATE import_lease_person_state SET unit_id = public.create_unit(
+  'a7040000-0000-4000-8000-000000000001', property_id, 'PAD-NAME', NULL, NULL, NULL, NULL, 'vacant');
+UPDATE import_lease_person_state SET run_id = pg_temp.stage_padded_attribution_lease(
+  '{"tenantName":"Tenant Name"}',
+  jsonb_build_object('Tenant Name', U&'\2029Padded Lease Company\3000', 'Case', 'padded-lease-name'),
+  property_id, unit_id);
+UPDATE import_lease_person_state SET result = public.commit_generic_import_run(run_id, 'a7040000-0000-4000-8000-000000000001');
+SELECT is((SELECT result ->> 'status' FROM import_lease_person_state), 'committed', 'padded Lease name resolves the stored padded tenant name through public commit');
+SELECT is((SELECT primary_tenant_person_id FROM public.leases WHERE id = (SELECT result_lease_id FROM public.import_rows WHERE import_run_id = (SELECT run_id FROM import_lease_person_state))),
+  'a7040000-0000-4000-8000-000000000009'::uuid, 'padded Lease name retains the exact company tenant attribution');
+
+UPDATE import_lease_person_state SET unit_id = public.create_unit(
+  'a7040000-0000-4000-8000-000000000001', property_id, 'PAD-ID', NULL, NULL, NULL, NULL, 'vacant');
+UPDATE import_lease_person_state SET run_id = pg_temp.stage_padded_attribution_lease(
+  '{"tenantPersonId":"Tenant ID","tenantName":"Tenant Name","tenantEmail":"Tenant Email"}',
+  jsonb_build_object('Tenant ID', U&'\0009\00A0a7040000-0000-4000-8000-000000000009\FEFF\2028',
+    'Tenant Name', U&'\2029Padded Lease Company\3000', 'Tenant Email', U&'\1680padded-lease@example.test\205F',
+    'Case', 'padded-lease-id'), property_id, unit_id);
+UPDATE import_lease_person_state SET result = public.commit_generic_import_run(run_id, 'a7040000-0000-4000-8000-000000000001');
+SELECT is((SELECT result ->> 'status' FROM import_lease_person_state), 'committed', 'padded explicit Lease ID and padded matching email pass the identity consistency check');
+SELECT is((SELECT primary_tenant_person_id FROM public.leases WHERE id = (SELECT result_lease_id FROM public.import_rows WHERE import_run_id = (SELECT run_id FROM import_lease_person_state))),
+  'a7040000-0000-4000-8000-000000000009'::uuid, 'padded explicit Lease ID retains the exact company tenant attribution');
+
+RESET ROLE;
+SELECT * FROM finish();
+ROLLBACK;

@@ -205,12 +205,14 @@ export async function createAssetPhotoAction(
   };
 }
 
-export async function setAssetPhotoCoverAction(formData: FormData) {
+export async function setAssetPhotoCoverAction(
+  formData: FormData,
+): Promise<PhotoActionState> {
   const context = await requirePermission("properties.write");
   const parsedPhotoId = photoIdSchema.safeParse(readString(formData, "photoId"));
 
   if (!parsedPhotoId.success) {
-    return;
+    return { message: "Choose a photo.", status: "error" };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -221,7 +223,7 @@ export async function setAssetPhotoCoverAction(formData: FormData) {
   );
 
   if (!pathContext) {
-    return;
+    return { message: "Photo unavailable. Refresh and try again.", status: "error" };
   }
 
   const { error } = await supabase.rpc("set_asset_photo_cover", {
@@ -229,20 +231,25 @@ export async function setAssetPhotoCoverAction(formData: FormData) {
     p_photo_id: parsedPhotoId.data,
   });
 
-  if (!error) {
-    revalidatePhotoPaths({
-      propertyId: pathContext.property_id,
-      unitId: pathContext.unit_id,
-    });
+  if (error) {
+    return { message: "Could not set the cover. Try again.", status: "error" };
   }
+
+  revalidatePhotoPaths({
+    propertyId: pathContext.property_id,
+    unitId: pathContext.unit_id,
+  });
+  return { message: "Cover updated.", status: "success" };
 }
 
-export async function archiveAssetPhotoAction(formData: FormData) {
+export async function archiveAssetPhotoAction(
+  formData: FormData,
+): Promise<PhotoActionState> {
   const context = await requirePermission("properties.archive");
   const parsedPhotoId = photoIdSchema.safeParse(readString(formData, "photoId"));
 
   if (!parsedPhotoId.success) {
-    return;
+    return { message: "Choose a photo.", status: "error" };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -253,7 +260,7 @@ export async function archiveAssetPhotoAction(formData: FormData) {
   );
 
   if (!pathContext) {
-    return;
+    return { message: "Photo unavailable. Refresh and try again.", status: "error" };
   }
 
   const { error } = await supabase.rpc("archive_asset_photo", {
@@ -261,12 +268,15 @@ export async function archiveAssetPhotoAction(formData: FormData) {
     p_photo_id: parsedPhotoId.data,
   });
 
-  if (!error) {
-    revalidatePhotoPaths({
-      propertyId: pathContext.property_id,
-      unitId: pathContext.unit_id,
-    });
+  if (error) {
+    return { message: "Could not archive the photo. Try again.", status: "error" };
   }
+
+  revalidatePhotoPaths({
+    propertyId: pathContext.property_id,
+    unitId: pathContext.unit_id,
+  });
+  return { message: "Photo archived.", status: "success" };
 }
 
 async function getPhotoPathContext(

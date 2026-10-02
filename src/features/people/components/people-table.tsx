@@ -45,7 +45,7 @@ export function PeopleTable({
         className={cn(
           displayMode === "cards"
             ? "grid auto-rows-max content-start gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
-            : "space-y-3 md:hidden",
+            : "workspace-gutter-x space-y-3 md:hidden",
         )}
       >
         {people.length === 0 ? (

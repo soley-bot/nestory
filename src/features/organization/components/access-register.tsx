@@ -94,22 +94,22 @@ export function AccessRegister({
         <div className="min-w-0 border-b px-3 pt-2 sm:px-4">
           <TabsList
             aria-label="Workspace access views"
-            className="max-w-full"
+            className="max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto"
             variant="line"
           >
-            <TabsTrigger className="gap-2 px-2.5" value="active">
+            <TabsTrigger className="h-8 flex-none gap-2 px-2.5" value="active">
               Active
               <Badge className="h-5 min-w-5 px-1.5 text-xs" tone="neutral">
                 {members.length}
               </Badge>
             </TabsTrigger>
-            <TabsTrigger className="gap-2 px-2.5" value="invitations">
+            <TabsTrigger className="h-8 flex-none gap-2 px-2.5" value="invitations">
               Invitations
               <Badge className="h-5 min-w-5 px-1.5 text-xs" tone="neutral">
                 {invitations.length}
               </Badge>
             </TabsTrigger>
-            <TabsTrigger className="gap-2 px-2.5" value="no_access">
+            <TabsTrigger className="h-8 flex-none gap-2 px-2.5" value="no_access">
               No access
               <Badge className="h-5 min-w-5 px-1.5 text-xs" tone="neutral">
                 {noAccessStaff.length}
@@ -117,7 +117,7 @@ export function AccessRegister({
             </TabsTrigger>
           </TabsList>
 
-          <div className="grid gap-2 py-3 sm:grid-cols-[minmax(14rem,1fr)_11rem_11rem]">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-2 py-3">
             <label className="relative min-w-0">
               <span className="sr-only">Search workspace access</span>
               <Search
