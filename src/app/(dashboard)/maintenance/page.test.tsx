@@ -27,6 +27,51 @@ describe("MaintenancePage", () => {
     getMaintenanceScreenData.mockReset();
     requireOperationsManagementContext.mockReset();
     requirePermission.mockReset();
+    requirePermission.mockResolvedValue({
+      branchId: "branch-1", isSuperAdmin: false, organizationId: "organization-1",
+      permissionKeys: new Set(["maintenance.view"]), personId: "person-1", role: "custom",
+    });
+    getMaintenanceScreenData.mockResolvedValue({
+      branchOptions: [], cases: [], pagination: {}, propertyOptions: [], staffOptions: [],
+      summary: {}, unitOptions: [], vendorOptions: [],
+    });
+  });
+
+  it.each(["list", "board", "calendar", "templates"])("preserves explicit All and Open on the %s view", async (view) => {
+    for (const review of ["all", "open"]) {
+      await MaintenancePage({ searchParams: Promise.resolve({ view, review }) });
+      expect(getMaintenanceScreenData).toHaveBeenLastCalledWith(
+        "organization-1", expect.objectContaining({ view, review }), expect.any(Object),
+        expect.any(Object), { includeQueueCounts: true },
+      );
+    }
+  });
+
+  it.each([
+    ["list", "open", 25], ["board", "work_orders", 25],
+    ["calendar", "scheduled", 100], ["templates", "recurring", 25],
+  ])("preserves the implicit %s preset", async (view, review, pageSize) => {
+    await MaintenancePage({ searchParams: Promise.resolve({ view }) });
+    expect(getMaintenanceScreenData).toHaveBeenLastCalledWith(
+      "organization-1", expect.objectContaining({ view, review, pageSize }), expect.any(Object),
+      expect.any(Object), { includeQueueCounts: true },
+    );
+  });
+
+  it("preserves a status-only Completed destination", async () => {
+    await MaintenancePage({ searchParams: Promise.resolve({ status: "completed" }) });
+    expect(getMaintenanceScreenData).toHaveBeenCalledWith(
+      "organization-1", expect.objectContaining({ review: "all", status: "completed", view: "list" }),
+      expect.any(Object), expect.any(Object), { includeQueueCounts: true },
+    );
+  });
+
+  it.each(["unsupported", "", []])("keeps the view preset for an invalid review (%s)", async (review) => {
+    await MaintenancePage({ searchParams: Promise.resolve({ view: "board", review }) });
+    expect(getMaintenanceScreenData).toHaveBeenCalledWith(
+      "organization-1", expect.objectContaining({ review: "work_orders" }), expect.any(Object),
+      expect.any(Object), { includeQueueCounts: true },
+    );
   });
 
   it("allows branch-scoped maintenance readers onto the cases surface", async () => {
@@ -65,6 +110,7 @@ describe("MaintenancePage", () => {
       expect.any(Object),
       expect.objectContaining({ dataScope: "branch", workflowMode: "coordinator" }),
       expect.objectContaining({ canAssignCase: false }),
+      { includeQueueCounts: true },
     );
   });
 });
