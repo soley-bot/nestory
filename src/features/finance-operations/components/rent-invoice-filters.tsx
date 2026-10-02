@@ -1,11 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SearchCombo } from "@/components/ui/search-combo";
-import { useRegisterSearch } from "@/components/ui/use-register-search";
+import { useFilterNavigation } from "@/components/data/use-filter-navigation";
 import { matchesSearchText } from "@/lib/search/text";
 import { SelectControl } from "@/components/ui/select-control";
 import type { PropertyFinancePosition, TenantInvoiceSummary } from "@/features/finance-operations/finance-operations.types";
@@ -65,16 +65,15 @@ export function RentInvoiceFilterBar({
   invoices: TenantInvoiceSummary[];
   resultCount: number;
 }) {
-  const pathname = usePathname();
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const filters = getRentInvoiceFilters(searchParams);
+  const navigation = useFilterNavigation(getRentInvoiceFilters(searchParams).query, "q");
+  const filters = getRentInvoiceFilters(navigation.params ?? searchParams);
   const visibleInvoices = invoices.filter(isVisibleTenantInvoice);
   const propertyOptions = uniqueRentPropertyOptions(visibleInvoices);
   const activeAdvancedFilterCount = countAdvancedFilters(filters);
   const filtersActive = filters.query.length > 0 || activeAdvancedFilterCount > 0;
-  const replaceFilters = (updates: Record<string, string>) => {
-    const nextParams = new URLSearchParams(searchParams.toString());
+  const replaceFilters = (updates: Record<string, string>, resetSearch = false) => {
+    const nextParams = new URLSearchParams((navigation.params ?? searchParams).toString());
     for (const [key, value] of Object.entries(updates)) {
       if (!value || value === "all" || value === "default") {
         nextParams.delete(key);
@@ -82,11 +81,16 @@ export function RentInvoiceFilterBar({
         nextParams.set(key, value);
       }
     }
-    const query = nextParams.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    if (resetSearch) navigation.reset(nextParams);
+    else navigation.update(params => {
+      for (const key of Object.keys(updates)) {
+        const value = nextParams.get(key);
+        if (value === null) params.delete(key); else params.set(key, value);
+      }
+    });
   };
 
-  const search = useRegisterSearch(filters.query, (value) => replaceFilters({ q: value }));
+  const { search } = navigation;
 
   return (
     <>
@@ -111,7 +115,7 @@ export function RentInvoiceFilterBar({
                   q: "",
                   sort: "default",
                   status: "all",
-                })
+                }, true)
               }
               size="sm"
               variant="ghost"

@@ -1,11 +1,9 @@
 "use client";
 
 import * as Popover from "@radix-ui/react-popover";
-import { useTransition } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { RotateCcw, SlidersHorizontal } from "lucide-react";
-import { useRegisterSearch } from "@/components/ui/use-register-search";
+import type { FilterNavigation } from "@/components/data/use-filter-navigation";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import {
@@ -13,28 +11,28 @@ import {
   DEFAULT_PEOPLE_PAGE_SIZE,
   DEFAULT_PEOPLE_SORT,
   PEOPLE_PAGE_SIZE_OPTIONS,
+  parsePeopleSearchParams,
 } from "@/features/people/people.filters";
 import type { PeopleViewQuery } from "@/features/people/people.types";
 import { cn } from "@/lib/utils";
 
 type PeopleFiltersProps = {
+  navigation: FilterNavigation;
   resetHref: string;
   searchPlaceholder?: string;
   viewQuery: PeopleViewQuery;
 };
 
 export function PeopleFilters({
+  navigation,
   resetHref,
   searchPlaceholder = "Search name, contact, property or unit",
-  viewQuery,
+  viewQuery: appliedViewQuery,
 }: PeopleFiltersProps) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
-  const search = useRegisterSearch(viewQuery.query, (value) =>
-    replaceParam("query", value, ""),
-  );
+  const { isPending, search } = navigation;
+  const viewQuery = navigation.params
+    ? parsePeopleSearchParams(Object.fromEntries(navigation.params))
+    : appliedViewQuery;
   const activeFilters = [
     viewQuery.status !== "all",
     viewQuery.archiveState !== DEFAULT_PEOPLE_ARCHIVE_STATE,
@@ -47,21 +45,9 @@ export function PeopleFilters({
   const compactSelectClassName = "h-8 w-full px-2 text-sm";
 
   function replaceParam(name: string, value: string, defaultValue: string) {
-    const nextParams = new URLSearchParams(searchParams.toString());
-
-    if (value === defaultValue || value.trim() === "") {
-      nextParams.delete(name);
-    } else {
-      nextParams.set(name, value);
-    }
-
-    nextParams.delete("page");
-    const queryString = nextParams.toString();
-
-    startTransition(() => {
-      router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
-        scroll: false,
-      });
+    navigation.update(nextParams => {
+      if (value === defaultValue || value.trim() === "") nextParams.delete(name);
+      else nextParams.set(name, value);
     });
   }
 
@@ -120,6 +106,8 @@ export function PeopleFilters({
                         <Link
                           className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                           href={resetHref}
+                          data-filter-reset
+                          onNavigate={event => { event.preventDefault(); navigation.reset(new URLSearchParams(resetHref.split("?")[1]), "push"); }}
                           scroll={false}
                         >
                           <RotateCcw size={13} />
@@ -230,6 +218,8 @@ export function PeopleFilters({
                 aria-label="Reset people filters"
                 className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-card px-2 text-primary transition-colors hover:bg-muted hover:text-primary"
                 href={resetHref}
+                data-filter-reset
+                onNavigate={event => { event.preventDefault(); navigation.reset(new URLSearchParams(resetHref.split("?")[1]), "push"); }}
                 scroll={false}
                 title="Reset filters"
               >

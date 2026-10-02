@@ -485,7 +485,7 @@ describe("PropertyScreen redesign contract", () => {
   it("keeps search visible and discloses the existing advanced filters", () => {
     renderProperties();
 
-    expect(screen.getByRole("textbox", { name: "Search properties" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Search properties" })).toBeTruthy();
     expect(
       screen.queryByRole("combobox", { name: "Filter by status" }),
     ).toBeNull();
@@ -523,7 +523,7 @@ describe("PropertyScreen redesign contract", () => {
     expect(toolbar).not.toBeNull();
     expect(toolbar!.className).toContain("workspace-gutter-x");
     expect(
-      within(surface!).getByRole("textbox", { name: "Search properties" }),
+      within(surface!).getByRole("combobox", { name: "Search properties" }),
     ).toBeTruthy();
     expect(frame).not.toBeNull();
     expect(frame!.className).toContain("workspace-gutter-x");
