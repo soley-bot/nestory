@@ -42,6 +42,15 @@ describe("register navigation", () => {
     expect(result.current.search.query).toBe("Riverside");
     expect(result.current.pendingParams?.get("query")).toBe("Riverside");
     expect(navigation.replace).toHaveBeenLastCalledWith(latest, { scroll: false });
+    act(() => result.current.search.onQueryChange("Riverton"));
+    navigation.searchParams = new URLSearchParams(latest.split("?")[1]);
+    rerender();
+    expect(result.current.search.query).toBe("Riverton");
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    expect(navigation.replace).toHaveBeenLastCalledWith(
+      "/units?propertyId=home&pageSize=25&query=Riverton",
+      { scroll: false },
+    );
   });
 
   it("retains the latest criteria when an older response arrives last", () => {

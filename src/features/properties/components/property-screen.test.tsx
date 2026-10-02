@@ -114,6 +114,21 @@ afterEach(() => {
 });
 
 describe("PropertyScreen redesign contract", () => {
+  it("cancels newer typing when removing the Search filter before a response", async () => {
+    vi.useFakeTimers();
+    navigation.searchParams = new URLSearchParams("query=River&status=active");
+    const view = renderProperties({ viewQuery: { ...defaultViewQuery, query: "River", status: "active" } });
+    fireEvent.change(screen.getByLabelText("Search properties", { selector: "input" }), { target: { value: "Riverside" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+    fireEvent.click(screen.getByTitle("Remove Search filter"));
+    await act(() => vi.advanceTimersByTimeAsync(1500));
+    expect(navigation.replace).toHaveBeenCalledTimes(1);
+    expect(navigation.replace).toHaveBeenLastCalledWith("/properties?status=active", { scroll: false });
+    navigation.searchParams = new URLSearchParams("status=active");
+    view.rerenderView({ ...defaultViewQuery, status: "active" });
+    expect(screen.getByLabelText<HTMLInputElement>("Search properties", { selector: "input" }).value).toBe("");
+  });
+
   it("reverses the net sort when clicked twice before a response arrives", () => {
     renderProperties();
     const sort = screen.getByRole("button", { name: "Sort properties by net" });
@@ -160,12 +175,12 @@ describe("PropertyScreen redesign contract", () => {
   it("discards an unsent search when navigation changes scope with the same query", async () => {
     vi.useFakeTimers();
     const view = renderProperties();
-    fireEvent.change(screen.getByRole("textbox", { name: "Search properties" }), {
+    fireEvent.change(screen.getByLabelText("Search properties", { selector: "input" }), {
       target: { value: "Riverside" },
     });
     navigation.searchParams = new URLSearchParams("status=inactive");
     view.rerenderView({ ...defaultViewQuery, status: "inactive" });
-    expect(screen.getByRole<HTMLInputElement>("textbox", { name: "Search properties" }).value).toBe("");
+    expect(screen.getByLabelText<HTMLInputElement>("Search properties", { selector: "input" }).value).toBe("");
     await act(() => vi.advanceTimersByTimeAsync(600));
     expect(navigation.replace).not.toHaveBeenCalled();
     vi.useRealTimers();

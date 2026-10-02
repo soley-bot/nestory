@@ -52,6 +52,7 @@ export function useRegisterNavigation(appliedQuery: string) {
   const synchronizeCommitted = useEffectEvent(() => {
     synchronize();
     if (currentNavigation.target !== null && currentNavigation.target !== committed) {
+      search.expectResponse(new URLSearchParams(currentNavigation.target).get("query") ?? "");
       navigate(currentNavigation.target);
     }
   });

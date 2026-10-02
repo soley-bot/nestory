@@ -193,13 +193,14 @@ export function PropertyFilters({
                             <ActiveFilterChip
                               key={filter.param}
                               filter={filter}
-                              onRemove={() =>
+                              onRemove={() => {
+                                if (filter.param === "query") search.reset(filter.defaultValue);
                                 replaceParam(
                                   filter.param,
                                   filter.defaultValue,
                                   filter.defaultValue,
-                                )
-                              }
+                                );
+                              }}
                             />
                           ))
                         : null}
