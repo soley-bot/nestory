@@ -25,7 +25,6 @@ type SectionNavigation = {
   hash: string;
   fromUrl: string;
   href?: string;
-  behavior: ScrollBehavior;
 };
 
 export function LandingHeader({
@@ -57,7 +56,7 @@ export function LandingHeader({
       }
       target.focus({ preventScroll: true });
       if (navigation.hash) {
-        target.scrollIntoView({ block: "start", behavior: navigation.behavior });
+        target.scrollIntoView({ block: "start", behavior: "instant" });
       }
     });
   }, [cancelScroll]);
@@ -65,7 +64,6 @@ export function LandingHeader({
   useEffect(() => {
     function handleHistory() {
       cancelScroll();
-      window.scrollTo({ left: window.scrollX, top: window.scrollY, behavior: "instant" });
       const hash = window.location.hash;
       const hasTarget = ["#workspace", "#operations"].includes(hash)
         && document.getElementById(hash.slice(1));
@@ -74,12 +72,11 @@ export function LandingHeader({
         const navigation: SectionNavigation = {
           hash,
           fromUrl: window.location.href,
-          behavior: "instant",
         };
         if (dialogPresent.current) pendingSection.current = navigation;
         else scrollToSection(navigation);
       } else if (!hash && window.location.pathname === "/" && !dialogPresent.current) {
-        scrollToSection({ hash, fromUrl: window.location.href, behavior: "instant" });
+        scrollToSection({ hash, fromUrl: window.location.href });
       }
       menuOpen.current = false;
       setIsOpen(false);
@@ -90,7 +87,6 @@ export function LandingHeader({
       scrollToSection({
         hash: window.location.hash,
         fromUrl: window.location.href,
-        behavior: "instant",
       });
     }
     return () => {
@@ -120,8 +116,6 @@ export function LandingHeader({
         hash,
         href,
         fromUrl: window.location.href,
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "instant" : "smooth",
       };
     }
     handleOpenChange(false);

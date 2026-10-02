@@ -72,11 +72,11 @@ describe("LandingHeader", () => {
     });
     runFrames();
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Open menu" }));
-    expect(window.scrollTo).toHaveBeenCalledWith({ left: 0, top: 0, behavior: "instant" });
+    expect(window.scrollTo).not.toHaveBeenCalled();
     expect(frames.size).toBe(0);
   });
 
-  it.each(["Workspace", "Operations"])("scrolls and focuses %s after the menu closes", async (label) => {
+  it.each(["Workspace", "Operations"])("immediately scrolls and focuses %s after the menu closes", async (label) => {
     const user = userEvent.setup();
     const targets = renderSections();
     const target = label === "Workspace" ? targets.workspace : targets.operations;
@@ -88,7 +88,7 @@ describe("LandingHeader", () => {
     runFrames();
     expect(window.location.hash).toBe(`#${label.toLowerCase()}`);
     expect(document.activeElement).toBe(target);
-    expect(target.scrollIntoView).toHaveBeenCalledWith({ block: "start", behavior: "smooth" });
+    expect(target.scrollIntoView).toHaveBeenCalledWith({ block: "start", behavior: "instant" });
   });
 
   it("supports keyboard selection of the current hash without adding history", async () => {

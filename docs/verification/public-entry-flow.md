@@ -1,49 +1,43 @@
 # Public landing and request flow
 
-Verified on 2026-10-01 in an isolated local checkout. These are local previews, not production screenshots or a release confirmation. Before images use main `eddf073c`; after images use this branch, rebased onto main `1254e43b` (PR183).
+Refreshed on 2026-10-02 in an isolated local checkout. These are local previews, not production screenshots or release confirmation. Before images retain the original main `eddf073c` baseline; after images were recaptured with the refreshed branch. The separate full-page redesign remains a concept awaiting direction approval.
 
 ## Changes
 
-- Workspace and Operations scroll and receive keyboard focus after the menu finishes closing. Reopening, unmounting, or changing history cancels stale navigation. Repeat links avoid duplicate history entries. Cross-page section links and direct hashes receive focus too.
-- Escape and Close preserve ordinary dialog focus restoration. Back to the hero returns focus to the menu button without overriding the browser's restored scroll position. The menu scrolls on short screens without overlapping the header.
-- The landing page and request introduction use shorter, concrete copy. The dashboard preview is labeled as sample data. The phone request form starts within the first screen, instead of below a long introduction.
-- Public forms retain entered details and the selected unit range after a rejected or interrupted submission. Invalid fields or the request error receive focus. Pending submissions are locked. Navigating between demo and information URLs selects the correct intent.
-- The confirmation no longer claims a follow-up has been queued. Demo scheduling and account setup are explicitly separate. The existing validation, rate limiter, honeypot behavior, and database command are unchanged.
+- Workspace and Operations scroll immediately and receive keyboard focus after the menu closes. Reopening, unmounting, or changing history cancels stale navigation. Repeated links avoid duplicate history entries. Cross-page links and direct hashes receive focus too.
+- Escape and Close restore focus to the menu button. Back to the hero restores focus without overriding native scroll restoration. The menu scrolls on short screens so its final link remains reachable.
+- The landing page and request introduction use shorter copy and clear actions. The dashboard is labeled as sample data. The phone request form starts within the first screen.
+- Public forms retain text and the selected unit range after rejected or interrupted requests. Invalid fields or the request error receive focus. Pending submissions are locked. Same-route demo and information links select the correct intent.
+- Confirmation does not claim a follow-up was queued. Demo scheduling and account setup are separate. Existing validation, rate limiting, honeypot behavior, and the database command are unchanged.
 
-## Evidence
+## Verification
 
-The earlier live audit reported a changed hash with the viewport left at the hero. That exact scroll failure did not reproduce in local development: the baseline scrolled to Workspace (`scrollY=1016`, section top `-16px`) but left focus on the hidden Open menu button. After the fix, focus is on the selected section. The existing reveal animation accounts for the 16px section offset.
+The October 1 audit reproduced the original failure on main `9e17336a`: Workspace changed the hash while leaving the viewport at `scrollY=0` and focus on Open menu. PR190 moved both viewport and focus to the section on desktop and phone.
 
-Local verification passed:
+The October 2 refresh found a history race in animated section scrolling. Pressing Back 100, 200, or 400 ms after the hash changed could leave the viewport hundreds of pixels down the page. Section links now scroll with explicit `behavior: "instant"`, and the history handler no longer cancels native restoration. At the same three timings, Chromium returned to `scrollY=0` with focus on Open menu. The two section regression tests failed before this change and passed afterward.
 
-- `npx vitest run src/features/marketing src/app/request/page.test.tsx`: 6 files, 36 tests.
+Validation commands:
+
+- `npx vitest run src/features/marketing src/app/request/page.test.tsx src/components/ui/select-control.test.tsx`: 7 files, 46 tests.
 - `npx tsc --noEmit` and `npm run lint`.
-- Repository secret scan and `git diff --check`.
-- Chromium at 1440×1000, 390×844, and 667×320: section viewport/focus, keyboard activation, Escape, repeated hash, Back/Forward, history while the menu is open, reduced motion, short-screen scrolling, and section links from the request page.
-- Both request intents: native required validation, server field validation, retained text and unit range, storage failure without false confirmation, and intent changes through same-route navigation.
+- `npm run security:secrets`, `npm run test:ui-copy`, and `git diff --check`. The earlier repository copy failures have been fixed on main.
 
-Submission checks used `landing-fixture@example.invalid` and an unconfigured local server. Accepted/pending confirmation states and database responses were tested with mocked actions/RPC fixtures. No real leads or customer records were submitted. Authenticated shared components, database/security configuration, and migrations were not modified.
+Chromium checks covered 1440x1000, 390x844, and 667x320:
 
-The repo-wide `test:ui-copy` check has two pre-existing failures, verified again on main `bd49dc1b` and left unchanged for the direction worker:
+- Section viewport and focus, keyboard activation, Escape and Close, repeated hash, native Back/Forward, Back and reopening during dismissal, reduced motion, short-screen menu scrolling, cross-page section links, and direct hashes.
+- Both request intents: native required validation, pending fieldset/select locking, duplicate-submit suppression, retained text and unit range after connection failure, focused errors, interrupted retry, no false confirmation, and same-route intent changes. Server validation and accepted/error responses also have mocked action/RPC tests.
 
-- `src/features/leases/actions.ts:1341` matches "Owner payment": `A related expense or owner payment has already used this rent. Review those linked transactions before saving. Nothing was changed.`
-- `src/features/reports/data/report-export-parity.test.ts:71` matches "Opening authority" in the test title: `shows unavailable opening authority rather than a fabricated zero or final balance`.
-
-Local development also reported blocked Next devtools styles and used fallback fonts because Google Fonts was unavailable; these captures do not establish production console or font behavior.
-
-## Follow-up internal review
-
-The branch was refreshed onto main `37571680`, including PR185 and PR187. Review reproduced a connection failure that threw out of the action and unmounted the form, losing entered details. The public form now catches that failure and displays "Request not confirmed", preserving the details for a retry without claiming whether the server saved the request. A regression test first failed on the original behavior and now passes, including a successful mocked retry. The pending test now also attempts a repeated submission and checks that only one action is called.
-
-Chromium checks for both request intents interrupted POST requests before they reached the server, confirmed retained text and unit range plus error focus, then retried against the unconfigured local server. No customer records were written. The neutral confirmation also omits the contact promise because the existing rate limiter uses that same response for limited requests. Rate limiting, honeypot behavior, validation, and database commands remain unchanged. The original before/after images remain representative of the initial landing and request screens; this review changes request error handling and confirmation text.
+All browser form POSTs were intercepted before reaching the server. Inputs used `landing-fixture@example.invalid`; no leads or customer records were written. Independent internal source review found no actionable issues, including after the history fix. The public preview inherits main's narrow-screen dashboard controls and shared select fixes; this PR does not modify authenticated shared components, auth/RLS, migrations, or security settings.
 
 ## Before and after
 
-| View | Before: local main | After: local branch |
+Before images use the original local main baseline. After images were recaptured on October 2 with the immediate-scroll fix. Captures wait for reveal animations and omit the local Next.js development overlay. The phone sample dashboard now includes main's stacked property/month controls. These captures do not establish production console or font behavior.
+
+| View | Before: local main | After: refreshed local branch |
 | --- | --- | --- |
 | Landing, desktop | ![Before landing desktop](../../artifacts/public-entry-flow/before-landing-desktop.png) | ![After landing desktop](../../artifacts/public-entry-flow/after-landing-desktop.png) |
 | Landing, phone | ![Before landing phone](../../artifacts/public-entry-flow/before-landing-phone.png) | ![After landing phone](../../artifacts/public-entry-flow/after-landing-phone.png) |
 | Request, desktop | ![Before request desktop](../../artifacts/public-entry-flow/before-request-desktop.png) | ![After request desktop](../../artifacts/public-entry-flow/after-request-desktop.png) |
 | Request, phone | ![Before request phone](../../artifacts/public-entry-flow/before-request-phone.png) | ![After request phone](../../artifacts/public-entry-flow/after-request-phone.png) |
 
-[Workspace after navigation](../../artifacts/public-entry-flow/after-workspace-navigation.png) · [Short-screen menu scrolled to its final link](../../artifacts/public-entry-flow/after-menu-short-screen.png)
+[Workspace after navigation](../../artifacts/public-entry-flow/after-workspace-navigation.png) | [Phone sample dashboard](../../artifacts/public-entry-flow/after-workspace-phone.png) | [Short-screen menu at its final link](../../artifacts/public-entry-flow/after-menu-short-screen.png)
