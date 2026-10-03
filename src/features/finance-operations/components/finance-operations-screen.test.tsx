@@ -77,6 +77,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   navigation.pathname = "/finance";
+  navigation.pathname = "/finance";
   navigation.replace.mockReset();
   navigation.searchParams = new URLSearchParams();
   financeActionMocks.publishTenantInvoicePdfAction.mockReset();
@@ -93,6 +94,42 @@ class ResizeObserverStub {
 }
 
 describe("FinanceOperationsScreen", () => {
+  it("restores each scoped tab's supported URL filters without carrying incompatible filters", () => {
+    const input = data();
+    const scope = { id: "unit-1", kind: "unit" as const, label: "Unit 01", propertyId: "property-1", propertyLabel: "Home" };
+    navigation.pathname = "/units/unit-1/finance";
+    navigation.searchParams = new URLSearchParams("view=rent&q=Alice&status=unpaid&sort=due&page=2&property=wrong&action=delete");
+    const element = (view: "rent" | "expenses") => <FinanceOperationsScreen {...input} {...financeCapabilities()} organizationName="IPS" scope={scope} expenseMonth="2026-09" view={view} />;
+    const rendered = render(element("rent"));
+    let nav = within(screen.getByRole("navigation", { name: "Unit finance" }));
+    expect(nav.getByRole("link", { name: "Expenses" }).getAttribute("href")).toBe("/units/unit-1/finance?view=expenses");
+    navigation.searchParams = new URLSearchParams("view=expenses&expenseMonth=2026-09");
+    rendered.rerender(element("expenses"));
+    nav = within(screen.getByRole("navigation", { name: "Unit finance" }));
+    const rentHref = nav.getByRole("link", { name: "Rent & charges" }).getAttribute("href")!;
+    expect(rentHref).toBe("/units/unit-1/finance?view=rent&q=Alice&sort=due&status=unpaid");
+    navigation.searchParams = new URLSearchParams(new URL(rentHref, "https://nestory.invalid").search);
+    rendered.rerender(element("rent"));
+    nav = within(screen.getByRole("navigation", { name: "Unit finance" }));
+    expect(nav.getByRole("link", { name: "Expenses" }).getAttribute("href")).toBe("/units/unit-1/finance?view=expenses&expenseMonth=2026-09");
+    expect(nav.getByRole("link", { name: "Owner account (Property)" }).getAttribute("href")).toBe("/properties/property-1/finance?view=owner");
+  });
+
+  it("does not label complete scoped expense history as recent history", () => {
+    render(<FinanceOperationsScreen {...data()} {...financeCapabilities()} organizationName="IPS" view="expenses" expenseMonth="" scope={{ id: "property-1", kind: "property", label: "Home", propertyId: "property-1", propertyLabel: "Home" }} />);
+    expect(screen.queryByText("Recent history. Choose a month to view older expenses.")).toBeNull();
+  });
+
+  it("adds the filtered finance origin to focused payment links without action payload", () => {
+    navigation.pathname = "/finance";
+    navigation.searchParams = new URLSearchParams("page=2&action=delete&email=private");
+    const input = data();
+    input.tenantInvoices = [{ ...tenantInvoice(), collectionRoute: "through_ips" }];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities()} canViewLeases organizationName="IPS" view="work" />);
+    const link = screen.getByRole("link", { name: "Review tenant payment" });
+    expect(new URL(link.getAttribute("href")!, "https://nestory.invalid").searchParams.get("returnTo")).toBe("/finance?page=2");
+  });
+
   it("filters expense status tabs by month and clears the filter", async () => {
     const user = userEvent.setup(); const input = data();
     input.expenseSubmissions = [expenseSubmission("submitted"), { ...expenseSubmission("submitted"), id: "september", date: "2026-09-01", vendorLabel: "September vendor" }];
@@ -612,7 +649,7 @@ describe("FinanceOperationsScreen", () => {
         .getByRole("link", { name: "Edit this month's rent" })
         .getAttribute("href"),
     ).toBe(
-      `/leases/${invoice.leaseId}?action=edit-current-rent&invoiceId=${invoice.id}&section=rent`,
+      `/leases/${invoice.leaseId}?returnTo=%2Ffinance&action=edit-current-rent&invoiceId=${invoice.id}&section=rent`,
     );
   });
 
@@ -2865,7 +2902,7 @@ describe("FinanceOperationsScreen", () => {
       "IPS collection with Lease visibility",
       "through_ips",
       true,
-      "/leases/lease-1?action=record-payment&invoiceId=invoice-1",
+      "/leases/lease-1?returnTo=%2Ffinance&action=record-payment&invoiceId=invoice-1",
     ],
     [
       "direct owner collection with Lease visibility",

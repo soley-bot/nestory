@@ -15,7 +15,7 @@ export default async function UnitFinancePage({
   searchParams = Promise.resolve({}),
 }: {
   params: Promise<{ unitId: string }>;
-  searchParams?: Promise<{ view?: string }>;
+  searchParams?: Promise<{ view?: string; expenseMonth?: string | string[] }>;
 }) {
   const [{ unitId }, query, context] = await Promise.all([
     params,
@@ -24,10 +24,11 @@ export default async function UnitFinancePage({
   ]);
   const unit = await getUnitDetail(context.organizationId, unitId);
   if (!unit) notFound();
+  const expenseMonth = typeof query.expenseMonth === "string" && /^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(query.expenseMonth) ? query.expenseMonth : "";
   const allData = await getFinanceOperationsData(
     context.organizationId,
     unit.propertyId,
-    { includeExpenses: query.view !== "rent", completeTransactionHistory: !["rent", "expenses"].includes(query.view ?? ""), includeAccountSources: !["rent", "expenses"].includes(query.view ?? "") },
+    { expenseMonth, includeExpenses: query.view !== "rent", completeTransactionHistory: !["rent", "expenses"].includes(query.view ?? ""), includeAccountSources: !["rent", "expenses"].includes(query.view ?? "") },
   );
   const data = scopeFinanceOperationsData(allData, {
     propertyId: unit.propertyId,
@@ -52,6 +53,7 @@ export default async function UnitFinancePage({
       canSubmitExpense={context.capabilities.canSubmitExpense}
       canViewLeases={context.permissionKeys.has("leases.view")}
       canViewPropertyRecords={context.permissionKeys.has("properties.view")}
+      expenseMonth={expenseMonth}
       organizationName={context.organizationName}
       scope={{
         id: unitId,

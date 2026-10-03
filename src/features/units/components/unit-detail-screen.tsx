@@ -264,6 +264,7 @@ export function UnitDetailScreen({
             >
               {(options) => (
                 <LeaseForm
+                  returnTo={`/units/${unit.id}?section=${activeSection}`}
                   billingFormConfig={options.billingFormConfig}
                   canRecordDepositReceipt={canRecordDepositReceipt}
                   createContext={{

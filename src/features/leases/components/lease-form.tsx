@@ -31,6 +31,7 @@ import type {
   LeaseTermStatus,
   LeaseUnitOption,
 } from "@/features/leases/lease.types";
+import { buildLeaseRecordHref } from "@/features/leases/lease-detail-route";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 
 const initialState: LeaseActionState = {};
@@ -65,6 +66,7 @@ type LeaseFormProps = {
   onSuccess?: (message: string, leaseId?: string) => void;
   properties: LeasePropertyOption[];
   setupMode?: boolean;
+  returnTo?: string;
   tenants: LeaseTenantOption[];
   units: LeaseUnitOption[];
 };
@@ -90,6 +92,7 @@ export function LeaseForm({
   onClose,
   onSuccess,
   setupMode = false,
+  returnTo,
   tenants,
 }: LeaseFormProps) {
   const isEditMode = mode === "edit";
@@ -378,7 +381,7 @@ export function LeaseForm({
             <p className="font-medium text-foreground">Draft created</p>
             <Link
               className="inline-flex h-8 items-center gap-1.5 font-medium text-accent outline-none transition-colors hover:text-accent/75 focus-visible:ring-2 focus-visible:ring-ring"
-              href={`/leases/${state.leaseId}`}
+              href={buildLeaseRecordHref({ leaseId: state.leaseId, returnTo })}
               prefetch={false}
             >
               Open draft

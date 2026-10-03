@@ -131,6 +131,17 @@ afterEach(() => {
 });
 
 describe("LeaseForm current-step validation", () => {
+  it("preserves the unit origin when opening a newly created draft", async () => {
+    const user = userEvent.setup();
+    createLeaseActionMock.mockResolvedValueOnce({ status: "success", message: "Draft created.", leaseId: "lease-new" });
+    render(<LeaseForm returnTo="/units/unit-1" onClose={() => undefined} properties={[]} tenants={[]} units={[]} />);
+    await advanceToBillingStep(user);
+    await user.click(screen.getByRole("button", { name: "Create draft lease" }));
+    await waitFor(() => expect(screen.getByRole("link", { name: "Open draft" }).getAttribute("href"))
+      .toBe(`/leases/lease-new?${new URLSearchParams({ returnTo: "/units/unit-1" })}`));
+    expect(createLeaseActionMock).toHaveBeenCalledTimes(1);
+  });
+
   it("requires a selected tenant and leaves later empty steps out of Next validation", async () => {
     const user = userEvent.setup();
     render(

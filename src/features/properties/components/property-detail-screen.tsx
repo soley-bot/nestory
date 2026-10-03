@@ -212,6 +212,7 @@ export function PropertyDetailScreen({
             />
           ) : drawer.mode === "create-lease" ? (
             <LeaseForm
+              returnTo={`/properties/${property.id}`}
               billingFormConfig={billingFormConfig}
               canRecordDepositReceipt={canRecordDepositReceipt}
               createContext={{
