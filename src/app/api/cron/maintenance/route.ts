@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/db/admin";
+import { captureUnexpectedServerError } from "@/lib/observability/capture-unexpected-server-error";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,10 @@ export async function GET(request: Request) {
     p_run_at: runAt,
   });
   if (result.error) {
+    captureUnexpectedServerError(
+      new Error("Maintenance automation RPC failed."),
+      "maintenance_automation_rpc",
+    );
     return Response.json(
       { error: "Maintenance automation failed." },
       { status: 500 },
