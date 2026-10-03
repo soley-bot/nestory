@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
+import fs from "node:fs";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { createRequire, syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import test from "node:test";
@@ -28,12 +29,14 @@ test("unsupported brace ranges fail explicitly rather than silently dropping lin
   }
 });
 
-test("ESLint fails closed for an unsupported root range instead of passing without checking pages", async () => {
-  const eslint = new ESLint({ cwd: root, overrideConfig: [{ settings: { next: { rootDir: "apps/app{01..05}" } } }] });
-  await assert.rejects(
-    eslint.lintText('export default function Page() { return <a href="/about/">About</a>; }', { filePath: "src/glob-range-fixture.tsx" }),
-    /brace ranges are unsupported; list roots explicitly or use a wildcard/,
-  );
+test("ESLint rejects unsupported patterns instead of silently changing page discovery", async () => {
+  for (const rootDir of ["apps/app{01..05}", "apps/{,web}", "apps/{web,}", "apps/{web,,admin}", "apps/{web,{,admin}}", "apps/**", "apps/**/web"]) {
+    const eslint = new ESLint({ cwd: root, overrideConfig: [{ settings: { next: { rootDir } } }] });
+    await assert.rejects(
+      eslint.lintText('export default function Page() { return <a href="/about/">About</a>; }', { filePath: "src/glob-range-fixture.tsx" }),
+      /Next.js ESLint rootDir .* unsupported; list roots explicitly/,
+    );
+  }
 });
 
 test("actual Next root discovery retains literal, glob and array directory semantics", async (t) => {
@@ -41,13 +44,17 @@ test("actual Next root discovery retains literal, glob and array directory seman
   const apps = join(directory, "apps");
   const web = join(apps, "web");
   const admin = join(apps, "admin");
+  const linkedWeb = join(apps, "linked-web");
   await Promise.all([mkdir(join(web, "pages"), { recursive: true }), mkdir(admin, { recursive: true }), mkdir(join(apps, ".hidden"), { recursive: true })]);
   await writeFile(join(apps, "file.txt"), "not a directory");
+  await symlink(web, linkedWeb, "junction");
   const discover = (rootDir) => normalized(getRootDirs({ cwd: directory, settings: { next: { rootDir } } }));
   try {
     const cases = [
       ["literal root is not expanded recursively", web, [web]],
-      ["wildcard returns directories, not files or hidden paths", `${apps}/*`, [admin, web]],
+      ["wildcard includes directory links, not files or hidden paths", `${apps}/*`, [admin, linkedWeb, web]],
+      ["literal directory link remains an application root", linkedWeb, [linkedWeb]],
+      ["a directory beneath a link retains its configured path", join(linkedWeb, "pages"), [join(linkedWeb, "pages")]],
       ["brace pattern", `${apps}/{admin,web}`, [admin, web]],
       ["extglob pattern", `${apps}/@(admin|web)`, [admin, web]],
       ["absent root", `${apps}/absent`, []],
@@ -79,10 +86,12 @@ test("actual Next root discovery retains literal, glob and array directory seman
 test("Next lint still detects internal HTML links under configured literal and glob roots", async () => {
   const directory = await mkdtemp(join(tmpdir(), "nestory-next-lint-"));
   const web = join(directory, "web");
+  const linkedWeb = join(directory, "linked-web");
   await mkdir(join(web, "pages"), { recursive: true });
   await writeFile(join(web, "pages", "about.tsx"), "export default function About() { return null; }");
+  await symlink(web, linkedWeb, "junction");
   try {
-    for (const rootDir of [web, `${directory}/*`, [web]]) {
+    for (const rootDir of [web, `${directory}/*`, [web], linkedWeb, `${directory}/linked-*`]) {
       const eslint = new ESLint({ cwd: root, overrideConfig: [{ settings: { next: { rootDir } } }] });
       const [result] = await eslint.lintText('export default function Page() { return <a href="/about/">About</a>; }', { filePath: "src/glob-compatibility-fixture.tsx" });
       assert.ok(result.messages.some((message) => message.ruleId === "@next/next/no-html-link-for-pages"), JSON.stringify({ rootDir, messages: result.messages }));
@@ -90,6 +99,25 @@ test("Next lint still detects internal HTML links under configured literal and g
       assert.ok(imageResult.messages.some((message) => message.ruleId === "@next/next/no-img-element"));
     }
   } finally {
+    assert.ok(resolve(directory).startsWith(resolve(tmpdir()) + "/") || resolve(directory).startsWith(resolve(tmpdir()) + "\\"));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a denied directory read stops lint root discovery instead of passing with no roots", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "nestory-next-denied-"));
+  const nativeRead = fs.readdirSync;
+  const denied = Object.assign(new Error("Synthetic directory access denied"), { code: "EACCES" });
+  const mockedRead = t.mock.method(fs, "readdirSync", (path, options) => {
+    if (resolve(path) === resolve(directory)) throw denied;
+    return nativeRead(path, options);
+  });
+  syncBuiltinESMExports();
+  try {
+    assert.throws(() => getRootDirs({ cwd: root, settings: { next: { rootDir: `${directory}/*` } } }), (error) => error === denied);
+  } finally {
+    mockedRead.mock.restore();
+    syncBuiltinESMExports();
     assert.ok(resolve(directory).startsWith(resolve(tmpdir()) + "/") || resolve(directory).startsWith(resolve(tmpdir()) + "\\"));
     await rm(directory, { recursive: true, force: true });
   }

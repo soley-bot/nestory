@@ -16,6 +16,8 @@ The adapter also retains directory-only output without trailing slashes and hand
 
 Custom `settings.next.rootDir` brace ranges (for example `apps/app{01..05}` or `packages/pkg{2..10..2}`) fail with an explicit error because picomatch does not retain fast-glob's padded/stepped expansion semantics. Use an array of explicit roots or a wildcard instead. Comma alternatives such as `apps/{web,admin}` remain supported. The repository currently uses Next's default root. Rejecting unsupported syntax keeps lint from silently overlooking a project's pages.
 
+Empty brace alternatives (`apps/{,web}`) and globstars (`apps/**`) also fail explicitly: their parent-directory matching differs between the parsers. Use explicit roots or a single-level wildcard such as `apps/*`. Directory symlinks remain roots, including when selected by a wildcard; the adapter checks matched entry targets rather than relying on tinyglobby's directory-only classification. Missing targets are omitted, while other filesystem errors stop lint.
+
 Dependency upgrades must pass `scripts/next-eslint-glob.node-test.mjs`, including real Next root discovery and actual ESLint diagnostics for configured roots. Review the adapter if Next changes its glob API. Keep the override scoped to the audited plugin version; prefer returning to the supported upstream dependency once its vulnerable chain is removed.
 
 Sources: [braces advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), [tinyglobby migration guidance](https://superchupu.dev/tinyglobby/migration), [Next ESLint configuration](https://nextjs.org/docs/app/api-reference/config/eslint).
