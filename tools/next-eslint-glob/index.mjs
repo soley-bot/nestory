@@ -4,9 +4,17 @@ import { readdirSync, statSync } from "node:fs";
 
 // fdir follows directory links but omits the link itself from directory output.
 // Its supported filesystem hook lets directory links follow the normal path.
+function linksToDirectory(path) {
+  try { return statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false; }
+  catch (error) {
+    if (["ENOENT", "ENOTDIR", "ELOOP"].includes(error.code)) return false;
+    throw error;
+  }
+}
+
 function readDirectoryEntries(directory, options) {
   return readdirSync(directory, options).map((entry) =>
-    entry.isSymbolicLink() && statSync(join(directory, entry.name), { throwIfNoEntry: false })?.isDirectory()
+    entry.isSymbolicLink() && linksToDirectory(join(directory, entry.name))
       ? Object.create(entry, { isDirectory: { value: () => true } })
       : entry);
 }
@@ -25,7 +33,7 @@ export function globSync(patterns, options) {
   if (/\{[^{}]*\.\.[^{}]*\}/.test(patterns)) {
     throw new TypeError("Next.js ESLint rootDir brace ranges are unsupported; list roots explicitly or use a wildcard");
   }
-  if (/\{,|,,|,\}/.test(patterns) || patterns.includes("**")) {
+  if (/\{,|,,|,\}/.test(patterns) || /(^|[/{,])\*\*(?=[/},]|$)/.test(patterns)) {
     throw new TypeError("Next.js ESLint rootDir empty brace alternatives and globstars are unsupported; list roots explicitly or use a single-level wildcard");
   }
   if (/(^|\/)\.\.(\/|$)/.test(patterns)) {
@@ -33,6 +41,9 @@ export function globSync(patterns, options) {
   }
   if (/(^|[^!*+?@])\(/.test(patterns)) {
     throw new TypeError("Next.js ESLint rootDir bare parentheses are unsupported; list roots explicitly without grouping");
+  }
+  if (/\?(?!\()[^/]*\//.test(patterns)) {
+    throw new TypeError("Next.js ESLint rootDir question-mark wildcards before path separators are unsupported; list roots explicitly or use a star wildcard");
   }
   // Match from the filesystem root explicitly: tinyglobby's absolute-pattern
   // normalization differs on Windows, including when `absolute` is enabled.

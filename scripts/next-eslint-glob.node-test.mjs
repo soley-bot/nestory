@@ -45,7 +45,7 @@ test("parent-relative patterns cannot silently omit the current application or i
 });
 
 test("ESLint rejects unsupported patterns instead of silently changing page discovery", async () => {
-  for (const rootDir of ["apps/app{01..05}", "apps/{,web}", "apps/{web,}", "apps/{web,,admin}", "apps/{web,{,admin}}", "apps/**", "apps/**/web", "apps/(web)", "apps/@((web))"]) {
+  for (const rootDir of ["apps/app{01..05}", "apps/{,web}", "apps/{web,}", "apps/{web,,admin}", "apps/{web,{,admin}}", "apps/**", "apps/**/web", "apps/{**,web}", "apps/{web,**}", "apps/{**/web,web}", "apps/(web)", "apps/@((web))", "apps/app?/web", "apps/a?p1/*"]) {
     const eslint = new ESLint({ cwd: root, overrideConfig: [{ settings: { next: { rootDir } } }] });
     await assert.rejects(
       eslint.lintText('export default function Page() { return <a href="/about/">About</a>; }', { filePath: "src/glob-range-fixture.tsx" }),
@@ -63,15 +63,21 @@ test("actual Next root discovery retains literal, glob and array directory seman
   await Promise.all([mkdir(join(web, "pages"), { recursive: true }), mkdir(admin, { recursive: true }), mkdir(join(apps, ".hidden"), { recursive: true })]);
   await writeFile(join(apps, "file.txt"), "not a directory");
   await symlink(web, linkedWeb, "junction");
+  await symlink(join(apps, "loop"), join(apps, "loop"), "junction");
   const discover = (rootDir) => normalized(getRootDirs({ cwd: directory, settings: { next: { rootDir } } }));
   try {
     const cases = [
       ["literal root is not expanded recursively", web, [web]],
       ["wildcard includes directory links, not files or hidden paths", `${apps}/*`, [admin, linkedWeb, web]],
+      ["ordinary adjacent star wildcards remain supported", `${apps}/w**b`, [web]],
+      ["ordinary adjacent stars inside brace alternatives remain supported", `${apps}/{w**,admin}`, [admin, web]],
+      ["multiple ordinary stars remain a single-level wildcard", `${apps}/***`, [admin, linkedWeb, web]],
       ["literal directory link remains an application root", linkedWeb, [linkedWeb]],
       ["a directory beneath a link retains its configured path", join(linkedWeb, "pages"), [join(linkedWeb, "pages")]],
       ["brace pattern", `${apps}/{admin,web}`, [admin, web]],
       ["extglob pattern", `${apps}/@(admin|web)`, [admin, web]],
+      ["optional extglob before a nested segment remains supported", `${apps}/?(web)/pages`, [join(web, "pages")]],
+      ["question wildcard in the final segment remains supported", `${apps}/?eb`, [web]],
       ["absent root", `${apps}/absent`, []],
       ["file cannot become a project root", join(apps, "file.txt"), []],
       ["explicit hidden directory", join(apps, ".hidden"), [join(apps, ".hidden")]],
