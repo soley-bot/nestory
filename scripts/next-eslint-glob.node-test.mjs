@@ -96,8 +96,21 @@ test("actual Next root discovery retains literal, glob and array directory seman
       } finally { process.chdir(previousCwd); }
     });
     await t.test("explicit current directory remains the current directory", () => {
-      const found = discover(".");
-      assert.deepEqual(normalized(found.map((path) => resolve(path))), normalized([process.cwd()]));
+      for (const pattern of [".", "./.", process.cwd()]) {
+        const found = discover(pattern);
+        assert.deepEqual(normalized(found.map((path) => resolve(path))), normalized([process.cwd()]));
+      }
+    });
+    await t.test("zero-segment extglob matches cannot add the working directory as an unintended root", () => {
+      const previousCwd = process.cwd();
+      try {
+        process.chdir(apps);
+        for (const pattern of ["!(admin)", "./!(admin)", "{!(admin),web}", "{.,web}"]) {
+          assert.throws(() => discover(pattern), /implicit search-root matches are unsupported; list roots explicitly/);
+        }
+        assert.deepEqual(normalized(discover([".", "web"]).map((path) => resolve(path))), normalized([apps, web]));
+        assert.deepEqual(normalized(discover("@(admin|web)").map((path) => resolve(path))), normalized([admin, web]));
+      } finally { process.chdir(previousCwd); }
     });
   } finally {
     assert.ok(resolve(directory).startsWith(resolve(tmpdir()) + "/") || resolve(directory).startsWith(resolve(tmpdir()) + "\\"));

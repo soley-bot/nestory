@@ -1,5 +1,5 @@
 import { globSync as findDirectories } from "tinyglobby";
-import { isAbsolute, join, parse } from "node:path";
+import { isAbsolute, join, parse, resolve } from "node:path";
 import { readdirSync, statSync } from "node:fs";
 
 // fdir follows directory links but omits the link itself from directory output.
@@ -56,5 +56,11 @@ export function globSync(patterns, options) {
     } },
   });
   if (readError) throw readError;
+  // Negative extglobs can match zero segments in tinyglobby, adding the
+  // search root itself. Only an explicitly configured root may select it.
+  const searchRoot = resolve(cwd ?? process.cwd());
+  if (resolve(patterns) !== searchRoot && directories.some((directory) => resolve(directory) === searchRoot)) {
+    throw new TypeError("Next.js ESLint rootDir implicit search-root matches are unsupported; list roots explicitly");
+  }
   return directories.map((directory) => directory === parse(directory).root ? directory : directory.replace(/\/$/, ""));
 }
