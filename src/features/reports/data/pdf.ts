@@ -1,5 +1,5 @@
 import { ownerStatementCash } from "@/features/reports/data/owner-statement-cash";
-import { profitLossSummaryRows, profitLossFundingNote, formatProfitLossAmount, type ProfitLossFunding } from "./profit-loss-funding";
+import { profitLossSummaryRows, profitLossFundingNote, profitLossBasisNote, formatProfitLossAmount, type ProfitLossFunding } from "./profit-loss-funding";
 import { getTrustedReport } from "@/features/reports/data/trusted-report";
 import {
   formatLongReportDate,
@@ -1164,7 +1164,7 @@ function drawUnitProfitLossHeader(commands: string[], organizationName: string, 
   scopeLines.forEach((line, index) => drawText(commands, line, marginX, 530 - index * 12, { bold: true, fontSize: 10, width: unitStatementContentWidth }));
   drawText(commands, report.periodLabel, marginX, 489, { fontSize: 9, color: colors.muted, width: 500 });
   drawText(commands, "Amounts in USD", marginX + 620, 489, { fontSize: 9, align: "right", width: 150 });
-  drawText(commands, "Accrual basis: income and expenses by invoice or cost date.", marginX, 473, { fontSize: 8, color: colors.muted, width: unitStatementContentWidth });
+  drawText(commands, profitLossBasisNote, marginX, 473, { fontSize: 8, color: colors.muted, width: unitStatementContentWidth });
 }
 
 function drawUnitProfitLossSectionRow(
@@ -1345,14 +1345,14 @@ function drawUnitProfitLossTotals(
     const y = yTop - index * (row.funding ? 18 : 22);
     drawText(commands, label, labelX, y, {
       align: "right",
-      bold: index === 2 || index === row.summaryRows.length - 1,
+      bold: index === 2,
       color: colors.ink,
       fontSize: index === 2 ? 10 : 8.5,
       width: labelWidth,
     });
     drawText(commands, value, amountX, y, {
       align: "right",
-      bold: index === 2 || index === row.summaryRows.length - 1,
+      bold: index === 2,
       color: colors.ink,
       fontSize: index === 2 ? 10 : 8.5,
       width: amountWidth,

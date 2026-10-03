@@ -61,10 +61,12 @@ describe("PDF and XLSX accounting presentation", () => {
     const pdf = Buffer.from(buildTrustedReportPdf({ organizationName: "IPS", report: funded })).toString("latin1");
     const sheet = strFromU8(unzipSync(buildTrustedReportXlsx(funded))["xl/worksheets/sheet1.xml"]!);
     for (const text of [pdf, sheet]) {
-      expect(text).toContain("Owner Contribution");
-      expect(text).toContain("Remaining Balance");
-      expect(text).toContain("721.00");
-      expect(text.indexOf("Owner Contribution")).toBeLessThan(text.indexOf("Remaining Balance"));
+      expect(text).toContain("Owner funding contributions");
+      expect(text).toContain("Opening account activity");
+      expect(text).toContain("132.00");
+      expect(text).not.toContain("721.00");
+      expect(text).toContain("682.00");
+      expect(text.indexOf("Owner funding contributions")).toBeLessThan(text.indexOf("Opening account activity"));
     }
     savePreview("profit-loss-owner-funding", buildTrustedReportPdf({ organizationName: "IPS", report: funded }), buildTrustedReportXlsx(funded));
   });
@@ -129,7 +131,7 @@ describe("PDF and XLSX accounting presentation", () => {
     expect(text).not.toContain("Cash basis");
     expect(sheet).not.toContain("<f>");
     expect(sheet).not.toContain("Illustrative Property Services");
-    expect(sheet).not.toContain("Accrual basis: income and expenses by invoice or cost date.");
+    expect(sheet).toContain("Accrual basis: income and expenses by invoice or cost date.");
     expect(sheet).toContain("Owner: Xavier Tissieres | Property: Xavier St.65");
     expect(sheet).toContain(">Unit A1</t>");
     expect(sheet).toContain(">Payment</t>");

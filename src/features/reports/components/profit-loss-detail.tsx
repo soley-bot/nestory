@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCalendarDate } from "@/lib/dates/format";
 import { cn } from "@/lib/utils";
-import { formatProfitLossAmount, profitLossSummaryRows, profitLossFundingNote, type ProfitLossFunding } from "../data/profit-loss-funding";
+import { formatProfitLossAmount, profitLossSummaryRows, profitLossFundingHeading, type ProfitLossFunding } from "../data/profit-loss-funding";
 import type { UnitProfitLossLine } from "../reports.types";
 
 const pageSize = 25;
@@ -88,14 +88,22 @@ export function ProfitLossDetail({ lines, funding, returnTo }: { lines: UnitProf
           </Fragment>;
         })}
         <TableBody aria-label="Profit and loss totals">
-          {totals.slice(2).map(row => <TableRow key={row.label} className={cn("border-border/60", row.label.startsWith("Net") && "border-t-2 border-t-blue-400 bg-blue-50 font-semibold hover:bg-blue-50 dark:bg-blue-950/30")}>
+          {totals.slice(2, 3).map(row => <TableRow key={row.label} className="border-t-2 border-t-blue-400 bg-blue-50 font-semibold hover:bg-blue-50 dark:bg-blue-950/30">
             <TableCell colSpan={6} className="!pl-5">{row.label}</TableCell>
             <TableCell className={cn("text-right tabular-nums", row.amountCents !== null && row.amountCents < BigInt(0) && "text-danger")}>{formatProfitLossAmount(row.amountCents)}</TableCell>
           </TableRow>)}
         </TableBody>
+        {funding ? <TableBody aria-label={profitLossFundingHeading}>
+          <TableRow><TableCell colSpan={7} className="pt-3 text-muted-foreground">{profitLossFundingHeading}</TableCell></TableRow>
+          {totals.slice(3).map(row => <TableRow key={row.label}>
+            <TableCell colSpan={6} className="!pl-5">{row.label}</TableCell>
+            <TableCell className="text-right tabular-nums">{formatProfitLossAmount(row.amountCents)}</TableCell>
+          </TableRow>)}
+        </TableBody> : null}
       </Table>
+      <p className="mt-2 text-xs text-muted-foreground">Pending expenses are excluded. Profit is not cash available for withdrawal.</p>
+      {funding ? <p className="mt-1 text-xs text-muted-foreground">Opening account activity is not an available cash balance.</p> : null}
       {funding?.unavailableReason ? <p role="status" className="mt-2 text-xs text-warning">{funding.unavailableReason}</p> : null}
-      <details className="mt-3 text-xs text-muted-foreground"><summary className="w-fit cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring">Report notes</summary><p className="mt-2">Income and expenses are recognized by invoice or owner-cost obligation date. Pending expenses are excluded. Property-level costs remain separate from unit costs.</p>{funding ? <p className="mt-2 max-w-3xl">{profitLossFundingNote}</p> : null}</details>
     </section>
   );
 }
