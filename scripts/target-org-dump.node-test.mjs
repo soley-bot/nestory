@@ -113,3 +113,29 @@ test("rejects output that still contains an unmapped local auth identity", () =>
     /unmapped local auth identity/,
   );
 });
+
+test("rejects a truncated organization COPY block without producing a restore payload", () => {
+  const source = `COPY public.properties (id, organization_id, name) FROM stdin;\n10000000-0000-0000-0000-000000000001\t${SOURCE_ORG}\tSynthetic`;
+  assert.throws(() => transformTargetOrgDump(source, {
+    sourceOrganizationId: SOURCE_ORG,
+    targetOrganizationId: TARGET_ORG,
+    forbiddenIdentityPattern: LOCAL_AUTH_IDENTITIES,
+  }), /COPY block for public.properties is not terminated/);
+});
+
+test("preserves COPY escapes and nulls across CRLF input with organization isolation", () => {
+  const source = [
+    "COPY public.properties (id, organization_id, name, created_by) FROM stdin;",
+    `10000000-0000-0000-0000-000000000001\t${SOURCE_ORG}\tSynthetic\\tname\\nline\\\\tail\t\\N`,
+    `20000000-0000-0000-0000-000000000001\tca7be424-f9b1-44ab-97eb-9cbb387653fa\tOther\t\\N`,
+    "\\.", "",
+  ].join("\r\n");
+  const result = transformTargetOrgDump(source, {
+    sourceOrganizationId: SOURCE_ORG,
+    targetOrganizationId: TARGET_ORG,
+    forbiddenIdentityPattern: LOCAL_AUTH_IDENTITIES,
+  });
+  assert.deepEqual(result.tableCounts, { properties: 1 });
+  assert.ok(result.sql.includes(`\t${TARGET_ORG}\tSynthetic\\tname\\nline\\\\tail\t\\N\n\\.`));
+  assert.doesNotMatch(result.sql, /Other|\r/);
+});

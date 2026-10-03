@@ -4,32 +4,57 @@ export async function runMaintenanceAutomation({
   baseUrl,
   secret,
   fetchImpl = fetch,
+  timeoutMs = 30_000,
 }) {
   const normalizedBaseUrl = requiredBaseUrl(baseUrl);
   if (typeof secret !== "string" || secret.length < 16) {
     throw new Error("CRON_SECRET must contain at least 16 characters.");
   }
-
-  const response = await fetchImpl(
-    new URL("/api/cron/maintenance", normalizedBaseUrl),
-    { headers: { authorization: `Bearer ${secret}` } },
-  );
-  if (!response.ok) {
-    throw new Error(`Maintenance automation returned HTTP ${response.status}.`);
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000) {
+    throw new Error("Maintenance automation timeout must be between 1 and 120000 milliseconds.");
   }
-
-  const result = await response.json();
-  if (
-    !result ||
-    typeof result !== "object" ||
-    !Number.isInteger(result.generated) ||
-    !Number.isInteger(result.delivered)
-  ) {
-    throw new Error("Maintenance automation returned an invalid result.");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    let response;
+    try {
+      response = await fetchImpl(
+        new URL("/api/cron/maintenance", normalizedBaseUrl),
+        {
+          headers: { authorization: `Bearer ${secret}` },
+          redirect: "error",
+          signal: controller.signal,
+        },
+      );
+    } catch {
+      throw new Error(controller.signal.aborted
+        ? "Maintenance automation timed out; outcome is unknown."
+        : "Maintenance automation request failed; outcome is unknown.");
+    }
+    if (!response.ok) {
+      throw new Error(`Maintenance automation returned HTTP ${response.status}.`);
+    }
+    let result;
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error(controller.signal.aborted
+        ? "Maintenance automation timed out; outcome is unknown."
+        : "Maintenance automation returned an invalid result.");
+    }
+    if (
+      !result ||
+      typeof result !== "object" ||
+      !Number.isSafeInteger(result.generated) || result.generated < 0 ||
+      !Number.isSafeInteger(result.delivered) || result.delivered < 0
+    ) {
+      throw new Error("Maintenance automation returned an invalid result.");
+    }
+    return { delivered: result.delivered, generated: result.generated };
+  } finally {
+    clearTimeout(timer);
   }
-  return { delivered: result.delivered, generated: result.generated };
 }
-
 function requiredBaseUrl(value) {
   let parsed;
   try {
