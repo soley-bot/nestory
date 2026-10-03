@@ -22,6 +22,7 @@ function readDirectoryEntries(directory, options) {
 
 function hasEmptyBraceAlternative(pattern) {
   const groups = [];
+  let hasBraceGroup = false;
   let inCharacterClass = false;
   let unmatchedClass = false;
   for (let index = 0; index < pattern.length; index += 1) {
@@ -44,6 +45,7 @@ function hasEmptyBraceAlternative(pattern) {
     else if (character === "}" && groups.length) {
       const group = groups.pop();
       if (group.empty || group.previous === ",") return true;
+      hasBraceGroup = true;
       if (groups.length) groups.at(-1).previous = "}";
     } else if (groups.length) {
       const group = groups.at(-1);
@@ -53,6 +55,9 @@ function hasEmptyBraceAlternative(pattern) {
   }
   if (groups.length) {
     throw new TypeError("Next.js ESLint rootDir unmatched opening braces are unsupported; list roots explicitly without braces");
+  }
+  if (hasBraceGroup && ["*", "?", "[", "("].some((token) => pattern.includes(token))) {
+    throw new TypeError("Next.js ESLint rootDir brace alternatives combined with wildcards or extglobs are unsupported; list roots explicitly or use separate array entries");
   }
   return false;
 }

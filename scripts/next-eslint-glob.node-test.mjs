@@ -72,8 +72,10 @@ test("actual Next root discovery retains literal, glob and array directory seman
   const apps = join(directory, "apps");
   const web = join(apps, "web");
   const admin = join(apps, "admin");
+  const admin2 = join(apps, "admin2");
   const linkedWeb = join(apps, "linked-web");
-  await Promise.all([mkdir(join(web, "pages"), { recursive: true }), mkdir(admin, { recursive: true }), mkdir(join(apps, ".hidden"), { recursive: true })]);
+  await mkdir(apps, { recursive: true });
+  await Promise.all([mkdir(join(web, "pages"), { recursive: true }), mkdir(admin, { recursive: true }), mkdir(admin2), ...[".hidden", ".special", ".secret"].map((name) => mkdir(join(apps, name)))]);
   await writeFile(join(apps, "file.txt"), "not a directory");
   await symlink(web, linkedWeb, "junction");
   await symlink(join(apps, "loop"), join(apps, "loop"), "junction");
@@ -90,15 +92,16 @@ test("actual Next root discovery retains literal, glob and array directory seman
       ["commas in a literal path are not brace alternatives", commaRoot, [commaRoot]],
       ["braces and commas inside a character class remain supported", `${web}/pages/foo[{,,}]bar`, [commaClassRoot]],
       ["a final literal unmatched bracket remains compatible", unmatchedClassRoot, [unmatchedClassRoot]],
-      ["wildcard includes directory links, not files or hidden paths", `${apps}/*`, [admin, linkedWeb, web]],
-      ["POSIX character classes retain supported directory roots", `${apps}/[[:alpha:]]*`, [admin, linkedWeb, web]],
+      ["wildcard includes directory links, not files or hidden paths", `${apps}/*`, [admin, admin2, linkedWeb, web]],
+      ["POSIX character classes retain supported directory roots", `${apps}/[[:alpha:]]*`, [admin, admin2, linkedWeb, web]],
       ["ordinary adjacent star wildcards remain supported", `${apps}/w**b`, [web]],
-      ["ordinary adjacent stars inside brace alternatives remain supported", `${apps}/{w**,admin}`, [admin, web]],
-      ["multiple ordinary stars remain a single-level wildcard", `${apps}/***`, [admin, linkedWeb, web]],
+      ["separate array entries combine wildcard and literal roots", [`${apps}/w**`, admin], [admin, web]],
+      ["multiple ordinary stars remain a single-level wildcard", `${apps}/***`, [admin, admin2, linkedWeb, web]],
       ["literal directory link remains an application root", linkedWeb, [linkedWeb]],
       ["a directory beneath a link retains its configured path", join(linkedWeb, "pages"), [join(linkedWeb, "pages")]],
       ["brace pattern", `${apps}/{admin,web}`, [admin, web]],
       ["extglob pattern", `${apps}/@(admin|web)`, [admin, web]],
+      ["simple negative extglobs preserve similarly named roots", `${apps}/!(admin)`, [admin2, linkedWeb, web, ...[".hidden", ".special", ".secret"].map((name) => join(apps, name))]],
       ["optional extglob before a nested segment remains supported", `${apps}/?(web)/pages`, [join(web, "pages")]],
       ["question wildcard in the final segment remains supported", `${apps}/?eb`, [web]],
       ["absent root", `${apps}/absent`, []],
@@ -125,8 +128,13 @@ test("actual Next root discovery retains literal, glob and array directory seman
       assert.throws(() => discover(unmatchedGroupRoot), /unmatched extglob groups are unsupported; list roots explicitly without grouping/);
     });
     await t.test("composite extglobs cannot silently omit roots matched by a dynamic parent", () => {
-      for (const suffix of ["*/?(pages)", "*/*(pages)", "*/!(pages)", "*/@(pages|)", "*/+(pages)", "{web,admin}/?(pages)", "@(web|admin)/?(pages)/src"]) {
+      for (const suffix of ["*/?(pages)", "*/*(pages)", "*/!(pages)", "*/@(pages|)", "*/+(pages)", "@(web|admin)/?(pages)/src"]) {
         assert.throws(() => discover(`${apps}/${suffix}`), /extglobs after dynamic parent segments are unsupported; list roots explicitly/);
+      }
+    });
+    await t.test("brace compositions cannot change hidden or similarly named root selection", () => {
+      for (const suffix of ["{*,.special}", "{!(admin),admin}", "{w**,admin}", "*{web,.special}", "{web,admin}/?(pages)", "{web,admin}/***"]) {
+        assert.throws(() => discover(`${apps}/${suffix}`), /brace alternatives combined with wildcards or extglobs are unsupported; list roots explicitly or use separate array entries/);
       }
     });
     await t.test("slash-spanning groups cannot add unintended roots", () => {
@@ -135,7 +143,7 @@ test("actual Next root discovery retains literal, glob and array directory seman
       }
     });
     await t.test("nested repeated stars cannot omit the matched application roots", () => {
-      for (const suffix of ["*/***", "*/****", "{web,admin}/***"]) {
+      for (const suffix of ["*/***", "*/****"]) {
         assert.throws(() => discover(`${apps}/${suffix}`), /repeated-star segments after dynamic parents are unsupported; list roots explicitly/);
       }
     });
@@ -161,7 +169,7 @@ test("actual Next root discovery retains literal, glob and array directory seman
       try {
         process.chdir(apps);
         for (const pattern of ["!(admin)", "./!(admin)", "{!(admin),web}", "{.,web}"]) {
-          assert.throws(() => discover(pattern), /implicit search-root matches are unsupported; list roots explicitly/);
+          assert.throws(() => discover(pattern), /Next.js ESLint rootDir .* unsupported; list roots explicitly/);
         }
         assert.deepEqual(normalized(discover([".", "web"]).map((path) => resolve(path))), normalized([apps, web]));
         assert.deepEqual(normalized(discover("@(admin|web)").map((path) => resolve(path))), normalized([admin, web]));
