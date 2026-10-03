@@ -75,9 +75,45 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("CompanyLogoEditor", () => {
+  it("previews a selection locally, preserves proportions, and releases preview URLs", async () => {
+    const revoke = vi.fn();
+    vi.stubGlobal("URL", class extends URL {
+      static createObjectURL = vi.fn().mockReturnValueOnce("blob:first").mockReturnValueOnce("blob:second");
+      static revokeObjectURL = revoke;
+    });
+    const { unmount } = render(<CompanyLogoEditor {...commonProps} />);
+    expect(screen.getByText(/Each dimension must be 128–4096 pixels/)).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Replace logo" }) as HTMLButtonElement).disabled).toBe(true);
+    selectFile();
+    const preview = screen.getByRole("img", { name: "Selected company logo" });
+    expect(preview.getAttribute("src")).toBe("blob:first");
+    expect(preview.className).toContain("object-contain");
+    Object.defineProperties(preview, {
+      naturalWidth: { value: 1024 }, naturalHeight: { value: 256 },
+    });
+    fireEvent.load(preview);
+    expect(await screen.findByText("1024 × 256 pixels")).toBeTruthy();
+    expect(screen.getByText("Selected file is not saved. Upload to apply it.")).toBeTruthy();
+    expect(uploadOrganizationLogoAction).not.toHaveBeenCalled();
+    selectFile("second-logo.png");
+    expect(revoke).toHaveBeenCalledWith("blob:first");
+    unmount();
+    expect(revoke).toHaveBeenCalledWith("blob:second");
+  });
+
+  it("limits the report sample to supported company-name branding", () => {
+    render(<CompanyLogoEditor {...commonProps} />);
+    const sample = screen.getByLabelText("Report header preview");
+    expect(sample.textContent).toContain("Occupancy report - Nestory Test");
+    expect(sample.querySelector("img")).toBeNull();
+    expect(sample.textContent).toContain("Workspace colors do not apply to exports.");
+    expect(sample.textContent).toContain("does not preview a statement");
+  });
+
   it.each(["success", "error"] as const)(
     "clears removal %s feedback on selection and shows the subsequent upload result",
     async (status) => {
@@ -188,7 +224,9 @@ describe("CompanyLogoEditor", () => {
         (screen.getByLabelText("Company logo file") as HTMLInputElement).disabled,
       ).toBe(false);
       for (const button of screen.getAllByRole("button")) {
-        expect((button as HTMLButtonElement).disabled).toBe(false);
+        expect((button as HTMLButtonElement).disabled).toBe(
+          operation === "upload" && status === "success" && button.textContent === "Replace logo",
+        );
       }
 
       fireEvent.submit(operation === "upload" ? removeForm : uploadForm);
@@ -251,6 +289,7 @@ describe("CompanyLogoEditor", () => {
     expect(removeOrganizationLogoAction).not.toHaveBeenCalled();
     expect(screen.getByRole("status").textContent).toBe("Company logo updated.");
 
+    selectFile();
     fireEvent.submit(getUploadForm());
     expect(await screen.findByText("Company logo updated.")).toBeTruthy();
     expect(uploadOrganizationLogoAction).toHaveBeenCalledTimes(2);

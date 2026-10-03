@@ -54,7 +54,7 @@ describe("AppearanceEditor", () => {
       screen.getByLabelText("Company logo file").getAttribute("accept"),
     ).toBe("image/png,image/jpeg");
     expect(screen.getByRole("button", { name: "Upload logo" })).toBeTruthy();
-    expect(screen.getByText("PNG or JPEG, up to 2 MB.")).toBeTruthy();
+    expect(screen.getByText(/PNG or JPEG, up to 2 MB\. Each dimension must be 128–4096 pixels/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Remove logo" })).toBeNull();
   });
 
@@ -88,7 +88,7 @@ describe("AppearanceEditor", () => {
     );
 
     expect(
-      screen.getByText("Members can override this in their account."),
+      screen.getByText("For your personal display, use Display theme in the workspace header."),
     ).toBeTruthy();
     expect(screen.queryByText(/Shared across the organization/)).toBeNull();
   });
