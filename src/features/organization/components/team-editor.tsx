@@ -152,11 +152,11 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
                       className="grid min-w-0 gap-2 px-4 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_120px_150px_80px_auto] sm:items-center"
                       key={team.id}
                     >
-                      <span className="truncate font-medium">{team.name}</span>
-                      <span className="truncate text-muted-foreground">
+                      <span className="whitespace-normal [overflow-wrap:anywhere] font-medium">{team.name}</span>
+                      <span className="whitespace-normal [overflow-wrap:anywhere] text-muted-foreground">
                         {teamBranchLabel(team.branchId, branches)}
                       </span>
-                      <span className="truncate text-muted-foreground">
+                      <span className="whitespace-normal [overflow-wrap:anywhere] text-muted-foreground">
                         {staff.find(
                           (person) => person.id === team.managerPersonId,
                         )?.label ?? "No manager"}

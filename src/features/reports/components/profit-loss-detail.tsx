@@ -75,9 +75,9 @@ export function ProfitLossDetail({ lines, funding, returnTo }: { lines: UnitProf
                       <td className="!pl-11"><span className="sr-only">{group.label}</span></td>
                       <td className="whitespace-nowrap">{formatCalendarDate(line.date)}</td>
                       <td>{line.type ?? (line.direction === "income" ? "Invoice" : "Expense")}</td>
-                      <td className="truncate" title={line.name}>{line.name || "—"}</td>
-                      <td className="truncate" title={`${line.property} / ${line.unit}`}>{line.property}<span className="block truncate text-[11px]">{line.unit}</span></td>
-                      <td className="truncate" title={line.description}>{line.sourceHref ? <Link className="text-foreground underline underline-offset-2" href={withReportReturn(line.sourceHref, returnTo)} aria-label={`Open transaction: ${line.description}`}>{line.description}</Link> : line.description}</td>
+                      <td className="align-top whitespace-normal [overflow-wrap:anywhere]" title={line.name}>{line.name || "—"}</td>
+                      <td className="align-top whitespace-normal [overflow-wrap:anywhere]" title={`${line.property} / ${line.unit}`}>{line.property}<span className="block whitespace-normal text-[11px] [overflow-wrap:anywhere]">{line.unit}</span></td>
+                      <td className="align-top whitespace-normal [overflow-wrap:anywhere]" title={line.description}>{line.sourceHref ? <Link className="text-foreground underline underline-offset-2" href={withReportReturn(line.sourceHref, returnTo)} aria-label={`Open transaction: ${line.description}`}>{line.description}</Link> : line.description}</td>
                       <td className={cn("text-right tabular-nums", line.amountCents < BigInt(0) && "text-danger")}>{formatProfitLossAmount(line.amountCents)}</td>
                     </tr>)}</tbody></table> : null}
                   </TableCell></TableRow>
@@ -117,9 +117,9 @@ export function ProfitLossUnitTransactions({ lines, returnTo }: { lines: UnitPro
       <TransactionPagination page={currentPage} count={lines.length} onPageChange={setPage} label="Unit" />
       <ul className="mt-2 divide-y divide-border">
         {lines.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map(line => <li key={line.id} className="py-3 text-sm">
-          <div className="flex items-start justify-between gap-4"><span className="font-medium">{line.category}</span><span className="whitespace-nowrap tabular-nums">{formatProfitLossAmount(line.amountCents)}</span></div>
+          <div className="flex items-start justify-between gap-4"><span className="min-w-0 font-medium [overflow-wrap:anywhere]">{line.category}</span><span className="whitespace-nowrap tabular-nums">{formatProfitLossAmount(line.amountCents)}</span></div>
           <p className="mt-1 text-xs text-muted-foreground">{formatCalendarDate(line.date)} · {line.type ?? (line.direction === "income" ? "Invoice" : "Expense")}{line.name ? ` · ${line.name}` : ""}</p>
-          <p className="mt-1 break-words">{line.sourceHref ? <Link className="underline underline-offset-2" href={withReportReturn(line.sourceHref, returnTo)}>{line.description}</Link> : line.description}</p>
+          <p className="mt-1 [overflow-wrap:anywhere]">{line.sourceHref ? <Link className="underline underline-offset-2" href={withReportReturn(line.sourceHref, returnTo)}>{line.description}</Link> : line.description}</p>
         </li>)}
       </ul>
       {lines.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">No recognized income or expenses in this period.</p> : null}

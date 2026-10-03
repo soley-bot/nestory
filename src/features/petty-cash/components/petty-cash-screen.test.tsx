@@ -37,6 +37,14 @@ afterEach(() => {
 });
 
 describe("PettyCashScreen finance workspace contract", () => {
+  it.each(["", "   ", "00000000-0000-4000-8000-000000000001"])("shows the category once when the supplier is unavailable: %s", (supplier) => {
+    const description = "Replacement cleaning supplies for the property's shared areas. ".repeat(4);
+    renderPettyCash({ entries: [{ ...makeEntry("cash-1", "Cleaning", "cleared", 90, 410), supplier, description }] });
+    const row = screen.getAllByRole("row")[1]!;
+    expect(within(row).getAllByText("Cleaning", { exact: true })).toHaveLength(1);
+    expect(row.textContent).toContain(description);
+    expect(row.textContent).not.toContain("00000000-0000-4000-8000-000000000001");
+  });
   it("keeps one primary header action and a six-column register", async () => {
     const user = userEvent.setup();
     renderPettyCash();

@@ -238,7 +238,7 @@ function ReportResultRow({
             </div>
           ) : (
             ["transactions", "management-fees", "rent-roll", "rent-collections"].includes(report.kind)
-              ? <span className="block truncate" title={row.cells[column.key]}>{row.cells[column.key] || "—"}</span>
+              ? <span className={column.align === "right" ? "block whitespace-nowrap" : "block whitespace-normal [overflow-wrap:anywhere]"}>{row.cells[column.key] || "—"}</span>
               : row.cells[column.key] || "—"
           )}
         </TableCell>
@@ -271,7 +271,7 @@ function ScopeCell({
     report.kind === "unit-profit-loss" ? row.cells.property : row.cells.owner;
 
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">
       {row.href ? (
         <Link
           className="font-medium text-foreground underline-offset-4 hover:underline"
@@ -283,7 +283,7 @@ function ScopeCell({
         <p className="font-medium text-foreground">{primary || row.title}</p>
       )}
       {secondary ? (
-        <p className="truncate text-xs text-muted-foreground">{secondary}</p>
+        <p className="whitespace-normal text-xs text-muted-foreground [overflow-wrap:anywhere]">{secondary}</p>
       ) : null}
     </div>
   );
@@ -386,7 +386,7 @@ function ReportRowDetails({
                     href={/^\/(bills-expenses|rent-income)(\?|$)/.test(source.href) ? withReportReturn(source.href, returnTo) : source.href}
                     key={`${source.recordType}:${source.id}`}
                   >
-                    <span className="min-w-0">
+                    <span className="min-w-0 [overflow-wrap:anywhere]">
                       <span className="block">{source.label}</span>
                       {source.detail ? (
                         <span className="block text-xs font-normal text-muted-foreground">

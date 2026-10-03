@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { RecentChange } from "@/features/activity/activity.types";
+import { recordDisplayLabel } from "@/lib/presentation/record-label";
 import { formatDate } from "@/lib/dates/format";
 
 type RecentChangesPanelProps = {
@@ -60,8 +61,8 @@ export function RecentChangesPanel({
                 type="button"
               >
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium text-foreground sm:truncate">
-                    {change.recordLabel}
+                  <span className="block text-sm font-medium text-foreground [overflow-wrap:anywhere]">
+                    {recordDisplayLabel(change.recordLabel, "Record unavailable")}
                   </span>
                   <span className="mt-1 block text-xs text-muted-foreground">
                     {change.entityLabel} - {formatDate(change.createdAt)}

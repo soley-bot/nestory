@@ -41,6 +41,21 @@ const properties: PageHelpContent = {
   questions: [{ question: "Why is a property missing?", answer: "Check the current search and filters. Your workspace access also limits which records you can see." }, { question: "How do I add units?", answer: "Use Add unit in the Units register and select its property." }],
 };
 
+const propertySetup: PageHelpContent = {
+  title: "Property setup",
+  purpose: "Work through the setup steps to connect an owner, property, tenant and lease.",
+  steps: [
+    "Select or create the owner, then choose the property and its space or unit.",
+    "Select the tenant and lease. Review the rent setup and resolve any readiness issues shown.",
+    "Use the available completion action, then review the Done step and open the linked records.",
+  ],
+  example: "For an existing property, select its owner and unit before choosing the tenant and lease.",
+  questions: [
+    { question: "Do I need to create every record again?", answer: "No. Select existing records when they are available. Create a record only when it is missing and your permissions allow it." },
+    { question: "Why can't I continue?", answer: "Complete the selections in the current step and review any rent setup issues shown. Later steps depend on those selections." },
+  ],
+};
+
 const units: PageHelpContent = {
   title: "Units",
   purpose: "Manage units within properties and review their lease and operating details.",
@@ -162,6 +177,7 @@ const rootHelp: Record<string, PageHelpContent> = {
 
 export function getPageHelp(pathname: string | null): PageHelpContent | undefined {
   if (!pathname) return undefined;
+  if (pathname === "/properties/setup" || pathname === "/properties/setup/") return propertySetup;
   if (pathname === "/reports" || pathname === "/reports/") return reports;
   const root = pathname.split("/")[1];
   return rootHelp[root];

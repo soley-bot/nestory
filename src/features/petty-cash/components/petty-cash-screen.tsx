@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { recordDisplayLabel } from "@/lib/presentation/record-label";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -661,26 +662,27 @@ function PettyCashTable({
                   </p>
                 </td>
                 <td className="px-3 py-2">
-                  <p className="truncate font-medium">
-                    {entry.supplier ?? entry.category}
+                  <p className="whitespace-normal font-medium [overflow-wrap:anywhere]">
+                    {recordDisplayLabel(entry.supplier, entry.category)}
                   </p>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                    {entry.category} · {entry.description}
-                  </p>
+                  {recordDisplayLabel(entry.supplier, "") && recordDisplayLabel(entry.supplier, "") !== entry.category ? (
+                    <p className="mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">{entry.category}</p>
+                  ) : null}
+                  <p className="mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">{entry.description}</p>
                 </td>
                 <td className="px-3 py-2">
                   {entry.propertyId ? (
                     <Link
-                      className="block truncate font-medium text-foreground underline decoration-border underline-offset-4 hover:text-primary"
+                      className="block whitespace-normal font-medium [overflow-wrap:anywhere] text-foreground underline decoration-border underline-offset-4 hover:text-primary"
                       href={`/properties/${entry.propertyId}/account`}
                       onClick={(event) => event.stopPropagation()}
                     >
                       {entry.propertyCode}
                     </Link>
                   ) : (
-                    <p className="truncate font-medium">Cash account</p>
+                    <p className="whitespace-normal font-medium [overflow-wrap:anywhere]">Cash account</p>
                   )}
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  <p className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">
                     {entry.unitNumber
                       ? `Unit ${entry.unitNumber}`
                       : "Property level"}

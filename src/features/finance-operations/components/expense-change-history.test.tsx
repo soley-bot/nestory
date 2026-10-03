@@ -14,6 +14,46 @@ afterEach(() => {
 });
 
 describe("expense history recovery", () => {
+  it("shows account names and complete reasons without exposing database identifiers", async () => {
+    const oldAccount = "00000000-0000-4000-8000-000000000001";
+    const newAccount = "00000000-0000-4000-8000-000000000002";
+    const actor = "00000000-0000-4000-8000-000000000003";
+    const reason = "The supplier corrected the reference on the original receipt. ".repeat(4);
+    vi.mocked(getExpenseHistory).mockResolvedValue([{
+      id: "history-entry", action: "updated", actor, actor_id: actor,
+      created_at: "2026-10-03T08:00:00Z",
+      previous_values: { expense: { pay_from_account_id: oldAccount, reference: "INV-2026-001" } },
+      new_values: { expense: { pay_from_account_id: newAccount, reference: "INV-2026-002" }, reason },
+    }]);
+    const { container } = render(<ExpenseChangeHistory transactionId="expense-one" payFromAccounts={[
+      { id: oldAccount, displayName: "Operating bank account" },
+      { id: newAccount, displayName: "Property cash account" },
+    ]} />);
+    await screen.findByText("Workspace member");
+    expect(container.textContent).toContain(reason);
+    expect(container.textContent).toContain("Operating bank account");
+    expect(container.textContent).toContain("Property cash account");
+    expect(container.textContent).toContain("INV-2026-001");
+    expect(container.textContent).toContain("INV-2026-002");
+    for (const id of [oldAccount, newAccount, actor]) expect(container.textContent).not.toContain(id);
+    expect(getExpenseHistory).toHaveBeenCalledWith("expense-one");
+  });
+
+  it("keeps an account change visible when its names are unavailable", async () => {
+    const oldAccount = "00000000-0000-4000-8000-000000000001";
+    const newAccount = "00000000-0000-4000-8000-000000000002";
+    vi.mocked(getExpenseHistory).mockResolvedValue([{
+      id: "history-entry", action: "updated", actor: "System", actor_id: null,
+      created_at: "2026-10-03T08:00:00Z",
+      previous_values: { expense: { pay_from_account_id: oldAccount } },
+      new_values: { expense: { pay_from_account_id: newAccount } },
+    }]);
+    const { container } = render(<ExpenseChangeHistory transactionId="expense-one" payFromAccounts={[{ id: oldAccount, displayName: oldAccount }]} />);
+    await screen.findByText("Paid-from account");
+    expect(screen.getAllByText(/Account unavailable/)).toHaveLength(2);
+    expect(container.textContent).not.toContain(oldAccount);
+    expect(container.textContent).not.toContain(newAccount);
+  });
   it("does not refresh twice when a retry resolves immediately during a double click", async () => {
     const user = userEvent.setup();
     vi.mocked(getExpenseHistory).mockRejectedValueOnce(new Error("Unavailable")).mockResolvedValue([]);

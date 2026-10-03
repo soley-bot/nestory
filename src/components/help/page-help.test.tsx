@@ -106,6 +106,18 @@ describe("PageHelp", () => {
 });
 
 describe("page help coverage", () => {
+  it.each(["/properties/setup", "/properties/setup/"])("shows wizard guidance at %s without register controls", async (pathname) => {
+    route.pathname = pathname;
+    const user = userEvent.setup();
+    render(<PageHeader title="Set up property" />);
+    await user.click(screen.getByRole("button", { name: "Help with this page" }));
+    const dialog = screen.getByRole("dialog", { name: "Property setup" });
+    expect(within(dialog).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(dialog).getByText(/Select or create the owner/)).toBeTruthy();
+    expect(within(dialog).queryByText(/Use the search and filters/)).toBeNull();
+    expect(getPageHelp("/properties")?.title).toBe("Properties");
+    expect(getPageHelp("/properties/example")?.title).toBe("Properties");
+  });
   it.each(["overview", "properties", "units", "people", "tenants", "owners", "vendors", "staff", "leases", "rent-income", "finance", "bills-expenses", "balances", "maintenance", "tasks", "recurring-tasks", "inspections", "work-orders", "reports", "settings/organization", "account", "import"])("provides three steps for /%s", (path) => {
     expect(getPageHelp(`/${path}`)?.steps).toHaveLength(3);
   });

@@ -329,7 +329,7 @@ export function ImportPreviewScreen({
                     {importState.commitSummary.skipped} skipped
                   </p>
                 ) : null}
-                <h2 className="truncate text-sm font-semibold">
+                <h2 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">
                   {parsedFile.fileName}
                 </h2>
                 <p className="mt-0.5 text-sm font-medium tabular-nums text-foreground">
@@ -385,7 +385,7 @@ export function ImportPreviewScreen({
                       key={field.key}
                     >
                       <span className="mb-1.5 flex items-center justify-between gap-2">
-                        <span className="truncate">
+                        <span className="whitespace-normal [overflow-wrap:anywhere]">
                           {field.label}
                           {field.required ? (
                             <span className="ml-1 text-danger">*</span>
@@ -787,7 +787,7 @@ function PastImports({
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{run.fileName}</p>
+                  <p className="whitespace-normal [overflow-wrap:anywhere] font-medium">{run.fileName}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {formatImportRunDate(run.createdAt)} · {run.importType}
                   </p>

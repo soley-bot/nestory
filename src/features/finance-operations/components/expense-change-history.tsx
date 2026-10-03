@@ -2,6 +2,8 @@
 
 import { useEffect, useState, type Ref } from "react";
 import { Button } from "@/components/ui/button";
+import type { FinanceAccountOption } from "@/features/finance-accounts/finance-accounts.types";
+import { recordDisplayLabel } from "@/lib/presentation/record-label";
 import { getExpenseHistory } from "../expense-history";
 
 type Entry = Awaited<ReturnType<typeof getExpenseHistory>>[number];
@@ -11,7 +13,16 @@ function object(value: unknown): Record<string, unknown> {
 const fields = { expense_date: "Paid date", payee_label: "Paid to", reference: "Reference", pay_from_account_id: "Paid-from account", status: "Status" };
 function readable(value: unknown): string { return value == null || value === "" ? "—" : String(value); }
 
-export function ExpenseChangeHistory({ headingRef, transactionId }: { headingRef?: Ref<HTMLHeadingElement>; transactionId: string }) {
+export function ExpenseChangeHistory({ headingRef, transactionId, payFromAccounts = [] }: {
+  headingRef?: Ref<HTMLHeadingElement>;
+  transactionId: string;
+  payFromAccounts?: readonly Pick<FinanceAccountOption, "id" | "displayName">[];
+}) {
+  function displayValue(key: string, value: unknown): string {
+    if (key !== "pay_from_account_id") return readable(value);
+    if (value == null || value === "") return "None";
+    return recordDisplayLabel(payFromAccounts.find(account => account.id === value)?.displayName, "Account unavailable");
+  }
   const [attempt, setAttempt] = useState(0);
   const [response, setResponse] = useState<{
     attempt: number;
@@ -38,12 +49,13 @@ export function ExpenseChangeHistory({ headingRef, transactionId }: { headingRef
       const changes = Object.entries(fields).filter(([key]) => key in before && readable(before[key]) !== readable(after[key]));
       const beforeLines = object(item.previous_values).lines;
       const afterLines = afterPayload.lines;
-      return <li key={item.id} className="py-3 text-sm">
-        <p><span className="font-medium capitalize">{item.action}</span> · {item.actor}</p>
+      return <li key={item.id} className="py-3 text-sm [overflow-wrap:anywhere]">
+        <p className="font-medium capitalize">{item.action}</p>
+        <p className="text-muted-foreground">{recordDisplayLabel(item.actor, "Workspace member")}</p>
         <time className="text-xs text-muted-foreground" dateTime={item.created_at}>{new Date(item.created_at).toLocaleString()}</time>
         {typeof afterPayload.reason === "string" ? <p className="mt-1">{afterPayload.reason}</p> : null}
-        {changes.length ? <dl className="mt-2 space-y-1">{changes.map(([key,label]) => <div key={key}><dt className="inline font-medium">{label}: </dt><dd className="inline">{readable(before[key])} → {readable(after[key])}</dd></div>)}</dl> : null}
-        {Array.isArray(beforeLines) && Array.isArray(afterLines) ? <details className="mt-2"><summary className="cursor-pointer">Before and after line items</summary>{[["Before",beforeLines],["After",afterLines]].map(([label,lines]) => <div key={String(label)} className="mt-2"><p className="font-medium">{String(label)}</p><ul>{(lines as unknown[]).map((line,index) => { const value=object(line); return <li key={index}>{readable(value.description)} · {readable(value.amount)} paid · {readable(value.customer_total)} charged</li>; })}</ul></div>)}</details> : null}
+        {changes.length ? <dl className="mt-2 space-y-2">{changes.map(([key,label]) => <div key={key}><dt className="font-medium">{label}</dt><dd><span className="text-muted-foreground">Before: </span>{displayValue(key, before[key])}</dd><dd><span className="text-muted-foreground">After: </span>{displayValue(key, after[key])}</dd></div>)}</dl> : null}
+        {Array.isArray(beforeLines) && Array.isArray(afterLines) ? <details className="mt-2"><summary className="cursor-pointer">Before and after line items</summary>{[["Before",beforeLines],["After",afterLines]].map(([label,lines]) => <div key={String(label)} className="mt-2"><p className="font-medium">{String(label)}</p><ul className="space-y-2">{(lines as unknown[]).map((line,index) => { const value=object(line); return <li key={index}><p>{readable(value.description)}</p><dl className="flex flex-wrap gap-x-4 text-xs text-muted-foreground"><div><dt className="inline">Paid: </dt><dd className="inline">{readable(value.amount)}</dd></div><div><dt className="inline">Charged: </dt><dd className="inline">{readable(value.customer_total)}</dd></div></dl></li>; })}</ul></div>)}</details> : null}
       </li>;
     })}</ol>}
     {entries?.length === 100 ? <p className="text-xs text-muted-foreground">Showing the latest 100 changes.</p> : null}

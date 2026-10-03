@@ -107,6 +107,25 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("OpeningBalanceScreen", () => {
+  it("uses contextual labels when names are missing while retaining the submitted identities", async () => {
+    const user = userEvent.setup();
+    const { container } = renderScreen({ ...superAdminProps(), data: freshOwnerData(), ownerOptions: [], propertyOptions: [] });
+    expect(screen.getAllByText("Property unavailable").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Owner unavailable").length).toBeGreaterThan(0);
+    expect(container.textContent).not.toContain(propertyId);
+    expect(container.textContent).not.toContain(ownerId);
+    await user.click(screen.getByRole("button", { name: "Start at zero" }));
+    const dialog = screen.getByRole("dialog", { name: "Start owner account at zero" });
+    expect(dialog.textContent).not.toContain(propertyId);
+    expect(dialog.textContent).not.toContain(ownerId);
+    await user.click(within(dialog).getByRole("button", { name: "Confirm zero starting balances" }));
+    await waitFor(() => expect(mocks.initial).toHaveBeenCalledTimes(4));
+    for (const call of mocks.initial.mock.calls) {
+      const submitted = call[1] as FormData;
+      expect(submitted.get("propertyId")).toBe(propertyId);
+      expect(submitted.get("ownerPersonId")).toBe(ownerId);
+    }
+  });
   it("starts a new owner account at zero with one confirmation", async () => {
     const user = userEvent.setup();
     renderScreen({

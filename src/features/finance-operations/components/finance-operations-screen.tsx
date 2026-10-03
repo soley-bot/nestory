@@ -512,6 +512,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
             />
           ) : visibleDetailDrawer.mode === "expense-details" ? (
             <ExpenseDetails
+              payFromAccounts={props.payFromAccounts}
               reportReturnHref={props.reportReturnHref}
               originalExpense={visibleDetailDrawer.submission.replacesTransactionId ? props.expenseSubmissions.find((item) => item.transactionId === visibleDetailDrawer.submission.replacesTransactionId) : undefined}
               replacementExpense={visibleDetailDrawer.submission.replacementTransactionId ? props.expenseSubmissions.find((item) => item.transactionId === visibleDetailDrawer.submission.replacementTransactionId) : undefined}
@@ -2631,6 +2632,7 @@ function ExpenseLines({ submission }: { submission: ExpenseSubmissionSummary }) 
 }
 
 function ExpenseDetails({
+  payFromAccounts,
   reportReturnHref,
   originalExpense,
   replacementExpense,
@@ -2647,6 +2649,7 @@ function ExpenseDetails({
   submission,
 }: {
   reportReturnHref?: string | null;
+  payFromAccounts: FinanceOperationsData["payFromAccounts"];
   originalExpense?: ExpenseSubmissionSummary;
   replacementExpense?: ExpenseSubmissionSummary;
   onViewRelated: (submission: ExpenseSubmissionSummary) => void;
@@ -2734,7 +2737,7 @@ function ExpenseDetails({
         </p>
       ) : null}
       <ExpenseLines submission={submission} />
-      {submission.transactionId ? <ExpenseChangeHistory headingRef={historyHeadingRef} key={submission.transactionId} transactionId={submission.transactionId} /> : null}
+      {submission.transactionId ? <ExpenseChangeHistory headingRef={historyHeadingRef} key={submission.transactionId} payFromAccounts={payFromAccounts} transactionId={submission.transactionId} /> : null}
       {submission.replacesTransactionId ? <p className="text-sm text-muted-foreground">Replacement for a previous expense. The original remains in history.</p> : null}
       {originalExpense ? <Button variant="outline" onClick={() => onViewRelated(originalExpense)}>View original expense</Button> : null}
       {replacementExpense ? <Button variant="outline" onClick={() => onViewRelated(replacementExpense)}>View replacement expense</Button> : null}
