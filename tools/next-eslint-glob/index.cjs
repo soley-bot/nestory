@@ -23,8 +23,18 @@ function readDirectoryEntries(directory, options) {
 function hasEmptyBraceAlternative(pattern) {
   const groups = [];
   let inCharacterClass = false;
-  for (const character of pattern) {
-    if (character === "[") inCharacterClass = true;
+  let unmatchedClass = false;
+  for (let index = 0; index < pattern.length; index += 1) {
+    const character = pattern[index];
+    if (character === "[" && !inCharacterClass) {
+      const close = pattern.indexOf("]", index + 1);
+      const separator = pattern.indexOf("/", index + 1);
+      if (close !== -1 && (separator === -1 || close < separator)) inCharacterClass = true;
+      else unmatchedClass = true;
+    }
+    if (character === "/" && unmatchedClass) {
+      throw new TypeError("Next.js ESLint rootDir unmatched or slash-spanning character classes are unsupported; list roots explicitly without brackets");
+    }
     if (inCharacterClass) {
       if (character === "]") inCharacterClass = false;
       if (groups.length) groups.at(-1).previous = character;
@@ -77,6 +87,9 @@ function globSync(patterns, options) {
     else if (character === "/" && groupDepth > 0) {
       throw new TypeError("Next.js ESLint rootDir slash-spanning extglobs are unsupported; list roots explicitly");
     }
+  }
+  if (groupDepth > 0) {
+    throw new TypeError("Next.js ESLint rootDir unmatched extglob groups are unsupported; list roots explicitly without grouping");
   }
   if (/\?(?!\()[^/]*\//.test(patterns)) {
     throw new TypeError("Next.js ESLint rootDir question-mark wildcards before path separators are unsupported; list roots explicitly or use a star wildcard");

@@ -80,14 +80,18 @@ test("actual Next root discovery retains literal, glob and array directory seman
   const commaRoot = join(web, "pages", "foo,,bar");
   const unmatchedBraceRoot = join(web, "pages", "foo{,,bar");
   const commaClassRoot = join(web, "pages", "foo,bar");
-  await Promise.all([mkdir(commaRoot), mkdir(unmatchedBraceRoot), mkdir(commaClassRoot)]);
+  const unmatchedClassRoot = join(web, "pages", "[abc");
+  const unmatchedGroupRoot = join(web, "pages", "@(child");
+  await Promise.all([mkdir(commaRoot), mkdir(unmatchedBraceRoot), mkdir(commaClassRoot), mkdir(join(unmatchedClassRoot, "def]", "child"), { recursive: true }), mkdir(unmatchedGroupRoot)]);
   const discover = (rootDir) => normalized(getRootDirs({ cwd: directory, settings: { next: { rootDir } } }));
   try {
     const cases = [
       ["literal root is not expanded recursively", web, [web]],
       ["commas in a literal path are not brace alternatives", commaRoot, [commaRoot]],
       ["braces and commas inside a character class remain supported", `${web}/pages/foo[{,,}]bar`, [commaClassRoot]],
+      ["a final literal unmatched bracket remains compatible", unmatchedClassRoot, [unmatchedClassRoot]],
       ["wildcard includes directory links, not files or hidden paths", `${apps}/*`, [admin, linkedWeb, web]],
+      ["POSIX character classes retain supported directory roots", `${apps}/[[:alpha:]]*`, [admin, linkedWeb, web]],
       ["ordinary adjacent star wildcards remain supported", `${apps}/w**b`, [web]],
       ["ordinary adjacent stars inside brace alternatives remain supported", `${apps}/{w**,admin}`, [admin, web]],
       ["multiple ordinary stars remain a single-level wildcard", `${apps}/***`, [admin, linkedWeb, web]],
@@ -111,6 +115,14 @@ test("actual Next root discovery retains literal, glob and array directory seman
     });
     await t.test("an unmatched opening brace cannot add an unintended literal root", () => {
       assert.throws(() => discover(unmatchedBraceRoot), /unmatched opening braces are unsupported; list roots explicitly without braces/);
+    });
+    await t.test("malformed character classes before another segment cannot add roots", () => {
+      for (const pattern of [`${unmatchedClassRoot}/*`, `${unmatchedClassRoot}/def]/*`]) {
+        assert.throws(() => discover(pattern), /unmatched or slash-spanning character classes are unsupported; list roots explicitly without brackets/);
+      }
+    });
+    await t.test("unmatched extglob groups cannot add unintended literal roots", () => {
+      assert.throws(() => discover(unmatchedGroupRoot), /unmatched extglob groups are unsupported; list roots explicitly without grouping/);
     });
     await t.test("composite extglobs cannot silently omit roots matched by a dynamic parent", () => {
       for (const suffix of ["*/?(pages)", "*/*(pages)", "*/!(pages)", "*/@(pages|)", "*/+(pages)", "{web,admin}/?(pages)", "@(web|admin)/?(pages)/src"]) {

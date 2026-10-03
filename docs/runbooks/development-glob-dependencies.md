@@ -34,6 +34,8 @@ Extglobs following a dynamic parent segment (`apps/*/?(pages)`, `apps/{web,admin
 
 Slash-spanning extglob groups (`apps/@(web/pages|admin/pages)`) are rejected because they can add roots excluded by the pinned fast-glob implementation. Repeated-star segments after dynamic parents (`apps/*/***`) are rejected because they can omit the matched parent roots. The supported static-parent single-level form `apps/***` remains covered.
 
+Malformed character classes that span a path separator (`apps/[abc/*` or `apps/[abc/def]/*`) and unmatched extglob groups (`apps/@(web`) are rejected because tinyglobby can interpret them as literal paths and add roots. The compatible final literal bracket form (`apps/[abc`) and valid POSIX classes remain supported and tested.
+
 Dependency upgrades must pass `scripts/next-eslint-glob.node-test.mjs`, including real Next root discovery and actual ESLint diagnostics for configured roots. Review the adapter if Next changes its glob API. Keep the override scoped to the audited plugin version; prefer returning to the supported upstream dependency once its vulnerable chain is removed.
 
 Sources: [braces advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), [tinyglobby migration guidance](https://superchupu.dev/tinyglobby/migration), [Next ESLint configuration](https://nextjs.org/docs/app/api-reference/config/eslint).
