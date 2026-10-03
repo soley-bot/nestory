@@ -1,0 +1,10 @@
+{
+  "name": "@nestory/next-eslint-glob",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Scoped directory-glob adapter for the pinned Next.js ESLint plugin",
+  "main": "index.mjs",
+  "dependencies": {
+    "tinyglobby": "0.2.17"
+  }
+}
