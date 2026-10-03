@@ -10,7 +10,7 @@ import { ReportResultsTable } from "./report-results-table";
 import { ReportsFilters } from "./reports-filters";
 import type { ReportsViewQuery, TrustedReport } from "../reports.types";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }), usePathname: () => "/reports/transactions" }));
 beforeAll(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   Object.defineProperties(HTMLElement.prototype, {
