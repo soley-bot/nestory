@@ -44,6 +44,7 @@ import { WorkspacePage } from "@/components/layout/workspace-page";
 import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { DraftStatus } from "@/components/ui/draft-action-bar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -64,7 +65,11 @@ import {
   SelectControl,
   type SelectControlOption,
 } from "@/components/ui/select-control";
-import { SideDrawer } from "@/components/ui/side-drawer";
+import {
+  SideDrawer,
+  useDrawerCloseRequest,
+  useDrawerDraftGuard,
+} from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
 import { MaintenanceDateField } from "@/features/maintenance/components/maintenance-date-field";
 import { TimePickerField } from "@/components/ui/time-picker-field";
@@ -1572,10 +1577,44 @@ export function MaintenanceForm({
   vendors: MaintenanceVendorOption[];
 }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const baselineRef = useRef<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const requestClose = useDrawerCloseRequest(onClose);
   const [state, action, pending] = useActionState(
     mode === "create" ? createMaintenanceCaseAction : updateMaintenanceCaseAction,
     initialState,
   );
+  const status: DraftStatus = pending
+    ? "saving"
+    : state.status === "success"
+      ? "saved"
+      : state.status === "error"
+        ? "error"
+        : dirty
+          ? "dirty"
+          : "clean";
+  const guard = useMemo(
+    () => ({ onDiscard: onClose, status }),
+    [onClose, status],
+  );
+  useDrawerDraftGuard(guard);
+
+  useEffect(() => {
+    if (formRef.current) {
+      baselineRef.current = serializeMaintenanceDraft(formRef.current);
+    }
+  }, []);
+
+  function updateDirty() {
+    // Read after child controls commit their values, including hidden date/select
+    // inputs and the checklist. Match the shared RecordForm event pattern.
+    queueMicrotask(() => {
+      if (formRef.current && baselineRef.current !== null) {
+        setDirty(serializeMaintenanceDraft(formRef.current) !== baselineRef.current);
+      }
+    });
+  }
+
   const defaults = {
     actualCostAmount:
       maintenanceCase?.formValues.actualCostAmount ??
@@ -1697,7 +1736,7 @@ export function MaintenanceForm({
   }, [state]);
 
   return (
-    <form action={action} className="flex h-full min-w-0 flex-col" ref={formRef} onInvalidCapture={(event) => { const details = event.target instanceof HTMLElement ? event.target.closest("details") : null; if (details) details.open = true; }}>
+    <form action={action} className="flex h-full min-w-0 flex-col" ref={formRef} onChangeCapture={updateDirty} onInput={updateDirty} onClickCapture={updateDirty} onInvalidCapture={(event) => { const details = event.target instanceof HTMLElement ? event.target.closest("details") : null; if (details) details.open = true; }}>
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
         {maintenanceCase ? (
           <input name="taskId" type="hidden" value={maintenanceCase.id} />
@@ -2023,7 +2062,7 @@ export function MaintenanceForm({
       </div>
       <div className="border-t border-border px-4 py-4 sm:px-5">
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button className="w-full sm:w-auto" onClick={onClose} type="button" variant="ghost">
+          <Button className="w-full sm:w-auto" onClick={requestClose} type="button" variant="ghost">
             Cancel
           </Button>
           <Button
@@ -2039,6 +2078,17 @@ export function MaintenanceForm({
       </div>
     </form>
   );
+}
+
+function serializeMaintenanceDraft(form: HTMLFormElement) {
+  return JSON.stringify(Array.from(new FormData(form), ([name, value]) => [
+    name,
+    value instanceof File
+      ? value.name === "" && value.size === 0
+        ? ["", 0, value.type]
+        : [value.name, value.size, value.type, value.lastModified]
+      : value,
+  ]));
 }
 
 function MaintenanceOptionalSection({ children, title }: { children: ReactNode; title: string }) {

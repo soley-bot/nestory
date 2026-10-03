@@ -9,6 +9,8 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
+import { SideDrawer } from "@/components/ui/side-drawer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
 import { ModuleLoading } from "@/components/layout/module-loading";
@@ -335,7 +337,7 @@ describe("maintenance workspace redesign contract", () => {
     fireEvent.change(container.querySelector('[name="costEstimateAmount"]')!, { target: { value: "125" } });
     fireEvent.submit(container.querySelector("form")!);
     await waitFor(() => expect(screen.getByText("Enter a category.")).toBeTruthy());
-    expect(container.querySelectorAll("details")[1].open).toBe(true);
+    await waitFor(() => expect(container.querySelectorAll("details")[1].open).toBe(true));
     expect((title as HTMLTextAreaElement).value).toBe("New unsaved repair title");
     const failedDraft = new FormData(container.querySelector("form")!);
     expect(failedDraft.get("description")).toBe("Keep these unsaved notes");
@@ -1166,3 +1168,127 @@ class ResizeObserverStub {
 function renderForm(record: MaintenanceCase, onClose = vi.fn(), label = "Property One") {
   return render(<MaintenanceForm actor={{ dataScope: "organization", workflowMode: "coordinator" }} branches={[{ id: "branch-1", label: "Main branch" }]} canRecordActualCost maintenanceCase={record} mode="edit" onClose={onClose} onSuccess={vi.fn()} properties={[{ id: "property-1", label }]} staff={[{ id: "person-1", branchId: "branch-1", label }]} units={[]} vendors={[{ id: "vendor-1", label }]} />);
 }
+
+describe("MaintenanceForm drawer draft safety", () => {
+  function Harness() {
+    const [open, setOpen] = useState(false);
+    return <><button onClick={() => setOpen(true)}>Open maintenance</button>{open ? <SideDrawer open title="Edit maintenance" onClose={() => setOpen(false)}><MaintenanceForm actor={{ dataScope: "organization", workflowMode: "coordinator" }} branches={[]} canRecordActualCost maintenanceCase={makeCase("guard", "Original title")} mode="edit" onClose={() => setOpen(false)} onSuccess={vi.fn()} properties={[{ id: "property-1", label: "Property One" }]} staff={[]} units={[]} vendors={[{ id: "vendor-1", label: "Vendor One" }]} /></SideDrawer> : null}</>;
+  }
+
+  async function openDrawer() {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Open maintenance" }));
+    return user;
+  }
+
+  it.each(["title", "description", "category", "costEstimateAmount", "actualCostAmount"])("guards edits to %s, keeps them, then discards and restores focus", async (name) => {
+    const user = await openDrawer();
+    const drawer = screen.getByRole("dialog", { name: "Edit maintenance" });
+    const control = drawer.querySelector<HTMLInputElement>(`[name="${name}"]`)!;
+    const original = control.value;
+    fireEvent.input(control, { target: { value: name.includes("Amount") ? "125.50" : "changed" } });
+    await user.click(within(drawer).getByRole("button", { name: "Cancel" }));
+    const confirmation = screen.getByRole("alertdialog", { name: "Discard unsaved changes?" });
+    await user.click(within(confirmation).getByRole("button", { name: "Keep editing" }));
+    expect(control.value).toBe(name.includes("Amount") ? "125.50" : "changed");
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit maintenance" })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Open maintenance" })));
+    await user.click(screen.getByRole("button", { name: "Open maintenance" }));
+    expect(screen.getByRole("dialog", { name: "Edit maintenance" }).querySelector<HTMLInputElement>(`[name="${name}"]`)!.value).toBe(original);
+  });
+
+  it.each([
+    ["priority", "Priority", "Low", "low"],
+    ["recurrenceFrequency", "Recurrence", "Monthly", "monthly"],
+    ["vendorPersonId", "Vendor", "No vendor", ""],
+    ["dueTime", "Due time", "00:15", "00:15"],
+    ["reminderTime", "Reminder time", "00:15", "00:15"],
+  ])("guards actual %s selections", async (name, label, option, value) => {
+    const user = await openDrawer();
+    const drawer = screen.getByRole("dialog", { name: "Edit maintenance" });
+    await user.click(within(drawer).getByText("More details", { selector: "summary" }));
+    within(drawer).getByRole("combobox", { name: label }).focus();
+    await user.keyboard("{ArrowDown}");
+    await user.click(await screen.findByRole("option", { name: option }));
+    await user.click(within(drawer).getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(new FormData(drawer.querySelector("form")!).get(name)).toBe(value);
+  });
+
+  it("guards real checklist edits while optional sections are closed", async () => {
+    const user = await openDrawer();
+    const drawer = screen.getByRole("dialog", { name: "Edit maintenance" });
+    await user.click(within(drawer).getByText("More details", { selector: "summary" }));
+    await user.clear(within(drawer).getByPlaceholderText("Checklist item"));
+    await user.type(within(drawer).getByPlaceholderText("Checklist item"), "Changed checklist");
+    await user.click(within(drawer).getByText("More details", { selector: "summary" }));
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(new FormData(drawer.querySelector("form")!).get("checklistText")).toContain("Changed checklist");
+  });
+  it("closes clean and reverted drafts without confirmation", async () => {
+    const user = await openDrawer();
+    const control = screen.getByRole("dialog", { name: "Edit maintenance" }).querySelector<HTMLTextAreaElement>('[name="title"]')!;
+    fireEvent.input(control, { target: { value: "changed" } });
+    fireEvent.input(control, { target: { value: "Original title" } });
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Edit maintenance" })).toBeNull();
+  });
+
+  it("guards native File payloads and treats clearing the selection as reverted", async () => {
+    // No upload control exists in MaintenanceForm today. Augment native FormData
+    // with a synthetic attachment to exercise File serialization through the guard.
+    const NativeFormData = FormData;
+    let attachment = new File([], "", { type: "application/octet-stream" });
+    vi.stubGlobal("FormData", class extends NativeFormData {
+      constructor(form?: HTMLFormElement) {
+        super(form);
+        this.append("syntheticAttachment", attachment);
+      }
+    });
+    const user = await openDrawer();
+    const form = screen.getByRole("dialog", { name: "Edit maintenance" }).querySelector("form")!;
+    const title = form.querySelector('[name="title"]')!;
+    attachment = new File(["synthetic evidence"], "maintenance.txt", { type: "text/plain", lastModified: 1 });
+    fireEvent.input(title);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect((new FormData(form).get("syntheticAttachment") as File).name).toBe("maintenance.txt");
+    attachment = new File([], "", { type: "application/octet-stream" });
+    fireEvent.input(title);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Edit maintenance" })).toBeNull();
+  });
+  it("keeps the drawer open while a save is pending", async () => {
+    let finish!: (value: object) => void;
+    maintenanceActions.update.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const user = await openDrawer();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("alertdialog", { name: "Saving is still in progress" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Discard changes" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Continue waiting" }));
+    finish({ status: "success", message: "Saved." });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit maintenance" })).toBeNull());
+  });
+  it("retains failed saves under the guard and closes after successful retry", async () => {
+    maintenanceActions.update.mockResolvedValueOnce({ status: "error", message: "Save failed." } as never).mockResolvedValueOnce({ status: "success", message: "Saved." } as never);
+    const user = await openDrawer();
+    const title = screen.getByRole("dialog", { name: "Edit maintenance" }).querySelector<HTMLTextAreaElement>('[name="title"]')!;
+    fireEvent.input(title, { target: { value: "Retained title" } });
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("Save failed.");
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(title.value).toBe("Retained title");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit maintenance" })).toBeNull());
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+});
