@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { PageHelpContent } from "@/components/help/page-help-content";
 import { cn } from "@/lib/utils";
 
 import {
@@ -21,6 +22,7 @@ type WorkspacePageProps = {
   context?: ReactNode;
   contextHref?: string;
   title?: string;
+  help?: PageHelpContent | false;
   children: ReactNode;
 };
 
@@ -34,6 +36,7 @@ export function WorkspacePage({
   context,
   header,
   headerClassName,
+  help,
   localNav,
   title,
   toolbar,
@@ -52,6 +55,7 @@ export function WorkspacePage({
       className={headerClassName}
       context={context}
       title={title}
+      help={help}
     />
   ) : null;
 

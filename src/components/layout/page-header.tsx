@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { PageHelp, type PageHelpContent } from "@/components/help/page-help";
 import { WorkspaceHeaderPortal } from "@/components/layout/workspace-header-portal";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +11,7 @@ type PageHeaderProps = {
   actions?: ReactNode;
   navigation?: ReactNode;
   className?: string;
+  help?: PageHelpContent | false;
 };
 
 export function PageHeader({
@@ -20,6 +22,7 @@ export function PageHeader({
   actions,
   navigation,
   className,
+  help,
 }: PageHeaderProps) {
   return (
     <header
@@ -35,7 +38,7 @@ export function PageHeader({
         data-slot="page-header-primary-row"
       >
         <div
-          className={`flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1 ${
+          className={`flex min-w-0 flex-1 basis-full flex-wrap items-baseline gap-x-3 gap-y-1 sm:basis-auto ${
             navigation ? "lg:flex-none" : ""
           }`}
         >
@@ -52,14 +55,14 @@ export function PageHeader({
             </div>
           ) : null}
         </div>
-        {actions ? (
-          <div
-            className="order-1 ml-auto flex shrink-0 flex-wrap items-center gap-2 lg:order-2"
-            data-slot="page-header-actions"
-          >
-            {actions}
-          </div>
-        ) : null}
+        <div className="order-1 ml-auto flex shrink-0 flex-wrap items-center gap-2 lg:order-2">
+          <PageHelp content={help} />
+          {actions ? (
+            <div className="flex flex-wrap items-center gap-2" data-slot="page-header-actions">
+              {actions}
+            </div>
+          ) : null}
+        </div>
         {navigation ? (
           <div
             className="order-2 min-w-0 basis-full lg:order-1 lg:flex-1 lg:basis-auto"
