@@ -33,7 +33,10 @@ test("npm validates the installed scoped override as a satisfied dependency edge
 });
 
 test("Next's CommonJS caller works with synchronous require of ES modules disabled", () => {
-  const result = spawnSync(process.execPath, ["--no-experimental-require-module", "-e", `
+  // Older supported Node versions already lack require(esm) and its flag.
+  const flags = process.allowedNodeEnvironmentFlags.has("--no-experimental-require-module")
+    ? ["--no-experimental-require-module"] : [];
+  const result = spawnSync(process.execPath, [...flags, "-e", `
     const { createRequire } = require("node:module");
     const pluginRequire = createRequire(require.resolve("@next/eslint-plugin-next/package.json"));
     const { getRootDirs } = pluginRequire("./dist/utils/get-root-dirs.js");
