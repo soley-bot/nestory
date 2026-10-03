@@ -52,8 +52,9 @@ describe("Reports screen", () => {
     report.unitProfitLossFunding = { contributionCents: BigInt(68200), remainingBalanceCents: null, unavailableReason: "Unit allocation is unresolved." };
     renderReport({ report });
     expect(screen.getByRole("status").textContent).toBe("Unit allocation is unresolved.");
-    expect(screen.getByRole("row", { name: "Remaining Balance Unavailable" })).toBeTruthy();
-    expect(screen.getByRole("row", { name: "Net income Unavailable" })).toBeTruthy();
+    expect(screen.getByRole("row", { name: "Opening account activity Unavailable" })).toBeTruthy();
+    expect(screen.queryByRole("row", { name: "Net income Unavailable" })).toBeNull();
+    expect(screen.getByText("Accrual basis")).toBeTruthy();
   });
 
   it("hides the report and exports when scope validation fails", () => {

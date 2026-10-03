@@ -49,7 +49,7 @@ describe("trusted report Excel export", () => {
     const files = unzipSync(buildTrustedReportXlsx(report));
     const sheet = strFromU8(files["xl/worksheets/sheet1.xml"]!);
     const styles = strFromU8(files["xl/styles.xml"]!);
-    const labels = ["Profit and loss details", "Account", "Income", "Rent", "Total Income", "Expenses", "Custom cost", "Total Expenses", "Net operating income", "Owner Contribution", "Remaining Balance", "Net income"];
+    const labels = ["Profit and loss details", "Account", "Income", "Rent", "Total Income", "Expenses", "Custom cost", "Total Expenses", "Net operating income", "Owner funding contributions", "Opening account activity"];
     expect(sheet).not.toContain("Zero transaction omitted");
     expect(sheet).not.toContain(">Utilities</t>");
     let previous = -1;
@@ -63,8 +63,8 @@ describe("trusted report Excel export", () => {
     expect(sheet).toContain('>Payment</t>');
     expect(sheet).toContain('>8F-D2</t>');
     expect(sheet).not.toContain('Bellavita / 8F-D2');
-    expect(sheet).toMatch(/<c r="A\d+"[^>]*><is><t[^>]*>Net income<\/t>/);
-    for (const amount of ["483.33", "888.33", "-405.00", "-93.00", "-498.00"]) expect(sheet).toContain(`<v>${amount}</v>`);
+    expect(sheet).not.toContain(">Net income</t>");
+    for (const amount of ["483.33", "888.33", "-405.00", "-93.00"]) expect(sheet).toContain(`<v>${amount}</v>`);
     expect(sheet.match(/>Custom cost<\/t>/g)).toHaveLength(1);
     expect(sheet).toContain("=HYPERLINK(&quot;unsafe&quot;)");
     expect(sheet).not.toContain("<f>");
@@ -79,7 +79,7 @@ describe("trusted report Excel export", () => {
     report.unitProfitLossLines = [];
     report.unitProfitLossFunding = { contributionCents: BigInt(68200), remainingBalanceCents: null, unavailableReason: "Unassigned activity" };
     const sheet = strFromU8(unzipSync(buildTrustedReportXlsx(report))["xl/worksheets/sheet1.xml"]!);
-    expect(sheet.match(/>Unavailable<\/t>/g)).toHaveLength(2);
+    expect(sheet.match(/>Unavailable<\/t>/g)).toHaveLength(1);
     expect(sheet).toContain("Unassigned activity");
     expect(sheet).not.toContain(">Rent</t>");
     expect(sheet).not.toContain(">Cleaning</t>");

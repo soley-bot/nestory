@@ -8,7 +8,10 @@ export type ProfitLossFunding = {
   unavailableReason?: string;
 };
 
-export const profitLossFundingNote = "Remaining Balance is recorded property-account activity before this month. Net income adds that balance and owner contributions to accrual operating income. Owner funding is outside operating profit; this total is not cash available for withdrawal.";
+export const profitLossBasisLabel = "Accrual basis";
+export const profitLossBasisNote = "Accrual basis: income and expenses by invoice or cost date.";
+export const profitLossFundingHeading = "Owner funding and account activity";
+export const profitLossFundingNote = "Owner contributions and opening account activity are excluded from operating profit. Opening account activity includes recorded property-account entries before this month; it is not cash available for withdrawal.";
 
 export type FundingCashRow = { id: string; property_id: string; unit_id: string | null; event_date: string; amount: number | string; reversal_of_id?: string | null };
 export type FundingActivityRow = { property_id: string; unit_id: string | null; event_date: string; category: string; balance_effect: number | string; source_type: string; source_id: string; reversal_of_id?: string | null };
@@ -79,9 +82,8 @@ export function profitLossSummaryRows(lines: UnitProfitLossLine[], funding?: Pro
     { label: "Net operating income", amountCents: income - expenses },
   ];
   if (funding) rows.push(
-    { label: "Owner Contribution", amountCents: funding.contributionCents },
-    { label: "Remaining Balance", amountCents: funding.remainingBalanceCents },
-    { label: "Net income", amountCents: funding.remainingBalanceCents === null ? null : income - expenses + funding.contributionCents + funding.remainingBalanceCents },
+    { label: "Owner funding contributions", amountCents: funding.contributionCents },
+    { label: "Opening account activity", amountCents: funding.remainingBalanceCents },
   );
   if (funding?.unassignedContributionCents) rows.splice(4, 0, { label: "Property-level contributions (unassigned)", amountCents: funding.unassignedContributionCents });
   return rows;

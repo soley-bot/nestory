@@ -1,5 +1,5 @@
 import { ownerStatementCash } from "@/features/reports/data/owner-statement-cash";
-import { profitLossSummaryRows, profitLossFundingNote } from "./profit-loss-funding";
+import { profitLossSummaryRows, profitLossFundingNote, profitLossFundingHeading, profitLossBasisNote } from "./profit-loss-funding";
 import type { OwnerStatementPresentation } from "@/features/reports/data/pdf";
 import { formatCalendarDate } from "@/lib/dates/format";
 import { strToU8, zipSync } from "fflate";
@@ -189,17 +189,18 @@ function profitLossSheetXml(report: TrustedReport, hasLogo: boolean) {
     [{ style: 4, span: 7, value: report.unitProfitLossOwnerProperties?.length
       ? report.unitProfitLossOwnerProperties.map(({ ownerName, propertyName }) => `Owner: ${ownerName} | Property: ${propertyName}`).join("\n")
       : `Owner: Not provided | Property: ${report.scopeLabel}` }],
-    [],
+    [{ style: 4, span: 7, value: profitLossBasisNote }],
     heading("Account", "Date", "Type", "Name", "Unit", "Description", "Amount"),
     [{ style: 10, span: 7, value: "Income" }],
     ...detail("income"), total("Total Income", income),
     [{ style: 10, span: 7, value: "Expenses" }],
     ...detail("expense"), total("Total Expenses", expenses),
-    ...profitLossSummaryRows(lines, report.unitProfitLossFunding).slice(2).map(row =>
-      row.label === "Net operating income" || row.label === "Net income"
+    ...profitLossSummaryRows(lines, report.unitProfitLossFunding).slice(2).flatMap(row => [
+      ...(row.label === "Owner funding contributions" ? [[{ style: 10, span: 7, value: profitLossFundingHeading }]] : []),
+      row.label === "Net operating income"
         ? total(row.label, row.amountCents)
         : [{ style: 4, value: row.label }, ...Array.from({ length: 5 }, () => ({ value: "" })),
-          row.amountCents === null ? { value: "Unavailable" } : money(row.amountCents)]),
+          row.amountCents === null ? { value: "Unavailable" } : money(row.amountCents)]]),
     ...(report.unitProfitLossFunding ? [[], [{ style: 4, span: 7, value: profitLossFundingNote }],
       ...(report.unitProfitLossFunding.unavailableReason ? [[{ style: 4, span: 7, value: report.unitProfitLossFunding.unavailableReason }]] : [])] : []),
   ];
