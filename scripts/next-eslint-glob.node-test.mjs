@@ -32,6 +32,16 @@ test("npm validates the installed scoped override as a satisfied dependency edge
   assert.equal(result.status, 0, result.error?.message ?? `${result.stderr}\n${result.stdout}`);
 });
 
+test("Next's CommonJS caller works with synchronous require of ES modules disabled", () => {
+  const result = spawnSync(process.execPath, ["--no-experimental-require-module", "-e", `
+    const { createRequire } = require("node:module");
+    const pluginRequire = createRequire(require.resolve("@next/eslint-plugin-next/package.json"));
+    const { getRootDirs } = pluginRequire("./dist/utils/get-root-dirs.js");
+    require("node:assert/strict").deepEqual(getRootDirs({ cwd: process.cwd(), settings: { next: { rootDir: "." } } }), ["."]);
+  `], { cwd: root, encoding: "utf8", timeout: 60000 });
+  assert.equal(result.status, 0, result.error?.message ?? `${result.stderr}\n${result.stdout}`);
+});
+
 test("unsupported brace ranges fail explicitly rather than silently dropping lint roots", () => {
   for (const rootDir of ["apps/app{01..05}", "packages/pkg{2..10..2}", "apps/{a..z}", "apps/{web,pkg{01..05}}"]) {
     assert.throws(() => getRootDirs({ cwd: root, settings: { next: { rootDir } } }), /brace ranges are unsupported; list roots explicitly or use a wildcard/);
@@ -93,6 +103,16 @@ test("actual Next root discovery retains literal, glob and array directory seman
     await t.test("composite extglobs cannot silently omit roots matched by a dynamic parent", () => {
       for (const suffix of ["*/?(pages)", "*/*(pages)", "*/!(pages)", "*/@(pages|)", "*/+(pages)", "{web,admin}/?(pages)", "@(web|admin)/?(pages)/src"]) {
         assert.throws(() => discover(`${apps}/${suffix}`), /extglobs after dynamic parent segments are unsupported; list roots explicitly/);
+      }
+    });
+    await t.test("slash-spanning groups cannot add unintended roots", () => {
+      for (const pattern of [`${apps}/@(web/pages|admin/pages)`, `@(${apps}/web|${apps}/admin)`]) {
+        assert.throws(() => discover(pattern), /slash-spanning extglobs are unsupported; list roots explicitly/);
+      }
+    });
+    await t.test("nested repeated stars cannot omit the matched application roots", () => {
+      for (const suffix of ["*/***", "*/****", "{web,admin}/***"]) {
+        assert.throws(() => discover(`${apps}/${suffix}`), /repeated-star segments after dynamic parents are unsupported; list roots explicitly/);
       }
     });
     await t.test("default uses ESLint context cwd", () => {

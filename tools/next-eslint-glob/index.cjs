@@ -1,11 +1,12 @@
-import { globSync as findDirectories } from "tinyglobby";
-import { isAbsolute, join, parse, resolve } from "node:path";
-import { readdirSync, statSync } from "node:fs";
+/* eslint @typescript-eslint/no-require-imports: "off" -- Next's CommonJS caller must also work without require(esm). */
+const { globSync: findDirectories } = require("tinyglobby");
+const { isAbsolute, join, parse, resolve } = require("node:path");
+const fs = require("node:fs");
 
 // fdir follows directory links but omits the link itself from directory output.
 // Its supported filesystem hook lets directory links follow the normal path.
 function linksToDirectory(path) {
-  try { return statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false; }
+  try { return fs.statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false; }
   catch (error) {
     if (["ENOENT", "ENOTDIR", "ELOOP"].includes(error.code)) return false;
     throw error;
@@ -13,7 +14,7 @@ function linksToDirectory(path) {
 }
 
 function readDirectoryEntries(directory, options) {
-  return readdirSync(directory, options).map((entry) =>
+  return fs.readdirSync(directory, options).map((entry) =>
     entry.isSymbolicLink() && linksToDirectory(join(directory, entry.name))
       ? Object.create(entry, { isDirectory: { value: () => true } })
       : entry);
@@ -21,7 +22,7 @@ function readDirectoryEntries(directory, options) {
 
 // @next/eslint-plugin-next 16.3.8 uses only this API, with onlyDirectories.
 // Fail explicitly if a dependency upgrade starts using a broader API.
-export function globSync(patterns, options) {
+function globSync(patterns, options) {
   if (
     typeof patterns !== "string" || !options || options.onlyDirectories !== true ||
     Object.keys(options).some((key) => key !== "onlyDirectories")
@@ -42,6 +43,14 @@ export function globSync(patterns, options) {
   if (/(^|[^!*+?@])\(/.test(patterns)) {
     throw new TypeError("Next.js ESLint rootDir bare parentheses are unsupported; list roots explicitly without grouping");
   }
+  let groupDepth = 0;
+  for (const character of patterns) {
+    if (character === "(") groupDepth += 1;
+    else if (character === ")") groupDepth = Math.max(0, groupDepth - 1);
+    else if (character === "/" && groupDepth > 0) {
+      throw new TypeError("Next.js ESLint rootDir slash-spanning extglobs are unsupported; list roots explicitly");
+    }
+  }
   if (/\?(?!\()[^/]*\//.test(patterns)) {
     throw new TypeError("Next.js ESLint rootDir question-mark wildcards before path separators are unsupported; list roots explicitly or use a star wildcard");
   }
@@ -51,6 +60,9 @@ export function globSync(patterns, options) {
   for (const segment of patterns.split("/")) {
     if (dynamicParent && /[!?*+@]\(/.test(segment)) {
       throw new TypeError("Next.js ESLint rootDir extglobs after dynamic parent segments are unsupported; list roots explicitly");
+    }
+    if (dynamicParent && /^\*{3,}$/.test(segment)) {
+      throw new TypeError("Next.js ESLint rootDir repeated-star segments after dynamic parents are unsupported; list roots explicitly");
     }
     dynamicParent ||= ["*", "?", "[", "{", "("].some((token) => segment.includes(token));
   }
@@ -84,3 +96,5 @@ export function globSync(patterns, options) {
   }
   return directories.map((directory) => directory === parse(directory).root ? directory : directory.replace(/\/$/, ""));
 }
+
+module.exports = { globSync };
