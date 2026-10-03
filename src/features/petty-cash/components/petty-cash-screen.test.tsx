@@ -23,6 +23,7 @@ const navigation = vi.hoisted(() => ({ replace: vi.fn() }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: navigation.replace }),
+  usePathname: () => "/petty-cash",
 }));
 
 beforeEach(() => {
