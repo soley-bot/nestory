@@ -109,6 +109,38 @@ afterEach(() => {
 });
 
 describe("LeaseDetailScreen", () => {
+  it("retains the filtered origin after payment success without losing receipt guidance", async () => {
+    const returnTo = "/units/unit-1/finance?view=rent&q=Alice&status=unpaid&sort=due&page=2";
+    actionMocks.recordTenantInvoicePaymentAction.mockResolvedValue({
+      artifactHref: "/api/finance/documents/receipt-1", message: "Payment recorded.",
+      paymentId: "payment-1", publicationStatus: "published", status: "success",
+    });
+    const view = renderDetail("overview", makeLease(), allLeasePermissions, {
+      paymentResolution: resolutionFixture(), returnTo,
+    });
+    expect(screen.getByRole("link", { name: "Payment is not received" }).getAttribute("href")).toBe(returnTo);
+    fireEvent.submit(view.container.querySelector("form")!);
+    await waitFor(() => expect(routerMocks.replace).toHaveBeenCalledWith(
+      `/leases/lease-1?${new URLSearchParams({ returnTo })}`,
+    ));
+    view.rerender(detailElement("overview", makeLease(), allLeasePermissions, { returnTo }));
+    expect(screen.getByRole("link", { name: "Download receipt" }).getAttribute("href")).toBe("/api/finance/documents/receipt-1");
+    expect(screen.getByRole("link", { name: "Back to previous view" }).getAttribute("href")).toBe(returnTo);
+    for (const link of within(screen.getByRole("navigation", { name: "Lease record sections" })).getAllByRole("link")) {
+      expect(new URL(link.getAttribute("href")!, "https://nestory.invalid").searchParams.get("returnTo")).toBe(returnTo);
+    }
+    expect(actionMocks.recordTenantInvoicePaymentAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps cancellation mutation-free and rejects external origins", () => {
+    renderDetail("overview", makeLease(), allLeasePermissions, {
+      paymentResolution: resolutionFixture(), returnTo: "//evil.test",
+    });
+    expect(screen.getByRole("link", { name: "Payment is not received" }).getAttribute("href")).toBe("/leases/lease-1");
+    expect(screen.queryByRole("link", { name: "Back to previous view" })).toBeNull();
+    expect(actionMocks.recordTenantInvoicePaymentAction).not.toHaveBeenCalled();
+  });
+
   it.each([false, true])("gates property breadcrumbs without losing lease context (%s)", (canViewPropertyRecords) => {
     const { container } = renderDetail("overview", makeLease(), allLeasePermissions, { canViewPropertyRecords });
     expect(screen.getAllByText(/Riverside House/).length).toBeGreaterThan(0);
@@ -1434,6 +1466,7 @@ function renderDetail(
   lease = makeLease(),
   permissions = allLeasePermissions,
   focus: {
+    returnTo?: string;
     canViewPropertyRecords?: boolean;
     billingFormConfig?: LeaseBillingFormConfig;
     historicalRentCorrectionCandidates?: HistoricalRentCorrectionCandidate[];
@@ -1453,6 +1486,7 @@ function detailElement(
   lease = makeLease(),
   permissions = allLeasePermissions,
   focus: {
+    returnTo?: string;
     canViewPropertyRecords?: boolean;
     billingFormConfig?: LeaseBillingFormConfig;
     historicalRentCorrectionCandidates?: HistoricalRentCorrectionCandidate[];
@@ -1467,6 +1501,7 @@ function detailElement(
   return (
     <LeaseDetailScreen
       activeSection={activeSection}
+      returnTo={focus.returnTo}
       billingFormConfig={focus.billingFormConfig}
       canRecordPayments
       canViewFinance

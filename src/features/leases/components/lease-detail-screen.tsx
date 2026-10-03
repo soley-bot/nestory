@@ -78,6 +78,7 @@ import type {
   LeaseUnitOption,
 } from "@/features/leases/lease.types";
 import { getCalendarDateInTimeZone } from "@/features/leases/lease-billing-rule-state";
+import { workflowReturnHref } from "@/features/leases/workflow-return";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 
@@ -136,10 +137,12 @@ export function LeaseDetailScreen({
   permissions,
   propertyOptions,
   routeNotice,
+  returnTo,
   tenantOptions,
   unitOptions,
 }: {
   activeSection: LeaseRecordSection;
+  returnTo?: string;
   billingFormConfig?: LeaseBillingFormConfig;
   canViewPropertyRecords?: boolean;
   currentRentEditInvoiceId?: string;
@@ -163,7 +166,8 @@ export function LeaseDetailScreen({
   const pendingPaymentReceiptRef = useRef<TenantPaymentReceiptResult | null>(
     null,
   );
-  const returnHref = buildLeaseRecordHref({ leaseId: lease.id });
+  const originHref = workflowReturnHref(returnTo);
+  const returnHref = buildLeaseRecordHref({ leaseId: lease.id, returnTo: originHref });
   const statusScope = paymentResolution
     ? `${lease.id}:payment:${paymentResolution.invoice.id}`
     : `${lease.id}:record:${activeSection}:${routeNotice?.message ?? ""}:${routeNotice?.href ?? ""}`;
@@ -257,7 +261,7 @@ export function LeaseDetailScreen({
           <PageBreadcrumb
             current={lease.tenantName}
             items={canViewPropertyRecords ? [
-              { href: "/properties", label: "Properties" },
+              { href: originHref ?? "/properties", label: originHref ? "Back to previous view" : "Properties" },
               {
                 href: lease.hrefs.property,
                 label: `${lease.propertyCode} — ${lease.propertyName}`,
@@ -270,7 +274,7 @@ export function LeaseDetailScreen({
                     },
                   ]
                 : []),
-            ] : [{ href: "/leases", label: "Leases" }]}
+            ] : [{ href: originHref ?? "/leases", label: originHref ? "Back to previous view" : "Leases" }]}
           />
         }
         className="pb-3"
@@ -337,10 +341,12 @@ export function LeaseDetailScreen({
             pendingPaymentReceiptRef.current = result;
           }}
           resolution={paymentResolution}
+          cancelHref={originHref}
           returnHref={returnHref}
         />
       ) : (
         <LeaseDetailView
+          returnTo={originHref}
           activeSection={activeSection}
           permissions={permissions}
           lease={lease}

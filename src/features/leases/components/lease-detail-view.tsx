@@ -40,6 +40,7 @@ type LeaseActionPermissions = {
 
 export function LeaseDetailView({
   activeSection,
+  returnTo,
   lease,
   permissions,
   onAttachFile,
@@ -49,6 +50,7 @@ export function LeaseDetailView({
   onScheduleTerm,
 }: {
   activeSection: LeaseRecordSection;
+  returnTo?: string;
   lease: LeaseSummary;
   permissions: LeaseActionPermissions;
   onAttachFile: () => void;
@@ -61,7 +63,7 @@ export function LeaseDetailView({
 }) {
   return (
     <div className="workspace-gutter-x flex flex-col gap-5 pb-12">
-      <LeaseRecordNav activeSection={activeSection} leaseId={lease.id} />
+      <LeaseRecordNav activeSection={activeSection} leaseId={lease.id} returnTo={returnTo} />
 
       <div aria-label="Lease record details" className="min-w-0" role="region">
         {activeSection === "overview" ? (
@@ -95,8 +97,10 @@ export function LeaseDetailView({
 function LeaseRecordNav({
   activeSection,
   leaseId,
+  returnTo,
 }: {
   activeSection: LeaseRecordSection;
+  returnTo?: string;
   leaseId: string;
 }) {
   return (
@@ -111,7 +115,7 @@ function LeaseRecordNav({
             "-mb-px shrink-0 border-b-2 border-transparent px-3 py-3 text-sm font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
             activeSection === section.id && "border-foreground text-foreground",
           )}
-          href={buildLeaseRecordHref({ leaseId, section: section.id })}
+          href={buildLeaseRecordHref({ leaseId, section: section.id, returnTo })}
           key={section.id}
           scroll={false}
         >

@@ -14,14 +14,15 @@ export default async function PropertyFinancePage({
   searchParams = Promise.resolve({}),
 }: {
   params: Promise<{ propertyId: string }>;
-  searchParams?: Promise<{ view?: string }>;
+  searchParams?: Promise<{ view?: string; expenseMonth?: string | string[] }>;
 }) {
   const [{ propertyId }, query, context] = await Promise.all([
     params,
     searchParams,
     requireFinanceContext(),
   ]);
-  const allData = await getFinanceOperationsData(context.organizationId, propertyId, { includeExpenses: query.view !== "rent", accountActivityOnly: query.view === "owner", completeTransactionHistory: !["rent", "expenses", "owner"].includes(query.view ?? ""), includeAccountSources: !["rent", "expenses", "owner"].includes(query.view ?? "") || query.view === "owner" });
+  const expenseMonth = typeof query.expenseMonth === "string" && /^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(query.expenseMonth) ? query.expenseMonth : "";
+  const allData = await getFinanceOperationsData(context.organizationId, propertyId, { expenseMonth, includeExpenses: query.view !== "rent", accountActivityOnly: query.view === "owner", completeTransactionHistory: !["rent", "expenses", "owner"].includes(query.view ?? ""), includeAccountSources: !["rent", "expenses", "owner"].includes(query.view ?? "") || query.view === "owner" });
   const property = allData.propertyOptions.find((option) => option.id === propertyId);
   if (!property) notFound();
   const data = scopeFinanceOperationsData(allData, { propertyId });
@@ -45,6 +46,7 @@ export default async function PropertyFinancePage({
       canSubmitExpense={context.capabilities.canSubmitExpense}
       canViewLeases={context.permissionKeys.has("leases.view")}
       canViewPropertyRecords={context.permissionKeys.has("properties.view")}
+      expenseMonth={expenseMonth}
       organizationName={context.organizationName}
       scope={{
         id: propertyId,

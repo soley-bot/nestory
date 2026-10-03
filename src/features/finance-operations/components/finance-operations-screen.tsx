@@ -45,6 +45,8 @@ import {
   buildLeaseCurrentRentEditHref,
   buildLeasePaymentResolutionHref,
 } from "@/features/leases/lease-detail-route";
+import { financeTabHref } from "@/features/finance-operations/finance-tab-route";
+import { workflowReturnHref } from "@/features/leases/workflow-return";
 import type { LeaseBillingRule } from "@/features/leases/lease.types";
 import {
   createManualTenantChargeAction,
@@ -353,7 +355,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
       headerClassName="px-4 py-3 sm:px-6 lg:py-3 2xl:px-8 [&_[data-slot=page-header-actions]]:ml-0 [&_[data-slot=page-header-actions]]:basis-full md:[&_[data-slot=page-header-actions]]:ml-auto md:[&_[data-slot=page-header-actions]]:basis-auto"
       localNav={
         props.scope ? (
-          <ScopedFinanceNavigation scope={props.scope} view={props.view} />
+          <ScopedFinanceNavigation key={`${props.scope.kind}:${props.scope.id}`} scope={props.scope} view={props.view} />
         ) : (
           <FinanceWorkspaceNavigation
             activeRoute={screen.activeRoute}
@@ -673,27 +675,35 @@ function ScopedFinanceNavigation({
     scope.kind === "property"
       ? `/properties/${scope.id}/finance`
       : `/units/${scope.id}/finance`;
+  const query = useSearchParams().toString();
+  const filters = financeTabHref(base, view, query, query).split("?")[1];
+  const [saved, setSaved] = useState({ view, filters, queries: { [view]: filters } as Record<string, string> });
+  const queries = { ...saved.queries, [view]: filters };
+  if (saved.view !== view || saved.filters !== filters) {
+    setSaved({ view, filters, queries });
+  }
+  const tabHref = (target: FinanceOperationsView) => financeTabHref(base, target, queries[target] ?? "", query);
   const items = [
-    { active: view === "transactions", href: `${base}?view=transactions`, label: "Transactions" },
+    { active: view === "transactions", href: tabHref("transactions"), label: "Transactions" },
     {
       active: view === "rent",
-      href: `${base}?view=rent`,
+      href: tabHref("rent"),
       label: "Rent & charges",
     },
     {
       active: view === "expenses",
-      href: `${base}?view=expenses`,
+      href: tabHref("expenses"),
       label: "Expenses",
     },
     scope.kind === "property"
       ? {
           active: view === "account",
-          href: `${base}?view=owner`,
+          href: tabHref("account"),
           label: "Owner account",
         }
       : {
           active: false,
-          href: `/properties/${scope.propertyId}/finance?view=owner`,
+          href: financeTabHref(`/properties/${scope.propertyId}/finance`, "account", "", query),
           label: "Owner account (Property)",
         },
   ];
@@ -893,6 +903,7 @@ function getScreen(
         <ExpensesView
           positions={props.positions}
           serverMonth={props.expenseMonth}
+          scoped={Boolean(props.scope)}
           canReview={props.canReviewExpense}
           openModal={openModal}
           submissions={props.expenseSubmissions}
@@ -1351,6 +1362,7 @@ function FinanceWorkView({
                                 ? buildLeasePaymentResolutionHref({
                                     invoiceId: item.invoice.id,
                                     leaseId: item.invoice.leaseId,
+                                    returnTo: workflowReturnHref(`${pathname}?${searchParams}`),
                                   })
                                 : `/rent-income?leaseId=${item.invoice.leaseId}`
                             }
@@ -1873,6 +1885,7 @@ function RentView({
 }
 
 function ExpensesView({
+  scoped = false,
   positions,
   serverMonth,
   canReview,
@@ -1884,6 +1897,7 @@ function ExpensesView({
   openModal: (modal: ModalState) => void;
   submissions: FinanceOperationsData["expenseSubmissions"];
   serverMonth?: string;
+  scoped?: boolean;
 }) {
   const [status, setStatus] =
     useState<ExpenseSubmissionSummary["status"]>("submitted");
@@ -1905,7 +1919,7 @@ function ExpensesView({
 
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-4 px-4 py-4 sm:px-6 2xl:px-8">
-      {serverMonth === "" ? <p className="text-xs text-muted-foreground">Recent history. Choose a month to view older expenses.</p> : null}
+      {serverMonth === "" && !scoped ? <p className="text-xs text-muted-foreground">Recent history. Choose a month to view older expenses.</p> : null}
       <div className="flex flex-wrap items-end gap-3" aria-label="Expense filters">
         <label className="grid gap-1 text-xs font-medium">Month
           <MonthPickerField key={month || "all"} ariaLabel="Expense month" name="expenseMonth" defaultValue={month} onValueChange={setMonth} className="w-44" />
@@ -2261,6 +2275,8 @@ function InvoiceDetails({
   const canCorrect =
     canCorrectFinance &&
     invoice.settlements.some((settlement) => !settlement.isReversed);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const publishButtonRef = useRef<HTMLAnchorElement | null>(null);
   const pdfHref = pdf.href ?? pdfResultHref;
   const canPublishPdf =
@@ -2376,6 +2392,7 @@ function InvoiceDetails({
                 href={buildLeaseCurrentRentEditHref({
                   invoiceId: invoice.id,
                   leaseId: invoice.leaseId,
+                  returnTo: workflowReturnHref(`${pathname}?${searchParams}`),
                 })}
               >
                 Edit this month&apos;s rent

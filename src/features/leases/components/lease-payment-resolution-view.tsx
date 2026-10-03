@@ -27,6 +27,7 @@ type LeasePaymentResolutionViewProps = {
   onReceiptResult: (result: TenantPaymentReceiptResult) => void;
   resolution: LeasePaymentResolutionData;
   returnHref: string;
+  cancelHref?: string;
 };
 
 export function LeasePaymentResolutionView({
@@ -37,6 +38,7 @@ export function LeasePaymentResolutionView({
   onReceiptResult,
   resolution,
   returnHref,
+  cancelHref,
 }: LeasePaymentResolutionViewProps) {
   const { invoice } = resolution;
   const balanceDisplay = formatMoneyDisplay(invoice.balanceDue).primary;
@@ -115,7 +117,7 @@ export function LeasePaymentResolutionView({
             className="mt-2 px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
             variant="ghost"
           >
-            <Link href={returnHref}>Payment is not received</Link>
+            <Link href={cancelHref ?? returnHref}>Payment is not received</Link>
           </Button>
         </section>
 

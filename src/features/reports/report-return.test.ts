@@ -23,7 +23,7 @@ describe("report correction return scope", () => {
     const destination = new URL(withReportReturn("/bills-expenses?sourceId=e", report), "https://nestory.invalid");
     expect(reportReturnHref(destination.searchParams.get("returnTo"))).toBe(report);
   });
-  it.each(["https://evil.test", "//evil.test", "/\\evil.test", "/login", "javascript:alert(1)", ["/balances"]])("rejects an unsafe return target %s", value => {
+  it.each(["https://evil.test", "//evil.test", "/\\evil.test", "/\\", "/\\[", "/login", "javascript:alert(1)", ["/balances"]])("rejects an unsafe return target %s", value => {
     expect(reportReturnHref(value)).toBeUndefined();
   });
 });

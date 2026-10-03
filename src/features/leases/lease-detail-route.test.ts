@@ -7,6 +7,18 @@ import {
 } from "@/features/leases/lease-detail-route";
 
 describe("lease detail route", () => {
+  it("carries a validated origin through payment, rent correction and record sections", () => {
+    const returnTo = "/properties/property-1/finance?view=rent&q=Alice&status=unpaid&page=2";
+    for (const href of [
+      buildLeasePaymentResolutionHref({ leaseId: "lease-1", invoiceId: "invoice-1", returnTo }),
+      buildLeaseCurrentRentEditHref({ leaseId: "lease-1", invoiceId: "invoice-1", returnTo }),
+      buildLeaseRecordHref({ leaseId: "lease-1", section: "occupancy", returnTo }),
+    ]) {
+      const params = Object.fromEntries(new URL(href, "https://nestory.invalid").searchParams);
+      expect(parseLeaseDetailQuery(params).returnTo).toBe(returnTo);
+    }
+  });
+
   it("defaults invalid or missing sections to overview", () => {
     expect(parseLeaseDetailQuery({})).toEqual({
       paymentFocusRequested: false,

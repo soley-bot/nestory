@@ -1,3 +1,4 @@
+import { workflowReturnHref } from "./workflow-return";
 import { buildHref } from "@/lib/url/href";
 
 export type LeaseRecordSection = "overview" | "rent" | "occupancy" | "files";
@@ -7,6 +8,7 @@ export type LeaseDetailQuery = {
   paymentInvoiceId: string | null;
   rentEditInvoiceId: string | null;
   section: LeaseRecordSection;
+  returnTo?: string;
 };
 
 const databaseIdPattern =
@@ -28,7 +30,9 @@ export function parseLeaseDetailQuery(
   const paymentFocusRequested = action === "record-payment";
   const rentEditRequested = action === "edit-current-rent";
 
+  const returnTo = workflowReturnHref(firstValue(searchParams.returnTo));
   return {
+    ...(returnTo ? { returnTo } : {}),
     paymentFocusRequested,
     paymentInvoiceId:
       paymentFocusRequested && invoiceId && databaseIdPattern.test(invoiceId)
@@ -47,11 +51,14 @@ export function parseLeaseDetailQuery(
 export function buildLeaseCurrentRentEditHref({
   invoiceId,
   leaseId,
+  returnTo,
 }: {
   invoiceId: string;
   leaseId: string;
+  returnTo?: string;
 }) {
   return buildHref(`/leases/${leaseId}`, {
+    returnTo: workflowReturnHref(returnTo),
     action: "edit-current-rent",
     invoiceId,
     section: "rent",
@@ -61,11 +68,14 @@ export function buildLeaseCurrentRentEditHref({
 export function buildLeasePaymentResolutionHref({
   invoiceId,
   leaseId,
+  returnTo,
 }: {
   invoiceId: string;
   leaseId: string;
+  returnTo?: string;
 }) {
   return buildHref(`/leases/${leaseId}`, {
+    returnTo: workflowReturnHref(returnTo),
     action: "record-payment",
     invoiceId,
   });
@@ -73,12 +83,14 @@ export function buildLeasePaymentResolutionHref({
 
 export function buildLeaseRecordHref({
   leaseId,
+  returnTo,
   section,
 }: {
   leaseId: string;
+  returnTo?: string;
   section?: LeaseRecordSection;
 }) {
-  return buildHref(`/leases/${leaseId}`, { section });
+  return buildHref(`/leases/${leaseId}`, { section, returnTo: workflowReturnHref(returnTo) });
 }
 
 function firstValue(value: string | string[] | undefined) {

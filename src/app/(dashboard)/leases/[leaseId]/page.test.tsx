@@ -78,6 +78,19 @@ describe("lease detail route", () => {
     getHistoricalRentCorrectionCandidates.mockResolvedValue([]);
   });
 
+  it("passes validated origin filters to the lease screen without changing permission checks", async () => {
+    const returnTo = "/units/unit-1/finance?view=rent&status=unpaid&q=Alice";
+    await renderPage({ action: "record-payment", invoiceId, returnTo });
+    expect(detailSpy.mock.calls[0]?.[0].returnTo).toBe(returnTo);
+    expect(requirePermission).toHaveBeenCalledWith("leases.view");
+    expect(detailSpy.mock.calls[0]?.[0].canRecordPayments).toBe(true);
+  });
+
+  it("does not pass external return destinations into the client screen", async () => {
+    await renderPage({ returnTo: "//evil.test" });
+    expect(detailSpy.mock.calls[0]?.[0].returnTo).toBeUndefined();
+  });
+
   it("loads historical candidates only for a Super Admin", async () => {
     requirePermission.mockResolvedValue({
       organizationId: "organization-1",
