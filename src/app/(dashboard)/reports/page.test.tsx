@@ -9,6 +9,7 @@ const auth = vi.hoisted(() => ({
 
 vi.mock("@/lib/auth/context", () => auth);
 vi.mock("next/navigation", () => ({
+  usePathname: () => "/reports",
   redirect: vi.fn(() => {
     throw new Error("unexpected redirect");
   }),

@@ -6,6 +6,7 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import { useRouter } from "next/navigation";
 
@@ -57,6 +58,8 @@ export const AppearanceEditor = forwardRef<
 ) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
+  const logoRef = useRef<SettingsEditorHandle>(null);
+  const [logoStatus, setLogoStatus] = useState<DraftStatus>("clean");
   const initialValues = useMemo<AppearanceDraft>(
     () => ({
       accentPreset: theme.accentPreset,
@@ -77,13 +80,21 @@ export const AppearanceEditor = forwardRef<
   const previewTheme = getPreviewTheme(draft.values);
   const previewMode = previewTheme.mode === "dark" ? "dark" : "light";
   const acceptThemeValues = draft.acceptValues;
+  const discardAppearance = draft.discard;
 
-  useImperativeHandle(controllerRef, () => ({ discard: draft.discard }), [
-    draft.discard,
+  const sectionStatus: DraftStatus = [draft.status, logoStatus].includes("saving") ? "saving"
+    : [draft.status, logoStatus].includes("error") ? "error"
+    : [draft.status, logoStatus].includes("dirty") ? "dirty"
+    : [draft.status, logoStatus].includes("saved") ? "saved" : "clean";
+  useImperativeHandle(controllerRef, () => ({ discard: () => {
+    discardAppearance();
+    logoRef.current?.discard();
+  } }), [
+    discardAppearance,
   ]);
   useEffect(
-    () => onDraftStatusChange(draft.status),
-    [draft.status, onDraftStatusChange],
+    () => onDraftStatusChange(sectionStatus),
+    [sectionStatus, onDraftStatusChange],
   );
   useEffect(() => () => onDraftStatusChange("clean"), [onDraftStatusChange]);
   useEffect(() => {
@@ -121,6 +132,8 @@ export const AppearanceEditor = forwardRef<
   return (
     <div className="space-y-4">
       <CompanyLogoEditor
+        ref={logoRef}
+        onDraftStatusChange={setLogoStatus}
         logoStoragePath={logoStoragePath}
         logoUrl={logoUrl}
         organizationName={organizationName}
@@ -128,11 +141,11 @@ export const AppearanceEditor = forwardRef<
       <Card className="min-w-0" data-testid="settings-editor" size="sm">
         <CardHeader className="border-b">
           <SettingsSectionHeader
-            description="Workspace default and accent."
+            description="Preview workspace defaults below. Changes apply after Save changes."
             title="Appearance"
           />
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 [&_button]:min-h-11">
           <form
             onSubmit={(event) => {
               event.preventDefault();
@@ -163,7 +176,7 @@ export const AppearanceEditor = forwardRef<
                     value={draft.values.mode}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Members can override this in their account.
+                    For your personal display, use Display theme in the workspace header.
                   </p>
                 </div>
 
@@ -182,7 +195,7 @@ export const AppearanceEditor = forwardRef<
                         <button
                           aria-pressed={selected}
                           className={cn(
-                            "flex min-h-10 items-center gap-2 rounded-lg border px-2.5 text-left text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
+                            "flex min-h-11 items-center gap-2 rounded-lg border px-2.5 text-left text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
                             selected && "border-ring bg-muted",
                           )}
                           key={preset}
@@ -210,7 +223,7 @@ export const AppearanceEditor = forwardRef<
                   <div className="flex items-center gap-2">
                     <Input
                       aria-label="Custom color picker"
-                      className="w-11 shrink-0 p-1"
+                      className="min-h-11 w-11 shrink-0 p-1"
                       onChange={(event) =>
                         draft.setField(
                           "accentSeed",
@@ -230,6 +243,7 @@ export const AppearanceEditor = forwardRef<
                       }
                       aria-invalid={Boolean(draft.errors.accentSeed)}
                       aria-label="Custom hex color"
+                      className="min-h-11"
                       id="accentSeed"
                       name="accentSeed"
                       onChange={(event) =>

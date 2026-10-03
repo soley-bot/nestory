@@ -189,7 +189,7 @@ describe("FinanceOperationsScreen", () => {
     expect(valueOfNamedInput(form, "replacementTransactionId")).toBe("transaction-1");
     expect(valueOfNamedInput(form, "payFromAccountId")).toBe("");
     expect(within(dialog).getByText(/original account is unavailable/)).toBeTruthy();
-    expect(within(dialog).getByLabelText("Reason for change").hasAttribute("required")).toBe(true);
+    expect(within(dialog).getByRole("textbox", { name: /^Reason for change/ }).hasAttribute("required")).toBe(true);
   });
 
   it("hides edit and cancellation from someone other than the submitter", async () => {
@@ -214,16 +214,78 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByRole("button", { name: "View original expense" })).toBeTruthy();
   });
 
-  it("explains reversal and approval before saving an approved expense correction", async () => {
+  it("shows History and explains financial effects before editing an approved expense", async () => {
     const user = userEvent.setup(); const input = data();
     input.expenseSubmissions = [editableExpense("approved")];
     render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canSubmitExpense: true, canReverseExpense: true })} organizationName="IPS" view="expenses" />);
     await user.click(screen.getByRole("tab", { name: "Approved (1)" }));
     await user.click(screen.getByRole("button", { name: "View Sokha Repairs" }));
-    await user.click(screen.getByRole("button", { name: "Correct expense" }));
+    await user.click(screen.getByRole("button", { name: "History" }));
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Change history" }));
+    await user.click(screen.getByRole("button", { name: "Edit expense" }));
     expect(screen.getByText(/Save updates the expense and its financial effects together/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Save correction" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Cancel expense" })).toBeNull();
+  });
+
+  it("marks and focuses a rejected change date on the visible calendar control", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.expenseSubmissions = [editableExpense("approved")];
+    financeActionMocks.submitExpenseAction.mockResolvedValue({
+      status: "error", message: "Could not save changes.",
+      fieldErrors: { reversalDate: ["Choose a date in the open period."] },
+    });
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canSubmitExpense: true, canReverseExpense: true })} organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("tab", { name: "Approved (1)" }));
+    await user.click(screen.getByRole("button", { name: "View Sokha Repairs" }));
+    await user.click(screen.getByRole("button", { name: "Edit expense" }));
+    await user.type(screen.getByRole("textbox", { name: /^Reason for change/ }), "Correct receipt date");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByText("Choose a date in the open period.");
+    const date = screen.getByRole("button", { name: /^Change date/ });
+    await waitFor(() => expect(document.activeElement).toBe(date));
+    expect(date.getAttribute("data-invalid")).toBe("true");
+    expect(document.getElementById(date.getAttribute("aria-describedby")!)?.textContent).toBe("Choose a date in the open period.");
+    expect(financeActionMocks.submitExpenseAction).toHaveBeenCalledOnce();
+  });
+
+  it("keeps an expense edit on failure, focuses the reason and retries without duplicate submissions", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.expenseSubmissions = [editableExpense("approved")];
+    financeActionMocks.submitExpenseAction.mockImplementation(async () => {
+      await new Promise(resolve => setTimeout(resolve, 25));
+      return { status: "error", message: "Could not save changes.",
+        fieldErrors: { replacementReason: ["Enter a more specific reason."] } };
+    });
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canSubmitExpense: true, canReverseExpense: true })} organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("tab", { name: "Approved (1)" }));
+    await user.click(screen.getByRole("button", { name: "View Sokha Repairs" }));
+    await user.click(screen.getByRole("button", { name: "Edit expense" }));
+    const form = screen.getByRole("form", { name: "Record property expense form" });
+    const reason = screen.getByRole<HTMLInputElement>("textbox", { name: /^Reason for change/ });
+    await user.type(reason, "Repair amount changed");
+    const key = valueOfNamedInput(form, "idempotencyKey");
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    await screen.findByText("Enter a more specific reason.");
+    await waitFor(() => expect(document.activeElement).toBe(reason));
+    expect(financeActionMocks.submitExpenseAction).toHaveBeenCalledTimes(1);
+    expect(reason.value).toBe("Repair amount changed");
+    expect(reason.getAttribute("aria-invalid")).toBe("true");
+    const errorId = reason.getAttribute("aria-describedby")!;
+    expect(document.getElementById(errorId)?.textContent).toBe("Enter a more specific reason.");
+    await user.type(reason, " after receipt check");
+    expect(screen.queryByText("Enter a more specific reason.")).toBeNull();
+    fireEvent.submit(form);
+    await screen.findByText("Enter a more specific reason.");
+    expect(financeActionMocks.submitExpenseAction).toHaveBeenCalledTimes(2);
+    expect(valueOfNamedInput(form, "idempotencyKey")).toBe(key);
+    expect(JSON.parse(valueOfNamedInput(form, "lines")!)[0]).toMatchObject({ amount: "200", internalMarkupAmount: "20" });
+    expect(financeActionMocks.submitExpenseAction.mock.calls[1][1].get("replacementReason")).toBe("Repair amount changed after receipt check");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).toBeTruthy();
   });
 
   it("preserves automatic and explicit owner cash allocations when details are collapsed", async () => {

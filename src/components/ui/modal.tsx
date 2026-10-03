@@ -130,9 +130,9 @@ export function Modal({
             showCloseButton={false}
           >
             <DialogHeader className="relative gap-1 border-b p-4 pr-12 text-left">
-              <DialogTitle>{title}</DialogTitle>
+              <DialogTitle className="min-w-0 leading-snug [overflow-wrap:anywhere]">{title}</DialogTitle>
               {description ? (
-                <DialogDescription>{description}</DialogDescription>
+                <DialogDescription className="min-w-0 whitespace-pre-line [overflow-wrap:anywhere]">{description}</DialogDescription>
               ) : null}
               <Button
                 aria-label="Close modal"

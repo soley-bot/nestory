@@ -279,6 +279,11 @@ export function DocumentScreen({
       }
     >
       <div className="flex min-w-0 flex-col">
+        <p className="px-4 pt-3 text-sm text-muted-foreground sm:px-6">
+          {viewQuery.archiveState === "active"
+            ? "To find archived documents, choose Archived in Archive state. Archiving hides documents from active evidence lists without deleting the files."
+            : "Archived documents are hidden from active evidence lists. Open an archived document and choose Restore to return it to active lists when you have permission."}
+        </p>
         {statusMessage ? (
           <div className="shrink-0 px-4 pt-3 sm:px-6">
             <p
@@ -455,7 +460,7 @@ function DocumentReviewStrip({
   return (
     <div className="border-b border-border bg-muted/35 px-4 py-2 sm:px-6 lg:px-6">
       <div className="flex min-w-0 flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <p className="min-w-0 truncate font-medium text-foreground">
+        <p className="min-w-0 whitespace-normal [overflow-wrap:anywhere] font-medium text-foreground">
           {count} {count === 1 ? "document" : "documents"} {context.countLabel}
         </p>
         <p className="text-muted-foreground">{context.nextStep}</p>
@@ -528,7 +533,7 @@ function DocumentTable({
               >
                 <td className="px-2.5 py-2">
                   <Link
-                    className="block truncate rounded-sm font-medium text-primary outline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                    className="block whitespace-normal [overflow-wrap:anywhere] rounded-sm font-medium text-primary outline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                     href={document.hrefs.document}
                     onClick={(event) => event.stopPropagation()}
                     title={document.fileName}
@@ -536,7 +541,7 @@ function DocumentTable({
                     {document.fileName}
                   </Link>
                   <p
-                    className="mt-0.5 truncate text-xs text-muted-foreground"
+                    className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground"
                     title={document.category}
                   >
                     {document.category}
@@ -556,11 +561,11 @@ function DocumentTable({
                 <td className="px-1.5 py-2">
                   {document.linkedRecords[0] ? (
                     <>
-                      <p className="truncate font-medium">
+                      <p className="whitespace-normal [overflow-wrap:anywhere] font-medium">
                         {document.linkedRecords[0].type}
                       </p>
                       <p
-                        className="mt-0.5 truncate text-xs text-muted-foreground"
+                        className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground"
                         title={document.linkedRecords[0].label}
                       >
                         {document.linkedRecords[0].label}
@@ -914,7 +919,7 @@ function DocumentArchivePanel({
         </div>
         <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
           {mode === "archive"
-            ? "Archiving hides this document from active evidence lists without deleting the file."
+            ? "Archiving hides this document from active evidence lists without deleting the file. To recover it later, choose Archived in Archive state, open the document, then choose Restore."
             : "Restoring returns this document to active evidence lists."}
         </p>
         {state.message ? (
@@ -925,11 +930,16 @@ function DocumentArchivePanel({
             {state.message}
           </p>
         ) : null}
+        {pending ? (
+          <p className="text-sm text-muted-foreground" role="status">
+            This change is being saved. Closing this panel will not cancel it.
+          </p>
+        ) : null}
       </div>
       <div className="border-t border-border px-4 py-4 sm:px-5">
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button className="w-full sm:w-auto" onClick={onClose} type="button">
-            Cancel
+            {pending ? "Close" : "Cancel"}
           </Button>
           <Button
             className="w-full sm:w-auto"
@@ -979,7 +989,7 @@ function DocumentAttentionNote({
   return (
     <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
       <div className="flex items-center justify-between gap-3">
-        <p className="truncate font-semibold">{item?.label ?? label}</p>
+        <p className="whitespace-normal [overflow-wrap:anywhere] font-semibold">{item?.label ?? label}</p>
         <div className="flex shrink-0 items-center gap-2">
           <Badge tone={item?.tone ?? "neutral"}>
             {item ? "Review" : "Action"}
@@ -1010,7 +1020,7 @@ function DocumentLinkedRecords({
   return (
     <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="truncate font-semibold">Linked records</p>
+        <p className="whitespace-normal [overflow-wrap:anywhere] font-semibold">Linked records</p>
         <Badge tone={records.length > 0 ? "success" : "warning"}>
           {records.length > 0 ? `${records.length} linked` : "No links"}
         </Badge>
@@ -1030,7 +1040,7 @@ function DocumentLinkedRecords({
                 <span className="block text-xs font-medium text-muted-foreground">
                   {record.type}
                 </span>
-                <span className="block truncate font-medium">
+                <span className="block whitespace-normal [overflow-wrap:anywhere] font-medium">
                   {record.label}
                 </span>
               </span>

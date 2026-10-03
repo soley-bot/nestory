@@ -89,8 +89,9 @@ export function DatePickerField(props: DatePickerFieldProps) {
             aria-describedby={ariaDescribedBy}
             aria-label={ariaLabel}
             aria-labelledby={ariaLabelledBy}
+            data-invalid={ariaInvalid}
             className={cn(
-              "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-2.5 text-left text-sm shadow-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring",
+              "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-2.5 text-left text-sm shadow-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring data-[invalid=true]:border-danger data-[invalid=true]:ring-2 data-[invalid=true]:ring-danger/20",
               className,
             )}
             type="button"

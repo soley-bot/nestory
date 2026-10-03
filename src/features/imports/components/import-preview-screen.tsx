@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -40,6 +40,7 @@ import {
   importTypeOrder,
 } from "@/features/imports/import-config";
 import { buildImportDraftKey } from "@/features/imports/import-draft-key";
+import { getImportRunPresentation } from "@/features/imports/import-result-presentation";
 import type {
   GenericImportPreviewRow,
   ImportMapping,
@@ -92,6 +93,7 @@ export function ImportPreviewScreen({
   const [parsedFile, setParsedFile] = useState<ParsedFile | null>(null);
   const [mapping, setMapping] = useState<ImportMapping>({});
   const [fileError, setFileError] = useState<string | null>(null);
+  const fileReadVersion = useRef(0);
   const config = getImportTypeConfig(selectedType);
   const availability = getImportAvailability(selectedType, referenceData);
   const savedMapping = savedMappings.find(
@@ -189,6 +191,10 @@ export function ImportPreviewScreen({
     (!importState.draftKey || importState.draftKey === draftKey);
 
   async function handleFileSelect(file: File) {
+    const readVersion = ++fileReadVersion.current;
+    setParsedFile(null);
+    setMapping({});
+    setFileError(null);
     if (file.size > MAX_IMPORT_FILE_BYTES) {
       setFileError("CSV files must be 12 MB or smaller.");
       setParsedFile(null);
@@ -198,6 +204,7 @@ export function ImportPreviewScreen({
 
     try {
       const text = await file.text();
+      if (readVersion !== fileReadVersion.current) return;
       const parsed = parseCsv(text);
 
       if (parsed.headers.length === 0) {
@@ -217,6 +224,7 @@ export function ImportPreviewScreen({
       setMapping(mapHeadersForType(selectedType, parsed.headers, savedMapping));
       setFileError(null);
     } catch (error) {
+      if (readVersion !== fileReadVersion.current) return;
       setFileError(
         error instanceof CsvPreviewLimitError
           ? error.message
@@ -228,6 +236,7 @@ export function ImportPreviewScreen({
   }
 
   function chooseType(type: ImportType) {
+    fileReadVersion.current += 1;
     setSelectedType(type);
     setParsedFile(null);
     setMapping({});
@@ -290,6 +299,7 @@ export function ImportPreviewScreen({
 
           <div className="p-4">
             <FileDropzoneField
+              key={selectedType}
               aria-label="Select CSV file to import"
               accept={CSV_FILE_ACCEPT}
               description="CSV only. Nestory matches recognizable columns automatically."
@@ -311,7 +321,15 @@ export function ImportPreviewScreen({
           <section className="overflow-hidden rounded-md border border-border bg-card">
             <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <h2 className="truncate text-sm font-semibold">
+                {showCurrentActionState && importState.commitSummary ? (
+                  <p className="mb-1 text-sm font-medium" aria-label="Import result counts">
+                    {importState.commitSummary.created} created ·{" "}
+                    {importState.commitSummary.updated} updated ·{" "}
+                    {importState.commitSummary.failed} failed ·{" "}
+                    {importState.commitSummary.skipped} skipped
+                  </p>
+                ) : null}
+                <h2 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">
                   {parsedFile.fileName}
                 </h2>
                 <p className="mt-0.5 text-sm font-medium tabular-nums text-foreground">
@@ -367,7 +385,7 @@ export function ImportPreviewScreen({
                       key={field.key}
                     >
                       <span className="mb-1.5 flex items-center justify-between gap-2">
-                        <span className="truncate">
+                        <span className="whitespace-normal [overflow-wrap:anywhere]">
                           {field.label}
                           {field.required ? (
                             <span className="ml-1 text-danger">*</span>
@@ -465,6 +483,11 @@ export function ImportPreviewScreen({
                     run for correction.
                   </p>
                 )}
+                {showCurrentActionState && currentAction.mode === "terminal" ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Review Past imports before uploading a corrected file. Keep already saved rows out of the correction file.
+                  </p>
+                ) : null}
               </div>
               <form action={importAction} className="shrink-0">
                 <input name="payload" type="hidden" value={payload} />
@@ -538,7 +561,7 @@ export function getCurrentImportAction({
   ) {
     return {
       blocksSubmission: true,
-      label: "Terminal result — re-upload CSV",
+      label: "Review results before re-uploading",
       mode: "terminal" as const,
     };
   }
@@ -653,6 +676,9 @@ function AttentionDetails({
         <ChevronDown aria-hidden="true" className="text-muted-foreground" size={15} />
       </summary>
       <div className="border-t border-border p-4">
+        <p className="mb-3 text-sm text-muted-foreground">
+          Blocked rows are not imported. Warnings can still be imported; read them before continuing.
+        </p>
         {errorRowsHref && fixTemplateHref ? (
           <div className="mb-3 flex flex-wrap gap-2">
             <a
@@ -672,6 +698,11 @@ function AttentionDetails({
               Fix template
             </a>
           </div>
+        ) : null}
+        {errorRowsHref && fixTemplateHref ? (
+          <p className="mb-3 text-xs text-muted-foreground">
+            Use Error rows to see the problems. Use Fix template to prepare only the blocked rows for a new upload.
+          </p>
         ) : null}
         <div className="max-h-64 space-y-2 overflow-auto">
           {groups.slice(0, 8).map((group) => (
@@ -756,19 +787,18 @@ function PastImports({
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{run.fileName}</p>
+                  <p className="whitespace-normal [overflow-wrap:anywhere] font-medium">{run.fileName}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {formatImportRunDate(run.createdAt)} · {run.importType}
                   </p>
                 </div>
                 <Badge tone={importRunStatusTone(run.status)}>
-                  {formatImportRunStatus(run.status)}
+                  {getImportRunPresentation(run).label}
                 </Badge>
               </div>
               <div className="mt-1 flex items-center justify-between gap-3">
                 <p className="text-xs text-muted-foreground">
-                  {run.createdCount + run.updatedCount} saved · {run.blockedRows}{" "}
-                  blocked
+                  {getImportRunPresentation(run).summary}
                 </p>
                 {run.status === "staged" && run.readyRows === 0 ? (
                   <span className="max-w-56 text-right text-xs text-muted-foreground">
@@ -791,6 +821,14 @@ function PastImports({
                   </form>
                 ) : null}
               </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {getImportRunPresentation(run).guidance}
+              </p>
+              {run.status !== "staged" && run.blockedRows > 0 ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {run.blockedRows} blocked in the original preview. These rows were not imported.
+                </p>
+              ) : null}
             </div>
           ))
         )}
@@ -891,12 +929,6 @@ function importRunStatusTone(status: ImportRunSummary["status"]) {
   }
 
   return status === "committing" ? "neutral" : "danger";
-}
-
-function formatImportRunStatus(status: ImportRunSummary["status"]) {
-  return status === "committed_with_errors"
-    ? "partial"
-    : status.replaceAll("_", " ");
 }
 
 function formatImportRunDate(value: string) {

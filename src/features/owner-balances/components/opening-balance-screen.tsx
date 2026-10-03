@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { recordDisplayLabel } from "@/lib/presentation/record-label";
 import { useRouter } from "next/navigation";
 import {
   useActionState,
@@ -173,7 +174,7 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
                   Resolve ownership
                 </Link>
               ) : (
-                <span className="font-medium">
+                <span className="font-medium [overflow-wrap:anywhere]">
                   Ask a Super Admin to correct the ownership facts.
                 </span>
               )}
@@ -204,7 +205,7 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
 
       {groups.flatMap(group => group.components.filter(component => component.requests[0]?.status === "submitted").map(component => (
         <div key={`${group.propertyId}:${group.ownerPersonId}:${component.component}`} className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 text-sm sm:px-6">
-          <div><p className="font-medium">{OWNER_BALANCE_COMPONENT_LABELS[component.component]}</p><p className="text-muted-foreground">Opening balance review pending</p></div>
+          <div><p className="font-medium [overflow-wrap:anywhere]">{OWNER_BALANCE_COMPONENT_LABELS[component.component]}</p><p className="text-muted-foreground">Opening balance review pending</p></div>
           <Button size="sm" variant="outline" onClick={() => setDetailsIntent({ group, component })}>Review {OWNER_BALANCE_COMPONENT_LABELS[component.component]}</Button>
         </div>
       )))}
@@ -341,18 +342,20 @@ function OwnerAccountSetupRow({
   return (
     <div className="flex flex-col gap-3 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
       <div className="min-w-0">
-        <p className="font-medium">
-          {labels.properties.get(group.propertyId) ?? group.propertyId}
+        <p className="font-medium [overflow-wrap:anywhere]">
+          {recordDisplayLabel(labels.properties.get(group.propertyId), "Property unavailable")}
         </p>
-        <p className="text-sm text-muted-foreground">
-          {labels.owners.get(group.ownerPersonId) ?? group.ownerPersonId}
+        <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
+          {recordDisplayLabel(labels.owners.get(group.ownerPersonId), "Owner unavailable")}
+        </p>
+        <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
           {allKnown
-            ? " · Starting balances recorded"
+            ? "Starting balances recorded"
             : awaitingReview
-              ? " · Starting balances awaiting review"
+              ? "Starting balances awaiting review"
               : isFresh
-                ? " · No starting balance recorded"
-                : " · Starting balance setup needs attention"}
+                ? "No starting balance recorded"
+                : "Starting balance setup needs attention"}
         </p>
       </div>
       {isFresh && canSubmit ? (
@@ -396,7 +399,7 @@ function OwnerAccountSetupModal({
 
   return (
     <Modal
-      description={`${labels.properties.get(intent.group.propertyId) ?? intent.group.propertyId} · ${labels.owners.get(intent.group.ownerPersonId) ?? intent.group.ownerPersonId}`}
+      description={`${recordDisplayLabel(labels.properties.get(intent.group.propertyId), "Property unavailable")} · ${recordDisplayLabel(labels.owners.get(intent.group.ownerPersonId), "Owner unavailable")}`}
       onClose={onClose}
       open
       title={isZero ? "Start owner account at zero" : "Enter existing balances"}
@@ -457,7 +460,7 @@ function OwnerAccountSetupModal({
           </p>
         ) : (
           <>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
               Enter only the balances that already existed before Nestory began
               recording this account. Leave any amount at zero when it does not
               apply.
@@ -548,11 +551,11 @@ function OpeningRow({
       <td className="px-4 py-3 sm:px-6">
         {showIdentity ? (
           <div>
-            <p className="font-medium">
-              {labels.properties.get(group.propertyId) ?? group.propertyId}
+            <p className="font-medium [overflow-wrap:anywhere]">
+              {recordDisplayLabel(labels.properties.get(group.propertyId), "Property unavailable")}
             </p>
-            <p className="text-xs text-muted-foreground">
-              {labels.owners.get(group.ownerPersonId) ?? group.ownerPersonId}
+            <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
+              {recordDisplayLabel(labels.owners.get(group.ownerPersonId), "Owner unavailable")}
             </p>
           </div>
         ) : (
@@ -567,7 +570,7 @@ function OpeningRow({
           <div className="space-y-1">
             <StatusPill tone="neutral">Unknown</StatusPill>
             {currentRequest ? (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
                 {capitalize(currentRequest.status)} {currentRequest.requestKind}
               </p>
             ) : null}
@@ -638,7 +641,7 @@ function OpeningDetailsModal({
 
   return (
     <Modal
-      description={`${labels.properties.get(group.propertyId) ?? group.propertyId} · ${labels.owners.get(group.ownerPersonId) ?? group.ownerPersonId}`}
+      description={`${recordDisplayLabel(labels.properties.get(group.propertyId), "Property unavailable")} · ${recordDisplayLabel(labels.owners.get(group.ownerPersonId), "Owner unavailable")}`}
       onClose={onClose}
       open
       title="Opening balance details"
@@ -649,13 +652,13 @@ function OpeningDetailsModal({
             <p className="font-semibold">
               {OWNER_BALANCE_COMPONENT_LABELS[component.component]}
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
               {group.effectiveDate} · {group.currency}
             </p>
           </div>
           {currentSubmitted ? (
             <div className="text-right">
-              <p className="text-xs text-muted-foreground">Proposed {currentSubmitted.requestKind === "correction" ? "replacement" : "opening"} balance</p>
+              <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">Proposed {currentSubmitted.requestKind === "correction" ? "replacement" : "opening"} balance</p>
               <p className="font-semibold tabular-nums">{formatUsd(currentSubmitted.proposedAmount)}</p>
               <StatusPill tone="neutral">Awaiting review</StatusPill>
               {component.authority.state === "known" ? <p className="mt-1 text-xs text-muted-foreground">Currently approved: {formatUsd(component.authority.amount)}</p> : null}
@@ -684,23 +687,23 @@ function OpeningDetailsModal({
             ) : (
               component.requests.map((request, index) => (
                 <div key={request.id}>
-                  <p className="font-medium">
+                  <p className="font-medium [overflow-wrap:anywhere]">
                     {index === 0 ? "Current — " : "Earlier request — "}
                     {capitalize(request.status)} {request.requestKind}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
                     Submitted {shortDate(request.submittedAt)}
                     {request.reviewedAt
                       ? ` · Reviewed ${shortDate(request.reviewedAt)}`
                       : ""}
                   </p>
                   {request.reviewReason ? (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
                       {request.reviewReason}
                     </p>
                   ) : null}
                   {request.resubmissionOfRequestId ? (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
                       Resubmission of rejected request
                     </p>
                   ) : null}
@@ -719,7 +722,7 @@ function OpeningDetailsModal({
               <span className="text-muted-foreground">Ownership:</span>{" "}
               {currentRequest.ownershipPercentSnapshot}%
             </p>
-            <p className="font-medium">
+            <p className="font-medium [overflow-wrap:anywhere]">
               {evidence?.fileName ??
                 currentRequest.sourceReference ??
                 "Document unavailable"}
@@ -1056,7 +1059,7 @@ function OpeningFormModal({
               entries={[{ label: "Evidence fingerprint", value: evidenceHash }]}
             />
           ) : (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
               Choose registered evidence, upload a file, or add the audit
               fingerprint.
             </p>

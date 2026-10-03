@@ -684,3 +684,32 @@ function assertStepHasSecret(step, name) {
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+test("application checks run independently and aggregate fails closed", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+  const checks = ["secret_scan", "dependency_audit", "lint", "types", "unit", "ui", "contracts", "build"];
+  for (const id of checks) {
+    const job = getJob(workflow, id);
+    assert.doesNotMatch(job, /^    needs:/m);
+    assert.doesNotMatch(job, /continue-on-error|secrets\.|pull_request_target/);
+    assert.match(job, /^    permissions:\n      contents: read$/m);
+    assert.match(job, /persist-credentials: false/);
+    assert.match(job, /cache-dependency-path: package-lock.json/);
+    if (!["secret_scan", "dependency_audit"].includes(id)) assert.match(job, /run: npm ci/);
+  }
+  const aggregate = getJob(workflow, "application");
+  assert.match(aggregate, /^    needs: \[secret_scan, dependency_audit, lint, types, unit, ui, contracts, build\]$/m);
+  assert.match(aggregate, /^    if: always\(\)$/m);
+  assert.match(aggregate, /length == 8 and all\(\.\[\]; \.result == "success"\)/);
+  const readiness = getJob(workflow, "release_readiness");
+  assert.match(readiness, /^    needs: \[application, database\]$/m);
+  assert.match(readiness, /^    if: always\(\)$/m);
+  assert.match(readiness, /length == 2 and all\(\.\[\]; \.result == "success"\)/);
+  for (const tier of ["unit", "ui"]) {
+    const job = getJob(workflow, tier);
+    assert.match(job, /--reporter=junit --outputFile=ci-reports\//);
+    assert.match(job, /if: always\(\)/);
+    assert.match(job, /retention-days: 7/);
+    assert.doesNotMatch(job, /include-hidden-files: true/);
+  }
+});

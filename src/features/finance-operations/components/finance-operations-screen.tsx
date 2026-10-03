@@ -512,6 +512,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
             />
           ) : visibleDetailDrawer.mode === "expense-details" ? (
             <ExpenseDetails
+              payFromAccounts={props.payFromAccounts}
               reportReturnHref={props.reportReturnHref}
               originalExpense={visibleDetailDrawer.submission.replacesTransactionId ? props.expenseSubmissions.find((item) => item.transactionId === visibleDetailDrawer.submission.replacesTransactionId) : undefined}
               replacementExpense={visibleDetailDrawer.submission.replacementTransactionId ? props.expenseSubmissions.find((item) => item.transactionId === visibleDetailDrawer.submission.replacementTransactionId) : undefined}
@@ -2631,6 +2632,7 @@ function ExpenseLines({ submission }: { submission: ExpenseSubmissionSummary }) 
 }
 
 function ExpenseDetails({
+  payFromAccounts,
   reportReturnHref,
   originalExpense,
   replacementExpense,
@@ -2647,6 +2649,7 @@ function ExpenseDetails({
   submission,
 }: {
   reportReturnHref?: string | null;
+  payFromAccounts: FinanceOperationsData["payFromAccounts"];
   originalExpense?: ExpenseSubmissionSummary;
   replacementExpense?: ExpenseSubmissionSummary;
   onViewRelated: (submission: ExpenseSubmissionSummary) => void;
@@ -2661,6 +2664,8 @@ function ExpenseDetails({
   onReverse: () => void;
   submission: ExpenseSubmissionSummary;
 }) {
+  const historyHeadingRef = useRef<HTMLHeadingElement>(null);
+
   return (
     <div className="space-y-4 p-4">
       {reportReturnHref ? (
@@ -2677,9 +2682,23 @@ function ExpenseDetails({
             {submission.vendorLabel} · {submission.propertyLabel}
           </p>
         </div>
-        <Badge tone={expenseStatusTone(submission.status)}>
-          {submission.cancelledAt ? "Cancelled" : expenseStatusLabel(submission.status)}
-        </Badge>
+        <div className="flex shrink-0 items-center gap-2">
+          {submission.transactionId ? (
+            <Button
+              onClick={() => {
+                historyHeadingRef.current?.focus();
+                historyHeadingRef.current?.scrollIntoView({ block: "nearest" });
+              }}
+              size="sm"
+              variant="outline"
+            >
+              History
+            </Button>
+          ) : null}
+          <Badge tone={expenseStatusTone(submission.status)}>
+            {submission.cancelledAt ? "Cancelled" : expenseStatusLabel(submission.status)}
+          </Badge>
+        </div>
       </div>
       <DefinitionRows
         rows={[
@@ -2718,12 +2737,12 @@ function ExpenseDetails({
         </p>
       ) : null}
       <ExpenseLines submission={submission} />
-      {submission.transactionId ? <ExpenseChangeHistory key={submission.transactionId} transactionId={submission.transactionId} /> : null}
+      {submission.transactionId ? <ExpenseChangeHistory headingRef={historyHeadingRef} key={submission.transactionId} payFromAccounts={payFromAccounts} transactionId={submission.transactionId} /> : null}
       {submission.replacesTransactionId ? <p className="text-sm text-muted-foreground">Replacement for a previous expense. The original remains in history.</p> : null}
       {originalExpense ? <Button variant="outline" onClick={() => onViewRelated(originalExpense)}>View original expense</Button> : null}
       {replacementExpense ? <Button variant="outline" onClick={() => onViewRelated(replacementExpense)}>View replacement expense</Button> : null}
       {canEdit ? <div className="flex gap-2 border-t border-border pt-3">
-        <Button onClick={onEdit} variant="outline">{submission.status === "approved" ? "Correct expense" : "Edit expense"}</Button>
+        <Button onClick={onEdit} variant="outline">Edit expense</Button>
         {submission.status === "submitted" ? <Button onClick={onCancelExpense} variant="ghost">Cancel expense</Button> : null}
       </div> : null}
       {submission.scopedSubtotal !== undefined ? <p className="text-sm">
@@ -3405,8 +3424,8 @@ function OwnerExpenseTransactionForm({
       ariaLabel="Record property expense form"
       onCancel={onClose}
       pending={pending}
-      saveLabel={replacement ? replacement.status === "approved" ? "Save correction" : "Save changes for review" : "Submit for review"}
-      savingLabel="Submitting expense"
+      saveLabel={replacement ? "Save changes" : "Submit for review"}
+      savingLabel={replacement ? "Saving expense" : "Submitting expense"}
       state={state}
     >
       <input name="expenseDate" type="hidden" value={expenseDate} />
@@ -3428,8 +3447,14 @@ function OwnerExpenseTransactionForm({
         <p className="text-sm text-muted-foreground">{replacement.status === "approved"
           ? "Save updates the expense and its financial effects together. The original, correction reason, and replacement remain in history."
           : "Your changes replace the pending submission. The previous version remains in history."}</p>
-        {replacement.status === "approved" ? <Field label="Reversal date"><DatePickerField name="reversalDate" defaultValue={replacement.date} required /></Field> : <input name="reversalDate" type="hidden" value={getBusinessDateValue()} />}
-        <Field label="Reason for change"><Input name="replacementReason" minLength={3} maxLength={500} required /></Field>
+        {replacement.status === "approved" ? (
+          <RecordField error={state.fieldErrors?.reversalDate?.[0]} label="Change date" name="reversalDate" required>
+            <DatePickerField name="reversalDate" defaultValue={replacement.date} required />
+          </RecordField>
+        ) : <input name="reversalDate" type="hidden" value={getBusinessDateValue()} />}
+        <RecordField error={state.fieldErrors?.replacementReason?.[0]} label="Reason for change" name="replacementReason" required>
+          <Input name="replacementReason" minLength={3} maxLength={500} required />
+        </RecordField>
         {replacement.evidence ? <p className="text-sm text-muted-foreground">Original receipt: {replacement.evidence.fileName}. The receipt is retained automatically. Choose another file only if you want to replace it.</p> : null}
       </> : null}
 
@@ -4869,7 +4894,7 @@ function getDrawerTitle(drawer: DrawerState) {
       ? "Repair lease billing"
       : "Set up lease billing";
   }
-  if (drawer.replacement) return drawer.replacement.status === "approved" ? "Correct expense" : "Edit expense";
+  if (drawer.replacement) return "Edit expense";
   return drawer.initialResponsibility === "tenant"
     ? "Record recoverable cost"
     : "Record property expense";

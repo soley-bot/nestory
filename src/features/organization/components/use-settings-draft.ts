@@ -37,6 +37,7 @@ export function useSettingsDraft<TValues extends DraftValues>({
   const [status, setStatus] = useState<DraftStatus>("clean");
   const [statusMessage, setStatusMessage] = useState<string>();
   const [values, setValues] = useState<TValues>(() => ({ ...initialValues }));
+  const latestValues = useRef<TValues>({ ...initialValues });
   const activeSubmission = useRef(0);
   const alive = useRef(true);
   const baseline = useRef<TValues>({ ...initialValues });
@@ -61,17 +62,19 @@ export function useSettingsDraft<TValues extends DraftValues>({
     setResultMessage(undefined);
     setStatus("clean");
     setStatusMessage(undefined);
+    latestValues.current = { ...baseline.current };
     setValues({ ...baseline.current });
   }
 
   function setField<TKey extends keyof TValues>(key: TKey, value: string) {
     revision.current += 1;
-    const next = { ...values, [key]: value };
+    const next = { ...latestValues.current, [key]: value };
     const isClean = Object.keys(baseline.current).every(
       (field) => next[field] === baseline.current[field],
     );
+    latestValues.current = next;
     setValues(next);
-    setStatus(isClean ? "clean" : "dirty");
+    setStatus(submitting.current ? "saving" : isClean ? "clean" : "dirty");
     setStatusMessage(undefined);
     setResultMessage(undefined);
     setErrors((current) => {
@@ -87,11 +90,12 @@ export function useSettingsDraft<TValues extends DraftValues>({
 
   function replaceValues(next: TValues) {
     revision.current += 1;
+    latestValues.current = { ...next };
     setValues({ ...next });
     setErrors({});
     setResultMessage(undefined);
     setStatus(
-      Object.keys(baseline.current).every(
+      submitting.current ? "saving" : Object.keys(baseline.current).every(
         (field) => next[field] === baseline.current[field],
       )
         ? "clean"
@@ -105,6 +109,7 @@ export function useSettingsDraft<TValues extends DraftValues>({
     revision.current += 1;
     baseline.current = { ...next };
     submitting.current = false;
+    latestValues.current = { ...next };
     setValues({ ...next });
     setErrors({});
     setResultMessage(undefined);
@@ -113,7 +118,8 @@ export function useSettingsDraft<TValues extends DraftValues>({
   }
 
   async function submit(onInvalid: (field: keyof TValues) => void) {
-    const submittedValues = { ...values };
+    if (submitting.current) return;
+    const submittedValues = { ...latestValues.current };
     const nextErrors = validate(submittedValues);
     const firstInvalid = Object.keys(baseline.current).find(
       (key) => nextErrors[key] !== undefined,
@@ -125,10 +131,6 @@ export function useSettingsDraft<TValues extends DraftValues>({
       setStatus("error");
       setStatusMessage(errorMessage);
       requestAnimationFrame(() => onInvalid(firstInvalid));
-      return;
-    }
-
-    if (submitting.current) {
       return;
     }
 
@@ -149,9 +151,18 @@ export function useSettingsDraft<TValues extends DraftValues>({
 
       if (
         !alive.current ||
-        activeSubmission.current !== submission ||
-        revision.current !== submittedRevision
+        activeSubmission.current !== submission
       ) {
+        return;
+      }
+
+      // A successful response still establishes the server baseline when the
+      // user has typed again. Keep their newer draft and don't show stale feedback.
+      if (result.status === "success" && retainValuesAfterSuccess) {
+        baseline.current = { ...submittedValues };
+      }
+      if (revision.current !== submittedRevision) {
+        reconcileEditedStatus();
         return;
       }
 
@@ -161,6 +172,7 @@ export function useSettingsDraft<TValues extends DraftValues>({
         baseline.current = retainValuesAfterSuccess
           ? { ...submittedValues }
           : { ...initialValues };
+        latestValues.current = { ...baseline.current };
         setValues({ ...baseline.current });
         setStatus("saved");
         setStatusMessage(savedMessage);
@@ -171,9 +183,12 @@ export function useSettingsDraft<TValues extends DraftValues>({
     } catch {
       if (
         !alive.current ||
-        activeSubmission.current !== submission ||
-        revision.current !== submittedRevision
+        activeSubmission.current !== submission
       ) {
+        return;
+      }
+      if (revision.current !== submittedRevision) {
+        reconcileEditedStatus();
         return;
       }
 
@@ -185,6 +200,14 @@ export function useSettingsDraft<TValues extends DraftValues>({
         submitting.current = false;
       }
     }
+  }
+
+  function reconcileEditedStatus() {
+    const isClean = Object.keys(baseline.current).every(
+      (field) => latestValues.current[field] === baseline.current[field],
+    );
+    setStatus((current) => isClean ? "clean" : current === "error" ? "error" : "dirty");
+    setStatusMessage(undefined);
   }
 
   return {

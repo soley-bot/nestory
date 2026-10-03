@@ -21,6 +21,19 @@ const linkedProfile = {
 };
 
 describe("AccountScreen", () => {
+  it("keeps long names and email addresses fully readable and selectable", () => {
+    const displayName = "A".repeat(180);
+    const email = `${"long".repeat(40)}@example.com`;
+    const html = renderToStaticMarkup(
+      <AccountScreen identity={{ ...adminIdentity, email }} profile={{ ...linkedProfile, displayName, email }} />,
+    );
+    expect(html).toContain(displayName);
+    expect(html).toContain(email);
+    expect(html).toContain("select-text");
+    expect(html).toContain("[overflow-wrap:anywhere]");
+    expect(html).not.toContain("truncate");
+  });
+
   it("presents four named regions on one flat divided surface", () => {
     const html = renderToStaticMarkup(
       <AccountScreen

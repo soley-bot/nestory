@@ -215,11 +215,11 @@ export function DraftActionBar({
                   status === "saving" && "motion-safe:animate-spin",
                 )}
               />
-              <span>{statusMessage ?? presentation.message}</span>
+              <span className="min-w-0 [overflow-wrap:anywhere]">{statusMessage ?? presentation.message}</span>
             </span>
             {disabledReason ? (
               <span
-                className="mt-1 block text-sm font-normal leading-5 text-muted-foreground"
+                className="mt-1 block text-sm font-normal leading-5 text-muted-foreground [overflow-wrap:anywhere]"
                 id={reasonId}
               >
                 {disabledReason}

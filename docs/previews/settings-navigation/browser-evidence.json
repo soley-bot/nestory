@@ -1,0 +1,34 @@
+[
+  {
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "navigationLinks": 6,
+    "noOverflow": true,
+    "contextLinkCancel": true,
+    "refreshCancelRetainsDraft": true,
+    "nativeBackCancelAndConfirm": true,
+    "originalHistoryRetained": true,
+    "forward": true,
+    "saveErrorAndRetry": true,
+    "dialogAxeViolations": 0,
+    "pageErrors": []
+  },
+  {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "navigationLinks": 6,
+    "noOverflow": true,
+    "contextLinkCancel": true,
+    "refreshCancelRetainsDraft": true,
+    "nativeBackCancelAndConfirm": true,
+    "originalHistoryRetained": true,
+    "forward": true,
+    "saveErrorAndRetry": true,
+    "dialogAxeViolations": 0,
+    "pageErrors": []
+  }
+]

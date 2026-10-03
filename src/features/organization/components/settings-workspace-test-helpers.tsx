@@ -2,7 +2,6 @@ import { cleanup, render } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { SettingsNavigationGuardProvider } from "@/components/layout/settings-navigation-guard";
-import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { SettingsSectionNav } from "@/components/layout/settings-section-nav";
 import { SettingsShell } from "@/components/layout/settings-shell";
 import {
@@ -89,7 +88,6 @@ export function cleanupSettingsWorkspaceTest() {
 export function renderSettingsPage(section: SettingsSection) {
   return render(
     <SettingsNavigationGuardProvider>
-      <SettingsTabs activeHref={`/settings/${section}`} role="super_admin" />
       <SettingsSectionNav
         activeHref={`/settings/${section}`}
         role="super_admin"

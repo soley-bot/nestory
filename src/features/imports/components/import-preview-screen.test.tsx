@@ -1,14 +1,26 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getCurrentImportAction,
   ImportPreviewScreen,
 } from "@/features/imports/components/import-preview-screen";
 import { autoMapImportHeaders, buildGenericImportPreviewRows } from "@/features/imports/import-config";
 import { parseCsv } from "@/features/imports/unit-import";
+
+const actions = vi.hoisted(() => ({
+  importReadyRowsAction: vi.fn(),
+  commitStagedImportRunAction: vi.fn(),
+}));
+
+vi.mock("@/features/imports/actions", () => actions);
+
+beforeEach(() => {
+  actions.importReadyRowsAction.mockReset();
+  actions.commitStagedImportRunAction.mockReset();
+});
 
 beforeAll(() => {
   Object.defineProperties(HTMLElement.prototype, {
@@ -20,6 +32,113 @@ beforeAll(() => {
 });
 
 describe("ImportPreviewScreen", () => {
+  it("removes the previous import action while a replacement CSV is being read", async () => {
+    const pending = deferred<string>();
+    const { container } = renderImport();
+    uploadCsv(container, "first.csv", Promise.resolve("Property Code,Property Name\nFIRST,First Home"));
+    await screen.findByRole("button", { name: "Import 1 ready row" });
+    await act(async () => uploadCsv(container, "replacement.csv", pending.promise));
+    expect(screen.queryByRole("button", { name: "Import 1 ready row" })).toBeNull();
+    await act(async () => pending.resolve("Property Code,Property Name\nNEW,New Home"));
+    expect(screen.getByRole("heading", { name: "replacement.csv" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Import 1 ready row" })).toBeTruthy();
+  });
+  it("keeps the newest file when an older read finishes later", async () => {
+    const first = deferred<string>();
+    const { container } = renderImport();
+    uploadCsv(container, "slow.csv", first.promise);
+    uploadCsv(container, "new.csv", Promise.resolve("Property Code,Property Name\nNEW,New Home"));
+    await screen.findByRole("heading", { name: "new.csv" });
+    await act(async () => first.resolve("Property Code,Property Name\nOLD,Old Home"));
+    expect(screen.queryByRole("heading", { name: "slow.csv" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "new.csv" })).toBeTruthy();
+  });
+
+  it("does not restore a discarded preview after changing import type", async () => {
+    const user = userEvent.setup();
+    const first = deferred<string>();
+    const { container } = renderImport();
+    uploadCsv(container, "slow.csv", first.promise);
+    await user.click(screen.getByRole("combobox", { name: "Import type" }));
+    await user.click(await screen.findByRole("option", { name: "People" }));
+    await act(async () => first.resolve("Property Code,Property Name\nOLD,Old Home"));
+    expect(screen.queryByRole("heading", { name: "slow.csv" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Import preview rows" })).toBeNull();
+    expect(screen.queryByText("slow.csv")).toBeNull();
+  });
+
+  it("does not erase the newer file when an older read fails", async () => {
+    const first = deferred<string>();
+    const { container } = renderImport();
+    uploadCsv(container, "slow.csv", first.promise);
+    uploadCsv(container, "new.csv", Promise.resolve("Property Code,Property Name\nNEW,New Home"));
+    await screen.findByRole("heading", { name: "new.csv" });
+    await act(async () => first.reject(new Error("Synthetic read interruption")));
+    expect(screen.getByRole("heading", { name: "new.csv" })).toBeTruthy();
+    expect(screen.queryByText("The file could not be read.")).toBeNull();
+  });
+
+  it("shows a read failure and accepts a replacement file", async () => {
+    const { container } = renderImport();
+    uploadCsv(container, "broken.csv", Promise.reject(new Error("Synthetic read failure")));
+    expect(await screen.findByRole("alert")).toHaveProperty("textContent", "The file could not be read.");
+    uploadCsv(container, "new.csv", Promise.resolve("Property Code,Property Name\nNEW,New Home"));
+    await screen.findByRole("heading", { name: "new.csv" });
+    expect(screen.queryByText("The file could not be read.")).toBeNull();
+  });
+
+  it("blocks repeated submissions while saving and after a successful result", async () => {
+    const user = userEvent.setup();
+    const pending = deferred<Record<string, unknown>>();
+    actions.importReadyRowsAction.mockReturnValue(pending.promise);
+    const { container } = renderImport();
+    uploadCsv(container, "new.csv", Promise.resolve("Property Code,Property Name\nNEW,New Home"));
+    const button = await screen.findByRole("button", { name: "Import 1 ready row" });
+    await user.click(button);
+    const saving = screen.getByRole("button", { name: "Importing ready rows..." });
+    expect((saving as HTMLButtonElement).disabled).toBe(true);
+    await user.click(saving);
+    expect(actions.importReadyRowsAction).toHaveBeenCalledOnce();
+    const payload = JSON.parse(actions.importReadyRowsAction.mock.calls[0][1].get("payload"));
+    await act(async () => pending.resolve({
+      draftKey: payload.draftKey, message: "Synthetic import completed.", status: "success", runStatus: "committed",
+      commitSummary: { created: 1, updated: 0, failed: 0, skipped: 0 },
+    }));
+    expect(screen.getByRole("status").textContent).toBe("Synthetic import completed.");
+    expect(screen.getByLabelText("Import result counts").textContent).toContain("1 created");
+    expect((screen.getByRole("button", { name: "Ready rows imported" }) as HTMLButtonElement).disabled).toBe(true);
+    uploadCsv(container, "next.csv", Promise.resolve("Property Code,Property Name\nNEXT,Next Home"));
+    await screen.findByRole("heading", { name: "next.csv" });
+    expect((screen.getByRole("button", { name: "Import 1 ready row" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByText("Synthetic import completed.")).toBeNull();
+  });
+
+  it("retries the staged draft after an actionable failure", async () => {
+    const user = userEvent.setup();
+    actions.importReadyRowsAction.mockImplementationOnce(async (_state, form: FormData) => ({
+      draftKey: JSON.parse(form.get("payload") as string).draftKey,
+      message: "Synthetic connection failure. Retry this staged run.", status: "error", runStatus: "staged", runId: "run-1",
+    })).mockImplementationOnce(async (_state, form: FormData) => ({
+      draftKey: JSON.parse(form.get("payload") as string).draftKey,
+      message: "Synthetic retry completed.", status: "success", runStatus: "committed",
+    }));
+    const { container } = renderImport();
+    uploadCsv(container, "new.csv", Promise.resolve("Property Code,Property Name\nNEW,New Home"));
+    await user.click(await screen.findByRole("button", { name: "Import 1 ready row" }));
+    expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Synthetic connection failure. Retry this staged run.");
+    await user.click(screen.getByRole("button", { name: "Retry 1 ready row" }));
+    expect(await screen.findByText("Synthetic retry completed.")).toBeTruthy();
+    expect(actions.importReadyRowsAction).toHaveBeenCalledTimes(2);
+    expect(actions.importReadyRowsAction.mock.calls[0][1].get("payload")).toBe(actions.importReadyRowsAction.mock.calls[1][1].get("payload"));
+  });
+  it("shows result counts and correction guidance for a partially saved run", () => {
+    renderImport([{ ...importRun("partial-run", "committed_with_errors"), createdCount: 7, updatedCount: 2, failedCount: 1, skippedCount: 2 }]);
+    expect(screen.getByText("Completed with issues")).toBeTruthy();
+    expect(screen.getByText("7 created · 2 updated · 1 failed · 2 skipped")).toBeTruthy();
+    expect(screen.getByText(/keep already saved rows out of the correction file/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^(Resume|Reconcile) / })).toBeNull();
+  });
+
   it.each([
     ["people", "People", "Person ID", "Display Name,Roles,Email,Phone\nShared Tenant,tenant,shared@example.com,"],
     ["leases", "Leases", "Tenant Person ID", "Property Code,Unit no.,Tenant Name,Tenant Email,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Status\nCTR,12A,Shared Tenant,shared@example.com,2026-01-01,2026-12-31,850,10,Monthly,Active,Active"],
@@ -198,7 +317,7 @@ describe("ImportPreviewScreen", () => {
       }),
     ).toEqual({
       blocksSubmission: true,
-      label: "Terminal result — re-upload CSV",
+      label: "Review results before re-uploading",
       mode: "terminal",
     });
 
@@ -222,6 +341,22 @@ describe("ImportPreviewScreen", () => {
 });
 
 afterEach(cleanup);
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+function uploadCsv(container: HTMLElement, name: string, contents: Promise<string>) {
+  const file = new File([], name, { type: "text/csv" });
+  Object.defineProperty(file, "text", { value: () => contents });
+  fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
+}
 
 function renderImport(
   recentRuns: Parameters<typeof ImportPreviewScreen>[0]["recentRuns"] = [],

@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -18,6 +18,15 @@ const navigation = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
 }));
 
+const documentActions = vi.hoisted(() => ({
+  archiveDocumentAction: vi.fn(),
+  createDocumentAction: vi.fn(),
+  restoreDocumentAction: vi.fn(),
+  updateDocumentAction: vi.fn(),
+}));
+
+vi.mock("@/features/documents/actions", () => documentActions);
+
 vi.mock("next/navigation", () => ({
   usePathname: () => navigation.pathname,
   useRouter: () => ({ replace: navigation.replace }),
@@ -25,6 +34,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 beforeEach(() => {
+  for (const action of Object.values(documentActions)) action.mockReset();
   navigation.replace.mockReset();
   navigation.searchParams = new URLSearchParams();
   installMatchMedia(1440);
@@ -36,6 +46,60 @@ afterEach(() => {
 });
 
 describe("DocumentScreen workspace contract", () => {
+  it("keeps restore failures actionable and prevents duplicate pending writes", async () => {
+    const user = userEvent.setup();
+    let complete!: (value: { status: "error"; message: string }) => void;
+    documentActions.restoreDocumentAction.mockImplementationOnce(() => new Promise((resolve) => { complete = resolve; }))
+      .mockResolvedValueOnce({ status: "success", message: "Synthetic document restored." });
+    renderDocuments([{ ...documents[0]!, isArchived: true }], { archiveState: "archived" });
+    await user.click(screen.getByRole("button", { name: "Preview lease.pdf" }));
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+    const dialog = screen.getByRole("dialog", { name: "Restore document" });
+    await user.click(within(dialog).getByRole("button", { name: "Restore" }));
+    const saving = within(dialog).getByRole("button", { name: "Saving..." });
+    expect((saving as HTMLButtonElement).disabled).toBe(true);
+    await user.click(saving);
+    expect(documentActions.restoreDocumentAction).toHaveBeenCalledOnce();
+    expect(within(dialog).getByText(/Closing this panel will not cancel it/)).toBeTruthy();
+    expect(within(dialog).queryByRole("button", { name: "Cancel" })).toBeNull();
+    await act(async () => complete({ status: "error", message: "Synthetic restore failed. Try again." }));
+    expect(within(dialog).getByRole("alert").textContent).toBe("Synthetic restore failed. Try again.");
+    await user.click(within(dialog).getByRole("button", { name: "Restore" }));
+    expect(await screen.findByText("Synthetic document restored.")).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: "Restore document" })).toBeNull();
+    expect(documentActions.restoreDocumentAction).toHaveBeenCalledTimes(2);
+    expect(documentActions.restoreDocumentAction.mock.calls[0][1].get("documentId")).toBe("document-1");
+  });
+
+  it("hides restore from an archived-document viewer without archive permission", async () => {
+    const user = userEvent.setup();
+    renderDocuments([{ ...documents[0]!, isArchived: true }], { archiveState: "archived" }, undefined, []);
+    await user.click(screen.getByRole("button", { name: "Preview lease.pdf" }));
+    expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
+    expect(documentActions.restoreDocumentAction).not.toHaveBeenCalled();
+  });
+  it("explains recovery even when the active list is empty", () => {
+    renderDocuments([]);
+    expect(screen.getByText(/To find archived documents, choose Archived/)).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Archive state" })).toBeTruthy();
+  });
+
+  it("opens supported archive recovery with the keyboard and cancels without a write", async () => {
+    const user = userEvent.setup();
+    const archived = { ...documents[0]!, isArchived: true };
+    renderDocuments([archived], { archiveState: "archived" });
+    expect(screen.getByText(/when you have permission/)).toBeTruthy();
+    const row = within(screen.getByRole("table")).getAllByRole("row")[1]!;
+    row.focus();
+    await user.keyboard("{Enter}");
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+    expect(screen.getByRole("dialog", { name: "Restore document" })).toBeTruthy();
+    expect(screen.getByText("Restoring returns this document to active evidence lists.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Restore document" })).toBeNull();
+    expect(documentActions.restoreDocumentAction).not.toHaveBeenCalled();
+  });
+
   it("uses the established document lifecycle vocabulary", () => {
     expect(DOCUMENT_ARCHIVE_OPTIONS).toEqual([
       { label: "Active records", value: "active" },

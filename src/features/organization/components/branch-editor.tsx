@@ -129,8 +129,8 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
               >
                 <span className="font-medium">{branch.code}</span>
                 <span className="min-w-0">
-                  <span className="block truncate font-medium">{branch.name}</span>
-                  <span className="block truncate text-muted-foreground">
+                  <span className="block whitespace-normal [overflow-wrap:anywhere] font-medium">{branch.name}</span>
+                  <span className="block whitespace-normal [overflow-wrap:anywhere] text-muted-foreground">
                     {branch.address ?? "No address"}
                   </span>
                 </span>

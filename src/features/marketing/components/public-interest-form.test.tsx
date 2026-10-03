@@ -130,7 +130,7 @@ describe("PublicInterestForm", () => {
     await user.click(screen.getByRole("button", { name: "Get information" }));
     await screen.findByText("Request not confirmed");
     expect((screen.getByRole("textbox", { name: /^How can we help/ }) as HTMLTextAreaElement).value).toBe("Show rent tracking.");
-    expect(document.activeElement?.textContent).toContain("Request not confirmed");
+    await waitFor(() => expect(document.activeElement?.textContent).toContain("Request not confirmed"));
     expect(screen.queryByText("Thank you for your interest.")).toBeNull();
   });
 
@@ -151,7 +151,7 @@ describe("PublicInterestForm", () => {
     expect(fullName.value).toBe("Fixture Person");
     expect(email.value).toBe("landing-fixture@example.invalid");
     expect(company.value).toBe("Fixture Properties");
-    expect(document.activeElement?.textContent).toContain("Request not confirmed");
+    await waitFor(() => expect(document.activeElement?.textContent).toContain("Request not confirmed"));
     expect(screen.queryByRole("status")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Request a demo" }));
     await screen.findByRole("status");
