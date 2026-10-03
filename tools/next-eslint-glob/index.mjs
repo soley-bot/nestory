@@ -31,6 +31,9 @@ export function globSync(patterns, options) {
   if (/(^|\/)\.\.(\/|$)/.test(patterns)) {
     throw new TypeError("Next.js ESLint rootDir parent-directory traversal is unsupported; use absolute roots instead");
   }
+  if (/(^|[^!*+?@])\(/.test(patterns)) {
+    throw new TypeError("Next.js ESLint rootDir bare parentheses are unsupported; list roots explicitly without grouping");
+  }
   // Match from the filesystem root explicitly: tinyglobby's absolute-pattern
   // normalization differs on Windows, including when `absolute` is enabled.
   const absolute = isAbsolute(patterns);

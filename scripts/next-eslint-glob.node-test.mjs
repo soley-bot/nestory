@@ -45,7 +45,7 @@ test("parent-relative patterns cannot silently omit the current application or i
 });
 
 test("ESLint rejects unsupported patterns instead of silently changing page discovery", async () => {
-  for (const rootDir of ["apps/app{01..05}", "apps/{,web}", "apps/{web,}", "apps/{web,,admin}", "apps/{web,{,admin}}", "apps/**", "apps/**/web"]) {
+  for (const rootDir of ["apps/app{01..05}", "apps/{,web}", "apps/{web,}", "apps/{web,,admin}", "apps/{web,{,admin}}", "apps/**", "apps/**/web", "apps/(web)", "apps/@((web))"]) {
     const eslint = new ESLint({ cwd: root, overrideConfig: [{ settings: { next: { rootDir } } }] });
     await assert.rejects(
       eslint.lintText('export default function Page() { return <a href="/about/">About</a>; }', { filePath: "src/glob-range-fixture.tsx" }),
@@ -81,6 +81,9 @@ test("actual Next root discovery retains literal, glob and array directory seman
     for (const [label, input, expected] of cases) {
       await t.test(label, () => assert.deepEqual(discover(input), normalized(expected)));
     }
+    await t.test("bare-parenthesis grouping cannot add an unintended application root", () => {
+      assert.throws(() => discover(`${apps}/(web)`), /bare parentheses are unsupported; list roots explicitly without grouping/);
+    });
     await t.test("default uses ESLint context cwd", () => {
       assert.deepEqual(getRootDirs({ cwd: directory, settings: {} }), [directory]);
     });

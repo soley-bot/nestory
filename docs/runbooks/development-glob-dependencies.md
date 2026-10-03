@@ -20,6 +20,8 @@ Empty brace alternatives (`apps/{,web}`) and globstars (`apps/**`) also fail exp
 
 Patterns containing a parent-directory traversal segment (`..`), such as `../*` or `../../a*`, are rejected. Tinyglobby can otherwise omit a matching directory containing the working directory. Configure absolute roots instead. Relative roots within the working directory, such as `apps/web`, remain supported.
 
+Bare parentheses such as `apps/(web)` are rejected because tinyglobby treats them as grouping and can add roots that fast-glob excluded. List ungrouped roots explicitly. Supported extglobs such as `apps/@(admin|web)` remain covered by directory-discovery contracts; nesting a bare group inside one is rejected.
+
 Dependency upgrades must pass `scripts/next-eslint-glob.node-test.mjs`, including real Next root discovery and actual ESLint diagnostics for configured roots. Review the adapter if Next changes its glob API. Keep the override scoped to the audited plugin version; prefer returning to the supported upstream dependency once its vulnerable chain is removed.
 
 Sources: [braces advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), [tinyglobby migration guidance](https://superchupu.dev/tinyglobby/migration), [Next ESLint configuration](https://nextjs.org/docs/app/api-reference/config/eslint).
