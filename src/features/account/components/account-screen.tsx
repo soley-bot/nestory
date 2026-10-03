@@ -180,7 +180,7 @@ function AccountFact({ label, value }: { label: string; value: string }) {
       <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </dt>
-      <dd className="mt-1 truncate text-sm font-medium" title={value}>{value}</dd>
+      <dd className="mt-1 select-text whitespace-pre-wrap break-words text-sm font-medium [overflow-wrap:anywhere]">{value}</dd>
     </div>
   );
 }
@@ -189,7 +189,7 @@ function AccessFact({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-3 py-2">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-right font-medium text-foreground">{value}</dd>
+      <dd className="min-w-0 select-text break-words text-right font-medium text-foreground [overflow-wrap:anywhere]">{value}</dd>
     </div>
   );
 }
