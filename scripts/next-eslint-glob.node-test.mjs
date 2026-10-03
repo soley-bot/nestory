@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { createRequire, syncBuiltinESMExports } from "node:module";
@@ -21,6 +22,14 @@ test("the installed pinned Next plugin resolves its scoped, reviewed directory a
   assert.equal(pluginRequire("fast-glob/package.json").name, "@nestory/next-eslint-glob");
   assert.throws(() => adapter.globSync("*", { onlyFiles: true }), /Review Next.js ESLint/);
   assert.throws(() => adapter.globSync("*", { onlyDirectories: true, deep: 1 }), /Review Next.js ESLint/);
+});
+
+test("npm validates the installed scoped override as a satisfied dependency edge", () => {
+  const windows = process.platform === "win32";
+  const result = spawnSync(windows ? "cmd.exe" : "npm", windows
+    ? ["/d", "/c", "npm ls fast-glob --all --json"]
+    : ["ls", "fast-glob", "--all", "--json"], { cwd: root, encoding: "utf8", timeout: 60000 });
+  assert.equal(result.status, 0, result.error?.message ?? `${result.stderr}\n${result.stdout}`);
 });
 
 test("unsupported brace ranges fail explicitly rather than silently dropping lint roots", () => {
