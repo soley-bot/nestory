@@ -1,6 +1,5 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   useActionState,
@@ -67,6 +66,7 @@ import {
 } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
+import { MaintenanceDateField } from "@/features/maintenance/components/maintenance-date-field";
 import { TimePickerField } from "@/components/ui/time-picker-field";
 import {
   createMaintenanceCaseAction,
@@ -126,13 +126,6 @@ import { getBusinessMonthValue } from "@/lib/dates/business-date";
 import { cn } from "@/lib/utils";
 
 const initialState: MaintenanceActionState = {};
-const DatePickerField = dynamic(
-  () =>
-    import("@/components/ui/date-picker-field").then(
-      (module) => module.DatePickerField,
-    ),
-  { ssr: false },
-);
 
 type MaintenanceScopeFact = {
   label: string;
@@ -1698,7 +1691,7 @@ export function MaintenanceForm({
     const first = fields.length ? formRef.current?.elements.namedItem(fields[0]) : null;
     if (first instanceof HTMLElement) requestAnimationFrame(() => {
       const target = first instanceof HTMLInputElement && first.type === "hidden"
-        ? first.closest("label")?.querySelector<HTMLElement>('[role="combobox"]') : first;
+        ? first.closest("label")?.querySelector<HTMLElement>('[role="combobox"], button') : first;
       target?.focus();
     });
   }, [state]);
@@ -1916,7 +1909,7 @@ export function MaintenanceForm({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Due date" error={state.fieldErrors?.dueDate?.[0]}>
-              <DatePickerField
+              <MaintenanceDateField
                 ariaLabel="Due date"
                 defaultValue={defaults.dueDate ?? ""}
                 name="dueDate"
@@ -1933,7 +1926,7 @@ export function MaintenanceForm({
               label="Reminder date"
               error={state.fieldErrors?.reminderDate?.[0]}
             >
-              <DatePickerField
+              <MaintenanceDateField
                 ariaLabel="Reminder date"
                 defaultValue={defaults.reminderDate ?? ""}
                 name="reminderDate"

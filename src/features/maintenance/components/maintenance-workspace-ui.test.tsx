@@ -304,7 +304,7 @@ describe("maintenance workspace redesign contract", () => {
     expect(new FormData(form).get("priority")).toBe("normal");
   });
 
-  it("retains optional edit values and locked financial scope while disclosures are closed", () => {
+  it("retains optional edit values and locked financial scope while disclosures are closed", async () => {
     const record = makeCase();
     record.formValues = { ...record.formValues, actualCostAmount: 75, dueTime: "09:30", reminderDate: "2026-07-17", reminderTime: "08:00", recurrenceFrequency: "monthly" };
     record.costSubmission = { status: "submitted" } as MaintenanceCase["costSubmission"];
@@ -318,6 +318,11 @@ describe("maintenance workspace redesign contract", () => {
     fireEvent.click(screen.getByText("More details", { selector: "summary" }));
     fireEvent.click(screen.getByText("More details", { selector: "summary" }));
     expect(new FormData(form).get("vendorPersonId")).toBe("vendor-1");
+    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
+    await screen.findByRole("button", { name: "Reminder date" });
+    expect(new FormData(form).get("reminderDate")).toBe("2026-07-17");
+    expect(new FormData(form).getAll("reminderDate")).toHaveLength(1);
+    expect(new FormData(form).get("dueDate")).toBe("2026-07-18");
   });
 
   it("reveals optional invalid controls and preserves edits after a server error", async () => {
