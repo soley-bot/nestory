@@ -42,7 +42,7 @@ export function PageHeader({
             navigation ? "lg:flex-none" : ""
           }`}
         >
-          <h1 className="shrink-0 text-xl font-semibold tracking-tight text-foreground">
+          <h1 className="min-w-0 max-w-full shrink-0 text-xl font-semibold tracking-tight text-foreground [overflow-wrap:anywhere]">
             {title}
           </h1>
           {description || context ? (
@@ -58,7 +58,7 @@ export function PageHeader({
         <div className="order-1 ml-auto flex min-w-0 max-w-full shrink-0 flex-wrap items-center gap-2 lg:order-2">
           <PageHelp content={help} />
           {actions ? (
-            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2" data-slot="page-header-actions">
+            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 [&_a]:h-auto [&_a]:min-h-8 [&_a]:max-w-full [&_a]:whitespace-normal [&_a]:[overflow-wrap:anywhere] [&_button]:h-auto [&_button]:min-h-8 [&_button]:max-w-full [&_button]:whitespace-normal [&_button]:[overflow-wrap:anywhere]" data-slot="page-header-actions">
               {actions}
             </div>
           ) : null}
