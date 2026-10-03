@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, CircleAlert, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { HelpTerm } from "@/components/help/help-term";
 import {
   Card,
   CardAction,
@@ -83,7 +84,7 @@ export function PortfolioWorkspace({
           <CardHeader className="border-b sm:grid-cols-[1fr_auto]">
             <div>
               <CardTitle><h2>Actual cash flow</h2></CardTitle>
-              <p className="mt-1 text-xs text-muted-foreground">Ledger activity only</p>
+              <p className="mt-1 text-xs text-muted-foreground"><HelpTerm term="Ledger activity" meaning="Recorded financial entries used to build this cash-flow view. Unrecorded expected payments are not included." /> only</p>
             </div>
             <div className="mt-3 border-t border-border pt-3 sm:mt-0 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
               <h3 className="text-xs font-medium text-muted-foreground">Current expected rent</h3>

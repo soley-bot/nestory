@@ -12,7 +12,7 @@ import type {
   TrustedReport,
 } from "@/features/reports/reports.types";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }), usePathname: () => "/reports/unit-profit-loss" }));
 
 afterEach(cleanup);
 

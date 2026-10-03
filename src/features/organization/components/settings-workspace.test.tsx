@@ -39,6 +39,7 @@ vi.mock("@/features/organization/actions", () => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => navigation,
+  usePathname: () => "/settings",
 }));
 
 import { SettingsWorkspace } from "@/features/organization/components/settings-workspace";
