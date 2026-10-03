@@ -10,6 +10,11 @@ export function globSync(patterns, options) {
   ) {
     throw new TypeError("Review Next.js ESLint glob compatibility before changing its API");
   }
+  // Picomatch does not preserve fast-glob's padded/stepped brace ranges.
+  // Fail lint instead of silently omitting application roots from its rules.
+  if (/\{[^{}]*\.\.[^{}]*\}/.test(patterns)) {
+    throw new TypeError("Next.js ESLint rootDir brace ranges are unsupported; list roots explicitly or use a wildcard");
+  }
   // Match from the filesystem root explicitly: tinyglobby's absolute-pattern
   // normalization differs on Windows, including when `absolute` is enabled.
   const absolute = isAbsolute(patterns);

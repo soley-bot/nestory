@@ -22,6 +22,20 @@ test("the installed pinned Next plugin resolves its scoped, reviewed directory a
   assert.throws(() => adapter.globSync("*", { onlyDirectories: true, deep: 1 }), /Review Next.js ESLint/);
 });
 
+test("unsupported brace ranges fail explicitly rather than silently dropping lint roots", () => {
+  for (const rootDir of ["apps/app{01..05}", "packages/pkg{2..10..2}", "apps/{a..z}", "apps/{web,pkg{01..05}}"]) {
+    assert.throws(() => getRootDirs({ cwd: root, settings: { next: { rootDir } } }), /brace ranges are unsupported; list roots explicitly or use a wildcard/);
+  }
+});
+
+test("ESLint fails closed for an unsupported root range instead of passing without checking pages", async () => {
+  const eslint = new ESLint({ cwd: root, overrideConfig: [{ settings: { next: { rootDir: "apps/app{01..05}" } } }] });
+  await assert.rejects(
+    eslint.lintText('export default function Page() { return <a href="/about/">About</a>; }', { filePath: "src/glob-range-fixture.tsx" }),
+    /brace ranges are unsupported; list roots explicitly or use a wildcard/,
+  );
+});
+
 test("actual Next root discovery retains literal, glob and array directory semantics", async (t) => {
   const directory = await mkdtemp(join(tmpdir(), "nestory-next-glob-"));
   const apps = join(directory, "apps");
