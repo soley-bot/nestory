@@ -42,20 +42,12 @@ export function MaintenanceWorkflowPanel({
   const workflow = getMaintenanceWorkflowState(maintenanceCase, actor);
 
   return (
-    <section className="space-y-3 rounded-md border border-border bg-muted/50 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">Current stage</p>
-          <p className="mt-1 font-semibold">{workflow.stageLabel}</p>
-        </div>
-        <Badge tone={workflow.isWaitingOnCurrentActor ? "warning" : "neutral"}>
-          {workflow.currentOwnerLabel}
-        </Badge>
+    <section className="min-w-0 space-y-3 [overflow-wrap:anywhere] rounded-md border border-border bg-muted/50 p-3">
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+        <WorkflowFact label="Status" value={workflow.stageLabel} />
+        <WorkflowFact label="Assigned to" value={maintenanceCase.assigneeLabel || "Unassigned"} />
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">
-        <WorkflowFact label="Next action" value={workflow.nextActionLabel} />
-        <WorkflowFact label="Next handoff" value={workflow.nextHandoffLabel} />
-      </div>
+      <WorkflowFact label="Next action" value={workflow.nextActionLabel} />
       {workflow.blockerLabel ? (
         <p className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm">
           <AlertTriangle className="mt-0.5 shrink-0 text-warning" size={15} />

@@ -33,6 +33,17 @@ function getMaintenanceCapabilities(
 }
 
 describe("MaintenanceInspector role-safe workflow", () => {
+  it("shows concise status, assignee and next action without duplicate handoff facts", () => {
+    const record = makeCase();
+    record.assigneeLabel = "Assigned person ".repeat(20);
+    render(<MaintenanceWorkflowPanel actor={{ dataScope: "branch", workflowMode: "coordinator", branchId: "branch-1" }} capabilities={getMaintenanceCapabilities("operations_manager")} maintenanceCase={record} onStatusMessage={vi.fn()} />);
+    expect(screen.getByText("Status")).toBeTruthy();
+    expect(screen.getByText("Assigned to")).toBeTruthy();
+    expect(screen.getByText(record.assigneeLabel.trim())).toBeTruthy();
+    expect(screen.queryByText("Next handoff")).toBeNull();
+    expect(screen.queryByText("Current stage")).toBeNull();
+  });
+
   it("shows coordinated controls without admin links or upload for a manager", () => {
     render(
       <MaintenanceInspector

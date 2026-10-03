@@ -296,11 +296,68 @@ describe("maintenance workspace redesign contract", () => {
       />,
     );
 
-    expect(screen.getByRole("combobox", { name: "Status" }).textContent).toBe("Pending");
+    expect(screen.queryByRole("combobox", { name: "Status" })).toBeNull();
+    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
     expect(screen.getByRole("combobox", { name: "Priority" }).textContent).toBe("Normal");
     const form = container.querySelector("form")!;
     expect(new FormData(form).get("status")).toBe("pending");
     expect(new FormData(form).get("priority")).toBe("normal");
+  });
+
+  it("retains optional edit values and locked financial scope while disclosures are closed", () => {
+    const record = makeCase();
+    record.formValues = { ...record.formValues, actualCostAmount: 75, dueTime: "09:30", reminderDate: "2026-07-17", reminderTime: "08:00", recurrenceFrequency: "monthly" };
+    record.costSubmission = { status: "submitted" } as MaintenanceCase["costSubmission"];
+    const { container } = renderForm(record);
+    const form = container.querySelector("form")!;
+    expect([...container.querySelectorAll("details")].every(details => !details.open)).toBe(true);
+    const data = new FormData(form);
+    for (const [name, value] of Object.entries({ propertyId: "property-1", branchId: "branch-1", assigneePersonId: "person-1", vendorPersonId: "vendor-1", actualCostAmount: "75", recurrenceFrequency: "monthly", dueTime: "09:30", reminderDate: "2026-07-17", reminderTime: "08:00", checklistText: "[ ] Check valve" })) expect(data.get(name)).toBe(value);
+    const cost = form.elements.namedItem("actualCostAmount") as HTMLInputElement;
+    expect(cost.readOnly).toBe(true);
+    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
+    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
+    expect(new FormData(form).get("vendorPersonId")).toBe("vendor-1");
+  });
+
+  it("reveals optional invalid controls and preserves edits after a server error", async () => {
+    maintenanceActions.update.mockResolvedValueOnce({ status: "error", message: "Check the category.", fieldErrors: { category: ["Enter a category."] } } as never);
+    const onClose = vi.fn();
+    const { container } = renderForm(makeCase(), onClose);
+    const title = screen.getByRole("textbox", { name: /What needs fixing/ });
+    fireEvent.change(title, { target: { value: "New unsaved repair title" } });
+    fireEvent.change(container.querySelector('[name="description"]')!, { target: { value: "Keep these unsaved notes" } });
+    fireEvent.change(container.querySelector('[name="costEstimateAmount"]')!, { target: { value: "125" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => expect(screen.getByText("Enter a category.")).toBeTruthy());
+    expect(container.querySelectorAll("details")[1].open).toBe(true);
+    expect((title as HTMLTextAreaElement).value).toBe("New unsaved repair title");
+    const failedDraft = new FormData(container.querySelector("form")!);
+    expect(failedDraft.get("description")).toBe("Keep these unsaved notes");
+    expect(failedDraft.get("costEstimateAmount")).toBe("125");
+    expect(failedDraft.get("vendorPersonId")).toBe("vendor-1");
+    expect(document.activeElement?.getAttribute("name")).toBe("category");
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens collapsed native validation without clearing its draft", () => {
+    const { container } = renderForm(makeCase());
+    const category = container.querySelector('[name="category"]')!;
+    fireEvent.invalid(category);
+    expect(category.closest("details")?.open).toBe(true);
+    expect(new FormData(container.querySelector("form")!).get("title")).toBe("Repair sink");
+  });
+
+  it.each([320, 390])("keeps full long entity labels and a multiline title at %spx", (width) => {
+    installMatchMedia(width);
+    const long = "X".repeat(200);
+    const record = makeCase(); record.formValues.title = long;
+    const { container } = renderForm(record, vi.fn(), long);
+    expect((screen.getByRole("textbox", { name: /What needs fixing/ }) as HTMLTextAreaElement).value).toBe(long);
+    expect(container.querySelectorAll("span.whitespace-normal").length).toBeGreaterThan(0);
+    expect([...container.querySelectorAll("span")].some(span => span.textContent === long && span.className.includes("overflow-wrap:anywhere"))).toBe(true);
   });
 
   it("keeps one primary create action for an authorized true-empty workspace", () => {
@@ -1072,4 +1129,8 @@ class ResizeObserverStub {
   disconnect() {}
   observe() {}
   unobserve() {}
+}
+
+function renderForm(record: MaintenanceCase, onClose = vi.fn(), label = "Property One") {
+  return render(<MaintenanceForm actor={{ dataScope: "organization", workflowMode: "coordinator" }} branches={[{ id: "branch-1", label: "Main branch" }]} canRecordActualCost maintenanceCase={record} mode="edit" onClose={onClose} onSuccess={vi.fn()} properties={[{ id: "property-1", label }]} staff={[{ id: "person-1", branchId: "branch-1", label }]} units={[]} vendors={[{ id: "vendor-1", label }]} />);
 }

@@ -10,6 +10,7 @@ import {
   useState,
   useTransition,
   type ReactNode,
+  type ComponentProps,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -1577,10 +1578,9 @@ export function MaintenanceForm({
   units: MaintenanceUnitOption[];
   vendors: MaintenanceVendorOption[];
 }) {
+  const formRef = useRef<HTMLFormElement>(null);
   const [state, action, pending] = useActionState(
-    mode === "create"
-      ? createMaintenanceCaseAction
-      : updateMaintenanceCaseAction,
+    mode === "create" ? createMaintenanceCaseAction : updateMaintenanceCaseAction,
     initialState,
   );
   const defaults = {
@@ -1685,28 +1685,42 @@ export function MaintenanceForm({
     }
   }, [onClose, onSuccess, state.message, state.status]);
 
+  useEffect(() => {
+    if (state.status !== "error") return;
+    const fields = Object.keys(state.fieldErrors ?? {});
+    for (const field of fields) {
+      const control = formRef.current?.elements.namedItem(field);
+      if (control instanceof HTMLElement) {
+        const details = control.closest("details");
+        if (details) details.open = true;
+      }
+    }
+    const first = fields.length ? formRef.current?.elements.namedItem(fields[0]) : null;
+    if (first instanceof HTMLElement) requestAnimationFrame(() => {
+      const target = first instanceof HTMLInputElement && first.type === "hidden"
+        ? first.closest("label")?.querySelector<HTMLElement>('[role="combobox"]') : first;
+      target?.focus();
+    });
+  }, [state]);
+
   return (
-    <form action={action} className="flex h-full flex-col">
+    <form action={action} className="flex h-full min-w-0 flex-col" ref={formRef} onInvalidCapture={(event) => { const details = event.target instanceof HTMLElement ? event.target.closest("details") : null; if (details) details.open = true; }}>
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
         {maintenanceCase ? (
           <input name="taskId" type="hidden" value={maintenanceCase.id} />
         ) : null}
 
-        <FormSection title="Task details">
-          <Field label="Title" error={state.fieldErrors?.title?.[0]}>
-            <Input defaultValue={defaults.title} name="title" required />
-          </Field>
-
-          <Field label="Category" error={state.fieldErrors?.category?.[0]}>
-            <Input defaultValue={defaults.category} name="category" required />
+        <FormSection title="Problem">
+          <Field label="What needs fixing? (required)" error={state.fieldErrors?.title?.[0]}>
+            <MaintenanceTextField defaultValue={defaults.title} name="title" required />
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
+            <Field label="Property (required)" error={state.fieldErrors?.propertyId?.[0]}>
               {costScopeLocked ? (
                 <input name="propertyId" type="hidden" value={propertyId} />
               ) : null}
-              <SelectControl
+              <MaintenanceReadableSelect
                 ariaLabel="Property"
                 disabled={costScopeLocked}
                 name={costScopeLocked ? undefined : "propertyId"}
@@ -1729,7 +1743,7 @@ export function MaintenanceForm({
               {costScopeLocked ? (
                 <input name="unitId" type="hidden" value={unitId} />
               ) : null}
-              <SelectControl
+              <MaintenanceReadableSelect
                 ariaLabel="Unit"
                 disabled={!propertyId || costScopeLocked}
                 name={costScopeLocked ? undefined : "unitId"}
@@ -1746,14 +1760,21 @@ export function MaintenanceForm({
             </Field>
           </div>
 
+          <Field label="Description" error={state.fieldErrors?.description?.[0]}>
+            <MaintenanceTextField
+              defaultValue={defaults.description ?? ""}
+              name="description"
+            />
+          </Field>
         </FormSection>
+        <MaintenanceOptionalSection title="Assign now">
         <FormSection title="Assignment">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Branch" error={state.fieldErrors?.branchId?.[0]}>
               {branchControlMode === "fixed" && actor.branchId ? (
                 <>
                   <input name="branchId" type="hidden" value={actor.branchId} />
-                  <div className="flex h-8 items-center rounded-md border border-border bg-muted px-2.5 text-sm">
+                  <div className="flex min-h-8 min-w-0 items-center rounded-md border border-border bg-muted px-2.5 py-1 text-sm [overflow-wrap:anywhere]">
                     {managerBranch?.label ??
                       maintenanceCase?.branchLabel ??
                       "Assigned branch"}
@@ -1766,7 +1787,7 @@ export function MaintenanceForm({
                       All branches access
                     </p>
                   ) : null}
-                  <SelectControl
+                  <MaintenanceReadableSelect
                     ariaLabel="Branch"
                     name="branchId"
                     onValueChange={(value) => {
@@ -1827,43 +1848,24 @@ export function MaintenanceForm({
             </Field>
           </div>
 
-          <Field label="Vendor" error={state.fieldErrors?.vendorPersonId?.[0]}>
-            {costScopeLocked ? (
-              <input
-                name="vendorPersonId"
-                type="hidden"
-                value={defaults.vendorPersonId ?? ""}
-              />
-            ) : null}
-            <SelectControl
-              ariaLabel="Vendor"
-              defaultValue={defaults.vendorPersonId ?? ""}
-              disabled={costScopeLocked}
-              name={costScopeLocked ? undefined : "vendorPersonId"}
-              options={vendorSelect.options}
-            />
-            {vendorSelect.hasHistoricalVendor ? (
-              <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
-                Keep the current vendor, choose an active vendor, or select &quot;No vendor&quot; to remove the link.
-              </p>
-            ) : null}
-          </Field>
+
 
         </FormSection>
+        </MaintenanceOptionalSection>
+        <MaintenanceOptionalSection title="More details">
+                  <Field label="Category" error={state.fieldErrors?.category?.[0]}>
+            <MaintenanceDraftInput defaultValue={defaults.category} name="category" required />
+          </Field>
         <FormSection title="Schedule">
           <div className="grid gap-4 sm:grid-cols-3">
+            {mode === "create" ? <input name="status" type="hidden" value={defaults.status} /> : (
             <Field label="Status" error={state.fieldErrors?.status?.[0]}>
               <SelectControl
                 ariaLabel="Status"
                 defaultValue={defaults.status}
                 name="status"
                 options={
-                  mode === "create"
-                    ? [
-                        { label: "Pending", value: "pending" },
-                        { label: "Scheduled", value: "scheduled" },
-                      ]
-                    : MAINTENANCE_STATUS_OPTIONS.filter((option) =>
+                  MAINTENANCE_STATUS_OPTIONS.filter((option) =>
                         canTransitionMaintenanceStatus(
                           defaults.status,
                           option.value,
@@ -1878,6 +1880,7 @@ export function MaintenanceForm({
                 }
               />
             </Field>
+            )}
             <Field label="Priority" error={state.fieldErrors?.priority?.[0]}>
               <SelectControl
                 ariaLabel="Priority"
@@ -1949,13 +1952,34 @@ export function MaintenanceForm({
           </div>
 
         </FormSection>
-        <FormSection title="Cost and notes">
+        <FormSection title="Costs">
+          <Field label="Vendor" error={state.fieldErrors?.vendorPersonId?.[0]}>
+            {costScopeLocked ? (
+              <input
+                name="vendorPersonId"
+                type="hidden"
+                value={defaults.vendorPersonId ?? ""}
+              />
+            ) : null}
+            <SelectControl
+              ariaLabel="Vendor"
+              defaultValue={defaults.vendorPersonId ?? ""}
+              disabled={costScopeLocked}
+              name={costScopeLocked ? undefined : "vendorPersonId"}
+              options={vendorSelect.options}
+            />
+            {vendorSelect.hasHistoricalVendor ? (
+              <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
+                Keep the current vendor, choose an active vendor, or select &quot;No vendor&quot; to remove the link.
+              </p>
+            ) : null}
+          </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
               label="Cost estimate"
               error={state.fieldErrors?.costEstimateAmount?.[0]}
             >
-              <NumberInput
+              <MaintenanceDraftNumber
                 defaultValue={defaults.costEstimateAmount ?? ""}
                 min="0"
                 name="costEstimateAmount"
@@ -1986,12 +2010,7 @@ export function MaintenanceForm({
             </p>
           ) : null}
 
-          <Field label="Description" error={state.fieldErrors?.description?.[0]}>
-            <Textarea
-              defaultValue={defaults.description ?? ""}
-              name="description"
-            />
-          </Field>
+
 
           <ChecklistEditor
             error={state.fieldErrors?.checklistText?.[0]}
@@ -1999,6 +2018,7 @@ export function MaintenanceForm({
           />
 
         </FormSection>
+        </MaintenanceOptionalSection>
         {state.message ? (
           <p
             className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
@@ -2026,6 +2046,45 @@ export function MaintenanceForm({
       </div>
     </form>
   );
+}
+
+function MaintenanceOptionalSection({ children, title }: { children: ReactNode; title: string }) {
+  return <details className="min-w-0 border-b border-border pb-3"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring">{title}</summary><div className="min-w-0 space-y-4 pt-2">{children}</div></details>;
+}
+
+function MaintenanceTextField({ defaultValue, ...props }: ComponentProps<typeof Textarea>) {
+  const [value, setValue] = useState(String(defaultValue ?? ""));
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  function grow(element: HTMLTextAreaElement) {
+    element.style.height = "auto";
+    element.style.height = element.scrollHeight + "px";
+  }
+  useEffect(() => {
+    const input = wrapperRef.current?.querySelector("textarea");
+    if (!input) return;
+    const resize = () => grow(input);
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+  return <div ref={wrapperRef} className="min-w-0"><Textarea {...props} value={value} onChange={(event) => setValue(event.target.value)} rows={2} className="min-h-11 min-w-0 resize-y whitespace-pre-wrap [overflow-wrap:anywhere]" onInput={(event) => grow(event.currentTarget)} /></div>;
+}
+
+function MaintenanceDraftInput({ defaultValue, ...props }: ComponentProps<typeof Input>) {
+  const [value, setValue] = useState(String(defaultValue ?? ""));
+  return <Input {...props} value={value} onChange={(event) => setValue(event.target.value)} />;
+}
+
+function MaintenanceDraftNumber({ defaultValue, ...props }: ComponentProps<typeof NumberInput>) {
+  const [value, setValue] = useState(String(defaultValue ?? ""));
+  return <NumberInput {...props} value={value} onChange={(event) => setValue(event.target.value)} />;
+}
+
+function MaintenanceReadableSelect(props: ComponentProps<typeof SelectControl>) {
+  const [localValue, setLocalValue] = useState(props.defaultValue ?? "");
+  const selected = props.options.find(option => option.value === (props.value ?? localValue));
+  const showLabel = ["Property", "Unit", "Branch", "Assignee", "Vendor"].includes(props.ariaLabel ?? "") && Boolean(selected?.value);
+  return <><SelectControl {...props} onValueChange={(value) => { setLocalValue(value); props.onValueChange?.(value); }} />{showLabel ? <span className="mt-1 block min-w-0 whitespace-normal text-xs font-normal text-muted-foreground [overflow-wrap:anywhere]">{selected?.label}</span> : null}</>;
 }
 
 function getHistoricalVendorLabel(label?: string) {
@@ -2206,9 +2265,9 @@ function Field({
   label: string;
 }) {
   return (
-    <label className="block text-sm font-medium">
+    <label className="block min-w-0 max-w-full text-sm font-medium [overflow-wrap:anywhere]">
       {label}
-      <div className="mt-2">{children}</div>
+      <div className="mt-2 min-w-0 max-w-full">{children}</div>
       {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}
     </label>
   );
