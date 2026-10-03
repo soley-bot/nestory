@@ -6,6 +6,7 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import { useRouter } from "next/navigation";
 
@@ -57,6 +58,8 @@ export const AppearanceEditor = forwardRef<
 ) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
+  const logoRef = useRef<SettingsEditorHandle>(null);
+  const [logoStatus, setLogoStatus] = useState<DraftStatus>("clean");
   const initialValues = useMemo<AppearanceDraft>(
     () => ({
       accentPreset: theme.accentPreset,
@@ -77,13 +80,21 @@ export const AppearanceEditor = forwardRef<
   const previewTheme = getPreviewTheme(draft.values);
   const previewMode = previewTheme.mode === "dark" ? "dark" : "light";
   const acceptThemeValues = draft.acceptValues;
+  const discardAppearance = draft.discard;
 
-  useImperativeHandle(controllerRef, () => ({ discard: draft.discard }), [
-    draft.discard,
+  const sectionStatus: DraftStatus = [draft.status, logoStatus].includes("saving") ? "saving"
+    : [draft.status, logoStatus].includes("error") ? "error"
+    : [draft.status, logoStatus].includes("dirty") ? "dirty"
+    : [draft.status, logoStatus].includes("saved") ? "saved" : "clean";
+  useImperativeHandle(controllerRef, () => ({ discard: () => {
+    discardAppearance();
+    logoRef.current?.discard();
+  } }), [
+    discardAppearance,
   ]);
   useEffect(
-    () => onDraftStatusChange(draft.status),
-    [draft.status, onDraftStatusChange],
+    () => onDraftStatusChange(sectionStatus),
+    [sectionStatus, onDraftStatusChange],
   );
   useEffect(() => () => onDraftStatusChange("clean"), [onDraftStatusChange]);
   useEffect(() => {
@@ -121,6 +132,8 @@ export const AppearanceEditor = forwardRef<
   return (
     <div className="space-y-4">
       <CompanyLogoEditor
+        ref={logoRef}
+        onDraftStatusChange={setLogoStatus}
         logoStoragePath={logoStoragePath}
         logoUrl={logoUrl}
         organizationName={organizationName}

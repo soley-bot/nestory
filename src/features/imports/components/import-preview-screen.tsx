@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -93,6 +93,7 @@ export function ImportPreviewScreen({
   const [parsedFile, setParsedFile] = useState<ParsedFile | null>(null);
   const [mapping, setMapping] = useState<ImportMapping>({});
   const [fileError, setFileError] = useState<string | null>(null);
+  const fileReadVersion = useRef(0);
   const config = getImportTypeConfig(selectedType);
   const availability = getImportAvailability(selectedType, referenceData);
   const savedMapping = savedMappings.find(
@@ -190,6 +191,10 @@ export function ImportPreviewScreen({
     (!importState.draftKey || importState.draftKey === draftKey);
 
   async function handleFileSelect(file: File) {
+    const readVersion = ++fileReadVersion.current;
+    setParsedFile(null);
+    setMapping({});
+    setFileError(null);
     if (file.size > MAX_IMPORT_FILE_BYTES) {
       setFileError("CSV files must be 12 MB or smaller.");
       setParsedFile(null);
@@ -199,6 +204,7 @@ export function ImportPreviewScreen({
 
     try {
       const text = await file.text();
+      if (readVersion !== fileReadVersion.current) return;
       const parsed = parseCsv(text);
 
       if (parsed.headers.length === 0) {
@@ -218,6 +224,7 @@ export function ImportPreviewScreen({
       setMapping(mapHeadersForType(selectedType, parsed.headers, savedMapping));
       setFileError(null);
     } catch (error) {
+      if (readVersion !== fileReadVersion.current) return;
       setFileError(
         error instanceof CsvPreviewLimitError
           ? error.message
@@ -229,6 +236,7 @@ export function ImportPreviewScreen({
   }
 
   function chooseType(type: ImportType) {
+    fileReadVersion.current += 1;
     setSelectedType(type);
     setParsedFile(null);
     setMapping({});
@@ -291,6 +299,7 @@ export function ImportPreviewScreen({
 
           <div className="p-4">
             <FileDropzoneField
+              key={selectedType}
               aria-label="Select CSV file to import"
               accept={CSV_FILE_ACCEPT}
               description="CSV only. Nestory matches recognizable columns automatically."

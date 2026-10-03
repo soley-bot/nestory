@@ -228,6 +228,28 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.queryByRole("button", { name: "Cancel expense" })).toBeNull();
   });
 
+  it("marks and focuses a rejected change date on the visible calendar control", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.expenseSubmissions = [editableExpense("approved")];
+    financeActionMocks.submitExpenseAction.mockResolvedValue({
+      status: "error", message: "Could not save changes.",
+      fieldErrors: { reversalDate: ["Choose a date in the open period."] },
+    });
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canSubmitExpense: true, canReverseExpense: true })} organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("tab", { name: "Approved (1)" }));
+    await user.click(screen.getByRole("button", { name: "View Sokha Repairs" }));
+    await user.click(screen.getByRole("button", { name: "Edit expense" }));
+    await user.type(screen.getByRole("textbox", { name: /^Reason for change/ }), "Correct receipt date");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByText("Choose a date in the open period.");
+    const date = screen.getByRole("button", { name: /^Change date/ });
+    await waitFor(() => expect(document.activeElement).toBe(date));
+    expect(date.getAttribute("data-invalid")).toBe("true");
+    expect(document.getElementById(date.getAttribute("aria-describedby")!)?.textContent).toBe("Choose a date in the open period.");
+    expect(financeActionMocks.submitExpenseAction).toHaveBeenCalledOnce();
+  });
+
   it("keeps an expense edit on failure, focuses the reason and retries without duplicate submissions", async () => {
     const user = userEvent.setup();
     const input = data();

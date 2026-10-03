@@ -79,6 +79,7 @@ vi.mock("@/features/leases/historical-rent-correction-actions", () => ({
 vi.mock("@/features/finance-operations/actions", () => actionMocks);
 
 vi.mock("next/navigation", () => ({
+  usePathname: () => "/leases/lease-1",
   useRouter: () => routerMocks,
 }));
 

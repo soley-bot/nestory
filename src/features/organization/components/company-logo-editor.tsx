@@ -2,10 +2,12 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { forwardRef, startTransition, useActionState, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ImageUp } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import type { DraftStatus } from "@/components/ui/draft-action-bar";
+import type { SettingsEditorHandle } from "@/features/organization/components/branch-editor";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   removeOrganizationLogoAction,
@@ -17,15 +19,17 @@ import { cn } from "@/lib/utils";
 
 const initialState: OrganizationActionState = {};
 
-export function CompanyLogoEditor({
-  logoStoragePath,
-  logoUrl,
-  organizationName,
-}: {
+export const CompanyLogoEditor = forwardRef<SettingsEditorHandle, {
   logoStoragePath: string | null;
   logoUrl: string | null;
   organizationName: string;
-}) {
+  onDraftStatusChange?: (status: DraftStatus) => void;
+}>(function CompanyLogoEditor({
+  logoStoragePath,
+  logoUrl,
+  organizationName,
+  onDraftStatusChange,
+}, controllerRef) {
   const router = useRouter();
   const [selectedFileName, setSelectedFileName] = useState("");
   const [selectedPreview, setSelectedPreview] = useState<string | null>(null);
@@ -48,6 +52,10 @@ export function CompanyLogoEditor({
           setSelectedDimensions("");
           router.refresh();
         }
+        return result;
+      } catch {
+        const result: OrganizationActionState = { status: "error", message: "The company logo could not be uploaded. Try again." };
+        setState(result);
         return result;
       } finally {
         actionPendingRef.current = false;
@@ -73,6 +81,21 @@ export function CompanyLogoEditor({
   );
   const hasLogo = Boolean(logoStoragePath);
   const pending = uploading || removing;
+  const status: DraftStatus = pending ? "saving"
+    : selectedFileName ? state.status === "error" ? "error" : "dirty"
+    : state.status === "success" ? "saved" : state.status === "error" ? "error" : "clean";
+  useEffect(() => onDraftStatusChange?.(status), [onDraftStatusChange, status]);
+  useEffect(() => () => onDraftStatusChange?.("clean"), [onDraftStatusChange]);
+  useImperativeHandle(controllerRef, () => ({
+    discard: () => {
+      if (actionPendingRef.current) return;
+      if (fileRef.current) fileRef.current.value = "";
+      setSelectedFileName("");
+      setSelectedPreview(null);
+      setSelectedDimensions("");
+      setState(initialState);
+    },
+  }), []);
   useEffect(() => {
     return () => {
       if (selectedPreview) URL.revokeObjectURL(selectedPreview);
@@ -115,12 +138,15 @@ export function CompanyLogoEditor({
             <form
               action={uploadAction}
               onSubmit={(event) => {
+                event.preventDefault();
                 if (pending || actionPendingRef.current) {
                   event.preventDefault();
                   return;
                 }
                 actionPendingRef.current = true;
                 setState(initialState);
+                const formData = new FormData(event.currentTarget);
+                startTransition(() => uploadAction(formData));
               }}
             >
               <div className="group flex flex-wrap items-center gap-2">
@@ -250,4 +276,4 @@ export function CompanyLogoEditor({
       </CardContent>
     </Card>
   );
-}
+});

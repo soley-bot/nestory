@@ -930,11 +930,16 @@ function DocumentArchivePanel({
             {state.message}
           </p>
         ) : null}
+        {pending ? (
+          <p className="text-sm text-muted-foreground" role="status">
+            This change is being saved. Closing this panel will not cancel it.
+          </p>
+        ) : null}
       </div>
       <div className="border-t border-border px-4 py-4 sm:px-5">
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button className="w-full sm:w-auto" onClick={onClose} type="button">
-            Cancel
+            {pending ? "Close" : "Cancel"}
           </Button>
           <Button
             className="w-full sm:w-auto"
