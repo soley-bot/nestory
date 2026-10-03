@@ -11,4 +11,14 @@ Browser checks passed at both sizes: three steps, dialog labeling, keyboard focu
 
 Validation passed: 111 tests across help, shared layout/navigation, permission navigation, settings tabs, and dashboard suites; the final header adjustment passed another focused run of 49 tests. TypeScript noEmit, repository ESLint excluding the ignored generated preview output, affected-file ESLint, UI copy verification, secret scan, and whitespace review passed.
 
-Not run: full application production build, full repository test matrix, authenticated hosted browser checks, and database tests. This change has no database, permission, accounting, or customer-record writes. Report detail guidance remains for the reporting owner through the documented component API.
+The release coordinator also verified the Units and Petty cash multi-action headers and a long-title/long-action fixture at 320px, 360px, 390px and 1440px. The original unconstrained action group clipped Add unit and Add cash row on phones. The group, title and individual action labels now wrap within the available header width; every action is visible and clickable, and Help still returns focus after Escape. Intrinsic scroll width does not exceed client width for the title, primary row or action group. Ordinary desktop geometry is unchanged.
+
+| Units at 390px | Petty cash at 390px |
+| --- | --- |
+| ![Units actions wrap within the phone header](mobile-units-actions.png) | ![Petty cash actions wrap within the phone header](mobile-petty-cash-actions.png) |
+
+![Long title and individual action labels wrap at 320px](mobile-long-header.png)
+
+These additional header previews use the actual shared WorkspacePage/PageHeader components and the pages' action markup with synthetic callbacks. The long-label case is a stress fixture. They do not exercise customer data or financial actions. All 49 shared header/Help tests pass, and the combined settings browser flow confirms opening Help preserves an unsaved logo selection.
+
+Full release checks and exact-head CI evidence are maintained in the PR description. Authenticated hosted write-based checks were not performed. This change has no database, permission, accounting, or customer-record writes. Report detail guidance remains for the reporting owner through the documented component API.
