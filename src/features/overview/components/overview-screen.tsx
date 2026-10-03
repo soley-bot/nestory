@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Upload } from "lucide-react";
+import { PageHelp } from "@/components/help/page-help";
 import { OverviewHeader } from "@/features/overview/components/overview-header";
 import { OverviewLensWorkspace } from "@/features/overview/components/overview-lens-workspace";
 import { PortfolioWorkspace } from "@/features/overview/components/portfolio-workspace";
@@ -45,7 +46,10 @@ function EmptyWorkspaceOnboarding({ data }: { data: OverviewScreenData }) {
     <main className="workspace-gutter-x min-h-full bg-background py-5 sm:py-7">
       <section data-slot="empty-workspace-onboarding">
         <header className="border-b border-border pb-5">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Start with your operating records.</h1>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Start with your operating records.</h1>
+            <PageHelp />
+          </div>
           <p className="mt-1.5 text-sm text-muted-foreground">Create the first property, then import units, people, and leases.</p>
         </header>
 
