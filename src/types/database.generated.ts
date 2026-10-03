@@ -11561,6 +11561,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      freeze_owner_statement_rendering: {
+        Args: {
+          p_actor_id: string
+          p_organization_id: string
+          p_publication_id: string
+          p_snapshot: Json
+        }
+        Returns: Json
+      }
       generate_owner_balance_period: {
         Args: {
           p_currency: Database["public"]["Enums"]["currency_code"]
@@ -12056,6 +12065,14 @@ export type Database = {
       }
       get_owner_statement_readiness: {
         Args: { p_organization_id: string; p_owner_close_revision_id: string }
+        Returns: Json
+      }
+      get_owner_statement_rendering: {
+        Args: {
+          p_actor_id: string
+          p_organization_id: string
+          p_publication_id: string
+        }
         Returns: Json
       }
       get_paid_cost_evidence_object:

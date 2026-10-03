@@ -15,7 +15,7 @@ import { requirePrivilegedStepUp } from "@/lib/auth/privileged-step-up-guard";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { buildOwnerStatementXlsx } from "@/features/reports/data/excel";
 import { buildOwnerStatementPdf } from "@/features/reports/data/pdf";
-import { loadOwnerStatementPresentation } from "@/features/reports/data/owner-statement-presentation";
+import { loadFrozenOwnerStatementPresentation } from "@/features/reports/data/owner-statement-rendering";
 import { loadOwnerStatementPublication } from "@/features/reports/data/owner-statement-report";
 
 const uuid = z.string().regex(
@@ -184,7 +184,16 @@ async function completeOwnerStatementPublication(
   if (model.statementNumber !== statementNumber || model.publicationId !== publicationId) {
     throw new Error("Owner Statement publication identity changed during rendering.");
   }
-  const presentation = await loadOwnerStatementPresentation(supabase, model);
+  const registeredFormats = new Set(model.artifacts.map((artifact) => artifact.format));
+  if (registeredFormats.has("pdf") && registeredFormats.has("xlsx")) {
+    finish(null);
+    return;
+  }
+  const admin = await requirePrivilegedStepUp(
+    { organizationId, userId: actorId },
+    supabase,
+  );
+  const presentation = await loadFrozenOwnerStatementPresentation(supabase, admin, model, actorId);
 
   const artifacts = [
     {
@@ -193,21 +202,19 @@ async function completeOwnerStatementPublication(
       format: "pdf" as const,
     },
     {
-      bytes: buildOwnerStatementXlsx(model, presentation),
-      compatibleExistingBytes: buildOwnerStatementXlsx(model, presentation, {
-        includeDepositSummary: true,
+      bytes: buildOwnerStatementXlsx(model, presentation, {
+        headerLayout: presentation.rendererVersion === "owner-statement-v1" ? "legacy" : undefined,
       }),
+      compatibleExistingBytes: [
+        buildOwnerStatementXlsx(model, presentation, { headerLayout: "legacy" }),
+        buildOwnerStatementXlsx(model, presentation, { headerLayout: "legacy", includeDepositSummary: true }),
+      ],
       contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       format: "xlsx" as const,
     },
   ];
-  const admin = await requirePrivilegedStepUp(
-    { organizationId, userId: actorId },
-    supabase,
-  );
   const bucket = supabase.storage.from("owner-statements");
   const adminBucket = admin.storage.from("owner-statements");
-  const registeredFormats = new Set((model.artifacts ?? []).map((artifact) => artifact.format));
 
   for (const artifact of artifacts) {
     if (registeredFormats.has(artifact.format)) continue;
@@ -313,7 +320,7 @@ async function uploadOrVerifyArtifact(
   path: string,
   bytes: Uint8Array,
   contentType: string,
-  compatibleExistingBytes?: Uint8Array,
+  compatibleExistingBytes: Uint8Array[] = [],
 ) {
   const expectedHash = sha256Hex(bytes);
   const upload = await bucket.upload(path, bytes, { contentType, upsert: false });
@@ -331,12 +338,9 @@ async function uploadOrVerifyArtifact(
   if (existingBytes.byteLength === bytes.byteLength && existingHash === expectedHash) {
     return { bytes: existingBytes, hash: existingHash };
   }
-  const compatibleHash = compatibleExistingBytes && sha256Hex(compatibleExistingBytes);
-  if (
-    compatibleExistingBytes &&
-    existingBytes.byteLength === compatibleExistingBytes.byteLength &&
-    existingHash === compatibleHash
-  ) return { bytes: existingBytes, hash: existingHash };
+  if (compatibleExistingBytes.some(candidate =>
+    existingBytes.byteLength === candidate.byteLength && existingHash === sha256Hex(candidate)
+  )) return { bytes: existingBytes, hash: existingHash };
   throw new Error("Existing Owner Statement artifact bytes do not match this publication.");
 }
 
