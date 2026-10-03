@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -12,7 +12,7 @@ import type {
   TrustedReport,
 } from "@/features/reports/reports.types";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }), usePathname: () => "/reports/unit-profit-loss" }));
 
 afterEach(cleanup);
 
@@ -55,6 +55,29 @@ describe("Reports screen", () => {
     expect(screen.getByRole("row", { name: "Opening account activity Unavailable" })).toBeTruthy();
     expect(screen.queryByRole("row", { name: "Net income Unavailable" })).toBeNull();
     expect(screen.getByText("Accrual basis")).toBeTruthy();
+  });
+
+  it("opens current accrual guidance from the custom header without losing report warnings or filters", async () => {
+    const user = userEvent.setup();
+    const report = unitProfitLossReport();
+    report.unitProfitLossLines = [];
+    report.unitProfitLossFunding = { contributionCents: BigInt(68200), remainingBalanceCents: null, unavailableReason: "Unit allocation is unresolved." };
+    renderReport({ report, viewQuery: query({ propertyId: "property-1", unitId: "unit-1" }) });
+    const help = screen.getByRole("button", { name: "Help with this page" });
+    help.focus();
+    await user.keyboard("{Enter}");
+    const dialog = screen.getByRole("dialog", { name: "Profit & loss detail" });
+    expect(within(dialog).getAllByRole("listitem")).toHaveLength(3);
+    await user.click(within(dialog).getByText("Can I switch to Cash?"));
+    expect(within(dialog).getByText(/Cash selection is not available/).closest("details")?.open).toBe(true);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(help);
+    expect(screen.getByRole("status").textContent).toBe("Unit allocation is unresolved.");
+    expect(screen.getByRole("row", { name: "Opening account activity Unavailable" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Filter report by unit" }).textContent).toContain("Unit A1");
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    expect(screen.getByRole("menuitem", { name: "PDF report" }).getAttribute("href")).toContain("propertyId=property-1&unitId=unit-1");
   });
 
   it("hides the report and exports when scope validation fails", () => {

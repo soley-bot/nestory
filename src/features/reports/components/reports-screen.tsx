@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowLeft, ChevronDown, Download } from "lucide-react";
 import Link from "next/link";
 
+import { PageHelp } from "@/components/help/page-help";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +24,7 @@ import type {
 } from "@/features/reports/reports.types";
 import { cn } from "@/lib/utils";
 import { RecheckReport } from "@/features/reports/components/report-remediation-controls";
+import { unitProfitLossHelp } from "../report-help";
 
 type ReportsScreenProps = ReportsScreenData & {
   organizationName: string;
@@ -56,7 +58,7 @@ export function ReportBuilderScreen({
       <Link href="/reports" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />All reports</Link>
       <h1 className="text-sm font-semibold">Profit &amp; loss detail</h1>
       <span className="text-xs text-muted-foreground">{profitLossBasisLabel}</span>
-      <div className="ml-auto flex items-center gap-2">{validation ? null : <ExportMenu viewQuery={viewQuery} />}<RecheckReport /></div>
+      <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2"><PageHelp content={unitProfitLossHelp} />{validation ? null : <ExportMenu viewQuery={viewQuery} />}<RecheckReport /></div>
     </header>}>
       <ReportsFilters key={queryKey} compact action={`/reports/${viewQuery.report}`} propertyOptions={propertyOptions} unitOptions={unitOptions} ownerOptions={ownerOptions} viewQuery={viewQuery} />
       <div className="workspace-gutter-x pb-4">
