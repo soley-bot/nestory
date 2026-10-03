@@ -62,3 +62,33 @@ function deferred<T>() {
   });
   return { promise, resolve };
 }
+
+it("retains newer edits after a slow save and discards to the successful server baseline", async () => {
+  const pending = deferred<{ message: string; status: "success" }>();
+  const action = vi.fn(() => pending.promise);
+  const { result } = renderHook(() => useHarnessDraft(action));
+  act(() => result.current.setField("name", "Saved name"));
+  let saving!: Promise<void>;
+  act(() => { saving = result.current.submit(vi.fn()); });
+  act(() => result.current.setField("name", "Newer unsaved name"));
+  await act(async () => { pending.resolve({ message: "Saved", status: "success" }); await saving; });
+  expect(result.current.values.name).toBe("Newer unsaved name");
+  expect(result.current.status).toBe("dirty");
+  expect(result.current.resultMessage).toBeUndefined();
+  act(() => result.current.discard());
+  expect(result.current.values.name).toBe("Saved name");
+  expect(result.current.status).toBe("clean");
+});
+
+it("ignores a response after the draft was explicitly discarded", async () => {
+  const pending = deferred<{ message: string; status: "success" }>();
+  const { result } = renderHook(() => useHarnessDraft(() => pending.promise));
+  act(() => result.current.setField("name", "Pending"));
+  let saving!: Promise<void>;
+  act(() => { saving = result.current.submit(vi.fn()); });
+  act(() => result.current.discard());
+  await act(async () => { pending.resolve({ message: "Saved", status: "success" }); await saving; });
+  expect(result.current.values.name).toBe("");
+  expect(result.current.status).toBe("clean");
+  expect(result.current.resultMessage).toBeUndefined();
+});

@@ -36,6 +36,27 @@ afterEach(() => {
 });
 
 describe("DocumentScreen workspace contract", () => {
+  it("explains recovery even when the active list is empty", () => {
+    renderDocuments([]);
+    expect(screen.getByText(/To find archived documents, choose Archived/)).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Archive state" })).toBeTruthy();
+  });
+
+  it("opens supported archive recovery with the keyboard and cancels without a write", async () => {
+    const user = userEvent.setup();
+    const archived = { ...documents[0]!, isArchived: true };
+    renderDocuments([archived], { archiveState: "archived" });
+    expect(screen.getByText(/when you have permission/)).toBeTruthy();
+    const row = within(screen.getByRole("table")).getAllByRole("row")[1]!;
+    row.focus();
+    await user.keyboard("{Enter}");
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+    expect(screen.getByRole("dialog", { name: "Restore document" })).toBeTruthy();
+    expect(screen.getByText("Restoring returns this document to active evidence lists.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Restore document" })).toBeNull();
+  });
+
   it("uses the established document lifecycle vocabulary", () => {
     expect(DOCUMENT_ARCHIVE_OPTIONS).toEqual([
       { label: "Active records", value: "active" },

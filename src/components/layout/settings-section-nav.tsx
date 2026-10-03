@@ -1,14 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import {
-  Building2,
-  Landmark,
-  Palette,
-  UsersRound,
-} from "lucide-react";
+import { Building2, Landmark, Palette, ShieldCheck, UsersRound, UserRound } from "lucide-react";
 import { useSettingsNavigationGuard } from "@/components/layout/settings-navigation-guard";
-import { getSettingsDestinations } from "@/features/organization/settings-navigation";
+import { getSettingsDestinations, SETTINGS_GROUPS } from "@/features/organization/settings-navigation";
 import type { WorkspaceRole, WorkspaceRoleKind } from "@/lib/auth/capabilities";
 import { cn } from "@/lib/utils";
 
@@ -17,52 +12,46 @@ const iconByHref = {
   "/settings/branches": Building2,
   "/settings/organization": Landmark,
   "/settings/teams": UsersRound,
+  "/settings/access": UserRound,
+  "/settings/roles": ShieldCheck,
 } as const;
 
-export function SettingsSectionNav({
-  activeHref,
-  role,
-}: {
+export function SettingsSectionNav({ activeHref, role }: {
   activeHref: string;
   role: WorkspaceRole | WorkspaceRoleKind;
 }) {
-  const navigationGuard = useSettingsNavigationGuard();
-  const destinations = getSettingsDestinations(role).filter(
-    (destination) => destination.group === "workspace",
-  );
-
+  const guard = useSettingsNavigationGuard();
+  const destinations = getSettingsDestinations(role);
   return (
-    <nav
-      aria-label="Workspace settings"
-      className="min-w-0 overflow-x-auto lg:overflow-visible"
-    >
-      <div className="flex min-w-max gap-1 border-b border-border pb-2 lg:min-w-0 lg:flex-col lg:border-b-0 lg:pb-0">
-        {destinations.map((destination) => {
-          const Icon = iconByHref[destination.href as keyof typeof iconByHref];
-          const active = destination.href === activeHref;
-
-          return (
-            <Link
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "group flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium outline-none transition-colors",
-                "focus-visible:ring-2 focus-visible:ring-ring/50",
-                active
-                  ? "bg-[var(--org-accent-soft)] text-foreground ring-1 ring-primary/20 [&_svg]:text-primary"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-              href={destination.href}
-              key={destination.href}
-              onClick={(event) =>
-                navigationGuard?.handleNavigationClick(event, destination)
-              }
-            >
-              {Icon ? <Icon aria-hidden="true" className="size-4" /> : null}
-              {destination.label}
-            </Link>
-          );
-        })}
-      </div>
+    <nav aria-label="Settings sections" className="grid min-w-0 grid-cols-3 gap-1 border-b pb-3 lg:grid-cols-1 lg:gap-5 lg:border-b-0 lg:pb-0">
+      {SETTINGS_GROUPS.map((group) => {
+        const items = destinations.filter((item) => (group.hrefs as readonly string[]).includes(item.href));
+        if (!items.length) return null;
+        return (
+          <div aria-label={group.label} className="min-w-0" key={group.label} role="group">
+            <p className="mb-1 px-2 text-xs font-medium text-muted-foreground lg:px-3">{group.label}</p>
+            {items.map((item) => {
+              const Icon = iconByHref[item.href as keyof typeof iconByHref];
+              const active = item.href === activeHref;
+              return (
+                <Link
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex min-h-11 min-w-0 items-center gap-2 rounded-md px-2 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 lg:min-h-9 lg:px-3",
+                    active ? "bg-[var(--org-accent-soft)] text-foreground ring-1 ring-primary/20 [&_svg]:text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                  href={item.href}
+                  key={item.href}
+                  onClick={(event) => guard?.handleNavigationClick(event, item)}
+                >
+                  {Icon ? <Icon aria-hidden="true" className="hidden size-4 shrink-0 lg:block" /> : null}
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        );
+      })}
     </nav>
   );
 }

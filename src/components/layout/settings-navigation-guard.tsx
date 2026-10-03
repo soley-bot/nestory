@@ -15,6 +15,7 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import type { DraftStatus } from "@/components/ui/draft-action-bar";
+import { getSettingsDestinations } from "@/features/organization/settings-navigation";
 
 type NavigationDestination = {
   href: string;
@@ -27,7 +28,22 @@ type DraftController = {
 
 type PendingNavigation = NavigationDestination & {
   mode: "dirty" | "saving";
-  trigger: HTMLAnchorElement;
+  trigger: HTMLElement | null;
+  navigate: () => void;
+};
+
+// Keep the guard usable with browsers and TypeScript DOM libraries that do not
+// expose the Navigation API yet. Never polyfill or rewrite browser history.
+type SettingsNavigateEvent = Event & {
+  canIntercept: boolean;
+  hashChange: boolean;
+  downloadRequest: string | null;
+  formData: FormData | null;
+  navigationType: "push" | "replace" | "reload" | "traverse";
+  destination: { url: string; key: string };
+};
+type SettingsBrowserNavigation = EventTarget & {
+  traverseTo: (key: string) => { finished: Promise<unknown> };
 };
 
 type SettingsNavigationGuardValue = {
@@ -79,11 +95,12 @@ export function SettingsNavigationGuardProvider({
         setPendingNavigation(undefined);
 
         if (status === "saved") {
-          router.push(pending.href);
+          draftStatusRef.current = "clean";
+          pending.navigate();
         }
       }
     },
-    [router],
+    [],
   );
 
   const registerDraftController = useCallback(
@@ -98,8 +115,9 @@ export function SettingsNavigationGuardProvider({
     pendingNavigationRef.current = undefined;
     setPendingNavigation(undefined);
 
-    if (pending?.trigger.isConnected) {
-      requestAnimationFrame(() => pending.trigger.focus());
+    const trigger = pending?.trigger;
+    if (trigger?.isConnected) {
+      requestAnimationFrame(() => trigger.focus());
     }
   }, []);
 
@@ -112,34 +130,91 @@ export function SettingsNavigationGuardProvider({
     pendingNavigationRef.current = undefined;
     setPendingNavigation(undefined);
     draftControllerRef.current?.discard();
-    router.push(pending.href);
-  }, [router]);
+    draftStatusRef.current = "clean";
+    pending.navigate();
+  }, []);
+
+  const requestNavigation = useCallback((destination: NavigationDestination, trigger: HTMLElement | null, navigate: () => void) => {
+    const status = draftStatusRef.current;
+    if (status === "clean" || status === "saved") return false;
+    if (!pendingNavigationRef.current) {
+      const pending: PendingNavigation = {
+        ...destination,
+        mode: status === "saving" ? "saving" : "dirty",
+        trigger,
+        navigate,
+      };
+      pendingNavigationRef.current = pending;
+      setPendingNavigation(pending);
+    }
+    return true;
+  }, []);
 
   const handleNavigationClick = useCallback(
     (
       event: MouseEvent<HTMLAnchorElement>,
       destination: NavigationDestination,
     ) => {
-      const status = draftStatusRef.current;
-      if (status === "clean" || status === "saved") {
-        return;
-      }
-
-      event.preventDefault();
-      if (pendingNavigationRef.current) {
-        return;
-      }
-
-      const pending: PendingNavigation = {
-        ...destination,
-        mode: status === "saving" ? "saving" : "dirty",
-        trigger: event.currentTarget,
-      };
-      pendingNavigationRef.current = pending;
-      setPendingNavigation(pending);
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (requestNavigation(destination, event.currentTarget, () => router.push(destination.href))) event.preventDefault();
     },
-    [],
+    [requestNavigation, router],
   );
+
+  useEffect(() => {
+    // Capture links outside the shell too, including breadcrumbs, context links,
+    // and the app sidebar. New tabs, downloads, and in-page anchors keep working.
+    const handleDocumentClick = (event: globalThis.MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+      if (!link || link.hasAttribute("download") || (link.target && link.target !== "_self")) return;
+      const url = new URL(link.href, window.location.href);
+      const current = new URL(window.location.href);
+      if (url.pathname === current.pathname && url.search === current.search && url.origin === current.origin) return;
+      const internal = url.origin === current.origin && (url.protocol === "https:" || url.protocol === "http:");
+      if (!internal && url.protocol !== "https:" && url.protocol !== "http:") return;
+      const href = internal ? `${url.pathname}${url.search}${url.hash}` : url.href;
+      const label = getSettingsDestinations("super_admin").find((item) => item.href === url.pathname)?.label ?? link.textContent?.trim() ?? "this page";
+      if (requestNavigation({ href, label }, link, () => internal ? router.push(href) : window.location.assign(href))) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      const status = draftStatusRef.current;
+      if (status === "clean" || status === "saved") return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    document.addEventListener("click", handleDocumentClick, true);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      document.removeEventListener("click", handleDocumentClick, true);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [requestNavigation, router]);
+
+  useEffect(() => {
+    const navigation = (window as Window & { navigation?: SettingsBrowserNavigation }).navigation;
+    if (!navigation) return;
+    const handleNavigate = (browserEvent: Event) => {
+      const event = browserEvent as SettingsNavigateEvent;
+      // Let the browser own document departures and uncancelable traversals.
+      // No extra history entries or patches to Next's history state.
+      if (!event.cancelable || !event.canIntercept || event.hashChange || event.downloadRequest || event.formData || event.navigationType === "reload") return;
+      const url = new URL(event.destination.url);
+      if (url.origin !== window.location.origin || url.href === window.location.href) return;
+      const key = event.destination.key;
+      const href = `${url.pathname}${url.search}${url.hash}`;
+      const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const navigate = event.navigationType === "traverse"
+        ? () => { void navigation.traverseTo(key).finished.catch(() => undefined); }
+        : () => event.navigationType === "replace" ? router.replace(href) : router.push(href);
+      if (requestNavigation({ href, label: "this page" }, trigger, navigate)) event.preventDefault();
+    };
+    navigation.addEventListener("navigate", handleNavigate);
+    return () => navigation.removeEventListener("navigate", handleNavigate);
+  }, [requestNavigation, router]);
 
   useEffect(() => {
     if (!pendingNavigation) {
@@ -270,7 +345,7 @@ export function SettingsNavigationGuardProvider({
               data-testid="settings-navigation-actions"
             >
               <Button
-                className="w-full sm:w-auto"
+                className="min-h-11 w-full sm:min-h-9 sm:w-auto"
                 data-navigation-guard-cancel
                 onClick={closeAndRestoreTrigger}
                 variant="ghost"
@@ -279,7 +354,7 @@ export function SettingsNavigationGuardProvider({
               </Button>
               {pendingNavigation.mode === "dirty" ? (
                 <Button
-                  className="w-full sm:w-auto"
+                  className="min-h-11 w-full sm:min-h-9 sm:w-auto"
                   onClick={discardAndNavigate}
                   variant="default"
                 >

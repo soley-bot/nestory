@@ -10,7 +10,7 @@ export function SettingsSaveBar(props: SettingsSaveBarProps) {
 
   return (
     <div
-      className="sticky bottom-0 z-10 border-t bg-popover/95 shadow-[0_-10px_24px_-20px_rgb(0_0_0/0.55)] backdrop-blur"
+      className="sticky bottom-0 z-10 border-t bg-popover/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_24px_-20px_rgb(0_0_0/0.55)] backdrop-blur [&_button]:min-h-11 sm:[&_button]:min-h-9"
       data-testid="settings-save-bar"
     >
       <DraftActionBar {...props} />

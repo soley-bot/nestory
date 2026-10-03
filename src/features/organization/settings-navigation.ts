@@ -35,3 +35,9 @@ export function getSettingsDestinations(
 export function getSettingsLandingHref(role: SettingsRole): string | null {
   return getSettingsDestinations(role)[0]?.href ?? null;
 }
+
+export const SETTINGS_GROUPS = [
+  { label: "Company", hrefs: ["/settings/organization", "/settings/appearance"] },
+  { label: "Structure", hrefs: ["/settings/branches", "/settings/teams"] },
+  { label: "Access", hrefs: ["/settings/access", "/settings/roles"] },
+] as const;
