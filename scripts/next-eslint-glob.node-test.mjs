@@ -29,6 +29,12 @@ test("unsupported brace ranges fail explicitly rather than silently dropping lin
   }
 });
 
+test("parent-relative patterns cannot silently omit the current application or its ancestor", () => {
+  for (const rootDir of ["../*", "../../a*", "../web", "apps/../web", "..\\*"]) {
+    assert.throws(() => getRootDirs({ cwd: root, settings: { next: { rootDir } } }), /parent-directory traversal is unsupported; use absolute roots instead/);
+  }
+});
+
 test("ESLint rejects unsupported patterns instead of silently changing page discovery", async () => {
   for (const rootDir of ["apps/app{01..05}", "apps/{,web}", "apps/{web,}", "apps/{web,,admin}", "apps/{web,{,admin}}", "apps/**", "apps/**/web"]) {
     const eslint = new ESLint({ cwd: root, overrideConfig: [{ settings: { next: { rootDir } } }] });
@@ -69,9 +75,13 @@ test("actual Next root discovery retains literal, glob and array directory seman
     await t.test("default uses ESLint context cwd", () => {
       assert.deepEqual(getRootDirs({ cwd: directory, settings: {} }), [directory]);
     });
-    await t.test("relative configured root preserves its directory", () => {
-      const found = discover(relative(process.cwd(), web));
-      assert.deepEqual(normalized(found.map((path) => resolve(path))), normalized([web]));
+    await t.test("relative configured root inside the working directory preserves its directory", () => {
+      const previousCwd = process.cwd();
+      try {
+        process.chdir(directory);
+        const found = discover(relative(directory, web));
+        assert.deepEqual(normalized(found.map((path) => resolve(path))), normalized([web]));
+      } finally { process.chdir(previousCwd); }
     });
     await t.test("explicit current directory remains the current directory", () => {
       const found = discover(".");

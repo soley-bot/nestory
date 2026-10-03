@@ -28,6 +28,9 @@ export function globSync(patterns, options) {
   if (/\{,|,,|,\}/.test(patterns) || patterns.includes("**")) {
     throw new TypeError("Next.js ESLint rootDir empty brace alternatives and globstars are unsupported; list roots explicitly or use a single-level wildcard");
   }
+  if (/(^|\/)\.\.(\/|$)/.test(patterns)) {
+    throw new TypeError("Next.js ESLint rootDir parent-directory traversal is unsupported; use absolute roots instead");
+  }
   // Match from the filesystem root explicitly: tinyglobby's absolute-pattern
   // normalization differs on Windows, including when `absolute` is enabled.
   const absolute = isAbsolute(patterns);
