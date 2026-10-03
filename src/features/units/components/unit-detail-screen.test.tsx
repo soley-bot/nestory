@@ -176,8 +176,13 @@ describe("UnitDetailScreen focused operating record", () => {
     const drawer = screen.getByRole("dialog", { name: "New maintenance case" });
     await waitFor(() => expect(drawer.querySelector("form")).toBeTruthy());
     expect(drawer.querySelector("form")).toBeTruthy();
-    expect(within(drawer).getAllByText("CTR / Central Residence")).toHaveLength(2);
-    expect(within(drawer).getAllByText("Unit 12A")).toHaveLength(2);
+    expect(within(drawer).getByRole("combobox", { name: "Property" }).textContent).toContain(
+      "CTR / Central Residence",
+    );
+    expect(within(drawer).getByRole("combobox", { name: "Unit" }).textContent).toContain("Unit 12A");
+    const formValues = new FormData(drawer.querySelector("form")!);
+    expect(formValues.getAll("propertyId")).toEqual(["property-1"]);
+    expect(formValues.getAll("unitId")).toEqual(["unit-1"]);
   });
 
   it("reviews a maintenance case locally with an explicit full-record escape", () => {

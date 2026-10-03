@@ -1,6 +1,5 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   useActionState,
@@ -10,6 +9,7 @@ import {
   useState,
   useTransition,
   type ReactNode,
+  type ComponentProps,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -44,6 +44,7 @@ import { WorkspacePage } from "@/components/layout/workspace-page";
 import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { DraftStatus } from "@/components/ui/draft-action-bar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -64,8 +65,13 @@ import {
   SelectControl,
   type SelectControlOption,
 } from "@/components/ui/select-control";
-import { SideDrawer } from "@/components/ui/side-drawer";
+import {
+  SideDrawer,
+  useDrawerCloseRequest,
+  useDrawerDraftGuard,
+} from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
+import { MaintenanceDateField } from "@/features/maintenance/components/maintenance-date-field";
 import { TimePickerField } from "@/components/ui/time-picker-field";
 import {
   createMaintenanceCaseAction,
@@ -125,13 +131,6 @@ import { getBusinessMonthValue } from "@/lib/dates/business-date";
 import { cn } from "@/lib/utils";
 
 const initialState: MaintenanceActionState = {};
-const DatePickerField = dynamic(
-  () =>
-    import("@/components/ui/date-picker-field").then(
-      (module) => module.DatePickerField,
-    ),
-  { ssr: false },
-);
 
 type MaintenanceScopeFact = {
   label: string;
@@ -1577,12 +1576,45 @@ export function MaintenanceForm({
   units: MaintenanceUnitOption[];
   vendors: MaintenanceVendorOption[];
 }) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const baselineRef = useRef<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const requestClose = useDrawerCloseRequest(onClose);
   const [state, action, pending] = useActionState(
-    mode === "create"
-      ? createMaintenanceCaseAction
-      : updateMaintenanceCaseAction,
+    mode === "create" ? createMaintenanceCaseAction : updateMaintenanceCaseAction,
     initialState,
   );
+  const status: DraftStatus = pending
+    ? "saving"
+    : state.status === "success"
+      ? "saved"
+      : state.status === "error"
+        ? "error"
+        : dirty
+          ? "dirty"
+          : "clean";
+  const guard = useMemo(
+    () => ({ onDiscard: onClose, status }),
+    [onClose, status],
+  );
+  useDrawerDraftGuard(guard);
+
+  useEffect(() => {
+    if (formRef.current) {
+      baselineRef.current = serializeMaintenanceDraft(formRef.current);
+    }
+  }, []);
+
+  function updateDirty() {
+    // Read after child controls commit their values, including hidden date/select
+    // inputs and the checklist. Match the shared RecordForm event pattern.
+    queueMicrotask(() => {
+      if (formRef.current && baselineRef.current !== null) {
+        setDirty(serializeMaintenanceDraft(formRef.current) !== baselineRef.current);
+      }
+    });
+  }
+
   const defaults = {
     actualCostAmount:
       maintenanceCase?.formValues.actualCostAmount ??
@@ -1685,28 +1717,48 @@ export function MaintenanceForm({
     }
   }, [onClose, onSuccess, state.message, state.status]);
 
+  useEffect(() => {
+    if (state.status !== "error") return;
+    const fields = Object.keys(state.fieldErrors ?? {});
+    for (const field of fields) {
+      const control = formRef.current?.elements.namedItem(field);
+      if (control instanceof HTMLElement) {
+        const details = control.closest("details");
+        if (details) details.open = true;
+      }
+    }
+    const first = fields.length ? formRef.current?.elements.namedItem(fields[0]) : null;
+    if (first instanceof HTMLElement) requestAnimationFrame(() => {
+      if (!(first instanceof HTMLInputElement) || first.type !== "hidden") {
+        first.focus();
+        return;
+      }
+      const field = first.closest('label, [role="group"]') ?? first.closest("details");
+      const target = field?.querySelector<HTMLElement>(
+        'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not(:disabled), textarea:not(:disabled), select:not(:disabled), [role="combobox"]:not([aria-disabled="true"])',
+      ) ?? field?.querySelector<HTMLElement>('button:not(:disabled)');
+      target?.focus();
+    });
+  }, [state]);
+
   return (
-    <form action={action} className="flex h-full flex-col">
+    <form action={action} className="flex h-full min-w-0 flex-col" ref={formRef} onChangeCapture={updateDirty} onInput={updateDirty} onClickCapture={updateDirty} onInvalidCapture={(event) => { const details = event.target instanceof HTMLElement ? event.target.closest("details") : null; if (details) details.open = true; }}>
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
         {maintenanceCase ? (
           <input name="taskId" type="hidden" value={maintenanceCase.id} />
         ) : null}
 
-        <FormSection title="Task details">
-          <Field label="Title" error={state.fieldErrors?.title?.[0]}>
-            <Input defaultValue={defaults.title} name="title" required />
-          </Field>
-
-          <Field label="Category" error={state.fieldErrors?.category?.[0]}>
-            <Input defaultValue={defaults.category} name="category" required />
+        <FormSection title="Problem">
+          <Field label="What needs fixing? (required)" error={state.fieldErrors?.title?.[0]}>
+            <MaintenanceTextField defaultValue={defaults.title} name="title" required />
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
+            <Field label="Property (required)" error={state.fieldErrors?.propertyId?.[0]}>
               {costScopeLocked ? (
                 <input name="propertyId" type="hidden" value={propertyId} />
               ) : null}
-              <SelectControl
+              <MaintenanceReadableSelect
                 ariaLabel="Property"
                 disabled={costScopeLocked}
                 name={costScopeLocked ? undefined : "propertyId"}
@@ -1729,7 +1781,7 @@ export function MaintenanceForm({
               {costScopeLocked ? (
                 <input name="unitId" type="hidden" value={unitId} />
               ) : null}
-              <SelectControl
+              <MaintenanceReadableSelect
                 ariaLabel="Unit"
                 disabled={!propertyId || costScopeLocked}
                 name={costScopeLocked ? undefined : "unitId"}
@@ -1746,14 +1798,21 @@ export function MaintenanceForm({
             </Field>
           </div>
 
+          <Field label="Description" error={state.fieldErrors?.description?.[0]}>
+            <MaintenanceTextField
+              defaultValue={defaults.description ?? ""}
+              name="description"
+            />
+          </Field>
         </FormSection>
+        <MaintenanceOptionalSection title="Assign now">
         <FormSection title="Assignment">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Branch" error={state.fieldErrors?.branchId?.[0]}>
               {branchControlMode === "fixed" && actor.branchId ? (
                 <>
                   <input name="branchId" type="hidden" value={actor.branchId} />
-                  <div className="flex h-8 items-center rounded-md border border-border bg-muted px-2.5 text-sm">
+                  <div className="flex min-h-8 min-w-0 items-center rounded-md border border-border bg-muted px-2.5 py-1 text-sm [overflow-wrap:anywhere]">
                     {managerBranch?.label ??
                       maintenanceCase?.branchLabel ??
                       "Assigned branch"}
@@ -1766,7 +1825,7 @@ export function MaintenanceForm({
                       All branches access
                     </p>
                   ) : null}
-                  <SelectControl
+                  <MaintenanceReadableSelect
                     ariaLabel="Branch"
                     name="branchId"
                     onValueChange={(value) => {
@@ -1827,43 +1886,24 @@ export function MaintenanceForm({
             </Field>
           </div>
 
-          <Field label="Vendor" error={state.fieldErrors?.vendorPersonId?.[0]}>
-            {costScopeLocked ? (
-              <input
-                name="vendorPersonId"
-                type="hidden"
-                value={defaults.vendorPersonId ?? ""}
-              />
-            ) : null}
-            <SelectControl
-              ariaLabel="Vendor"
-              defaultValue={defaults.vendorPersonId ?? ""}
-              disabled={costScopeLocked}
-              name={costScopeLocked ? undefined : "vendorPersonId"}
-              options={vendorSelect.options}
-            />
-            {vendorSelect.hasHistoricalVendor ? (
-              <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
-                Keep the current vendor, choose an active vendor, or select &quot;No vendor&quot; to remove the link.
-              </p>
-            ) : null}
-          </Field>
+
 
         </FormSection>
+        </MaintenanceOptionalSection>
+        <MaintenanceOptionalSection title="More details">
+                  <Field label="Category" error={state.fieldErrors?.category?.[0]}>
+            <MaintenanceDraftInput defaultValue={defaults.category} name="category" required />
+          </Field>
         <FormSection title="Schedule">
           <div className="grid gap-4 sm:grid-cols-3">
+            {mode === "create" ? <input name="status" type="hidden" value={defaults.status} /> : (
             <Field label="Status" error={state.fieldErrors?.status?.[0]}>
               <SelectControl
                 ariaLabel="Status"
                 defaultValue={defaults.status}
                 name="status"
                 options={
-                  mode === "create"
-                    ? [
-                        { label: "Pending", value: "pending" },
-                        { label: "Scheduled", value: "scheduled" },
-                      ]
-                    : MAINTENANCE_STATUS_OPTIONS.filter((option) =>
+                  MAINTENANCE_STATUS_OPTIONS.filter((option) =>
                         canTransitionMaintenanceStatus(
                           defaults.status,
                           option.value,
@@ -1878,6 +1918,7 @@ export function MaintenanceForm({
                 }
               />
             </Field>
+            )}
             <Field label="Priority" error={state.fieldErrors?.priority?.[0]}>
               <SelectControl
                 ariaLabel="Priority"
@@ -1913,7 +1954,7 @@ export function MaintenanceForm({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Due date" error={state.fieldErrors?.dueDate?.[0]}>
-              <DatePickerField
+              <MaintenanceDateField
                 ariaLabel="Due date"
                 defaultValue={defaults.dueDate ?? ""}
                 name="dueDate"
@@ -1930,7 +1971,7 @@ export function MaintenanceForm({
               label="Reminder date"
               error={state.fieldErrors?.reminderDate?.[0]}
             >
-              <DatePickerField
+              <MaintenanceDateField
                 ariaLabel="Reminder date"
                 defaultValue={defaults.reminderDate ?? ""}
                 name="reminderDate"
@@ -1949,13 +1990,34 @@ export function MaintenanceForm({
           </div>
 
         </FormSection>
-        <FormSection title="Cost and notes">
+        <FormSection title="Costs">
+          <Field label="Vendor" error={state.fieldErrors?.vendorPersonId?.[0]}>
+            {costScopeLocked ? (
+              <input
+                name="vendorPersonId"
+                type="hidden"
+                value={defaults.vendorPersonId ?? ""}
+              />
+            ) : null}
+            <SelectControl
+              ariaLabel="Vendor"
+              defaultValue={defaults.vendorPersonId ?? ""}
+              disabled={costScopeLocked}
+              name={costScopeLocked ? undefined : "vendorPersonId"}
+              options={vendorSelect.options}
+            />
+            {vendorSelect.hasHistoricalVendor ? (
+              <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
+                Keep the current vendor, choose an active vendor, or select &quot;No vendor&quot; to remove the link.
+              </p>
+            ) : null}
+          </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
               label="Cost estimate"
               error={state.fieldErrors?.costEstimateAmount?.[0]}
             >
-              <NumberInput
+              <MaintenanceDraftNumber
                 defaultValue={defaults.costEstimateAmount ?? ""}
                 min="0"
                 name="costEstimateAmount"
@@ -1967,7 +2029,7 @@ export function MaintenanceForm({
                 label="Actual cost"
                 error={state.fieldErrors?.actualCostAmount?.[0]}
               >
-                <NumberInput
+                <MaintenanceDraftNumber
                   defaultValue={defaults.actualCostAmount ?? ""}
                   min="0"
                   name="actualCostAmount"
@@ -1986,12 +2048,7 @@ export function MaintenanceForm({
             </p>
           ) : null}
 
-          <Field label="Description" error={state.fieldErrors?.description?.[0]}>
-            <Textarea
-              defaultValue={defaults.description ?? ""}
-              name="description"
-            />
-          </Field>
+
 
           <ChecklistEditor
             error={state.fieldErrors?.checklistText?.[0]}
@@ -1999,6 +2056,7 @@ export function MaintenanceForm({
           />
 
         </FormSection>
+        </MaintenanceOptionalSection>
         {state.message ? (
           <p
             className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
@@ -2010,7 +2068,7 @@ export function MaintenanceForm({
       </div>
       <div className="border-t border-border px-4 py-4 sm:px-5">
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button className="w-full sm:w-auto" onClick={onClose} type="button" variant="ghost">
+          <Button className="w-full sm:w-auto" onClick={requestClose} type="button" variant="ghost">
             Cancel
           </Button>
           <Button
@@ -2026,6 +2084,56 @@ export function MaintenanceForm({
       </div>
     </form>
   );
+}
+
+function serializeMaintenanceDraft(form: HTMLFormElement) {
+  return JSON.stringify(Array.from(new FormData(form), ([name, value]) => [
+    name,
+    value instanceof File
+      ? value.name === "" && value.size === 0
+        ? ["", 0, value.type]
+        : [value.name, value.size, value.type, value.lastModified]
+      : value,
+  ]));
+}
+
+function MaintenanceOptionalSection({ children, title }: { children: ReactNode; title: string }) {
+  return <details className="min-w-0 border-b border-border pb-3"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring">{title}</summary><div className="min-w-0 space-y-4 pt-2">{children}</div></details>;
+}
+
+function MaintenanceTextField({ defaultValue, ...props }: ComponentProps<typeof Textarea>) {
+  const [value, setValue] = useState(String(defaultValue ?? ""));
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  function grow(element: HTMLTextAreaElement) {
+    element.style.height = "auto";
+    element.style.height = element.scrollHeight + "px";
+  }
+  useEffect(() => {
+    const input = wrapperRef.current?.querySelector("textarea");
+    if (!input) return;
+    const resize = () => grow(input);
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+  return <div ref={wrapperRef} className="min-w-0"><Textarea {...props} value={value} onChange={(event) => setValue(event.target.value)} rows={2} className="min-h-11 min-w-0 resize-y whitespace-pre-wrap [overflow-wrap:anywhere]" onInput={(event) => grow(event.currentTarget)} /></div>;
+}
+
+function MaintenanceDraftInput({ defaultValue, ...props }: ComponentProps<typeof Input>) {
+  const [value, setValue] = useState(String(defaultValue ?? ""));
+  return <Input {...props} value={value} onChange={(event) => setValue(event.target.value)} />;
+}
+
+function MaintenanceDraftNumber({ defaultValue, ...props }: ComponentProps<typeof NumberInput>) {
+  const [value, setValue] = useState(String(defaultValue ?? ""));
+  return <NumberInput {...props} value={value} onChange={(event) => setValue(event.target.value)} />;
+}
+
+function MaintenanceReadableSelect(props: ComponentProps<typeof SelectControl>) {
+  const [localValue, setLocalValue] = useState(props.defaultValue ?? "");
+  const selected = props.options.find(option => option.value === (props.value ?? localValue));
+  const showLabel = ["Property", "Unit", "Branch", "Assignee", "Vendor"].includes(props.ariaLabel ?? "") && Boolean(selected?.value);
+  return <><SelectControl {...props} onValueChange={(value) => { setLocalValue(value); props.onValueChange?.(value); }} />{showLabel ? <span className="mt-1 block min-w-0 whitespace-normal text-xs font-normal text-muted-foreground [overflow-wrap:anywhere]">{selected?.label}</span> : null}</>;
 }
 
 function getHistoricalVendorLabel(label?: string) {
@@ -2130,7 +2238,7 @@ function ChecklistEditor({ error, value }: { error?: string; value: string }) {
   }
 
   return (
-    <div className="block text-sm font-medium">
+    <div aria-label="Checklist" className="block text-sm font-medium" role="group">
       <input
         name="checklistText"
         readOnly
@@ -2206,9 +2314,9 @@ function Field({
   label: string;
 }) {
   return (
-    <label className="block text-sm font-medium">
+    <label className="block min-w-0 max-w-full text-sm font-medium [overflow-wrap:anywhere]">
       {label}
-      <div className="mt-2">{children}</div>
+      <div className="mt-2 min-w-0 max-w-full">{children}</div>
       {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}
     </label>
   );
