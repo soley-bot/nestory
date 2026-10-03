@@ -30,6 +30,29 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("settings exit safety", () => {
+  it.each(["dirty", "saving"] as const)("resumes an uncanceled %s navigation when the current draft becomes clean", (status) => {
+    setup(); mark(status); fireEvent.click(screen.getByRole("link", { name: "People" }));
+    expect(screen.getByRole("dialog", { name: "Open People?" })).toBeTruthy();
+    mark("clean");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(push).toHaveBeenCalledExactlyOnceWith("/people");
+    expect(discard).not.toHaveBeenCalled();
+    mark("clean");
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+  it("does not resume canceled navigation when the edited draft becomes clean", () => {
+    setup(); mark("saving"); fireEvent.click(screen.getByRole("link", { name: "People" }));
+    fireEvent.click(screen.getByRole("button", { name: "Keep editing" })); mark("clean");
+    expect(push).not.toHaveBeenCalled(); expect(discard).not.toHaveBeenCalled();
+  });
+  it("removes discard while saving and requires confirmation for remaining edits", () => {
+    setup(); mark("dirty"); fireEvent.click(screen.getByRole("link", { name: "People" }));
+    mark("saving");
+    expect(screen.queryByRole("button", { name: /Discard and open/ })).toBeNull();
+    mark("dirty");
+    expect(screen.getByRole("button", { name: "Discard and open People" })).toBeTruthy();
+    expect(push).not.toHaveBeenCalled(); expect(discard).not.toHaveBeenCalled();
+  });
   it("guards the Organization context link without requiring edits in the identity editor", async () => {
     setup(); mark("dirty");
     const link = screen.getByRole("link", { name: "Branches1" });

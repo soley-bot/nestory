@@ -79,25 +79,30 @@ export function SettingsNavigationGuardProvider({
       draftStatusRef.current = status;
       const pending = pendingNavigationRef.current;
 
-      if (!pending || pending.mode !== "saving") {
+      if (!pending) {
         return;
       }
 
-      if (status === "dirty") {
-        const dirtyPending = { ...pending, mode: "dirty" as const };
-        pendingNavigationRef.current = dirtyPending;
-        setPendingNavigation(dirtyPending);
-        return;
-      }
-
-      if (status === "saved" || status === "error") {
+      if (status === "clean" || status === "saved") {
         pendingNavigationRef.current = undefined;
         setPendingNavigation(undefined);
+        draftStatusRef.current = "clean";
+        pending.navigate();
+        return;
+      }
 
-        if (status === "saved") {
-          draftStatusRef.current = "clean";
-          pending.navigate();
+      if (status === "dirty" || status === "saving") {
+        if (pending.mode !== status) {
+          const nextPending = { ...pending, mode: status };
+          pendingNavigationRef.current = nextPending;
+          setPendingNavigation(nextPending);
         }
+        return;
+      }
+
+      if (pending.mode === "saving" && status === "error") {
+        pendingNavigationRef.current = undefined;
+        setPendingNavigation(undefined);
       }
     },
     [],
@@ -123,7 +128,7 @@ export function SettingsNavigationGuardProvider({
 
   const discardAndNavigate = useCallback(() => {
     const pending = pendingNavigationRef.current;
-    if (!pending || pending.mode !== "dirty") {
+    if (!pending || pending.mode !== "dirty" || draftStatusRef.current === "saving") {
       return;
     }
 
