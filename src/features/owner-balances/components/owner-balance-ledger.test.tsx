@@ -8,7 +8,7 @@ vi.mock("@/features/reports/remediation-actions", () => ({
   closeReportMonthAction: vi.fn(), reopenReportMonthAction: vi.fn(), correctReportMonthAction: vi.fn(), publishReportStatementAction: vi.fn(), resumeReportStatementAction: vi.fn(), calculateReportMonthAction: vi.fn(), assignReportSourceAction: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/owner-balances", useRouter: () => ({ refresh: vi.fn() }) }));
 
 afterEach(cleanup);
 
