@@ -1729,8 +1729,14 @@ export function MaintenanceForm({
     }
     const first = fields.length ? formRef.current?.elements.namedItem(fields[0]) : null;
     if (first instanceof HTMLElement) requestAnimationFrame(() => {
-      const target = first instanceof HTMLInputElement && first.type === "hidden"
-        ? first.closest("label")?.querySelector<HTMLElement>('[role="combobox"], button') : first;
+      if (!(first instanceof HTMLInputElement) || first.type !== "hidden") {
+        first.focus();
+        return;
+      }
+      const field = first.closest('label, [role="group"]') ?? first.closest("details");
+      const target = field?.querySelector<HTMLElement>(
+        'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not(:disabled), textarea:not(:disabled), select:not(:disabled), [role="combobox"]:not([aria-disabled="true"])',
+      ) ?? field?.querySelector<HTMLElement>('button:not(:disabled)');
       target?.focus();
     });
   }, [state]);
@@ -2232,7 +2238,7 @@ function ChecklistEditor({ error, value }: { error?: string; value: string }) {
   }
 
   return (
-    <div className="block text-sm font-medium">
+    <div aria-label="Checklist" className="block text-sm font-medium" role="group">
       <input
         name="checklistText"
         readOnly

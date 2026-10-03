@@ -376,6 +376,32 @@ describe("maintenance workspace redesign contract", () => {
     expect(calls[1][1].get("actualCostAmount")).toBe("125.50");
   });
 
+  it("reveals and focuses checklist edits after a hidden-field validation error", async () => {
+    maintenanceActions.update.mockResolvedValueOnce({
+      status: "error",
+      message: "Check the checklist.",
+      fieldErrors: { checklistText: ["Keep the checklist within 2,000 characters."] },
+    } as never);
+    const onClose = vi.fn();
+    const { container } = renderForm(makeCase(), onClose);
+    const form = container.querySelector("form")!;
+    const checklistItem = screen.getByPlaceholderText("Checklist item") as HTMLInputElement;
+    const details = checklistItem.closest("details")!;
+    details.open = true;
+    fireEvent.change(checklistItem, { target: { value: "X".repeat(2001) } });
+    details.open = false;
+    screen.getByRole("button", { name: "Save" }).focus();
+
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(screen.getByText("Keep the checklist within 2,000 characters.")).toBeTruthy());
+    expect(details.open).toBe(true);
+    expect(document.activeElement).toBe(checklistItem);
+    expect(checklistItem.value).toBe("X".repeat(2001));
+    expect(new FormData(form).get("checklistText")).toBe("[ ] " + "X".repeat(2001));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("opens collapsed native validation without clearing its draft", () => {
     const { container } = renderForm(makeCase());
     const category = container.querySelector('[name="category"]')!;
