@@ -20,6 +20,33 @@ function readDirectoryEntries(directory, options) {
       : entry);
 }
 
+function hasEmptyBraceAlternative(pattern) {
+  const groups = [];
+  let inCharacterClass = false;
+  for (const character of pattern) {
+    if (character === "[") inCharacterClass = true;
+    if (inCharacterClass) {
+      if (character === "]") inCharacterClass = false;
+      if (groups.length) groups.at(-1).previous = character;
+      continue;
+    }
+    if (character === "{") groups.push({ previous: "{", empty: false });
+    else if (character === "}" && groups.length) {
+      const group = groups.pop();
+      if (group.empty || group.previous === ",") return true;
+      if (groups.length) groups.at(-1).previous = "}";
+    } else if (groups.length) {
+      const group = groups.at(-1);
+      group.empty ||= character === "," && (group.previous === "{" || group.previous === ",");
+      group.previous = character;
+    }
+  }
+  if (groups.length) {
+    throw new TypeError("Next.js ESLint rootDir unmatched opening braces are unsupported; list roots explicitly without braces");
+  }
+  return false;
+}
+
 // @next/eslint-plugin-next 16.3.8 uses only this API, with onlyDirectories.
 // Fail explicitly if a dependency upgrade starts using a broader API.
 function globSync(patterns, options) {
@@ -34,7 +61,7 @@ function globSync(patterns, options) {
   if (/\{[^{}]*\.\.[^{}]*\}/.test(patterns)) {
     throw new TypeError("Next.js ESLint rootDir brace ranges are unsupported; list roots explicitly or use a wildcard");
   }
-  if (/\{,|,,|,\}/.test(patterns) || /(^|[/{,(|])\*\*(?=[/},)|]|$)/.test(patterns)) {
+  if (hasEmptyBraceAlternative(patterns) || /(^|[/{,(|])\*\*(?=[/},)|]|$)/.test(patterns)) {
     throw new TypeError("Next.js ESLint rootDir empty brace alternatives and globstars are unsupported; list roots explicitly or use a single-level wildcard");
   }
   if (/(^|\/)\.\.(\/|$)/.test(patterns)) {

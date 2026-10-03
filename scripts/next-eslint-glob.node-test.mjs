@@ -77,10 +77,16 @@ test("actual Next root discovery retains literal, glob and array directory seman
   await writeFile(join(apps, "file.txt"), "not a directory");
   await symlink(web, linkedWeb, "junction");
   await symlink(join(apps, "loop"), join(apps, "loop"), "junction");
+  const commaRoot = join(web, "pages", "foo,,bar");
+  const unmatchedBraceRoot = join(web, "pages", "foo{,,bar");
+  const commaClassRoot = join(web, "pages", "foo,bar");
+  await Promise.all([mkdir(commaRoot), mkdir(unmatchedBraceRoot), mkdir(commaClassRoot)]);
   const discover = (rootDir) => normalized(getRootDirs({ cwd: directory, settings: { next: { rootDir } } }));
   try {
     const cases = [
       ["literal root is not expanded recursively", web, [web]],
+      ["commas in a literal path are not brace alternatives", commaRoot, [commaRoot]],
+      ["braces and commas inside a character class remain supported", `${web}/pages/foo[{,,}]bar`, [commaClassRoot]],
       ["wildcard includes directory links, not files or hidden paths", `${apps}/*`, [admin, linkedWeb, web]],
       ["ordinary adjacent star wildcards remain supported", `${apps}/w**b`, [web]],
       ["ordinary adjacent stars inside brace alternatives remain supported", `${apps}/{w**,admin}`, [admin, web]],
@@ -102,6 +108,9 @@ test("actual Next root discovery retains literal, glob and array directory seman
     }
     await t.test("bare-parenthesis grouping cannot add an unintended application root", () => {
       assert.throws(() => discover(`${apps}/(web)`), /bare parentheses are unsupported; list roots explicitly without grouping/);
+    });
+    await t.test("an unmatched opening brace cannot add an unintended literal root", () => {
+      assert.throws(() => discover(unmatchedBraceRoot), /unmatched opening braces are unsupported; list roots explicitly without braces/);
     });
     await t.test("composite extglobs cannot silently omit roots matched by a dynamic parent", () => {
       for (const suffix of ["*/?(pages)", "*/*(pages)", "*/!(pages)", "*/@(pages|)", "*/+(pages)", "{web,admin}/?(pages)", "@(web|admin)/?(pages)/src"]) {
