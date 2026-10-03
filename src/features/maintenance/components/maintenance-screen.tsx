@@ -1991,7 +1991,7 @@ export function MaintenanceForm({
                 label="Actual cost"
                 error={state.fieldErrors?.actualCostAmount?.[0]}
               >
-                <NumberInput
+                <MaintenanceDraftNumber
                   defaultValue={defaults.actualCostAmount ?? ""}
                   min="0"
                   name="actualCostAmount"

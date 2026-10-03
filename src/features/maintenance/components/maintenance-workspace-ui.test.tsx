@@ -342,6 +342,33 @@ describe("maintenance workspace redesign contract", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("retains edited unlocked actual cost after an unrelated validation error and retries the same amount", async () => {
+    maintenanceActions.update
+      .mockResolvedValueOnce({ status: "error", message: "Check the category.", fieldErrors: { category: ["Enter a category."] } } as never)
+      .mockResolvedValueOnce({ status: "success", message: "Maintenance case saved." } as never);
+    const record = makeCase();
+    record.formValues.actualCostAmount = 40;
+    const onClose = vi.fn();
+    const { container } = renderForm(record, onClose);
+    const form = container.querySelector("form")!;
+    const actualCost = form.elements.namedItem("actualCostAmount") as HTMLInputElement;
+    expect(actualCost.readOnly).toBe(false);
+    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
+    fireEvent.change(actualCost, { target: { value: "125.50" } });
+    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
+    fireEvent.submit(form);
+    await waitFor(() => expect(screen.getByText("Enter a category.")).toBeTruthy());
+    expect(actualCost.value).toBe("125.50");
+    expect(new FormData(form).get("actualCostAmount")).toBe("125.50");
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.submit(form);
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    const calls = maintenanceActions.update.mock.calls as unknown as Array<[unknown, FormData]>;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][1].get("actualCostAmount")).toBe("125.50");
+    expect(calls[1][1].get("actualCostAmount")).toBe("125.50");
+  });
+
   it("opens collapsed native validation without clearing its draft", () => {
     const { container } = renderForm(makeCase());
     const category = container.querySelector('[name="category"]')!;
