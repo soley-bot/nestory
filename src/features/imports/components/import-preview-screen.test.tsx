@@ -20,6 +20,14 @@ beforeAll(() => {
 });
 
 describe("ImportPreviewScreen", () => {
+  it("shows result counts and correction guidance for a partially saved run", () => {
+    renderImport([{ ...importRun("partial-run", "committed_with_errors"), createdCount: 7, updatedCount: 2, failedCount: 1, skippedCount: 2 }]);
+    expect(screen.getByText("Completed with issues")).toBeTruthy();
+    expect(screen.getByText("7 created · 2 updated · 1 failed · 2 skipped")).toBeTruthy();
+    expect(screen.getByText(/keep already saved rows out of the correction file/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^(Resume|Reconcile) / })).toBeNull();
+  });
+
   it.each([
     ["people", "People", "Person ID", "Display Name,Roles,Email,Phone\nShared Tenant,tenant,shared@example.com,"],
     ["leases", "Leases", "Tenant Person ID", "Property Code,Unit no.,Tenant Name,Tenant Email,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Status\nCTR,12A,Shared Tenant,shared@example.com,2026-01-01,2026-12-31,850,10,Monthly,Active,Active"],
@@ -198,7 +206,7 @@ describe("ImportPreviewScreen", () => {
       }),
     ).toEqual({
       blocksSubmission: true,
-      label: "Terminal result — re-upload CSV",
+      label: "Review results before re-uploading",
       mode: "terminal",
     });
 

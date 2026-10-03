@@ -279,6 +279,11 @@ export function DocumentScreen({
       }
     >
       <div className="flex min-w-0 flex-col">
+        <p className="px-4 pt-3 text-sm text-muted-foreground sm:px-6">
+          {viewQuery.archiveState === "active"
+            ? "To find archived documents, choose Archived in Archive state. Archiving hides documents from active evidence lists without deleting the files."
+            : "Archived documents are hidden from active evidence lists. Open an archived document and choose Restore to return it to active lists when you have permission."}
+        </p>
         {statusMessage ? (
           <div className="shrink-0 px-4 pt-3 sm:px-6">
             <p
@@ -914,7 +919,7 @@ function DocumentArchivePanel({
         </div>
         <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
           {mode === "archive"
-            ? "Archiving hides this document from active evidence lists without deleting the file."
+            ? "Archiving hides this document from active evidence lists without deleting the file. To recover it later, choose Archived in Archive state, open the document, then choose Restore."
             : "Restoring returns this document to active evidence lists."}
         </p>
         {state.message ? (
