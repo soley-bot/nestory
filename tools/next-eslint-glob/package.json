@@ -2,9 +2,6 @@
   "name": "@nestory/next-eslint-glob",
   "version": "1.0.0",
   "private": true,
-  "description": "Scoped directory-glob adapter for the pinned Next.js ESLint plugin",
-  "main": "index.cjs",
-  "dependencies": {
-    "tinyglobby": "0.2.17"
-  }
+  "description": "Explicit directory roots for the pinned Next.js ESLint plugin",
+  "main": "index.cjs"
 }
