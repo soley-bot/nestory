@@ -45,7 +45,7 @@ test("parent-relative patterns cannot silently omit the current application or i
 });
 
 test("ESLint rejects unsupported patterns instead of silently changing page discovery", async () => {
-  for (const rootDir of ["apps/app{01..05}", "apps/{,web}", "apps/{web,}", "apps/{web,,admin}", "apps/{web,{,admin}}", "apps/**", "apps/**/web", "apps/{**,web}", "apps/{web,**}", "apps/{**/web,web}", "apps/(web)", "apps/@((web))", "apps/app?/web", "apps/a?p1/*"]) {
+  for (const rootDir of ["apps/app{01..05}", "apps/{,web}", "apps/{web,}", "apps/{web,,admin}", "apps/{web,{,admin}}", "apps/**", "apps/**/web", "apps/{**,web}", "apps/{web,**}", "apps/{**/web,web}", "apps/{@(**),web}", "apps/@(**)", "apps/+(**)", "apps/(web)", "apps/@((web))", "apps/app?/web", "apps/a?p1/*"]) {
     const eslint = new ESLint({ cwd: root, overrideConfig: [{ settings: { next: { rootDir } } }] });
     await assert.rejects(
       eslint.lintText('export default function Page() { return <a href="/about/">About</a>; }', { filePath: "src/glob-range-fixture.tsx" }),
@@ -89,6 +89,11 @@ test("actual Next root discovery retains literal, glob and array directory seman
     }
     await t.test("bare-parenthesis grouping cannot add an unintended application root", () => {
       assert.throws(() => discover(`${apps}/(web)`), /bare parentheses are unsupported; list roots explicitly without grouping/);
+    });
+    await t.test("composite extglobs cannot silently omit roots matched by a dynamic parent", () => {
+      for (const suffix of ["*/?(pages)", "*/*(pages)", "*/!(pages)", "*/@(pages|)", "*/+(pages)", "{web,admin}/?(pages)", "@(web|admin)/?(pages)/src"]) {
+        assert.throws(() => discover(`${apps}/${suffix}`), /extglobs after dynamic parent segments are unsupported; list roots explicitly/);
+      }
     });
     await t.test("default uses ESLint context cwd", () => {
       assert.deepEqual(getRootDirs({ cwd: directory, settings: {} }), [directory]);

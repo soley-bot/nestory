@@ -33,7 +33,7 @@ export function globSync(patterns, options) {
   if (/\{[^{}]*\.\.[^{}]*\}/.test(patterns)) {
     throw new TypeError("Next.js ESLint rootDir brace ranges are unsupported; list roots explicitly or use a wildcard");
   }
-  if (/\{,|,,|,\}/.test(patterns) || /(^|[/{,])\*\*(?=[/},]|$)/.test(patterns)) {
+  if (/\{,|,,|,\}/.test(patterns) || /(^|[/{,(|])\*\*(?=[/},)|]|$)/.test(patterns)) {
     throw new TypeError("Next.js ESLint rootDir empty brace alternatives and globstars are unsupported; list roots explicitly or use a single-level wildcard");
   }
   if (/(^|\/)\.\.(\/|$)/.test(patterns)) {
@@ -44,6 +44,15 @@ export function globSync(patterns, options) {
   }
   if (/\?(?!\()[^/]*\//.test(patterns)) {
     throw new TypeError("Next.js ESLint rootDir question-mark wildcards before path separators are unsupported; list roots explicitly or use a star wildcard");
+  }
+  // Composing extglobs after a dynamic parent has different zero-segment
+  // semantics. Keep this adapter's supported grammar explicit and bounded.
+  let dynamicParent = false;
+  for (const segment of patterns.split("/")) {
+    if (dynamicParent && /[!?*+@]\(/.test(segment)) {
+      throw new TypeError("Next.js ESLint rootDir extglobs after dynamic parent segments are unsupported; list roots explicitly");
+    }
+    dynamicParent ||= ["*", "?", "[", "{", "("].some((token) => segment.includes(token));
   }
   // Match from the filesystem root explicitly: tinyglobby's absolute-pattern
   // normalization differs on Windows, including when `absolute` is enabled.

@@ -26,6 +26,8 @@ Patterns that implicitly match the search root itself, such as relative `!(admin
 
 Question-mark wildcards before a path separator (`apps/app?/web` or `apps/app?/`) are rejected because the pinned fast-glob version can omit roots that tinyglobby discovers. List those roots explicitly or use a star wildcard. Question marks in the final segment (`apps/app?`) and optional extglobs (`apps/?(web)/pages`) remain supported.
 
+Extglobs following a dynamic parent segment (`apps/*/?(pages)`, `apps/{web,admin}/?(pages)` or similar compositions) are outside the adapter's supported grammar and fail explicitly. Their zero-segment behavior can otherwise omit application roots. List roots explicitly when combining these selections. Globstar tokens wrapped in extglobs (`apps/@(**)` or `apps/{@(**),web}`) are also rejected because their recursive matching differs. Ordinary repeated stars within a segment and simple extglobs under literal parents remain supported.
+
 Dependency upgrades must pass `scripts/next-eslint-glob.node-test.mjs`, including real Next root discovery and actual ESLint diagnostics for configured roots. Review the adapter if Next changes its glob API. Keep the override scoped to the audited plugin version; prefer returning to the supported upstream dependency once its vulnerable chain is removed.
 
 Sources: [braces advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), [tinyglobby migration guidance](https://superchupu.dev/tinyglobby/migration), [Next ESLint configuration](https://nextjs.org/docs/app/api-reference/config/eslint).
