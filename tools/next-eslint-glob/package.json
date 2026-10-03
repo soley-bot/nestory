@@ -1,0 +1,7 @@
+{
+  "name": "@nestory/next-eslint-glob",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Explicit directory roots for the pinned Next.js ESLint plugin",
+  "main": "index.cjs"
+}
