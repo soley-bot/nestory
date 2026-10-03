@@ -286,7 +286,8 @@ jobs:
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           for attempt in $(seq 1 30); do
-            if curl --fail --silent --output /dev/null http://127.0.0.1:3000/login; then
+            status="$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3000/login || true)"
+            if [ "$status" = "200" ]; then
               printf 'Built preview login route returned HTTP 200.\n' >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
