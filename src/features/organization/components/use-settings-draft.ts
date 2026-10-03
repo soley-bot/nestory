@@ -149,11 +149,17 @@ export function useSettingsDraft<TValues extends DraftValues>({
 
       if (
         !alive.current ||
-        activeSubmission.current !== submission ||
-        revision.current !== submittedRevision
+        activeSubmission.current !== submission
       ) {
         return;
       }
+
+      // A successful response still establishes the server baseline when the
+      // user has typed again. Keep their newer draft and don't show stale feedback.
+      if (result.status === "success" && retainValuesAfterSuccess) {
+        baseline.current = { ...submittedValues };
+      }
+      if (revision.current !== submittedRevision) return;
 
       setResultMessage(result.message);
       if (result.status === "success") {
