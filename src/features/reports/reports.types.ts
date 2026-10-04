@@ -168,6 +168,7 @@ export type UnitProfitLossLine = {
 };
 
 export type TrustedReport = {
+  preserveRowDetails?: boolean;
   availableColumns?: TrustedReportColumn[];
   filterOptions?: {
     types?: { id: string; label: string }[];

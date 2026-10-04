@@ -15,6 +15,7 @@ import type {
 } from "@/features/reports/reports.types";
 
 type WorkbookRow = {
+  role?: "columnHeader" | "data";
   numericValues?: Record<number, string>;
   style?: number;
   values: string[];
@@ -51,8 +52,8 @@ async function loadCompanyLogo(organizationId: string) {
 
 export function buildTrustedReportXlsx(report: TrustedReport, presentation?: ReportExcelPresentation) {
   const rows = workbookRows(report);
-  const headerRow = 6;
-  const lastDataRow = Math.max(headerRow, headerRow + report.rows.length);
+  const headerRow = rows.findIndex(row => row.role === "columnHeader") + 1;
+  const lastDataRow = rows.reduce((last, row, index) => row.role === "data" ? index + 1 : last, headerRow);
   const logo = report.unitProfitLossLines ? presentation?.logo : undefined;
   const files: Record<string, Uint8Array> = {
     "[Content_Types].xml": strToU8(contentTypesXml()),
@@ -60,10 +61,10 @@ export function buildTrustedReportXlsx(report: TrustedReport, presentation?: Rep
     "docProps/app.xml": strToU8(appPropertiesXml()),
     "docProps/core.xml": strToU8(corePropertiesXml(report)),
     "xl/_rels/workbook.xml.rels": strToU8(workbookRelationshipsXml()),
-    "xl/styles.xml": strToU8(report.unitProfitLossLines ? profitLossStylesXml() : stylesXml()),
+    "xl/styles.xml": strToU8(report.unitProfitLossLines ? profitLossStylesXml() : stylesXml(report.preserveRowDetails)),
     "xl/workbook.xml": strToU8(workbookXml()),
     "xl/worksheets/sheet1.xml": strToU8(
-      report.unitProfitLossLines ? profitLossSheetXml(report, Boolean(logo)) : worksheetXml(rows, headerRow, lastDataRow),
+      report.unitProfitLossLines ? profitLossSheetXml(report, Boolean(logo)) : worksheetXml(rows, headerRow, lastDataRow, report.preserveRowDetails),
     ),
   };
 
@@ -291,6 +292,7 @@ function workbookRows(report: TrustedReport): WorkbookRow[] {
     { values: ["Generated", report.generatedAt] },
     { values: [] },
     {
+      role: "columnHeader",
       style: 2,
       values: [
         ...(grouped ? ["Group / subtotal"] : []),
@@ -308,15 +310,21 @@ function workbookRows(report: TrustedReport): WorkbookRow[] {
     });
   } else {
     for (const row of report.rows) {
-      rows.push({
+      const detailIndex = report.columns.findIndex(column => column.key === "detail");
+      const detail = row.cells.detail ?? "";
+      const parts = report.preserveRowDetails && detailIndex >= 0 ? Math.max(1, Math.ceil(detail.length / 500)) : 1;
+      for (let part = 0; part < parts; part++) rows.push({
+        role: "data",
         style: row.isGroup ? 2 : undefined,
-        numericValues: row.isGroup ? {} : Object.fromEntries(report.columns.flatMap((column, index) => {
+        numericValues: row.isGroup || part > 0 ? {} : Object.fromEntries(report.columns.flatMap((column, index) => {
           const value = column.numeric ? row.amounts?.[column.key] : undefined;
           return value !== undefined && /^-?\d+(?:\.\d{1,2})?$/.test(value) ? [[index + (grouped ? 1 : 0), value]] : [];
         })),
         values: [
           ...(grouped ? [row.isGroup ? `Subtotal: ${row.title}` : ""] : []),
-          ...report.columns.map(({ key }) => row.cells[key] ?? ""),
+          ...report.columns.map(({ key }) => key === "detail" && report.preserveRowDetails ? detail.slice(part * 500, (part + 1) * 500)
+            : key === "type" && part > 0 ? `${row.cells[key]} (continued)`
+              : part > 0 && report.columns.find(column => column.key === key)?.numeric ? "" : row.cells[key] ?? ""),
           row.sourceLinks
             .map((source) => `${source.recordType}:${source.label}`)
             .join(" | "),
@@ -338,14 +346,50 @@ function workbookRows(report: TrustedReport): WorkbookRow[] {
   }
 
   rows.push({ values: [] });
+  if (report.preserveRowDetails) rows.push({ values: ["Report purpose", report.description] });
   rows.push({ values: ["Trace", report.totalsTraceLabel] });
-  return rows;
+  return report.preserveRowDetails ? splitPreservedWorkbookRows(rows, report.columns.findIndex(column => column.key === "type") + (grouped ? 1 : 0)) : rows;
+}
+
+// Excel caps row height at 409 points. Count hard breaks as well as wrapping;
+// split text without adding/removing characters so evidence remains complete.
+function wrappedLineCount(value: string, capacity: number) {
+  return value.split(/\r\n|\r|\n/).reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / capacity)), 0);
+}
+
+function splitPreservedWorkbookRows(rows: WorkbookRow[], typeColumn: number) {
+  const widths = columnWidths(rows);
+  return rows.flatMap(row => {
+    const chunks = row.values.map((value, column) => {
+      const capacity = Math.max(10, Math.floor((widths[column] - 2) * 0.8));
+      const parts: string[] = [];
+      let current = "";
+      for (const token of value.match(/\r\n|[\s\S]/g) ?? []) {
+        if (current && wrappedLineCount(current + token, capacity) > 26) {
+          parts.push(current);
+          current = "";
+        }
+        current += token;
+      }
+      parts.push(current);
+      return parts;
+    });
+    const count = Math.max(1, ...chunks.map(parts => parts.length));
+    return Array.from({ length: count }, (_, part) => ({
+      ...row,
+      numericValues: part === 0 ? row.numericValues : {},
+      values: chunks.map((parts, column) => part > 0 && column === typeColumn && row.numericValues && parts.length === 1 ? `${parts[0]} (continued)`
+        : part > 0 && row.numericValues?.[column] !== undefined ? ""
+        : parts.length === 1 ? parts[0] : parts[part] ?? ""),
+    }));
+  });
 }
 
 function worksheetXml(
   rows: WorkbookRow[],
   headerRow: number,
   lastDataRow: number,
+  preserveDetails = false,
 ) {
   const widths = columnWidths(rows);
   const rowXml = rows
@@ -357,7 +401,8 @@ function worksheetXml(
             : inlineStringCell(columnIndex, rowIndex, value, style),
         )
         .join("");
-      return `<row r="${rowIndex + 1}">${cells}</row>`;
+      const lines = Math.max(1, ...values.map((value, column) => wrappedLineCount(value, Math.max(10, Math.floor((widths[column] - 2) * 0.8)))));
+      return `<row r="${rowIndex + 1}"${preserveDetails ? ` ht="${Math.min(409, Math.max(18, lines * 15 + 6))}" customHeight="1"` : ""}>${cells}</row>`;
     })
     .join("");
   const lastColumn = columnName(
@@ -462,7 +507,7 @@ function workbookRelationshipsXml() {
   );
 }
 
-function stylesXml() {
+function stylesXml(preserveDetails = false) {
   return xml(
     `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
       `<fonts count="3">` +
@@ -474,9 +519,9 @@ function stylesXml() {
       `<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>` +
       `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
       `<cellXfs count="3">` +
-      `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>` +
-      `<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>` +
-      `<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>` +
+      `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"${preserveDetails ? ' applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>' : '/>'}` +
+      `<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"${preserveDetails ? ' applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>' : '/>'}` +
+      `<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"${preserveDetails ? ' applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>' : '/>'}` +
       `</cellXfs>` +
       `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>` +
       `</styleSheet>`,
