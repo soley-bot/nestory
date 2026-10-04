@@ -45,7 +45,7 @@ import {
   buildLeaseCurrentRentEditHref,
   buildLeasePaymentResolutionHref,
 } from "@/features/leases/lease-detail-route";
-import { financeTabHref } from "@/features/finance-operations/finance-tab-route";
+import { financeReturnHref, financeTabHref } from "@/features/finance-operations/finance-tab-route";
 import { workflowReturnHref } from "@/features/leases/workflow-return";
 import type { LeaseBillingRule } from "@/features/leases/lease.types";
 import {
@@ -683,6 +683,7 @@ function ScopedFinanceNavigation({
     setSaved({ view, filters, queries });
   }
   const tabHref = (target: FinanceOperationsView) => financeTabHref(base, target, queries[target] ?? "", query);
+  const leaseOrigin = financeReturnHref(new URLSearchParams(query).get("returnTo"));
   const items = [
     { active: view === "transactions", href: tabHref("transactions"), label: "Transactions" },
     {
@@ -709,11 +710,20 @@ function ScopedFinanceNavigation({
   ];
 
   return (
-    <LocalWorkspaceNav
-      className="workspace-gutter-x py-1"
-      items={items}
-      label={`${scope.kind === "property" ? "Property" : "Unit"} finance`}
-    />
+    <div className="min-w-0">
+      {leaseOrigin?.startsWith("/leases/") ? (
+        <div className="workspace-gutter-x py-1">
+          <Button asChild variant="ghost" size="sm">
+            <Link href={leaseOrigin}>Back to lease</Link>
+          </Button>
+        </div>
+      ) : null}
+      <LocalWorkspaceNav
+        className="workspace-gutter-x py-1"
+        items={items}
+        label={`${scope.kind === "property" ? "Property" : "Unit"} finance`}
+      />
+    </div>
   );
 }
 

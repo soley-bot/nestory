@@ -9,6 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "security:secrets": "node scripts/verify-repository-secrets.mjs",
+    "recovery:test-synthetic": "node --test --test-concurrency=1 scripts/synthetic-recovery.node-test.mjs",
+    "recovery:rehearse-synthetic": "node scripts/rehearse-synthetic-recovery.mjs",
     "security:audit": "node scripts/audit-dependencies.mjs",
     "security:check": "npm run security:secrets && npm run security:audit",
     "test:tenant-commercial-document-pdf": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/tenant-commercial-document-pdf.node-test.mjs",

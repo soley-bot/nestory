@@ -58,6 +58,7 @@ vi.mock("next/link", () => ({
 import { FinanceOperationsScreen } from "./finance-operations-screen";
 import type { FinanceOperationsData } from "../finance-operations.types";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
+import { buildLeaseRentChargesHref } from "@/features/leases/lease-detail-route";
 
 beforeAll(() => {
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
@@ -94,6 +95,53 @@ class ResizeObserverStub {
 }
 
 describe("FinanceOperationsScreen", () => {
+  it("retains the lease return across rent, expenses, owner account and a fresh scoped view", () => {
+    const href = buildLeaseRentChargesHref({ leaseId: "lease-1", propertyId: "property-1", unitId: "unit-1", returnTo: "/units/unit-1?section=lease" });
+    const leaseReturn = new URL(href, "https://nestory.invalid").searchParams.get("returnTo")!;
+    const scope = { id: "unit-1", kind: "unit" as const, label: "Unit 01", propertyId: "property-1", propertyLabel: "Home" };
+    navigation.pathname = "/units/unit-1/finance";
+    navigation.searchParams = new URLSearchParams(new URL(href, "https://nestory.invalid").search);
+    const element = (view: "rent" | "expenses") => <FinanceOperationsScreen {...data()} {...financeCapabilities()} organizationName="IPS" scope={scope} expenseMonth="2026-09" view={view} />;
+    const journey = render(element("rent"));
+    let nav = within(screen.getByRole("navigation", { name: "Unit finance" }));
+    expect(nav.queryByRole("link", { name: "Back to lease" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Back to lease" }).getAttribute("href")).toBe(leaseReturn);
+    const expenses = new URL(nav.getByRole("link", { name: "Expenses" }).getAttribute("href")!, "https://nestory.invalid");
+    expect(expenses.pathname).toBe("/units/unit-1/finance");
+    expect(expenses.searchParams.get("returnTo")).toBe(leaseReturn);
+    expenses.searchParams.set("expenseMonth", "2026-09");
+    navigation.searchParams = expenses.searchParams;
+    journey.rerender(element("expenses"));
+    nav = within(screen.getByRole("navigation", { name: "Unit finance" }));
+    expect(screen.getByRole("link", { name: "Back to lease" }).getAttribute("href")).toBe(leaseReturn);
+    const owner = new URL(nav.getByRole("link", { name: "Owner account (Property)" }).getAttribute("href")!, "https://nestory.invalid");
+    expect(owner.pathname).toBe("/properties/property-1/finance");
+    expect(owner.searchParams.get("returnTo")).toBe(leaseReturn);
+    const rent = new URL(nav.getByRole("link", { name: "Rent & charges" }).getAttribute("href")!, "https://nestory.invalid");
+    navigation.searchParams = rent.searchParams;
+    journey.rerender(element("rent"));
+    expect(new URL(screen.getByRole("link", { name: "Expenses" }).getAttribute("href")!, "https://nestory.invalid").searchParams.get("expenseMonth")).toBe("2026-09");
+    journey.unmount();
+    navigation.searchParams = expenses.searchParams;
+    const refreshed = render(element("expenses"));
+    expect(screen.getByRole("link", { name: "Back to lease" }).getAttribute("href")).toBe(leaseReturn);
+    refreshed.unmount();
+    navigation.pathname = owner.pathname;
+    navigation.searchParams = owner.searchParams;
+    render(<FinanceOperationsScreen {...data()} {...financeCapabilities()} organizationName="IPS" scope={{ ...scope, id: "property-1", kind: "property" }} view="account" />);
+    expect(within(screen.getByRole("navigation", { name: "Property finance" })).queryByRole("link", { name: "Back to lease" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Back to lease" }).getAttribute("href")).toBe(leaseReturn);
+    expect(financeActionMocks.submitExpenseAction).not.toHaveBeenCalled();
+    expect(financeActionMocks.recordTenantInvoicePaymentAction).not.toHaveBeenCalled();
+  });
+
+  it("does not show a lease return for unsafe or unrelated origins", () => {
+    navigation.searchParams = new URLSearchParams({ returnTo: "//evil.test" });
+    render(<FinanceOperationsScreen {...data()} {...financeCapabilities()} organizationName="IPS" view="rent" scope={{ id: "property-1", kind: "property", label: "Home", propertyId: "property-1", propertyLabel: "Home" }} />);
+    expect(screen.queryByRole("link", { name: "Back to lease" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Expenses" }).getAttribute("href")).toBe("/properties/property-1/finance?view=expenses");
+  });
+
   it("restores each scoped tab's supported URL filters without carrying incompatible filters", () => {
     const input = data();
     const scope = { id: "unit-1", kind: "unit" as const, label: "Unit 01", propertyId: "property-1", propertyLabel: "Home" };

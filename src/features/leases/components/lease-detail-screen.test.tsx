@@ -109,6 +109,31 @@ afterEach(() => {
 });
 
 describe("LeaseDetailScreen", () => {
+  it.each(["unit-1", null])("connects rent details to the fixed finance scope for unit %s", (unitId) => {
+    const lease = makeLease();
+    lease.formValues.unitId = unitId;
+    const origin = unitId ? "/units/unit-1?section=lease" : "/properties/property-1?section=overview";
+    renderDetail("rent", lease, allLeasePermissions, { returnTo: origin });
+    const href = screen.getByRole("link", { name: "View rent and charges" }).getAttribute("href")!;
+    const url = new URL(href, "https://nestory.invalid");
+    expect(url.pathname).toBe(unitId ? "/units/unit-1/finance" : "/properties/property-1/finance");
+    expect(url.searchParams.get("view")).toBe("rent");
+    const leaseReturn = new URL(url.searchParams.get("returnTo")!, "https://nestory.invalid");
+    expect(leaseReturn.pathname).toBe("/leases/lease-1");
+    expect(leaseReturn.searchParams.get("section")).toBe("rent");
+    expect(leaseReturn.searchParams.get("returnTo")).toBe(origin);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(routerMocks.replace).not.toHaveBeenCalled();
+    expect(actionMocks.recordTenantInvoicePaymentAction).not.toHaveBeenCalled();
+    expect(depositActionMocks.record).not.toHaveBeenCalled();
+  });
+
+  it("does not offer the rent finance connection without finance viewing permission", () => {
+    renderDetail("rent", makeLease(), allLeasePermissions, { canViewFinance: false });
+    expect(screen.queryByRole("link", { name: "View rent and charges" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Rent & deposit" })).toBeTruthy();
+  });
+
   it("retains the filtered origin after payment success without losing receipt guidance", async () => {
     const returnTo = "/units/unit-1/finance?view=rent&q=Alice&status=unpaid&sort=due&page=2";
     actionMocks.recordTenantInvoicePaymentAction.mockResolvedValue({
@@ -1466,6 +1491,7 @@ function renderDetail(
   lease = makeLease(),
   permissions = allLeasePermissions,
   focus: {
+    canViewFinance?: boolean;
     returnTo?: string;
     canViewPropertyRecords?: boolean;
     billingFormConfig?: LeaseBillingFormConfig;
@@ -1486,6 +1512,7 @@ function detailElement(
   lease = makeLease(),
   permissions = allLeasePermissions,
   focus: {
+    canViewFinance?: boolean;
     returnTo?: string;
     canViewPropertyRecords?: boolean;
     billingFormConfig?: LeaseBillingFormConfig;
@@ -1504,7 +1531,7 @@ function detailElement(
       returnTo={focus.returnTo}
       billingFormConfig={focus.billingFormConfig}
       canRecordPayments
-      canViewFinance
+      canViewFinance={focus.canViewFinance ?? true}
       canViewPropertyRecords={focus.canViewPropertyRecords}
       historicalRentCorrectionCandidates={focus.historicalRentCorrectionCandidates}
       lease={lease}
