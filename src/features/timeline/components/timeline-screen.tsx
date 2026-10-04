@@ -33,6 +33,7 @@ import { TimelineFilters } from "@/features/timeline/components/timeline-filters
 import { TimelineInspector } from "@/features/timeline/components/timeline-inspector";
 import { TimelineTable } from "@/features/timeline/components/timeline-table";
 import {
+  buildTimelineHistoryHref,
   DEFAULT_TIMELINE_PAGE_SIZE,
   DEFAULT_TIMELINE_SORT,
 } from "@/features/timeline/timeline.filters";
@@ -119,7 +120,9 @@ export function TimelineScreen({
   const [selectedEventId, setSelectedEventId] = useState(() =>
     getInitialRecordId(events, initialEventId),
   );
-  const [compactInspectorOpen, setCompactInspectorOpen] = useState(false);
+  const [compactInspectorOpen, setCompactInspectorOpen] = useState(() =>
+    Boolean(initialEventId && viewQuery.historyPage),
+  );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const focusedEvent = initialEventId
@@ -152,8 +155,9 @@ export function TimelineScreen({
 
     queueMicrotask(() => {
       setSelectedEventId(focusedEventId);
+      if (viewQuery.historyPage) setCompactInspectorOpen(true);
     });
-  }, [focusedEventId]);
+  }, [focusedEventId, viewQuery.historyPage]);
 
   useEffect(() => {
     if (searchParams.get("action") !== "create") {
@@ -221,6 +225,14 @@ export function TimelineScreen({
   const timelineInspector = selectedEvent ? (
     <TimelineInspector
       event={selectedEvent}
+      historyHref={buildTimelineHistoryHref(pathname, searchParams, selectedEvent.id, 1)}
+      newerHistoryHref={selectedEvent.activityPagination && selectedEvent.activityPagination.page > 1
+        ? buildTimelineHistoryHref(pathname, searchParams, selectedEvent.id, 1)
+        : undefined}
+      olderHistoryHref={selectedEvent.activityPagination && selectedEvent.activityPagination.olderCursor
+        ? buildTimelineHistoryHref(pathname, searchParams, selectedEvent.id, selectedEvent.activityPagination.page + 1, selectedEvent.activityPagination.olderCursor)
+        : undefined}
+      onSelectChange={(change) => openTimelineAction({ change, mode: "activity" })}
       onAttachDocument={grantedPermissions.has(
         getDocumentPermission(
           getDocumentAuthorityDomain({

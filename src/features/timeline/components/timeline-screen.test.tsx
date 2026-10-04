@@ -225,6 +225,31 @@ describe("TimelineScreen workspace contract", () => {
     },
   );
 
+  it("keeps explicit history links within the current scoped route and filters", () => {
+    navigation.pathname = "/maintenance-timeline";
+    navigation.searchParams = new URLSearchParams("propertyId=property-1&unitId=unit-1&archiveState=all&page=3");
+    renderTimeline();
+    fireEvent.click(screen.getByRole("button", { name: "Preview Roof repair" }));
+    const href = screen.getByRole("link", { name: "Open event history" }).getAttribute("href")!;
+    const url = new URL(href, "https://synthetic.invalid");
+    expect(url.pathname).toBe("/maintenance-timeline");
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({ eventId: "event-1", historyPage: "1", propertyId: "property-1", unitId: "unit-1", archiveState: "all", page: "3" });
+  });
+
+  it("opens explicit history navigation and keeps older/newer links event-scoped", () => {
+    navigation.pathname = "/property-timeline";
+    navigation.searchParams = new URLSearchParams("eventId=event-1&historyPage=2&propertyId=property-1");
+    const event = { ...events[0], activityPagination: { from: 51, to: 100, page: 2, pageSize: 50, totalCount: 130, totalPages: 3, olderCursor: "2026-07-20T12:00:00Z|aaaaaaaa-aaaa-4aaa-8aaa-000000000080" } };
+    renderTimeline([event], { historyPage: 2 }, { initialEventId: "event-1", scope: "property" });
+    expect(screen.getByRole("dialog", { name: "Roof repair timeline quick view" })).toBeTruthy();
+    for (const [name, page] of [["Older changes", "3"], ["Newer changes", "1"]]) {
+      const url = new URL(screen.getByRole("link", { name }).getAttribute("href")!, "https://synthetic.invalid");
+      expect(url.pathname).toBe("/property-timeline");
+      expect(url.searchParams.get("eventId")).toBe("event-1");
+      expect(url.searchParams.get("historyPage")).toBe(page);
+      expect(url.searchParams.get("propertyId")).toBe("property-1");
+    }
+  });
   it("selects a canonical event link without auto-opening compact Preview", () => {
     installMatchMedia(390);
     renderTimeline(events, {}, { initialEventId: "event-2" });
@@ -276,7 +301,7 @@ describe("TimelineScreen workspace contract", () => {
   it("keeps URL-backed filters stable and clears focus-only parameters", async () => {
     navigation.pathname = "/maintenance-timeline";
     navigation.searchParams = new URLSearchParams(
-      "propertyId=property-1&page=3&eventId=event-1&archiveState=all",
+      "propertyId=property-1&page=3&eventId=event-1&archiveState=all&historyPage=2",
     );
     const user = userEvent.setup();
     renderTimeline([], {

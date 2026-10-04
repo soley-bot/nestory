@@ -14,12 +14,17 @@ import { Button } from "@/components/ui/button";
 import { DocumentList } from "@/features/documents/components/document-list";
 import { EventTypeBadge } from "@/features/timeline/components/event-type-badge";
 import type { TimelineEvent } from "@/features/timeline/timeline.types";
+import type { RecentChange } from "@/features/activity/activity.types";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
 
 type TimelineInspectorProps = {
   archiveDisabled?: boolean;
   event: TimelineEvent | null;
+  historyHref?: string;
+  olderHistoryHref?: string;
+  newerHistoryHref?: string;
+  onSelectChange?: (change: RecentChange) => void;
   onAttachDocument?: (event: TimelineEvent) => void;
   onArchive?: (event: TimelineEvent) => void;
   onEdit?: (event: TimelineEvent) => void;
@@ -29,6 +34,10 @@ type TimelineInspectorProps = {
 export function TimelineInspector({
   archiveDisabled = false,
   event,
+  historyHref,
+  olderHistoryHref,
+  newerHistoryHref,
+  onSelectChange,
   onAttachDocument,
   onArchive,
   onEdit,
@@ -172,6 +181,47 @@ export function TimelineInspector({
           <DocumentList documents={event.documents} emptyLabel="No attachments" />
         </section>
 
+        <section aria-label="Event history" className="rounded-md border border-border p-3">
+          <h3 className="font-semibold">Event history</h3>
+          {event.activityError ? (
+            <>
+              <p className="mt-2 text-sm" role="alert">{event.activityError}</p>
+              {historyHref ? <a className="mt-2 inline-block underline underline-offset-4" href={historyHref}>Retry event history</a> : null}
+            </>
+          ) : event.activityPagination ? (
+            <>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {event.activityPagination.totalCount === 0
+                  ? "No recorded event changes available."
+                  : `Showing ${event.activity.length} recorded event changes, ${event.activityPagination.totalCount} available`}
+              </p>
+              <div className="mt-2 space-y-1.5">
+                {event.activity.map((change) => (
+                  <button
+                    className="flex w-full min-w-0 items-start justify-between gap-3 rounded border border-border px-2.5 py-2 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                    key={change.id}
+                    onClick={() => onSelectChange?.(change)}
+                    type="button"
+                  >
+                    <span className="min-w-0 break-words"><span className="block font-medium">{change.actionLabel}</span><span className="block text-xs text-muted-foreground">{change.recordLabel}</span></span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{formatDate(change.createdAt)}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">Older changes keep your place as new changes arrive. Refresh newest to see new entries; Newer changes returns to the newest entries.</p>
+              {historyHref ? <a className="text-xs underline underline-offset-4" href={historyHref}>Refresh newest</a> : null}
+              <nav aria-label="Event history pages" className="mt-3 flex flex-wrap justify-between gap-2 text-sm">
+                {newerHistoryHref ? <Link className="underline underline-offset-4" href={newerHistoryHref} scroll={false}>Newer changes</Link> : null}
+                {olderHistoryHref ? <Link className="underline underline-offset-4" href={olderHistoryHref} scroll={false}>Older changes</Link> : null}
+              </nav>
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-xs text-muted-foreground">Event history is not fully loaded in this preview.</p>
+              {historyHref ? <Link className="mt-2 inline-block underline underline-offset-4" href={historyHref} scroll={false}>Open event history</Link> : null}
+            </>
+          )}
+        </section>
         <AttentionNote
           href={event.nextAction.href}
           item={getAttentionItem(event.riskIndicators)}

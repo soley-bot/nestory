@@ -42,6 +42,8 @@ export function parseTimelineSearchParams(
     dateFrom: parseDate(params.dateFrom),
     dateTo: parseDate(params.dateTo),
     eventId: getNullableUuidSearchParam(params.eventId),
+    historyBefore: parseTimelineHistoryCursor(getFirstSearchParam(params.historyBefore)),
+    historyPage: params.historyPage === undefined ? undefined : getPositiveIntegerSearchParam(params.historyPage, 1),
     eventType: parseEventType(params.eventType),
     page: getPositiveIntegerSearchParam(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
@@ -125,4 +127,30 @@ function parseOptionalInteger(value: string | string[] | undefined) {
   const parsed = Number.parseInt(getFirstSearchParam(value) ?? "", 10);
 
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+export function buildTimelineHistoryHref(
+  pathname: string,
+  searchParams: { toString: () => string },
+  eventId: string,
+  page: number,
+  before?: string,
+) {
+  const params = new URLSearchParams(searchParams.toString());
+  params.set("eventId", eventId);
+  params.set("historyPage", String(page));
+  params.delete("action");
+  params.delete("historyBefore");
+  if (before) params.set("historyBefore", before);
+  return `${pathname}?${params.toString()}`;
+}
+
+// Allow only database timestamp / UUID literals before interpolating PostgREST filters.
+export function parseTimelineHistoryCursor(value?: string): string | undefined {
+  if (!value) return undefined;
+  const [timestamp, id, extra] = value.split("|");
+  return !extra && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(timestamp)
+    && Number.isFinite(Date.parse(timestamp))
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id ?? "")
+    ? value : undefined;
 }
