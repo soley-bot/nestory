@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -90,6 +91,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   delete (HTMLElement.prototype as Partial<HTMLElement>).hasPointerCapture;
   delete (HTMLElement.prototype as Partial<HTMLElement>).releasePointerCapture;
@@ -98,6 +100,148 @@ afterEach(() => {
 });
 
 describe("LeaseScreen redesign contract", () => {
+  it("opens the full record from an ordinary row click without a preview", () => {
+    renderLeases();
+    const row = screen.getAllByRole("row")[1]!;
+    expect(row.tabIndex).toBe(-1);
+    expect(within(row).getByRole("link", { name: "Alice Tenant" }).tabIndex).toBe(0);
+    fireEvent.click(row.querySelectorAll("td")[2]!);
+    expect(navigation.push).toHaveBeenCalledExactlyOnceWith("/leases/lease-1");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it.each([{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }])("ignores modified or auxiliary row clicks: %s", modifiers => {
+    renderLeases();
+    fireEvent.click(screen.getAllByRole("row")[1]!, modifiers);
+    expect(navigation.push).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("keeps the property account link and interactive children independent of row navigation", () => {
+    renderLeases();
+    const row = screen.getAllByRole("row")[1]!;
+    const property = within(row).getByRole("link", { name: "Riverside House" });
+    expect(property.getAttribute("href")).toBe("/properties/property-1/account");
+    property.addEventListener("click", event => event.preventDefault());
+    fireEvent.click(property);
+    const button = document.createElement("button");
+    button.textContent = "Interactive child";
+    row.querySelector("td")!.append(button);
+    fireEvent.click(button);
+    expect(navigation.push).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it.each(["row", "record", "property", "preview"])("cancels pending search before %s entry", async entry => {
+    vi.useFakeTimers();
+    renderLeases();
+    fireEvent.change(screen.getByRole("textbox", { name: "Search leases" }), { target: { value: "Never apply" } });
+    const row = screen.getAllByRole("row")[1]!;
+    const target = entry === "row" ? row : entry === "preview"
+      ? within(row).getByRole("button", { name: "Preview lease for Alice Tenant" })
+      : within(row).getByRole("link", { name: entry === "record" ? "Alice Tenant" : "Riverside House" });
+    if (target.tagName === "A") target.addEventListener("click", event => event.preventDefault());
+    fireEvent.click(target);
+    await act(() => vi.advanceTimersByTimeAsync(1500));
+    expect(navigation.replace).not.toHaveBeenCalled();
+    if (entry === "row") expect(navigation.push).toHaveBeenCalledExactlyOnceWith("/leases/lease-1");
+    if (entry === "preview") expect(screen.getByRole("dialog", { name: "Alice Tenant lease quick view" })).not.toBeNull();
+  });
+
+  it("keeps draft search when a record opens in another tab", async () => {
+    vi.useFakeTimers();
+    renderLeases();
+    fireEvent.change(screen.getByRole("textbox", { name: "Search leases" }), { target: { value: "River" } });
+    const link = within(screen.getByRole("table")).getByRole("link", { name: "Alice Tenant" });
+    link.addEventListener("click", event => event.preventDefault());
+    fireEvent.click(link, { ctrlKey: true });
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    expect(navigation.replace).toHaveBeenLastCalledWith("/leases?query=River", { scroll: false });
+    expect(navigation.push).not.toHaveBeenCalled();
+  });
+
+  it("submits search with Enter and preserves review context while clearing page and legacy selection", async () => {
+    const user = userEvent.setup();
+    navigation.searchParams = new URLSearchParams("propertyId=property-1&unitId=unit-1&archiveState=all&endsWithin=30d&endMonth=2026-10&sort=end_asc&pageSize=25&page=3&leaseId=lease-1");
+    renderLeases({ viewQuery: { ...defaultViewQuery, propertyId: "property-1", unitId: "unit-1", archiveState: "all", endsWithinDays: 30, endMonth: "2026-10", sort: "end_asc", pageSize: 25, page: 3 } });
+    expect(screen.queryByRole("button", { name: "Search leases" })).toBeNull();
+    await user.type(screen.getByRole("textbox", { name: "Search leases" }), "River");
+    await user.keyboard("{Enter}");
+    const href = navigation.replace.mock.calls[0]![0] as string;
+    expect(Object.fromEntries(new URL(href, "https://nestory.test").searchParams)).toEqual({ propertyId: "property-1", unitId: "unit-1", archiveState: "all", endsWithin: "30d", endMonth: "2026-10", sort: "end_asc", pageSize: "25", query: "River" });
+    await act(() => new Promise(resolve => window.setTimeout(resolve, 600)));
+    expect(navigation.replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("debounces search, waits for composition, and clears the query without dropping other filters", async () => {
+    vi.useFakeTimers();
+    navigation.searchParams = new URLSearchParams("query=Old&status=active&sort=rent_desc&pageSize=25&page=3&leaseId=lease-1");
+    renderLeases({ viewQuery: { ...defaultViewQuery, query: "Old", status: "active", sort: "rent_desc", pageSize: 25 } });
+    const input = screen.getByRole("textbox", { name: "Search leases" });
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "River" } });
+    fireEvent.submit(input.closest("form")!);
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    expect(navigation.replace).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(input);
+    await act(() => vi.advanceTimersByTimeAsync(499));
+    expect(navigation.replace).not.toHaveBeenCalled();
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(navigation.replace).toHaveBeenLastCalledWith("/leases?query=River&status=active&sort=rent_desc&pageSize=25", { scroll: false });
+    fireEvent.click(screen.getByRole("button", { name: "Clear search leases" }));
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    expect(navigation.replace).toHaveBeenLastCalledWith("/leases?status=active&sort=rent_desc&pageSize=25", { scroll: false });
+  });
+
+  it.each([25, 100])("keeps %i rows and custom sort outside narrowing count and filtered-empty classification", async pageSize => {
+    const user = userEvent.setup();
+    navigation.searchParams = new URLSearchParams(`pageSize=${pageSize}&sort=end_asc`);
+    renderLeases({ leases: [], viewQuery: { ...defaultViewQuery, pageSize, sort: "end_asc" } });
+    expect(screen.getByText("No leases yet").closest("section")?.getAttribute("data-kind")).toBe("empty");
+    expect(screen.queryByRole("link", { name: "Clear filters" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Filters" }));
+    expect(screen.getByRole("combobox", { name: "Sort leases" }).textContent).toBe("Ending soon");
+    expect(screen.getByRole("combobox", { name: "Lease rows per page" }).textContent).toBe(String(pageSize));
+    expect(screen.getByRole("link", { name: "Reset lease filters" }).getAttribute("href")).toBe("/leases");
+  });
+
+  it("counts renewal and month criteria while retaining their visible review context", () => {
+    renderLeases({ viewQuery: { ...defaultViewQuery, endsWithinDays: 30, endMonth: "2026-10", pageSize: 25, sort: "end_asc" } });
+    expect(screen.getByRole("button", { name: "Filters (2)" })).not.toBeNull();
+    expect(screen.getByRole("region", { name: "2 leases ending in Oct 2026" })).not.toBeNull();
+  });
+
+  it("clears dependent unit, page and legacy selection when property changes, preserving other criteria", async () => {
+    const user = userEvent.setup();
+    navigation.searchParams = new URLSearchParams("propertyId=property-1&unitId=unit-1&page=3&leaseId=lease-1&query=River&archiveState=all&endsWithin=30d&endMonth=2026-10&sort=end_asc&pageSize=25");
+    renderLeases({ propertyOptions: [{ id: "property-1", label: "Riverside House" }, { id: "property-2", label: "Garden Court" }], viewQuery: { ...defaultViewQuery, propertyId: "property-1", unitId: "unit-1", query: "River", archiveState: "all", endsWithinDays: 30, endMonth: "2026-10", sort: "end_asc", pageSize: 25 } });
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
+    await user.click(screen.getByRole("combobox", { name: "Filter leases by property" }));
+    await user.click(screen.getByRole("option", { name: "Garden Court" }));
+    expect(Object.fromEntries(new URL(navigation.replace.mock.calls.at(-1)![0] as string, "https://nestory.test").searchParams)).toEqual({ propertyId: "property-2", query: "River", archiveState: "all", endsWithin: "30d", endMonth: "2026-10", sort: "end_asc", pageSize: "25" });
+  });
+
+  it("routes a found archived legacy focus to the full record without opening a modal", () => {
+    const archived = makeLease("lease-1", "Alice Tenant", "Unit 2A", true);
+    renderLeases({ initialLeaseId: "lease-1", leases: [archived], viewQuery: { ...defaultViewQuery, archiveState: "all", leaseId: "lease-1" } });
+    expect(navigation.replace).toHaveBeenCalledExactlyOnceWith("/leases/lease-1", { scroll: false });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("keeps a missing legacy focus as review context without substituting another lease", () => {
+    renderLeases({ initialLeaseId: "missing-lease" });
+    expect(navigation.replace).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByText(/this page did not include the focused lease/)).not.toBeNull();
+  });
+
+  it("lets the contextual-create redirect win over a found legacy focus", () => {
+    navigation.searchParams = new URLSearchParams("action=create&leaseId=lease-1");
+    renderLeases({ initialLeaseId: "lease-1" });
+    expect(navigation.replace).toHaveBeenCalledExactlyOnceWith("/properties?notice=choose-lease-context", { scroll: false });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("uses a stable register column budget", () => {
     renderLeases();
 
@@ -229,7 +373,7 @@ describe("LeaseScreen redesign contract", () => {
     expect(within(rows[0]!).getByText("Riverside House")).not.toBeNull();
     expect(within(rows[0]!).getByText("Unit 2A")).not.toBeNull();
 
-    fireEvent.click(rows[0]!);
+    fireEvent.click(within(rows[0]!).getByRole("button", { name: "Preview lease for Alice Tenant" }));
     const firstQuickView = screen.getByRole("dialog", {
       name: "Alice Tenant lease quick view",
     });
@@ -259,7 +403,7 @@ describe("LeaseScreen redesign contract", () => {
     ).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Close quick view" }));
 
-    fireEvent.click(rows[1]!);
+    fireEvent.click(within(rows[1]!).getByRole("button", { name: "Preview lease for Ben Tenant" }));
     expect(rows[1]?.getAttribute("aria-selected")).toBe("true");
     const secondQuickView = screen.getByRole("dialog", {
       name: "Ben Tenant lease quick view",
@@ -359,9 +503,7 @@ describe("LeaseScreen redesign contract", () => {
       installMatchMedia(width);
       const user = userEvent.setup();
       renderLeases();
-      const preview = screen.getByRole("button", {
-        name: "Preview lease for Alice Tenant",
-      });
+      const preview = within(width >= 768 ? screen.getByRole("table") : document.querySelector("article")!).getByRole("button", { name: "Preview lease for Alice Tenant" });
 
       expect(screen.queryByRole("dialog")).toBeNull();
       await user.click(preview);
@@ -395,7 +537,7 @@ describe("LeaseScreen redesign contract", () => {
     const lease = makeLease("lease-1", "Alice Tenant", "Unit 2A");
     renderLeases({ leases: [lease] });
 
-    fireEvent.click(screen.getAllByRole("row")[1]!);
+    fireEvent.click(within(screen.getAllByRole("row")[1]!).getByRole("button", { name: "Preview lease for Alice Tenant" }));
     const quickView = screen.getByRole("dialog", {
       name: "Alice Tenant lease quick view",
     });
@@ -438,7 +580,7 @@ describe("LeaseScreen redesign contract", () => {
     ];
     renderLeases({ leases: [lease] });
 
-    fireEvent.click(screen.getAllByRole("row")[1]!);
+    fireEvent.click(within(screen.getAllByRole("row")[1]!).getByRole("button", { name: "Preview lease for Alice Tenant" }));
     const quickView = screen.getByRole("dialog", {
       name: "Alice Tenant lease quick view",
     });
@@ -477,7 +619,7 @@ describe("LeaseScreen redesign contract", () => {
   it("keeps Finance lease inspection read-only", () => {
     renderLeases({ canPrepare: false });
 
-    fireEvent.click(screen.getAllByRole("row")[1]!);
+    fireEvent.click(within(screen.getAllByRole("row")[1]!).getByRole("button", { name: "Preview lease for Alice Tenant" }));
     const quickView = screen.getByRole("dialog", {
       name: "Alice Tenant lease quick view",
     });
@@ -545,6 +687,7 @@ describe("LeaseScreen redesign contract", () => {
 
 function renderLeases({
   canPrepare = true,
+  initialLeaseId,
   leases: nextLeases = leases,
   pagination,
   propertyOptions,
@@ -552,6 +695,7 @@ function renderLeases({
   viewQuery = defaultViewQuery,
 }: {
   canPrepare?: boolean;
+  initialLeaseId?: string;
   leases?: typeof leases;
   pagination?: {
     from: number;
@@ -568,6 +712,7 @@ function renderLeases({
   return render(
     <LeaseScreen
       canPrepare={canPrepare}
+      initialLeaseId={initialLeaseId}
       leases={nextLeases}
       pagination={
         pagination ?? {

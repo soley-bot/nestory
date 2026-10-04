@@ -4,7 +4,7 @@ import { requireFinanceContext } from "@/lib/auth/context";
 
 export default async function FinancePage(_props: {
   searchParams?: Promise<{ view?: string }>;
-} = {}) {
+}) {
   void _props;
   const context = await requireFinanceContext();
   const data = await getFinanceOperationsData(context.organizationId, undefined, {

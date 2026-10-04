@@ -18,7 +18,7 @@ type BalancesPageProps = {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export default async function BalancesPage({ searchParams }: BalancesPageProps = {}) {
+export default async function BalancesPage({ searchParams }: BalancesPageProps) {
   const context = await requireFinanceContext();
   const query = (await searchParams) ?? {};
   const selectedMonth = validMonth(first(query.month)) ?? getBusinessMonthValue();

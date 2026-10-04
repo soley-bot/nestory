@@ -21,8 +21,6 @@ export type PropertyReviewFilter =
   | "missing_photos"
   | "needs_units";
 
-export type PropertyDisplayMode = "table" | "cards";
-
 export type PropertyBranchOption = {
   id: string;
   label: string;

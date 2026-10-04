@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PaginationControls } from "@/components/data/pagination-controls";
@@ -14,6 +14,7 @@ import {
 } from "@/components/layout/workspace-split-view";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useRegisterSearch } from "@/components/ui/use-register-search";
 import { LeaseFilters } from "@/features/leases/components/lease-filters";
 import { LeaseInspector } from "@/features/leases/components/lease-inspector";
 import { LeasesTable } from "@/features/leases/components/leases-table";
@@ -43,7 +44,6 @@ type LeaseScreenProps = {
 };
 
 export function LeaseScreen({
-  canPrepare = true,
   initialLeaseId,
   leases,
   pagination,
@@ -54,13 +54,12 @@ export function LeaseScreen({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+  const search = useRegisterSearch(viewQuery.query, value => replaceParam("query", value, ""));
   const [selectedLeaseId, setSelectedLeaseId] = useState(() =>
     getInitialRecordId(leases, initialLeaseId),
   );
-  const [compactInspectorOpen, setCompactInspectorOpen] = useState(
-    Boolean(initialLeaseId) &&
-      (!canPrepare || searchParams.get("action") !== "create"),
-  );
+  const [compactInspectorOpen, setCompactInspectorOpen] = useState(false);
   const focusedLease = initialLeaseId
     ? leases.find((lease) => lease.id === initialLeaseId) ?? null
     : null;
@@ -81,20 +80,34 @@ export function LeaseScreen({
   const getLeaseRecordHref = (leaseId: string) =>
     buildLeaseRecordHref({ leaseId });
   const previewLease = (leaseId: string) => {
+    search.cancelPending();
     setSelectedLeaseId(leaseId);
     setCompactInspectorOpen(true);
   };
+  const openLease = (leaseId: string) => {
+    search.cancelPending();
+    router.push(getLeaseRecordHref(leaseId));
+  };
+
+  // Keep the register's existing filter serialization and reset behavior.
+  function replaceParam(name: string, value: string, defaultValue: string, deleteNames: string[] = []) {
+    const nextParams = new URLSearchParams(searchParams.toString());
+    if (value === defaultValue || value.trim() === "") nextParams.delete(name);
+    else nextParams.set(name, value);
+    nextParams.delete("page");
+    nextParams.delete("leaseId");
+    for (const deleteName of deleteNames) nextParams.delete(deleteName);
+    const queryString = nextParams.toString();
+    startTransition(() => router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false }));
+  }
 
   useEffect(() => {
-    if (!focusedLeaseId) {
+    if (!focusedLeaseId || searchParams.get("action") === "create") {
       return;
     }
 
-    queueMicrotask(() => {
-      setSelectedLeaseId(focusedLeaseId);
-      setCompactInspectorOpen(true);
-    });
-  }, [focusedLeaseId]);
+    router.replace(buildLeaseRecordHref({ leaseId: focusedLeaseId }), { scroll: false });
+  }, [focusedLeaseId, router, searchParams]);
 
   useEffect(() => {
     if (searchParams.get("action") !== "create") {
@@ -129,7 +142,7 @@ export function LeaseScreen({
         />
       ) : (
         <div
-          className="workspace-gutter-x min-h-0 flex-1 py-3"
+          className="workspace-gutter-x min-h-0 flex-1 py-3 lg:pt-0"
           data-slot="lease-register-gutter"
         >
           <div
@@ -141,7 +154,8 @@ export function LeaseScreen({
                 archiveState={viewQuery.archiveState}
                 leases={leases}
                 getLeaseHref={getLeaseRecordHref}
-                onSelectLease={previewLease}
+                onOpenLease={openLease}
+                onPreviewLease={previewLease}
                 selectedLeaseId={compactInspectorOpen ? selectedLease?.id ?? "" : ""}
               />
             </div>
@@ -160,16 +174,24 @@ export function LeaseScreen({
 
   return (
     <WorkspacePage
-      context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
+      context={
+        <span className="inline-flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span>{pagination.totalCount} {pagination.totalCount === 1 ? "record" : "records"}</span>
+          <span>Create leases from a Property or Unit record.</span>
+        </span>
+      }
       contextHref="/leases"
       headerClassName="py-3 lg:py-3"
       title="Leases"
     >
-      <div className="flex min-w-0 flex-col">
-
-      <p className="workspace-gutter-x border-b border-border py-2 text-sm text-muted-foreground">
-        Create leases from a Property or Unit record.
-      </p>
+      <div
+        className="flex min-w-0 flex-col"
+        onClickCapture={event => {
+          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+          if (link && (!link.getAttribute("target") || link.getAttribute("target") === "_self")) search.cancelPending();
+        }}
+      >
 
       <div
         aria-label="Workspace tools"
@@ -177,6 +199,7 @@ export function LeaseScreen({
         role="toolbar"
       >
         <LeaseFilters
+          navigation={{ isPending, replaceParam, search }}
           properties={propertyOptions}
           units={unitOptions}
           viewQuery={viewQuery}
@@ -357,8 +380,6 @@ function hasActiveLeaseFilters(viewQuery: LeaseViewQuery) {
     viewQuery.tenantStatus !== "all" ||
     viewQuery.archiveState !== "active" ||
     viewQuery.endsWithinDays !== null ||
-    viewQuery.endMonth !== "" ||
-    viewQuery.sort !== "start_desc" ||
-    viewQuery.pageSize !== 50
+    viewQuery.endMonth !== ""
   );
 }

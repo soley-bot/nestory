@@ -133,6 +133,89 @@ afterEach(() => {
 });
 
 describe("People route family redesign contract", () => {
+  it("submits search with Enter without a separate button and keeps register context", async () => {
+    const user = userEvent.setup();
+    navigation.searchParams = new URLSearchParams("role=owner&archiveState=all&sort=updated_desc&pageSize=50&page=3");
+    renderPeople({ viewQuery: parsePeopleSearchParams(Object.fromEntries(navigation.searchParams)) });
+    expect(screen.queryByRole("button", { name: "Search people" })).toBeNull();
+    const input = screen.getByRole("textbox", { name: "Search people" });
+
+    await user.type(input, "River");
+    await user.keyboard("{Enter}");
+
+    expect(navigation.replace).toHaveBeenCalledTimes(1);
+    const href = navigation.replace.mock.calls[0][0] as string;
+    expect(Object.fromEntries(new URL(href, "https://nestory.test").searchParams)).toEqual({
+      role: "owner", archiveState: "all", sort: "updated_desc", pageSize: "50", query: "River",
+    });
+    await act(() => new Promise(resolve => window.setTimeout(resolve, 600)));
+    expect(navigation.replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("still debounces search while leaving the input responsive", async () => {
+    vi.useFakeTimers();
+    renderPeople();
+    const input = screen.getByRole("textbox", { name: "Search people" });
+    fireEvent.change(input, { target: { value: "River" } });
+    await act(() => vi.advanceTimersByTimeAsync(499));
+    expect(navigation.replace).not.toHaveBeenCalled();
+    expect((input as HTMLInputElement).value).toBe("River");
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(navigation.replace).toHaveBeenLastCalledWith("/people?query=River", { scroll: false });
+  });
+
+  it("waits for composition to finish before applying search", async () => {
+    vi.useFakeTimers();
+    renderPeople();
+    const input = screen.getByRole("textbox", { name: "Search people" });
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "River" } });
+    fireEvent.submit(input.closest("form")!);
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    expect(navigation.replace).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(input);
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    expect(navigation.replace).toHaveBeenLastCalledWith("/people?query=River", { scroll: false });
+  });
+
+  it("clears search without dropping actual filters, sorting, or row count", async () => {
+    vi.useFakeTimers();
+    const params = { query: "River", status: "missing_contact", archiveState: "all", sort: "updated_desc", pageSize: "50", page: "3" };
+    navigation.searchParams = new URLSearchParams(params);
+    renderPeople({ viewQuery: parsePeopleSearchParams(params) });
+    fireEvent.click(screen.getByRole("button", { name: "Clear search people" }));
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    const href = navigation.replace.mock.calls.at(-1)![0] as string;
+    expect(Object.fromEntries(new URL(href, "https://nestory.test").searchParams)).toEqual({
+      status: "missing_contact", archiveState: "all", sort: "updated_desc", pageSize: "50",
+    });
+    expect((screen.getByRole("textbox", { name: "Search people" }) as HTMLInputElement).value).toBe("");
+  });
+
+  it("counts actual narrowing without counting sort or row size", () => {
+    const params = { query: "River", status: "missing_contact", archiveState: "all", sort: "updated_desc", pageSize: "50" };
+    navigation.searchParams = new URLSearchParams(params);
+    renderPeople({ viewQuery: parsePeopleSearchParams(params) });
+    expect(screen.getByRole("button", { name: /^Filters/ }).textContent).toBe("Filters2");
+    expect(screen.getByRole("link", { name: "Reset people filters" }).getAttribute("href")).toBe("/people?pageSize=50");
+  });
+
+  it.each([false, true])("keeps sort reset inside Filters and a truthful empty state (empty: %s)", async empty => {
+    const user = userEvent.setup();
+    const params = { sort: "updated_desc", pageSize: "50", page: "3" };
+    navigation.searchParams = new URLSearchParams(params);
+    renderPeople({ people: empty ? [] : people, viewQuery: parsePeopleSearchParams(params) });
+    expect(screen.getByRole("button", { name: /^Filters$/ }).textContent).toBe("Filters");
+    expect(screen.queryByRole("link", { name: "Reset people filters" })).toBeNull();
+    expect(screen.queryByText("No matching people")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Clear filters" })).toBeNull();
+    if (empty) expect(screen.getByText("No people yet").closest("section")?.getAttribute("data-kind")).toBe("empty");
+    await user.click(screen.getByRole("button", { name: "Filters" }));
+    expect(screen.getByRole("combobox", { name: "Sort people" }).textContent).toBe("Recently updated");
+    expect(screen.getByRole("combobox", { name: "Rows per page" }).textContent).toBe("50");
+    expect(screen.getByRole("link", { name: /^Reset$/ }).getAttribute("href")).toBe("/people?pageSize=50");
+  });
+
   it.each(["Next", "Alice Tenant"])("cancels draft search before delayed %s link navigation", async name => {
     vi.useFakeTimers();
     renderPeople({ pagination: { from: 1, to: 10, page: 1, pageSize: 10, totalCount: 30, totalPages: 3 } });
@@ -223,12 +306,12 @@ describe("People route family redesign contract", () => {
     expect(tableFrame?.className).toContain("workspace-gutter-x");
     expect(tableFrame?.className).not.toContain("rounded-lg");
     expect(tableFrame?.className.split(" ")).not.toContain("border");
-    expect(table.className).toContain("text-[13px]");
+    expect(table.className).toContain("text-sm");
     expect(table.className).toContain("table-fixed");
     expect(table.className).toContain("min-w-[900px]");
     expect(table.className).not.toContain("max-w-");
     expect(table.querySelectorAll("colgroup col")).toHaveLength(6);
-    expect(table.querySelector("thead")?.className).toContain("text-[11px]");
+    expect(table.querySelector("thead")?.className).toContain("text-xs");
     const rows = within(table).getAllByRole("row").slice(1);
     expect(
       rows.every((row) => row.getAttribute("aria-selected") === null),

@@ -414,8 +414,7 @@ function hasActivePeopleFilters(viewQuery: PeopleViewQuery) {
   return (
     viewQuery.query.trim().length > 0 ||
     viewQuery.status !== "all" ||
-    viewQuery.archiveState !== "active" ||
-    viewQuery.sort !== "name_asc"
+    viewQuery.archiveState !== "active"
   );
 }
 

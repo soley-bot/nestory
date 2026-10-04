@@ -18,7 +18,7 @@ type NoAccessPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function NoAccessPage({ searchParams }: NoAccessPageProps = {}) {
+export default async function NoAccessPage({ searchParams }: NoAccessPageProps) {
   await requireUser();
   const params = (await searchParams) ?? {};
   const reason = Array.isArray(params.reason) ? params.reason[0] : params.reason;

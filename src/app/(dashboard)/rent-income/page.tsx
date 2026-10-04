@@ -9,7 +9,7 @@ export default async function RentIncomePage({
   searchParams = Promise.resolve({}),
 }: {
   searchParams?: Promise<{ action?: string; leaseId?: string; invoiceId?: string; returnTo?: string }>;
-} = {}) {
+}) {
   const context = await requireFinanceContext();
   const query = await searchParams;
   const selectedInvoice = typeof query.invoiceId === "string" && /^[0-9a-f-]{36}$/i.test(query.invoiceId)

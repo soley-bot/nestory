@@ -100,28 +100,25 @@ describe("UnitScreen redesign contract", () => {
     expect(navigation.replace).toHaveBeenLastCalledWith("/units", { scroll: false });
   });
 
-  it("follows cards and table views during history navigation", () => {
+  it("renders one responsive list for legacy view links and history navigation", () => {
     const view = renderUnits();
     for (const params of ["view=cards", "view=table", "view=cards", ""]) {
       navigation.searchParams = new URLSearchParams(params);
       view.rerenderView();
-      expect(screen.getByTitle("Cards view").getAttribute("aria-pressed")).toBe(
-        String(params === "view=cards"),
-      );
-      expect(Boolean(screen.queryByRole("table"))).toBe(params !== "view=cards");
+      expect(screen.queryByTitle("Cards view")).toBeNull();
+      expect(screen.queryByTitle("Table view")).toBeNull();
+      expect(screen.getByRole("table")).toBeTruthy();
+      expect(within(screen.getByRole("list", {name: "Units"})).getAllByRole("listitem")).toHaveLength(2);
     }
     expect(navigation.replace).not.toHaveBeenCalled();
   });
 
-  it("combines rapid sort and view changes without restoring the old page", () => {
-    navigation.searchParams = new URLSearchParams("status=vacant&page=3");
-    renderUnits({ viewQuery: { ...defaultViewQuery, status: "vacant", page: 3 } });
+  it("keeps legacy link context when sorting and resets only the result page", () => {
+    navigation.searchParams = new URLSearchParams("status=vacant&page=3&view=cards&pageSize=25&query=Riverside&propertyId=property-2");
+    renderUnits({ viewQuery: { ...defaultViewQuery, status: "vacant", page: 3, pageSize: 25, query: "Riverside", propertyId: "property-2" } });
     fireEvent.click(screen.getByRole("button", { name: "Sort units by rent" }));
-    fireEvent.click(screen.getByTitle("Cards view"));
-    expect(navigation.replace).toHaveBeenLastCalledWith(
-      "/units?status=vacant&sort=rent_desc&view=cards",
-      { scroll: false },
-    );
+    const next = new URL(navigation.replace.mock.calls.at(-1)![0], "https://example.test");
+    expect(Object.fromEntries(next.searchParams)).toEqual({status: "vacant", view: "cards", pageSize: "25", query: "Riverside", propertyId: "property-2", sort: "rent_desc"});
   });
 
   it("discards an unsent search when navigation changes property with the same query", async () => {
@@ -252,7 +249,7 @@ describe("UnitScreen redesign contract", () => {
   });
 
   it.each([1024, 390])(
-    "opens the unit record directly after card selection at %ipx",
+    "opens the unit record directly after compact row selection at %ipx",
     async (width) => {
     installMatchMedia(width);
     const user = userEvent.setup();
@@ -265,7 +262,7 @@ describe("UnitScreen redesign contract", () => {
     },
   );
 
-  it("opens unit cards with Enter and Space", async () => {
+  it("opens compact unit buttons with native Enter and Space", async () => {
     installMatchMedia(1024);
     const user = userEvent.setup();
     renderUnits();
@@ -281,17 +278,83 @@ describe("UnitScreen redesign contract", () => {
     expect(navigation.push).toHaveBeenCalledWith("/units/unit-1");
   });
 
-  it("opens table rows with Enter and Space", () => {
+  it("keeps all primary unit facts together in the phone row", () => {
+    installMatchMedia(390);
+    const unit = makeUnit("unit-long", "អគារ A-123456789", "property-1", "HOME", "Central Residence with a long name");
+    unit.propertyOwnerName = "Nora Owner with a long family name";
+    unit.tenantName = "Sokha Tenant with a long family name";
+    unit.leaseStatusLabel = "Draft lease";
+    unit.readiness = {...unit.readiness, operational: "maintenance", lease: "draft"};
+    unit.isArchived = true;
+    unit.rentDisplay = {primary: "USD 99,999,999.99"};
+    unit.ledgerNetDisplay = {primary: "-USD 9,999,999,999.99"};
+    renderUnits({units: [unit]});
+    const row = within(screen.getByRole("list", {name: "Units"})).getAllByRole("listitem")[0]!;
+    expect(within(row).getByRole("button", {name: `Open unit ${unit.unitNumber}`})).toBeTruthy();
+    for (const text of [unit.propertyName, `Owner: ${unit.propertyOwnerName}`, unit.tenantName, "Draft lease", "$99,999,999.99", "-$9,999,999,999.99", "Archived"]) {
+      expect(within(row).getByText(text)).toBeTruthy();
+    }
+    expect(within(row).queryByText("Open quick view")).toBeNull();
+    expect(within(row).queryByText("unit-long")).toBeNull();
+  });
+
+  it("tabs between native laptop detail links with no extra row stop", async () => {
+    const user = userEvent.setup();
+    renderUnits();
+    const table = screen.getByRole("table");
+    const rows = within(table).getAllByRole("row").slice(1);
+    const firstLink = within(rows[0]!).getByRole("link", {name: "View unit 1A details"});
+    const secondLink = within(rows[1]!).getByRole("link", {name: "View unit 2B details"});
+    expect(rows.every((row) => row.tabIndex === -1)).toBe(true);
+    expect(firstLink.tabIndex).toBe(0);
+    firstLink.focus();
+    await user.tab();
+    expect(document.activeElement).toBe(secondLink);
+    await user.tab({shift: true});
+    expect(document.activeElement).toBe(firstLink);
+    expect(firstLink.getAttribute("href")).toBe("/units/unit-1");
+    await user.keyboard("{Enter}");
+    expect(navigation.push).toHaveBeenCalledTimes(1);
+    expect(navigation.push).toHaveBeenCalledWith("/units/unit-1");
+    expect(screen.queryByRole("button", {name: "Search units"})).toBeNull();
+    expect(table.closest(".lg\\:pt-0")).not.toBeNull();
+  });
+
+  it.each(["ctrlKey", "metaKey", "shiftKey", "altKey"])(
+    "leaves native unit link %s activation to the browser",
+    (modifier) => {
+      renderUnits();
+      const link = within(screen.getByRole("table")).getByRole("link", {name: "View unit 1A details"});
+      expect(fireEvent.keyDown(link, {key: "Enter", [modifier]: true})).toBe(true);
+      expect(fireEvent.click(link, {[modifier]: true})).toBe(true);
+      expect(navigation.push).not.toHaveBeenCalled();
+    },
+  );
+
+  it("preserves unit middle clicks and excludes interactive children from row clicks", () => {
+    renderUnits();
+    const row = within(screen.getByRole("table")).getAllByRole("row")[1]!;
+    const link = within(row).getByRole("link", {name: "View unit 1A details"});
+    expect(fireEvent.click(link, {button: 1})).toBe(true);
+    expect(fireEvent.click(row, {ctrlKey: true})).toBe(true);
+    const button = document.createElement("button");
+    const label = document.createElement("span");
+    button.append(label);
+    row.querySelectorAll("td")[1]!.append(button);
+    fireEvent.click(label);
+    expect(navigation.push).not.toHaveBeenCalled();
+    fireEvent.click(row);
+    expect(navigation.push).toHaveBeenCalledTimes(1);
+    expect(navigation.push).toHaveBeenCalledWith("/units/unit-1");
+  });
+
+  it("does not intercept keyboard activation on non-focusable unit rows", () => {
     renderUnits();
     const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
 
-    rows[1]!.focus();
-    fireEvent.keyDown(rows[1]!, { key: "Enter" });
-    expect(navigation.push).toHaveBeenCalledWith("/units/unit-2");
-
-    rows[0]!.focus();
-    fireEvent.keyDown(rows[0]!, { key: " " });
-    expect(navigation.push).toHaveBeenCalledWith("/units/unit-1");
+    expect(fireEvent.keyDown(rows[1]!, { key: "Enter", ctrlKey: true })).toBe(true);
+    expect(fireEvent.keyDown(rows[0]!, { key: " " })).toBe(true);
+    expect(navigation.push).not.toHaveBeenCalled();
   });
 
   it("offers Clear filters for a filtered empty result", () => {
@@ -424,7 +487,7 @@ describe("UnitScreen redesign contract", () => {
     await user.click(propertyNames[0]!);
     expect(navigation.push).not.toHaveBeenCalled();
 
-    await user.click(within(table).getByRole("button", { name: "View unit A-01 details" }));
+    await user.click(within(table).getByRole("link", { name: "View unit A-01 details" }));
     expect(navigation.push).toHaveBeenCalledWith("/units/unit-a");
   });
 

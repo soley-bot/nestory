@@ -10,7 +10,7 @@ const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({
   deviceScaleFactor: 1,
-  viewport: { height: 960, width: 1440 },
+  viewport: { height: 900, width: 1440 },
 });
 const photoPath = join(tmpdir(), `nestory-property-smoke-${Date.now()}.png`);
 await writeFile(
@@ -44,31 +44,33 @@ try {
   await page.getByText("Table setup").waitFor();
   await page.getByRole("button", { name: /done/i }).click();
 
-  await page.getByTitle("Cards view").click();
-  await page.waitForURL(/view=cards/);
-  const cardGrid = page.locator('[data-property-record-list="cards"]');
-  await cardGrid.getByText("Needs photo").first().waitFor();
-  if (await cardGrid.getByText("Occupancy", { exact: true }).count()) {
-    throw new Error("Property cards should leave occupancy detail to the inspector.");
+  // Old bookmarks keep their context but render the single responsive list.
+  const registerUrl = `${baseUrl}/properties?view=cards`;
+  await page.goto(registerUrl, { waitUntil: "networkidle" });
+  const propertyTable = page.getByRole("region", { name: "Properties table", exact: true });
+  await propertyTable.waitFor();
+  if (await page.getByTitle(/^(Cards|Table) view$/).count()) {
+    throw new Error("Properties must expose one list without display-mode controls.");
   }
-  if (await cardGrid.getByText("Net", { exact: true }).count()) {
-    throw new Error("Property cards should leave net income detail to the inspector.");
+  if (await page.locator('[data-property-record-list="cards"]').count()) {
+    throw new Error("Legacy Cards bookmarks must not render a card grid.");
   }
-  const cardGridLayout = await cardGrid.evaluate((element) => {
-    const style = window.getComputedStyle(element);
-
-    return {
-      clientHeight: element.clientHeight,
-      gridTemplateColumns: style.gridTemplateColumns,
-      overflowY: style.overflowY,
-      scrollHeight: element.scrollHeight,
-    };
-  });
-
-  if (cardGridLayout.overflowY !== "visible") {
-    throw new Error(
-      `Expected card grid to defer vertical scrolling to the workspace, got ${cardGridLayout.overflowY}`,
-    );
+  for (const name of ["Owner", "Occupancy", "Leases"]) {
+    await propertyTable.getByRole("columnheader", { name, exact: true }).waitFor();
+  }
+  await propertyTable.getByRole("button", { name: "Sort properties by net", exact: true }).waitFor();
+  await propertyTable.getByRole("button", { name: "Sort properties by status", exact: true }).waitFor();
+  const listLayout = await propertyTable.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+    overflowY: getComputedStyle(element.closest('[data-slot="register-table-frame"]')).overflowY,
+    pageOverflow: document.documentElement.scrollWidth > innerWidth,
+  }));
+  if (listLayout.pageOverflow || listLayout.scrollWidth > listLayout.clientWidth) {
+    throw new Error("Laptop property identity, amounts and actions must fit without horizontal scrolling.");
+  }
+  if (listLayout.overflowY !== "visible") {
+    throw new Error(`Expected the register to defer vertical scrolling to the workspace, got ${listLayout.overflowY}`);
   }
 
   const workspaceOverflowY = await page
@@ -80,38 +82,30 @@ try {
     );
   }
 
-  if (cardGridLayout.clientHeight < 360) {
-    throw new Error(
-      `Expected card grid viewport height, got ${cardGridLayout.clientHeight}`,
-    );
-  }
-
-  if (cardGridLayout.gridTemplateColumns === "none") {
-    throw new Error(
-      `Expected card grid to render columns, got ${cardGridLayout.gridTemplateColumns}`,
-    );
-  }
-
-  const firstPropertyLabel = await cardGrid
-    .getByRole("button")
-    .first()
+  const firstPropertyRow = propertyTable.getByRole("row", { name: /^Open / }).first();
+  const firstPropertyLabel = await firstPropertyRow
     .getAttribute("aria-label");
-  const firstPropertyName = firstPropertyLabel?.replace(/^Preview /, "");
+  const firstPropertyName = firstPropertyLabel?.replace(/^Open /, "");
   if (!firstPropertyName) {
-    throw new Error("Expected a property card with an accessible preview name.");
+    throw new Error("Expected a property row with an accessible record name.");
+  }
+  const firstPropertyHref = await firstPropertyRow.getByRole("link", { name: firstPropertyName, exact: true }).getAttribute("href");
+  if (!firstPropertyHref || !/^\/properties\/[^/?#]+$/.test(firstPropertyHref)) {
+    throw new Error("Expected a native link to the property's full record.");
   }
   const temporaryPropertyName = `${firstPropertyName} Smoke`;
-  await renamePropertyCard({
+  await renamePropertyRecord({
     fromName: firstPropertyName,
     toName: temporaryPropertyName,
+    registerUrl,
+    expectedHref: firstPropertyHref,
   });
-  await renamePropertyCard({
+  await renamePropertyRecord({
     fromName: temporaryPropertyName,
     toName: firstPropertyName,
+    registerUrl,
+    expectedHref: firstPropertyHref,
   });
-
-  await page.getByTitle("Table view").click();
-  await page.waitForURL((url) => !url.searchParams.has("view"));
 
   await page.goto(`${baseUrl}/properties?review=missing_photos`, {
     waitUntil: "networkidle",
@@ -174,29 +168,33 @@ try {
     .getByRole("button", { name: /open actions for/i })
     .count();
   if (rowActionCount !== 0) {
-    throw new Error("Property records should keep mutations in the inspector.");
+    throw new Error("Property list rows should keep mutations in the full record.");
   }
 
-  await page.getByRole("row", { name: "Preview Central Residence" }).click();
-  await page
-    .getByRole("button", { name: /More actions for /i })
-    .click();
-  await page.getByRole("button", { name: "Archive property" }).click();
-  await page.waitForSelector('form[data-flow-state="blocked"]');
-  const archiveDisabled = await page
+  await page.goto(`${baseUrl}/properties`, { waitUntil: "networkidle" });
+  await page.getByRole("row", { name: "Open Central Residence", exact: true }).click();
+  await page.waitForURL(/\/properties\/[^/?#]+$/);
+  await page.getByRole("heading", { name: "Central Residence", exact: true }).waitFor();
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Archive", exact: true }).click();
+  const archiveDialog = page.getByRole("dialog", { name: "Archive Central Residence?", exact: true });
+  await archiveDialog.locator('form[data-flow-state="blocked"]').waitFor();
+  const archiveDisabled = await archiveDialog
     .getByRole("button", { name: /^Archive property$/ })
     .isDisabled();
   if (!archiveDisabled) {
     throw new Error("Archive should be disabled while active units exist.");
   }
-  await page.getByRole("link", { name: /review active units/i }).waitFor();
+  await archiveDialog.getByRole("link", { name: /review active units/i }).waitFor();
 
-  const closeButtonCount = await page
-    .getByRole("button", { name: /^Close drawer$/ })
+  const closeButtonCount = await archiveDialog
+    .getByRole("button", { name: "Close modal", exact: true })
     .count();
   if (closeButtonCount !== 1) {
-    throw new Error(`Expected one visible close drawer button, found ${closeButtonCount}`);
+    throw new Error(`Expected one visible close modal button, found ${closeButtonCount}`);
   }
+  await archiveDialog.getByRole("button", { name: "Close modal", exact: true }).click();
+  await archiveDialog.waitFor({ state: "hidden" });
 
   console.log("Properties flow smoke passed.");
 } finally {
@@ -204,17 +202,15 @@ try {
   await browser.close();
 }
 
-async function renamePropertyCard({ fromName, toName }) {
+async function renamePropertyRecord({ fromName, toName, registerUrl, expectedHref }) {
   await page
-    .getByRole("button", {
-      name: new RegExp(`^Preview ${escapeRegExp(fromName)}$`),
+    .getByRole("row", {
+      name: new RegExp(`^Open ${escapeRegExp(fromName)}$`),
     })
     .click();
-  await page
-    .getByRole("button", {
-      name: new RegExp(`Edit ${escapeRegExp(fromName)}`),
-    })
-    .click();
+  await page.waitForURL(new URL(expectedHref, baseUrl).href);
+  await page.getByRole("heading", { name: fromName, exact: true }).waitFor();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
 
   const drawer = page.getByRole("dialog", { name: "Edit property" });
   await drawer.waitFor();
@@ -224,5 +220,11 @@ async function renamePropertyCard({ fromName, toName }) {
   await drawer.getByRole("button", { name: "Save changes" }).click();
   await drawer.waitFor({ state: "hidden" });
   await page.getByText("Property updated.").waitFor();
-  await page.locator("article").filter({ hasText: toName }).first().waitFor();
+  await page.getByRole("heading", { name: toName, exact: true }).waitFor();
+  await page.goto(registerUrl, { waitUntil: "networkidle" });
+  const renamedRow = page.getByRole("row", { name: `Open ${toName}`, exact: true });
+  await renamedRow.waitFor();
+  if (await renamedRow.getByRole("link", { name: toName, exact: true }).getAttribute("href") !== expectedHref) {
+    throw new Error("Renaming must preserve the record identity and full-detail destination.");
+  }
 }

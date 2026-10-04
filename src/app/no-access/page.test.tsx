@@ -7,7 +7,7 @@ import NoAccessPage from "@/app/no-access/page";
 
 describe("NoAccessPage", () => {
   it("directs an unlinked account to Workspace Access", async () => {
-    const html = renderToStaticMarkup(await NoAccessPage());
+    const html = renderToStaticMarkup(await NoAccessPage({}));
 
     expect(html).toContain("workspace administrator");
     expect(html).toContain("Workspace Access");

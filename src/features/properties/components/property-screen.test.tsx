@@ -148,28 +148,25 @@ describe("PropertyScreen redesign contract", () => {
     expect(navigation.replace).toHaveBeenLastCalledWith("/properties", { scroll: false });
   });
 
-  it("follows cards and table views during history navigation", () => {
+  it("renders one responsive list for legacy view links and history navigation", () => {
     const view = renderProperties();
     for (const params of ["view=cards", "view=table", "view=cards", ""]) {
       navigation.searchParams = new URLSearchParams(params);
       view.rerenderView();
-      expect(screen.getByTitle("Cards view").getAttribute("aria-pressed")).toBe(
-        String(params === "view=cards"),
-      );
-      expect(Boolean(screen.queryByRole("table"))).toBe(params !== "view=cards");
+      expect(screen.queryByTitle("Cards view")).toBeNull();
+      expect(screen.queryByTitle("Table view")).toBeNull();
+      expect(screen.getByRole("table")).toBeTruthy();
+      expect(within(screen.getByRole("list", { name: "Properties" })).getAllByRole("listitem")).toHaveLength(2);
     }
     expect(navigation.replace).not.toHaveBeenCalled();
   });
 
-  it("combines rapid sort and view changes without restoring the old page", () => {
-    navigation.searchParams = new URLSearchParams("status=active&page=3");
-    renderProperties({ viewQuery: { ...defaultViewQuery, status: "active", page: 3 } });
+  it("keeps legacy link context when sorting and resets only the result page", () => {
+    navigation.searchParams = new URLSearchParams("status=active&page=3&view=cards&pageSize=25&query=Riverside");
+    renderProperties({ viewQuery: { ...defaultViewQuery, status: "active", page: 3, pageSize: 25, query: "Riverside" } });
     fireEvent.click(screen.getByRole("button", { name: "Sort properties by net" }));
-    fireEvent.click(screen.getByTitle("Cards view"));
-    expect(navigation.replace).toHaveBeenLastCalledWith(
-      "/properties?status=active&sort=net_desc&view=cards",
-      { scroll: false },
-    );
+    const next = new URL(navigation.replace.mock.calls.at(-1)![0], "https://example.test");
+    expect(Object.fromEntries(next.searchParams)).toEqual({status: "active", view: "cards", pageSize: "25", query: "Riverside", sort: "net_desc"});
   });
 
   it("discards an unsent search when navigation changes scope with the same query", async () => {
@@ -449,14 +446,14 @@ describe("PropertyScreen redesign contract", () => {
     });
 
     const summary = screen.getByRole("navigation", { name: "Portfolio summary" });
-    expect(within(summary).getByRole("link", { name: /17\s*Active properties/ }).getAttribute("href")).toBe(
+    expect(within(summary).getByRole("link", { name: /17\s*Active/ }).getAttribute("href")).toBe(
       "/properties?status=active",
     );
     expect(within(summary).getByRole("link", { name: /62\s*Units/ }).getAttribute("href")).toBe(
       "/units",
     );
     expect(
-      within(summary).getByRole("link", { name: /9\s*Without current lease/ }).getAttribute("href"),
+      within(summary).getByRole("link", { name: /9\s*Without lease/ }).getAttribute("href"),
     ).toBe("/properties?leaseStatus=missing");
 
     expect(container.querySelectorAll('[data-slot="portfolio-summary-item"]')).toHaveLength(3);
@@ -469,10 +466,10 @@ describe("PropertyScreen redesign contract", () => {
     const pageInsetClasses = ["px-4", "sm:px-6", "2xl:px-8"];
     const bands = [
       container.querySelector<HTMLElement>("header"),
-      screen.getByRole("navigation", { name: "Portfolio summary" }),
       container.querySelector<HTMLElement>('[data-slot="property-list-toolbar"]'),
       container.querySelector<HTMLElement>('[data-slot="register-table-frame"]'),
     ];
+    expect(container.querySelector("header")?.contains(screen.getByRole("navigation", {name: "Portfolio summary"}))).toBe(true);
 
     for (const band of bands) {
       expect(band).not.toBeNull();
@@ -503,6 +500,62 @@ describe("PropertyScreen redesign contract", () => {
       screen.getByRole("combobox", { name: "Filter by lease health" }),
     ).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Rows per page" })).toBeTruthy();
+  });
+
+  it("does not call sort or page size a filter or add a toolbar reset for them", () => {
+    renderProperties({viewQuery: {...defaultViewQuery, sort: "net_desc", pageSize: 25}});
+    expect(screen.getByRole("button", {name: "Filters"})).toBeTruthy();
+    expect(screen.queryByRole("link", {name: "Reset property filters"})).toBeNull();
+    fireEvent.click(screen.getByRole("button", {name: "Filters"}));
+    expect(screen.getByRole("combobox", {name: "Sort properties"})).toBeTruthy();
+    expect(screen.getByRole("combobox", {name: "Rows per page"})).toBeTruthy();
+  });
+
+  it("tabs between native laptop detail links with no extra row stop", async () => {
+    const user = userEvent.setup();
+    renderProperties();
+    const table = screen.getByRole("table");
+    const rows = within(table).getAllByRole("row").slice(1);
+    const firstLink = within(rows[0]!).getByRole("link", {name: "Home Residence"});
+    const secondLink = within(rows[1]!).getByRole("link", {name: "Riverside House"});
+    expect(rows.every((row) => row.tabIndex === -1)).toBe(true);
+    expect(firstLink.tabIndex).toBe(0);
+    firstLink.focus();
+    await user.tab();
+    expect(document.activeElement).toBe(secondLink);
+    await user.tab({shift: true});
+    expect(document.activeElement).toBe(firstLink);
+    await user.keyboard("{Enter}");
+    expect(navigation.push).toHaveBeenLastCalledWith("/properties/property-1");
+    expect(navigation.push).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["ctrlKey", "metaKey", "shiftKey", "altKey"])(
+    "leaves native property link %s activation to the browser",
+    (modifier) => {
+      renderProperties();
+      const link = within(screen.getByRole("table")).getByRole("link", {name: "Home Residence"});
+      expect(fireEvent.keyDown(link, {key: "Enter", [modifier]: true})).toBe(true);
+      expect(fireEvent.click(link, {[modifier]: true})).toBe(true);
+      expect(navigation.push).not.toHaveBeenCalled();
+    },
+  );
+
+  it("preserves property middle clicks and excludes interactive children from row clicks", () => {
+    renderProperties();
+    const row = within(screen.getByRole("table")).getAllByRole("row")[1]!;
+    const link = within(row).getByRole("link", {name: "Home Residence"});
+    expect(fireEvent.click(link, {button: 1})).toBe(true);
+    expect(fireEvent.click(row, {ctrlKey: true})).toBe(true);
+    const button = document.createElement("button");
+    const label = document.createElement("span");
+    button.append(label);
+    row.querySelector("td")!.append(button);
+    fireEvent.click(label);
+    expect(navigation.push).not.toHaveBeenCalled();
+    fireEvent.click(row);
+    expect(navigation.push).toHaveBeenCalledTimes(1);
+    expect(navigation.push).toHaveBeenCalledWith("/properties/property-1");
   });
 
   it("groups the property tools and register in one borderless data surface", () => {
@@ -548,8 +601,8 @@ describe("PropertyScreen redesign contract", () => {
     expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
 
     const table = screen.getByRole("table");
-    expect(table.className).toContain("text-[13px]");
-    expect(table.querySelector("thead")?.className).toContain("text-[11px]");
+    expect(table.className).toContain("text-sm");
+    expect(table.querySelector("thead")?.className).toContain("text-xs");
 
     const rows = within(table).getAllByRole("row").slice(1);
     expect(
@@ -605,7 +658,7 @@ describe("PropertyScreen redesign contract", () => {
     },
   );
 
-  it("opens card records directly", () => {
+  it("opens compact mobile records directly", () => {
     installMatchMedia(1024);
     renderProperties();
 
@@ -615,17 +668,45 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("supports Enter and Space for opening table rows", () => {
+  it("keeps all primary property facts together in the phone row", () => {
+    installMatchMedia(390);
+    const property = makeProperty("property-long", "CTR", "អគារកណ្ដាល Central Residence with a long name");
+    property.owner = "Nora Owner with a long family name";
+    property.occupiedUnits = 2;
+    property.units = 3;
+    property.unitsWithoutCurrentLease = 1;
+    property.isArchived = true;
+    property.netIncome = {primary: "-USD 9,999,999,999.99"};
+    renderProperties({properties: [property]});
+    const row = within(screen.getByRole("list", {name: "Properties"})).getAllByRole("listitem")[0]!;
+    expect(within(row).getByRole("button", {name: `Open ${property.name}`})).toBeTruthy();
+    for (const text of [property.owner, "2/3 occupied · 1 open", "1 without lease", "-$9,999,999,999.99", "Archived"]) {
+      expect(within(row).getByText(text)).toBeTruthy();
+    }
+    expect(within(row).queryByText("Needs photo")).toBeNull();
+    expect(within(row).queryByText("property-long")).toBeNull();
+  });
+
+  it("opens phone record buttons with native Enter and Space", async () => {
+    installMatchMedia(390);
+    const user = userEvent.setup();
+    renderProperties();
+    const list = screen.getByRole("list", {name: "Properties"});
+    within(list).getByRole("button", {name: "Open Home Residence"}).focus();
+    await user.keyboard("{Enter}");
+    expect(navigation.push).toHaveBeenLastCalledWith("/properties/property-1");
+    within(list).getByRole("button", {name: "Open Riverside House"}).focus();
+    await user.keyboard(" ");
+    expect(navigation.push).toHaveBeenLastCalledWith("/properties/property-2");
+  });
+
+  it("does not intercept keyboard activation on non-focusable property rows", () => {
     renderProperties();
     const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
 
-    rows[1]!.focus();
-    fireEvent.keyDown(rows[1]!, { key: "Enter" });
-    expect(navigation.push).toHaveBeenCalledWith("/properties/property-2");
-
-    rows[0]!.focus();
-    fireEvent.keyDown(rows[0]!, { key: " " });
-    expect(navigation.push).toHaveBeenCalledWith("/properties/property-1");
+    expect(fireEvent.keyDown(rows[1]!, { key: "Enter", ctrlKey: true })).toBe(true);
+    expect(fireEvent.keyDown(rows[0]!, { key: " " })).toBe(true);
+    expect(navigation.push).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
