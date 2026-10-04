@@ -41,6 +41,7 @@ type LeaseActionPermissions = {
 export function LeaseDetailView({
   activeSection,
   returnTo,
+  rentChargesHref,
   lease,
   permissions,
   onAttachFile,
@@ -51,6 +52,7 @@ export function LeaseDetailView({
 }: {
   activeSection: LeaseRecordSection;
   returnTo?: string;
+  rentChargesHref?: string;
   lease: LeaseSummary;
   permissions: LeaseActionPermissions;
   onAttachFile: () => void;
@@ -76,6 +78,7 @@ export function LeaseDetailView({
         ) : null}
         {activeSection === "rent" ? (
           <LeaseRentAndDeposit
+            rentChargesHref={rentChargesHref}
             lease={lease}
             onChangeBillingRules={onChangeBillingRules}
             onManageDeposit={onManageDeposit}
@@ -216,12 +219,14 @@ function LeaseOverview({
 }
 
 function LeaseRentAndDeposit({
+  rentChargesHref,
   lease,
   onChangeBillingRules,
   onManageDeposit,
   onScheduleTerm,
   permissions,
 }: {
+  rentChargesHref?: string;
   lease: LeaseSummary;
   onChangeBillingRules: () => void;
   onManageDeposit: () => void;
@@ -247,6 +252,15 @@ function LeaseRentAndDeposit({
   return (
     <div className="space-y-8">
       <section aria-labelledby="rent-deposit-heading">
+        {rentChargesHref ? (
+          <Link
+            className="mb-3 inline-flex min-h-8 items-center text-sm font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            href={rentChargesHref}
+            prefetch={false}
+          >
+            View rent and charges
+          </Link>
+        ) : null}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <SectionHeading id="rent-deposit-heading" title="Rent & deposit" />
           {hasDepositDetails ? (

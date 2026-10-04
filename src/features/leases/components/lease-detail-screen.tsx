@@ -65,6 +65,7 @@ import type {
 } from "@/features/finance-operations/finance-operations.types";
 import {
   buildLeaseRecordHref,
+  buildLeaseRentChargesHref,
   type LeaseRecordSection,
 } from "@/features/leases/lease-detail-route";
 import type {
@@ -347,6 +348,12 @@ export function LeaseDetailScreen({
       ) : (
         <LeaseDetailView
           returnTo={originHref}
+          rentChargesHref={canViewFinance ? buildLeaseRentChargesHref({
+            leaseId: lease.id,
+            propertyId: lease.formValues.propertyId,
+            unitId: lease.formValues.unitId,
+            returnTo: originHref,
+          }) : undefined}
           activeSection={activeSection}
           permissions={permissions}
           lease={lease}

@@ -8,6 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import type { DraftStatus } from "@/components/ui/draft-action-bar";
 import { Input } from "@/components/ui/input";
 import { SideDrawer, useDrawerDraftGuard } from "@/components/ui/side-drawer";
+import { ROLE_PERMISSION_EFFECTS } from "../role-permission-preview";
+import { RolePermissionPreview } from "./role-permission-preview";
 import {
   normalizePermissionSelection,
   PERMISSION_GROUPS,
@@ -322,11 +324,10 @@ function RoleEditorDraft({
                 </legend>
                 <div className="grid min-w-0 gap-x-4 gap-y-2 sm:grid-cols-2">
                   {group.permissions.map((permission) => (
-                    <label
-                      className="flex min-w-0 items-center gap-2 text-sm"
-                      key={permission.key}
-                    >
+                    <div className="min-w-0" key={permission.key}>
+                    <label className="flex min-w-0 items-center gap-2 text-sm">
                       <Checkbox
+                        aria-describedby={permission.key in ROLE_PERMISSION_EFFECTS ? `role-effect-${permission.key}` : undefined}
                         checked={permissions.includes(permission.key)}
                         disabled={submitting || archived}
                         onCheckedChange={(checked) => {
@@ -344,12 +345,24 @@ function RoleEditorDraft({
                       />
                       <span>{permission.label}</span>
                     </label>
+                    {permission.key in ROLE_PERMISSION_EFFECTS ? (
+                      <p className="mt-1 pl-6 text-xs text-muted-foreground" id={`role-effect-${permission.key}`}>
+                        {ROLE_PERMISSION_EFFECTS[permission.key as keyof typeof ROLE_PERMISSION_EFFECTS]}
+                      </p>
+                    ) : null}
+                    </div>
                   ))}
                 </div>
               </fieldset>
             ))}
           </div>
         </section>
+        <RolePermissionPreview
+          archived={archived}
+          baseline={baselinePermissions}
+          pendingChanges={dirty}
+          permissions={permissions}
+        />
       </div>
     </SideDrawer>
   );
