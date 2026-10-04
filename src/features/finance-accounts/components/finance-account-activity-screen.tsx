@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Table } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import type { FinanceAccountActivity } from "@/features/finance-accounts/data/finance-account-activity";
@@ -46,8 +47,25 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
           </div>
           <p className="font-medium text-lg tabular-nums">USD {activity.total}</p>
         </div>
-        <div aria-label="Account activity table" role="region" tabIndex={0} className="min-w-0 overflow-x-auto rounded-lg border bg-card">
-          <table className="w-full min-w-[900px] table-fixed border-collapse text-[13px] leading-5">
+        <div className="min-w-0 rounded-lg border bg-card">
+          <Table scrollRegionLabel="Account activity table" className="w-full min-w-[900px] table-fixed border-collapse text-[13px] leading-5" mobileContent={(
+            <ul aria-label="Account activity" className="divide-y divide-border text-sm">
+              {activity.rows.map((row) => (
+                <li className="min-w-0 space-y-2 p-3 [overflow-wrap:anywhere]" key={row.id}>
+                  <Link className="block rounded-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" href={row.sourceHref}>{row.description}</Link>
+                  <p className="text-xs text-muted-foreground">{formatDate(row.date)}</p>
+                  <p>{row.propertyLabel}</p>
+                  <p className="text-muted-foreground">{row.contact ?? "-"}</p>
+                  <dl className="space-y-1 tabular-nums">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3"><dt className="text-muted-foreground">Increase</dt><dd className="font-medium">{row.increase ? `USD ${row.increase}` : "-"}</dd></div>
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3"><dt className="text-muted-foreground">Decrease</dt><dd className="font-medium">{row.decrease ? `USD ${row.decrease}` : "-"}</dd></div>
+                    {showRunningBalance ? <div className="flex flex-wrap items-baseline justify-between gap-x-3"><dt className="text-muted-foreground">Running balance</dt><dd className="font-medium">{row.runningBalance ? `USD ${row.runningBalance}` : "-"}</dd></div> : null}
+                  </dl>
+                </li>
+              ))}
+              {activity.rows.length === 0 ? <li className="px-3 py-8 text-center text-muted-foreground">No activity in this period.</li> : null}
+            </ul>
+          )}>
             <thead className="bg-[var(--table-header-bg)] text-left text-[11px] font-medium text-muted-foreground">
               <tr>
                 <th className="px-3 py-2" scope="col">Date</th>
@@ -73,7 +91,7 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
               ))}
               {activity.rows.length === 0 ? <tr><td className="px-3 py-8 text-center text-muted-foreground" colSpan={showRunningBalance ? 7 : 6}>No activity in this period.</td></tr> : null}
             </tbody>
-          </table>
+          </Table>
         </div>
       </div>
     </WorkspacePage>

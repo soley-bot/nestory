@@ -154,6 +154,23 @@ describe("maintenance workspace redesign contract", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("keeps compact maintenance status, priority, detail access and keyboard Preview", async () => {
+    installMatchMedia(390);
+    renderMaintenance();
+    const compact = within(screen.getByRole("list", { name: "Maintenance cases" }));
+    expect(compact.getByRole("link", { name: "Repair sink" })).not.toBeNull();
+    expect(compact.getByText("High")).not.toBeNull();
+    expect(compact.getByText("Owner / Vendor", { selector: "summary" })).not.toBeNull();
+    const preview = compact.getByRole("button", {name: "Preview Repair sink"});
+    preview.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByRole("dialog", {name:"Repair sink quick view"})).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", {name:"Edit"}));
+    expect(screen.getByRole("dialog", {name:"Edit maintenance case"})).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", {name:"Close drawer"}));
+    await waitFor(() => expect(document.activeElement).toBe(preview));
+  });
+
   it("keeps Maintenance queue-first with collapsed filters and keyboard quick view", () => {
     renderMaintenance({
       viewQuery: {

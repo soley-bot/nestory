@@ -25,7 +25,7 @@ describe("FinanceAccountActivityScreen", () => {
     expect(screen.getByText("Asset · Bank")).toBeInTheDocument();
     expect(screen.getByText("Account 1000")).toBeInTheDocument();
     expect(screen.getByText("Primary operating bank.")).toBeInTheDocument();
-    expect(screen.getAllByText("USD 700.00")).toHaveLength(2);
+    expect(screen.getAllByText("USD 700.00")).toHaveLength(3);
     expect(screen.getByLabelText("From")).toHaveValue("2026-08-01");
     expect(screen.getByLabelText("To")).toHaveValue("2026-08-31");
     expect(screen.getByLabelText("Property")).toHaveValue("all");
@@ -35,6 +35,11 @@ describe("FinanceAccountActivityScreen", () => {
       "/leases/lease-1",
     );
     expect(screen.queryByRole("columnheader", { name: "Running balance" })).not.toBeInTheDocument();
+    const compact = within(screen.getByRole("list", { name: "Account activity" }));
+    expect(compact.getByRole("link", {name:"Rent payment"})).toHaveAttribute("href", "/leases/lease-1");
+    expect(compact.getByText("Increase")).toBeInTheDocument();
+    expect(compact.getByText("USD 700.00")).toBeInTheDocument();
+    expect(compact.queryByText("Running balance")).not.toBeInTheDocument();
   });
 
   it("shows a running-balance column only for an authoritative supplied balance", () => {
@@ -47,7 +52,8 @@ describe("FinanceAccountActivityScreen", () => {
     render(<FinanceAccountActivityScreen activity={activity} />);
 
     expect(screen.getByRole("columnheader", { name: "Running balance" })).toBeInTheDocument();
-    expect(screen.getByText("USD 925.00")).toBeInTheDocument();
+    expect(screen.getAllByText("USD 925.00")).toHaveLength(2);
+    expect(within(screen.getByRole("list", { name: "Account activity" })).getByText("Running balance")).toBeInTheDocument();
   });
 });
 
