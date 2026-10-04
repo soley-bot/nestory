@@ -107,8 +107,11 @@ describe("CutoverPanel", () => {
       (document.querySelector('input[name="idempotencyKey"]') as HTMLInputElement).value,
     ).toMatch(/^ips-cutover-stage-/);
     expect(screen.getByLabelText("Manifest data (JSON)")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Stage import plan" })).toBeTruthy();
-    expect(screen.getByLabelText("Approval reason")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Prepare import plan" })).toBeTruthy();
+    const approvalReason = screen.getByLabelText("Approval reason") as HTMLTextAreaElement;
+    expect(approvalReason.value).toBe("");
+    expect(approvalReason.required).toBe(true);
+    expect(approvalReason.placeholder).toBe("Describe how you checked the imported totals.");
     expect(
       (
         document.querySelectorAll('input[name="idempotencyKey"]')[1] as HTMLInputElement

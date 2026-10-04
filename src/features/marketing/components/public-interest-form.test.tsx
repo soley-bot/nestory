@@ -109,8 +109,8 @@ describe("PublicInterestForm", () => {
     expect(screen.getByRole("button", { name: "Sending request" }).closest("fieldset")?.disabled).toBe(true);
     fireEvent.submit(screen.getByRole("form"));
     expect(submitPublicInterestRequest).toHaveBeenCalledTimes(1);
-    expect(screen.queryByText("Thank you for your interest.")).toBeNull();
-    finish({ status: "success", message: "Demo scheduling and account setup are arranged separately." });
+    expect(screen.queryByText("Request received.")).toBeNull();
+    finish({ status: "success", message: "This request does not book a demo or create an account." });
     const confirmation = await screen.findByRole("status");
     await waitFor(() => expect(document.activeElement).toBe(confirmation));
     expect(screen.queryByRole("form")).toBeNull();
@@ -131,7 +131,7 @@ describe("PublicInterestForm", () => {
     await screen.findByText("Request not confirmed");
     expect((screen.getByRole("textbox", { name: /^How can we help/ }) as HTMLTextAreaElement).value).toBe("Show rent tracking.");
     await waitFor(() => expect(document.activeElement?.textContent).toContain("Request not confirmed"));
-    expect(screen.queryByText("Thank you for your interest.")).toBeNull();
+    expect(screen.queryByText("Request received.")).toBeNull();
   });
 
   it("keeps entered details after a connection failure and allows a retry", async () => {

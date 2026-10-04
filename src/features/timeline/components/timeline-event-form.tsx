@@ -88,7 +88,7 @@ export function TimelineEventForm({
         <input name="eventId" type="hidden" value={event.id} />
       ) : null}
 
-      <FormSection title="Record link">
+      <FormSection title="Location">
         <div className="grid gap-4 sm:grid-cols-2">
           <RecordField
             error={state.fieldErrors?.propertyId?.[0]}
@@ -126,7 +126,7 @@ export function TimelineEventForm({
               name="unitId"
               onValueChange={setSelectedUnitId}
               options={[
-                { label: "Property level", value: "" },
+                { label: "No specific unit", value: "" },
                 ...availableUnits.map((unit) => ({
                   label: unit.label,
                   value: unit.id,
@@ -204,7 +204,7 @@ export function TimelineEventForm({
             />
           </RecordField>
         </div>
-        <p className="text-xs text-muted-foreground" id={costHintId}>Cost is for reference only. Not posted to the ledger.</p>
+        <p className="text-xs text-muted-foreground" id={costHintId}>For reference only. This cost does not create an accounting entry.</p>
       </FormSection>
 
       <FormSection title="Notes">

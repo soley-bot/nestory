@@ -193,7 +193,7 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
                 <Field
                   disabled={!canManageStructure || draft.status === "saving"}
                   error={draft.errors.code}
-                  label="Code"
+                  label="Branch code"
                   name="code"
                   onChange={(value) => draft.setField("code", value)}
                   value={draft.values.code}
@@ -326,7 +326,7 @@ function validateBranch(values: BranchDraft) {
     errors.name = "Name must be at least 2 characters.";
   }
   if (values.code.trim().length < 2) {
-    errors.code = "Code must be at least 2 characters.";
+    errors.code = "Enter a branch code with at least 2 characters.";
   }
   return errors;
 }

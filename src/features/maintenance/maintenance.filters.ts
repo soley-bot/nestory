@@ -21,7 +21,7 @@ const monthPattern = /^(\d{4})-(0[1-9]|1[0-2])$/;
 
 type MaintenanceSearchParams = Record<string, SearchParamValue>;
 
-export const DEFAULT_MAINTENANCE_PAGE_SIZE = 25;
+export const DEFAULT_MAINTENANCE_PAGE_SIZE = 10;
 export const DEFAULT_MAINTENANCE_SORT: MaintenanceSortKey = "due_asc";
 
 export function parseMaintenanceSearchParams(

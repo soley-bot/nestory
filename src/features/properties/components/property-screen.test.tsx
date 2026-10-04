@@ -49,7 +49,7 @@ const defaultViewQuery: PropertyViewQuery = {
   netStatus: "all",
   ownerStatus: "all",
   page: 1,
-  pageSize: 50,
+  pageSize: 10,
   query: "",
   review: "all",
   sort: "code_asc",

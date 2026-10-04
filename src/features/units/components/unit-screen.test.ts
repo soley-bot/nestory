@@ -39,7 +39,7 @@ const defaultViewQuery: UnitViewQuery = {
   leaseStatus: "all",
   occupancy: "all",
   page: 1,
-  pageSize: 50,
+  pageSize: 10,
   propertyId: "all",
   query: "",
   sort: "property_asc",

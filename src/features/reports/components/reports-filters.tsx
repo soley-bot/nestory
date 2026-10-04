@@ -42,7 +42,7 @@ export function ReportsFilters({ compact = false, action, ownerOptions, property
       <SearchableSelectControl ariaLabel="Filter report by unit" contentClassName="w-[440px]" wrapOptions className="h-8 min-h-8 w-[280px] max-w-full rounded-full px-3 text-sm font-normal shadow-none" name="unitId" value={unitId} onValueChange={setUnitId} options={[{ label: "All units", value: "all" }, ...visibleUnits.map(unit => ({ label: unit.label, value: unit.id }))]} />
       <Button aria-label="Apply filters" className="h-7 rounded-full px-3 text-xs" type="submit">Apply</Button>
       {showReset ? <Button asChild size="sm" variant="ghost" className="h-7 text-xs"><Link aria-label="Reset report filters" href={`/reports/${viewQuery.report}`}>Reset</Link></Button> : null}
-      <span className="ml-auto rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] text-blue-700 dark:bg-blue-950/30 dark:text-blue-300" title="Income and expenses are recognized by invoice or owner-cost obligation date">Accrual</span>
+      <span className="ml-auto rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] text-blue-700 dark:bg-blue-950/30 dark:text-blue-300" title="Income and expenses count by invoice or cost date, even before payment.">Accrual</span>
     </form>
   </section>;
 

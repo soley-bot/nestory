@@ -2026,7 +2026,7 @@ function ExpenseSubmissionTable({
                 <p className="text-xs text-muted-foreground">
                   {submission.responsibility === "owner"
                     ? "Property owner"
-                    : "Tenant recharge"}
+                    : "Tenant"}
                 </p>
               </Td>
               <Td align="right">
@@ -2406,7 +2406,7 @@ function InvoiceDetails({
           />
           {canCorrect ? (
             <Button onClick={onCorrect} variant="outline">
-              Correct settlement
+              Reverse payment record
             </Button>
           ) : null}
           {pdfHref || canPublishPdf ? (
@@ -2535,7 +2535,7 @@ function SettlementHistory({
   return (
     <section aria-labelledby="settlement-history-heading">
       <h3 className="text-sm font-semibold" id="settlement-history-heading">
-        Settlement history
+        Payment history
       </h3>
       <div className="mt-2 divide-y divide-border border-y border-border">
         {ipsSettlements.map((settlement) => (
@@ -2608,7 +2608,7 @@ function ReceiptAction({
     <form action={formAction} className="flex flex-wrap items-center justify-end gap-2">
       <input name="paymentId" type="hidden" value={settlement.id} />
       <span className="text-muted-foreground">Receipt unavailable</span>
-      {canRetry ? <SubmitButton label="Retry receipt" /> : null}
+      {canRetry ? <SubmitButton label="Create receipt again" /> : null}
       <ActionMessage state={state} />
     </form>
   );
@@ -2632,8 +2632,8 @@ function ExpenseLines({ submission }: { submission: ExpenseSubmissionSummary }) 
                   {line.propertyLabel} · {line.unitLabel} · {line.categoryLabel ?? categoryLabel(line.category)}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  IPS-held owner cash: {line.ownerCashAmount === null
-                    ? "automatic at approval"
+                  Owner funds held by management: {line.ownerCashAmount === null
+                    ? "calculated on approval"
                     : formatMoneyDisplay(line.ownerCashAmount).primary}
                 </p>
               </div>
@@ -2725,7 +2725,7 @@ function ExpenseDetails({
             "Charged to",
             submission.responsibility === "owner"
               ? "Property owner"
-              : "Tenant recharge",
+              : "Tenant",
           ],
           ["Paid from", expensePaymentSourceLabel(submission.fundingSourceLabel)],
           [
@@ -2735,7 +2735,7 @@ function ExpenseDetails({
           ...(submission.customerTotal !== submission.internalCost
             ? ([
                 [
-                  "Customer total",
+                  "Amount charged",
                   <Money
                     amount={submission.customerTotal}
                     key="customer-total"
@@ -2763,8 +2763,8 @@ function ExpenseDetails({
         {submission.status === "submitted" ? <Button onClick={onCancelExpense} variant="ghost">Cancel expense</Button> : null}
       </div> : null}
       {submission.scopedSubtotal !== undefined ? <p className="text-sm">
-        Scoped subtotal: {formatMoneyDisplay(submission.scopedSubtotal).primary}
-        {submission.fullTransactionTotal !== undefined ? <> · Full transaction total: {formatMoneyDisplay(submission.fullTransactionTotal).primary}</> : null}
+        Total shown: {formatMoneyDisplay(submission.scopedSubtotal).primary}
+        {submission.fullTransactionTotal !== undefined ? <> · Whole expense: {formatMoneyDisplay(submission.fullTransactionTotal).primary}</> : null}
       </p> : null}
       {submission.transactionReviewBlocked ? <p className="text-sm text-muted-foreground">
         Part of an expense transaction. Review and reversal require the complete transaction in Bills &amp; Expenses.
@@ -2849,11 +2849,11 @@ function ExpenseDetails({
           </Button>
           {submission.status === "approved" && canReverse && !submission.transactionReviewBlocked ? (
             <Button
-              aria-label={`Delete ${submission.vendorLabel}`}
+              aria-label={`Reverse expense for ${submission.vendorLabel}`}
               onClick={onReverse}
               variant="outline"
             >
-              Delete
+              Reverse expense
             </Button>
           ) : null}
         </FormFooter>
@@ -3609,9 +3609,9 @@ function OwnerExpenseTransactionForm({
                         : formatMoneyDisplay(Number(line.ownerCashAmount)).primary}
                     </summary>
                     <div className="mt-3 sm:max-w-sm">
-                      <Field label="Apply from IPS-held owner cash">
+                      <Field label="Use owner funds held by management">
                         <NumberInput currencyPaste
-                          aria-label="Apply from IPS-held owner cash"
+                          aria-label="Use owner funds held by management"
                           max={line.amount || undefined}
                           min="0"
                           onChange={(event) => updateLine(line.key, { ownerCashAmount: event.target.value })}
@@ -4371,14 +4371,14 @@ function ExpenseReversalForm({
         />
       </Field>
       <p className="text-xs text-muted-foreground">
-        Deleting removes this expense from current balances. The original record stays in history.
+        This reverses the expense in current balances. The original stays in history. No money is refunded.
       </p>
       <ActionMessage state={state} />
       <FormFooter>
         <span />
         <SubmitButton
           disabled={reason.trim().length < 3}
-          label="Delete expense"
+          label="Reverse expense"
         />
       </FormFooter>
     </form>
@@ -4408,9 +4408,9 @@ function SettlementReversalForm({
   if (settlements.length === 0) {
     return (
       <EmptyState
-        body="Every recorded settlement for this invoice is already reversed."
+        body="Every recorded payment for this invoice is already reversed."
         kind="empty"
-        title="No settlement to correct"
+        title="No payment to reverse"
       />
     );
   }
@@ -4431,9 +4431,9 @@ function SettlementReversalForm({
           ],
         ]}
       />
-      <Field label="Settlement">
+      <Field label="Payment record">
         <SelectControl
-          ariaLabel="Settlement"
+          ariaLabel="Payment record"
           name="settlementId"
           onValueChange={setSettlementId}
           options={settlements.map((settlement) => ({
@@ -4460,15 +4460,15 @@ function SettlementReversalForm({
         />
       </Field>
       <p className="text-xs text-muted-foreground">
-        The original stays in history. Nestory adds an equal opposite invoice,
-        property-account, and Ledger event.
+        This reverses the recorded payment and adjusts related balances.
+        The original stays in history. No money is refunded.
       </p>
       <ActionMessage state={state} />
       <FormFooter>
         <span />
         <SubmitButton
           disabled={!settlementId || reason.trim().length < 3}
-          label="Reverse settlement"
+          label="Reverse payment record"
         />
       </FormFooter>
     </form>
@@ -4845,8 +4845,8 @@ function getModalTitle(modal: ModalState) {
       ? "Approve paid cost"
       : "Reject paid cost";
   }
-  if (modal.mode === "expense-reversal") return "Delete expense";
-  if (modal.mode === "settlement-reversal") return "Correct settlement";
+  if (modal.mode === "expense-reversal") return "Reverse expense";
+  if (modal.mode === "settlement-reversal") return "Reverse payment record";
   return "Record owner distribution";
 }
 

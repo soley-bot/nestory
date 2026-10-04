@@ -15,8 +15,8 @@ import {
 } from "@/lib/validation/search-params";
 
 export const DEFAULT_UNIT_ARCHIVE_STATE: UnitArchiveState = "active";
-export const DEFAULT_UNIT_PAGE_SIZE = 50;
-export const UNIT_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+export const DEFAULT_UNIT_PAGE_SIZE = 10;
+export const UNIT_PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 export const DEFAULT_UNIT_SORT: UnitSortKey = "property_asc";
 
 type UnitSearchParams = Record<string, SearchParamValue>;

@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -116,29 +116,34 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
 function renderScreen({
+  branches = [branch],
   currentUserId,
   invitations = [],
   members = [admin],
   people = [person, adminPerson],
+  roles = [customRole],
 }: {
+  branches?: ComponentProps<typeof AccessSettingsScreen>["branches"];
   currentUserId?: string;
   invitations?: ComponentProps<typeof AccessSettingsScreen>["invitations"];
   members?: ComponentProps<typeof AccessSettingsScreen>["members"];
   people?: ComponentProps<typeof AccessSettingsScreen>["people"];
+  roles?: ComponentProps<typeof AccessSettingsScreen>["roles"];
 } = {}) {
   return render(
     <AccessSettingsScreen
-      branches={[branch]}
+      branches={branches}
       currentUserId={currentUserId}
       invitations={invitations}
       members={members}
       people={people}
       role="super_admin"
-      roles={[customRole]}
+      roles={roles}
       staff={people}
     />,
   );
@@ -152,13 +157,164 @@ function getExpandedMember(id: string) {
 }
 
 describe("AccessSettingsScreen protected access rows", () => {
+  const operator = {
+    ...admin,
+    branchId: branch.id,
+    customRoleId: customRole.id,
+    customRoleName: customRole.name,
+    id: "99999999-9999-4999-8999-999999999999",
+    personId: person.id,
+    role: "custom" as const,
+  };
+  const sibling = { ...branch, id: "88888888-8888-4888-8888-888888888888", name: "Chiang Mai" };
+  const third = { ...branch, id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "Phuket" };
+  const assignmentProps = {
+    branches: [branch, sibling, third],
+    members: [admin, operator],
+    people: [person, adminPerson],
+    role: "super_admin" as const,
+    roles: [customRole],
+  };
+
+  async function chooseBranch(user: ReturnType<typeof userEvent.setup>, member: HTMLElement, target: typeof branch) {
+    await user.click(within(member).getByRole("combobox", { name: "Access scope" }));
+    await user.click(screen.getByRole("option", { name: `${target.code} - ${target.name}` }));
+  }
+
+  async function discardAssignment(user: ReturnType<typeof userEvent.setup>, member: HTMLElement) {
+    await user.click(within(member).getByRole("button", { name: "Discard" }));
+    await user.click(within(member).getByRole("button", { name: "Discard changes" }));
+  }
+
+  it("shows a successful save as current immediately while refresh is delayed", async () => {
+    const user = userEvent.setup();
+    let completeSave!: (result: { status: "success"; message: string }) => void;
+    updateAccess.mockImplementationOnce(() => new Promise((resolve) => { completeSave = resolve; }));
+    const view = render(<AccessSettingsScreen {...assignmentProps} />);
+    const member = getExpandedMember(operator.id);
+    await chooseBranch(user, member, sibling);
+    await user.click(within(member).getByRole("button", { name: "Save access" }));
+    expect(within(member).getByRole("region", { name: "Proposed assignment" })).toBeTruthy();
+    vi.useFakeTimers();
+    await act(async () => { completeSave({ status: "success", message: "Access updated." }); });
+    expect(within(member).getByText("Access updated.")).toBeTruthy();
+    expect(within(member).queryByRole("region", { name: "Proposed assignment" })).toBeNull();
+    expect(within(within(member).getByRole("region", { name: "Current assignment" })).getByText("Chiang Mai only")).toBeTruthy();
+    view.rerender(<AccessSettingsScreen {...assignmentProps} members={[admin, { ...operator }]} />);
+    expect(within(within(member).getByRole("region", { name: "Current assignment" })).getByText("Chiang Mai only")).toBeTruthy();
+    act(() => { vi.advanceTimersByTime(4_500); });
+    vi.useRealTimers();
+    expect(within(member).getByRole("region", { name: "Current assignment" })).toBeTruthy();
+    await chooseBranch(user, member, branch);
+    await discardAssignment(user, member);
+    expect(within(within(member).getByRole("region", { name: "Current assignment" })).getByText("Chiang Mai only")).toBeTruthy();
+    expect(updateAccess).toHaveBeenCalledOnce();
+  });
+
+  it.each(["rejected", "thrown"])("keeps a %s save proposed, restores its baseline and permits retry", async (failure) => {
+    const user = userEvent.setup();
+    if (failure === "thrown") updateAccess.mockRejectedValueOnce(new Error("Synthetic failure"));
+    else updateAccess.mockResolvedValueOnce({ status: "error", message: "Synthetic failure" });
+    render(<AccessSettingsScreen {...assignmentProps} />);
+    const member = getExpandedMember(operator.id);
+    await chooseBranch(user, member, sibling);
+    await user.click(within(member).getByRole("button", { name: "Save access" }));
+    await waitFor(() => expect(within(member).getByText(failure === "thrown" ? "Access could not be saved." : "Synthetic failure")).toBeTruthy());
+    expect(within(within(member).getByRole("region", { name: "Proposed assignment" })).getByText("Chiang Mai only")).toBeTruthy();
+    await discardAssignment(user, member);
+    expect(within(within(member).getByRole("region", { name: "Current assignment" })).getByText("Bangkok only")).toBeTruthy();
+    await chooseBranch(user, member, sibling);
+    await user.click(within(member).getByRole("button", { name: "Save access" }));
+    await waitFor(() => expect(within(within(member).getByRole("region", { name: "Current assignment" })).getByText("Chiang Mai only")).toBeTruthy());
+    expect(updateAccess).toHaveBeenCalledTimes(2);
+  });
+
+  it("adopts refreshed assignments when clean and uses them as the discard baseline", async () => {
+    const user = userEvent.setup();
+    const view = render(<AccessSettingsScreen {...assignmentProps} />);
+    const member = getExpandedMember(operator.id);
+    view.rerender(<AccessSettingsScreen {...assignmentProps} members={[admin, { ...operator, branchId: sibling.id }]} />);
+    expect(within(within(member).getByRole("region", { name: "Current assignment" })).getByText("Chiang Mai only")).toBeTruthy();
+    await chooseBranch(user, member, third);
+    await discardAssignment(user, member);
+    expect(within(within(member).getByRole("region", { name: "Current assignment" })).getByText("Chiang Mai only")).toBeTruthy();
+    expect(updateAccess).not.toHaveBeenCalled();
+  });
+
+  it("preserves unsaved edits across refreshed props and discards to the refreshed baseline", async () => {
+    const user = userEvent.setup();
+    const view = render(<AccessSettingsScreen {...assignmentProps} />);
+    const member = getExpandedMember(operator.id);
+    await chooseBranch(user, member, sibling);
+    view.rerender(<AccessSettingsScreen {...assignmentProps} members={[admin, { ...operator, branchId: third.id }]} />);
+    expect(within(within(member).getByRole("region", { name: "Proposed assignment" })).getByText("Chiang Mai only")).toBeTruthy();
+    await discardAssignment(user, member);
+    expect(within(within(member).getByRole("region", { name: "Current assignment" })).getByText("Phuket only")).toBeTruthy();
+    expect(updateAccess).not.toHaveBeenCalled();
+  });
+
+  it("shows the assigned role permissions and one branch before any edits", () => {
+    renderScreen({ members: [admin, operator] });
+    const panel = within(getExpandedMember(operator.id)).getByRole("region", { name: "Current assignment" });
+    expect(within(panel).getByText(customRole.name)).toBeTruthy();
+    expect(within(panel).getByText(`${branch.name} only`)).toBeTruthy();
+    expect(within(panel).getByText("Maintenance")).toBeTruthy();
+    expect(within(panel).getByText("View")).toBeTruthy();
+    expect(within(panel).queryByText("Create & assign")).toBeNull();
+    expect(within(panel).queryByText("Finance")).toBeNull();
+    expect(within(panel).queryByText(/All branches/)).toBeNull();
+    expect(updateAccess).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { name: "missing role", roles: [], branches: [branch], message: "Role permissions could not be confirmed." },
+    { name: "archived role", roles: [{ ...customRole, status: "archived" as const }], branches: [branch], message: "This role is archived. Ordinary access is unavailable." },
+    { name: "empty role", roles: [{ ...customRole, permissions: [] }], branches: [branch], message: "This role has no permissions. Ordinary access is unavailable." },
+    { name: "inactive branch", roles: [customRole], branches: [{ ...branch, status: "inactive" }], message: "An active assigned branch is required for ordinary access." },
+  ])("explains $name without claiming full access", ({ roles, branches, message }) => {
+    renderScreen({ branches, members: [admin, operator], roles });
+    const panel = within(getExpandedMember(operator.id)).getByRole("region", { name: "Current assignment" });
+    expect(within(panel).getByText(message)).toBeTruthy();
+    expect(within(panel).queryByText("Full access within this company")).toBeNull();
+    expect(updateAccess).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes unsaved assignment changes from granted access", async () => {
+    const user = userEvent.setup();
+    const sibling = { ...branch, id: "88888888-8888-4888-8888-888888888888", name: "Chiang Mai" };
+    renderScreen({ branches: [branch, sibling], members: [admin, operator] });
+    const member = getExpandedMember(operator.id);
+    await user.click(within(member).getByRole("combobox", { name: "Access scope" }));
+    await user.click(screen.getByRole("option", { name: `${sibling.code} - ${sibling.name}` }));
+    const panel = within(member).getByRole("region", { name: "Proposed assignment" });
+    expect(within(panel).getByText("Chiang Mai only")).toBeTruthy();
+    expect(within(panel).getByText("Changes take effect only after Save access succeeds.")).toBeTruthy();
+    expect(updateAccess).not.toHaveBeenCalled();
+  });
+
+  it("explains that an invitation has not granted access", async () => {
+    const user = userEvent.setup();
+    renderScreen({ invitations: [pendingInvitation] });
+    await user.click(screen.getByRole("tab", { name: "Invitations1" }));
+    expect(screen.getByText("This invitation grants access only after it is accepted.")).toBeTruthy();
+    expect(addAccess).not.toHaveBeenCalled();
+  });
+
+  it("explains company-only offboarding and preserved Staff history", () => {
+    renderScreen({ members: [admin, operator] });
+    const member = getExpandedMember(operator.id);
+    fireEvent.click(within(member).getByRole("button", { name: "Remove access" }));
+    expect(within(member).getByText(/lose access to this company immediately.*Staff record and its history will be kept/)).toBeTruthy();
+    expect(removeAccess).not.toHaveBeenCalled();
+  });
+
   it("explains the access boundary before showing the register", () => {
     renderScreen();
 
     expect(screen.getByRole("heading", { name: "Workspace access" })).toBeTruthy();
     expect(
       screen.getByText(
-        "Sign-in, role, and branch scope.",
+        "Sign-in, role, and branches.",
       ),
     ).toBeTruthy();
   });

@@ -796,7 +796,6 @@ function MaintenanceCasesCommandBar({
           <FilterPopover
             activeCount={advancedFilterCount}
             contentClassName="w-[min(760px,calc(100vw-2rem))]"
-            description={`Narrow ${listLabel} by scope, priority, status, attention, or month.`}
             title="Filter maintenance"
           >
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(180px,1fr)_160px_160px_160px]">
@@ -1787,7 +1786,7 @@ export function MaintenanceForm({
                 name={costScopeLocked ? undefined : "unitId"}
                 onValueChange={setUnitId}
                 options={[
-                  { label: "Property level", value: "" },
+                  { label: "No specific unit", value: "" },
                   ...visibleUnits.map((unit) => ({
                     label: unit.label,
                     value: unit.id,

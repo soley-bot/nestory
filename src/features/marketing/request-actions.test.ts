@@ -76,7 +76,7 @@ describe("submitPublicInterestRequest", () => {
       const state = await submitPublicInterestRequest({}, validFormData());
 
       expect(state).toEqual({
-        message: "Demo scheduling and account setup are arranged separately.",
+        message: "This request does not book a demo or create an account.",
         status: "success",
       });
     },

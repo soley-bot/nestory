@@ -100,7 +100,7 @@ export function TimelineScreen({
   propertyOptions,
   recentChanges,
   scope,
-  title = "Timeline History",
+  title = "Timeline",
   unitOptions,
   viewQuery,
 }: TimelineScreenProps) {
@@ -507,8 +507,8 @@ export function getTimelineReviewContext(
 
   if (focusedState.hasFocusedEventIntent) {
     return {
-      detail: "The event may be outside the current filters or access scope.",
-      suffix: "Source event unavailable",
+      detail: "It may be hidden by filters, or you may not have access.",
+      suffix: "Event unavailable",
     };
   }
 

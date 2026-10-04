@@ -131,7 +131,7 @@ export const OrganizationIdentityEditor = forwardRef<
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">Workspace address</p>
                   <p className="mt-0.5 break-all font-mono text-sm text-foreground">{address}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Locked after provisioning.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">This address cannot be changed.</p>
                 </div>
                 <Button
                   disabled={!copyableWorkspaceUrl}
@@ -176,7 +176,7 @@ export const OrganizationIdentityEditor = forwardRef<
                   value={workspaceSetup.preferredCurrency}
                 />
                 <SetupRow
-                  label="Operational timezone"
+                  label="Workspace time zone"
                   value={workspaceSetup.operationalTimezone}
                 />
               </dl>

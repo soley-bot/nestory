@@ -30,7 +30,7 @@ export function TransactionRowActions({ row, canCorrect, canViewLeases, canCorre
       <DropdownMenuContent align="end">
         {source.kind === "charge" && canCorrect && canViewLeases && canCorrectIssuedRent && source.invoice.lines.some(line => line.lineType === "rent") ? <DropdownMenuItem asChild><Link href={`/leases/${source.invoice.leaseId}`}>Edit issued rent on lease</Link></DropdownMenuItem> : null}
         {onEditExpense ? <DropdownMenuItem onSelect={onEditExpense}>Edit</DropdownMenuItem> : null}
-        {onDeleteExpense ? <DropdownMenuItem onSelect={onDeleteExpense}>Delete</DropdownMenuItem> : null}
+        {onDeleteExpense ? <DropdownMenuItem onSelect={onDeleteExpense}>{source.kind === "expense" && source.submission.status === "submitted" ? "Cancel expense" : "Reverse expense"}</DropdownMenuItem> : null}
         {canCorrect && entry ? <DropdownMenuItem onSelect={() => setDeleting(true)}>Delete</DropdownMenuItem> : null}
         {canCorrect && block ? <DropdownMenuItem disabled>{block}</DropdownMenuItem> : null}
       </DropdownMenuContent>

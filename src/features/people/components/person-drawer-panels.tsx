@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect } from "react";
+import { useRecordLifecycleAction } from "@/features/records/use-record-lifecycle-action";
 import { Archive, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,21 +41,19 @@ export function ArchivePersonPanel({
     (role) => role.role === "tenant" && role.status === "active",
   );
   const hasBlockingLeases = blockingLeases.length > 0;
-  const [state, action, pending] = useActionState(
-    isTenant ? archiveTenantAction : archivePersonAction,
-    archiveInitialState,
-  );
-
-  useEffect(() => {
-    if (state.status === "success") {
-      onSuccess(state.message ?? "Person archived.");
-      onClose();
-    }
-  }, [onClose, onSuccess, state.message, state.status]);
+  const { state, pending, onSubmit, requestClose } = useRecordLifecycleAction({
+    action: isTenant ? archiveTenantAction : archivePersonAction,
+    initialState: archiveInitialState,
+    onClose,
+    onSuccess,
+    successMessage: "Person archived.",
+    blocked: hasBlockingLeases,
+  });
 
   return (
     <form
-      action={action}
+      onSubmit={onSubmit}
+      aria-busy={pending}
       className={
         presentation === "modal" ? "flex flex-col" : "flex h-full flex-col"
       }
@@ -92,9 +90,7 @@ export function ArchivePersonPanel({
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            This person will leave active lists while linked history remains
-            available. Permanent deletion is not available for operational
-            person records.
+            Removes this person from active lists. Their history is kept. People cannot be permanently deleted.
           </p>
         )}
         <PanelMessage state={state} />
@@ -110,7 +106,7 @@ export function ArchivePersonPanel({
         }
         icon={<Archive size={15} />}
         intent="danger"
-        onClose={onClose}
+        onClose={requestClose}
         pending={pending}
         presentation={presentation}
         showConfirm={!hasBlockingLeases}
@@ -125,21 +121,18 @@ export function RestorePersonPanel({
   person,
   presentation = "drawer",
 }: PersonPanelProps) {
-  const [state, action, pending] = useActionState(
-    restorePersonAction,
-    restoreInitialState,
-  );
-
-  useEffect(() => {
-    if (state.status === "success") {
-      onSuccess(state.message ?? "Person restored.");
-      onClose();
-    }
-  }, [onClose, onSuccess, state.message, state.status]);
+  const { state, pending, onSubmit, requestClose } = useRecordLifecycleAction({
+    action: restorePersonAction,
+    initialState: restoreInitialState,
+    onClose,
+    onSuccess,
+    successMessage: "Person restored.",
+  });
 
   return (
     <form
-      action={action}
+      onSubmit={onSubmit}
+      aria-busy={pending}
       className={
         presentation === "modal" ? "flex flex-col" : "flex h-full flex-col"
       }
@@ -164,7 +157,7 @@ export function RestorePersonPanel({
       <PanelFooter
         confirmLabel={pending ? "Restoring..." : "Restore person"}
         icon={<RotateCcw size={15} />}
-        onClose={onClose}
+        onClose={requestClose}
         pending={pending}
         presentation={presentation}
       />

@@ -49,7 +49,7 @@ describe("OrganizationIdentityEditor", () => {
     );
 
     expect(screen.getByText("spm.nestory-kh.com")).not.toBeNull();
-    expect(screen.getByText(/locked after provisioning/i)).not.toBeNull();
+    expect(screen.getByText(/this address cannot be changed/i)).not.toBeNull();
     expect(screen.queryByRole("textbox", { name: /workspace address/i })).toBeNull();
     expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
 
@@ -133,7 +133,7 @@ describe("OrganizationIdentityEditor", () => {
     expect(screen.getByRole("heading", { name: "Workspace setup" })).not.toBeNull();
     expect(screen.getByText("Workspace currency")).not.toBeNull();
     expect(screen.getByText("USD")).not.toBeNull();
-    expect(screen.getByText("Operational timezone")).not.toBeNull();
+    expect(screen.getByText("Workspace time zone")).not.toBeNull();
     expect(screen.getByText("Asia/Phnom_Penh")).not.toBeNull();
     expect(screen.getByText("Not editable in Settings")).not.toBeNull();
     expect(screen.queryByRole("button", { name: /edit.*currency/i })).toBeNull();

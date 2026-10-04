@@ -39,7 +39,7 @@ describe("AccountScreen", () => {
       <AccountScreen
         identity={adminIdentity}
         profile={linkedProfile}
-        securityStepUp={<div>Privileged email verification</div>}
+        securityStepUp={<div>Verify your email</div>}
       />,
     );
 
@@ -51,8 +51,8 @@ describe("AccountScreen", () => {
     expect(html).toContain('id="account-profile-title">');
     expect(html).toContain("Profile</h2>");
     expect(html).toContain("Security and sign-in</h2>");
-    expect(html).toContain("Privileged email verification");
-    expect(html).toContain("Access scope</h2>");
+    expect(html).toContain("Verify your email");
+    expect(html).toContain("Your access</h2>");
     expect(html).toContain("Session</h2>");
 
     const sectionTags = html.match(/<section\b[^>]*>/g) ?? [];
@@ -114,7 +114,7 @@ describe("AccountScreen", () => {
       />,
     );
 
-    expect(html).toContain("Access scope");
+    expect(html).toContain("Your access");
     expect(html).toContain("Assigned work");
     expect(html).not.toContain("Signing out ends this browser session.");
     expect(html).not.toContain("Workspace Access");
@@ -138,7 +138,7 @@ describe("AccountScreen", () => {
 
     expect(html).toContain("Organization-wide");
     expect(html).toContain(
-      "Organization-wide Finance read and expense review access.",
+      "View finance and review expenses across all branches.",
     );
     expect(html).not.toContain("Assigned task access");
   });

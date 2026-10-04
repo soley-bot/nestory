@@ -10,6 +10,6 @@ export default async function TimelinePage({
   return renderTimelineRoute({
     scope: "global",
     searchParams,
-    title: "Timeline History",
+    title: "Timeline",
   });
 }

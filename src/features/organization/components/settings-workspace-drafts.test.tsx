@@ -94,7 +94,7 @@ describe("SettingsWorkspace drafts", () => {
       within(drawer).getByRole("textbox", { name: "Name" }),
     ).not.toBeNull();
     expect(
-      within(drawer).getByRole("textbox", { name: "Code" }),
+      within(drawer).getByRole("textbox", { name: "Branch code" }),
     ).not.toBeNull();
     expect(
       within(drawer).getByRole("textbox", { name: "Address" }),
@@ -131,7 +131,7 @@ describe("SettingsWorkspace drafts", () => {
     const drawer = screen.getByRole("dialog", { name: "Manage Bangkok" });
 
     expect((within(drawer).getByRole("textbox", { name: "Name" }) as HTMLInputElement).value).toBe("Bangkok");
-    expect((within(drawer).getByRole("textbox", { name: "Code" }) as HTMLInputElement).value).toBe("BKK");
+    expect((within(drawer).getByRole("textbox", { name: "Branch code" }) as HTMLInputElement).value).toBe("BKK");
     expect(within(drawer).getByText("Archiving is blocked while this branch has assigned access, active properties, teams, person links, maintenance work, recurrence, or pending scoped records. Nothing is deleted.")).not.toBeNull();
     expect(within(drawer).getByRole("button", { name: "Archive branch" })).not.toBeNull();
   });
@@ -362,7 +362,7 @@ describe("SettingsWorkspace drafts", () => {
 
     await openBranchDrawer(user);
     const name = screen.getByRole("textbox", { name: "Name" });
-    const code = screen.getByRole("textbox", { name: "Code" });
+    const code = screen.getByRole("textbox", { name: "Branch code" });
     const address = screen.getByRole("textbox", { name: "Address" });
     const save = screen.getByRole("button", { name: "Save" });
 
@@ -403,7 +403,7 @@ describe("SettingsWorkspace drafts", () => {
 
     await openBranchDrawer(user);
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
-    await user.type(screen.getByRole("textbox", { name: "Code" }), " hkt ");
+    await user.type(screen.getByRole("textbox", { name: "Branch code" }), " hkt ");
 
     expect(
       within(screen.getByRole("region", { name: "Branch impact" })).getByText(
@@ -542,7 +542,7 @@ describe("SettingsWorkspace drafts", () => {
 
     await openBranchDrawer(user);
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
-    await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
+    await user.type(screen.getByRole("textbox", { name: "Branch code" }), "HKT");
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.getByText("Adding branch")).not.toBeNull();
 
@@ -573,7 +573,7 @@ describe("SettingsWorkspace drafts", () => {
 
     await openBranchDrawer(user);
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
-    await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
+    await user.type(screen.getByRole("textbox", { name: "Branch code" }), "HKT");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(await screen.findByText("Branch added.")).not.toBeNull();

@@ -1,0 +1,108 @@
+{
+  "base": "32d26e3ee66a3de5309d95b737c8b0b05b18c7f3",
+  "passed": 136,
+  "failed": 0,
+  "files": [
+    {
+      "file": "src/features/maintenance/maintenance.filters.test.ts",
+      "status": "passed",
+      "tests": 11
+    },
+    {
+      "file": "src/features/properties/property.filters.test.ts",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "file": "src/features/units/unit.filters.test.ts",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "file": "src/app/(dashboard)/maintenance/page.test.tsx",
+      "status": "passed",
+      "tests": 13
+    },
+    {
+      "file": "src/app/(dashboard)/properties/page.test.tsx",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "file": "src/app/(dashboard)/units/page.test.tsx",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "file": "src/features/maintenance/data/maintenance.loader.test.ts",
+      "status": "passed",
+      "tests": 14
+    },
+    {
+      "file": "src/features/maintenance/components/maintenance-screen.test.ts",
+      "status": "passed",
+      "tests": 15
+    },
+    {
+      "file": "src/features/properties/components/property-screen.test.tsx",
+      "status": "passed",
+      "tests": 35
+    },
+    {
+      "file": "src/features/units/data/units.loading.test.ts",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "file": "src/features/units/components/unit-screen.test.ts",
+      "status": "passed",
+      "tests": 22
+    }
+  ],
+  "unitMeasurement": {
+    "fixtureRecords": 120,
+    "before": {
+      "pageSize": 50,
+      "range": [
+        0,
+        49
+      ],
+      "baseRows": 50,
+      "tableRequests": 6,
+      "unitRelationshipRequests": 4,
+      "idsPerRelationship": 50,
+      "totalCount": 120
+    },
+    "after": {
+      "pageSize": 10,
+      "range": [
+        0,
+        9
+      ],
+      "baseRows": 10,
+      "tableRequests": 6,
+      "unitRelationshipRequests": 4,
+      "idsPerRelationship": 10,
+      "totalCount": 120
+    }
+  },
+  "propertyMeasurement": {
+    "fixtureRecords": 120,
+    "before": {
+      "range": [
+        0,
+        49
+      ],
+      "baseRows": 50,
+      "totalCount": 120
+    },
+    "after": {
+      "range": [
+        0,
+        9
+      ],
+      "baseRows": 10,
+      "totalCount": 120
+    }
+  }
+}

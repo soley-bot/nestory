@@ -53,7 +53,7 @@ export function FeePaymentDateModal({ leaseId, onClose, onSuccess }: {
       setAllocationId(first?.allocationId ?? "");
       setPaymentDate(first?.paymentDate ?? "");
     }).catch(() => {
-      if (active) setMessage("Fee settlements could not be loaded. Try again.");
+      if (active) setMessage("Fee payments could not be loaded. Try again.");
     });
     return () => { active = false; };
   }, [leaseId, reload]);
@@ -103,14 +103,14 @@ export function FeePaymentDateModal({ leaseId, onClose, onSuccess }: {
   return (
     <Modal open title="Correct fee payment date" onClose={() => { if (!pending) onClose(); }}>
       <div className="space-y-4 p-4">
-        <p className="text-sm text-muted-foreground">Set the actual payment date for a settled management fee. The original settlement remains in the audit history.</p>
+        <p className="text-sm text-muted-foreground">Correct a management fee payment date. The original record stays in history.</p>
         {candidates === null ? (
-          <div role="status" className="text-sm">{message ?? "Loading fee settlements…"}{message ? <Button className="ml-2" variant="outline" onClick={() => { setMessage(null); setReload((value) => value + 1); }}>Try again</Button> : null}</div>
-        ) : candidates.length === 0 ? <p role="status" className="text-sm">No eligible fee settlements are available for this lease.</p> : (
+          <div role="status" className="text-sm">{message ?? "Loading fee payments…"}{message ? <Button className="ml-2" variant="outline" onClick={() => { setMessage(null); setReload((value) => value + 1); }}>Try again</Button> : null}</div>
+        ) : candidates.length === 0 ? <p role="status" className="text-sm">No fee payments can be corrected for this lease.</p> : (
           <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void loadPreview(); }}>
             <fieldset className="space-y-4" disabled={pending}>
-              <label className="grid gap-1.5 text-sm font-medium">Fee settlement
-                <SelectControl ariaLabel="Fee settlement" name="allocationId" value={allocationId} required options={candidates.map((candidate) => ({ value: candidate.allocationId, label: `${candidate.invoiceNumber} · ${candidate.amount.toFixed(2)} · ${candidate.paymentDate}` }))} onValueChange={(value) => {
+              <label className="grid gap-1.5 text-sm font-medium">Fee payment
+                <SelectControl ariaLabel="Fee payment" name="allocationId" value={allocationId} required options={candidates.map((candidate) => ({ value: candidate.allocationId, label: `${candidate.invoiceNumber} · ${candidate.amount.toFixed(2)} · ${candidate.paymentDate}` }))} onValueChange={(value) => {
                   invalidatePreview(); setAllocationId(value); setPaymentDate(candidates.find((candidate) => candidate.allocationId === value)?.paymentDate ?? "");
                 }} />
               </label>
@@ -127,11 +127,11 @@ export function FeePaymentDateModal({ leaseId, onClose, onSuccess }: {
             {preview ? <div className="space-y-3 border-t border-border pt-3 text-sm">
               <dl className="grid grid-cols-2 gap-2">
                 <dt className="text-muted-foreground">Payment date</dt><dd className="text-right">{preview.oldDate} → {preview.newDate}</dd>
-                <dt className="text-muted-foreground">Settlement amount</dt><dd className="text-right tabular-nums">{preview.amount.toFixed(2)}</dd>
+                <dt className="text-muted-foreground">Payment amount</dt><dd className="text-right tabular-nums">{preview.amount.toFixed(2)}</dd>
                 <dt className="text-muted-foreground">Payment date effect on {preview.oldDate < preview.newDate ? preview.oldDate : preview.newDate}</dt><dd className="text-right tabular-nums">{preview.cashChangeOnEarlierDate > 0 ? "+" : ""}{preview.cashChangeOnEarlierDate.toFixed(2)}</dd>
-                <dt className="text-muted-foreground">Owner ledger cash change</dt><dd className="text-right tabular-nums">{preview.currentBalanceChange > 0 ? "+" : ""}{preview.currentBalanceChange.toFixed(2)}</dd>
+                <dt className="text-muted-foreground">Change in owner cash balance</dt><dd className="text-right tabular-nums">{preview.currentBalanceChange > 0 ? "+" : ""}{preview.currentBalanceChange.toFixed(2)}</dd>
               </dl>
-              {preview.currentBalanceChange !== 0 ? <p className="text-muted-foreground">Includes reconciliation of existing cash records, not a new payment.</p> : null}
+              {preview.currentBalanceChange !== 0 ? <p className="text-muted-foreground">Existing cash records will be corrected. No new payment is recorded.</p> : null}
               {preview.blockers.length ? <ul className="space-y-1 text-destructive" role="alert">{preview.blockers.map((blocker) => <li key={blocker}>{blockerMessage(blocker)}</li>)}</ul> : null}
               <Button type="button" disabled={pending || !preview.canApply || reason.trim().length < 8} onClick={() => void applyCorrection()}>Confirm payment date correction</Button>
             </div> : null}

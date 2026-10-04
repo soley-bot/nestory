@@ -21,7 +21,7 @@
     "shell-recurring": { "kind": "global", "href": "/recurring-tasks", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/recurring-tasks\"", "labelToken": "label: \"Recurring work\"" },
     "shell-inspections": { "kind": "global", "href": "/inspections", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/inspections\"", "labelToken": "label: \"Inspections\"" },
     "shell-work-orders": { "kind": "global", "href": "/work-orders", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/work-orders\"", "labelToken": "label: \"Work orders\"" },
-    "shell-timeline": { "kind": "global", "href": "/timeline", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/timeline\"", "labelToken": "label: \"Timeline history\"" },
+    "shell-timeline": { "kind": "global", "href": "/timeline", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/timeline\"", "labelToken": "label: \"Timeline\"" },
     "shell-property-timeline": { "kind": "global", "href": "/property-timeline", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/property-timeline\"", "labelToken": "label: \"Property timeline\"" },
     "shell-maintenance-timeline": { "kind": "global", "href": "/maintenance-timeline", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/maintenance-timeline\"", "labelToken": "label: \"Maintenance timeline\"" },
     "shell-financial-timeline": { "kind": "global", "href": "/financial-timeline", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/financial-timeline\"", "labelToken": "label: \"Financial timeline\"" },

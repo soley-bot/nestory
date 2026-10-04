@@ -81,7 +81,7 @@ function makeCase(
     statusLabel: "Pending",
     statusTone: "neutral",
     title: "General task",
-    unitLabel: "Property level",
+    unitLabel: "No specific unit",
     vendorLabel: "No vendor",
     ...overrides,
   };

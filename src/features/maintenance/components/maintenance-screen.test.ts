@@ -70,7 +70,7 @@ describe("maintenance screen report links", () => {
       archiveState: "active",
       month: "2026-06",
       page: 1,
-      pageSize: 25,
+      pageSize: 10,
       priority: "all",
       propertyId: "all",
       query: "",

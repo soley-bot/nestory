@@ -33,14 +33,14 @@ export function PrivilegedEmailStepUp({
     <div className="mt-4 border-t border-border pt-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="max-w-2xl">
-          <h3 className="text-sm font-semibold">Privileged email verification</h3>
+          <h3 className="text-sm font-semibold">Verify your email</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             Codes are sent only to {status.email}. They expire after 10 minutes and
             are limited to five attempts.
           </p>
           {!status.enforcementEnabled ? (
             <p className="mt-1 text-xs text-muted-foreground">
-              Staged control: privileged access is not blocked by this verification yet.
+              This verification does not block access yet.
             </p>
           ) : null}
           {verifiedForSession ? (

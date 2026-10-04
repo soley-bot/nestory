@@ -88,7 +88,7 @@ export function CutoverPanel({
           />
         </dl>
       ) : (
-        <p className="text-sm text-muted-foreground">No import plan has been staged.</p>
+        <p className="text-sm text-muted-foreground">No import plan has been prepared.</p>
       )}
       {detail?.blockers.length ? (
         <div role="alert" className="rounded-md border border-destructive/40 p-3">
@@ -138,7 +138,7 @@ export function CutoverPanel({
       {canManage ? (
         <div className="grid gap-4 xl:grid-cols-2">
           <form action={stageAction} className="space-y-3 rounded-md border border-border p-3">
-            <h3 className="font-medium">Stage import plan</h3>
+            <h3 className="font-medium">Prepare import plan</h3>
             <FormField label="Start date" name="authorityStartDate" type="date" defaultValue={detail?.authorityStartDate ?? "2026-09-01"} />
             <FormField label="Data owner" name="dataOwner" defaultValue={detail?.dataOwner ?? ""} placeholder="Name or team" />
             <input name="idempotencyKey" type="hidden" value={stageRequestKey} />
@@ -156,7 +156,7 @@ export function CutoverPanel({
               </label>
             </details>
             <Button disabled={staging} type="submit">
-              {staging ? "Staging…" : "Stage import plan"}
+              {staging ? "Preparing…" : "Prepare import plan"}
             </Button>
             <ActionMessage state={stageState} />
           </form>
@@ -171,7 +171,7 @@ export function CutoverPanel({
                 name="signoffReason"
                 required
                 rows={3}
-                defaultValue="Redacted source totals independently checked"
+                placeholder="Describe how you checked the imported totals."
               />
             </label>
             <Button

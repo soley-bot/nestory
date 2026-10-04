@@ -38,7 +38,7 @@ afterEach(() => {
 
 describe("TimelineScreen workspace contract", () => {
   it.each([
-    ["global", "Timeline History", "All history"],
+    ["global", "Timeline", "All history"],
     ["property", "Property Timeline", "Property records"],
     ["maintenance", "Maintenance Timeline", "Maintenance records"],
     ["financial", "Financial Timeline", "Financial records"],
@@ -336,8 +336,8 @@ describe("TimelineScreen workspace contract", () => {
     renderTimeline();
     await user.click(screen.getByRole("button", { name: "Add event" }));
     const drawer = screen.getByRole("dialog");
-    expect(within(drawer).getAllByRole("heading", { name: "Record link" })).toHaveLength(1);
-    expect(within(drawer).getByText("Cost is for reference only. Not posted to the ledger.")).not.toBeNull();
+    expect(within(drawer).getAllByRole("heading", { name: "Location" })).toHaveLength(1);
+    expect(within(drawer).getByText("For reference only. This cost does not create an accounting entry.")).not.toBeNull();
   });
 
   it("keeps URL-backed filters stable and clears focus-only parameters", async () => {
@@ -423,7 +423,7 @@ function renderTimeline(
       propertyOptions={[{ id: "property-1", label: "HOME / Home" }]}
       recentChanges={[]}
       scope={route.scope ?? "global"}
-      title={route.title ?? "Timeline History"}
+      title={route.title ?? "Timeline"}
       unitOptions={[{ id: "unit-1", label: "HOME / Unit 1A", propertyId: "property-1" }]}
       viewQuery={{ ...defaultViewQuery, ...query }}
     />,

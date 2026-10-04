@@ -43,7 +43,7 @@ export function RoleRegister({
       <CardHeader className="border-b">
         <SettingsSectionHeader
           action={<Button onClick={onNewRole}>New role</Button>}
-          description="Access profiles available to workspace members."
+          description="Roles control what members can do."
           title="Roles"
         />
       </CardHeader>

@@ -352,8 +352,8 @@ export function ImportPreviewScreen({
             >
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
                 <span>
-                  Column mapping · {mappedFieldCount} matched ·{" "}
-                  {missingRequiredMatches} required missing
+                  Match columns · {mappedFieldCount} matched ·{" "}
+                  {missingRequiredMatches} required fields missing
                 </span>
                 <ChevronDown aria-hidden="true" className="text-muted-foreground" size={15} />
               </summary>
@@ -423,10 +423,8 @@ export function ImportPreviewScreen({
 
             {selectedType === "people" ? (
               <p className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
-                Unmapped optional fields keep existing values. Mapped blank email,
-                phone, legal name, tax ID, and notes clear existing values. Blank
-                party type keeps the existing type; new people default to Individual.
-                Use Person ID to select a person when names or emails are shared.
+                Blank cells in matched email, phone, legal name, tax ID or notes
+                columns erase saved values. Columns you leave unmatched keep saved values.
               </p>
             ) : null}
 
@@ -479,8 +477,7 @@ export function ImportPreviewScreen({
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Only ready rows are written. Blocked rows stay in the import
-                    run for correction.
+                    Only ready rows are imported. Fix the other rows and upload them again.
                   </p>
                 )}
                 {showCurrentActionState && currentAction.mode === "terminal" ? (
@@ -687,7 +684,7 @@ function AttentionDetails({
               href={errorRowsHref}
             >
               <Download aria-hidden="true" size={14} />
-              Error rows
+              Download row errors
             </a>
             <a
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm font-medium hover:bg-muted"
@@ -695,13 +692,13 @@ function AttentionDetails({
               href={fixTemplateHref}
             >
               <Download aria-hidden="true" size={14} />
-              Fix template
+              Download rows to fix
             </a>
           </div>
         ) : null}
         {errorRowsHref && fixTemplateHref ? (
           <p className="mb-3 text-xs text-muted-foreground">
-            Use Error rows to see the problems. Use Fix template to prepare only the blocked rows for a new upload.
+            The rows-to-fix file contains only blocked rows for a corrected upload.
           </p>
         ) : null}
         <div className="max-h-64 space-y-2 overflow-auto">

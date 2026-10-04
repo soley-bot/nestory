@@ -52,7 +52,7 @@ export async function stageIpsCutoverBatchAction(
     manifest,
   });
   if (!parsed.success) {
-    return { message: "Complete the cutover authority and manifest fields.", status: "error" };
+    return { message: "Enter a start date, data owner and valid import manifest.", status: "error" };
   }
   const context = await requireSuperAdminContext();
   const supabase = (await createSupabaseServerClient()) as unknown as CutoverRpcClient;
@@ -68,7 +68,7 @@ export async function stageIpsCutoverBatchAction(
   }
   const staged = stageResultSchema.safeParse(result.data);
   if (!staged.success) {
-    return { message: "Could not read the staged cutover result.", status: "error" };
+    return { message: "Could not read the saved import plan.", status: "error" };
   }
   revalidatePath("/import");
   return {
@@ -76,8 +76,8 @@ export async function stageIpsCutoverBatchAction(
     manifestSha256: staged.data.manifest_sha256,
     message:
       staged.data.status === "blocked"
-        ? "Cutover manifest staged with blockers. Correct the source and stage a new manifest."
-        : "Cutover manifest staged and ready for reconciliation.",
+        ? "Import plan saved. Fix the listed issues and prepare a new plan."
+        : "Import plan saved. Check the imported totals.",
     status: "success",
   };
 }
@@ -92,7 +92,7 @@ export async function commitIpsCutoverBatchAction(
     signoffReason: formData.get("signoffReason"),
   });
   if (!parsed.success) {
-    return { message: "Select a staged batch and record the reconciliation sign-off.", status: "error" };
+    return { message: "Choose a prepared import plan and explain how you checked the totals.", status: "error" };
   }
   const context = await requireSuperAdminContext();
   const supabase = (await createSupabaseServerClient()) as unknown as CutoverRpcClient;
@@ -107,15 +107,15 @@ export async function commitIpsCutoverBatchAction(
   }
   const committed = commitResultSchema.safeParse(result.data);
   if (!committed.success) {
-    return { batchId: parsed.data.batchId, message: "Could not read the cutover reconciliation result.", status: "error" };
+    return { batchId: parsed.data.batchId, message: "Could not read the imported totals check.", status: "error" };
   }
   revalidatePath("/import");
   return {
     batchId: committed.data.batch_id,
     message:
       committed.data.status === "blocked"
-        ? "Cutover reconciliation is blocked. Review the exact differences and stage a corrected manifest."
-        : "Cutover reconciled and frozen.",
+        ? "Totals do not match. Review the differences and prepare a corrected import plan."
+        : "Imported totals confirmed. This import plan is now locked.",
     reconciliationId: committed.data.reconciliation_id,
     status: "success",
   };
@@ -134,8 +134,8 @@ function readManifest(value: FormDataEntryValue | null) {
 }
 
 function cutoverErrorMessage(message: string) {
-  if (message.includes("cutover_not_authorized")) return "Only a Super Admin can manage cutover authority.";
-  if (message.includes("cutover_batch_not_ready")) return "Resolve every cutover blocker before reconciliation.";
-  if (message.includes("Conflicting financial idempotency")) return "This cutover request key was already used for different inputs.";
-  return "The cutover authority could not be updated.";
+  if (message.includes("cutover_not_authorized")) return "Only a Super Admin can manage import plans.";
+  if (message.includes("cutover_batch_not_ready")) return "Fix all import issues before checking the totals.";
+  if (message.includes("Conflicting financial idempotency")) return "This request was already saved with different details. Refresh the import plan before trying again.";
+  return "The import plan could not be updated.";
 }

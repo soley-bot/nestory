@@ -97,9 +97,8 @@ export function TimelineFilters({
         <FilterPopover
           activeCount={advancedFilterCount}
           contentClassName="w-[min(640px,calc(100vw-2rem))]"
-          description="Narrow records by property, unit, date, type, record state, sort, or page size."
           id="timeline-advanced-search"
-          title="Filter records"
+          title="Filter timeline"
         >
           <div className="grid gap-2 text-sm md:grid-cols-2">
             <SelectControl

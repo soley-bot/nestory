@@ -124,7 +124,7 @@ const MAINTENANCE_CHILDREN = [
 ] satisfies readonly GlobalDestinationChild[];
 
 const RECORDS_CHILDREN = [
-  { href: "/timeline", label: "Timeline history", routes: ["/timeline"] },
+  { href: "/timeline", label: "Timeline", routes: ["/timeline"] },
   {
     href: "/property-timeline",
     label: "Property timeline",

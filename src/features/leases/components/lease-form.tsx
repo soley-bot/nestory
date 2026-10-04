@@ -289,6 +289,55 @@ export function LeaseForm({
     setCreateStepError(null);
   }
 
+  const moveInContext = !isEditMode && (createContext || tenantRecipient) ? (
+    <div aria-label="Move-in context" className="border-b border-border/70 pb-3 text-sm">
+      {createContext ? (
+        <p className="font-medium text-foreground">
+          <span>{createContext.propertyLabel}</span>
+          <span aria-hidden> / </span>
+          <span>{createContext.unitLabel ?? "Whole property"}</span>
+        </p>
+      ) : null}
+      {tenantRecipient ? <p className="text-muted-foreground">Tenant: {tenantRecipient.label}</p> : null}
+    </div>
+  ) : null;
+
+  if (!isEditMode && state.status === "success" && state.leaseId) {
+    return (
+      <RecordForm
+        action={action}
+        ariaLabel="Saved lease"
+        hideSaveOnSuccess
+        onCancel={onClose}
+        onSave={() => undefined}
+        pending={false}
+        saveLabel="Create draft lease"
+        state={state}
+      >
+        {moveInContext}
+        <p className="text-sm text-muted-foreground">
+          Review the saved lease before continuing move-in. Rent and deposit details are available on the lease.
+        </p>
+        <div className="flex flex-wrap gap-3 text-sm font-medium text-primary">
+          <Link
+            className="inline-flex min-h-8 items-center gap-1.5 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            href={buildLeaseRecordHref({ leaseId: state.leaseId, returnTo })}
+            prefetch={false}
+          >
+            {setupMode ? "Open lease" : "Open draft"} <ArrowRight aria-hidden size={14} className="inline" />
+          </Link>
+          <Link
+            className="inline-flex min-h-8 items-center outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            href={buildLeaseRecordHref({ leaseId: state.leaseId, section: "rent", returnTo })}
+            prefetch={false}
+          >
+            View rent and deposit
+          </Link>
+        </div>
+      </RecordForm>
+    );
+  }
+
   return (
     <>
       <RecordForm
@@ -328,6 +377,8 @@ export function LeaseForm({
           type="hidden"
           value={idempotencyKey}
         />
+
+        {moveInContext}
 
         {!isEditMode ? (
           <nav aria-label="Create lease steps">
@@ -374,20 +425,6 @@ export function LeaseForm({
           >
             {createStepError.message}
           </p>
-        ) : null}
-
-        {!isEditMode && state.status === "success" && state.leaseId ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-y border-success/30 py-2 text-sm">
-            <p className="font-medium text-foreground">Draft created</p>
-            <Link
-              className="inline-flex h-8 items-center gap-1.5 font-medium text-accent outline-none transition-colors hover:text-accent/75 focus-visible:ring-2 focus-visible:ring-ring"
-              href={buildLeaseRecordHref({ leaseId: state.leaseId, returnTo })}
-              prefetch={false}
-            >
-              Open draft
-              <ArrowRight aria-hidden size={14} />
-            </Link>
-          </div>
         ) : null}
 
         {isEditMode ? (
@@ -443,19 +480,6 @@ export function LeaseForm({
             onInput={clearCreateStepError}
           >
             <FormSection title="Tenant">
-              {createContext ? (
-                <div className="flex flex-wrap items-center gap-1.5 border-b border-border/70 pb-3 text-sm">
-                  <span className="font-medium text-foreground">
-                    {createContext.propertyLabel}
-                  </span>
-                  <span aria-hidden className="text-muted-foreground">
-                    /
-                  </span>
-                  <span className="text-muted-foreground">
-                    {createContext.unitLabel ?? "Whole property"}
-                  </span>
-                </div>
-              ) : null}
               <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <RecordField
                   error={state.fieldErrors?.tenantPersonId?.[0]}
@@ -519,7 +543,7 @@ export function LeaseForm({
                     <span className="mt-1 block text-sm">No end date</span>
                   </button>
                   <p className="mt-1.5 text-xs text-muted-foreground">
-                    Requires a future lease-contract update
+                    Not supported yet
                   </p>
                 </div>
               </div>
@@ -744,7 +768,7 @@ export function LeaseForm({
           >
             {isEditMode ? (
               <p className="text-sm text-muted-foreground">
-                This unused draft rule follows the lease start date.
+                Billing rules start on the lease start date.
               </p>
             ) : null}
             <LeaseBillingRuleFields

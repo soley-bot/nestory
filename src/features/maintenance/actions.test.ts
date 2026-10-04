@@ -161,7 +161,7 @@ describe("maintenance action capabilities", () => {
     const result = await submitMaintenanceCostAction({}, formData);
 
     expect(result).toEqual({
-      message: "Receipt evidence could not be retained. Try again.",
+      message: "The receipt could not be saved. Try again.",
       status: "error",
     });
     expect(result.message).not.toContain(sentinel);

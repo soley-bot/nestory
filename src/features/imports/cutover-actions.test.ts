@@ -84,6 +84,19 @@ describe("IPS cutover actions", () => {
     expect(mocks.requireSuperAdminContext).not.toHaveBeenCalled();
   });
 
+  it.each(["", "   ", "checked"])("rejects an insufficient approval reason before accessing the database: %j", async (reason) => {
+    const formData = new FormData();
+    formData.set("batchId", "10000000-0000-4000-8000-000000000001");
+    formData.set("idempotencyKey", "cutover-commit-v1");
+    formData.set("signoffReason", reason);
+
+    const result = await commitIpsCutoverBatchAction({}, formData);
+
+    expect(result.status).toBe("error");
+    expect(mocks.requireSuperAdminContext).not.toHaveBeenCalled();
+    expect(mocks.createSupabaseServerClient).not.toHaveBeenCalled();
+  });
+
   it("commits one staged batch with explicit sign-off through the checked RPC", async () => {
     const rpc = vi.fn().mockResolvedValue({
       data: {

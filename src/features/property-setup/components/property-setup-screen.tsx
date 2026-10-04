@@ -201,16 +201,16 @@ export function PropertySetupScreen({
                   {property ? (
                     requiresUnit ? (
                       <SelectRecordStep
-                        createLabel="Create new rental space"
-                        emptyCopy="This property has no rental spaces yet."
-                        label="Rental space"
+                        createLabel="Add unit"
+                        emptyCopy="This property has no units yet."
+                        label="Unit"
                         onCreate={() => setCreateModal("unit")}
                         onSelect={(id) => changeSelection("unitId", id || null)}
                         options={unitOptions.map((option) => ({
                           label: `${option.label} · ${getSetupUnitStatusLabel(option.id, option.statusLabel, data.leases)}`,
                           value: option.id,
                         }))}
-                        placeholder="Choose rental space"
+                        placeholder="Choose unit"
                         value={selection.unitId ?? ""}
                       />
                     ) : (
@@ -818,7 +818,7 @@ function stepTitle(step: PropertySetupStep, requiresUnit = true) {
   return [
     "Choose the responsible owner",
     requiresUnit
-      ? "Choose the property and rental space"
+      ? "Choose the property and unit"
       : "Choose the property",
     "Connect the tenant through a lease",
     "Finish rent setup",

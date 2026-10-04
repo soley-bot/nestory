@@ -89,7 +89,7 @@ describe("parseMaintenanceSearchParams", () => {
     expect(parsed).toMatchObject({
       archiveState: "active",
       page: 1,
-      pageSize: 25,
+      pageSize: 10,
       priority: "all",
       propertyId: "all",
       review: "open",
