@@ -8,8 +8,6 @@ export type UnitBadgeTone = "neutral" | "success" | "warning" | "danger" | "acce
 
 export type UnitArchiveState = "active" | "archived" | "all";
 
-export type UnitDisplayMode = "table" | "cards";
-
 export type UnitSortKey =
   | "property_asc"
   | "unit_asc"

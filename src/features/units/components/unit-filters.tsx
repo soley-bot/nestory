@@ -4,7 +4,7 @@ import * as Popover from "@radix-ui/react-popover";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, RotateCcw, SlidersHorizontal, Table2 } from "lucide-react";
+import { RotateCcw, SlidersHorizontal } from "lucide-react";
 import type { RegisterNavigation } from "@/components/data/use-register-navigation";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
@@ -16,7 +16,6 @@ import {
   parseUnitSearchParams,
 } from "@/features/units/unit.filters";
 import {
-  type UnitDisplayMode,
   type UnitPropertyOption,
   type UnitViewQuery,
 } from "@/features/units/unit.types";
@@ -24,16 +23,12 @@ import { cn } from "@/lib/utils";
 
 type UnitFiltersProps = {
   navigation: RegisterNavigation;
-  displayMode: UnitDisplayMode;
-  onDisplayModeChange: (mode: UnitDisplayMode) => void;
   properties: UnitPropertyOption[];
   viewQuery: UnitViewQuery;
 };
 
 export function UnitFilters({
   navigation,
-  displayMode,
-  onDisplayModeChange,
   properties,
   viewQuery,
 }: UnitFiltersProps) {
@@ -60,24 +55,21 @@ export function UnitFilters({
   return (
     <div aria-busy={isPending} className="w-full min-w-0">
       <div>
-        <div className="flex flex-col gap-2 text-sm lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-2 text-sm lg:justify-between">
           <SearchCombo
             ariaLabel="Search units"
-            className="w-full lg:max-w-none"
+            className="basis-0 sm:basis-0 lg:max-w-none"
             disabled={isPending}
             onQueryChange={search.onQueryChange}
             onCompositionChange={search.onCompositionChange}
             onSubmit={search.onSubmit}
             placeholder="Search property, unit, owner or tenant"
             query={query}
+            showSubmitButton={false}
             submitLabel="Search units"
           />
 
-          <div className="flex min-w-0 items-center gap-1.5">
-            <ViewModeToggle
-              displayMode={displayMode}
-              onDisplayModeChange={onDisplayModeChange}
-            />
+          <div className="flex shrink-0 items-center gap-1.5">
             <Popover.Root>
               <Popover.Trigger asChild>
                 <button
@@ -270,62 +262,5 @@ function FilterField({
       <span>{label}</span>
       {children}
     </div>
-  );
-}
-
-function ViewModeToggle({
-  displayMode,
-  onDisplayModeChange,
-}: {
-  displayMode: UnitDisplayMode;
-  onDisplayModeChange: (mode: UnitDisplayMode) => void;
-}) {
-  return (
-    <div
-      aria-label="Unit view"
-      className="hidden h-8 rounded-md border border-border bg-muted p-0.5 text-xs md:inline-flex"
-      role="group"
-    >
-      <ViewModeButton
-        active={displayMode === "table"}
-        icon={<Table2 size={14} />}
-        label="Table"
-        onClick={() => onDisplayModeChange("table")}
-      />
-      <ViewModeButton
-        active={displayMode === "cards"}
-        icon={<LayoutGrid size={14} />}
-        label="Cards"
-        onClick={() => onDisplayModeChange("cards")}
-      />
-    </div>
-  );
-}
-
-function ViewModeButton({
-  active,
-  icon,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  icon: ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      aria-pressed={active}
-      className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
-        active && "bg-card text-foreground shadow-sm",
-      )}
-      onClick={onClick}
-      title={`${label} view`}
-      type="button"
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
   );
 }

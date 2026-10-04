@@ -4,10 +4,8 @@ import * as Popover from "@radix-ui/react-popover";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutGrid,
   RotateCcw,
   SlidersHorizontal,
-  Table2,
   X,
 } from "lucide-react";
 import type { RegisterNavigation } from "@/components/data/use-register-navigation";
@@ -21,7 +19,6 @@ import {
 } from "@/features/properties/property.filters";
 import type { PropertySummary } from "@/features/properties/data/properties";
 import type {
-  PropertyDisplayMode,
   PropertyViewQuery,
 } from "@/features/properties/property.types";
 import { cn } from "@/lib/utils";
@@ -84,8 +81,6 @@ const sortFilterOptions = [
 
 type PropertyFiltersProps = {
   navigation: RegisterNavigation;
-  displayMode: PropertyDisplayMode;
-  onDisplayModeChange: (mode: PropertyDisplayMode) => void;
   onOpenProperty: (propertyId: string) => void;
   properties: PropertySummary[];
   viewQuery: PropertyViewQuery;
@@ -93,8 +88,6 @@ type PropertyFiltersProps = {
 
 export function PropertyFilters({
   navigation,
-  displayMode,
-  onDisplayModeChange,
   onOpenProperty,
   properties,
   viewQuery,
@@ -106,10 +99,11 @@ export function PropertyFilters({
     : viewQuery;
   const activeFilterChips = getActivePropertyFilters(viewQuery);
   const activeFilters = activeFilterChips.filter(
-    (filter) => filter.param !== "query",
+    (filter) => !["query", "sort", "pageSize"].includes(filter.param),
   ).length;
   const hasAdvancedFilters = activeFilters > 0;
   const hasAnyFilters = activeFilterChips.length > 0;
+  const hasRecordFilters = hasAdvancedFilters || viewQuery.query.trim().length > 0;
   const query = search.query;
   const compactSelectClassName = "h-8 w-full px-2 text-sm";
   const propertySuggestions = getPropertySuggestions(properties, query);
@@ -117,10 +111,10 @@ export function PropertyFilters({
   return (
     <div aria-busy={isPending} className="w-full min-w-0">
       <div>
-        <div className="flex flex-col gap-2 text-sm lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-2 text-sm lg:justify-between">
           <SearchCombo
             ariaLabel="Search properties"
-            className="lg:max-w-[520px]"
+            className="basis-0 sm:basis-0 lg:max-w-[520px]"
             disabled={isPending}
             onQueryChange={search.onQueryChange}
             onCompositionChange={search.onCompositionChange}
@@ -136,11 +130,7 @@ export function PropertyFilters({
             submitLabel="Search properties"
           />
 
-          <div className="flex min-w-0 items-center gap-1.5">
-            <ViewModeToggle
-              displayMode={displayMode}
-              onDisplayModeChange={onDisplayModeChange}
-            />
+          <div className="flex shrink-0 items-center gap-1.5">
             <Popover.Root>
               <Popover.Trigger asChild>
                 <button
@@ -338,7 +328,7 @@ export function PropertyFilters({
                 </Popover.Content>
               </Popover.Portal>
             </Popover.Root>
-            {hasAnyFilters ? (
+            {hasRecordFilters ? (
               <Link
                 aria-label="Reset property filters"
                 className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-card px-2 text-primary outline-none transition-colors hover:bg-muted hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
@@ -534,61 +524,4 @@ function getPropertySuggestions(properties: PropertySummary[], query: string) {
     label: property.name,
     meta: property.status,
   }));
-}
-
-function ViewModeToggle({
-  displayMode,
-  onDisplayModeChange,
-}: {
-  displayMode: PropertyDisplayMode;
-  onDisplayModeChange: (mode: PropertyDisplayMode) => void;
-}) {
-  return (
-    <div
-      aria-label="Property view"
-      className="hidden h-8 rounded-md border border-border bg-muted p-0.5 text-xs md:inline-flex"
-      role="group"
-    >
-      <ViewModeButton
-        active={displayMode === "table"}
-        icon={<Table2 size={14} />}
-        label="Table"
-        onClick={() => onDisplayModeChange("table")}
-      />
-      <ViewModeButton
-        active={displayMode === "cards"}
-        icon={<LayoutGrid size={14} />}
-        label="Cards"
-        onClick={() => onDisplayModeChange("cards")}
-      />
-    </div>
-  );
-}
-
-function ViewModeButton({
-  active,
-  icon,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      aria-pressed={active}
-      className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
-        active && "bg-card text-foreground shadow-sm",
-      )}
-      onClick={onClick}
-      title={`${label} view`}
-      type="button"
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
-  );
 }

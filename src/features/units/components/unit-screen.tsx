@@ -19,7 +19,6 @@ import { UnitFilters } from "@/features/units/components/unit-filters";
 import { UnitsTable } from "@/features/units/components/units-table";
 import { DEFAULT_UNIT_SORT } from "@/features/units/unit.filters";
 import type {
-  UnitDisplayMode,
   UnitFormValues,
   UnitPagination,
   UnitPropertyOption,
@@ -73,8 +72,6 @@ export function UnitScreen({
       ? { initialValues: createInitialValues, mode: "create" }
       : null,
   );
-  const displayMode: UnitDisplayMode =
-    searchParams.get("view") === "cards" ? "cards" : "table";
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const openUnitRecord = (unitId: string) => {
     navigation.cancelPending();
@@ -82,9 +79,6 @@ export function UnitScreen({
   };
   const changeSort = (sort: UnitSortKey) => {
     navigation.replaceParam("sort", sort, DEFAULT_UNIT_SORT);
-  };
-  const changeDisplayMode = (mode: UnitDisplayMode) => {
-    navigation.replaceParam("view", mode, "table");
   };
 
   useEffect(() => {
@@ -142,10 +136,9 @@ export function UnitScreen({
         />
       ) : (
         <>
-          <div className="min-h-0 flex-1 p-3">
+          <div className="min-h-0 flex-1 p-3 lg:pt-0">
             <UnitsTable
               archiveState={viewQuery.archiveState}
-              displayMode={displayMode}
               onSelectUnit={openUnitRecord}
               onSortChange={changeSort}
               sort={viewQuery.sort}
@@ -189,8 +182,6 @@ export function UnitScreen({
       toolbar={
         <UnitFilters
           navigation={navigation}
-          displayMode={displayMode}
-          onDisplayModeChange={changeDisplayMode}
           properties={propertyOptions}
           viewQuery={viewQuery}
         />

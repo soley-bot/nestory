@@ -36,11 +36,11 @@ export function PeopleFilters({
   const activeFilters = [
     viewQuery.status !== "all",
     viewQuery.archiveState !== DEFAULT_PEOPLE_ARCHIVE_STATE,
-    viewQuery.sort !== DEFAULT_PEOPLE_SORT,
   ].filter(Boolean).length;
   const hasSearchQuery = viewQuery.query.trim().length > 0;
   const hasAdvancedFilters = activeFilters > 0;
   const hasAnyFilters = hasSearchQuery || hasAdvancedFilters;
+  const hasCustomSort = viewQuery.sort !== DEFAULT_PEOPLE_SORT;
   const query = search.query;
   const compactSelectClassName = "h-8 w-full px-2 text-sm";
 
@@ -64,6 +64,7 @@ export function PeopleFilters({
             onSubmit={search.onSubmit}
             placeholder={searchPlaceholder}
             query={query}
+            showSubmitButton={false}
             submitLabel="Search people"
           />
 
@@ -102,7 +103,7 @@ export function PeopleFilters({
                           Filter people
                         </h2>
                       </div>
-                      {hasAnyFilters ? (
+                      {hasAnyFilters || hasCustomSort ? (
                         <Link
                           className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                           href={resetHref}

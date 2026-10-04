@@ -26,7 +26,6 @@ import type { PropertyPortfolioSummary } from "@/features/properties/data/proper
 import { DEFAULT_PROPERTY_SORT } from "@/features/properties/property.filters";
 import type {
   PropertyBranchOption,
-  PropertyDisplayMode,
   PropertyFormValues,
   PropertyOwnerOption,
   PropertyPagination,
@@ -78,8 +77,6 @@ export function PropertyScreen({
       ? { initialValues: createInitialValues, mode: "create" }
       : null,
   );
-  const displayMode: PropertyDisplayMode =
-    searchParams.get("view") === "cards" ? "cards" : "table";
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const reviewContext = getPropertyReviewContext(viewQuery);
   const openPropertyAction = (nextDrawer: DrawerState) => {
@@ -89,9 +86,6 @@ export function PropertyScreen({
   const openPropertyRecord = (propertyId: string) => {
     navigation.cancelPending();
     router.push(`/properties/${propertyId}`);
-  };
-  const changeDisplayMode = (mode: PropertyDisplayMode) => {
-    navigation.replaceParam("view", mode, "table");
   };
   const changeSort = (sort: PropertySortKey) => {
     navigation.replaceParam("sort", sort, DEFAULT_PROPERTY_SORT);
@@ -164,8 +158,6 @@ export function PropertyScreen({
       >
         <PropertyFilters
           navigation={navigation}
-          displayMode={displayMode}
-          onDisplayModeChange={changeDisplayMode}
           onOpenProperty={openPropertyRecord}
           properties={properties}
           viewQuery={viewQuery}
@@ -198,7 +190,6 @@ export function PropertyScreen({
         <>
           <div className="min-h-0 flex-1">
             <PropertiesTable
-              displayMode={displayMode}
               onNetSortChange={() => navigation.replaceParam(
                 "sort",
                 (sort) => sort === "net_desc" ? "net_asc" : "net_desc",
@@ -231,13 +222,12 @@ export function PropertyScreen({
             />
           }
           className="px-4 sm:px-6 2xl:px-8"
+          navigation={<PropertyPortfolioSummaryNav onNavigate={navigation.cancelPending} summary={portfolioSummary} />}
           title="Properties"
         />
       }
     >
       <div className="flex min-w-0 flex-col">
-        <PropertyPortfolioSummaryNav onNavigate={navigation.cancelPending} summary={portfolioSummary} />
-
       {statusMessage ? (
         <div className="shrink-0 px-4 py-2 sm:px-6">
           <div
@@ -327,7 +317,7 @@ function PropertyPortfolioSummaryNav({
     {
       href: "/properties?status=active",
       icon: Circle,
-      label: "Active properties",
+      label: "Active",
       tone: "text-success",
       value: summary.activeProperties,
     },
@@ -341,7 +331,7 @@ function PropertyPortfolioSummaryNav({
     {
       href: "/properties?leaseStatus=missing",
       icon: CircleAlert,
-      label: "Without current lease",
+      label: "Without lease",
       tone: "text-warning",
       value: summary.unitsWithoutCurrentLease,
     },
@@ -350,14 +340,14 @@ function PropertyPortfolioSummaryNav({
   return (
     <nav
       aria-label="Portfolio summary"
-      className="workspace-gutter-x grid shrink-0 grid-cols-1 border-b border-border px-4 pb-4 sm:grid-cols-3 sm:px-6 2xl:px-8"
+      className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1"
     >
       {items.map((item) => {
         const Icon = item.icon;
 
         return (
         <Link
-          className="group flex min-w-0 items-center gap-2 border-t border-border py-2.5 first:border-t-0 sm:border-l sm:border-t-0 sm:px-5 sm:py-0 sm:first:border-l-0 sm:first:pl-0"
+          className="group flex min-h-11 min-w-0 items-center gap-1.5 lg:min-h-8"
           data-slot="portfolio-summary-item"
           href={item.href}
           onNavigate={onNavigate}

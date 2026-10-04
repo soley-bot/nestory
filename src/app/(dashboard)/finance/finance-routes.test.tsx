@@ -213,7 +213,10 @@ describe("finance routes", () => {
         role,
       });
 
-      const html = renderToStaticMarkup(await page({ searchParams: Promise.resolve({ expenseMonth: "2026-08" }) }));
+      const result = page === BillsExpensesPage
+        ? await BillsExpensesPage({ searchParams: Promise.resolve({ expenseMonth: "2026-08" }) })
+        : await page({});
+      const html = renderToStaticMarkup(result);
 
       expect(html).toContain("Finance route");
       expect(requireFinanceContext).toHaveBeenCalledOnce();
@@ -268,7 +271,7 @@ describe("finance routes", () => {
       role: "super_admin",
     });
 
-    renderToStaticMarkup(await FinancePage());
+    renderToStaticMarkup(await FinancePage({}));
 
     expect(screenSpy).toHaveBeenCalledWith(
       expect.objectContaining({

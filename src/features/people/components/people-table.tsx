@@ -73,14 +73,14 @@ export function PeopleTable({
             className="overflow-x-auto"
             role="region"
           >
-            <table className="w-full min-w-[900px] table-fixed border-collapse text-left text-[13px]">
+            <table className="w-full min-w-[900px] table-fixed border-collapse text-left text-sm">
               {isRoleScoped ? (
                 <colgroup>
-                  <col className="w-[24%]" />
+                  <col className={roleContext === "staff" ? "w-[22%]" : "w-[24%]"} />
                   <col className="w-[22%]" />
                   <col className="w-[15%]" />
-                  <col className="w-[29%]" />
-                  <col className="w-[10%]" />
+                  <col className={roleContext === "staff" ? "w-[15%]" : "w-[29%]"} />
+                  <col className={roleContext === "staff" ? "w-[26%]" : "w-[10%]"} />
                 </colgroup>
               ) : (
                 <colgroup>
@@ -88,11 +88,11 @@ export function PeopleTable({
                   <col className="w-[10%]" />
                   <col className="w-[20%]" />
                   <col className="w-[14%]" />
-                  <col className="w-[26%]" />
-                  <col className="w-[8%]" />
+                  <col className="w-[21%]" />
+                  <col className="w-[13%]" />
                 </colgroup>
               )}
-              <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+              <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 {isRoleScoped ? (
                   <tr>
                     <th className="px-2.5 py-2.5 font-semibold">
@@ -179,11 +179,12 @@ export function PeopleTable({
                         />
                       </td>
                       {isRoleScoped ? (
-                        <td className="px-2 py-2">
+                        <td className={cn("px-2", roleContext === "staff" ? "py-1.5" : "py-2")}>
                           {roleContext === "staff" ? (
                             canManageWorkspaceAccess(person) &&
                             accessByPersonId?.[person.id] ? (
                               <WorkspaceAccessStatus
+                                className="space-y-1 [&>div]:gap-1 [&_.truncate]:overflow-visible [&_.truncate]:whitespace-normal [&_.truncate]:[overflow-wrap:anywhere]"
                                 personId={person.id}
                                 personName={person.displayName}
                                 status={accessByPersonId[person.id]}
@@ -371,7 +372,7 @@ function PhoneCell({ person }: { person: PeopleSummary }) {
 
 function StatusCell({ person }: { person: PeopleSummary }) {
   return (
-    <Badge className="max-w-full px-2 text-xs" tone={person.statusTone}>
+    <Badge className="h-auto min-h-5 max-w-full shrink whitespace-normal px-2 text-center text-xs [overflow-wrap:anywhere]" tone={person.statusTone}>
       {person.statusLabel}
     </Badge>
   );
@@ -436,12 +437,12 @@ function StatusBadges({
   return (
     <div
       className={cn(
-        "flex shrink-0 flex-wrap gap-1.5",
+        "flex min-w-0 flex-wrap gap-1.5",
         compact && "justify-center",
       )}
     >
       <Badge
-        className={compact ? "px-2 text-xs" : undefined}
+        className={compact ? "h-auto min-h-5 max-w-full shrink whitespace-normal px-2 text-center text-xs [overflow-wrap:anywhere]" : undefined}
         tone={person.statusTone}
       >
         {person.statusLabel}

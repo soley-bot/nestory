@@ -1,11 +1,10 @@
 "use client";
 
-import { useTransition } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { RotateCcw } from "lucide-react";
 import { FilterPopover } from "@/components/ui/filter-popover";
-import { useRegisterSearch } from "@/components/ui/use-register-search";
+import type { useRegisterSearch } from "@/components/ui/use-register-search";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import {
@@ -21,29 +20,33 @@ import type {
 } from "@/features/leases/lease.types";
 
 type LeaseFiltersProps = {
+  navigation: LeaseFilterNavigation;
   properties: LeasePropertyOption[];
   units: LeaseUnitOption[];
   viewQuery: LeaseViewQuery;
 };
 
+export type LeaseFilterNavigation = {
+  isPending: boolean;
+  replaceParam: (name: string, value: string, defaultValue: string, deleteNames?: string[]) => void;
+  search: ReturnType<typeof useRegisterSearch>;
+};
+
 export function LeaseFilters({
+  navigation,
   properties,
   units,
   viewQuery,
 }: LeaseFiltersProps) {
   const pathname = usePathname();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
-  const search = useRegisterSearch(viewQuery.query, (value) =>
-    replaceParam("query", value, ""),
-  );
+  const { isPending, replaceParam, search } = navigation;
   const advancedFilterCount = getAdvancedFilterCount(viewQuery);
   const hasActiveFilters =
     viewQuery.query.trim().length > 0 ||
     advancedFilterCount > 0 ||
     viewQuery.endsWithinDays !== null ||
     viewQuery.endMonth !== "";
+  const hasTableSetup = viewQuery.sort !== DEFAULT_LEASE_SORT || viewQuery.pageSize !== DEFAULT_LEASE_PAGE_SIZE;
   const query = search.query;
   const compactSelectClassName = "h-8 px-2 text-sm";
   const visibleUnitOptions =
@@ -54,34 +57,6 @@ export function LeaseFilters({
             unit.propertyId === viewQuery.propertyId ||
             unit.id === viewQuery.unitId,
         );
-
-  function replaceParam(
-    name: string,
-    value: string,
-    defaultValue: string,
-    deleteNames: string[] = [],
-  ) {
-    const nextParams = new URLSearchParams(searchParams.toString());
-
-    if (value === defaultValue || value.trim() === "") {
-      nextParams.delete(name);
-    } else {
-      nextParams.set(name, value);
-    }
-
-    nextParams.delete("page");
-    nextParams.delete("leaseId");
-    for (const deleteName of deleteNames) {
-      nextParams.delete(deleteName);
-    }
-    const queryString = nextParams.toString();
-
-    startTransition(() => {
-      router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
-        scroll: false,
-      });
-    });
-  }
 
   return (
     <div className="w-full min-w-0">
@@ -94,13 +69,14 @@ export function LeaseFilters({
           onSubmit={search.onSubmit}
           placeholder="Search property, unit, owner or tenant"
           query={query}
+          showSubmitButton={false}
           submitLabel="Search leases"
         />
 
         <FilterPopover
           activeCount={advancedFilterCount}
           contentClassName="w-[min(760px,calc(100vw-2rem))]"
-          description="Narrow leases by property, unit, lease status, record state, sort, or page size."
+          description="Filter records. Sort and rows change the table."
           id="lease-advanced-search"
           title="Filter leases"
         >
@@ -206,7 +182,7 @@ export function LeaseFilters({
               }))}
               value={String(viewQuery.pageSize)}
             />
-            {hasActiveFilters ? (
+            {hasActiveFilters || hasTableSetup ? (
               <div className="flex justify-end sm:col-span-2 lg:col-span-4">
                 <Link
                   aria-label="Reset lease filters"
@@ -233,7 +209,7 @@ function getAdvancedFilterCount(viewQuery: LeaseViewQuery) {
     viewQuery.status !== "all",
     viewQuery.tenantStatus !== "all",
     viewQuery.archiveState !== DEFAULT_LEASE_ARCHIVE_STATE,
-    viewQuery.sort !== DEFAULT_LEASE_SORT,
-    viewQuery.pageSize !== DEFAULT_LEASE_PAGE_SIZE,
+    viewQuery.endsWithinDays !== null,
+    viewQuery.endMonth !== "",
   ].filter(Boolean).length;
 }

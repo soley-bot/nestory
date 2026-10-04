@@ -11,7 +11,8 @@ type LeasesTableProps = {
   archiveState: LeaseArchiveState;
   getLeaseHref: (id: string) => string;
   leases: LeaseSummary[];
-  onSelectLease: (id: string) => void;
+  onOpenLease: (id: string) => void;
+  onPreviewLease: (id: string) => void;
   selectedLeaseId: string;
 };
 
@@ -19,7 +20,8 @@ export function LeasesTable({
   archiveState,
   getLeaseHref,
   leases,
-  onSelectLease,
+  onOpenLease,
+  onPreviewLease,
   selectedLeaseId,
 }: LeasesTableProps) {
   return (
@@ -35,7 +37,7 @@ export function LeasesTable({
             getLeaseHref={getLeaseHref}
             key={lease.id}
             lease={lease}
-            onSelectLease={onSelectLease}
+            onSelectLease={onPreviewLease}
             selected={selectedLeaseId === lease.id}
           />
         ))}
@@ -57,7 +59,7 @@ export function LeasesTable({
             <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
               <tr>
                 <th className="px-2.5 py-2.5 font-semibold">Tenant</th>
-                <th className="px-1.5 py-2.5 font-semibold">Property / Unit</th>
+                <th className="px-1.5 py-2.5 font-semibold">Unit / Property</th>
                 <th className="px-1.5 py-2.5 font-semibold">Term</th>
                 <th className="px-1.5 py-2.5 text-right font-semibold">Rent</th>
                 <th className="px-1.5 py-2.5 font-semibold">Status</th>
@@ -79,33 +81,38 @@ export function LeasesTable({
                 <tr
                   aria-selected={selectedLeaseId === lease.id}
                   className={cn(
-                    "cursor-pointer border-t border-border outline-none transition-colors hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                    "cursor-pointer border-t border-border transition-colors hover:bg-muted/70",
                     selectedLeaseId === lease.id &&
                       "bg-accent shadow-[inset_3px_0_0_var(--record-spine)]",
                     lease.isArchived && "text-muted-foreground",
                   )}
                   key={lease.id}
-                  onClick={() => onSelectLease(lease.id)}
-                  onKeyDown={(event) => {
-                    if (event.currentTarget !== event.target) {
-                      return;
-                    }
-
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onSelectLease(lease.id);
-                    }
+                  onClick={event => {
+                    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                    if (event.target instanceof Element && event.target.closest("a,button,input,select,textarea,[role='button'],[role='link']")) return;
+                    onOpenLease(lease.id);
                   }}
-                  tabIndex={0}
                 >
                   <td className="max-w-[15rem] px-2.5 py-2 align-middle">
-                    <RecordLink
-                            className="items-start [&>span]:min-w-0 [&>span]:overflow-visible [&>span]:whitespace-normal [&>span]:[overflow-wrap:anywhere]"
-                      href={getLeaseHref(lease.id)}
-                      title={`Open lease for ${lease.tenantName}`}
-                    >
-                      {lease.tenantName}
-                    </RecordLink>
+                    <div className="flex min-w-0 items-start justify-between gap-2">
+                      <RecordLink
+                        className="items-start [&>span]:min-w-0 [&>span]:overflow-visible [&>span]:whitespace-normal [&>span]:[overflow-wrap:anywhere]"
+                        href={getLeaseHref(lease.id)}
+                        title={`Open lease for ${lease.tenantName}`}
+                      >
+                        {lease.tenantName}
+                      </RecordLink>
+                      <button
+                        aria-label={`Preview lease for ${lease.tenantName}`}
+                        aria-pressed={selectedLeaseId === lease.id}
+                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={event => { event.stopPropagation(); onPreviewLease(lease.id); }}
+                        type="button"
+                        title="Preview lease"
+                      >
+                        <PanelRightOpen aria-hidden="true" className="size-3.5" />
+                      </button>
+                    </div>
                     {partySummary ? (
                       <p
                         className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground"
