@@ -835,9 +835,11 @@ function buildTrustedReportPdfRows(
       const count = Math.max(...full.lines.map(lines => lines.length));
       return Array.from({ length: Math.ceil(count / 16) }, (_, part) => {
         const lines = full.lines.map((cell, column) => {
-          if (column === 0) return wrapText(`${row.title}${part ? " (continued)" : ""}`, reportColumns[0].width - cellPaddingX * 2, rowFontSize, Number.MAX_SAFE_INTEGER);
+          if (column === 0 && cell.length <= 16) return wrapText(`${row.title}${part ? " (continued)" : ""}`, reportColumns[0].width - cellPaddingX * 2, rowFontSize, 16);
           const key = report.columns[column - 1]?.key;
-          if (key === "source" || key === "date" || key === "type") return cell;
+          // Repeat short identities for context; long identities must be paged
+          // like detail so no continuation can overflow the printable body.
+          if ((key === "source" || key === "date" || key === "type") && cell.length <= 16) return cell;
           // Numeric values appear once; a continuation must not resemble a new entry.
           if (key === "amount" || column === full.lines.length - 1) return part ? [] : cell;
           return cell.slice(part * 16, (part + 1) * 16);

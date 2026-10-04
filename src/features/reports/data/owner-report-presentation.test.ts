@@ -26,6 +26,35 @@ function outputs(value: ReturnType<typeof model>) {
     sheet: strFromU8(unzipSync(buildTrustedReportXlsx(report))["xl/worksheets/sheet1.xml"]!) };
 }
 describe("draft Cash model to actual generic PDF/Excel acceptance", () => {
+  it.each([
+    `${"x".repeat(499)}😀TAIL`,
+    `${"e\n".repeat(25)}${"x".repeat(35)}😀TAIL`,
+  ])("preserves Unicode across detail and row-height continuation boundaries", (evidence) => {
+    const report = presentOwnerReport(model([receipt]), { generatedAt: "2026-10-04T00:00:00Z" });
+    report.rows[0].cells.detail = evidence;
+    const sheet = strFromU8(unzipSync(buildTrustedReportXlsx(report))["xl/worksheets/sheet1.xml"]!);
+    const rows = (sheet.match(/<row\b[^>]*>[\s\S]*?<\/row>/g) ?? [])
+      .filter(row => row.includes("tenant_invoice_payment_allocation:allocation1"));
+    const fragments = rows.map(row => row.match(/<c r="D\d+"[^>]*><is><t xml:space="preserve">([\s\S]*?)<\/t>/)?.[1] ?? "");
+    expect(rows.length).toBeGreaterThan(1);
+    expect(fragments.join("")).toBe(evidence);
+    expect(sheet).not.toContain("�");
+    expect((sheet.match(/<v>100\.03<\/v>/g) ?? []).length).toBe(1);
+  });
+
+  it.each(["source", "type", "title"])("keeps long PDF %s evidence inside the printable body", (field) => {
+    const report = presentOwnerReport(model([receipt]), { generatedAt: "2026-10-04T00:00:00Z" });
+    const evidence = `${"LONG IDENTITY EVIDENCE ".repeat(120)}ENDMARKER`;
+    if (field === "title") report.rows[0].title = evidence;
+    else report.rows[0].cells[field] = evidence;
+    const pdf = Buffer.from(buildTrustedReportPdf({ organizationName: "Synthetic company", report })).toString("latin1");
+    const bodyText = [...pdf.matchAll(/BT \/F\d 8\.2 Tf 1 0 0 1 [\d.-]+ ([\d.-]+) Tm \(((?:\\.|[^\\)])*)\) Tj ET/g)];
+    expect(bodyText.length).toBeGreaterThan(100);
+    expect(bodyText.some(match => match[2].includes("ENDMARKER"))).toBe(true);
+    expect(bodyText.every(match => Number(match[1]) >= 45 && Number(match[1]) <= 358)).toBe(true);
+    expect(bodyText.filter(match => match[2] === "USD 100.03")).toHaveLength(1);
+  });
+
   it("anchors filter, frozen pane and header style after long title/scope expansion", () => {
     const report = presentOwnerReport(model([receipt]), { generatedAt: "2026-10-04T00:00:00Z" });
     report.scopeLabel = Array.from({ length: 60 }, (_, index) => `synthetic-property-${String(index).padStart(3, "0")}`).join(" | ");

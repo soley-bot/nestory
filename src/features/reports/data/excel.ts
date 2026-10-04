@@ -312,7 +312,8 @@ function workbookRows(report: TrustedReport): WorkbookRow[] {
     for (const row of report.rows) {
       const detailIndex = report.columns.findIndex(column => column.key === "detail");
       const detail = row.cells.detail ?? "";
-      const parts = report.preserveRowDetails && detailIndex >= 0 ? Math.max(1, Math.ceil(detail.length / 500)) : 1;
+      const detailCharacters = report.preserveRowDetails ? Array.from(detail) : [];
+      const parts = report.preserveRowDetails && detailIndex >= 0 ? Math.max(1, Math.ceil(detailCharacters.length / 500)) : 1;
       for (let part = 0; part < parts; part++) rows.push({
         role: "data",
         style: row.isGroup ? 2 : undefined,
@@ -322,7 +323,7 @@ function workbookRows(report: TrustedReport): WorkbookRow[] {
         })),
         values: [
           ...(grouped ? [row.isGroup ? `Subtotal: ${row.title}` : ""] : []),
-          ...report.columns.map(({ key }) => key === "detail" && report.preserveRowDetails ? detail.slice(part * 500, (part + 1) * 500)
+          ...report.columns.map(({ key }) => key === "detail" && report.preserveRowDetails ? detailCharacters.slice(part * 500, (part + 1) * 500).join("")
             : key === "type" && part > 0 ? `${row.cells[key]} (continued)`
               : part > 0 && report.columns.find(column => column.key === key)?.numeric ? "" : row.cells[key] ?? ""),
           row.sourceLinks
@@ -364,7 +365,7 @@ function splitPreservedWorkbookRows(rows: WorkbookRow[], typeColumn: number) {
       const capacity = Math.max(10, Math.floor((widths[column] - 2) * 0.8));
       const parts: string[] = [];
       let current = "";
-      for (const token of value.match(/\r\n|[\s\S]/g) ?? []) {
+      for (const token of value.match(/\r\n|[\s\S]/gu) ?? []) {
         if (current && wrappedLineCount(current + token, capacity) > 26) {
           parts.push(current);
           current = "";
