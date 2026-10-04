@@ -13,6 +13,28 @@ afterEach(() => {
 });
 
 describe("Sentry event privacy", () => {
+  it("retains maintenance failure classification while removing free-form RPC context", () => {
+    const event = scrubSentryEvent({
+      type: undefined,
+      message: "private RPC detail",
+      extra: { payload: "private customer payload" },
+      tags: {
+        error_code: "maintenance_automation_rpc_failed",
+        handled: "true",
+        operation: "maintenance_automation",
+        route: "/api/cron/maintenance",
+        rpc_error: "private database code",
+      },
+      exception: { values: [{ type: "Error", value: "private RPC detail" }] },
+    });
+    expect(event?.tags).toEqual({
+      error_code: "maintenance_automation_rpc_failed",
+      handled: "true",
+      operation: "maintenance_automation",
+      route: "/api/cron/maintenance",
+    });
+    expect(JSON.stringify(event)).not.toMatch(/private|payload|rpc_error/);
+  });
   it("removes request data and free-form identity while retaining safe tags", () => {
     const event = scrubSentryEvent({
       breadcrumbs: [
