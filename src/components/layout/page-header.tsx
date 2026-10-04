@@ -30,11 +30,11 @@ export function PageHeader({
     >
       {breadcrumb ? (
         <WorkspaceHeaderPortal>
-          <div className="min-w-0">{breadcrumb}</div>
+          <div className="min-w-0 flex-1">{breadcrumb}</div>
         </WorkspaceHeaderPortal>
       ) : null}
       <div
-        className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2 lg:flex-nowrap"
+        className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-3"
         data-slot="page-header-primary-row"
       >
         <div

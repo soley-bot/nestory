@@ -61,10 +61,10 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
                 prefetch={false}
               >
                 <span className="min-w-0">
-                  <span className="block truncate font-medium text-foreground">
+                  <span className="block whitespace-normal [overflow-wrap:anywhere] font-medium text-foreground">
                     {queue.label}
                   </span>
-                  <span className="block truncate text-muted-foreground">
+                  <span className="block whitespace-normal [overflow-wrap:anywhere] text-muted-foreground">
                     {queue.description}
                   </span>
                 </span>

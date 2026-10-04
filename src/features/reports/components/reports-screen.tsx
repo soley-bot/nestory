@@ -149,10 +149,10 @@ export function ReportBuilderScreen({
                     className="min-w-0 py-3 sm:px-4 sm:first:pl-0"
                     key={metric.label}
                   >
-                    <dt className="truncate text-xs font-medium text-muted-foreground">
+                    <dt className="whitespace-normal [overflow-wrap:anywhere] text-xs font-medium text-muted-foreground">
                       {metric.label}
                     </dt>
-                    <dd className="mt-0.5 truncate text-base font-semibold tabular-nums text-foreground">
+                    <dd className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-base font-semibold tabular-nums text-foreground">
                       {metric.value}
                     </dd>
                   </div>

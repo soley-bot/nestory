@@ -630,8 +630,8 @@ export function AppShell({
         </Sidebar>
 
         <SidebarInset className="h-svh min-h-0 overflow-hidden print:h-auto print:min-h-screen print:overflow-visible">
-          <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-background transition-[width,height] ease-linear print:hidden">
-            <div className="flex w-full min-w-0 items-center gap-2 px-4 lg:px-6">
+          <header className="flex min-h-(--header-height) shrink-0 items-center gap-2 border-b bg-background transition-[width,height] ease-linear print:hidden">
+            <div className="flex w-full min-w-0 items-center gap-2 px-4 py-1.5 lg:px-6">
               <SidebarTrigger className="-ml-1" />
               <Separator
                 className="mx-1 data-[orientation=vertical]:h-4"

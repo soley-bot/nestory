@@ -28,7 +28,7 @@ export function FilterPopover({
   return (
     <Popover.Root>
       <Popover.Trigger asChild>
-        <Button type="button" variant="outline">
+        <Button className="h-auto min-h-8 max-w-full whitespace-normal [overflow-wrap:anywhere]" type="button" variant="outline">
           <SlidersHorizontal size={14} />
           {label}
           {activeCount > 0 ? ` (${activeCount})` : ""}
@@ -37,8 +37,9 @@ export function FilterPopover({
       <Popover.Portal>
         <Popover.Content
           align="end"
+          collisionPadding={16}
           className={cn(
-            "z-50 w-[min(560px,calc(100vw-2rem))] rounded-md border border-border bg-card p-3 shadow-lg outline-none",
+            "z-50 min-w-0 w-[min(560px,calc(100vw-2rem))] rounded-md border border-border bg-card p-3 shadow-lg outline-none [overflow-wrap:anywhere]",
             contentClassName,
           )}
           id={id}

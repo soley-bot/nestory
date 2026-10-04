@@ -44,15 +44,15 @@ export function PropertyInspector({
   return (
     <div className="flex min-h-full flex-col bg-card">
       <header className="border-b border-border p-5 pr-14">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row">
           <PropertyPreviewPhoto property={property} />
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="truncate text-lg font-semibold" title={property.name}>
+                <h2 className="whitespace-normal [overflow-wrap:anywhere] text-lg font-semibold" title={property.name}>
                   {property.name}
                 </h2>
-                <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                <p className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-sm text-muted-foreground">
                   {property.code} · {property.type}
                 </p>
               </div>
@@ -92,7 +92,7 @@ export function PropertyInspector({
         ) : (
           <AlertTriangle className="shrink-0" size={16} />
         )}
-        <span className="min-w-0 flex-1 truncate">{action.label}</span>
+        <span className="min-w-0 flex-1 whitespace-normal [overflow-wrap:anywhere]">{action.label}</span>
         <ArrowRight className="shrink-0" size={16} />
       </Link>
 
@@ -156,7 +156,7 @@ export function PropertyInspector({
 
         <dl
           aria-label="Property details"
-          className="grid grid-cols-1 gap-4 border-y border-border py-4 sm:grid-cols-2 sm:gap-8"
+          className="grid grid-cols-1 gap-4 py-1 sm:grid-cols-2 sm:gap-8"
           role="group"
         >
           <Detail label="Owner" value={property.owner} />
@@ -194,7 +194,7 @@ export function PropertyInspector({
 
       <div
         aria-label="Property actions"
-        className="sticky bottom-0 mt-auto flex items-center gap-2 border-t border-border bg-card p-4"
+        className="mt-auto flex flex-wrap items-center gap-2 border-t border-border bg-card p-4"
         role="group"
       >
         <PropertyMoreMenu
@@ -226,7 +226,7 @@ export function PropertyInspector({
         )}
         <Link
           aria-label={`Open ${property.name}`}
-          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-primary-foreground outline-none transition-colors hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-primary-foreground outline-none transition-colors hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
           href={`/properties/${property.id}`}
           prefetch={false}
         >
@@ -427,7 +427,7 @@ function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
       <dt className="text-sm font-medium text-muted-foreground">{label}</dt>
-      <dd className="mt-1 min-w-0 break-words text-base font-semibold">{value}</dd>
+      <dd className="mt-1 min-w-0 [overflow-wrap:anywhere] text-base font-semibold">{value}</dd>
     </div>
   );
 }

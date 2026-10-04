@@ -67,7 +67,7 @@ export function LedgerInspector({
           <CompactFact label="Source">{entry.sourceLabel}</CompactFact>
           <CompactFact label="Property">
             <Link
-              className="line-clamp-2 break-words text-primary hover:underline"
+              className="whitespace-normal [overflow-wrap:anywhere] text-primary hover:underline"
               href={`/properties/${entry.propertyId}/account`}
             >
               {entry.unitNumber
@@ -150,7 +150,7 @@ function AttentionNote({
   return (
     <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
       <div className="flex items-center justify-between gap-3">
-        <p className="truncate font-semibold">{item?.label ?? label}</p>
+        <p className="min-w-0 whitespace-normal [overflow-wrap:anywhere] font-semibold">{item?.label ?? label}</p>
         <div className="flex shrink-0 items-center gap-2">
           <Badge tone={item?.tone ?? "neutral"}>
             {item ? "Review" : "Action"}

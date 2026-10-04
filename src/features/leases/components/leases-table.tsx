@@ -100,6 +100,7 @@ export function LeasesTable({
                 >
                   <td className="max-w-[15rem] px-2.5 py-2 align-middle">
                     <RecordLink
+                            className="items-start [&>span]:min-w-0 [&>span]:overflow-visible [&>span]:whitespace-normal [&>span]:[overflow-wrap:anywhere]"
                       href={getLeaseHref(lease.id)}
                       title={`Open lease for ${lease.tenantName}`}
                     >
@@ -107,7 +108,7 @@ export function LeasesTable({
                     </RecordLink>
                     {partySummary ? (
                       <p
-                        className="mt-0.5 truncate text-xs text-muted-foreground"
+                        className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground"
                         title={partySummary}
                       >
                         {partySummary}
@@ -118,7 +119,7 @@ export function LeasesTable({
                     <RecordContextLinks lease={lease} />
                   </td>
                   <td className="w-px whitespace-nowrap px-1.5 py-2 align-middle tabular-nums">
-                    <p className="truncate">
+                    <p className="whitespace-normal [overflow-wrap:anywhere]">
                       {lease.startDateLabel} &ndash; {lease.endDateLabel}
                     </p>
                   </td>
@@ -137,7 +138,7 @@ export function LeasesTable({
                       </div>
                       {depositAttention ? (
                         <p
-                          className="min-w-0 truncate text-xs text-warning"
+                          className="min-w-0 whitespace-normal text-xs text-warning [overflow-wrap:anywhere]"
                           title={depositAttention}
                         >
                           {depositAttention}
@@ -159,11 +160,11 @@ export function LeasesTable({
 function RecordContextLinks({ lease }: { lease: LeaseSummary }) {
   return (
     <div className="min-w-0">
-      <span className="block truncate font-medium" title={lease.unitLabel}>
+      <span className="block whitespace-normal [overflow-wrap:anywhere] font-medium" title={lease.unitLabel}>
         {lease.unitLabel}
       </span>
       <Link
-        className="mt-0.5 block truncate rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        className="mt-0.5 block whitespace-normal [overflow-wrap:anywhere] rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         href={`/properties/${lease.propertyId}/account`}
         onClick={(event) => event.stopPropagation()}
         prefetch={false}
@@ -195,23 +196,24 @@ function LeaseCard({
       )}
       data-selected={selected ? "true" : "false"}
     >
-      <div className="flex min-w-0 items-start justify-between gap-3">
+      <div className="flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:justify-between">
         <div className="min-w-0">
           <RecordLink
-            className="text-sm font-semibold leading-5"
+                            className="items-start [&>span]:min-w-0 [&>span]:overflow-visible [&>span]:whitespace-normal [&>span]:[overflow-wrap:anywhere] text-sm font-semibold leading-5"
             href={getLeaseHref(lease.id)}
             title={`Open lease for ${lease.tenantName}`}
           >
             {lease.tenantName}
           </RecordLink>
-          <p className="mt-1 truncate text-xs font-medium" title={lease.unitLabel}>
+          <p className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-xs font-medium" title={lease.unitLabel}>
             {lease.unitLabel}
           </p>
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">{lease.propertyName}</p>
+          <p className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">{lease.propertyName}</p>
         </div>
         <Badge tone={lease.statusTone}>{lease.statusLabel}</Badge>
       </div>
 
+      <div className="mt-3"><span className="text-xs text-muted-foreground">Rent</span><TableMoneyDisplay value={lease.rentDisplay} /></div>
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2">
         <LeaseCardDetail label="Start" value={lease.startDateLabel} />
         <LeaseCardDetail align="right" label="End" value={lease.endDateLabel} />
@@ -266,7 +268,7 @@ function TableMoneyDisplay({ value }: { value: MoneyDisplayValue }) {
 
   return (
     <span className="flex min-w-0 flex-col items-end gap-0.5 text-right tabular-nums" title={primary}>
-      <span className="max-w-full truncate font-semibold leading-5 text-foreground">{primary}</span>
+      <span className="max-w-full whitespace-normal [overflow-wrap:anywhere] font-semibold leading-5 text-foreground">{primary}</span>
     </span>
   );
 }

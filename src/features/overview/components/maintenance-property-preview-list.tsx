@@ -38,13 +38,13 @@ export function MaintenancePropertyPreviewList({
                 type="button"
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold">{row.label}</span>
+                  <span className="block whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">{row.label}</span>
                   <span className="mt-0.5 block text-xs text-muted-foreground md:hidden">
                     {prioritySummary(row)}
                   </span>
                 </span>
                 <span className="text-sm font-semibold tabular-nums">{row.openCount}</span>
-                <span className="hidden truncate text-xs text-muted-foreground md:block">
+                <span className="hidden whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground md:block">
                   {prioritySummary(row)}
                 </span>
                 <ArrowRight
@@ -93,7 +93,7 @@ export function MaintenancePropertyPreviewList({
                     key={maintenanceCase.id}
                   >
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium">
+                      <span className="block whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">
                         {maintenanceCase.title}
                       </span>
                       <span className="mt-0.5 block text-xs capitalize text-muted-foreground">

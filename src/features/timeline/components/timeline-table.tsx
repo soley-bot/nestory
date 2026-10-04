@@ -29,12 +29,12 @@ export function TimelineTable({
   return (
     <div
       aria-label="Timeline table"
-      className="overflow-x-auto"
+      className="min-w-0 md:overflow-x-auto"
       role="region"
       data-slot="timeline-table-shell"
     >
-        <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-sm">
-          <colgroup>
+        <table className="block w-full md:table md:min-w-[840px] md:table-fixed border-collapse text-left text-sm">
+          <colgroup className="hidden md:table-column-group">
             <col className="w-[108px]" />
             <col className="w-[126px]" />
             <col />
@@ -42,17 +42,17 @@ export function TimelineTable({
             <col className="w-[132px]" />
             <col className="w-[74px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+          <thead className="sr-only md:not-sr-only md:table-header-group md:sticky md:top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
-              <th className="px-3 py-2.5 font-semibold">Date</th>
-              <th className="px-3 py-2.5 font-semibold">Type</th>
-              <th className="px-4 py-2.5 font-semibold">Record</th>
-              <th className="px-3 py-2.5 font-semibold">Property</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Cost</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Preview</th>
+              <th className="px-3 py-2.5 font-semibold" scope="col">Date</th>
+              <th className="px-3 py-2.5 font-semibold" scope="col">Type</th>
+              <th className="px-4 py-2.5 font-semibold" scope="col">Record</th>
+              <th className="px-3 py-2.5 font-semibold" scope="col">Property</th>
+              <th className="px-3 py-2.5 text-right font-semibold" scope="col">Cost</th>
+              <th className="px-3 py-2.5 text-right font-semibold" scope="col">Preview</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="grid gap-3 md:table-row-group">
             {events.map((event) => (
               <tr
                 aria-selected={selectedEventId === event.id}
@@ -77,16 +77,16 @@ export function TimelineTable({
                 }}
                 tabIndex={0}
               >
-                <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
+                <td className="block px-0 py-0 text-muted-foreground md:table-cell md:whitespace-nowrap md:px-3 md:py-2">
                   {formatDate(event.eventDate)}
                 </td>
-                <td className="px-3 py-2">
+                <td className="block min-w-0 px-0 py-0 md:table-cell md:px-3 md:py-2">
                   <EventTypeBadge type={event.eventType} />
                 </td>
-                <td className="px-4 py-2">
+                <td className="order-first block min-w-0 px-0 py-0 md:table-cell md:px-4 md:py-2">
                   <div className="flex items-center gap-2.5">
                     <Link
-                      className="min-w-0 truncate rounded-sm font-medium text-primary outline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                      className="min-w-0 whitespace-normal [overflow-wrap:anywhere] rounded-sm font-medium text-primary outline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                       href={event.hrefs.timeline}
                       onClick={(linkEvent) => linkEvent.stopPropagation()}
                     >
@@ -115,17 +115,18 @@ export function TimelineTable({
                     </div>
                   ) : null}
                 </td>
-                <td className="px-3 py-2">
-                  <p className="truncate font-medium" title={event.propertyCode}>
+                <td className="block min-w-0 px-0 py-0 md:table-cell md:px-3 md:py-2">
+                  <p className="whitespace-normal [overflow-wrap:anywhere] font-medium" title={event.propertyCode}>
                     {event.propertyCode}
                   </p>
                   {event.unitNumber ? (
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    <p className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">
                       Unit {event.unitNumber}
                     </p>
                   ) : null}
                 </td>
-                <td className="px-3 py-2 text-right font-medium">
+                <td className="block px-0 py-0 font-medium md:table-cell md:px-3 md:py-2 md:text-right">
+                  <span className="mb-1 block text-xs text-muted-foreground md:hidden">Cost</span>
                   {event.cost !== undefined && event.currency
                     ? (
                         <MoneyDisplay
@@ -138,11 +139,11 @@ export function TimelineTable({
                       )
                     : "-"}
                 </td>
-                <td className="px-3 py-2 text-right align-middle">
+                <td className="block px-0 py-0 align-middle md:table-cell md:px-3 md:py-2 md:text-right">
                   <Button
                     aria-label={`Preview ${event.title}`}
                     aria-pressed={selectedEventId === event.id}
-                    className="h-8 w-8 px-0"
+                    className="h-8 w-full gap-1.5 px-2 md:w-8 md:px-0"
                     onClick={(buttonEvent) => {
                       buttonEvent.stopPropagation();
                       onSelectEvent(event.id);
@@ -150,7 +151,7 @@ export function TimelineTable({
                     title={`Preview ${event.title}`}
                     variant="ghost"
                   >
-                    <Eye size={15} />
+                    <Eye size={15} /><span className="md:hidden">Preview</span>
                   </Button>
                 </td>
               </tr>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Table } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import type { FinanceAccountActivity } from "@/features/finance-accounts/data/finance-account-activity";
@@ -16,15 +17,15 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
       title={activity.account.displayName}
       actions={<Badge variant={activity.account.archivedAt ? "secondary" : "outline"}>{activity.account.archivedAt ? "Inactive" : "Active"}</Badge>}
       toolbar={(
-        <form className="flex flex-wrap items-end gap-2" method="get">
-          <label className="grid gap-1 text-xs text-muted-foreground">From
-            <input className="h-8 rounded-md border bg-background px-2 text-sm text-foreground" name="from" type="date" defaultValue={activity.filters.periodStart} />
+        <form className="min-w-0 max-w-full flex flex-wrap items-end gap-2" method="get">
+          <label className="grid min-w-0 max-w-full gap-1 text-xs text-muted-foreground">From
+            <input className="h-8 min-w-0 max-w-full rounded-md border bg-background px-2 text-sm text-foreground" name="from" type="date" defaultValue={activity.filters.periodStart} />
           </label>
-          <label className="grid gap-1 text-xs text-muted-foreground">To
-            <input className="h-8 rounded-md border bg-background px-2 text-sm text-foreground" name="to" type="date" defaultValue={activity.filters.periodEnd} />
+          <label className="grid min-w-0 max-w-full gap-1 text-xs text-muted-foreground">To
+            <input className="h-8 min-w-0 max-w-full rounded-md border bg-background px-2 text-sm text-foreground" name="to" type="date" defaultValue={activity.filters.periodEnd} />
           </label>
-          <label className="grid gap-1 text-xs text-muted-foreground">Property
-            <select className="h-8 rounded-md border bg-background px-2 text-sm text-foreground" name="propertyId" defaultValue={activity.filters.propertyId ?? "all"}>
+          <label className="grid min-w-0 max-w-full gap-1 text-xs text-muted-foreground">Property
+            <select className="h-8 min-w-0 max-w-full rounded-md border bg-background px-2 text-sm text-foreground" name="propertyId" defaultValue={activity.filters.propertyId ?? "all"}>
               <option value="all">All properties</option>
               {activity.properties.map((property) => <option key={property.id} value={property.id}>{property.label}</option>)}
             </select>
@@ -34,7 +35,7 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
       )}
     >
       <div className="workspace-gutter-x space-y-4 py-4">
-        <div className="text-sm text-muted-foreground">
+        <div className="min-w-0 text-sm text-muted-foreground [overflow-wrap:anywhere]">
           <p>{accountIdentity(activity.account.accountClass, activity.account.accountSubtype)}</p>
           {activity.account.accountNumber ? <p>Account {activity.account.accountNumber}</p> : null}
           {activity.account.description ? <p>{activity.account.description}</p> : null}
@@ -46,8 +47,25 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
           </div>
           <p className="font-medium text-lg tabular-nums">USD {activity.total}</p>
         </div>
-        <div className="overflow-x-auto rounded-lg border bg-card">
-          <table className="w-full min-w-[900px] border-collapse text-[13px] leading-5">
+        <div className="min-w-0 rounded-lg border bg-card">
+          <Table scrollRegionLabel="Account activity table" className="w-full min-w-[900px] table-fixed border-collapse text-[13px] leading-5" mobileContent={(
+            <ul aria-label="Account activity" className="divide-y divide-border text-sm">
+              {activity.rows.map((row) => (
+                <li className="min-w-0 space-y-2 p-3 [overflow-wrap:anywhere]" key={row.id}>
+                  <Link className="block rounded-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" href={row.sourceHref}>{row.description}</Link>
+                  <p className="text-xs text-muted-foreground">{formatDate(row.date)}</p>
+                  <p>{row.propertyLabel}</p>
+                  <p className="text-muted-foreground">{row.contact ?? "-"}</p>
+                  <dl className="space-y-1 tabular-nums">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3"><dt className="text-muted-foreground">Increase</dt><dd className="font-medium">{row.increase ? `USD ${row.increase}` : "-"}</dd></div>
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3"><dt className="text-muted-foreground">Decrease</dt><dd className="font-medium">{row.decrease ? `USD ${row.decrease}` : "-"}</dd></div>
+                    {showRunningBalance ? <div className="flex flex-wrap items-baseline justify-between gap-x-3"><dt className="text-muted-foreground">Running balance</dt><dd className="font-medium">{row.runningBalance ? `USD ${row.runningBalance}` : "-"}</dd></div> : null}
+                  </dl>
+                </li>
+              ))}
+              {activity.rows.length === 0 ? <li className="px-3 py-8 text-center text-muted-foreground">No activity in this period.</li> : null}
+            </ul>
+          )}>
             <thead className="bg-[var(--table-header-bg)] text-left text-[11px] font-medium text-muted-foreground">
               <tr>
                 <th className="px-3 py-2" scope="col">Date</th>
@@ -63,9 +81,9 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
               {activity.rows.map((row) => (
                 <tr className="border-t" key={row.id}>
                   <td className="px-3 py-2 whitespace-nowrap">{formatDate(row.date)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{row.propertyLabel}</td>
-                  <td className="px-3 py-2">{row.contact ?? "—"}</td>
-                  <td className="px-3 py-2"><Link className="font-medium underline-offset-4 hover:underline" href={row.sourceHref}>{row.description}</Link></td>
+                  <td className="px-3 py-2 whitespace-normal [overflow-wrap:anywhere]">{row.propertyLabel}</td>
+                  <td className="px-3 py-2 whitespace-normal [overflow-wrap:anywhere]">{row.contact ?? "—"}</td>
+                  <td className="px-3 py-2 whitespace-normal [overflow-wrap:anywhere]"><Link className="font-medium underline-offset-4 hover:underline" href={row.sourceHref}>{row.description}</Link></td>
                   <td className="px-3 py-2 whitespace-nowrap text-right font-medium tabular-nums">{row.increase ? `USD ${row.increase}` : "—"}</td>
                   <td className="px-3 py-2 whitespace-nowrap text-right font-medium tabular-nums">{row.decrease ? `USD ${row.decrease}` : "—"}</td>
                   {showRunningBalance ? <td className="px-3 py-2 whitespace-nowrap text-right font-medium tabular-nums">{row.runningBalance ? `USD ${row.runningBalance}` : "—"}</td> : null}
@@ -73,7 +91,7 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
               ))}
               {activity.rows.length === 0 ? <tr><td className="px-3 py-8 text-center text-muted-foreground" colSpan={showRunningBalance ? 7 : 6}>No activity in this period.</td></tr> : null}
             </tbody>
-          </table>
+          </Table>
         </div>
       </div>
     </WorkspacePage>

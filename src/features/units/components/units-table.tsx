@@ -169,10 +169,10 @@ export function UnitsTable({
                         title="Property group"
                       >
                         <div className="min-w-0 max-w-[18rem] leading-4">
-                          <p className="truncate font-medium" title={unit.propertyName}>
+                          <p className="whitespace-normal [overflow-wrap:anywhere] font-medium" title={unit.propertyName}>
                             {unit.propertyName}
                           </p>
-                          <p className="truncate text-xs text-muted-foreground" title={unit.propertyOwnerName}>
+                          <p className="whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground" title={unit.propertyOwnerName}>
                             {unit.propertyOwnerName}
                           </p>
                         </div>
@@ -181,7 +181,7 @@ export function UnitsTable({
                     <td className="whitespace-nowrap px-2 py-2.5">
                       <button
                         aria-label={`View unit ${unit.unitNumber} details`}
-                        className="group/unit inline-flex items-center gap-1 rounded-sm font-semibold text-foreground outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+                        className="group/unit inline-flex max-w-full min-w-0 items-start gap-1 rounded-sm font-semibold text-foreground outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
                         onClick={(event) => {
                           event.stopPropagation();
                           onSelectUnit(unit.id);
@@ -189,10 +189,10 @@ export function UnitsTable({
                         title={`Unit ${unit.unitNumber}`}
                         type="button"
                       >
-                        {unit.unitNumber}
+                        <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">{unit.unitNumber}</span>
                         <ChevronRight
                           aria-hidden="true"
-                          className="size-3.5 text-muted-foreground transition-transform group-hover/unit:translate-x-0.5 group-hover/unit:text-primary"
+                          className="mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-transform group-hover/unit:translate-x-0.5 group-hover/unit:text-primary"
                         />
                       </button>
                     </td>
@@ -212,12 +212,12 @@ export function UnitsTable({
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-1.5 py-2.5">
-                      <p className="truncate whitespace-nowrap" title={unit.leaseStatusLabel}>
+                      <p className="whitespace-normal [overflow-wrap:anywhere]" title={unit.leaseStatusLabel}>
                         {unit.leaseStatusLabel}
                       </p>
                     </td>
                     <td className="w-px whitespace-nowrap px-1.5 py-2.5">
-                      <p className="max-w-[10rem] truncate whitespace-nowrap" title={unit.tenantName}>
+                      <p className="max-w-[10rem] whitespace-normal [overflow-wrap:anywhere]" title={unit.tenantName}>
                         {unit.tenantName}
                       </p>
                     </td>
@@ -288,19 +288,19 @@ function UnitCard({
       <UnitPhoto unit={unit} />
 
       <div className="px-3 py-3">
-        <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:justify-between">
           <div className="min-w-0">
             <p
-              className="truncate text-sm font-semibold leading-5 text-foreground"
+              className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold leading-5 text-foreground"
               title={`Unit ${unit.unitNumber}`}
             >
               Unit {unit.unitNumber}
             </p>
-            <p className="mt-1 truncate font-medium" title={unit.propertyName}>
+            <p className="mt-1 whitespace-normal [overflow-wrap:anywhere] font-medium" title={unit.propertyName}>
               {unit.propertyName}
             </p>
             <p
-              className="mt-0.5 truncate text-sm text-muted-foreground"
+              className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-sm text-muted-foreground"
               title={unit.propertyCode}
             >
               {unit.propertyCode}
@@ -310,14 +310,15 @@ function UnitCard({
         </div>
 
         <div className="mt-3 grid gap-2">
-          <div className="flex items-center justify-end gap-3">
+          <div className="flex min-w-0 flex-col gap-1"><span className="text-xs text-muted-foreground">Rent</span>
             {unit.rentDisplay ? (
               <TableMoneyDisplay value={unit.rentDisplay} />
             ) : (
               <span className="font-semibold">{unit.rentLabel}</span>
             )}
           </div>
-          <p className="line-clamp-2 leading-5 text-muted-foreground">
+          <div><span className="text-xs text-muted-foreground">Net</span><TableMoneyDisplay value={unit.ledgerNetDisplay} /></div>
+          <p className="whitespace-normal [overflow-wrap:anywhere] leading-5 text-muted-foreground">
             {unit.leaseLabel}
           </p>
         </div>

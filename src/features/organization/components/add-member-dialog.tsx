@@ -724,7 +724,7 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[9rem_1fr] gap-4 px-3 py-2.5">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 truncate font-medium">{value}</dd>
+      <dd className="min-w-0 whitespace-normal [overflow-wrap:anywhere] font-medium">{value}</dd>
     </div>
   );
 }

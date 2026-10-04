@@ -36,7 +36,7 @@ export function RecordLink({
     <Link
       {...props}
       className={cn(
-        "-mx-1 inline-flex max-w-full items-center gap-1 rounded-sm px-1 py-0.5 font-medium text-primary outline-offset-1 transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring",
+        "-mx-1 inline-flex min-w-0 max-w-full items-start gap-1 rounded-sm px-1 py-0.5 font-medium text-primary outline-offset-1 transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring",
         className,
       )}
       onClick={(event) => {
@@ -47,10 +47,10 @@ export function RecordLink({
       }}
       prefetch={prefetch}
     >
-      <span className="truncate">{children}</span>
+      <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">{children}</span>
       <ExternalLink
         aria-hidden="true"
-        className="shrink-0 opacity-70"
+        className="mt-1 shrink-0 opacity-70"
         size={12}
         strokeWidth={2.25}
       />

@@ -34,13 +34,13 @@ export function RecordsPropertyPreviewList({ rows }: { rows: OverviewRecordPoint
                 type="button"
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold">{row.label}</span>
+                  <span className="block whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">{row.label}</span>
                   <span className="mt-0.5 block text-xs text-muted-foreground md:hidden">
                     {recordSummary(row)}
                   </span>
                 </span>
                 <span className="text-sm font-semibold tabular-nums">{recordIssueCount(row)}</span>
-                <span className="hidden truncate text-xs text-muted-foreground md:block">
+                <span className="hidden whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground md:block">
                   {recordSummary(row)}
                 </span>
                 <ArrowRight

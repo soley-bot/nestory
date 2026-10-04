@@ -24,7 +24,7 @@ export function UpdatePasswordForm() {
   const passwordRequirementId = useId();
 
   return (
-    <form action={action} className="space-y-5">
+    <form action={action} className="min-w-0 space-y-5 [overflow-wrap:anywhere]">
       {state.message ? (
         <p
           className="rounded-md border border-danger/25 bg-danger-soft px-3.5 py-3 text-sm leading-5 text-danger"

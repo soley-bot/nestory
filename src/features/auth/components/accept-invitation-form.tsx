@@ -28,7 +28,7 @@ export function AcceptInvitationForm({
   const passwordRequirementId = useId();
 
   return (
-    <form action={action} className="space-y-5">
+    <form action={action} className="min-w-0 space-y-5 [overflow-wrap:anywhere]">
       <input name="invitationId" type="hidden" value={invitationId} />
       {state.message ? (
         <p

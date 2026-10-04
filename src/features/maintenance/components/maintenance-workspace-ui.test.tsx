@@ -154,6 +154,23 @@ describe("maintenance workspace redesign contract", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("keeps compact maintenance status, priority, detail access and keyboard Preview", async () => {
+    installMatchMedia(390);
+    renderMaintenance();
+    const compact = within(screen.getByRole("list", { name: "Maintenance cases" }));
+    expect(compact.getByRole("link", { name: "Repair sink" })).not.toBeNull();
+    expect(compact.getByText("High")).not.toBeNull();
+    expect(compact.getByText("Owner / Vendor", { selector: "summary" })).not.toBeNull();
+    const preview = compact.getByRole("button", {name: "Preview Repair sink"});
+    preview.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByRole("dialog", {name:"Repair sink quick view"})).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", {name:"Edit"}));
+    expect(screen.getByRole("dialog", {name:"Edit maintenance case"})).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", {name:"Close drawer"}));
+    await waitFor(() => expect(document.activeElement).toBe(preview));
+  });
+
   it("keeps Maintenance queue-first with collapsed filters and keyboard quick view", () => {
     renderMaintenance({
       viewQuery: {
@@ -180,6 +197,24 @@ describe("maintenance workspace redesign contract", () => {
     expect(
       screen.getByRole("dialog", { name: "Repair sink quick view" }),
     ).not.toBeNull();
+  });
+
+  it("returns focus to New case after an earlier compact preview", async () => {
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
+      window.setTimeout(() => callback(performance.now()), 16),
+    );
+    installMatchMedia(390);
+    renderMaintenance();
+    const user = userEvent.setup();
+    const compact = within(screen.getByRole("list", { name: "Maintenance cases" }));
+    await user.click(compact.getByRole("button", { name: "Preview Repair sink" }));
+    await user.click(screen.getByRole("button", { name: "Close quick view" }));
+    const create = screen.getByRole("button", { name: "New case" });
+    await user.click(create);
+    expect(screen.getByRole("dialog", { name: "New maintenance case" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
+    expect(document.activeElement).toBe(create);
   });
 
   it.each([1024, 390])(

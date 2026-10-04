@@ -69,7 +69,7 @@ export function SearchCombo({
 
   return (
     <form
-      className={cn("flex min-w-0 flex-1 gap-1.5", className)}
+      className={cn("flex min-w-0 flex-1 basis-full gap-1.5 sm:basis-[20rem]", className)}
       onSubmit={onSubmit}
       role="search"
       aria-label={ariaLabel}
@@ -80,7 +80,7 @@ export function SearchCombo({
           {hasScope ? (
             <SelectControl
               ariaLabel={`${ariaLabel} scope`}
-              className="h-8 w-[118px] rounded-none border-0 border-r border-border bg-muted px-2 shadow-none focus:border-transparent focus:ring-0 sm:w-[132px]"
+              className="h-8 w-[118px] shrink-0 rounded-none border-0 border-r border-border bg-muted px-2 shadow-none focus:border-transparent focus:ring-0 sm:w-[132px]"
               onValueChange={onScopeChange}
               options={scopeOptions}
               value={scopeValue}
@@ -144,11 +144,11 @@ export function SearchCombo({
           ) : null}
         </div>
         {hasSuggestions ? (
-          <div aria-label={`${ariaLabel} suggestions`} id={listboxId} role="listbox" className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 overflow-hidden rounded-md border border-border bg-card p-1 shadow-lg">
+          <div aria-label={`${ariaLabel} suggestions`} id={listboxId} role="listbox" className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 max-h-[min(24rem,60vh)] overflow-y-auto rounded-md border border-border bg-card p-1 shadow-lg">
             {suggestions.map((suggestion) => (
               <button
                 aria-selected={suggestion.id === activeSuggestion?.id}
-                className={cn("flex min-h-10 w-full min-w-0 items-center justify-between gap-3 rounded px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none", suggestion.id === activeSuggestion?.id && "bg-muted")}
+                className={cn("flex min-h-10 w-full min-w-0 flex-col items-start justify-between gap-1 rounded px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none sm:flex-row sm:items-center sm:gap-3", suggestion.id === activeSuggestion?.id && "bg-muted")}
                 id={`${listboxId}-${encodeURIComponent(suggestion.id)}`}
                 key={suggestion.id}
                 onMouseDown={(event) => event.preventDefault()}
@@ -159,17 +159,17 @@ export function SearchCombo({
                 type="button"
               >
                 <span className="min-w-0">
-                  <span className="block truncate font-medium text-foreground">
+                  <span className="block whitespace-normal font-medium text-foreground [overflow-wrap:anywhere]">
                     {suggestion.label}
                   </span>
                   {suggestion.description ? (
-                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                    <span className="mt-0.5 block whitespace-normal text-xs text-muted-foreground [overflow-wrap:anywhere]">
                       {suggestion.description}
                     </span>
                   ) : null}
                 </span>
                 {suggestion.meta ? (
-                  <span className="shrink-0 text-xs font-medium text-muted-foreground">
+                  <span className="max-w-full text-xs font-medium text-muted-foreground [overflow-wrap:anywhere] sm:shrink-0">
                     {suggestion.meta}
                   </span>
                 ) : null}

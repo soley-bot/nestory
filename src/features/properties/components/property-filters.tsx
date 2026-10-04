@@ -405,7 +405,7 @@ function ActiveFilterChip({
       type="button"
     >
       <span className="font-semibold">{filter.label}</span>
-      <span className="min-w-0 truncate text-muted-foreground">
+      <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere] text-muted-foreground">
         {filter.value}
       </span>
       <X

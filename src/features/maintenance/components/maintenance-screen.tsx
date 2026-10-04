@@ -1,5 +1,7 @@
 "use client";
 
+import { Table } from "@/components/ui/table";
+
 import Link from "next/link";
 import {
   useActionState,
@@ -236,6 +238,7 @@ export function MaintenanceScreen({
   );
   const [statusChangePending, startStatusChange] = useTransition();
   const previousCasesRef = useRef(cases);
+  const previewTriggerRef = useRef<HTMLElement | null>(null);
   const visibleCases = useMemo(
     () => applyMaintenanceStatusOverrides(cases, statusOverrides),
     [cases, statusOverrides],
@@ -333,13 +336,18 @@ export function MaintenanceScreen({
   ]);
 
   function openDrawer(nextDrawer: DrawerState) {
+    if (nextDrawer.mode === "create") previewTriggerRef.current = null;
     setCompactInspectorOpen(false);
     setStatusMessage(null);
     setDrawer(nextDrawer);
   }
 
   function closeDrawer() {
-    const returnTarget = selectedCase
+    const returnTarget = drawer?.mode === "create"
+      ? null
+      : previewTriggerRef.current?.isConnected
+      ? previewTriggerRef.current
+      : selectedCase
       ? document.querySelector<HTMLElement>(
           `[data-maintenance-record-trigger="${selectedCase.id}"]`,
         )
@@ -352,6 +360,9 @@ export function MaintenanceScreen({
   }
 
   function previewCase(taskId: string) {
+    previewTriggerRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
     setSelectedTaskId(taskId);
     setCompactInspectorOpen(true);
   }
@@ -1080,7 +1091,7 @@ function MaintenanceScopeSummary({
             <span aria-hidden="true" className="text-border">
               /
             </span>
-            <span className="truncate text-sm">{scopeLabel}</span>
+            <span className="whitespace-normal [overflow-wrap:anywhere] text-sm">{scopeLabel}</span>
           </span>
         }
         variant="inline"
@@ -1118,7 +1129,31 @@ function MaintenanceTable({
           fillHeight ? "flex-1" : undefined,
         )}
       >
-        <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-sm">
+        <Table scrollRegionLabel="Maintenance cases table" className="w-full min-w-[760px] table-fixed border-collapse text-left text-sm" mobileContent={(
+          <ul aria-label="Maintenance cases" className="divide-y divide-border text-sm">
+            {cases.map((maintenanceCase) => (
+              <li className={cn("min-w-0 space-y-2 p-3 [overflow-wrap:anywhere]", selectedTaskId === maintenanceCase.id && "bg-accent", maintenanceCase.isArchived && "text-muted-foreground")} key={maintenanceCase.id}>
+                <Link className="block rounded-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" href={maintenanceCase.hrefs.task} prefetch={false}>{maintenanceCase.title}</Link>
+                <p>{maintenanceCase.propertyLabel}</p>
+                <p className="text-xs text-muted-foreground">{maintenanceCase.unitLabel}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge tone={maintenanceCase.statusTone}>{maintenanceCase.statusLabel}</Badge>
+                  <Badge tone={maintenanceCase.priorityTone}>{maintenanceCase.priorityLabel}</Badge>
+                  {maintenanceCase.isArchived ? <Badge tone="warning">Archived</Badge> : null}
+                </div>
+                <p className={cn("text-xs text-muted-foreground", maintenanceCase.progressTone === "danger" && "text-danger")}>Due {formatMaintenanceTableDueDate(maintenanceCase)}{maintenanceCase.dueTime ? ` at ${maintenanceCase.dueTime}` : ""}</p>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <details className="min-w-0 max-w-full flex-1">
+                    <summary className="cursor-pointer rounded-sm text-xs text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">Owner / Vendor</summary>
+                    <dl className="mt-2 space-y-1 text-xs"><div><dt className="text-muted-foreground">Owner</dt><dd>{maintenanceCase.assigneeLabel}</dd></div><div><dt className="text-muted-foreground">Vendor</dt><dd>{maintenanceCase.vendorLabel}</dd></div></dl>
+                  </details>
+                  <Button aria-label={`Preview ${maintenanceCase.title}`} aria-pressed={selectedTaskId === maintenanceCase.id} onClick={(event) => { event.currentTarget.focus(); onSelect(maintenanceCase.id); }} size="sm" type="button" variant="outline">Preview</Button>
+                </div>
+              </li>
+            ))}
+            {cases.length === 0 ? <li className="px-3 py-8 text-center text-muted-foreground">{emptyLabel}</li> : null}
+          </ul>
+        )}>
           <colgroup>
             <col className="w-[33%]" />
             <col className="w-[27%]" />
@@ -1175,7 +1210,7 @@ function MaintenanceTable({
               >
                 <td className="px-2.5 py-2">
                   <Link
-                    className="block truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                    className="block whitespace-normal [overflow-wrap:anywhere] font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                     href={maintenanceCase.hrefs.task}
                     onClick={(event) => event.stopPropagation()}
                     prefetch={false}
@@ -1185,7 +1220,7 @@ function MaintenanceTable({
                   </Link>
                   <p
                     className={cn(
-                      "mt-0.5 truncate text-xs text-muted-foreground",
+                      "mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground",
                       maintenanceCase.progressTone === "danger" &&
                         "text-danger",
                     )}
@@ -1202,8 +1237,8 @@ function MaintenanceTable({
                   ) : null}
                 </td>
                 <td className="px-1.5 py-2">
-                  <p className="truncate">{maintenanceCase.propertyLabel}</p>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  <p className="whitespace-normal [overflow-wrap:anywhere]">{maintenanceCase.propertyLabel}</p>
+                  <p className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">
                     {maintenanceCase.unitLabel}
                   </p>
                 </td>
@@ -1220,15 +1255,15 @@ function MaintenanceTable({
                   </div>
                 </td>
                 <td className="px-1.5 py-2">
-                  <p className="truncate">{maintenanceCase.assigneeLabel}</p>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  <p className="whitespace-normal [overflow-wrap:anywhere]">{maintenanceCase.assigneeLabel}</p>
+                  <p className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">
                     {maintenanceCase.vendorLabel}
                   </p>
                 </td>
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       </div>
     </div>
   );
@@ -2204,7 +2239,7 @@ function LinkButton({ children, href }: { children: ReactNode; href: string }) {
       href={href}
       prefetch={false}
     >
-      <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
+      <span className="inline-flex min-w-0 items-center gap-1.5 whitespace-normal [overflow-wrap:anywhere]">
         {children}
       </span>
     </Link>

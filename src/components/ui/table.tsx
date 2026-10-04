@@ -3,17 +3,78 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 
 type TableProps = React.ComponentProps<"table"> & {
   scrollRegionLabel?: string
+  /** Feature-owned mobile composition. Keep key values/actions visible here;
+   * the complete table remains available through View all columns. */
+  mobileContent?: React.ReactNode
 }
 
-function Table({ className, scrollRegionLabel, ...props }: TableProps) {
+function Table({ className, scrollRegionLabel, mobileContent, ...props }: TableProps) {
+  const containerRef = React.useRef<HTMLDivElement>(null)
+  const hintId = React.useId()
+  const viewportId = React.useId()
+  const [showAllColumns, setShowAllColumns] = React.useState(false)
+  const [scrollState, setScrollState] = React.useState({ overflow: false, atStart: true, atEnd: true })
+  const measure = React.useCallback(() => {
+    const container = containerRef.current
+    if (!container) return
+    const position = Math.abs(container.scrollLeft)
+    const next = {
+      overflow: container.scrollWidth > container.clientWidth + 1,
+      atStart: position < 1,
+      atEnd: position + container.clientWidth >= container.scrollWidth - 1,
+    }
+    setScrollState(previous => previous.overflow === next.overflow && previous.atStart === next.atStart && previous.atEnd === next.atEnd ? previous : next)
+  }, [])
+
+  React.useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    measure()
+    const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measure)
+    observer?.observe(container)
+    const table = container.querySelector("table")
+    if (table) observer?.observe(table)
+    window.addEventListener("resize", measure)
+    return () => { observer?.disconnect(); window.removeEventListener("resize", measure) }
+  }, [measure])
+
+  function scrollToEdge(last: boolean) {
+    const container = containerRef.current
+    if (!container) return
+    const direction = getComputedStyle(container).direction === "rtl" ? -1 : 1
+    container.scrollTo({ left: last ? direction * container.scrollWidth : 0, behavior: "auto" })
+    measure()
+  }
+
   return (
-    <div
+    <>
+      {mobileContent ? <div className="md:hidden print:hidden">
+        {!showAllColumns ? mobileContent : null}
+        <div className="px-3 py-2">
+          <Button aria-expanded={showAllColumns} aria-controls={viewportId} onClick={() => setShowAllColumns(value => !value)} type="button" variant="outline">
+            {showAllColumns ? "Use compact view" : "View all columns"}
+          </Button>
+        </div>
+      </div> : null}
+        {scrollState.overflow ? <div className={cn("flex flex-wrap items-center justify-between gap-2 bg-muted/50 px-3 py-2 print:hidden", mobileContent && !showAllColumns && "hidden md:flex")} data-slot="table-scroll-controls">
+          <p className="text-sm text-muted-foreground" id={hintId}>More columns — scroll to see the full table</p>
+          <div className="flex flex-wrap gap-2">
+            <Button aria-controls={viewportId} aria-label={`Show first columns of ${scrollRegionLabel ?? "table"}`} aria-disabled={scrollState.atStart} className="aria-disabled:bg-muted aria-disabled:text-muted-foreground" onClick={() => { if (!scrollState.atStart) scrollToEdge(false) }} type="button" variant="outline">← First columns</Button>
+            <Button aria-controls={viewportId} aria-label={`Show last columns of ${scrollRegionLabel ?? "table"}`} aria-disabled={scrollState.atEnd} className="aria-disabled:bg-muted aria-disabled:text-muted-foreground" onClick={() => { if (!scrollState.atEnd) scrollToEdge(true) }} type="button" variant="outline">Last columns →</Button>
+          </div>
+        </div> : null}
+        <div
       aria-label={scrollRegionLabel}
+      aria-describedby={scrollState.overflow ? hintId : undefined}
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      id={viewportId}
+      ref={containerRef}
+      onScroll={measure}
+      className={cn("relative min-w-0 w-full overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring", mobileContent && !showAllColumns && "hidden md:block print:block")}
       role={scrollRegionLabel ? "region" : undefined}
       tabIndex={scrollRegionLabel ? 0 : undefined}
     >
@@ -22,7 +83,8 @@ function Table({ className, scrollRegionLabel, ...props }: TableProps) {
         className={cn("w-full caption-bottom text-sm", className)}
         {...props}
       />
-    </div>
+        </div>
+    </>
   )
 }
 
@@ -86,7 +148,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
+        "h-10 px-3 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
@@ -99,7 +161,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "px-3 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
