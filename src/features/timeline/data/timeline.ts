@@ -9,6 +9,7 @@ import {
 import type { LinkedDocument } from "@/features/documents/document.types";
 import {
   buildTimelinePagination,
+  parseTimelineHistoryCursor,
   DEFAULT_TIMELINE_PAGE_SIZE,
   DEFAULT_TIMELINE_SORT,
 } from "@/features/timeline/timeline.filters";
@@ -22,6 +23,7 @@ import type {
   TimelineNextAction,
   TimelinePropertyOption,
   TimelineRecordCounts,
+  TimelinePagination,
   TimelineRiskIndicator,
   TimelineScope,
   TimelineUnitOption,
@@ -365,8 +367,11 @@ export async function getTimelineScreenData(
     allDocumentRows.filter((document) => !document.archived_at),
   );
   const documentsByEventId = groupDocumentsByEventId(documentsWithUrls);
-  const [activityRows, sourcesByEventId] = await Promise.all([
-    getLinkedTimelineActivity(supabase, organizationId, eventIds),
+  const [activityResult, sourcesByEventId] = await Promise.all([
+    getLinkedTimelineActivity(supabase, organizationId, eventIds, viewQuery).catch((error: unknown) => {
+      if (!viewQuery.eventId) throw error;
+      return { rows: [], pagination: undefined, error: "Event history could not be loaded. Try again." };
+    }),
     loadTimelineSourcesByEventId({
       documents: allDocumentRows.flatMap((document) =>
         document.timeline_event_id
@@ -402,6 +407,7 @@ export async function getTimelineScreenData(
       supabase,
     }),
   ]);
+  const activityRows = activityResult.rows;
   const recentActivityRows = recentActivityResult.data ?? [];
   const resolvedActivity = await resolveRecentChangeTargets({
     logs: [...recentActivityRows, ...activityRows],
@@ -418,6 +424,8 @@ export async function getTimelineScreenData(
   const events = eventRows.map((event) =>
     toTimelineEvent({
       activity: activityByEventId.get(event.id) ?? [],
+      activityPagination: event.id === viewQuery.eventId ? activityResult.pagination : undefined,
+      activityError: event.id === viewQuery.eventId ? activityResult.error : undefined,
       documents: documentsByEventId.get(event.id) ?? [],
       event,
       isLocked: isTimelineEventLocked(event, periodLocks),
@@ -465,6 +473,8 @@ export async function getTimelineScreenData(
 
 function toTimelineEvent({
   activity,
+  activityPagination,
+  activityError,
   documents,
   event,
   isLocked,
@@ -475,6 +485,8 @@ function toTimelineEvent({
   unit,
 }: {
   activity: ReturnType<typeof toRecentChange>[];
+  activityPagination?: TimelinePagination;
+  activityError?: string;
   documents: LinkedDocument[];
   event: TimelineEventRow;
   isLocked: boolean;
@@ -486,13 +498,15 @@ function toTimelineEvent({
 }): TimelineEvent {
   const hrefs = buildTimelineDetailHrefs(event, ledgerEntry, lease);
   const recordCounts: TimelineRecordCounts = {
-    activity: activity.length,
+    activity: activityPagination?.totalCount ?? activity.length,
     documents: documents.length,
     linkedRecords: countAvailableTimelineSources(sources),
   };
 
   return {
     activity,
+    activityPagination,
+    activityError,
     archivedAt: event.archived_at ?? undefined,
     id: event.id,
     cost: event.cost_amount ?? undefined,
@@ -661,31 +675,82 @@ async function getLinkedTimelineActivity(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   organizationId: string,
   eventIds: string[],
-) {
-  if (eventIds.length === 0) {
-    return [];
+  viewQuery: TimelineViewQuery,
+): Promise<{
+  rows: Parameters<typeof toRecentChange>[0][];
+  pagination?: TimelinePagination;
+  error?: string;
+}> {
+  if (eventIds.length === 0) return { rows: [] };
+
+  const columns = "id, entity_type, entity_id, action, previous_values, new_values, created_at";
+  if (viewQuery.eventId) {
+    // Read only an event already returned by the existing authorized/scoped query.
+    if (!eventIds.includes(viewQuery.eventId)) return { rows: [] };
+    const countResult = await supabase
+      .from("activity_logs")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("entity_type", "timeline_event")
+      .eq("entity_id", viewQuery.eventId);
+    if (countResult.error) {
+      throw new Error(`Could not load timeline event activity: ${countResult.error.message}`);
+    }
+    if (countResult.count === null) {
+      throw new Error("Could not count timeline event activity.");
+    }
+    // A strict (created_at, id) boundary prevents inserts shifting older pages.
+    // Numeric historyPage is presentation only; legacy links reopen newest.
+    const before = parseTimelineHistoryCursor(viewQuery.historyBefore);
+    const pagination = buildTimelinePagination({
+      page: before ? viewQuery.historyPage ?? 2 : 1,
+      pageSize: 50,
+      totalCount: countResult.count,
+    });
+    if (pagination.totalCount === 0) return { rows: [], pagination };
+    let query = supabase
+      .from("activity_logs")
+      .select(columns, { count: "exact" })
+      .eq("organization_id", organizationId)
+      .eq("entity_type", "timeline_event")
+      .eq("entity_id", viewQuery.eventId);
+    if (before) {
+      const [timestamp, id] = before.split("|");
+      query = query.or(`created_at.lt.${timestamp},and(created_at.eq.${timestamp},id.lt.${id})`);
+    }
+    const result = await query
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(50);
+    if (result.error) {
+      throw new Error(`Could not load timeline event activity: ${result.error.message}`);
+    }
+    const rows = result.data ?? [];
+    if (result.count === null || rows.length !== Math.min(50, result.count)) {
+      throw new Error("Could not load complete timeline event activity page. Reload to retry.");
+    }
+    const last = rows.at(-1);
+    pagination.olderCursor = result.count > rows.length && last
+      ? `${last.created_at}|${last.id}` : undefined;
+    return { rows, pagination };
   }
 
+  // This remains a bounded register preview. The inspector explicitly opens
+  // event-scoped pagination before presenting history as a counted result.
   const result = await supabase
     .from("activity_logs")
-    .select(
-      "id, entity_type, entity_id, action, previous_values, new_values, created_at",
-    )
+    .select(columns)
     .eq("organization_id", organizationId)
     .eq("entity_type", "timeline_event")
     .in("entity_id", eventIds)
     .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(120);
-
   if (result.error) {
-    throw new Error(
-      `Could not load timeline event activity: ${result.error.message}`,
-    );
+    throw new Error(`Could not load timeline event activity: ${result.error.message}`);
   }
-
-  return result.data ?? [];
+  return { rows: result.data ?? [] };
 }
-
 function groupDocumentsByEventId(rows: TimelineDocumentWithLink[]) {
   const grouped = new Map<string, LinkedDocument[]>();
 

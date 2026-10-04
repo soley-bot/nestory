@@ -64,6 +64,9 @@ export type TimelineNextAction = {
 
 export type TimelineEvent = {
   activity: RecentChange[];
+  /** Undefined means a bounded preview, not complete event history. */
+  activityPagination?: TimelinePagination;
+  activityError?: string;
   id: string;
   archivedAt?: string;
   eventDate: string;
@@ -116,6 +119,8 @@ export type TimelineViewQuery = {
   dateFrom: string | null;
   dateTo: string | null;
   eventId: string | null;
+  historyPage?: number;
+  historyBefore?: string;
   eventType: TimelineEventType | "all";
   page: number;
   pageSize: number;
@@ -126,6 +131,7 @@ export type TimelineViewQuery = {
 };
 
 export type TimelinePagination = {
+  olderCursor?: string;
   from: number;
   page: number;
   pageSize: number;

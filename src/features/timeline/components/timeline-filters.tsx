@@ -68,6 +68,8 @@ export function TimelineFilters({
 
     nextParams.delete("page");
     nextParams.delete("eventId");
+    nextParams.delete("historyPage");
+    nextParams.delete("historyBefore");
     const queryString = nextParams.toString();
 
     startTransition(() => {

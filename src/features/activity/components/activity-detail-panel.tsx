@@ -6,9 +6,10 @@ import { formatDate } from "@/lib/dates/format";
 
 type ActivityDetailPanelProps = {
   change: RecentChange;
+  onNavigate?: () => void;
 };
 
-export function ActivityDetailPanel({ change }: ActivityDetailPanelProps) {
+export function ActivityDetailPanel({ change, onNavigate }: ActivityDetailPanelProps) {
   const target =
     change.target ??
     (change.href
@@ -47,6 +48,7 @@ export function ActivityDetailPanel({ change }: ActivityDetailPanelProps) {
             <Link
               className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium text-primary transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               href={target.href}
+              onNavigate={onNavigate}
             >
               {target.actionLabel}
               <ExternalLink aria-hidden="true" size={14} />
