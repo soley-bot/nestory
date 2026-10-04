@@ -66,7 +66,7 @@ type DrawerState =
   | { mode: "archive"; event: TimelineEvent }
   | { mode: "restore"; event: TimelineEvent }
   | { mode: "document"; event: TimelineEvent }
-  | { mode: "activity"; change: RecentChange };
+  | { mode: "activity"; change: RecentChange; eventId?: string };
 
 type TimelineScreenProps = {
   canArchive?: boolean;
@@ -232,7 +232,16 @@ export function TimelineScreen({
       olderHistoryHref={selectedEvent.activityPagination && selectedEvent.activityPagination.olderCursor
         ? buildTimelineHistoryHref(pathname, searchParams, selectedEvent.id, selectedEvent.activityPagination.page + 1, selectedEvent.activityPagination.olderCursor)
         : undefined}
-      onSelectChange={(change) => openTimelineAction({ change, mode: "activity" })}
+      onSelectChange={(change) => {
+        const href = buildTimelineHistoryHref(pathname, searchParams, selectedEvent.id, 1);
+        openTimelineAction({
+          change: change.target?.focusMode === "exact" && change.target.href
+            ? { ...change, href, target: { ...change.target, href } }
+            : change,
+          eventId: selectedEvent.id,
+          mode: "activity",
+        });
+      }}
       onAttachDocument={grantedPermissions.has(
         getDocumentPermission(
           getDocumentAuthorityDomain({
@@ -347,7 +356,13 @@ export function TimelineScreen({
                 onSuccess={setStatusMessage}
               />
             ) : drawer.mode === "activity" ? (
-              <ActivityDetailPanel change={drawer.change} />
+              <ActivityDetailPanel
+                change={drawer.change}
+                onNavigate={() => {
+                  setDrawer(null);
+                  if (drawer.eventId) previewEvent(drawer.eventId);
+                }}
+              />
             ) : (
               <TimelineEventForm
                 event={drawer.event}
