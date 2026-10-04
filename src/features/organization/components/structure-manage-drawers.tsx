@@ -72,7 +72,7 @@ export function BranchManageDrawer({
           <FormSection title="Branch details">
             <div className="grid gap-3 sm:grid-cols-2">
               <StructureField disabled={archived || !canManageStructure || status === "saving"} label="Name" name="branch-manage-name" onChange={(value) => setField("name", value)} value={values.name} />
-              <StructureField disabled={archived || !canManageStructure || status === "saving"} label="Code" name="branch-manage-code" onChange={(value) => setField("code", value)} value={values.code} />
+              <StructureField disabled={archived || !canManageStructure || status === "saving"} label="Branch code" name="branch-manage-code" onChange={(value) => setField("code", value)} value={values.code} />
             </div>
             <StructureField disabled={archived || !canManageStructure || status === "saving"} label="Address" name="branch-manage-address" onChange={(value) => setField("address", value)} value={values.address} />
           </FormSection>

@@ -131,6 +131,58 @@ afterEach(() => {
 });
 
 describe("LeaseForm current-step validation", () => {
+  it("cancels an unfinished whole-property lease without submitting", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<LeaseForm
+      createContext={{ propertyId: "property-1", propertyLabel: "Harbor House", unitId: null, unitLabel: null }}
+      onClose={onClose} properties={[]} tenants={[]} units={[]}
+    />);
+    await advanceToLeaseTerms(user);
+    expect(screen.getByLabelText("Move-in context").textContent).toContain("Harbor House / Whole property");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(createLeaseActionMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the selected unit and newly created tenant visible through back, denial and retry", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    createLeaseActionMock
+      .mockResolvedValueOnce({ status: "error", message: "You do not have permission to prepare leases." })
+      .mockResolvedValueOnce({ status: "success", message: "Draft created.", leaseId: "lease-new" });
+    render(<LeaseForm
+      createContext={{ propertyId: "property-1", propertyLabel: "Harbor House", unitId: "unit-1", unitLabel: "Unit 4" }}
+      returnTo="/units/unit-1?section=lease"
+      onClose={onClose} properties={[]} tenants={[]} units={[]}
+    />);
+    await advanceToBillingStep(user);
+    expect(screen.getByLabelText("Move-in context").textContent).toContain("Harbor House / Unit 4");
+    expect(screen.getByLabelText("Move-in context").textContent).toContain("Tenant: Ari Tenant");
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("textbox", { name: /Monthly rent/ }).getAttribute("value")).toBe("1000");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Create draft lease" }));
+    await screen.findByText("You do not have permission to prepare leases.");
+    await user.click(screen.getByRole("button", { name: "Create draft lease" }));
+    await screen.findByRole("form", { name: "Saved lease" });
+    const first = createLeaseActionMock.mock.calls[0][1] as FormData;
+    const retry = createLeaseActionMock.mock.calls[1][1] as FormData;
+    for (const key of ["propertyId", "unitId", "tenantPersonId", "idempotencyKey", "monthlyRentAmount"]) {
+      expect(retry.get(key)).toBe(first.get(key));
+    }
+    expect(retry.get("unitId")).toBe("unit-1");
+    expect(retry.get("tenantPersonId")).toBe("11111111-1111-4111-8111-111111111111");
+    expect(screen.queryByRole("navigation", { name: "Create lease steps" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Create draft lease" })).toBeNull();
+    expect(screen.getByRole("link", { name: "View rent and deposit" }).getAttribute("href"))
+      .toBe(`/leases/lease-new?${new URLSearchParams({ section: "rent", returnTo: "/units/unit-1?section=lease" })}`);
+    fireEvent.submit(screen.getByRole("form", { name: "Saved lease" }));
+    expect(createLeaseActionMock).toHaveBeenCalledTimes(2);
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("preserves the unit origin when opening a newly created draft", async () => {
     const user = userEvent.setup();
     createLeaseActionMock.mockResolvedValueOnce({ status: "success", message: "Draft created.", leaseId: "lease-new" });
@@ -510,7 +562,7 @@ describe("LeaseForm inline tenant billing recipient", () => {
         .hasAttribute("disabled"),
     ).toBe(true);
     expect(
-      screen.getByText("Requires a future lease-contract update"),
+      screen.getByText("Not supported yet"),
     ).not.toBeNull();
     expect(screen.getByLabelText("Lease end date")).not.toBeNull();
 

@@ -1402,5 +1402,5 @@ export async function reverseLeaseDepositEventAction(_state: LeaseActionState, f
   const { error } = await supabase.rpc("reverse_lease_deposit_event", { p_organization_id: context.organizationId, p_event_id: eventId.data, p_event_date: eventDate.data, p_reference: readString(formData, "reference") });
   if (error) return { message: leaseActionErrorMessage(error), status: "error" };
   revalidatePath("/leases"); revalidatePath("/overview");
-  return { message: "Deposit activity undone.", status: "success" };
+  return { message: "Deposit entry reversed.", status: "success" };
 }

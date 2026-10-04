@@ -35,7 +35,7 @@ describe("fee payment date modal", () => {
     fireEvent.change(screen.getByLabelText("Actual payment date"), { target: { value: preview.newDate } });
     fireEvent.click(screen.getByRole("button", { name: "Preview correction" }));
     await screen.findByRole("button", { name: "Confirm payment date correction" });
-    fireEvent.change(screen.getByLabelText("Fee settlement"), { target: { value: "b" } });
+    fireEvent.change(screen.getByLabelText("Fee payment"), { target: { value: "b" } });
     expect(screen.queryByRole("button", { name: "Confirm payment date correction" })).toBeNull();
   });
 

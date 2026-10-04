@@ -83,7 +83,7 @@ describe("auth page journeys", () => {
       error: "access_denied", next: "/update-password", token_hash: "synthetic-token", type: "recovery",
     }) }));
     expect(html).toContain("We could not verify this link");
-    expect(html).toContain("Request a new recovery link");
+    expect(html).toContain("Request a new reset link");
     expect(html).not.toContain("Signing you in");
     expect(html).not.toContain("Keep this page open");
     expect(html).not.toContain("synthetic-token");

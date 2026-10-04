@@ -433,10 +433,10 @@ function getPropertyReviewContext(
 ): PropertyReviewContext | null {
   if (viewQuery.ownerStatus === "missing") {
     return {
-      countLabel: "missing a current owner link",
+      countLabel: "without a current owner",
       description:
         "Showing properties that need a current owner link before ownership reporting and follow-up are reliable.",
-      nextStep: "Current owner link required",
+      nextStep: "Add a current owner",
     };
   }
 

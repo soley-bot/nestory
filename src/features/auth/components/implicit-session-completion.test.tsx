@@ -36,7 +36,7 @@ describe("email link completion", () => {
     await screen.findByRole("heading", { name: "We could not verify this link" });
     expect(screen.queryByText("Signing you in")).toBeNull();
     expect(screen.queryByText("Keep this page open.")).toBeNull();
-    expect(screen.getByRole("link", { name: "Request a new recovery link" }).getAttribute("href")).toBe("/forgot-password");
+    expect(screen.getByRole("link", { name: "Request a new reset link" }).getAttribute("href")).toBe("/forgot-password");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

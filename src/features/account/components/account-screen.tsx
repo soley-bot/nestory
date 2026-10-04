@@ -51,7 +51,7 @@ export function AccountScreen({
             <AccountFact label="Name" value={profile.displayName} />
             <AccountFact label="Legal name" value={profile.legalName ?? "Not set"} />
             <AccountFact label="Profile type" value={formatPartyType(profile.partyType)} />
-            <AccountFact label="Profile email" value={profile.email ?? "Not set"} />
+            <AccountFact label="Staff email" value={profile.email ?? "Not set"} />
             <AccountFact label="Phone" value={profile.phone ?? "Not set"} />
             <AccountFact
               label="People roles"
@@ -84,7 +84,7 @@ export function AccountScreen({
           <Badge tone="success">Active session</Badge>
         </div>
         <dl className="mt-3 grid gap-x-6 sm:grid-cols-2">
-          <AccountFact label="Email" value={identity.email} />
+          <AccountFact label="Sign-in email" value={identity.email} />
           <AccountFact label="Organization" value={identity.organizationName} />
         </dl>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
@@ -111,7 +111,7 @@ export function AccountScreen({
           id="account-access-title"
         >
           <ShieldCheck aria-hidden="true" size={15} />
-          Access scope
+          Your access
         </h2>
         <p className="mt-1 leading-5 text-muted-foreground">
           {roleEffect(identity.role)}
@@ -126,7 +126,7 @@ export function AccountScreen({
             }
           />
           <AccessFact
-            label="Access scope"
+            label="Access"
             value={roleScope(identity.role, identity.branchLabel)}
           />
           <AccessFact
@@ -213,10 +213,10 @@ function roleEffect(role: WorkspaceRole | WorkspaceRoleKind) {
   if (role === "super_admin") return "Full workspace and settings access.";
   if (role === "custom") return "Access within the assigned branch.";
   if (role === "finance_manager")
-    return "Organization-wide Finance read and expense review access.";
+    return "View finance and review expenses across all branches.";
   if (role === "finance_member")
-    return "Organization-wide Finance read and expense submission access.";
-  if (role === "operations_manager") return "Operational access within the assigned branch scope.";
+    return "View finance and submit expenses across all branches.";
+  if (role === "operations_manager") return "Manage operations in your assigned branch.";
   return "Assigned task access through the linked staff profile.";
 }
 

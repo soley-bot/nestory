@@ -102,7 +102,6 @@ export function ProfitLossDetail({ lines, funding, returnTo }: { lines: UnitProf
         </TableBody> : null}
       </Table>
       <p className="mt-2 text-xs text-muted-foreground">Pending expenses are excluded. Profit is not cash available for withdrawal.</p>
-      {funding ? <p className="mt-1 text-xs text-muted-foreground">Opening account activity is not an available cash balance.</p> : null}
       {funding?.unavailableReason ? <p role="status" className="mt-2 text-xs text-warning">{funding.unavailableReason}</p> : null}
     </section>
   );

@@ -380,7 +380,7 @@ export async function submitMaintenanceCostAction(
     evidenceDocumentId = evidence.documentId;
   } catch {
     return {
-      message: "Receipt evidence could not be retained. Try again.",
+      message: "The receipt could not be saved. Try again.",
       status: "error",
     };
   }

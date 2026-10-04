@@ -48,8 +48,8 @@ describe("MaintenancePage", () => {
   });
 
   it.each([
-    ["list", "open", 25], ["board", "work_orders", 25],
-    ["calendar", "scheduled", 100], ["templates", "recurring", 25],
+    ["list", "open", 10], ["board", "work_orders", 10],
+    ["calendar", "scheduled", 100], ["templates", "recurring", 10],
   ])("preserves the implicit %s preset", async (view, review, pageSize) => {
     await MaintenancePage({ searchParams: Promise.resolve({ view }) });
     expect(getMaintenanceScreenData).toHaveBeenLastCalledWith(

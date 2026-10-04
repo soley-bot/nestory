@@ -159,7 +159,7 @@ describe("ImportPreviewScreen", () => {
     const file = new File([csv], `${type}.csv`, { type: "text/csv" });
     Object.defineProperty(file, "text", { value: async () => csv });
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
-    const link = await screen.findByRole("link", { name: "Fix template" });
+    const link = await screen.findByRole("link", { name: "Download rows to fix" });
     const href = link.getAttribute("href")!;
     const repaired = parseCsv(decodeURIComponent(href.slice(href.indexOf(",") + 1)));
     expect(repaired.headers).toContain(idHeader);
@@ -203,7 +203,7 @@ describe("ImportPreviewScreen", () => {
     const rows = await screen.findByRole("region", { name: "Import preview rows" });
     expect(within(rows).getByText("Will clear: Phone.")).toBeTruthy();
     expect(within(rows).getByText("Blank party type keeps the existing type.")).toBeTruthy();
-    expect(screen.getByText(/Unmapped optional fields keep existing values/)).toBeTruthy();
+    expect(screen.getByText(/Columns you leave unmatched keep saved values/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Import 1 ready row" })).toBeTruthy();
   });
 
@@ -256,7 +256,7 @@ describe("ImportPreviewScreen", () => {
     expect(
       screen.getByRole("region", { name: "Import preview rows" }),
     ).toBeTruthy();
-    expect(screen.getByText(/Column mapping/)).toBeTruthy();
+    expect(screen.getByText(/Match columns/)).toBeTruthy();
     expect(screen.getByText(/1 blocked/)).toBeTruthy();
   });
 

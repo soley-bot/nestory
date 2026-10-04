@@ -114,10 +114,10 @@ describe("MaintenanceInspector role-safe workflow", () => {
 
     expect(screen.getByRole("button", { name: /start coordinated work/i })).toBeTruthy();
     const consequence = screen.getByRole("region", {
-      name: "Start coordinated work consequence",
+      name: "Start work",
     });
     expect(consequence.textContent).toContain(
-      "Starting marks the case in progress. Manager coordination remains responsible.",
+      "Marks the case in progress. The manager remains responsible.",
     );
     expect(consequence.textContent).toContain("VendorOffline vendor");
     expect(consequence.textContent).toContain(
@@ -150,14 +150,14 @@ describe("MaintenanceInspector role-safe workflow", () => {
       />,
     );
 
-    expect(screen.getByText("Finance handoff")).toBeTruthy();
+    expect(screen.getByText("Cost review")).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Submit cost to Finance" }),
     ).toBeTruthy();
     expect(
-      screen.getByText(/Upload the receipt used for this submission/),
+      screen.getByText(/Upload a receipt for Finance to review this cost/),
     ).toBeTruthy();
-    expect(screen.getByLabelText("Receipt evidence").getAttribute("name")).toBe(
+    expect(screen.getByLabelText("Receipt").getAttribute("name")).toBe(
       "evidenceFile",
     );
     expect(screen.queryByText("Link actual cost to ledger")).toBeNull();
@@ -476,7 +476,7 @@ function makeCase(): MaintenanceCase {
     statusLabel: "Pending",
     statusTone: "neutral",
     title: "Repair leak",
-    unitLabel: "Property level",
+    unitLabel: "No specific unit",
     vendorLabel: "Offline vendor",
   };
 }

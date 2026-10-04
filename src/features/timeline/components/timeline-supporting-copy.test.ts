@@ -23,8 +23,8 @@ describe("Timeline supporting copy", () => {
         hasFocusedEventIntent: true,
       }),
     ).toEqual({
-      detail: "The event may be outside the current filters or access scope.",
-      suffix: "Source event unavailable",
+      detail: "It may be hidden by filters, or you may not have access.",
+      suffix: "Event unavailable",
     });
   });
 

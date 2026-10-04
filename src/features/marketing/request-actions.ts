@@ -151,7 +151,7 @@ function requestFailureState(): PublicInterestRequestState {
 
 function requestReceivedState(): PublicInterestRequestState {
   return {
-    message: "Demo scheduling and account setup are arranged separately.",
+    message: "This request does not book a demo or create an account.",
     status: "success",
   };
 }

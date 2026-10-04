@@ -651,8 +651,9 @@ function LeaseDepositPanel({
                             type="submit"
                             variant="outline"
                           >
-                            Undo entry
+                            Reverse entry
                           </Button>
+                          <p className="mt-1 max-w-xs text-xs text-muted-foreground">Reverses this record; the original stays in history. No money is transferred.</p>
                         </form>
                       ) : null}
                     </div>
@@ -2075,7 +2076,7 @@ function LeaseReceiptRetrySubmit() {
 
   return (
     <Button disabled={pending} size="sm" type="submit" variant="outline">
-      {pending ? "Retrying receipt..." : "Retry receipt"}
+      {pending ? "Creating receipt..." : "Create receipt again"}
     </Button>
   );
 }

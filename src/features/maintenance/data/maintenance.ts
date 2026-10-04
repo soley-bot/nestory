@@ -1341,7 +1341,7 @@ function toMaintenanceCase({
     timelineEventId: task.timeline_event_id ?? undefined,
     title: task.title,
     unitId: task.unit_id ?? undefined,
-    unitLabel: unit ? `Unit ${unit.unit_number}` : "Property level",
+    unitLabel: unit ? `Unit ${unit.unit_number}` : "No specific unit",
     vendorLabel: vendorIsHistorical
       ? `${vendorLabel} (historical/inactive)`
       : vendorLabel,

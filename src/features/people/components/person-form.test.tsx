@@ -83,7 +83,7 @@ describe("PersonForm role-specific presentation", () => {
         ),
       ).not.toBeNull();
       expect(
-        screen.queryByRole("group", { name: "Operational roles" }),
+        screen.queryByRole("group", { name: "Person roles" }),
       ).toBeNull();
       expect(screen.queryByRole("region", { name: "Role effect" })).toBeNull();
       expect(

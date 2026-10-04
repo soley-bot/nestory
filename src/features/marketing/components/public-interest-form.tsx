@@ -80,10 +80,10 @@ export function PublicInterestForm({
             strokeWidth={1.6}
           />
           <h2 className="mt-8 font-display text-3xl font-semibold leading-tight text-foreground">
-            Thank you for your interest.
+            Request received.
           </h2>
           <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
-            {state.message ?? "Demo scheduling and account setup are arranged separately."}
+            {state.message ?? "This request does not book a demo or create an account."}
           </p>
         </div>
         <div className="mt-10 flex flex-wrap gap-4">
@@ -247,8 +247,7 @@ export function PublicInterestForm({
           <ArrowRight aria-hidden="true" size={15} />
         </Button>
         <p className="text-xs leading-5 text-muted-foreground">
-          You agree to be contacted about this request. Demo scheduling and
-          account setup are arranged separately.
+          You agree to be contacted about this request. It does not book a demo or create an account.
         </p>
       </fieldset>
     </form>

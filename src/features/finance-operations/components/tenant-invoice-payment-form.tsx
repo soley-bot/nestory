@@ -209,27 +209,27 @@ function TenantInvoicePaymentFormStateful({
         </Field>
       </div>
       {invoice.collectionRoute === "through_ips" ? (
-        <p className="text-xs text-muted-foreground">Receipt issued after recording.</p>
+        <p className="text-xs text-muted-foreground">A receipt is prepared after saving.</p>
       ) : null}
       {invoice.collectionRoute === "through_ips" || outstandingLines.length > 1 ? (
         <details className="border-t border-border pt-3">
           <summary className="cursor-pointer rounded-sm py-1 text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">
-            {invoice.collectionRoute === "through_ips" ? "Allocation and receipt details" : "Change how payment is applied"}
+            {invoice.collectionRoute === "through_ips" ? "How payment is applied" : "How payment is applied"}
           </summary>
           <div className="mt-3 space-y-3">
-            <p className="text-xs text-muted-foreground">Rent first, then other charges in invoice order.{outstandingLines.length > 1 ? " Enter amounts below to change the allocation." : ""}</p>
+            <p className="text-xs text-muted-foreground">Payments cover rent first, then other charges in invoice order.{outstandingLines.length > 1 ? " Enter amounts to change how this payment is split." : ""}</p>
             {outstandingLines.length > 1 ? (
               <div className="grid gap-3 sm:grid-cols-2">
                 {outstandingLines.map((line) => (
                   <Field key={line.id} label={`${line.label} · ${formatMoneyDisplay(line.balanceDue).primary}`}>
-                    <NumberInput name={`allocation:${line.id}`} placeholder="Leave blank for Rent first" />
+                    <NumberInput name={`allocation:${line.id}`} placeholder="Leave blank to pay rent first" />
                   </Field>
                 ))}
               </div>
             ) : null}
             {invoice.collectionRoute === "through_ips" ? (
               <p className="text-xs text-muted-foreground">
-                A PDF receipt is created after the payment is recorded. If the receipt cannot be created, the payment stays recorded and the receipt can be retried.
+                If the PDF receipt fails, your payment stays saved. Try creating the receipt again.
               </p>
             ) : null}
           </div>

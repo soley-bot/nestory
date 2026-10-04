@@ -258,16 +258,16 @@ describe("TenantInvoicePaymentForm", () => {
       }),
     });
 
-    const details = screen.getByText("Allocation and receipt details").closest("details");
+    const details = screen.getByText("How payment is applied").closest("details");
     expect(details).toHaveProperty("open", false);
-    expect(screen.getByText("Receipt issued after recording.")).not.toBeNull();
+    expect(screen.getByText("A receipt is prepared after saving.")).not.toBeNull();
     expect(screen.getByText(/Rent first, then other charges in invoice order/i)).not.toBeNull();
     expect(screen.getByLabelText("Reference (optional)")).not.toBeNull();
     expect(
-      screen.getByText(/A PDF receipt is created after the payment is recorded/i),
+      screen.getByText(/If the PDF receipt fails, your payment stays saved/i),
     ).not.toBeNull();
     expect(
-      screen.getByText(/If the receipt cannot be created, the payment stays recorded/i),
+      screen.getByText(/Try creating the receipt again/i),
     ).not.toBeNull();
   });
 
@@ -395,7 +395,7 @@ describe("TenantInvoicePaymentForm", () => {
       }),
     });
 
-    expect(screen.getByText("Allocation and receipt details")).not.toBeNull();
+    expect(screen.getByText("How payment is applied")).not.toBeNull();
     expect(
       view.container.querySelector('[name="allocation:line-rent"]'),
     ).not.toBeNull();
@@ -404,12 +404,13 @@ describe("TenantInvoicePaymentForm", () => {
     ).not.toBeNull();
 
     view.unmount();
-    renderForm({
+    const singleLineView = renderForm({
       invoice: invoice({
         lines: [openLine("Rent", 258), openLine("Parking", 0)],
       }),
     });
-    expect(screen.queryByText("Change how payment is applied")).toBeNull();
+    expect(singleLineView.container.querySelector('[name="allocation:line-rent"]')).toBeNull();
+    expect(singleLineView.container.querySelector('[name="allocation:line-parking"]')).toBeNull();
   });
 
   it.each([

@@ -112,10 +112,9 @@ function MaintenanceCostHandoffPanel({
     <div className="space-y-3 border-t border-border pt-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold">Finance handoff</p>
+          <p className="text-sm font-semibold">Cost review</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Operations records what was paid. Finance verifies it and chooses
-            the paid-from account at approval.
+            Record the payment. Finance checks it and selects the payment account when approving it.
           </p>
         </div>
         <Badge tone={maintenanceCostStatusTone(submission?.status)}>
@@ -167,8 +166,7 @@ function MaintenanceCostHandoffPanel({
 
       {isLocked ? (
         <p className="text-xs leading-5 text-muted-foreground">
-          The submitted amount and vendor are locked. Operational completion can
-          continue independently.
+          The submitted amount and vendor cannot be changed. You can still finish the work.
         </p>
       ) : (
         <form action={action} className="space-y-3 rounded-md border border-border bg-card p-3">
@@ -193,10 +191,10 @@ function MaintenanceCostHandoffPanel({
               />
             </label>
             <label className="space-y-1.5 text-sm font-medium">
-              <span>Receipt evidence</span>
+              <span>Receipt</span>
               <Input
                 accept="application/pdf,image/jpeg,image/png,image/webp"
-                aria-label="Receipt evidence"
+                aria-label="Receipt"
                 name="evidenceFile"
                 required
                 type="file"
@@ -213,8 +211,7 @@ function MaintenanceCostHandoffPanel({
             />
           </label>
           <p className="text-xs text-muted-foreground">
-            Upload the receipt used for this submission. It is retained and
-            registered exclusively before Finance can review the cost.
+            Upload a receipt for Finance to review this cost. It is kept with this submission.
           </p>
           {state.fieldErrors?.reference?.[0] ? (
             <p className="text-xs text-danger">
@@ -309,8 +306,8 @@ function CoordinatedExecutionPanel({
         <ActionConsequence
           maintenanceCase={maintenanceCase}
           notification="No automatic message"
-          text="Starting marks the case in progress. Manager coordination remains responsible."
-          title="Start coordinated work consequence"
+          text="Marks the case in progress. The manager remains responsible."
+          title="Start work"
         >
           <CoordinatedButton action={action} actionName="start" disabled={pending} taskId={maintenanceCase.id}>
             <Play size={14} /> Start coordinated work
@@ -321,8 +318,8 @@ function CoordinatedExecutionPanel({
         <ActionConsequence
           maintenanceCase={maintenanceCase}
           notification="No automatic message"
-          text="Resuming clears the blocker and returns the case to in-progress manager coordination."
-          title="Resume coordinated work consequence"
+          text="Clears the blocker and marks the case in progress. The manager remains responsible."
+          title="Resume work"
         >
           <CoordinatedButton action={action} actionName="resume" disabled={pending} taskId={maintenanceCase.id}>
             <Play size={14} /> Resume coordinated work
@@ -347,8 +344,8 @@ function CoordinatedExecutionPanel({
             />
             <TransitionConsequence
               maintenanceCase={maintenanceCase}
-              summary="Blocking pauses coordinated execution and keeps the case open."
-              title="Block coordinated work consequence"
+              summary="Pauses work and keeps the case open."
+              title="Block work"
             />
             <Button disabled={pending} type="submit">
               <Pause size={14} /> Mark coordinated work blocked
@@ -370,8 +367,8 @@ function CoordinatedExecutionPanel({
             />
             <TransitionConsequence
               maintenanceCase={maintenanceCase}
-              summary="Completion closes the task and its request without posting a ledger effect."
-              title="Complete coordinated work consequence"
+              summary="Closes the task and its request. No accounting entry is created."
+              title="Complete work"
             />
             <Button disabled={pending} type="submit" variant="default">
               <CheckCircle2 size={14} /> Complete coordinated work

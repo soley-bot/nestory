@@ -64,7 +64,7 @@ export function ImplicitSessionCompletion({
       >
         {nextPath === "/update-password" ? (
           <Link className="inline-flex h-11 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground" href="/forgot-password">
-            Request a new recovery link
+            Request a new reset link
           </Link>
         ) : null}
         <Link

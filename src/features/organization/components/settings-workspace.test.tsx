@@ -143,7 +143,7 @@ describe("SettingsWorkspace navigation and layout", () => {
       screen.getByRole("textbox", { name: "Workspace name" }),
     ).not.toBeNull();
     expect(screen.getByText("Workspace currency")).not.toBeNull();
-    expect(screen.getByText("Operational timezone")).not.toBeNull();
+    expect(screen.getByText("Workspace time zone")).not.toBeNull();
     expect(screen.getByText("USD")).not.toBeNull();
     expect(screen.getByText("UTC")).not.toBeNull();
     expect(screen.getByText("Not editable in Settings")).not.toBeNull();
@@ -355,7 +355,7 @@ describe("SettingsWorkspace navigation and layout", () => {
 
     await openBranchDrawer(user);
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
-    await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
+    await user.type(screen.getByRole("textbox", { name: "Branch code" }), "HKT");
     await user.click(screen.getByRole("button", { name: "Save" }));
     fireEvent.click(screen.getByRole("link", { hidden: true, name: "Access" }));
 
@@ -389,7 +389,7 @@ describe("SettingsWorkspace navigation and layout", () => {
 
     await openBranchDrawer(user);
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
-    await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
+    await user.type(screen.getByRole("textbox", { name: "Branch code" }), "HKT");
     await user.click(screen.getByRole("button", { name: "Save" }));
     fireEvent.click(screen.getByRole("link", { hidden: true, name: "Teams" }));
 
@@ -423,7 +423,7 @@ describe("SettingsWorkspace navigation and layout", () => {
 
     await openBranchDrawer(user);
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
-    await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
+    await user.type(screen.getByRole("textbox", { name: "Branch code" }), "HKT");
     await user.click(screen.getByRole("button", { name: "Save" }));
     const alert = await screen.findByRole("alert");
     expect(document.activeElement).toBe(alert);

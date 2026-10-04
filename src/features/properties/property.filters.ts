@@ -14,8 +14,8 @@ import {
   type SearchParamValue,
 } from "@/lib/validation/search-params";
 
-export const DEFAULT_PROPERTY_PAGE_SIZE = 50;
-export const PROPERTY_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+export const DEFAULT_PROPERTY_PAGE_SIZE = 10;
+export const PROPERTY_PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 export const DEFAULT_PROPERTY_SORT: PropertySortKey = "code_asc";
 
 type PropertySearchParams = Record<string, SearchParamValue>;

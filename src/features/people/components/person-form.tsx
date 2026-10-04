@@ -265,7 +265,7 @@ export function PersonForm({
           <div className="space-y-2 border-t border-border pt-4">
             <RecordField
               error={state.fieldErrors?.roles?.[0]}
-              label="Operational roles"
+              label="Person roles"
               name="roles"
               required
             >
@@ -289,7 +289,7 @@ export function PersonForm({
               </div>
             </RecordField>
             <p className="text-xs text-muted-foreground">
-              Roles control directory placement, not workspace access.
+              These roles organize people. They do not grant workspace access.
             </p>
           </div>
         )}

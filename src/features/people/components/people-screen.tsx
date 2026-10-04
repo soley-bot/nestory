@@ -359,7 +359,9 @@ function PeopleReviewStrip({
         <p className="min-w-0 truncate font-medium text-foreground">
           {count} {count === 1 ? "person" : "people"} {context.countLabel}
         </p>
-        <p className="text-muted-foreground">{context.nextStep}</p>
+        {context.nextStep ? (
+          <p className="text-muted-foreground">{context.nextStep}</p>
+        ) : null}
       </div>
     </div>
   );
@@ -374,7 +376,7 @@ function getPeopleReviewContext(
       countLabel: "in this activity view",
       description:
         "Opened from recent activity with archived records included.",
-      nextStep: "Focused person ready for review.",
+      nextStep: "",
     };
   }
 
@@ -401,7 +403,7 @@ function getPeopleReviewContext(
       countLabel: "without an assigned role",
       description:
         "Showing people who need a tenant, owner, vendor, or staff role before they can be linked to work.",
-      nextStep: "Assign the operating role in Edit.",
+      nextStep: "Edit the person to add a role.",
     };
   }
 

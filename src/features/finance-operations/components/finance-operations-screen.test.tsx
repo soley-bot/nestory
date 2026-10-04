@@ -330,7 +330,7 @@ describe("FinanceOperationsScreen", () => {
     render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canSubmitExpense: true })}
       initialExpenseIntent="owner" organizationName="IPS" view="expenses" />);
     const form = screen.getByRole("form", { name: "Record property expense form" });
-    const allocation = screen.getByLabelText("Apply from IPS-held owner cash");
+    const allocation = screen.getByLabelText("Use owner funds held by management");
     const disclosure = allocation.closest("details");
     expect(disclosure).not.toBeNull();
     expect(disclosure?.hasAttribute("open")).toBe(false);
@@ -367,7 +367,7 @@ describe("FinanceOperationsScreen", () => {
     render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canSubmitExpense: true })}
       initialExpenseIntent="owner" organizationName="IPS" view="expenses" />);
     const form = screen.getByRole("form", { name: "Record property expense form" });
-    const allocation = screen.getByLabelText<HTMLInputElement>("Apply from IPS-held owner cash");
+    const allocation = screen.getByLabelText<HTMLInputElement>("Use owner funds held by management");
     const disclosure = allocation.closest("details")!;
     const summary = within(disclosure).getByText(/Owner cash/);
     await user.type(screen.getByLabelText("Line amount"), "100");
@@ -463,8 +463,8 @@ describe("FinanceOperationsScreen", () => {
     if (status === "approved") await user.click(screen.getByRole("tab", { name: "Approved (1)" }));
     await user.click(screen.getByRole("button", { name: "View Sokha Repairs" }));
     const dialog = screen.getByRole("dialog", { name: "Paid cost details" });
-    expect(within(dialog).getByText(/Scoped subtotal:/).textContent).toContain("USD 40.00");
-    expect(within(dialog).getByText(/Full transaction total:/).textContent).toContain("USD 100.00");
+    expect(within(dialog).getByText(/Total shown:/).textContent).toContain("USD 40.00");
+    expect(within(dialog).getByText(/Whole expense:/).textContent).toContain("USD 100.00");
     expect(within(dialog).queryByRole("button", { name: /Approve|Reject|Reverse/ })).toBeNull();
     expect(within(dialog).getByText(/require the complete transaction/)).not.toBeNull();
   });
@@ -571,7 +571,7 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getAllByLabelText("Expense description")).toHaveLength(1);
     expect(screen.getAllByLabelText("Line amount")).toHaveLength(1);
     expect(
-      screen.getAllByLabelText("Apply from IPS-held owner cash"),
+      screen.getAllByLabelText("Use owner funds held by management"),
     ).toHaveLength(1);
     expect(screen.getByText("Automatic when left blank")).not.toBeNull();
 
@@ -2844,13 +2844,13 @@ describe("FinanceOperationsScreen", () => {
     );
     const details = screen.getByRole("dialog", { name: "Paid cost details" });
     await user.click(
-      within(details).getByRole("button", { name: "Delete Sokha Repairs" }),
+      within(details).getByRole("button", { name: "Reverse expense for Sokha Repairs" }),
     );
     expect(
-      screen.getByRole("dialog", { name: "Delete expense" }),
+      screen.getByRole("dialog", { name: "Reverse expense" }),
     ).not.toBeNull();
     expect(
-      screen.getByRole("button", { name: "Delete expense" }),
+      screen.getByRole("button", { name: "Reverse expense" }),
     ).not.toBeNull();
   });
 
@@ -3303,7 +3303,7 @@ describe("FinanceOperationsScreen", () => {
       screen.getByRole("button", { name: "View invoice INV-202608-001" }),
     );
     expect(screen.getByText("Receipt unavailable")).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "Retry receipt" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Create receipt again" })).toBeNull();
     cleanup();
     financeActionMocks.retryTenantReceiptPdfAction.mockResolvedValueOnce({
       artifactHref: "/api/finance/documents/retried-receipt",
@@ -3322,7 +3322,7 @@ describe("FinanceOperationsScreen", () => {
     await user.click(
       screen.getByRole("button", { name: "View invoice INV-202608-001" }),
     );
-    await user.click(screen.getByRole("button", { name: "Retry receipt" }));
+    await user.click(screen.getByRole("button", { name: "Create receipt again" }));
     await waitFor(() =>
       expect(financeActionMocks.retryTenantReceiptPdfAction).toHaveBeenCalledOnce(),
     );
@@ -3379,7 +3379,7 @@ describe("FinanceOperationsScreen", () => {
     await user.click(
       screen.getByRole("button", { name: "View invoice INV-202608-001" }),
     );
-    await user.click(screen.getByRole("button", { name: "Retry receipt" }));
+    await user.click(screen.getByRole("button", { name: "Create receipt again" }));
 
     await waitFor(() =>
       expect(financeActionMocks.retryTenantReceiptPdfAction).toHaveBeenCalledOnce(),
@@ -3437,7 +3437,7 @@ describe("FinanceOperationsScreen", () => {
     await user.click(
       screen.getByRole("button", { name: "View invoice INV-202608-001" }),
     );
-    const retry = screen.getByRole("button", { name: "Retry receipt" });
+    const retry = screen.getByRole("button", { name: "Create receipt again" });
     await user.click(retry);
     expect((await screen.findByRole("alert")).textContent).toContain(
       "Receipt PDF unavailable.",
@@ -3518,7 +3518,7 @@ describe("FinanceOperationsScreen", () => {
       ),
     );
     expect(await screen.findByText("Receipt unavailable")).not.toBeNull();
-    const immediateRetry = screen.getByRole("button", { name: "Retry receipt" });
+    const immediateRetry = screen.getByRole("button", { name: "Create receipt again" });
     await user.click(immediateRetry);
     const immediateRetryFormData = financeActionMocks.retryTenantReceiptPdfAction.mock
       .calls[0]?.[1] as FormData;
@@ -3566,7 +3566,7 @@ describe("FinanceOperationsScreen", () => {
     );
     expect(screen.queryByRole("link", { name: "Download receipt" })).toBeNull();
     expect(screen.queryByText("Receipt unavailable")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Retry receipt" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Create receipt again" })).toBeNull();
   });
 
   it("keeps append-only settlement correction separate from ordinary payment authority", async () => {
@@ -3600,7 +3600,7 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
     expect(
-      screen.queryByRole("button", { name: "Correct settlement" }),
+      screen.queryByRole("button", { name: "Reverse payment record" }),
     ).toBeNull();
     readOnly.unmount();
 
@@ -3613,7 +3613,7 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
     expect(
-      screen.queryByRole("button", { name: "Correct settlement" }),
+      screen.queryByRole("button", { name: "Reverse payment record" }),
     ).toBeNull();
     paymentOnly.unmount();
 
@@ -3631,13 +3631,13 @@ describe("FinanceOperationsScreen", () => {
     await user.click(
       within(screen.getByRole("dialog", { name: "Invoice details" })).getByRole(
         "button",
-        { name: "Correct settlement" },
+        { name: "Reverse payment record" },
       ),
     );
 
-    const dialog = screen.getByRole("dialog", { name: "Correct settlement" });
+    const dialog = screen.getByRole("dialog", { name: "Reverse payment record" });
     expect(
-      within(dialog).getByRole("combobox", { name: "Settlement" }),
+      within(dialog).getByRole("combobox", { name: "Payment record" }),
     ).not.toBeNull();
     expect(
       within(dialog).getByText(/original stays in history/i),
@@ -3645,7 +3645,7 @@ describe("FinanceOperationsScreen", () => {
     expect(
       (
         within(dialog).getByRole("button", {
-          name: "Reverse settlement",
+          name: "Reverse payment record",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);

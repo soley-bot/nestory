@@ -75,7 +75,7 @@ describe("AppShell Shadcn dashboard block", () => {
       "Recurring work",
       "Inspections",
       "Work orders",
-      "Timeline history",
+      "Timeline",
       "Property timeline",
       "Maintenance timeline",
       "Financial timeline",
@@ -161,7 +161,7 @@ describe("AppShell Shadcn dashboard block", () => {
     ).toBe("/leases");
     expect(screen.queryByRole("link", { name: "Rent policy" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Cases" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Timeline history" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Timeline" })).toBeNull();
   });
 
   it("keeps a Finance submitter aligned with readable finance routes", () => {

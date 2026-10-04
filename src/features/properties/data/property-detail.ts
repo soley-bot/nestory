@@ -726,7 +726,7 @@ function toLedgerContext(
     id: entry.id,
     transactionDate: entry.transaction_date,
     unitHref: entry.unit_id ? `/units/${entry.unit_id}` : undefined,
-    unitLabel: unit ? `Unit ${unit.unit_number}` : "Property level",
+    unitLabel: unit ? `Unit ${unit.unit_number}` : "No specific unit",
   };
 }
 
@@ -751,7 +751,7 @@ function toTimelineContext(
     id: event.id,
     title: event.title,
     unitHref: event.unit_id ? `/units/${event.unit_id}` : undefined,
-    unitLabel: unit ? `Unit ${unit.unit_number}` : "Property level",
+    unitLabel: unit ? `Unit ${unit.unit_number}` : "No specific unit",
   };
 }
 
@@ -798,7 +798,7 @@ function toMaintenanceContext(
             : "neutral",
     title: maintenanceCase.title,
     unitHref: maintenanceCase.unit_id ? `/units/${maintenanceCase.unit_id}` : undefined,
-    unitLabel: unit ? `Unit ${unit.unit_number}` : "Property level",
+    unitLabel: unit ? `Unit ${unit.unit_number}` : "No specific unit",
   };
 }
 

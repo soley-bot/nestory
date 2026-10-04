@@ -121,7 +121,7 @@ const reports: PageHelpContent = {
   purpose: "Choose a report to review records and export the results.",
   steps: ["Choose a report from the directory.", "Set the report's filters and review its results.", "Use an available export action to download the report."],
   example: "Choose Rent collections, set the period, and review the results before exporting.",
-  questions: [{ question: "Where are official owner statements?", answer: "The Reports directory links to saved official owner statements when your access allows it." }],
+  questions: [{ question: "Does the rent roll show past occupancy?", answer: "No. It shows current occupancy and rent, not past records." }, { question: "Where are official owner statements?", answer: "The Reports directory links to saved official owner statements when your access allows it." }],
 };
 
 const settings: PageHelpContent = {
@@ -129,15 +129,15 @@ const settings: PageHelpContent = {
   purpose: "Manage workspace details, appearance, structure, and access where your role allows it.",
   steps: ["Choose the settings section you need.", "Review the current values and make your changes.", "Use Save changes when shown and check the saved status."],
   example: "Open Appearance to review the workspace theme and branding settings.",
-  questions: [{ question: "Are edits saved immediately?", answer: "Sections with a Save changes control keep a draft until you save. Discard removes those unsaved edits." }, { question: "Where is my own profile?", answer: "Open Account to review your linked profile and access scope." }],
+  questions: [{ question: "Are edits saved immediately?", answer: "Sections with a Save changes control keep a draft until you save. Discard removes those unsaved edits." }, { question: "Where is my own profile?", answer: "Open Account to review your staff profile and workspace access." }],
 };
 
 const account: PageHelpContent = {
   title: "Account & profile",
   purpose: "Review your linked staff profile, sign-in identity, and workspace access.",
-  steps: ["Review the profile details and sign-in email.", "Check your access level, scope, and linked staff record.", "Use Set or change password if you need email-based password recovery."],
-  example: "Check Access scope to see whether your account is limited to a branch.",
-  questions: [{ question: "Can I edit my profile here?", answer: "This page displays your profile. Ask an administrator to update or link the staff record if needed." }, { question: "Why are there two emails?", answer: "Profile email belongs to the linked person record. The security email is the sign-in identity." }],
+  steps: ["Review the profile details and sign-in email.", "Check your role, access, and linked staff record.", "Use Set or change password if you need email-based password recovery."],
+  example: "Check Your access to see whether your account is limited to a branch or assigned work.",
+  questions: [{ question: "Can I edit my profile here?", answer: "This page displays your profile. Ask an administrator to update or link the staff record if needed." }, { question: "Why are there two emails?", answer: "Your staff email is saved on your staff profile. Your sign-in email is used to access Nestory." }],
 };
 
 const imports: PageHelpContent = {
@@ -145,8 +145,8 @@ const imports: PageHelpContent = {
   purpose: "Upload a CSV, review its rows, and import the ready records.",
   steps: ["Choose the import type and download its template if needed.", "Upload a CSV and check the column matches and row issues.", "Import the ready rows, then review the result and fix blocked rows."],
   example: "Import properties before units, and create the linked units and tenant records before importing leases.",
-  questions: [{ question: "Are blocked rows imported?", answer: "Only ready rows are written. Blocked rows remain for review and correction." }, { question: "Which files are supported?", answer: "Upload a CSV of 12 MB or smaller. Each commit supports up to 500 valid rows." }],
-  terms: [{ term: "Column matches", meaning: "The mapping between columns in your CSV and the fields Nestory needs for this import type." }],
+  questions: [{ question: "Are blocked rows imported?", answer: "Only ready rows are imported. Fix the other rows and upload them again." }, { question: "Which files are supported?", answer: "CSV files can be up to 12 MB. Import up to 500 valid rows at a time." }, { question: "How do people imports match and update records?", answer: "Use Person ID when names or emails are shared. Unmatched columns keep saved values. Blank matched email, phone, legal name, tax ID and notes cells erase saved values. A blank party type keeps the saved type; new people default to Individual." }],
+  terms: [{ term: "Column matches", meaning: "Choose which Nestory field each CSV column fills." }],
 };
 
 const rootHelp: Record<string, PageHelpContent> = {

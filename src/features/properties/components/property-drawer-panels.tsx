@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect } from "react";
+import { useRecordLifecycleAction } from "@/features/records/use-record-lifecycle-action";
 import { Archive, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,17 +27,14 @@ export function ArchivePropertyPanel({
   presentation = "drawer",
   property,
 }: PropertyPanelProps) {
-  const [state, action, pending] = useActionState(
-    archivePropertyAction,
-    archiveInitialState,
-  );
-
-  useEffect(() => {
-    if (state.status === "success") {
-      onSuccess(state.message ?? "Property archived.");
-      onClose();
-    }
-  }, [onClose, onSuccess, state.message, state.status]);
+  const { state, pending, onSubmit, requestClose } = useRecordLifecycleAction({
+    action: archivePropertyAction,
+    initialState: archiveInitialState,
+    onClose,
+    onSuccess,
+    successMessage: "Property archived.",
+    blocked: property.units > 0,
+  });
 
   const hasActiveUnits = property.units > 0;
   const flowState = getArchiveFlowState({
@@ -48,7 +45,8 @@ export function ArchivePropertyPanel({
 
   return (
     <form
-      action={action}
+      onSubmit={onSubmit}
+      aria-busy={pending}
       className={
         presentation === "modal" ? "flex flex-col" : "flex h-full flex-col"
       }
@@ -96,7 +94,7 @@ export function ArchivePropertyPanel({
         disabled={flowState === "blocked"}
         icon={<Archive size={15} />}
         intent="danger"
-        onClose={onClose}
+        onClose={requestClose}
         pending={pending}
         presentation={presentation}
       />
@@ -110,21 +108,18 @@ export function RestorePropertyPanel({
   presentation = "drawer",
   property,
 }: PropertyPanelProps) {
-  const [state, action, pending] = useActionState(
-    restorePropertyAction,
-    restoreInitialState,
-  );
-
-  useEffect(() => {
-    if (state.status === "success") {
-      onSuccess(state.message ?? "Property restored.");
-      onClose();
-    }
-  }, [onClose, onSuccess, state.message, state.status]);
+  const { state, pending, onSubmit, requestClose } = useRecordLifecycleAction({
+    action: restorePropertyAction,
+    initialState: restoreInitialState,
+    onClose,
+    onSuccess,
+    successMessage: "Property restored.",
+  });
 
   return (
     <form
-      action={action}
+      onSubmit={onSubmit}
+      aria-busy={pending}
       className={
         presentation === "modal" ? "flex flex-col" : "flex h-full flex-col"
       }
@@ -153,7 +148,7 @@ export function RestorePropertyPanel({
       <PanelFooter
         confirmLabel={pending ? "Restoring..." : "Restore property"}
         icon={<RotateCcw size={15} />}
-        onClose={onClose}
+        onClose={requestClose}
         pending={pending}
         presentation={presentation}
       />

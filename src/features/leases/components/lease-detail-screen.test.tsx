@@ -369,7 +369,7 @@ describe("LeaseDetailScreen", () => {
       "Payment recorded. Receipt unavailable.",
     );
     expect(
-      screen.getByRole("button", { name: "Retry receipt" }),
+      screen.getByRole("button", { name: "Create receipt again" }),
     ).not.toBeNull();
     expect(
       view.container.querySelector<HTMLInputElement>('input[name="paymentId"]')
@@ -938,7 +938,7 @@ describe("LeaseDetailScreen", () => {
       drawer.querySelector<HTMLInputElement>('input[name="liabilityAccountId"]')?.value,
     ).toBe("account-liability-deposits");
     expect(
-      within(drawer).getByRole("button", { name: "Undo entry" }),
+      within(drawer).getByRole("button", { name: "Reverse entry" }),
     ).not.toBeNull();
     expect(screen.queryByText(/received \/ /)).toBeNull();
   });
@@ -963,7 +963,7 @@ describe("LeaseDetailScreen", () => {
     await user.click(screen.getByRole("button", { name: "Settle deposit" }));
     const drawer = screen.getByRole("dialog", { name: "Manage security deposit" });
     expect(within(drawer).getByRole("button", { name: "Save deposit activity" })).not.toBeNull();
-    expect(within(drawer).queryByRole("button", { name: "Undo entry" })).toBeNull();
+    expect(within(drawer).queryByRole("button", { name: "Reverse entry" })).toBeNull();
     await user.click(within(drawer).getByRole("combobox", { name: "Deposit activity" }));
     expect(screen.getByRole("option", { name: "Deposit refunded" })).not.toBeNull();
     expect(screen.queryByRole("option", { name: "Deposit received" })).toBeNull();
@@ -1013,8 +1013,8 @@ describe("LeaseDetailScreen", () => {
     renderDetail("rent", lease);
     await user.click(screen.getByRole("button", { name: "View deposit" }));
     const drawer = screen.getByRole("dialog", { name: "Manage security deposit" });
-    expect(within(drawer).getAllByRole("button", { name: "Undo entry" })).toHaveLength(1);
-    expect(within(drawer).getByRole("button", { name: "Undo entry" }).closest("form")?.querySelector<HTMLInputElement>('input[name="eventId"]')?.value).toBe("refunded-event");
+    expect(within(drawer).getAllByRole("button", { name: "Reverse entry" })).toHaveLength(1);
+    expect(within(drawer).getByRole("button", { name: "Reverse entry" }).closest("form")?.querySelector<HTMLInputElement>('input[name="eventId"]')?.value).toBe("refunded-event");
   });
 
   it("keeps archived deposit settlement unavailable to a view-only role", async () => {
@@ -1050,7 +1050,7 @@ describe("LeaseDetailScreen", () => {
     const drawer = screen.getByRole("dialog", {
       name: "Manage security deposit",
     });
-    expect(within(drawer).getByRole("button", { name: "Undo entry" })).not.toBeNull();
+    expect(within(drawer).getByRole("button", { name: "Reverse entry" })).not.toBeNull();
     await user.click(
       within(drawer).getByRole("combobox", { name: "Deposit activity" }),
     );

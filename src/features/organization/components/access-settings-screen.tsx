@@ -53,6 +53,7 @@ import {
   type OrganizationActionState,
 } from "@/features/organization/actions";
 import { cn } from "@/lib/utils";
+import { PERMISSION_GROUPS } from "@/lib/auth/permission-catalog";
 import type { WorkspaceRole, WorkspaceRoleKind } from "@/lib/auth/capabilities";
 import type {
   OrganizationBranch,
@@ -291,7 +292,7 @@ function AccessWorkspace({
             Workspace access
           </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Sign-in, role, and branch scope.
+            Sign-in, role, and branches.
           </p>
         </div>
         <Button
@@ -469,6 +470,9 @@ function PendingInvitationRow({
               Created, but not delivered.
             </span>
           ) : null}
+          <span className="mt-0.5 block whitespace-normal text-xs text-muted-foreground">
+            This invitation grants access only after it is accepted.
+          </span>
         </TableCell>
         <TableCell className="px-3">
           {formatWorkspaceAccessRole(
@@ -647,6 +651,7 @@ function MemberAccessForm({
     },
   });
   const lastAdministrator = member.role === "super_admin" && adminCount === 1;
+  const assignmentIsCurrent = draft.status === "clean" || draft.status === "saved";
   const blocksLastAdminDemotion =
     lastAdministrator && draft.values.roleKind !== "super_admin";
   const linkedPerson = people.find((person) => person.id === member.personId);
@@ -862,7 +867,7 @@ function MemberAccessForm({
 
       {expanded ? (
         <TableRow>
-          <TableCell className="bg-muted/20 p-0" colSpan={5}>
+          <TableCell className="bg-muted/20 whitespace-normal p-0" colSpan={5}>
             <form
               className="px-4 py-4"
               onSubmit={(event) => {
@@ -944,14 +949,17 @@ function MemberAccessForm({
                 </label>
               </div>
 
-              {draft.status !== "clean" ? (
-                <ConsequencePanel
-                  className="mt-4"
-                  rows={accessRows(draft.values, branches, people)}
-                  title="Access effect"
-                  variant="inline"
-                />
-              ) : null}
+              <ConsequencePanel
+                className="mt-4"
+                rows={accessRows(draft.values, branches, people, roles)}
+                summary={
+                  assignmentIsCurrent
+                    ? "Role permissions apply to assigned records. Each workflow still checks its requirements."
+                    : "Changes take effect only after Save access succeeds."
+                }
+                title={assignmentIsCurrent ? "Current assignment" : "Proposed assignment"}
+                variant="inline"
+              />
 
               <div className="mt-4">
                 <DraftActionBar
@@ -1047,7 +1055,8 @@ function MemberAccessForm({
                     Remove workspace access?
                   </p>
                   <p className="mt-1 text-muted-foreground">
-                    This account will lose workspace access immediately.
+                    This account will lose access to this company immediately.
+                    The Staff record and its history will be kept.
                   </p>
                   <div className="mt-3 flex justify-end gap-2">
                     <button
@@ -1204,6 +1213,26 @@ function useAccessDraft<TValues extends Record<string, string>>({
   >({});
   const [status, setStatus] = useState<DraftStatus>(initialStatus);
   const [values, setValues] = useState<TValues>({ ...initialValues });
+  const incomingValuesKey = JSON.stringify(initialValues);
+  const receivedValuesKey = useRef(incomingValuesKey);
+
+  useEffect(() => {
+    if (receivedValuesKey.current === incomingValuesKey) return;
+    receivedValuesKey.current = incomingValuesKey;
+    const incomingValues = JSON.parse(incomingValuesKey) as TValues;
+    baseline.current = { ...incomingValues };
+    if (
+      !submitting.current &&
+      (status === "clean" || status === "saved" ||
+        Object.keys(incomingValues).every((field) => values[field] === incomingValues[field]))
+    ) {
+      setValues({ ...incomingValues });
+      setMessage(undefined);
+      setErrorKind(undefined);
+      setFieldErrors({});
+      setStatus("clean");
+    }
+  }, [incomingValuesKey, status, values]);
 
   useEffect(() => {
     alive.current = true;
@@ -1339,11 +1368,6 @@ function useAccessDraft<TValues extends Record<string, string>>({
   };
 }
 
-/**
- * The role and scope selects are directly above this panel, so repeating them
- * here says nothing. What the form cannot show is what the grant actually
- * permits — and, for an Operations role, which Staff record it attaches to.
- */
 function accessRows(
   values: {
     branchId: string;
@@ -1353,13 +1377,48 @@ function accessRows(
   },
   branches: OrganizationBranch[],
   people: OrganizationStaffOption[],
+  roles: OrganizationRole[],
 ) {
+  const role = roles.find((candidate) => candidate.id === values.customRoleId);
+  const branch = branches.find((candidate) => candidate.id === values.branchId);
   const rows = [
     {
-      label: "Grants",
-      value: roleEffect(values.roleKind, values.branchId, branches),
+      label: "Role",
+      value: values.roleKind === "super_admin" ? "Super Admin" : role?.name ?? "Role unavailable",
+    },
+    {
+      label: "Branch scope",
+      value: values.roleKind === "super_admin"
+        ? "All branches in this company"
+        : branch
+          ? `${branch.name} only`
+          : "Assigned branch unavailable",
     },
   ];
+
+  if (values.roleKind === "super_admin") {
+    rows.push({ label: "Permissions", value: "Full access within this company" });
+  } else if (!role || role.status !== "active" || !role.permissions.length) {
+    rows.push({
+      label: "Access restriction",
+      value: !role
+        ? "Role permissions could not be confirmed."
+        : role.status !== "active"
+          ? "This role is archived. Ordinary access is unavailable."
+          : "This role has no permissions. Ordinary access is unavailable.",
+    });
+  } else {
+    for (const group of PERMISSION_GROUPS) {
+      const permissions = group.permissions.filter((permission) => role.permissions.includes(permission.key));
+      if (permissions.length) {
+        rows.push({ label: group.label, value: permissions.map((permission) => permission.label).join(", ") });
+      }
+    }
+  }
+
+  if (values.roleKind === "custom" && (!branch || branch.status !== "active" || branch.archivedAt)) {
+    rows.push({ label: "Branch restriction", value: "An active assigned branch is required for ordinary access." });
+  }
 
   if (values.roleKind === "custom" && values.personId) {
     rows.push({
@@ -1411,17 +1470,6 @@ function formatAccessDate(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
-}
-
-function roleEffect(
-  roleKind: string,
-  branchId: string,
-  branches: OrganizationBranch[],
-) {
-  if (roleKind === "super_admin") {
-    return "Full workspace access";
-  }
-  return `Assigned role · ${branchLabel(branchId, branches)}`;
 }
 
 function activeStaffOptions(people: OrganizationStaffOption[]) {
