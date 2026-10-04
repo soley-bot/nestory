@@ -24,6 +24,7 @@ import { PropertyForm } from "@/features/properties/components/property-form";
 import type { PropertyBranchOption } from "@/features/properties/property.types";
 import { UnitForm } from "@/features/units/components/unit-form";
 import { LeaseForm } from "@/features/leases/components/lease-form";
+import { buildLeaseRecordHref } from "@/features/leases/lease-detail-route";
 import type { LeaseBillingFormConfig } from "@/features/leases/lease.types";
 import { activateSetupLeaseAction } from "@/features/property-setup/actions";
 import { initialActivateSetupLeaseState } from "@/features/property-setup/property-setup-state";
@@ -250,6 +251,7 @@ export function PropertySetupScreen({
                   owner={owner}
                   property={property}
                   readiness={data.readiness ?? null}
+                  returnTo={`${pathname}?${buildPropertySetupQuery({ selection, step })}`}
                   tenant={tenant}
                   unit={unit}
                 />
@@ -259,6 +261,7 @@ export function PropertySetupScreen({
                   lease={lease}
                   owner={owner}
                   property={property}
+                  returnTo={`${pathname}?${buildPropertySetupQuery({ selection, step })}`}
                   tenant={tenant}
                   unit={unit}
                 />
@@ -538,6 +541,7 @@ function RentSetupStep({
   owner,
   property,
   readiness,
+  returnTo,
   tenant,
   unit,
 }: {
@@ -545,6 +549,7 @@ function RentSetupStep({
   owner: PropertySetupData["owners"][number];
   property: PropertySetupData["properties"][number];
   readiness: PropertySetupData["readiness"];
+  returnTo: string;
   tenant: PropertySetupData["tenants"][number];
   unit?: PropertySetupData["units"][number];
 }) {
@@ -568,6 +573,7 @@ function RentSetupStep({
 
   return (
     <section className="space-y-5">
+      <SetupLeaseReview leaseId={lease.id} returnTo={returnTo} />
       <div>
         <h3 className="text-base font-semibold text-foreground">
           {canOpenRent
@@ -649,17 +655,20 @@ function DoneStep({
   lease,
   owner,
   property,
+  returnTo,
   tenant,
   unit,
 }: {
   lease: PropertySetupData["leases"][number];
   owner: PropertySetupData["owners"][number];
   property: PropertySetupData["properties"][number];
+  returnTo: string;
   tenant: PropertySetupData["tenants"][number];
   unit?: PropertySetupData["units"][number];
 }) {
   return (
     <section className="space-y-5">
+      <SetupLeaseReview leaseId={lease.id} returnTo={returnTo} />
       <div>
         <h3 className="text-base font-semibold text-foreground">
           Ready to charge rent
@@ -684,6 +693,27 @@ function DoneStep({
         Review first rent charge
       </Link>
     </section>
+  );
+}
+
+function SetupLeaseReview({ leaseId, returnTo }: { leaseId: string; returnTo: string }) {
+  return (
+    <nav aria-label="Lease review" className="flex flex-wrap gap-3 text-sm font-medium text-primary">
+      <Link
+        className="inline-flex min-h-8 items-center outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+        href={buildLeaseRecordHref({ leaseId, returnTo })}
+        prefetch={false}
+      >
+        Open lease
+      </Link>
+      <Link
+        className="inline-flex min-h-8 items-center outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+        href={buildLeaseRecordHref({ leaseId, section: "rent", returnTo })}
+        prefetch={false}
+      >
+        View rent and deposit
+      </Link>
+    </nav>
   );
 }
 
