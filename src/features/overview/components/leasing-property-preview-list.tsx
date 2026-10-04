@@ -41,13 +41,13 @@ export function LeasingPropertyPreviewList({
               type="button"
             >
               <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold">{row.label}</span>
+                <span className="block whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">{row.label}</span>
                 <span className="mt-0.5 block text-xs text-muted-foreground md:hidden">
                   {formatFollowUp(row)}
                 </span>
               </span>
               <span className="text-sm font-semibold tabular-nums">{row.percent}%</span>
-              <span className="hidden truncate text-xs text-muted-foreground md:block">
+              <span className="hidden whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground md:block">
                 {formatFollowUp(row)}
               </span>
               <ArrowRight

@@ -25,17 +25,17 @@ export function UnitLeaseDetailsPanel({
   return (
     <RecordPanelFooter href={fullRecordHref} label="Open full lease">
       <div className="space-y-5 p-4 sm:p-5">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
               Tenant
             </p>
-            <p className="mt-1 text-base font-semibold">{lease.tenantName}</p>
+            <p className="mt-1 text-base font-semibold [overflow-wrap:anywhere]">{lease.tenantName}</p>
           </div>
           <Badge>{lease.statusLabel}</Badge>
         </div>
 
-        <dl className="divide-y divide-border border-y border-border text-sm">
+        <dl className="space-y-1 text-sm">
           <PanelFact label="Lease dates">
             {formatDate(lease.startDate)} – {formatDate(lease.endDate)}
           </PanelFact>
@@ -52,7 +52,7 @@ export function UnitLeaseDetailsPanel({
             <div className="mt-2 flex flex-wrap gap-2">
               {people.map((person) => (
                 <Link
-                  className="inline-flex h-8 items-center rounded-full border border-border px-2.5 text-sm font-medium hover:bg-muted"
+                  className="inline-flex min-h-8 max-w-full items-center whitespace-normal [overflow-wrap:anywhere] py-1 rounded-lg border border-border px-2.5 text-sm font-medium hover:bg-muted"
                   href={person.href}
                   key={person.id}
                 >
@@ -74,17 +74,17 @@ export function UnitLedgerEntryPanel({ entry }: { entry: UnitLedgerContext }) {
       label="Open in Ledger"
     >
       <div className="space-y-5 p-4 sm:p-5">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
               {entry.direction}
             </p>
-            <p className="mt-1 text-base font-semibold">{entry.category}</p>
+            <p className="mt-1 text-base font-semibold [overflow-wrap:anywhere]">{entry.category}</p>
           </div>
           <MoneyDisplay align="right" size="large" value={entry.amountDisplay} />
         </div>
 
-        <dl className="divide-y divide-border border-y border-border text-sm">
+        <dl className="space-y-1 text-sm">
           <PanelFact label="Date">{formatDate(entry.transactionDate)}</PanelFact>
           <PanelFact label="Description">
             {entry.description || "No description recorded"}
@@ -103,12 +103,12 @@ export function UnitMaintenanceCasePanel({
   return (
     <RecordPanelFooter href={maintenanceCase.href} label="Open in Maintenance">
       <div className="space-y-5 p-4 sm:p-5">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
               {maintenanceCase.category}
             </p>
-            <p className="mt-1 text-base font-semibold">
+            <p className="mt-1 text-base font-semibold [overflow-wrap:anywhere]">
               {maintenanceCase.title}
             </p>
           </div>
@@ -117,7 +117,7 @@ export function UnitMaintenanceCasePanel({
           </Badge>
         </div>
 
-        <dl className="divide-y divide-border border-y border-border text-sm">
+        <dl className="space-y-1 text-sm">
           <PanelFact label="Due">{maintenanceCase.dueLabel}</PanelFact>
           <PanelFact label="Priority">{maintenanceCase.priorityLabel}</PanelFact>
           <PanelFact label="Actual cost">
@@ -139,7 +139,7 @@ function PanelFact({
   return (
     <div className="grid gap-1 py-3 sm:grid-cols-[120px_minmax(0,1fr)] sm:gap-4">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 font-medium sm:text-right">{children}</dd>
+      <dd className="min-w-0 font-medium [overflow-wrap:anywhere] sm:text-right">{children}</dd>
     </div>
   );
 }

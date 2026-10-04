@@ -36,17 +36,17 @@ export function PeopleScreenSkeleton({
         <div className="grid min-h-0 items-stretch gap-3 lg:h-full xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-0 2xl:grid-cols-[minmax(0,1fr)_340px]">
           <div className="flex min-h-0 min-w-0 flex-col">
             <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <div className="h-3.5 w-28 rounded bg-foreground/10" />
                 <div className="h-3 w-72 max-w-full rounded bg-foreground/10" />
               </div>
-              <div className="h-7 w-16 rounded-md border border-border bg-muted" />
+              <div className="h-7 w-16 shrink-0 rounded-md border border-border bg-muted" />
             </div>
             <div className="hidden h-full overflow-hidden bg-card md:block">
               <div className="grid grid-cols-[24%_16%_25%_26%_9%] bg-muted px-2.5 py-2.5">
                 {rowWidths.map((width, index) => (
                   <div
-                    className={`h-3 rounded bg-foreground/10 ${width}`}
+                    className={`h-3 max-w-full rounded bg-foreground/10 ${width}`}
                     key={index}
                   />
                 ))}
@@ -59,7 +59,7 @@ export function PeopleScreenSkeleton({
                   >
                     {rowWidths.map((width, columnIndex) => (
                       <div
-                        className={`h-3 rounded bg-foreground/10 ${width}`}
+                        className={`h-3 max-w-full rounded bg-foreground/10 ${width}`}
                         key={columnIndex}
                       />
                     ))}

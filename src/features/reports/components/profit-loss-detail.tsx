@@ -43,7 +43,7 @@ export function ProfitLossDetail({ lines, funding, returnTo }: { lines: UnitProf
         <Button className="h-7 gap-1 rounded-md text-xs font-normal" size="sm" variant="outline" onClick={() => { setExpanded(new Set()); setClosedSections(new Set(["income", "expense"])); }}><ChevronsDownUp className="size-3" />Collapse all</Button>
       </div>
       <Table aria-label="Profit & loss detail" scrollRegionLabel="Profit and loss report" className="min-w-[850px] table-fixed text-xs [&_td]:px-3 [&_td]:py-1.5">
-        <colgroup><col className="w-[23%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[13%]" /><col className="w-[15%]" /><col className="w-[18%]" /><col className="w-[12%]" /></colgroup>
+        <colgroup><col className="w-[21%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[13%]" /><col className="w-[15%]" /><col className="w-[16%]" /><col className="w-[16%]" /></colgroup>
         <TableHeader><TableRow className="hover:bg-muted/30">
           {["Account", "Date", "Type", "Name", "Property", "Memo", "Amount"].map(label => <TableHead key={label} className={cn("h-9 border-y border-border/70 px-3 text-[11px] font-medium text-muted-foreground", label === "Account" && "border-r border-r-border/50", label === "Amount" && "text-right")}>{label}</TableHead>)}
         </TableRow></TableHeader>
@@ -54,10 +54,10 @@ export function ProfitLossDetail({ lines, funding, returnTo }: { lines: UnitProf
           return <Fragment key={direction}>
             <TableBody>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableCell className="border-r border-border/40"><button type="button" aria-expanded={open} aria-controls={`${id}-${direction}`} onClick={() => toggle(direction, setClosedSections)} className="flex min-h-6 w-full items-center gap-1.5 text-left font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  {open ? <ChevronDown className="size-3 text-muted-foreground" /> : <ChevronRight className="size-3 text-muted-foreground" />}{sectionLabel}
+                <TableCell className="border-r border-border/40"><button type="button" aria-expanded={open} aria-controls={`${id}-${direction}`} onClick={() => toggle(direction, setClosedSections)} className="flex min-h-6 w-full items-start gap-1.5 whitespace-normal [overflow-wrap:anywhere] text-left font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  {open ? <ChevronDown className="mt-0.5 size-3 shrink-0 text-muted-foreground" /> : <ChevronRight className="mt-0.5 size-3 shrink-0 text-muted-foreground" />}{sectionLabel}
                 </button></TableCell><TableCell colSpan={5} />
-                <TableCell className="text-right font-semibold tabular-nums">{formatProfitLossAmount(totals[sectionIndex].amountCents)}</TableCell>
+                <TableCell className="whitespace-nowrap text-right font-semibold tabular-nums">{formatProfitLossAmount(totals[sectionIndex].amountCents)}</TableCell>
               </TableRow>
             </TableBody>
             <TableBody id={`${id}-${direction}`} hidden={!open}>
@@ -65,20 +65,20 @@ export function ProfitLossDetail({ lines, funding, returnTo }: { lines: UnitProf
                 const accountOpen = expanded.has(group.key);
                 return <Fragment key={group.key}>
                   <TableRow className="border-border/50">
-                    <TableCell className="border-r border-border/40"><button type="button" aria-label={`${sectionLabel}: ${group.label}`} aria-expanded={accountOpen} aria-controls={`${id}-${direction}-${index}`} onClick={() => toggle(group.key, setExpanded)} className="flex min-h-6 w-full items-center gap-1.5 pl-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                      {accountOpen ? <ChevronDown className="size-3 text-muted-foreground" /> : <ChevronRight className="size-3 text-muted-foreground" />}{group.label}
+                    <TableCell className="border-r border-border/40"><button type="button" aria-label={`${sectionLabel}: ${group.label}`} aria-expanded={accountOpen} aria-controls={`${id}-${direction}-${index}`} onClick={() => toggle(group.key, setExpanded)} className="flex min-h-6 w-full items-start gap-1.5 whitespace-normal [overflow-wrap:anywhere] pl-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      {accountOpen ? <ChevronDown className="mt-0.5 size-3 shrink-0 text-muted-foreground" /> : <ChevronRight className="mt-0.5 size-3 shrink-0 text-muted-foreground" />}{group.label}
                     </button></TableCell><TableCell colSpan={5} />
-                    <TableCell className="text-right tabular-nums">{formatProfitLossAmount(group.total)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-right tabular-nums">{formatProfitLossAmount(group.total)}</TableCell>
                   </TableRow>
                   <TableRow id={`${id}-${direction}-${index}`} hidden={!accountOpen} className="border-0"><TableCell colSpan={7} className="!p-0">
-                    {accountOpen ? <table aria-label={`${group.label} transactions`} className="w-full table-fixed text-xs"><colgroup><col className="w-[23%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[13%]" /><col className="w-[15%]" /><col className="w-[18%]" /><col className="w-[12%]" /></colgroup><thead className="sr-only bg-[var(--table-header-bg)]"><tr>{["Account", "Date", "Type", "Name", "Property", "Memo", "Amount"].map(label => <th key={label}>{label}</th>)}</tr></thead><tbody>{group.lines.map(line => <tr key={line.id} className="border-b border-border/40 text-muted-foreground hover:bg-muted/25">
+                    {accountOpen ? <table aria-label={`${group.label} transactions`} className="w-full table-fixed text-xs"><colgroup><col className="w-[21%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[13%]" /><col className="w-[15%]" /><col className="w-[16%]" /><col className="w-[16%]" /></colgroup><thead className="sr-only bg-[var(--table-header-bg)]"><tr>{["Account", "Date", "Type", "Name", "Property", "Memo", "Amount"].map(label => <th key={label}>{label}</th>)}</tr></thead><tbody>{group.lines.map(line => <tr key={line.id} className="border-b border-border/40 text-muted-foreground hover:bg-muted/25">
                       <td className="!pl-11"><span className="sr-only">{group.label}</span></td>
                       <td className="whitespace-nowrap">{formatCalendarDate(line.date)}</td>
-                      <td>{line.type ?? (line.direction === "income" ? "Invoice" : "Expense")}</td>
+                      <td className="align-top whitespace-normal [overflow-wrap:anywhere]">{line.type ?? (line.direction === "income" ? "Invoice" : "Expense")}</td>
                       <td className="align-top whitespace-normal [overflow-wrap:anywhere]" title={line.name}>{line.name || "—"}</td>
                       <td className="align-top whitespace-normal [overflow-wrap:anywhere]" title={`${line.property} / ${line.unit}`}>{line.property}<span className="block whitespace-normal text-[11px] [overflow-wrap:anywhere]">{line.unit}</span></td>
                       <td className="align-top whitespace-normal [overflow-wrap:anywhere]" title={line.description}>{line.sourceHref ? <Link className="text-foreground underline underline-offset-2" href={withReportReturn(line.sourceHref, returnTo)} aria-label={`Open transaction: ${line.description}`}>{line.description}</Link> : line.description}</td>
-                      <td className={cn("text-right tabular-nums", line.amountCents < BigInt(0) && "text-danger")}>{formatProfitLossAmount(line.amountCents)}</td>
+                      <td className={cn("whitespace-nowrap text-right tabular-nums", line.amountCents < BigInt(0) && "text-danger")}>{formatProfitLossAmount(line.amountCents)}</td>
                     </tr>)}</tbody></table> : null}
                   </TableCell></TableRow>
                 </Fragment>;
@@ -90,14 +90,14 @@ export function ProfitLossDetail({ lines, funding, returnTo }: { lines: UnitProf
         <TableBody aria-label="Profit and loss totals">
           {totals.slice(2, 3).map(row => <TableRow key={row.label} className="border-t-2 border-t-blue-400 bg-blue-50 font-semibold hover:bg-blue-50 dark:bg-blue-950/30">
             <TableCell colSpan={6} className="!pl-5">{row.label}</TableCell>
-            <TableCell className={cn("text-right tabular-nums", row.amountCents !== null && row.amountCents < BigInt(0) && "text-danger")}>{formatProfitLossAmount(row.amountCents)}</TableCell>
+            <TableCell className={cn("whitespace-nowrap text-right tabular-nums", row.amountCents !== null && row.amountCents < BigInt(0) && "text-danger")}>{formatProfitLossAmount(row.amountCents)}</TableCell>
           </TableRow>)}
         </TableBody>
         {funding ? <TableBody aria-label={profitLossFundingHeading}>
           <TableRow><TableCell colSpan={7} className="pt-3 text-muted-foreground">{profitLossFundingHeading}</TableCell></TableRow>
           {totals.slice(3).map(row => <TableRow key={row.label}>
             <TableCell colSpan={6} className="!pl-5">{row.label}</TableCell>
-            <TableCell className="text-right tabular-nums">{formatProfitLossAmount(row.amountCents)}</TableCell>
+            <TableCell className="whitespace-nowrap text-right tabular-nums">{formatProfitLossAmount(row.amountCents)}</TableCell>
           </TableRow>)}
         </TableBody> : null}
       </Table>

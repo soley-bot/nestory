@@ -27,20 +27,20 @@ export function DocumentList({
 function DocumentListItem({ document }: { document: LinkedDocument }) {
   const content = (
     <>
-      <span className="mt-0.5 text-muted-foreground">
+      <span className="mt-0.5 shrink-0 text-muted-foreground">
         <FileText size={15} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block break-words font-medium sm:truncate">
+        <span className="block whitespace-normal font-medium [overflow-wrap:anywhere]">
           {document.fileName}
         </span>
-        <span className="mt-1 block text-xs text-muted-foreground">
+        <span className="mt-1 block [overflow-wrap:anywhere] text-xs text-muted-foreground">
           {document.category} - {formatFileType(document.mimeType)} - {formatFileSize(document.sizeBytes)} -{" "}
           {formatDate(document.uploadedAt)}
         </span>
       </span>
       {document.url ? (
-        <span className="text-muted-foreground">
+        <span className="shrink-0 text-muted-foreground">
           <ExternalLink size={14} />
         </span>
       ) : null}

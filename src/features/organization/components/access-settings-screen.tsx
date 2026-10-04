@@ -458,8 +458,8 @@ function PendingInvitationRow({
     >
       <TableRow className={confirmingRevoke ? "border-b-0" : undefined}>
         <TableCell className="w-full max-w-0 px-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate font-medium">{invitation.email}</span>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere] font-medium">{invitation.email}</span>
             <Badge tone={statusTone}>{statusLabel}</Badge>
             {linkedPerson?.archived ? (
               <Badge tone="warning">Archived Staff</Badge>
@@ -765,15 +765,15 @@ function MemberAccessForm({
           the row's Manage panel.
         */}
         <TableCell className="w-full max-w-0 px-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate font-medium">{accountLabel}</span>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere] font-medium">{accountLabel}</span>
             {current ? <Badge tone="accent">You</Badge> : null}
             {linkedPerson?.archived ? (
               <Badge tone="warning">Archived</Badge>
             ) : null}
           </div>
           {accountDetail ? (
-            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+            <span className="mt-0.5 block whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">
               {accountDetail}
             </span>
           ) : null}

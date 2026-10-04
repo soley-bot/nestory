@@ -24,10 +24,10 @@ export function LeaseInspector({ getLeaseHref, lease }: LeaseInspectorProps) {
             <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
               {lease.propertyCode}
             </p>
-            <h2 className="mt-1 break-words text-base font-semibold">
+            <h2 className="mt-1 [overflow-wrap:anywhere] text-base font-semibold">
               {lease.tenantName}
             </h2>
-            <p className="mt-1 break-words text-sm text-muted-foreground">
+            <p className="mt-1 [overflow-wrap:anywhere] text-sm text-muted-foreground">
               <Link
                 className="font-medium text-foreground outline-none hover:text-accent focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-ring"
                 href={lease.hrefs.property}
@@ -57,7 +57,7 @@ export function LeaseInspector({ getLeaseHref, lease }: LeaseInspectorProps) {
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-4">
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-sm">
           <Detail label="Term" value={`${lease.startDateLabel} - ${lease.endDateLabel}`} wide />
           <Detail label="Rent">
             <MoneyDisplay value={lease.rentDisplay} />
@@ -71,7 +71,7 @@ export function LeaseInspector({ getLeaseHref, lease }: LeaseInspectorProps) {
           </p>
           {lease.nextAction.href ? (
             <Link
-              className="mt-1 inline-flex rounded-sm text-sm font-medium text-accent outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-1 inline-flex max-w-full whitespace-normal [overflow-wrap:anywhere] rounded-sm text-sm font-medium text-accent outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
               href={lease.nextAction.href}
               prefetch={false}
             >
@@ -82,7 +82,7 @@ export function LeaseInspector({ getLeaseHref, lease }: LeaseInspectorProps) {
               {lease.nextAction.label}
             </p>
           )}
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          <p className="mt-1 text-xs leading-5 [overflow-wrap:anywhere] text-muted-foreground">
             {lease.nextAction.description}
           </p>
         </div>
@@ -112,9 +112,9 @@ function Detail({
   wide?: boolean;
 }) {
   return (
-    <div className={wide ? "col-span-2 min-w-0" : "min-w-0"}>
+    <div className={wide ? "min-w-0 sm:col-span-2" : "min-w-0"}>
       <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-      <dd className="mt-0.5 break-words font-medium">{children ?? value}</dd>
+      <dd className="mt-0.5 [overflow-wrap:anywhere] font-medium">{children ?? value}</dd>
     </div>
   );
 }

@@ -125,7 +125,8 @@ describe("LeaseScreen redesign contract", () => {
     );
 
     expect(attention.parentElement?.className).toContain("items-center");
-    expect(attention.className).toContain("truncate");
+    expect(attention.className).not.toContain("truncate");
+    expect(attention.className).toContain("whitespace-normal");
     expect(attention.className).not.toContain("mt-1");
   });
 

@@ -220,7 +220,7 @@ function SetupRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid min-w-0 gap-1 px-3 py-2.5 text-sm sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center">
       <dt className="font-medium">{label}</dt>
-      <dd className="min-w-0 break-words font-mono text-muted-foreground">
+      <dd className="min-w-0 whitespace-normal [overflow-wrap:anywhere] font-mono text-muted-foreground">
         {value}
       </dd>
       <dd className="flex items-center gap-1 text-xs font-medium text-muted-foreground">

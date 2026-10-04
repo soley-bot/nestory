@@ -191,7 +191,7 @@ export function SideDrawer({
 
             {footer ? (
               <footer
-                className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t px-5 py-3 text-sm"
+                className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2 border-t px-5 py-3 text-sm [&_a]:h-auto [&_a]:min-h-8 [&_a]:max-w-full [&_a]:whitespace-normal [&_a]:[overflow-wrap:anywhere] [&_button]:h-auto [&_button]:min-h-8 [&_button]:max-w-full [&_button]:whitespace-normal [&_button]:[overflow-wrap:anywhere]"
                 data-slot="drawer-footer"
               >
                 {footer}

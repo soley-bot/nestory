@@ -45,11 +45,11 @@ export function PeopleInspector({
             <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
               {person.partyTypeLabel}
             </p>
-            <h2 className="mt-1 break-words text-base font-semibold">
+            <h2 className="mt-1 [overflow-wrap:anywhere] text-base font-semibold">
               {person.displayName}
             </h2>
             {person.legalName ? (
-              <p className="mt-1 break-words text-sm text-muted-foreground">
+              <p className="mt-1 [overflow-wrap:anywhere] text-sm text-muted-foreground">
                 {person.legalName}
               </p>
             ) : null}
@@ -59,7 +59,7 @@ export function PeopleInspector({
       </div>
 
       <div className="space-y-4 p-4">
-        <div className="grid grid-cols-2 gap-3 text-sm">
+        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <CompactFact label="Roles">
             {person.roles.length > 0 ? (
               <div className="flex flex-wrap gap-1">
@@ -77,7 +77,7 @@ export function PeopleInspector({
             )}
           </CompactFact>
           <CompactFact label="Contact">
-            <span className="line-clamp-2 break-words">
+            <span className="[overflow-wrap:anywhere]">
               {getContactLabel(person)}
             </span>
           </CompactFact>
@@ -85,7 +85,7 @@ export function PeopleInspector({
             label={showAccessStatus ? "Operating context" : "Relationship"}
             wide
           >
-            <span className="line-clamp-2 break-words">
+            <span className="[overflow-wrap:anywhere]">
               {showAccessStatus
                 ? getPeopleOperatingContext(person)
                 : getRelationshipLabel(person)}
@@ -172,7 +172,7 @@ function CompactFact({
   wide?: boolean;
 }) {
   return (
-    <div className={wide ? "col-span-2 min-w-0 rounded-md border border-border px-3 py-2.5" : "min-w-0 rounded-md border border-border px-3 py-2.5"}>
+    <div className={wide ? "min-w-0 py-1 sm:col-span-2" : "min-w-0 py-1"}>
       <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </p>
@@ -194,8 +194,8 @@ function AttentionNote({
 
   return (
     <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
-      <div className="flex items-center justify-between gap-3">
-        <p className="truncate text-sm font-semibold">{label}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="min-w-0 whitespace-normal text-sm font-semibold [overflow-wrap:anywhere]">{label}</p>
         <div className="flex shrink-0 items-center gap-2">
           <Badge tone={item?.tone ?? "neutral"}>
             {item ? getRiskBadgeLabel(item.tone) : "Action"}

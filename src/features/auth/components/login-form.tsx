@@ -22,7 +22,7 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
   const passwordErrorId = useId();
 
   return (
-    <form action={action} className="space-y-5">
+    <form action={action} className="min-w-0 space-y-5 [overflow-wrap:anywhere]">
       <input name="next" type="hidden" value={nextPath ?? "/workspace"} />
       {state.message ? (
         <p

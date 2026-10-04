@@ -18,7 +18,7 @@ export function ForgotPasswordForm() {
   const emailErrorId = useId();
 
   return (
-    <form action={action} className="space-y-5">
+    <form action={action} className="min-w-0 space-y-5 [overflow-wrap:anywhere]">
       {state.message ? (
         <p
           className={

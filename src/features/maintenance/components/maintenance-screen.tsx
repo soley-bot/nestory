@@ -1080,7 +1080,7 @@ function MaintenanceScopeSummary({
             <span aria-hidden="true" className="text-border">
               /
             </span>
-            <span className="truncate text-sm">{scopeLabel}</span>
+            <span className="whitespace-normal [overflow-wrap:anywhere] text-sm">{scopeLabel}</span>
           </span>
         }
         variant="inline"
@@ -1175,7 +1175,7 @@ function MaintenanceTable({
               >
                 <td className="px-2.5 py-2">
                   <Link
-                    className="block truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                    className="block whitespace-normal [overflow-wrap:anywhere] font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                     href={maintenanceCase.hrefs.task}
                     onClick={(event) => event.stopPropagation()}
                     prefetch={false}
@@ -1185,7 +1185,7 @@ function MaintenanceTable({
                   </Link>
                   <p
                     className={cn(
-                      "mt-0.5 truncate text-xs text-muted-foreground",
+                      "mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground",
                       maintenanceCase.progressTone === "danger" &&
                         "text-danger",
                     )}
@@ -1202,8 +1202,8 @@ function MaintenanceTable({
                   ) : null}
                 </td>
                 <td className="px-1.5 py-2">
-                  <p className="truncate">{maintenanceCase.propertyLabel}</p>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  <p className="whitespace-normal [overflow-wrap:anywhere]">{maintenanceCase.propertyLabel}</p>
+                  <p className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">
                     {maintenanceCase.unitLabel}
                   </p>
                 </td>
@@ -1220,8 +1220,8 @@ function MaintenanceTable({
                   </div>
                 </td>
                 <td className="px-1.5 py-2">
-                  <p className="truncate">{maintenanceCase.assigneeLabel}</p>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  <p className="whitespace-normal [overflow-wrap:anywhere]">{maintenanceCase.assigneeLabel}</p>
+                  <p className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">
                     {maintenanceCase.vendorLabel}
                   </p>
                 </td>
@@ -2204,7 +2204,7 @@ function LinkButton({ children, href }: { children: ReactNode; href: string }) {
       href={href}
       prefetch={false}
     >
-      <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
+      <span className="inline-flex min-w-0 items-center gap-1.5 whitespace-normal [overflow-wrap:anywhere]">
         {children}
       </span>
     </Link>

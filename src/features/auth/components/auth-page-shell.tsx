@@ -37,7 +37,7 @@ export function AuthPageShell({
   return (
     <main
       className={cn(
-        "relative isolate min-h-screen overflow-x-hidden bg-background text-foreground",
+        "relative isolate min-h-screen [overflow-wrap:anywhere] bg-background text-foreground",
         visualSrc && "auth-photo-page",
       )}
     >
@@ -161,10 +161,9 @@ export function AuthPageShell({
 
         <div
           className={cn(
-            "min-w-0 self-center justify-self-center",
+            "min-w-0 w-full max-w-[430px] self-center justify-self-center",
             hasContext && "lg:justify-self-end",
           )}
-          style={{ maxWidth: "430px", width: "calc(100vw - 48px)" }}
         >
           <div
             className={cn(
@@ -186,7 +185,7 @@ export function AuthPageShell({
             {children}
 
             {switchHref && switchLabel && switchText ? (
-              <p className="mt-5 border-t border-border pt-5 text-sm leading-6 text-muted-foreground">
+              <p className="mt-5 text-sm leading-6 text-muted-foreground">
                 <span>{switchText} </span>
                 <Link
                   className="font-semibold text-foreground transition-opacity hover:opacity-65"

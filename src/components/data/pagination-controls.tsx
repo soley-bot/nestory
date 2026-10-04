@@ -28,10 +28,10 @@ export function PaginationControls({ pagination }: PaginationControlsProps) {
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 border-t border-border bg-card px-3 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between",
+        "flex min-w-0 flex-col flex-wrap gap-3 border-t border-border bg-card px-3 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between",
       )}
     >
-      <p>
+      <p className="tabular-nums">
         Showing{" "}
         <span className="font-medium text-foreground">
           {pagination.from}-{pagination.to}
@@ -42,11 +42,11 @@ export function PaginationControls({ pagination }: PaginationControlsProps) {
         </span>
       </p>
       {pagination.totalPages > 1 ? (
-        <div className="flex items-center justify-between gap-3 sm:justify-end">
-          <p className="text-xs">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:justify-end">
+          <p className="whitespace-nowrap text-xs tabular-nums">
             Page {pagination.page} of {pagination.totalPages}
           </p>
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             <PaginationLink
               disabled={previousDisabled}
               page={pagination.page - 1}
@@ -100,7 +100,7 @@ function PaginationLink({
     <Link
       className={cn(
         "inline-flex h-8 items-center justify-center gap-1 rounded-md border border-border px-2.5 text-xs font-medium text-foreground transition-colors",
-        "hover:bg-muted",
+        "hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
       )}
       href={buildPageHref({ page, pathname, searchParams })}
       scroll={false}

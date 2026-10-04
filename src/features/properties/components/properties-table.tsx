@@ -64,11 +64,11 @@ export function PropertiesTable({
           <div aria-label="Properties table" className="overflow-x-auto" role="region">
             <table className="w-full min-w-[900px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
-                <col className="w-[26%]" />
+                <col className="w-[23%]" />
                 <col className="w-[18%]" />
                 <col className="w-[13%]" />
                 <col className="w-[15%]" />
-                <col className="w-[13%]" />
+                <col className="w-[16%]" />
                 <col className="w-[12%]" />
                 <col className="w-[3%]" />
               </colgroup>
@@ -138,13 +138,14 @@ export function PropertiesTable({
                         <PropertyThumbnail property={property} />
                         <div className="min-w-0">
                           <RecordLink
+                            className="items-start [&>span]:min-w-0 [&>span]:overflow-visible [&>span]:whitespace-normal [&>span]:[overflow-wrap:anywhere]"
                             href={`/properties/${property.id}`}
                             title={property.name}
                           >
                             {property.name}
                           </RecordLink>
                           <p
-                            className="mt-0.5 truncate text-xs text-muted-foreground"
+                            className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground"
                             title={`${property.code} / ${property.type}`}
                           >
                             {property.code} / {property.type}
@@ -154,7 +155,7 @@ export function PropertiesTable({
                     </td>
                     <td className="px-1.5 py-2">
                       <p
-                        className="max-w-[14rem] truncate text-sm font-medium"
+                        className="max-w-[14rem] whitespace-normal [overflow-wrap:anywhere] text-sm font-medium"
                         title={property.owner}
                       >
                         {property.owner}
@@ -224,7 +225,7 @@ function PropertyCard({
       <div className="grid min-w-0 gap-1 p-2">
         <div className="flex min-w-0 items-start justify-between gap-2">
           <p
-            className="min-w-0 truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+            className="min-w-0 whitespace-normal [overflow-wrap:anywhere] text-xs font-semibold uppercase tracking-wide text-muted-foreground"
             title={property.code}
           >
             {property.code}
@@ -234,13 +235,13 @@ function PropertyCard({
 
         <div className="min-w-0">
           <p
-            className="truncate text-sm font-semibold leading-5 text-foreground"
+            className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold leading-5 text-foreground"
             title={property.name}
           >
             {property.name}
           </p>
           <p
-            className="mt-0.5 truncate text-xs text-muted-foreground"
+            className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground"
             title={property.type}
           >
             {property.type}
@@ -253,7 +254,8 @@ function PropertyCard({
           </Badge>
         ) : null}
 
-        <p className="mt-1 border-t border-border pt-2 text-xs font-medium text-muted-foreground">
+        <div className="mt-2"><span className="text-xs text-muted-foreground">Net</span><TableMoneyDisplay value={property.netIncome} /></div>
+        <p className="mt-1 pt-2 text-xs font-medium text-muted-foreground">
           Open property
         </p>
       </div>

@@ -26,7 +26,7 @@ export function FormSection({
       aria-describedby={description ? descriptionId : undefined}
       aria-labelledby={titleId}
       className={cn(
-        "space-y-4 border-b border-border/70 pb-6 last:border-b-0 last:pb-0",
+        "min-w-0 space-y-4 pb-6 last:pb-0",
         className,
       )}
       data-slot="form-section"

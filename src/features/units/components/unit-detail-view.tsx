@@ -683,7 +683,7 @@ function Detail({
       <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </dt>
-      <dd className="mt-1 break-words font-medium">
+      <dd className="mt-1 [overflow-wrap:anywhere] font-medium">
         {moneyValue ? <MoneyDisplay value={moneyValue} /> : value}
       </dd>
     </div>

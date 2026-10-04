@@ -337,14 +337,14 @@ function ReportRowDetails({
     >
       <div className="space-y-6 px-5 pb-6">
         {completeReportHref ? <p className="text-sm text-muted-foreground">These totals cover this unit only. Open the complete P&amp;L to review property-level costs and export the combined report.</p> : null}
-        <dl className="divide-y divide-border border-y border-border">
+        <dl className="space-y-1">
           {(report.availableColumns ?? report.columns).map((column) => (
             <div
-              className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-4 py-2.5 text-[13px] leading-5"
+              className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-1 sm:gap-4 py-2.5 text-[13px] leading-5"
               key={column.key}
             >
-              <dt className="text-muted-foreground">{column.label}</dt>
-              <dd className="min-w-0 break-words text-right font-medium tabular-nums text-foreground">
+              <dt className="min-w-0 text-muted-foreground [overflow-wrap:anywhere]">{column.label}</dt>
+              <dd className="min-w-0 whitespace-normal [overflow-wrap:anywhere] sm:text-right font-medium tabular-nums text-foreground">
                 {row.cells[column.key] || "—"}
               </dd>
             </div>
@@ -378,7 +378,7 @@ function ReportRowDetails({
           {row.sourceLinks.length === 0 ? (
             <p className="mt-2 text-muted-foreground">{row.sourceSummary}</p>
           ) : (
-            <div className="mt-2 divide-y divide-border border-y border-border">
+            <div className="mt-2 space-y-1">
               {row.sourceLinks.map((source) =>
                 source.href ? (
                   <Link

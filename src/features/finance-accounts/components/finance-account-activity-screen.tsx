@@ -16,15 +16,15 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
       title={activity.account.displayName}
       actions={<Badge variant={activity.account.archivedAt ? "secondary" : "outline"}>{activity.account.archivedAt ? "Inactive" : "Active"}</Badge>}
       toolbar={(
-        <form className="flex flex-wrap items-end gap-2" method="get">
-          <label className="grid gap-1 text-xs text-muted-foreground">From
-            <input className="h-8 rounded-md border bg-background px-2 text-sm text-foreground" name="from" type="date" defaultValue={activity.filters.periodStart} />
+        <form className="min-w-0 max-w-full flex flex-wrap items-end gap-2" method="get">
+          <label className="grid min-w-0 max-w-full gap-1 text-xs text-muted-foreground">From
+            <input className="h-8 min-w-0 max-w-full rounded-md border bg-background px-2 text-sm text-foreground" name="from" type="date" defaultValue={activity.filters.periodStart} />
           </label>
-          <label className="grid gap-1 text-xs text-muted-foreground">To
-            <input className="h-8 rounded-md border bg-background px-2 text-sm text-foreground" name="to" type="date" defaultValue={activity.filters.periodEnd} />
+          <label className="grid min-w-0 max-w-full gap-1 text-xs text-muted-foreground">To
+            <input className="h-8 min-w-0 max-w-full rounded-md border bg-background px-2 text-sm text-foreground" name="to" type="date" defaultValue={activity.filters.periodEnd} />
           </label>
-          <label className="grid gap-1 text-xs text-muted-foreground">Property
-            <select className="h-8 rounded-md border bg-background px-2 text-sm text-foreground" name="propertyId" defaultValue={activity.filters.propertyId ?? "all"}>
+          <label className="grid min-w-0 max-w-full gap-1 text-xs text-muted-foreground">Property
+            <select className="h-8 min-w-0 max-w-full rounded-md border bg-background px-2 text-sm text-foreground" name="propertyId" defaultValue={activity.filters.propertyId ?? "all"}>
               <option value="all">All properties</option>
               {activity.properties.map((property) => <option key={property.id} value={property.id}>{property.label}</option>)}
             </select>
@@ -34,7 +34,7 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
       )}
     >
       <div className="workspace-gutter-x space-y-4 py-4">
-        <div className="text-sm text-muted-foreground">
+        <div className="min-w-0 text-sm text-muted-foreground [overflow-wrap:anywhere]">
           <p>{accountIdentity(activity.account.accountClass, activity.account.accountSubtype)}</p>
           {activity.account.accountNumber ? <p>Account {activity.account.accountNumber}</p> : null}
           {activity.account.description ? <p>{activity.account.description}</p> : null}
@@ -46,8 +46,8 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
           </div>
           <p className="font-medium text-lg tabular-nums">USD {activity.total}</p>
         </div>
-        <div className="overflow-x-auto rounded-lg border bg-card">
-          <table className="w-full min-w-[900px] border-collapse text-[13px] leading-5">
+        <div aria-label="Account activity table" role="region" tabIndex={0} className="min-w-0 overflow-x-auto rounded-lg border bg-card">
+          <table className="w-full min-w-[900px] table-fixed border-collapse text-[13px] leading-5">
             <thead className="bg-[var(--table-header-bg)] text-left text-[11px] font-medium text-muted-foreground">
               <tr>
                 <th className="px-3 py-2" scope="col">Date</th>
@@ -63,9 +63,9 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
               {activity.rows.map((row) => (
                 <tr className="border-t" key={row.id}>
                   <td className="px-3 py-2 whitespace-nowrap">{formatDate(row.date)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{row.propertyLabel}</td>
-                  <td className="px-3 py-2">{row.contact ?? "—"}</td>
-                  <td className="px-3 py-2"><Link className="font-medium underline-offset-4 hover:underline" href={row.sourceHref}>{row.description}</Link></td>
+                  <td className="px-3 py-2 whitespace-normal [overflow-wrap:anywhere]">{row.propertyLabel}</td>
+                  <td className="px-3 py-2 whitespace-normal [overflow-wrap:anywhere]">{row.contact ?? "—"}</td>
+                  <td className="px-3 py-2 whitespace-normal [overflow-wrap:anywhere]"><Link className="font-medium underline-offset-4 hover:underline" href={row.sourceHref}>{row.description}</Link></td>
                   <td className="px-3 py-2 whitespace-nowrap text-right font-medium tabular-nums">{row.increase ? `USD ${row.increase}` : "—"}</td>
                   <td className="px-3 py-2 whitespace-nowrap text-right font-medium tabular-nums">{row.decrease ? `USD ${row.decrease}` : "—"}</td>
                   {showRunningBalance ? <td className="px-3 py-2 whitespace-nowrap text-right font-medium tabular-nums">{row.runningBalance ? `USD ${row.runningBalance}` : "—"}</td> : null}

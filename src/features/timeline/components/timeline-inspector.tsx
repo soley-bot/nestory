@@ -58,7 +58,7 @@ export function TimelineInspector({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <EventTypeBadge type={event.eventType} />
-            <h2 className="mt-3 break-words text-base font-semibold">
+            <h2 className="mt-3 [overflow-wrap:anywhere] text-base font-semibold">
               {event.title}
             </h2>
           </div>
@@ -76,7 +76,7 @@ export function TimelineInspector({
       </div>
 
       <div className="space-y-4 p-4 text-sm">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <CompactFact label="Date">{formatDate(event.eventDate)}</CompactFact>
           <CompactFact label="Cost">
             {event.cost !== undefined && event.currency ? (
@@ -94,7 +94,7 @@ export function TimelineInspector({
               className="flex min-w-0 items-center justify-between gap-3 rounded border border-border bg-card px-2.5 py-2 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
               href={event.hrefs.property}
             >
-              <span className="min-w-0 truncate">{event.propertyName}</span>
+              <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">{event.propertyName}</span>
               <span className="shrink-0 text-xs text-muted-foreground">{event.propertyCode}</span>
             </Link>
             {event.hrefs.unit && event.unitNumber ? (
@@ -102,7 +102,7 @@ export function TimelineInspector({
                 className="flex min-w-0 items-center justify-between gap-3 rounded border border-border bg-card px-2.5 py-2 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={event.hrefs.unit}
               >
-                <span>Unit {event.unitNumber}</span>
+                <span className="min-w-0 [overflow-wrap:anywhere]">Unit {event.unitNumber}</span>
                 <ExternalLink className="shrink-0 text-primary" size={13} />
               </Link>
             ) : null}
@@ -121,7 +121,7 @@ export function TimelineInspector({
             aria-label="Source records"
             className="rounded-md border border-border p-3"
           >
-            <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
               <h3 className="font-semibold">Source records</h3>
               <Badge>{event.sources.length}</Badge>
             </div>
@@ -138,7 +138,7 @@ export function TimelineInspector({
                       <span className="block text-xs font-medium text-muted-foreground">
                         {source.moduleLabel}
                       </span>
-                      <span className="block truncate font-medium">
+                      <span className="block whitespace-normal font-medium [overflow-wrap:anywhere]">
                         {source.label}
                       </span>
                     </span>
@@ -154,13 +154,13 @@ export function TimelineInspector({
                     className="rounded border border-border bg-muted/70 px-2.5 py-2"
                     key={`${source.entityType}:unavailable`}
                   >
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
                       <span className="text-xs font-medium text-muted-foreground">
                         {source.moduleLabel}
                       </span>
                       <Badge tone="neutral">Unavailable</Badge>
                     </div>
-                    <p className="mt-1 font-medium">{source.label}</p>
+                    <p className="mt-1 font-medium [overflow-wrap:anywhere]">{source.label}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Source record is unavailable or you no longer have access.
                     </p>
@@ -172,7 +172,7 @@ export function TimelineInspector({
         ) : null}
 
         <section aria-label="Attachments" className="rounded-md border border-border p-3">
-          <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
             <h3 className="font-semibold">Attachments</h3>
             <Badge tone={event.documents.length > 0 ? "success" : "neutral"}>
               {event.documents.length}
@@ -185,7 +185,7 @@ export function TimelineInspector({
           <h3 className="font-semibold">Event history</h3>
           {event.activityError ? (
             <>
-              <p className="mt-2 text-sm" role="alert">{event.activityError}</p>
+              <p className="mt-2 text-sm [overflow-wrap:anywhere]" role="alert">{event.activityError}</p>
               {historyHref ? <a className="mt-2 inline-block underline underline-offset-4" href={historyHref}>Retry event history</a> : null}
             </>
           ) : event.activityPagination ? (
@@ -203,7 +203,7 @@ export function TimelineInspector({
                     onClick={() => onSelectChange?.(change)}
                     type="button"
                   >
-                    <span className="min-w-0 break-words"><span className="block font-medium">{change.actionLabel}</span><span className="block text-xs text-muted-foreground">{change.recordLabel}</span></span>
+                    <span className="min-w-0 [overflow-wrap:anywhere]"><span className="block font-medium">{change.actionLabel}</span><span className="block text-xs text-muted-foreground">{change.recordLabel}</span></span>
                     <span className="shrink-0 text-xs text-muted-foreground">{formatDate(change.createdAt)}</span>
                   </button>
                 ))}
@@ -342,8 +342,8 @@ function AttentionNote({
 }) {
   return (
     <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
-      <div className="flex items-center justify-between gap-3">
-        <p className="truncate font-semibold">{item?.label ?? label}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="min-w-0 whitespace-normal font-semibold [overflow-wrap:anywhere]">{item?.label ?? label}</p>
         <div className="flex shrink-0 items-center gap-2">
           <Badge tone={item?.tone ?? "neutral"}>
             {item ? "Review" : "Action"}

@@ -46,15 +46,15 @@ export function UnitInspector({
   return (
     <div className="flex min-h-full flex-col bg-card">
       <header className="border-b border-border p-5 pr-14">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row">
           <UnitPreviewPhoto unit={unit} />
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="truncate text-lg font-semibold">
+                <h2 className="whitespace-normal [overflow-wrap:anywhere] text-lg font-semibold">
                   Unit {unit.unitNumber}
                 </h2>
-                <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                <p className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-sm text-muted-foreground">
                   {unit.propertyCode} · {unit.propertyName}
                 </p>
               </div>
@@ -85,7 +85,7 @@ export function UnitInspector({
         ) : (
           <AlertTriangle className="shrink-0" size={16} />
         )}
-        <span className="min-w-0 flex-1 truncate">{action.label}</span>
+        <span className="min-w-0 flex-1 whitespace-normal [overflow-wrap:anywhere]">{action.label}</span>
         <ArrowRight className="shrink-0" size={16} />
       </Link>
 
@@ -106,7 +106,7 @@ export function UnitInspector({
             <MoneyDisplay size="large" value={unit.ledgerNetDisplay} />
           </FactCard>
           <FactCard label="Lease">
-            <span className="line-clamp-2 text-base font-semibold">
+            <span className="whitespace-normal [overflow-wrap:anywhere] text-base font-semibold">
               {unit.leaseLabel}
             </span>
           </FactCard>
@@ -114,7 +114,7 @@ export function UnitInspector({
 
         <dl
           aria-label="Unit details"
-          className="grid grid-cols-1 gap-4 border-y border-border py-4 sm:grid-cols-2 sm:gap-8"
+          className="grid grid-cols-1 gap-4 py-1 sm:grid-cols-2 sm:gap-8"
           role="group"
         >
           <Detail label="Property" value={unit.propertyName} />
@@ -158,7 +158,7 @@ export function UnitInspector({
 
       <div
         aria-label="Unit actions"
-        className="sticky bottom-0 mt-auto flex items-center gap-2 border-t border-border bg-card p-4"
+        className="mt-auto flex flex-wrap items-center gap-2 border-t border-border bg-card p-4"
         role="group"
       >
         <UnitMoreMenu
@@ -239,7 +239,7 @@ function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
       <dt className="text-sm font-medium text-muted-foreground">{label}</dt>
-      <dd className="mt-1 break-words font-semibold text-foreground">{value}</dd>
+      <dd className="mt-1 [overflow-wrap:anywhere] font-semibold text-foreground">{value}</dd>
     </div>
   );
 }

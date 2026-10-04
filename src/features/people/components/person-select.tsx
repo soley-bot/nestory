@@ -226,10 +226,10 @@ export function PersonSelect({
             type="button"
           >
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium text-foreground">
+              <span className="block whitespace-normal [overflow-wrap:anywhere] text-sm font-medium text-foreground">
                 {option.label}
               </span>
-              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+              <span className="mt-0.5 block whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">
                 {option.description}
               </span>
             </span>

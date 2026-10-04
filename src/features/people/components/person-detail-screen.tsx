@@ -218,13 +218,13 @@ export function PersonDetailScreen({
               <div className="grid gap-4">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="break-words text-base font-semibold">
+                    <h2 className="[overflow-wrap:anywhere] text-base font-semibold">
                       {isStaffOnly
                         ? "Contact and role"
                         : "Contact and relationships"}
                     </h2>
                   </div>
-                  <p className="mt-1 break-words text-sm text-muted-foreground">
+                  <p className="mt-1 [overflow-wrap:anywhere] text-sm text-muted-foreground">
                     {person.legalName ?? person.partyTypeLabel}
                   </p>
 
@@ -284,7 +284,7 @@ export function PersonDetailScreen({
                       <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
                         Notes
                       </p>
-                      <p className="mt-1 break-words">{person.notes}</p>
+                      <p className="mt-1 [overflow-wrap:anywhere]">{person.notes}</p>
                     </div>
                   ) : null}
                 </div>
@@ -370,7 +370,7 @@ export function PersonDetailScreen({
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="break-words font-medium">
+                                <p className="[overflow-wrap:anywhere] font-medium">
                                   {person.linked.vendorProfile.label}
                                 </p>
                                 <p className="mt-1 text-xs text-muted-foreground">
@@ -485,7 +485,7 @@ function PersonActivityRow({
   const content = (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <p className="break-words font-medium">{change.actionLabel}</p>
+        <p className="[overflow-wrap:anywhere] font-medium">{change.actionLabel}</p>
         <p className="mt-1 text-xs text-muted-foreground">
           {change.entityLabel} / {change.recordLabel}
         </p>
@@ -591,7 +591,7 @@ function Detail({
         {children}
         {label}
       </dt>
-      <dd className="mt-1 break-words font-medium">
+      <dd className="mt-1 [overflow-wrap:anywhere] font-medium">
         {tone ? <Badge tone={tone}>{value}</Badge> : value}
       </dd>
     </div>
@@ -661,7 +661,7 @@ function LeaseLinkRow({ lease }: { lease: PeopleLeaseLink }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="break-words font-medium">{lease.unitLabel}</p>
+          <p className="[overflow-wrap:anywhere] font-medium">{lease.unitLabel}</p>
           <p className="mt-1 text-xs text-muted-foreground">
             {lease.propertyLabel} / {lease.label}
           </p>
@@ -680,7 +680,7 @@ function PropertyLinkRow({ property }: { property: PeoplePropertyLink }) {
       href={property.href}
       prefetch={false}
     >
-      <p className="break-words font-medium">{property.label}</p>
+      <p className="[overflow-wrap:anywhere] font-medium">{property.label}</p>
       <p className="mt-1 text-xs text-muted-foreground">
         {property.ownershipLabel}
       </p>
@@ -696,7 +696,7 @@ function DocumentRow({
   const content = (
     <div className="flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <p className="break-words font-medium">{document.fileName}</p>
+        <p className="[overflow-wrap:anywhere] font-medium">{document.fileName}</p>
         <p className="mt-1 text-xs text-muted-foreground">
           {document.category} / {formatDate(document.uploadedAt)} /{" "}
           {formatFileSize(document.sizeBytes)}

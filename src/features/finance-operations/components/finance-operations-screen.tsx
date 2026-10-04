@@ -1801,25 +1801,25 @@ function RentView({
                 {filteredInvoices.map((invoice) => (
                   <tr className="border-b border-border" key={invoice.id}>
                     <Td className="overflow-hidden">
-                      <p className="truncate font-medium" title={invoice.invoiceNumber}>
+                      <p className="whitespace-normal [overflow-wrap:anywhere] font-medium" title={invoice.invoiceNumber}>
                         {invoice.invoiceNumber}
                       </p>
                       <p
-                        className="truncate text-xs text-foreground"
+                        className="whitespace-normal [overflow-wrap:anywhere] text-xs text-foreground"
                         title={invoice.lines.map((line) => line.label).join(", ")}
                       >
                         {invoice.lines.map((line) => line.label).join(", ")}
                       </p>
-                      <p className="truncate text-xs text-muted-foreground">
+                      <p className="whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">
                         Due {formatDate(invoice.dueDate)}
                       </p>
                     </Td>
                     <Td className="overflow-hidden">
-                      <p className="truncate font-medium" title={invoice.recipientLabel}>
+                      <p className="whitespace-normal [overflow-wrap:anywhere] font-medium" title={invoice.recipientLabel}>
                         {invoice.recipientLabel}
                       </p>
                       <p
-                        className="truncate text-xs text-muted-foreground"
+                        className="whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground"
                         title={`${invoice.propertyLabel} · ${invoice.unitLabel}`}
                       >
                         {invoice.propertyLabel} · {invoice.unitLabel}
@@ -1829,7 +1829,7 @@ function RentView({
                       {invoice.collectionRoute === "through_ips" ? (
                         <span
                           aria-label={organizationName}
-                          className="block truncate"
+                          className="block whitespace-normal [overflow-wrap:anywhere]"
                           title={organizationName}
                         >
                           {getOrganizationShortLabel(organizationName)}
@@ -2017,7 +2017,7 @@ function ExpenseSubmissionTable({
                 <p className="whitespace-normal break-words font-medium">
                   {submission.categoryLabel ?? categoryLabel(submission.category)}
                 </p>
-                <p className="truncate text-xs text-muted-foreground" title={submission.vendorLabel}>
+                <p className="whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground" title={submission.vendorLabel}>
                   {submission.vendorLabel}
                 </p>
               </Td>

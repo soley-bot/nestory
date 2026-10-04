@@ -145,6 +145,7 @@ export function PeopleTable({
                       <td className="px-2.5 py-2">
                         <div className="min-w-0 max-w-[16rem]">
                           <RecordLink
+                            className="items-start [&>span]:min-w-0 [&>span]:overflow-visible [&>span]:whitespace-normal [&>span]:[overflow-wrap:anywhere]"
                             href={`/people/${person.id}`}
                             title={person.displayName}
                           >
@@ -152,7 +153,7 @@ export function PeopleTable({
                           </RecordLink>
                           {secondaryName ? (
                             <p
-                              className="mt-0.5 truncate text-xs text-muted-foreground"
+                              className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground"
                               title={secondaryName}
                             >
                               {secondaryName}
@@ -236,17 +237,17 @@ function PersonCard({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:justify-between">
             <div className="min-w-0">
               <Link
-                className="block truncate rounded-sm text-sm font-semibold leading-5 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="block whitespace-normal [overflow-wrap:anywhere] rounded-sm text-sm font-semibold leading-5 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 href={`/people/${person.id}`}
                 prefetch={false}
                 title={person.displayName}
               >
                 {person.displayName}
               </Link>
-              <p className="mt-1 truncate text-xs text-muted-foreground">
+              <p className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">
                 {person.legalName ?? person.partyTypeLabel}
               </p>
             </div>
@@ -302,7 +303,7 @@ function ContextCell({
     const context = getPeopleOperatingContext(person);
 
     return (
-      <p className="line-clamp-2 break-words font-medium" title={context}>
+      <p className="whitespace-normal [overflow-wrap:anywhere] font-medium" title={context}>
         {context}
       </p>
     );
@@ -313,11 +314,11 @@ function ContextCell({
 
   return (
     <div className="min-w-0 space-y-0.5">
-      <p className="line-clamp-1 break-words font-medium" title={label}>
+      <p className="whitespace-normal [overflow-wrap:anywhere] font-medium" title={label}>
         {label}
       </p>
       <p
-        className="line-clamp-1 break-words text-xs text-muted-foreground"
+        className="whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground"
         title={detail}
       >
         {detail}
@@ -350,7 +351,7 @@ function EmailCell({ person }: { person: PeopleSummary }) {
   }
 
   return (
-    <p className="truncate" title={person.contact.email}>
+    <p className="whitespace-normal [overflow-wrap:anywhere]" title={person.contact.email}>
       {person.contact.email}
     </p>
   );
@@ -362,7 +363,7 @@ function PhoneCell({ person }: { person: PeopleSummary }) {
   }
 
   return (
-    <p className="truncate tabular-nums" title={person.contact.phone}>
+    <p className="whitespace-normal [overflow-wrap:anywhere] tabular-nums" title={person.contact.phone}>
       {person.contact.phone}
     </p>
   );
@@ -453,7 +454,7 @@ function CardMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-0.5 truncate font-medium">{value}</p>
+      <p className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] font-medium">{value}</p>
     </div>
   );
 }
