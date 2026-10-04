@@ -904,10 +904,14 @@ function buildUnitProfitLossStatementPdf({
   const lines = report.unitProfitLossLines ?? [];
   const incomeLines = lines.filter(({ direction }) => direction === "income");
   const expenseLines = lines.filter(({ direction }) => direction === "expense");
-  const totals = profitLossSummaryRows(lines, report.unitProfitLossFunding);
-  const incomeTotal = formatProfitLossAmount(totals[0].amountCents);
-  const expenseTotal = formatProfitLossAmount(totals[1].amountCents);
-  const netIncome = formatProfitLossAmount(totals[2].amountCents);
+  const incomeTotal =
+    report.summary.find(({ label }) => label === "Income")?.value ?? "USD 0.00";
+  const expenseTotal =
+    report.summary.find(({ label }) => label === "Expenses")?.value ??
+    "USD 0.00";
+  const netIncome =
+    report.summary.find(({ label }) => label === "Net income")?.value ??
+    "USD 0.00";
   const rows = buildUnitStatementFlowRows({
     expenseLines,
     incomeTotal,
