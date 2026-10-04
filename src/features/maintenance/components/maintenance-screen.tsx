@@ -336,13 +336,16 @@ export function MaintenanceScreen({
   ]);
 
   function openDrawer(nextDrawer: DrawerState) {
+    if (nextDrawer.mode === "create") previewTriggerRef.current = null;
     setCompactInspectorOpen(false);
     setStatusMessage(null);
     setDrawer(nextDrawer);
   }
 
   function closeDrawer() {
-    const returnTarget = previewTriggerRef.current?.isConnected
+    const returnTarget = drawer?.mode === "create"
+      ? null
+      : previewTriggerRef.current?.isConnected
       ? previewTriggerRef.current
       : selectedCase
       ? document.querySelector<HTMLElement>(

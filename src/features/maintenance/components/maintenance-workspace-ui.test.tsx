@@ -199,6 +199,24 @@ describe("maintenance workspace redesign contract", () => {
     ).not.toBeNull();
   });
 
+  it("returns focus to New case after an earlier compact preview", async () => {
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
+      window.setTimeout(() => callback(performance.now()), 16),
+    );
+    installMatchMedia(390);
+    renderMaintenance();
+    const user = userEvent.setup();
+    const compact = within(screen.getByRole("list", { name: "Maintenance cases" }));
+    await user.click(compact.getByRole("button", { name: "Preview Repair sink" }));
+    await user.click(screen.getByRole("button", { name: "Close quick view" }));
+    const create = screen.getByRole("button", { name: "New case" });
+    await user.click(create);
+    expect(screen.getByRole("dialog", { name: "New maintenance case" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
+    expect(document.activeElement).toBe(create);
+  });
+
   it.each([1024, 390])(
     "opens one deliberate quick-view dialog at %ipx and returns focus",
     (width) => {

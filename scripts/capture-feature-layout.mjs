@@ -15,7 +15,7 @@ const output = resolve('output/playwright/feature-layout', phase);
 await mkdir(output, { recursive: true });
 const stubPlugin = { name: 'synthetic-boundaries', setup(builder) {
   if (phase === 'before') builder.onLoad({ filter: /\.tsx?$/, namespace: 'file' }, ({ path }) => {
-    if (!path.startsWith(resolve('src') + '\\')) return;
+    if (!path.startsWith(resolve('src') + sep)) return;
     const contents = execFileSync('git', ['-c', `safe.directory=${process.cwd().replaceAll('\\', '/')}`, 'show', 'db86c5d09c71c485a5b5d4ad1772cdcc00b51451:' + relative(process.cwd(), path).replaceAll('\\', '/')], { encoding: 'utf8' });
     return { contents, loader: path.endsWith('.tsx') ? 'tsx' : 'ts', resolveDir: resolve(path, '..') };
   });

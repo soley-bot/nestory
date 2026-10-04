@@ -42,14 +42,14 @@ export function TimelineTable({
             <col className="w-[132px]" />
             <col className="w-[74px]" />
           </colgroup>
-          <thead className="hidden md:table-header-group sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+          <thead className="sr-only md:not-sr-only md:table-header-group md:sticky md:top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
-              <th className="px-3 py-2.5 font-semibold">Date</th>
-              <th className="px-3 py-2.5 font-semibold">Type</th>
-              <th className="px-4 py-2.5 font-semibold">Record</th>
-              <th className="px-3 py-2.5 font-semibold">Property</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Cost</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Preview</th>
+              <th className="px-3 py-2.5 font-semibold" scope="col">Date</th>
+              <th className="px-3 py-2.5 font-semibold" scope="col">Type</th>
+              <th className="px-4 py-2.5 font-semibold" scope="col">Record</th>
+              <th className="px-3 py-2.5 font-semibold" scope="col">Property</th>
+              <th className="px-3 py-2.5 text-right font-semibold" scope="col">Cost</th>
+              <th className="px-3 py-2.5 text-right font-semibold" scope="col">Preview</th>
             </tr>
           </thead>
           <tbody className="grid gap-3 md:table-row-group">
