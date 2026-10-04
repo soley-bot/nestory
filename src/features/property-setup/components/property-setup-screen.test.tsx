@@ -1,12 +1,23 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PropertySetupScreen } from "@/features/property-setup/components/property-setup-screen";
 import type { PropertySetupData } from "@/features/property-setup/property-setup.types";
 
 const navigation = vi.hoisted(() => ({
   replace: vi.fn(),
+  createLease: vi.fn(),
+  activateLease: vi.fn(),
+}));
+
+vi.mock("@/features/leases/actions", () => ({
+  createLeaseAction: navigation.createLease,
+  updateLeaseAction: vi.fn(),
+}));
+vi.mock("@/features/property-setup/actions", () => ({
+  activateSetupLeaseAction: navigation.activateLease,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -16,11 +27,115 @@ vi.mock("next/navigation", () => ({
 
 beforeEach(() => {
   navigation.replace.mockReset();
+  navigation.createLease.mockReset();
+  navigation.activateLease.mockReset();
+  Object.defineProperties(HTMLElement.prototype, {
+    hasPointerCapture: { configurable: true, value: () => false },
+    releasePointerCapture: { configurable: true, value: () => undefined },
+    scrollIntoView: { configurable: true, value: () => undefined },
+    setPointerCapture: { configurable: true, value: () => undefined },
+  });
 });
 
 afterEach(cleanup);
 
 describe("PropertySetupScreen", () => {
+  it("keeps lease review available after the actual parent closes creation, back and refresh", async () => {
+    const user = userEvent.setup();
+    let resolveSave!: (value: object) => void;
+    navigation.createLease.mockReturnValueOnce(new Promise((resolve) => { resolveSave = resolve; }));
+    const journey = render(<PropertySetupScreen data={creationData} step={3} />);
+    await user.click(screen.getByRole("button", { name: "Create new lease" }));
+    const form = await fillSetupLease(user);
+    await act(async () => {
+      fireEvent.submit(form);
+      fireEvent.submit(form);
+    });
+    expect(navigation.createLease).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("dialog", { name: "Create lease" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Close modal" }));
+    expect(screen.getByRole("alertdialog", { name: "Saving is still in progress" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Continue waiting" }));
+    expect(navigation.replace).not.toHaveBeenCalled();
+    await act(async () => resolveSave({ status: "success", message: "Lease saved.", leaseId: "lease-1" }));
+    await waitFor(() => expect(navigation.replace).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("dialog", { name: "Create lease" })).toBeNull();
+    expect(screen.queryByRole("form", { name: "Saved lease" })).toBeNull();
+    const destination = new URL(navigation.replace.mock.calls[0]![0], "https://nestory.invalid");
+    expect(destination.searchParams.get("step")).toBe("4");
+    for (const key of ["ownerId", "propertyId", "unitId", "tenantId", "leaseId"] as const) {
+      expect(destination.searchParams.get(key)).toBe(savedData.selection[key]);
+    }
+    journey.rerender(<PropertySetupScreen data={savedData} step={4} />);
+    expectReviewLinks(destination.pathname + destination.search);
+    expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(navigation.activateLease).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(new URL(navigation.replace.mock.calls[1]![0], "https://nestory.invalid").searchParams.get("step")).toBe("3");
+    journey.rerender(<PropertySetupScreen data={savedData} step={3} />);
+    expect((screen.getByRole("button", { name: "Create new lease" }) as HTMLButtonElement).disabled).toBe(true);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    journey.rerender(<PropertySetupScreen data={savedData} step={4} />);
+    expectReviewLinks(destination.pathname + destination.search);
+    journey.unmount();
+    render(<PropertySetupScreen data={savedData} step={4} />);
+    expectReviewLinks(destination.pathname + destination.search);
+    expect(navigation.createLease).toHaveBeenCalledTimes(1);
+    expect(navigation.activateLease).not.toHaveBeenCalled();
+  });
+
+  it("retains failed creation for retry and carries the saved lease into setup without activating it", async () => {
+    const user = userEvent.setup();
+    navigation.createLease
+      .mockResolvedValueOnce({ status: "error", message: "This unit is already reserved for those dates." })
+      .mockResolvedValueOnce({ status: "success", message: "Lease saved.", leaseId: "lease-1" });
+    const journey = render(<PropertySetupScreen data={creationData} step={3} />);
+    await user.click(screen.getByRole("button", { name: "Create new lease" }));
+    await fillSetupLease(user);
+    await user.click(screen.getByRole("button", { name: "Save tenant and lease" }));
+    await screen.findByText("This unit is already reserved for those dates.");
+    expect(screen.getByRole("dialog", { name: "Create lease" })).toBeTruthy();
+    expect(navigation.replace).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Save tenant and lease" }));
+    await waitFor(() => expect(navigation.replace).toHaveBeenCalledTimes(1));
+    for (const key of ["propertyId", "unitId", "tenantPersonId", "idempotencyKey"]) {
+      expect(navigation.createLease.mock.calls[1]![1].get(key)).toBe(navigation.createLease.mock.calls[0]![1].get(key));
+    }
+    journey.rerender(<PropertySetupScreen data={savedData} step={4} />);
+    expect(screen.getByRole("link", { name: "View rent and deposit" })).toBeTruthy();
+    expect(navigation.activateLease).not.toHaveBeenCalled();
+  });
+
+  it("cancels creation without navigation or writes and keeps the selected placement on reopen", async () => {
+    const user = userEvent.setup();
+    render(<PropertySetupScreen data={creationData} step={3} />);
+    await user.click(screen.getByRole("button", { name: "Create new lease" }));
+    await screen.findByRole("form", { name: "Add lease form" });
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Create lease" })).toBeNull();
+    expect(navigation.replace).not.toHaveBeenCalled();
+    expect(navigation.createLease).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Create new lease" }));
+    const form = await screen.findByRole("form", { name: "Add lease form" });
+    expect(new FormData(form as HTMLFormElement).get("unitId")).toBe("unit-1");
+    expect(new FormData(form as HTMLFormElement).get("tenantPersonId")).toBe("tenant-1");
+    await user.click(within(form).getByRole("button", { name: "Next" }));
+    fireEvent.input((form as HTMLFormElement).elements.namedItem("leaseStartDate") as HTMLInputElement, { target: { value: "2026-07-01" } });
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(screen.queryByRole("dialog", { name: "Create lease" })).toBeNull();
+    expect(navigation.replace).not.toHaveBeenCalled();
+    expect(navigation.createLease).not.toHaveBeenCalled();
+  });
+
+  it("keeps review links on completed setup without changing first-rent navigation", () => {
+    render(<PropertySetupScreen data={{ ...savedData, readiness: { ...savedData.readiness!, ready: true, items: [] } }} step={5} />);
+    expectReviewLinks(`/properties/setup?${new URLSearchParams({ step: "5", ...savedData.selection as Record<string, string> })}`);
+    expect(screen.getByRole("link", { name: "Review first rent charge" }).getAttribute("href")).toBe("/rent-income?leaseId=lease-1");
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+    expect(navigation.activateLease).not.toHaveBeenCalled();
+  });
   it("steers an occupied unit to its open lease and blocks new lease creation", () => {
     render(<PropertySetupScreen data={data} step={3} />);
 
@@ -215,3 +330,46 @@ const data: PropertySetupData = {
     },
   ],
 };
+
+const creationData: PropertySetupData = {
+  ...data,
+  leases: [],
+  selection: { ...data.selection, tenantId: "tenant-1" },
+  tenants: [{ ...data.tenants[0]!, partyType: "individual" }],
+  units: [{ ...data.units[0]!, statusLabel: "vacant" }],
+};
+const savedData: PropertySetupData = {
+  ...creationData,
+  leases: [{ ...data.leases[0]!, status: "draft" }],
+  selection: { ...creationData.selection, leaseId: "lease-1" },
+  readiness: {
+    ready: false, effectiveDate: "2026-07-01", organizationId: "organization-1",
+    leaseId: "lease-1", propertyId: "property-1", unitId: "unit-1",
+    items: [{ code: "lease", label: "Lease activation", ready: false, repairHref: "/leases/lease-1" }],
+  },
+};
+
+async function fillSetupLease(user: ReturnType<typeof userEvent.setup>) {
+  const form = await screen.findByRole("form", { name: "Add lease form" }) as HTMLFormElement;
+  await user.click(within(form).getByRole("button", { name: "Next" }));
+  fireEvent.input(form.elements.namedItem("leaseStartDate") as HTMLInputElement, { target: { value: "2026-07-01" } });
+  fireEvent.input(form.elements.namedItem("leaseEndDate") as HTMLInputElement, { target: { value: "2027-06-30" } });
+  await user.click(within(form).getByRole("button", { name: "Next" }));
+  fireEvent.change(form.elements.namedItem("monthlyRentAmount") as HTMLInputElement, { target: { value: "900" } });
+  fireEvent.change(form.elements.namedItem("rentDueDay") as HTMLInputElement, { target: { value: "5" } });
+  await user.click(within(form).getByRole("button", { name: "Next" }));
+  return form;
+}
+
+function expectReviewLinks(returnTo: string) {
+  for (const [label, section] of [["Open lease", null], ["View rent and deposit", "rent"]] as const) {
+    const link = screen.getByRole("link", { name: label });
+    const url = new URL(link.getAttribute("href")!, "https://nestory.invalid");
+    expect(url.pathname).toBe("/leases/lease-1");
+    expect(url.searchParams.get("section")).toBe(section);
+    const actualReturn = new URL(url.searchParams.get("returnTo")!, "https://nestory.invalid");
+    const expectedReturn = new URL(returnTo, "https://nestory.invalid");
+    expect(actualReturn.pathname).toBe(expectedReturn.pathname);
+    expect(Object.fromEntries(actualReturn.searchParams)).toEqual(Object.fromEntries(expectedReturn.searchParams));
+  }
+}

@@ -12,6 +12,12 @@ describe("workflow return context", () => {
   it("preserves the move-in section when returning to a unit", () => {
     expect(workflowReturnHref("/units/unit-1?section=lease")).toBe("/units/unit-1?section=lease");
   });
+  it("preserves setup selections and step only on the setup route", () => {
+    const setup = "/properties/setup?step=4&ownerId=owner-1&propertyId=property-1&unitId=unit-1&tenantId=tenant-1&leaseId=lease-1";
+    expect(workflowReturnHref(`${setup}&action=activate&email=private`)).toBe(setup);
+    expect(workflowReturnHref("/properties/property-1?step=4&ownerId=owner-1&tenantId=tenant-1&section=units"))
+      .toBe("/properties/property-1?section=units");
+  });
   it("preserves scope and filter context but removes action payload and arbitrary customer fields", () => {
     expect(workflowReturnHref("/units/unit-1/finance?view=rent&q=Alice&status=unpaid&page=2&action=record-payment&invoiceId=invoice-1&email=private"))
       .toBe("/units/unit-1/finance?view=rent&q=Alice&status=unpaid&page=2");
