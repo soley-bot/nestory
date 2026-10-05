@@ -40,6 +40,12 @@ jobs:
         run: npm ci
       - name: Check acceptance boundaries
         run: node --test scripts/daily-workflow-policy.node-test.mjs
+      - name: Check fixture actors and journey assumptions
+        env:
+          NODE_OPTIONS: --max-old-space-size=512
+        run: |
+          npm exec -- vitest run scripts/daily-workflow-contract.test.mjs --maxWorkers=1
+          npm exec -- vitest run src/features/property-setup/components/property-setup-screen.test.tsx src/features/finance-operations/components/finance-operations-screen.test.tsx src/features/leases/components/lease-detail-screen.test.tsx src/features/owner-close/components/owner-close-screen.test.tsx src/features/owner-balances/components/owner-balance-ledger.test.tsx --maxWorkers=1 -t 'daily workflow|gives Finance Managers|unmounts a summary operation|links an authorized current issued|keeps superseded publications'
       - name: Install pinned Chromium
         run: npm exec -- playwright install --with-deps chromium
       - name: Run one synthetic daily workflow
@@ -55,6 +61,7 @@ jobs:
           path: |
             ci-reports/daily-workflow/result.json
             ci-reports/daily-workflow/runner.json
+            ci-reports/daily-workflow/preflight.json
             ci-reports/daily-workflow/*.log
             ci-reports/daily-workflow/*.png
           retention-days: 3

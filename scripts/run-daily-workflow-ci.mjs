@@ -5,6 +5,7 @@ import path from "node:path";
 import http from "node:http";
 import { execFileSync, spawn } from "node:child_process";
 import { assertDailyContainer, assertDailyOrigin, assertDailyResources, dailyOrigins, memoryAvailableGiB, resolveDailyRun } from "./daily-workflow-policy.mjs";
+import { inspectDailyFixture } from "./daily-workflow-contract.mjs";
 
 const config = resolveDailyRun(process.env);
 const root = process.cwd();
@@ -135,6 +136,9 @@ async function main() {
   for (const secret of secrets) console.log(`::add-mask::${secret}`);
   await waitFor(async () => (await fetch(`${dailyOrigins.api}/auth/v1/health`, { headers: { apikey: status.ANON_KEY }, signal: AbortSignal.timeout(2000) })).ok);
   await command("fixture", ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "scripts/load-test-fixture.mjs"], env, 3 * 60000);
+  stage = "fixture-preflight";
+  const fixture = inspectDailyFixture(statement => run("docker", ["exec", "-i", `supabase_db_${config.project}`, "psql", "-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"], { input: statement, stdio: ["pipe", "pipe", "pipe"] }));
+  save("preflight.json", { sha: config.sha, ...fixture });
   await command("rent-guards", ["node_modules/supabase/dist/supabase.js", "test", "db", "supabase/tests/historical_rent_correction_authority_test.sql", "supabase/tests/historical_rent_correction_execution_test.sql"], env, 2 * 60000);
   const containers = ownNames(); assert.equal(containers.length, 5);
   containers.forEach(name => { assertDailyContainer(inspect(name), config.project, manifest.createdAt); docker(["stop", "--timeout", "10", name]); });

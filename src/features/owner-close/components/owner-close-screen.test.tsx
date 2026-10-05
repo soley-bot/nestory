@@ -32,6 +32,30 @@ const publicationId = "00000000-0000-4000-8000-000000000019";
 const amount = canonicalizeSignedOwnerOpeningAmount;
 
 describe("OwnerCloseScreen", () => {
+  it("daily workflow exposes scoped close and publication to Finance permissions without reopening", () => {
+    const open = closedData();
+    open.series = null; open.revisions = []; open.publications = []; open.publicationReadiness = null;
+    open.readiness = { ...open.readiness!, isReady: true, blockers: [], seriesState: null };
+    const props = { canClose: true, canPublish: true, canReopen: false, canLockMonth: true, monthStart: "2026-08-01", ownerPersonId: ownerId, propertyId };
+    const { rerender } = render(<OwnerCloseScreen {...props} data={open} />);
+    const close = screen.getByRole("button", { name: "Close owner month", exact: true }).closest("form")!;
+    fireEvent.change(screen.getByLabelText("Close reason", { exact: true }), { target: { value: "Synthetic daily workflow statement proof" } });
+    const payload = new FormData(close);
+    expect(payload.get("propertyId")).toBe(propertyId);
+    expect(payload.get("ownerPersonId")).toBe(ownerId);
+    expect(payload.get("monthStart")).toBe("2026-08-01");
+    expect(payload.get("closeReason")).toBe("Synthetic daily workflow statement proof");
+    const closed = closedData();
+    closed.publications = [];
+    closed.publicationReadiness = { blockers: [], existingPublicationId: null, isReady: true, revisionId: revisionOneId };
+    rerender(<OwnerCloseScreen {...props} data={closed} />);
+    expect(screen.getByText("Ready to publish the owner statement", { exact: true })).toBeTruthy();
+    const publish = screen.getByRole("button", { name: "Publish owner statement", exact: true }).closest("form")!;
+    expect(new FormData(publish).get("revisionId")).toBe(revisionOneId);
+    expect(screen.queryByRole("button", { name: "Reopen month" })).toBeNull();
+    expect(screen.queryByLabelText("Reopen reason")).toBeNull();
+  });
+
   it.each([true, false])("offers scoped calculation and locking only with close authority (%s)", (allowed) => {
     const data = closedData(); data.series = null; data.revisions = [];
     data.readiness = { ...data.readiness!, blockers: [{ code: "owner_balance_period_missing" }, { code: "financial_month_not_locked" }], seriesState: null };
