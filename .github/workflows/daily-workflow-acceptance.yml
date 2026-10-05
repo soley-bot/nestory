@@ -1,0 +1,61 @@
+name: Synthetic daily workflow
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/daily-workflow-acceptance.yml'
+      - 'scripts/daily-workflow-*'
+      - 'scripts/run-daily-workflow-ci.mjs'
+      - 'scripts/smoke-daily-workflow.mjs'
+
+permissions: {}
+
+concurrency:
+  group: synthetic-daily-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  daily:
+    name: Synthetic daily workflow
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      NESTORY_TEST_SHA: ${{ github.event.pull_request.head.sha }}
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Check acceptance boundaries
+        run: node --test scripts/daily-workflow-policy.node-test.mjs
+      - name: Install pinned Chromium
+        run: npm exec -- playwright install --with-deps chromium
+      - name: Run one synthetic daily workflow
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/run-daily-workflow-ci.mjs
+      - name: Remove only this job's synthetic runtime
+        if: always()
+        run: node scripts/run-daily-workflow-ci.mjs --cleanup
+      - name: Retain safe acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: synthetic-daily-${{ github.event.pull_request.head.sha }}-${{ github.run_attempt }}
+          path: |
+            ci-reports/daily-workflow/result.json
+            ci-reports/daily-workflow/runner.json
+            ci-reports/daily-workflow/*.log
+            ci-reports/daily-workflow/*.png
+          retention-days: 3
+          if-no-files-found: warn
