@@ -139,7 +139,7 @@ async function main() {
   const containers = ownNames(); assert.equal(containers.length, 5);
   containers.forEach(name => { assertDailyContainer(inspect(name), config.project, manifest.createdAt); docker(["stop", "--timeout", "10", name]); });
   assertDailyResources(resource(), true);
-  Object.assign(env, { VERCEL: "1", NODE_OPTIONS: "--max-old-space-size=1536", NEXT_PUBLIC_SUPABASE_URL: status.API_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.ANON_KEY, NEXT_PUBLIC_SUPABASE_ANON_KEY: status.ANON_KEY, SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY });
+  Object.assign(env, { VERCEL: "1", NODE_OPTIONS: "--max-old-space-size=3072", NEXT_PUBLIC_SUPABASE_URL: status.API_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.ANON_KEY, NEXT_PUBLIC_SUPABASE_ANON_KEY: status.ANON_KEY, SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY });
   await command("build", ["node_modules/next/dist/bin/next", "build", "--webpack"], env, 8 * 60000);
   assert.equal(run("git", ["diff", "--name-only"]).trim(), "supabase/config.toml");
   const buildId = fs.readFileSync(path.join(root, ".next/BUILD_ID"), "utf8").trim(); assert.ok(buildId);
