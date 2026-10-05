@@ -19,6 +19,9 @@ describe("Lease relationship accepted relationship concurrency result contract",
     );
 
     expect(cleanupSql).toContain("SET LOCAL session_replication_role = replica");
+    expect(cleanupSql.indexOf("SET LOCAL session_replication_role = replica")).toBeLessThan(
+      cleanupSql.indexOf("DELETE FROM public.activity_logs"),
+    );
     expect(billingDelete).toBeGreaterThan(-1);
     expect(categoryDelete).toBeGreaterThan(billingDelete);
     expect(organizationDelete).toBeGreaterThan(categoryDelete);

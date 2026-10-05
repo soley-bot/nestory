@@ -21,6 +21,7 @@ export type Database = {
           new_values: Json | null
           organization_id: string
           previous_values: Json | null
+          recorded_actor_id: string | null
         }
         Insert: {
           action: string
@@ -33,6 +34,7 @@ export type Database = {
           new_values?: Json | null
           organization_id: string
           previous_values?: Json | null
+          recorded_actor_id?: string | null
         }
         Update: {
           action?: string
@@ -45,6 +47,7 @@ export type Database = {
           new_values?: Json | null
           organization_id?: string
           previous_values?: Json | null
+          recorded_actor_id?: string | null
         }
         Relationships: [
           {
@@ -300,6 +303,7 @@ export type Database = {
         Row: {
           adjustment_date: string
           amount: number
+          audit_actors: Json | null
           created_at: string
           created_by: string
           currency: Database["public"]["Enums"]["currency_code"]
@@ -317,6 +321,7 @@ export type Database = {
         Insert: {
           adjustment_date: string
           amount: number
+          audit_actors?: Json | null
           created_at?: string
           created_by: string
           currency: Database["public"]["Enums"]["currency_code"]
@@ -334,6 +339,7 @@ export type Database = {
         Update: {
           adjustment_date?: string
           amount?: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -429,6 +435,7 @@ export type Database = {
           approved_payment_allocation_id: string | null
           approved_payment_id: string | null
           approved_responsibility_id: string | null
+          audit_actors: Json | null
           created_at: string
           currency: Database["public"]["Enums"]["currency_code"]
           customer_category: string
@@ -474,6 +481,7 @@ export type Database = {
           approved_payment_allocation_id?: string | null
           approved_payment_id?: string | null
           approved_responsibility_id?: string | null
+          audit_actors?: Json | null
           created_at?: string
           currency?: Database["public"]["Enums"]["currency_code"]
           customer_category: string
@@ -519,6 +527,7 @@ export type Database = {
           approved_payment_allocation_id?: string | null
           approved_payment_id?: string | null
           approved_responsibility_id?: string | null
+          audit_actors?: Json | null
           created_at?: string
           currency?: Database["public"]["Enums"]["currency_code"]
           customer_category?: string
@@ -796,6 +805,7 @@ export type Database = {
       }
       expense_transactions: {
         Row: {
+          audit_actors: Json | null
           cancelled_at: string | null
           cancelled_by: string | null
           created_at: string
@@ -834,6 +844,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          audit_actors?: Json | null
           cancelled_at?: string | null
           cancelled_by?: string | null
           created_at?: string
@@ -872,6 +883,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          audit_actors?: Json | null
           cancelled_at?: string | null
           cancelled_by?: string | null
           created_at?: string
@@ -964,6 +976,7 @@ export type Database = {
       fee_payment_date_corrections: {
         Row: {
           amount: number
+          audit_actors: Json | null
           created_at: string
           created_by: string
           id: string
@@ -981,6 +994,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          audit_actors?: Json | null
           created_at?: string
           created_by: string
           id?: string
@@ -998,6 +1012,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string
           id?: string
@@ -1325,6 +1340,7 @@ export type Database = {
           amount: number
           archived_at: string | null
           archived_by: string | null
+          audit_actors: Json | null
           category: string
           company_loss_amount: number
           created_at: string
@@ -1356,6 +1372,7 @@ export type Database = {
           amount: number
           archived_at?: string | null
           archived_by?: string | null
+          audit_actors?: Json | null
           category: string
           company_loss_amount?: number
           created_at?: string
@@ -1387,6 +1404,7 @@ export type Database = {
           amount?: number
           archived_at?: string | null
           archived_by?: string | null
+          audit_actors?: Json | null
           category?: string
           company_loss_amount?: number
           created_at?: string
@@ -1472,6 +1490,7 @@ export type Database = {
           amount_received: number
           archived_at: string | null
           archived_by: string | null
+          audit_actors: Json | null
           correction_occurrence_id: string | null
           created_at: string
           created_by: string | null
@@ -1500,6 +1519,7 @@ export type Database = {
           amount_received?: number
           archived_at?: string | null
           archived_by?: string | null
+          audit_actors?: Json | null
           correction_occurrence_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -1528,6 +1548,7 @@ export type Database = {
           amount_received?: number
           archived_at?: string | null
           archived_by?: string | null
+          audit_actors?: Json | null
           correction_occurrence_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -1627,6 +1648,7 @@ export type Database = {
       finance_payment_allocations: {
         Row: {
           amount: number
+          audit_actors: Json | null
           created_at: string
           created_by: string | null
           currency: Database["public"]["Enums"]["currency_code"]
@@ -1648,6 +1670,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string | null
           currency: Database["public"]["Enums"]["currency_code"]
@@ -1669,6 +1692,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -1778,6 +1802,7 @@ export type Database = {
       finance_payments: {
         Row: {
           amount: number
+          audit_actors: Json | null
           created_at: string
           created_by: string | null
           currency: Database["public"]["Enums"]["currency_code"]
@@ -1792,6 +1817,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -1806,6 +1832,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -1890,6 +1917,7 @@ export type Database = {
       finance_receipt_allocations: {
         Row: {
           amount: number
+          audit_actors: Json | null
           calculation_material_hash: string | null
           charge_occurrence_id: string | null
           classification_evidence_hash: string | null
@@ -1932,6 +1960,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          audit_actors?: Json | null
           calculation_material_hash?: string | null
           charge_occurrence_id?: string | null
           classification_evidence_hash?: string | null
@@ -1974,6 +2003,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          audit_actors?: Json | null
           calculation_material_hash?: string | null
           charge_occurrence_id?: string | null
           classification_evidence_hash?: string | null
@@ -2090,6 +2120,7 @@ export type Database = {
       finance_receipts: {
         Row: {
           amount: number
+          audit_actors: Json | null
           created_at: string
           created_by: string | null
           currency: Database["public"]["Enums"]["currency_code"]
@@ -2105,6 +2136,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -2120,6 +2152,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -3277,6 +3310,7 @@ export type Database = {
       lease_deposit_events: {
         Row: {
           amount: number
+          audit_actors: Json | null
           created_at: string
           created_by: string | null
           currency: Database["public"]["Enums"]["currency_code"]
@@ -3294,6 +3328,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -3311,6 +3346,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -4273,6 +4309,7 @@ export type Database = {
           amount: number
           archived_at: string | null
           archived_by: string | null
+          audit_actors: Json | null
           category: string
           created_at: string
           created_by: string | null
@@ -4294,6 +4331,7 @@ export type Database = {
           amount: number
           archived_at?: string | null
           archived_by?: string | null
+          audit_actors?: Json | null
           category: string
           created_at?: string
           created_by?: string | null
@@ -4315,6 +4353,7 @@ export type Database = {
           amount?: number
           archived_at?: string | null
           archived_by?: string | null
+          audit_actors?: Json | null
           category?: string
           created_at?: string
           created_by?: string | null
@@ -4558,6 +4597,7 @@ export type Database = {
       management_fee_occurrences: {
         Row: {
           amount: number
+          audit_actors: Json | null
           billing_term_id: string
           correction_occurrence_id: string | null
           created_at: string
@@ -4577,6 +4617,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          audit_actors?: Json | null
           billing_term_id: string
           correction_occurrence_id?: string | null
           created_at?: string
@@ -4596,6 +4637,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          audit_actors?: Json | null
           billing_term_id?: string
           correction_occurrence_id?: string | null
           created_at?: string
@@ -5532,6 +5574,7 @@ export type Database = {
       owner_cash_events: {
         Row: {
           amount: number
+          audit_actors: Json | null
           corrects_event_id: string | null
           created_at: string
           created_by: string
@@ -5551,6 +5594,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          audit_actors?: Json | null
           corrects_event_id?: string | null
           created_at?: string
           created_by: string
@@ -5570,6 +5614,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          audit_actors?: Json | null
           corrects_event_id?: string | null
           created_at?: string
           created_by?: string
@@ -5691,6 +5736,7 @@ export type Database = {
         Row: {
           allocation_date: string
           amount: number
+          audit_actors: Json | null
           created_at: string
           created_by: string | null
           id: string
@@ -5702,6 +5748,7 @@ export type Database = {
         Insert: {
           allocation_date: string
           amount: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string | null
           id?: string
@@ -5713,6 +5760,7 @@ export type Database = {
         Update: {
           allocation_date?: string
           amount?: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string | null
           id?: string
@@ -6197,6 +6245,7 @@ export type Database = {
         Row: {
           allocation_order: number
           amount: number
+          audit_actors: Json | null
           confirmation_id: string
           confirmed_date: string | null
           created_at: string
@@ -6221,6 +6270,7 @@ export type Database = {
         Insert: {
           allocation_order: number
           amount: number
+          audit_actors?: Json | null
           confirmation_id: string
           confirmed_date?: string | null
           created_at?: string
@@ -6245,6 +6295,7 @@ export type Database = {
         Update: {
           allocation_order?: number
           amount?: number
+          audit_actors?: Json | null
           confirmation_id?: string
           confirmed_date?: string | null
           created_at?: string
@@ -6384,6 +6435,7 @@ export type Database = {
       owner_collection_confirmations: {
         Row: {
           amount: number
+          audit_actors: Json | null
           confirmation_number: string
           confirmed_date: string
           created_at: string
@@ -6399,6 +6451,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          audit_actors?: Json | null
           confirmation_number: string
           confirmed_date: string
           created_at?: string
@@ -6414,6 +6467,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          audit_actors?: Json | null
           confirmation_number?: string
           confirmed_date?: string
           created_at?: string
@@ -6848,6 +6902,7 @@ export type Database = {
       owner_invoice_lines: {
         Row: {
           amount: number
+          audit_actors: Json | null
           correction_occurrence_id: string | null
           created_at: string
           created_by: string | null
@@ -6866,6 +6921,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          audit_actors?: Json | null
           correction_occurrence_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -6884,6 +6940,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          audit_actors?: Json | null
           correction_occurrence_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -6961,6 +7018,7 @@ export type Database = {
       }
       owner_invoices: {
         Row: {
+          audit_actors: Json | null
           billing_period_start: string
           created_at: string
           created_by: string | null
@@ -6978,6 +7036,7 @@ export type Database = {
           voided_by: string | null
         }
         Insert: {
+          audit_actors?: Json | null
           billing_period_start: string
           created_at?: string
           created_by?: string | null
@@ -6995,6 +7054,7 @@ export type Database = {
           voided_by?: string | null
         }
         Update: {
+          audit_actors?: Json | null
           billing_period_start?: string
           created_at?: string
           created_by?: string | null
@@ -7365,6 +7425,7 @@ export type Database = {
         Row: {
           allocation_order: number
           amount: number
+          audit_actors: Json | null
           created_at: string
           created_by: string | null
           id: string
@@ -7378,6 +7439,7 @@ export type Database = {
         Insert: {
           allocation_order: number
           amount: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string | null
           id?: string
@@ -7391,6 +7453,7 @@ export type Database = {
         Update: {
           allocation_order?: number
           amount?: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string | null
           id?: string
@@ -7449,6 +7512,7 @@ export type Database = {
       owner_payments: {
         Row: {
           amount: number
+          audit_actors: Json | null
           command_payload_hash: string | null
           created_at: string
           created_by: string | null
@@ -7468,6 +7532,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          audit_actors?: Json | null
           command_payload_hash?: string | null
           created_at?: string
           created_by?: string | null
@@ -7487,6 +7552,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          audit_actors?: Json | null
           command_payload_hash?: string | null
           created_at?: string
           created_by?: string | null
@@ -8427,6 +8493,7 @@ export type Database = {
       property_withdrawals: {
         Row: {
           amount: number
+          audit_actors: Json | null
           command_payload_hash: string | null
           created_at: string
           created_by: string | null
@@ -8444,6 +8511,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          audit_actors?: Json | null
           command_payload_hash?: string | null
           created_at?: string
           created_by?: string | null
@@ -8461,6 +8529,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          audit_actors?: Json | null
           command_payload_hash?: string | null
           created_at?: string
           created_by?: string | null
@@ -9364,6 +9433,7 @@ export type Database = {
       tenant_invoice_lines: {
         Row: {
           amount: number
+          audit_actors: Json | null
           correction_occurrence_id: string | null
           created_at: string
           created_by: string | null
@@ -9387,6 +9457,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          audit_actors?: Json | null
           correction_occurrence_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -9410,6 +9481,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          audit_actors?: Json | null
           correction_occurrence_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -9529,6 +9601,7 @@ export type Database = {
         Row: {
           allocation_order: number
           amount: number
+          audit_actors: Json | null
           created_at: string
           created_by: string | null
           finance_receipt_id: string
@@ -9544,6 +9617,7 @@ export type Database = {
         Insert: {
           allocation_order: number
           amount: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string | null
           finance_receipt_id: string
@@ -9559,6 +9633,7 @@ export type Database = {
         Update: {
           allocation_order?: number
           amount?: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string | null
           finance_receipt_id?: string
@@ -9640,6 +9715,7 @@ export type Database = {
       tenant_invoice_payments: {
         Row: {
           amount: number
+          audit_actors: Json | null
           created_at: string
           created_by: string | null
           currency: Database["public"]["Enums"]["currency_code"]
@@ -9655,6 +9731,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -9670,6 +9747,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          audit_actors?: Json | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -9793,6 +9871,7 @@ export type Database = {
       }
       tenant_invoices: {
         Row: {
+          audit_actors: Json | null
           base_rent_amount: number | null
           billing_period_end: string
           billing_period_start: string
@@ -9827,6 +9906,7 @@ export type Database = {
           voided_by: string | null
         }
         Insert: {
+          audit_actors?: Json | null
           base_rent_amount?: number | null
           billing_period_end: string
           billing_period_start: string
@@ -9861,6 +9941,7 @@ export type Database = {
           voided_by?: string | null
         }
         Update: {
+          audit_actors?: Json | null
           base_rent_amount?: number | null
           billing_period_end?: string
           billing_period_start?: string

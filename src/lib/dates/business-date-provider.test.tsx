@@ -3,6 +3,7 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BusinessDateProvider, useBusinessDate } from "./business-date-provider";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 
 function Probe({ label }: { label: string }) {
   const { getBusinessDateValue, getBusinessMonthValue } = useBusinessDate();
@@ -46,5 +47,16 @@ describe("authorized business date context", () => {
     act(() => vi.advanceTimersByTime(31_000));
     view.rerender(<BusinessDateProvider businessDate="2026-12-31" serverTime="2026-12-31T16:59:30Z" timeZone="Asia/Phnom_Penh"><Probe label="New form date" /></BusinessDateProvider>);
     expect(screen.getByLabelText("New form date").textContent).toBe("2027-01-01 / 2027-01");
+  });
+
+  it("adopts fresh server time for the same company without resetting the selected date", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2035-04-01T00:00:00Z"));
+    const form = <form aria-label="Payment"><DatePickerField defaultValue="2025-12-31" name="receivedDate" /></form>;
+    const view = render(<BusinessDateProvider businessDate="2026-12-31" serverTime="2026-12-31T16:59:30Z" timeZone="Asia/Phnom_Penh"><Probe label="Refreshed date" />{form}</BusinessDateProvider>);
+    act(() => vi.advanceTimersByTime(1000));
+    view.rerender(<BusinessDateProvider businessDate="2027-01-01" serverTime="2026-12-31T17:01:00Z" timeZone="Asia/Phnom_Penh"><Probe label="Refreshed date" />{form}</BusinessDateProvider>);
+    expect(screen.getByLabelText("Refreshed date").textContent).toBe("2027-01-01 / 2027-01");
+    expect(new FormData(screen.getByRole("form", { name: "Payment" }) as HTMLFormElement).get("receivedDate")).toBe("2025-12-31");
   });
 });

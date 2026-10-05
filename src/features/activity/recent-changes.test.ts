@@ -547,9 +547,11 @@ describe("toRecentChange", () => {
       id: "log-petty-cash",
       new_values: {
         account_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        audit_actors: { createdBy: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
         counterparty_person_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
         custodian_person_id: "12121212-1212-4121-8121-121212121212",
         period_id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        recorded_actor_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         status: "posted",
         voided_by: "ffffffff-ffff-4fff-8fff-ffffffffffff",
       },

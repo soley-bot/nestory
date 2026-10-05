@@ -28,12 +28,13 @@ export function BusinessDateProvider({
   timeZone: string;
 }) {
   const [currentDate, setCurrentDate] = useState(businessDate);
-  const [getCurrentTime] = useState(() => {
-    if (!serverTime) return () => new Date();
-    const referenceTime = Date.parse(serverTime);
-    const startedAt = performance.now();
-    return () => new Date(referenceTime + performance.now() - startedAt);
-  });
+  const [getCurrentTime, setCurrentTimeSource] = useState(() => createClock(serverTime));
+
+  useEffect(() => {
+    const clock = createClock(serverTime);
+    const synchronizeClock = () => setCurrentTimeSource(() => clock);
+    synchronizeClock();
+  }, [serverTime]);
 
   useEffect(() => {
     const refreshDate = () =>
@@ -48,6 +49,13 @@ export function BusinessDateProvider({
       {children}
     </BusinessDateContext.Provider>
   );
+}
+
+function createClock(serverTime?: string) {
+  if (!serverTime) return () => new Date();
+  const referenceTime = Date.parse(serverTime);
+  const startedAt = performance.now();
+  return () => new Date(referenceTime + performance.now() - startedAt);
 }
 
 export function useBusinessDate() {

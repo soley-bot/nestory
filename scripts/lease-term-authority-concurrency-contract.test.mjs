@@ -31,5 +31,9 @@ describe("lease-term authority concurrency harness contract", () => {
     expect(source).toContain("cleanup()");
     expect(source).toContain("AggregateError");
     expect(source).toContain("timeout: timeoutMs");
+    const cleanup = source.slice(source.indexOf("function cleanup()"));
+    expect(cleanup.indexOf("SET LOCAL session_replication_role = replica")).toBeLessThan(
+      cleanup.indexOf("DELETE FROM public.activity_logs"),
+    );
   });
 });

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { FinanceAccountActivityScreen } from "@/features/finance-accounts/components/finance-account-activity-screen";
 import { getFinanceAccountActivity } from "@/features/finance-accounts/data/finance-account-activity";
 import { requireFinanceContext } from "@/lib/auth/context";
+import { getBusinessDateValue } from "@/lib/dates/business-date";
 
 type PageProps = {
   params: Promise<{ accountId: string }>;
@@ -11,7 +12,7 @@ type PageProps = {
 export default async function FinanceAccountActivityPage({ params, searchParams }: PageProps) {
   const context = await requireFinanceContext();
   const [{ accountId }, query] = await Promise.all([params, searchParams]);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getBusinessDateValue(new Date(), context.operationalTimezone);
   const monthStart = `${today.slice(0, 7)}-01`;
   const activity = await getFinanceAccountActivity(context.organizationId, accountId, {
     periodEnd: validDate(query.to) ?? today,

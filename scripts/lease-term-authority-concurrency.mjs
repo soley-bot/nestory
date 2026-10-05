@@ -679,14 +679,11 @@ function cleanup() {
   runSql(`\\set ON_ERROR_STOP on
 BEGIN;
 SELECT set_config('app.people_leases_skip_sync', 'on', true);
+SET LOCAL session_replication_role = replica;
 DELETE FROM public.activity_logs
 WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM public.financial_month_locks
 WHERE organization_id = '${ids.organization}'::uuid;
--- Simplified Lease creation writes an immutable billing snapshot. Remove only
--- this isolated fixture's snapshots and seeded Chart dependencies. Disable
--- triggers only in this cleanup transaction, never at the shared table level.
-SET LOCAL session_replication_role = replica;
 DELETE FROM app_private.finance_chart_workflow_idempotency_bindings
 WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM app_private.financial_idempotency_requests
