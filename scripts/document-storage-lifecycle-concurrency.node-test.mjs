@@ -208,6 +208,46 @@ function removePauseTrigger(container) {
   `);
 }
 
+function cleanupFinanceChartSql(state) {
+  const tables = [
+    "app_private.finance_chart_workflow_idempotency_bindings",
+    "app_private.finance_account_activity_authority_history",
+    "app_private.finance_account_generated_categories",
+    "public.finance_account_category_links",
+    "public.finance_account_source_links",
+    "app_private.finance_account_internal_sources",
+    "public.finance_account_roles",
+    "public.finance_accounts",
+    "public.finance_categories",
+    "public.financial_reconciliation_sources",
+  ];
+  return `
+    SET LOCAL session_replication_role = replica;
+    ${tables.map((table) => `DELETE FROM ${table} WHERE organization_id = '${state.organization}';`).join("\n")}
+    SET LOCAL session_replication_role = origin;
+  `;
+}
+
+function finishCleanup(container, states, cleanupState, proofError, removePause = true) {
+  const errors = proofError ? [proofError] : [];
+  if (removePause) {
+    try {
+      removePauseTrigger(container);
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  for (const state of Object.values(states)) {
+    try {
+      cleanupState(container, state);
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) throw new AggregateError(errors, "Document proof or fixture cleanup failed");
+}
+
 function cleanup(container, state) {
   run(container, `
     BEGIN;
@@ -218,13 +258,8 @@ function cleanup(container, state) {
     SELECT set_config('storage.allow_delete_query', 'true', true);
     DELETE FROM storage.objects
     WHERE bucket_id = '${bucket}' AND name = '${objectPath(state)}';
+    ${cleanupFinanceChartSql(state)}
     DELETE FROM public.properties WHERE organization_id = '${state.organization}';
-    ALTER TABLE public.financial_reconciliation_sources
-      DISABLE TRIGGER enforce_financial_reconciliation_source_mutation;
-    DELETE FROM public.financial_reconciliation_sources
-    WHERE organization_id = '${state.organization}';
-    ALTER TABLE public.financial_reconciliation_sources
-      ENABLE TRIGGER enforce_financial_reconciliation_source_mutation;
     DELETE FROM public.organizations WHERE id = '${state.organization}';
     DELETE FROM auth.users WHERE id = '${state.actor}';
     COMMIT;
@@ -250,6 +285,7 @@ test("create serializes with Storage deletion in both start orders", async () =>
     createDeleteFirst: ids("a23b"),
   };
 
+  let proofError;
   installPauseTrigger(container);
   try {
     run(container, setupSql(states.createFirst, "storage-create-first", false));
@@ -294,19 +330,10 @@ test("create serializes with Storage deletion in both start orders", async () =>
       `),
       "[0, 0]",
     );
-
+  } catch (error) {
+    proofError = error;
   } finally {
-    try {
-      removePauseTrigger(container);
-    } finally {
-      for (const state of Object.values(states)) {
-        try {
-          cleanup(container, state);
-        } catch {
-          // Preserve the original assertion if setup did not create this state.
-        }
-      }
-    }
+    finishCleanup(container, states, cleanup, proofError);
   }
 });
 
@@ -317,6 +344,7 @@ test("fingerprint serializes with Storage deletion in both start orders", async 
     fingerprintDeleteFirst: ids("a23d"),
   };
 
+  let proofError;
   installPauseTrigger(container);
   try {
     run(container, setupSql(states.fingerprintFirst, "storage-fingerprint-first", true));
@@ -361,18 +389,10 @@ test("fingerprint serializes with Storage deletion in both start orders", async 
       `),
       "[0, 0]",
     );
+  } catch (error) {
+    proofError = error;
   } finally {
-    try {
-      removePauseTrigger(container);
-    } finally {
-      for (const state of Object.values(states)) {
-        try {
-          cleanup(container, state);
-        } catch {
-          // Preserve the original assertion if setup did not create this state.
-        }
-      }
-    }
+    finishCleanup(container, states, cleanup, proofError);
   }
 });
 
@@ -468,7 +488,9 @@ function deleteOwnerEvidenceObject(state) {
 function cleanupOwnerEvidence(container, state) {
   run(container, `
     BEGIN;
+    SET LOCAL session_replication_role = replica;
     DELETE FROM public.activity_logs WHERE organization_id = '${state.organization}';
+    SET LOCAL session_replication_role = origin;
     ALTER TABLE public.owner_opening_balance_requests
       DISABLE TRIGGER guard_owner_opening_balance_request_mutation;
     DELETE FROM public.owner_opening_balance_requests
@@ -482,21 +504,46 @@ function cleanupOwnerEvidence(container, state) {
     ALTER TABLE public.documents ENABLE TRIGGER guard_document_content_fingerprint;
     SELECT set_config('storage.allow_delete_query', 'true', true);
     DELETE FROM storage.objects WHERE bucket_id = '${bucket}' AND name = '${state.path}';
+    ${cleanupFinanceChartSql(state)}
     DELETE FROM public.property_owners WHERE organization_id = '${state.organization}';
     DELETE FROM public.person_roles WHERE organization_id = '${state.organization}';
     DELETE FROM public.people WHERE organization_id = '${state.organization}';
     DELETE FROM public.organization_members WHERE organization_id = '${state.organization}';
     DELETE FROM public.properties WHERE organization_id = '${state.organization}';
-    ALTER TABLE public.financial_reconciliation_sources
-      DISABLE TRIGGER enforce_financial_reconciliation_source_mutation;
-    DELETE FROM public.financial_reconciliation_sources
-    WHERE organization_id = '${state.organization}';
-    ALTER TABLE public.financial_reconciliation_sources
-      ENABLE TRIGGER enforce_financial_reconciliation_source_mutation;
     DELETE FROM public.organizations WHERE id = '${state.organization}';
     DELETE FROM auth.users WHERE id = '${state.actor}';
     COMMIT;
   `);
+  const remaining = JSON.parse(ownerEvidenceSnapshot(container, state));
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(remaining).map(([table, rows]) => [table, rows.length])),
+    Object.fromEntries(Object.keys(remaining).map((table) => [table, 0])),
+    "Owner evidence cleanup must leave no synthetic rows or objects",
+  );
+}
+
+function ownerEvidenceSnapshot(container, state) {
+  const scopedTables = [
+    "public.organization_members", "public.properties", "public.people",
+    "public.person_roles", "public.property_owners", "public.owner_opening_balance_requests",
+    "public.activity_logs", "public.documents", "app_private.financial_idempotency_requests",
+    "app_private.finance_chart_workflow_idempotency_bindings",
+    "app_private.finance_account_activity_authority_history",
+    "app_private.finance_account_generated_categories", "public.finance_account_category_links",
+    "public.finance_account_source_links", "app_private.finance_account_internal_sources",
+    "public.finance_account_roles", "public.finance_accounts", "public.finance_categories",
+    "public.financial_reconciliation_sources",
+  ];
+  const selections = [
+    ["auth.users", `id = '${state.actor}'`],
+    ["public.organizations", `id = '${state.organization}'`],
+    ["storage.objects", `bucket_id = '${bucket}' AND name = '${state.path}'`],
+    ...scopedTables.map((table) => [table, `organization_id = '${state.organization}'`]),
+  ];
+  return run(container, `SELECT jsonb_build_object(${selections.map(([table, where]) => `
+    '${table}', (SELECT coalesce(jsonb_agg(to_jsonb(row) ORDER BY to_jsonb(row)::text), '[]'::jsonb)
+      FROM ${table} AS row WHERE ${where})
+  `).join(",")})`);
 }
 
 test("atomic owner-opening evidence submission serializes with cleanup/reference races", async () => {
@@ -506,6 +553,7 @@ test("atomic owner-opening evidence submission serializes with cleanup/reference
     cleanupFirst: ownerEvidenceState("a23f", "race-cleanup-first-0001"),
   };
 
+  let proofError;
   installPauseTrigger(container);
   try {
     run(container, setupOwnerEvidenceSql(states.wrapperFirst, "owner-wrapper-first"));
@@ -553,17 +601,37 @@ test("atomic owner-opening evidence submission serializes with cleanup/reference
       "[0, 0, 0]",
       "cleanup-first leaves the wrapper as a stable loser with no artifacts",
     );
+  } catch (error) {
+    proofError = error;
   } finally {
-    try {
-      removePauseTrigger(container);
-    } finally {
-      for (const state of Object.values(states)) {
-        try {
-          cleanupOwnerEvidence(container, state);
-        } catch {
-          // Preserve the original assertion if setup did not create this state.
-        }
-      }
+    finishCleanup(container, states, cleanupOwnerEvidence, proofError);
+  }
+});
+
+test("owner evidence cleanup is repeatable and preserves another organization's complete fixture", () => {
+  const container = databaseContainer();
+  const states = {
+    target: ownerEvidenceState("a240", "cleanup-target-0001"),
+    other: ownerEvidenceState("a241", "cleanup-other-0001"),
+  };
+  let proofError;
+  try {
+    for (const [name, state] of Object.entries(states)) {
+      run(container, setupOwnerEvidenceSql(state, `owner-cleanup-${name}`));
+      run(container, `BEGIN; ${ownerEvidenceWrapperCall(state, false)} COMMIT;`);
     }
+    const before = ownerEvidenceSnapshot(container, states.other);
+    const fixture = JSON.parse(before);
+    for (const table of ["public.activity_logs", "public.documents", "public.owner_opening_balance_requests", "storage.objects", "public.finance_account_source_links"]) {
+      assert.ok(fixture[table].length > 0, `${table} must contain a real sentinel fixture`);
+    }
+    cleanupOwnerEvidence(container, states.target);
+    cleanupOwnerEvidence(container, states.target);
+    assert.equal(ownerEvidenceSnapshot(container, states.other), before);
+    assert.equal(run(container, "SHOW session_replication_role"), "origin");
+  } catch (error) {
+    proofError = error;
+  } finally {
+    finishCleanup(container, states, cleanupOwnerEvidence, proofError, false);
   }
 });
