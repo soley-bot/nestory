@@ -3497,6 +3497,34 @@ describe("FinanceOperationsScreen", () => {
     expect(retryFormData.get("paymentId")).toBe("payment-retry-failed");
   });
 
+  it("daily workflow opens the exact invoice then records payment from its details and exposes the receipt", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    const invoice = tenantInvoice();
+    invoice.collectionRoute = "through_ips";
+    input.tenantInvoices = [invoice];
+    financeActionMocks.recordTenantInvoicePaymentAction.mockResolvedValueOnce({
+      artifactHref: "/api/finance/documents/daily-receipt", message: "Payment recorded.", publicationStatus: "published", status: "success",
+    });
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordPayments: true })} initialInvoiceId={invoice.id} organizationName="Fixture" view="rent" />);
+    const details = screen.getByRole("dialog", { name: "Invoice details", exact: true });
+    expect(within(details).getByText(invoice.invoiceNumber, { exact: true })).toBeTruthy();
+    await user.click(within(details).getByRole("button", { name: "Record payment", exact: true }));
+    const payment = screen.getByRole("dialog", { name: "Record payment", exact: true });
+    fireEvent.change(within(payment).getByLabelText("Amount", { exact: true }), { target: { value: "40" } });
+    expect(within(payment).getByRole("combobox", { name: "Received into", exact: true })).toBeTruthy();
+    const form = within(payment).getByRole("button", { name: "Record payment", exact: true }).closest("form")!;
+    fireEvent.input(form.elements.namedItem("settlementDate")!, { target: { value: "2026-08-08" } });
+    fireEvent.change(form.elements.namedItem("reference")!, { target: { value: "DAILY-WORKFLOW-PAYMENT" } });
+    await user.click(within(payment).getByRole("button", { name: "Record payment", exact: true }));
+    expect((await screen.findByRole("link", { name: "Download receipt", exact: true })).getAttribute("href")).toBe("/api/finance/documents/daily-receipt");
+    const payload = financeActionMocks.recordTenantInvoicePaymentAction.mock.calls[0]![1] as FormData;
+    expect(payload.get("invoiceId")).toBe(invoice.id);
+    expect(payload.get("amount")).toBe("40");
+    expect(payload.get("settlementDate")).toBe("2026-08-08");
+    expect(payload.get("reference")).toBe("DAILY-WORKFLOW-PAYMENT");
+  });
+
   it("shows the receipt result immediately after an IPS payment and no receipt for owner collection", async () => {
     const user = userEvent.setup();
     const input = data();

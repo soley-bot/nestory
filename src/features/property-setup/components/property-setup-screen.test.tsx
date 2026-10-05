@@ -40,6 +40,37 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("PropertySetupScreen", () => {
+  it("daily workflow submits the moved-in setup lease and exact billing values through visible controls", async () => {
+    const user = userEvent.setup();
+    navigation.createLease.mockResolvedValue({ status: "success", message: "Lease saved.", leaseId: "lease-1" });
+    render(<PropertySetupScreen data={creationData} step={3} />);
+    await user.click(screen.getByRole("button", { name: "Create new lease", exact: true }));
+    const form = screen.getByRole("form", { name: "Add lease form" }) as HTMLFormElement;
+    await user.click(within(form).getByRole("button", { name: "Next", exact: true }));
+    for (const [name, value] of [["leaseStartDate", "2026-10-01"], ["leaseEndDate", "2027-04-01"]]) {
+      fireEvent.input(form.elements.namedItem(name!)!, { target: { value } });
+    }
+    await user.click(within(form).getByRole("combobox", { name: /^Move-in status(?:\s*\(required\))?$/ }));
+    await user.click(screen.getByRole("option", { name: "Tenant moved in on the lease start date", exact: true }));
+    await user.click(within(form).getByRole("button", { name: "Next", exact: true }));
+    for (const [name, value] of [["monthlyRentAmount", "120"], ["rentDueDay", "1"], ["depositAmount", "0"]]) {
+      fireEvent.change(form.elements.namedItem(name!)!, { target: { value } });
+    }
+    await user.click(within(form).getByRole("button", { name: "Next", exact: true }));
+    await user.click(within(form).getByRole("button", { name: "Change billing setup", exact: true }));
+    await user.click(within(form).getByRole("combobox", { name: "Who collects rent?", exact: true }));
+    await user.click(screen.getByRole("option", { name: /^Collected by (?!owner$)/ }));
+    await user.click(within(form).getByRole("combobox", { name: "Management fee", exact: true }));
+    await user.click(screen.getByRole("option", { name: "Percentage", exact: true }));
+    fireEvent.change(form.elements.namedItem("managementFeeValue")!, { target: { value: "8" } });
+    await user.click(within(form).getByRole("button", { name: "Save tenant and lease", exact: true }));
+    await waitFor(() => expect(navigation.createLease).toHaveBeenCalledTimes(1));
+    const payload = navigation.createLease.mock.calls[0]![1] as FormData;
+    for (const [name, value] of Object.entries({ status: "active", actualMoveInDate: "2026-10-01", leaseStartDate: "2026-10-01", leaseEndDate: "2027-04-01", monthlyRentAmount: "120", rentDueDay: "1", depositAmount: "0", collectionRoute: "through_ips", managementFeeMode: "percentage", managementFeeValue: "8" })) {
+      expect(payload.get(name), name).toBe(value);
+    }
+  });
+
   it("keeps lease review available after the actual parent closes creation, back and refresh", async () => {
     const user = userEvent.setup();
     let resolveSave!: (value: object) => void;
