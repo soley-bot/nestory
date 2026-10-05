@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance.filters";
 
 const propertyId = "11111111-1111-4111-8111-111111111111";
@@ -6,6 +6,14 @@ const taskId = "33333333-3333-4333-8333-333333333333";
 const unitId = "22222222-2222-4222-8222-222222222222";
 
 describe("parseMaintenanceSearchParams", () => {
+  it("defaults company periods separately at Cambodia midnight", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-12-31T17:00:00Z"));
+    try {
+      expect(parseMaintenanceSearchParams({}, "Asia/Phnom_Penh").month).toBe("2027-01");
+      expect(parseMaintenanceSearchParams({}, "UTC").month).toBe("2026-12");
+    } finally { vi.useRealTimers(); }
+  });
   it("preserves explicit All instead of applying the default Open queue", () => {
     expect(parseMaintenanceSearchParams({ review: "all" }).review).toBe("all");
     expect(parseMaintenanceSearchParams({ review: ["all", "open"] }).review).toBe("all");

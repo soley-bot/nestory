@@ -23,7 +23,7 @@ import {
   getCoordinatedMaintenanceActions,
   getMaintenanceWorkflowState,
 } from "@/features/maintenance/maintenance.workflow";
-import { getBusinessDateValue } from "@/lib/dates/business-date";
+import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { formatDate } from "@/lib/dates/format";
 
 const initialState: MaintenanceActionState = {};
@@ -87,6 +87,7 @@ function MaintenanceCostHandoffPanel({
   maintenanceCase: MaintenanceCase;
   onStatusMessage: (message: string) => void;
 }) {
+  const { getBusinessDateValue } = useBusinessDate();
   const router = useRouter();
   const [state, action, pending] = useActionState(
     submitMaintenanceCostAction,

@@ -100,10 +100,7 @@ import { TransactionWorkspace } from "./transaction-workspace";
 import { TransactionRowActions } from "./transaction-row-actions";
 import { AccountEntryActions } from "./account-entry-actions";
 import { sortPropertyAccountEntriesNewestFirst } from "@/features/finance-operations/property-account";
-import {
-  getBusinessDateValue,
-  getBusinessMonthValue,
-} from "@/lib/dates/business-date";
+import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { ExpenseChangeHistory } from "./expense-change-history";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
@@ -1086,6 +1083,7 @@ function FinanceWorkView({
   rentGenerationExceptions: RentGenerationException[];
   tenantInvoices: TenantInvoiceSummary[];
 }) {
+  const { getBusinessDateValue } = useBusinessDate();
   const [workFilter, setWorkFilter] = useState<FinanceWorkFilter>("all");
   const [workGroup, setWorkGroup] = useState<FinanceWorkGroup>("urgency");
   const [workSort, setWorkSort] = useState<FinanceWorkSort>("priority");
@@ -1675,6 +1673,7 @@ function HistoricalRentRecoveryForm({
   leases: FinanceLease[];
   onSuccess: (message: string) => void;
 }) {
+  const { getBusinessMonthValue } = useBusinessDate();
   const eligibleLeases = leases.filter(
     (lease) =>
       lease.status === "active" ||
@@ -1715,7 +1714,7 @@ function HistoricalRentRecoveryForm({
       <Field label="Missed rent month">
         <MonthPickerField
           ariaLabel="Missed rent month"
-          defaultValue={getPreviousBusinessMonthValue()}
+          defaultValue={getPreviousBusinessMonthValue(getBusinessMonthValue())}
           name="billingPeriod"
           required
         />
@@ -1744,6 +1743,7 @@ function RentView({
   organizationName: string;
   scoped: boolean;
 }) {
+  const { getBusinessDateValue } = useBusinessDate();
   const searchParams = useSearchParams();
   const { filteredInvoices } = getRentInvoiceView(
     invoices,
@@ -3355,6 +3355,7 @@ function OwnerExpenseTransactionForm({
   payFromAccounts,
   unitOptions,
 }: ExpenseFormProps) {
+  const { getBusinessDateValue } = useBusinessDate();
   const activeCategories = expenseAccounts;
   const defaultPropertyId = fixedScope?.propertyId ?? "";
   const defaultUnitId = fixedScope?.kind === "unit" ? fixedScope.id : "";
@@ -3745,6 +3746,7 @@ function SingleLineExpenseForm({
   payFromAccounts: FinanceOperationsData["payFromAccounts"];
   unitOptions: FinanceOperationsData["unitOptions"];
 }) {
+  const { getBusinessDateValue } = useBusinessDate();
   const idempotencyKey = useStableActionId("expense");
   const effectiveResponsibility = initialResponsibility ?? "owner";
   const initialInvoice = invoices.find(
@@ -4402,6 +4404,7 @@ function SettlementReversalForm({
   invoice: TenantInvoiceSummary;
   onSuccess: (message: string) => void;
 }) {
+  const { getBusinessDateValue } = useBusinessDate();
   const settlements = invoice.settlements.filter(
     (settlement) => !settlement.isReversed,
   );
@@ -4503,6 +4506,7 @@ function OwnerPaymentForm({
   invoice: OwnerInvoiceSummary;
   onSuccess: (message: string) => void;
 }) {
+  const { getBusinessDateValue } = useBusinessDate();
   const idempotencyKey = useStableActionId("owner-payment");
   const [state, action] = useActionState(
     recordOwnerPaymentAction,
@@ -4557,6 +4561,7 @@ function WithdrawalForm({
   onSuccess: (message: string) => void;
   position: PropertyFinancePosition;
 }) {
+  const { getBusinessDateValue } = useBusinessDate();
   const idempotencyKey = useStableActionId("withdrawal");
   const [amount, setAmount] = useState("");
   const [reference, setReference] = useState("");
@@ -4653,6 +4658,7 @@ function ManualTenantChargeForm({
   onSuccess: (message: string) => void;
   scope?: FinanceOperationsScreenProps["scope"];
 }) {
+  const { getBusinessDateValue, getBusinessMonthValue } = useBusinessDate();
   const availableLeases = leases.filter(
     (lease) => lease.status === "active" || lease.status === "notice_given",
   );
@@ -4983,9 +4989,8 @@ function formatLeaseMonth(value: string) {
     : leaseMonthFormatter.format(date);
 }
 
-function getPreviousBusinessMonthValue() {
-  const [year, month] = getBusinessDateValue()
-    .slice(0, 7)
+function getPreviousBusinessMonthValue(businessMonth: string) {
+  const [year, month] = businessMonth
     .split("-")
     .map(Number);
   return new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0, 7);
@@ -5117,6 +5122,7 @@ function StatusBadge({
   settlements?: TenantInvoiceSummary["settlements"];
   status: string;
 }) {
+  const { getBusinessDateValue } = useBusinessDate();
   const presentation = getInvoiceStatusPresentation({
     businessDate: getBusinessDateValue(),
     dueDate,

@@ -7,7 +7,7 @@ import { NumberInput } from "@/components/ui/number-input";
 import { Input } from "@/components/ui/input";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { getBusinessDateValue } from "@/lib/dates/business-date";
+import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { correctOwnerDistributionDateAction, recordOwnerContributionAction, type OwnerCashActionState } from "@/features/owner-balances/owner-cash-actions";
 type Scope = { propertyId: string; ownerPersonId: string; ownerLabel: string; units?: { id: string; label: string; propertyId?: string | null }[]; unitId?: string };
 type Correction = { withdrawalId: string; originalDate: string; amount: string };
@@ -36,6 +36,7 @@ function OwnerCashDialog({ scope, propertyId, correction }: { scope?: Scope; pro
 function OwnerCashForm({ scope, propertyId, correction, onClose, onSuccess }: {
   scope?: Scope; propertyId?: string; correction?: Correction; onClose: () => void; onSuccess: (message: string) => void;
 }) {
+  const { getBusinessDateValue } = useBusinessDate();
   const router = useRouter();
   const [key] = useState(() => `owner-cash-${globalThis.crypto.randomUUID()}`);
   const [state, action, pending] = useActionState(correction ? correctOwnerDistributionDateAction : recordOwnerContributionAction, { status: "idle" } as OwnerCashActionState);

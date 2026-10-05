@@ -28,6 +28,7 @@ export default async function PropertySetupPage({ searchParams }: PropertySetupP
   const [data, creationBranchOptions, billingFormConfig] = await Promise.all([
     getPropertySetupData({
       organizationId: context.organizationId,
+      operationalTimezone: context.operationalTimezone,
       requestedSelection,
     }),
     context.isSuperAdmin

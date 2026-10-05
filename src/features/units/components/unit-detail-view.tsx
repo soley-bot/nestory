@@ -19,7 +19,7 @@ import type {
 } from "@/features/units/unit.types";
 import type { RecentChange } from "@/features/activity/activity.types";
 import { buildReportBuilderHref } from "@/features/reports/report-catalog";
-import { getBusinessMonthValue } from "@/lib/dates/business-date";
+import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { formatDate } from "@/lib/dates/format";
 import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
@@ -411,6 +411,7 @@ function UnitFinancePanel({
   onOpenLedgerEntry: (entry: UnitLedgerContext) => void;
   unit: UnitDetail;
 }) {
+  const { getBusinessMonthValue } = useBusinessDate();
   const reportMonth = getBusinessMonthValue();
 
   return (

@@ -14,7 +14,7 @@ import type {
 } from "@/features/finance-operations/finance-operations.types";
 import type { LeaseSummary } from "@/features/leases/lease.types";
 import { isTenantPaymentReceivingAccount } from "@/features/finance-accounts/finance-account-selection";
-import { getBusinessDateValue } from "@/lib/dates/business-date";
+import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
@@ -40,6 +40,7 @@ export function LeasePaymentResolutionView({
   returnHref,
   cancelHref,
 }: LeasePaymentResolutionViewProps) {
+  const { getBusinessDateValue } = useBusinessDate();
   const { invoice } = resolution;
   const balanceDisplay = formatMoneyDisplay(invoice.balanceDue).primary;
   const deposit = getDepositPresentation(lease);
@@ -48,7 +49,7 @@ export function LeasePaymentResolutionView({
     invoice,
     lease,
   });
-  const upcoming = getUpcoming(lease, resolution.nextInvoiceDueDate);
+  const upcoming = getUpcoming(lease, resolution.nextInvoiceDueDate, getBusinessDateValue());
   const canSubmit =
     canRecordPayments && resolution.payFromAccounts.some((account) =>
       isTenantPaymentReceivingAccount(account, invoice.propertyId),
@@ -404,6 +405,7 @@ function compareRecentActivity(
 function getUpcoming(
   lease: LeaseSummary,
   nextInvoiceDueDate: string | null,
+  today: string,
 ) {
   const upcomingTerm = lease.terms.find((term) => term.status === "upcoming");
   const items = [
@@ -423,7 +425,6 @@ function getUpcoming(
       ? { date: lease.formValues.leaseEndDate, label: "Lease ends" }
       : null,
   ];
-  const today = getBusinessDateValue();
 
   return items.filter(isPresent).filter((item) => item.date >= today).slice(0, 3);
 }

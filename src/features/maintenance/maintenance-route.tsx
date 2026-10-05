@@ -48,7 +48,7 @@ export async function renderMaintenanceRoute({
   const context = await requirePermission("maintenance.view");
   const capabilities = getMaintenanceCapabilities(context);
   const params = applyMaintenanceRouteDefaults(await searchParams, defaults);
-  const viewQuery = parseMaintenanceSearchParams(params);
+  const viewQuery = parseMaintenanceSearchParams(params, context.operationalTimezone);
   const actor = {
     branchId: context.branchId,
     dataScope: context.isSuperAdmin ? "organization" as const : "branch" as const,

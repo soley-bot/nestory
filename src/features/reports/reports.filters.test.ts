@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   getReportMonthRange,
@@ -6,6 +6,15 @@ import {
 } from "@/features/reports/reports.filters";
 
 describe("report search params", () => {
+  it("defaults to the authorized company month at year-end", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-12-31T17:00:00Z"));
+    try {
+      expect(parseReportSearchParams({}, "Asia/Phnom_Penh").month).toBe("2027-01");
+      expect(parseReportSearchParams({}, "UTC").month).toBe("2026-12");
+      expect(parseReportSearchParams({ month: "2025-12" }, "Asia/Phnom_Penh").month).toBe("2025-12");
+    } finally { vi.useRealTimers(); }
+  });
   it("defaults invalid report and scope values to Owner activity", () => {
     const query = parseReportSearchParams({
       propertyId: "not-a-real-id",

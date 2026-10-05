@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { formatCalendarDate } from "@/lib/dates/format";
-import { getBusinessDateValue } from "@/lib/dates/business-date";
+import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { correctOwnerTransactionAction } from "../owner-transaction-correction-actions";
 import { correctionChangesEntry, ownerCashCorrectionFields, type OwnerCashCorrectionEntry, type OwnerCashCorrectionFields } from "../owner-transaction-correction";
 import type { OwnerCashActionState } from "../owner-cash-actions";
@@ -31,6 +31,7 @@ export function OwnerTransactionCorrectionDialog({ open, onOpenChange, propertyI
 function CorrectionForm({ entry, propertyId, onClose, onPendingChange, canRecoverOwnerDistribution }: {
   canRecoverOwnerDistribution: boolean; entry: OwnerCashCorrectionEntry; propertyId: string; onClose: () => void; onPendingChange: (pending: boolean) => void;
 }) {
+  const { getBusinessDateValue } = useBusinessDate();
   const router = useRouter();
   const [date, setDate] = useState(entry.date);
   const [amount, setAmount] = useState(entry.amount);

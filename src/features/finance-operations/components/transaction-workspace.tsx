@@ -9,7 +9,7 @@ import { SelectControl } from "@/components/ui/select-control";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
-import { getBusinessMonthValue } from "@/lib/dates/business-date";
+import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import type { ExpenseSubmissionSummary, FinanceOperationsData, PropertyAccountEntry, TenantInvoiceSummary } from "../finance-operations.types";
 import { filterTransactions, projectTransactions, transactionReportLinks, type TransactionRow, type TransactionScope } from "../data/transaction-workspace";
 
@@ -20,6 +20,7 @@ export function TransactionWorkspace({ data, scope, actions, canReadReports, onO
   renderAccountActions: (entry: PropertyAccountEntry) => ReactNode;
   renderTransactionActions?: (row: TransactionRow) => ReactNode;
 }) {
+  const { getBusinessMonthValue } = useBusinessDate();
   const [month, setMonth] = useState(getBusinessMonthValue());
   const [unitId, setUnitId] = useState(scope.unitId ?? "all");
   const [kind, setKind] = useState("all");
@@ -61,7 +62,7 @@ export function TransactionWorkspace({ data, scope, actions, canReadReports, onO
       {visible.map(row => <tr key={row.id} className="border-t"><td className="whitespace-nowrap px-3 py-3">{formatDate(row.date)}</td><td className="px-3 py-3">{row.label}</td><td className="px-3 py-3">{kindLabels[row.kind]}</td><td className="px-3 py-3">{row.unitLabel || "Property"}{row.tenant ? <span className="block text-muted-foreground">{row.tenant}</span> : null}</td><td className="px-3 py-3 capitalize">{row.status.replaceAll("_", " ")}</td><td className="whitespace-nowrap px-3 py-3 text-right tabular-nums"><MoneyDisplay align="right" value={formatMoneyDisplay(row.amount)} /></td><td className="px-3 py-3 text-right">{row.source.kind === "contribution" || row.source.kind === "distribution" || row.source.kind === "account" ? renderAccountActions(row.source.entry) : <><Button variant="ghost" size="sm" onClick={() => row.source.kind === "expense" ? onOpenExpense(row.source.submission) : row.source.kind === "charge" || row.source.kind === "payment" ? onOpenInvoice(row.source.invoice) : undefined}>Details</Button>{renderTransactionActions?.(row)}</>}</td></tr>)}
       {!visible.length ? <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">No transactions match this period and filters.</td></tr> : null}
     </tbody></table></div>
-    <p className="text-xs text-muted-foreground">{visible.length} transactions · Charges show amounts billed. Payments show amounts received. These are separate activities.</p>
+    <p className="text-xs text-muted-foreground">{visible.length} transactions · The period uses transaction dates. Record entry and correction times are saved separately. Charges show amounts billed. Payments show amounts received.</p>
   </section>;
 }
 const kindLabels = { charge: "Charge", payment: "Payment", expense: "Expense", contribution: "Owner contribution", distribution: "Owner distribution", management_fee: "Management fee", account: "Account activity" };

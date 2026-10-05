@@ -35,6 +35,7 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
           invoiceId: paymentInvoiceId,
           leaseId,
           organizationId: context.organizationId,
+          operationalTimezone: context.operationalTimezone,
         })
       : Promise.resolve(null),
     getFinanceAccountsData(context.organizationId),

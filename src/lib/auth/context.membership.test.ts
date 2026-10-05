@@ -13,6 +13,7 @@ describe("workspace membership appearance", () => {
           accent_preset: "ocean",
           accent_seed: null,
           name: "Nestory Test",
+          operational_timezone: "UTC",
           slug: "nestory-test",
           theme_mode: "dark",
         },
@@ -40,10 +41,11 @@ describe("workspace membership appearance", () => {
       }),
     ).resolves.toMatchObject({
       organizationId: "org-1",
+      operationalTimezone: "UTC",
       theme: { accentPreset: "ocean", accentSeed: null, mode: "dark" },
     });
     expect(query.select).toHaveBeenCalledWith(
-      expect.stringContaining("theme_mode"),
+      expect.stringContaining("operational_timezone"),
     );
   });
 });

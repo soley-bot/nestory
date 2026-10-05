@@ -129,7 +129,7 @@ import type {
 } from "@/features/maintenance/maintenance.types";
 import { getOperatorActivityDetails } from "@/features/workspace-operations/operator-activity";
 import { canTransitionMaintenanceStatus } from "@/features/maintenance/maintenance.workflow";
-import { getBusinessMonthValue } from "@/lib/dates/business-date";
+import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { cn } from "@/lib/utils";
 
 const initialState: MaintenanceActionState = {};
@@ -688,10 +688,11 @@ function MaintenanceCasesCommandBar({
   units: MaintenanceUnitOption[];
   viewQuery: MaintenanceViewQuery;
 }) {
+  const { getBusinessMonthValue } = useBusinessDate();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const advancedFilterCount = getAdvancedFilterCount(viewQuery, "open");
+  const advancedFilterCount = getAdvancedFilterCount(viewQuery, "open", getBusinessMonthValue());
   const search = useRegisterSearch(viewQuery.query, (value) => replaceParam("query", value, ""));
   const query = search.query;
   const scopeOptions = getScopeOptions(properties, units, listLabel);
@@ -894,10 +895,11 @@ function MaintenanceFilters({
   units: MaintenanceUnitOption[];
   viewQuery: MaintenanceViewQuery;
 }) {
+  const { getBusinessMonthValue } = useBusinessDate();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const advancedFilterCount = getAdvancedFilterCount(viewQuery, baseReview);
+  const advancedFilterCount = getAdvancedFilterCount(viewQuery, baseReview, getBusinessMonthValue());
   const [advancedOpen, setAdvancedOpen] = useState(advancedFilterCount > 0);
   const search = useRegisterSearch(viewQuery.query, (value) => replaceParam("query", value, ""));
   const query = search.query;
@@ -2600,6 +2602,7 @@ function getMaintenanceTabs(
 function getAdvancedFilterCount(
   viewQuery: MaintenanceViewQuery,
   baseReview: MaintenanceViewQuery["review"],
+  businessMonth: string,
 ) {
   let count = 0;
 
@@ -2607,7 +2610,7 @@ function getAdvancedFilterCount(
     count += 1;
   }
 
-  if (viewQuery.month !== getBusinessMonthValue()) {
+  if (viewQuery.month !== businessMonth) {
     count += 1;
   }
 

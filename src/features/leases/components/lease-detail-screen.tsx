@@ -80,7 +80,7 @@ import type {
 } from "@/features/leases/lease.types";
 import { getCalendarDateInTimeZone } from "@/features/leases/lease-billing-rule-state";
 import { workflowReturnHref } from "@/features/leases/workflow-return";
-import { getBusinessDateValue } from "@/lib/dates/business-date";
+import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { formatDate } from "@/lib/dates/format";
 
 type LeaseTransition =
@@ -155,6 +155,7 @@ export function LeaseDetailScreen({
   tenantOptions: LeaseTenantOption[];
   unitOptions: LeaseUnitOption[];
 } & LeasePaymentFocusProps) {
+  const { getBusinessDateValue } = useBusinessDate();
   const router = useRouter();
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [transition, setTransition] = useState<LeaseTransition | null>(null);
@@ -496,7 +497,7 @@ export function LeaseDetailScreen({
             return permissions.canCorrectHistoricalRent
               ? candidate.billingPeriodEnd <
                   (billingFormConfig?.rentBusinessDate ??
-                    new Date().toISOString().slice(0, 10))
+                    getBusinessDateValue())
               : true;
           })}
           currentMonthOnly={!permissions.canCorrectHistoricalRent}
@@ -564,6 +565,7 @@ function LeaseDepositPanel({
   onClose: () => void;
   onSuccess: (message: string) => void;
 }) {
+  const { getBusinessDateValue } = useBusinessDate();
   const router = useRouter();
   const [idempotencyKey] = useState(() => `deposit:${crypto.randomUUID()}`);
   const [depositState, recordDepositEvent, depositPending] = useActionState(
@@ -1731,6 +1733,7 @@ function LeaseTransitionModal({
   onSuccess: (message: string) => void;
   transition: LeaseTransition;
 }) {
+  const { getBusinessDateValue } = useBusinessDate();
   const router = useRouter();
   const [state, formAction, pending] = useActionState(
     transitionLeaseLifecycleAction,
