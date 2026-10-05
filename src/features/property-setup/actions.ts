@@ -65,7 +65,7 @@ export async function activateSetupLeaseAction(
     }
 
     const transitionResult = await supabase.rpc("transition_lease_lifecycle", {
-      p_effective_date: getBusinessDateValue(),
+      p_effective_date: getBusinessDateValue(new Date(), context.operationalTimezone),
       p_expected_occupancy_id: occupancyResult.data.id,
       p_expected_status: "draft",
       p_idempotency_key: `property-setup-activate-${crypto.randomUUID()}`,

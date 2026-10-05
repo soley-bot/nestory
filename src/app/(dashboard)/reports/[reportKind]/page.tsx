@@ -27,7 +27,7 @@ export default async function ReportBuilderPage({
   const viewQuery = parseReportSearchParams({
     ...(await searchParams),
     report: reportKind,
-  });
+  }, context.operationalTimezone);
   const data = await getReportsScreenData(context.organizationId, viewQuery);
   if (!context.isSuperAdmin) {
     data.trustedReport = prepareTrustedReportForScreen(data.trustedReport, {

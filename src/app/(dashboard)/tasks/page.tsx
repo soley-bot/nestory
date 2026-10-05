@@ -23,7 +23,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
   }
 
   const params = await searchParams;
-  const viewQuery = parseMaintenanceSearchParams({ review: "all", ...params });
+  const viewQuery = parseMaintenanceSearchParams({ review: "all", ...params }, context.operationalTimezone);
   const actor = {
     branchId: context.branchId,
     dataScope: context.isSuperAdmin ? "organization" as const : "assigned" as const,

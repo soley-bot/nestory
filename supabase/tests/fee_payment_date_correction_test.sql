@@ -114,6 +114,18 @@ UPDATE fee_date_state SET result=public.correct_fee_payment_date(
 WHERE property_id='d4590000-0000-4000-8001-000000000001';
 SELECT ok((SELECT result->>'correctionId' IS NOT NULL FROM fee_date_state
  WHERE property_id='d4590000-0000-4000-8001-000000000001'),'correction returns an audit identity');
+SELECT ok((SELECT c.old_date=s.allocation_date AND c.new_date=s.allocation_date+10
+ AND c.created_by='d4590000-0000-4000-8000-000000000010'
+ AND c.created_at>=transaction_timestamp() AND c.created_at<=clock_timestamp()
+ FROM public.fee_payment_date_corrections c JOIN fee_date_state s
+ ON c.id=(s.result->>'correctionId')::uuid WHERE s.result IS NOT NULL),
+ 'checked date correction records the actual actor and entry time beside old and new financial dates');
+SELECT ok((SELECT a.actor_id=c.created_by AND a.created_at=c.created_at
+ AND a.new_values->>'oldDate'=c.old_date::text AND a.new_values->>'newDate'=c.new_date::text
+ FROM public.activity_logs a JOIN public.fee_payment_date_corrections c ON c.id=a.entity_id
+ JOIN fee_date_state s ON c.id=(s.result->>'correctionId')::uuid
+ WHERE s.result IS NOT NULL AND a.entity_type='fee_payment_date_correction' AND a.action='corrected'),
+ 'the existing correction history keeps the same automatic timestamp and financial-date evidence');
 SELECT is((SELECT c.allocation_date FROM public.owner_charge_cash_allocations c
  JOIN fee_date_state s ON s.allocation_id=c.id WHERE s.property_id='d4590000-0000-4000-8001-000000000001'),
  (SELECT allocation_date FROM fee_date_state WHERE property_id='d4590000-0000-4000-8001-000000000001'),

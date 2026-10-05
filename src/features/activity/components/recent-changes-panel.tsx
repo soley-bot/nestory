@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { RecentChange } from "@/features/activity/activity.types";
 import { recordDisplayLabel } from "@/lib/presentation/record-label";
-import { formatDate } from "@/lib/dates/format";
+import { formatAuditTimestamp } from "@/lib/dates/format";
+import { useBusinessDate } from "@/lib/dates/business-date-provider";
 
 type RecentChangesPanelProps = {
   changes: RecentChange[];
@@ -21,6 +22,7 @@ export function RecentChangesPanel({
   maxVisible,
   onSelectChange,
 }: RecentChangesPanelProps) {
+  const { timeZone } = useBusinessDate();
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const visibleChanges = maxVisible ? changes.slice(0, maxVisible) : changes;
   const hiddenChangeCount = Math.max(0, changes.length - visibleChanges.length);
@@ -65,7 +67,7 @@ export function RecentChangesPanel({
                     {recordDisplayLabel(change.recordLabel, "Record unavailable")}
                   </span>
                   <span className="mt-1 block text-xs text-muted-foreground">
-                    {change.entityLabel} - {formatDate(change.createdAt)}
+                    {change.entityLabel} · Recorded {formatAuditTimestamp(change.createdAt, timeZone)}
                   </span>
                 </span>
                 <Badge className="shrink-0" tone={change.tone}>

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
-import { getBusinessMonthValue } from "@/lib/dates/business-date";
+import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { cn } from "@/lib/utils";
 
 const monthNames = [
@@ -38,9 +38,10 @@ export function MonthPickerField({
   onValueChange,
   required = false,
 }: MonthPickerFieldProps) {
+  const { getBusinessMonthValue, getToday } = useBusinessDate();
   const [open, setOpen] = useState(false);
-  const [value, setValue] = useState(defaultValue ?? getCurrentMonthValue());
-  const [visibleYear, setVisibleYear] = useState(() => getYearFromMonth(value));
+  const [value, setValue] = useState(defaultValue ?? getBusinessMonthValue());
+  const [visibleYear, setVisibleYear] = useState(() => getYearFromMonth(value, getBusinessMonthValue()));
   const selectedMonth = useMemo(() => parseMonthValue(value), [value]);
 
   return (
@@ -133,10 +134,10 @@ export function MonthPickerField({
               <button
                 className="rounded-md px-2 py-1 text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => {
-                  const currentMonth = getCurrentMonthValue();
+                  const currentMonth = getToday().slice(0, 7);
                   setValue(currentMonth);
                   onValueChange?.(currentMonth);
-                  setVisibleYear(getYearFromMonth(currentMonth));
+                  setVisibleYear(getYearFromMonth(currentMonth, currentMonth));
                   setOpen(false);
                 }}
                 type="button"
@@ -164,12 +165,8 @@ function formatMonthLabel(value: string) {
   }).format(new Date(parsed.year, parsed.month - 1, 1));
 }
 
-function getCurrentMonthValue() {
-  return getBusinessMonthValue();
-}
-
-function getYearFromMonth(value: string) {
-  return parseMonthValue(value)?.year ?? Number(getBusinessMonthValue().slice(0, 4));
+function getYearFromMonth(value: string, businessMonth: string) {
+  return parseMonthValue(value)?.year ?? Number(businessMonth.slice(0, 4));
 }
 
 function parseMonthValue(value: string) {

@@ -32,7 +32,7 @@ import type {
   LeaseUnitOption,
 } from "@/features/leases/lease.types";
 import { buildLeaseRecordHref } from "@/features/leases/lease-detail-route";
-import { getBusinessDateValue } from "@/lib/dates/business-date";
+import { useBusinessDate } from "@/lib/dates/business-date-provider";
 
 const initialState: LeaseActionState = {};
 
@@ -95,6 +95,7 @@ export function LeaseForm({
   returnTo,
   tenants,
 }: LeaseFormProps) {
+  const { getBusinessDateValue } = useBusinessDate();
   const isEditMode = mode === "edit";
   const [createStep, setCreateStep] = useState(1);
   const [furthestCreateStep, setFurthestCreateStep] = useState(1);

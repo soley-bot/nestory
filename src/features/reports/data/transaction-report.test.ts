@@ -345,6 +345,31 @@ beforeEach(() => {
   events.fail = false;
 });
 describe("transaction loader source authority", () => {
+  it("reports a backdated receipt in its effective month across the year boundary", async () => {
+    const { api, calls } = client({
+      tenant_invoices: [{
+        id: "backdated-invoice", organization_id: "org", property_id: "p1",
+        unit_id: "u1", lease_id: "lease", invoice_number: "INV-BACKDATED",
+      }],
+      tenant_invoice_payments: [{
+        id: "backdated-receipt", organization_id: "org", invoice_id: "backdated-invoice",
+        amount: "25.00", currency: "USD", received_date: "2026-12-31",
+        created_at: "2027-01-01T00:00:02Z", receipt_number: "REC-BACKDATED",
+        reference: null, reversal_of_id: null,
+      }],
+    });
+    for (const [month, expectedRows] of [["2026-12", 1], ["2027-01", 0]] as const) {
+      const report = await getTransactionReport({
+        organizationId: "org", viewQuery: query({ month, transactionType: "receipt" }),
+        financeContext: context, supabase: api,
+      });
+      expect(report.rows).toHaveLength(expectedRows);
+      if (expectedRows) expect(report.rows[0].amounts?.receipts).toBe("25.00");
+    }
+    expect(calls[0].filters).toContainEqual(["gte:received_date", "2026-12-01"]);
+    expect(calls.every(call => call.filters.every(([field]) => !field.includes("created_at")))).toBe(true);
+  });
+
   it("loads only dated property receipts and their referenced headers despite extensive history", async () => {
     const invoice = {
       id: "current",

@@ -41,6 +41,7 @@ type WorkspaceMembership = {
   isSuperAdmin: boolean;
   organizationId: string;
   organizationName: string;
+  operationalTimezone: string;
   organizationSlug?: string;
   permissionContext: WorkspacePermissionContext;
   permissionKeys: ReadonlySet<PermissionKey>;
@@ -153,7 +154,7 @@ export async function getWorkspaceMembershipForUser(
 
   let query = supabase
     .from("organization_members")
-    .select("organization_id, role, person_id, branch_id, custom_role_id, created_at, organizations!inner(name, slug, theme_mode, accent_preset, accent_seed)")
+    .select("organization_id, role, person_id, branch_id, custom_role_id, created_at, organizations!inner(name, slug, theme_mode, accent_preset, accent_seed, operational_timezone)")
     .eq("user_id", userId);
 
   if (membershipOptions.organizationSlug) {
@@ -285,6 +286,7 @@ export async function getWorkspaceMembershipForUser(
     isSuperAdmin: permissionContext.isSuperAdmin,
     organizationId,
     organizationName: organization.name,
+    operationalTimezone: readRequiredString(organization.operational_timezone) ?? "UTC",
     organizationSlug: readOptionalString(organization.slug),
     permissionContext,
     permissionKeys: permissionContext.permissionKeys,

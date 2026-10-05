@@ -5,7 +5,8 @@ import * as Popover from "@radix-ui/react-popover";
 import { Bell, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { RecentChange } from "@/features/activity/activity.types";
-import { formatDate } from "@/lib/dates/format";
+import { formatAuditTimestamp } from "@/lib/dates/format";
+import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { cn } from "@/lib/utils";
 
 type RecentChangesPopoverProps = {
@@ -19,6 +20,7 @@ export function RecentChangesPopover({
   maxVisible = 5,
   onSelectChange,
 }: RecentChangesPopoverProps) {
+  const { timeZone } = useBusinessDate();
   const [open, setOpen] = useState(false);
   const visibleChanges = changes.slice(0, maxVisible);
   const hiddenChangeCount = Math.max(0, changes.length - visibleChanges.length);
@@ -94,7 +96,7 @@ export function RecentChangesPopover({
                           {change.recordLabel}
                         </span>
                         <span className="mt-1 block text-xs text-muted-foreground">
-                          {change.entityLabel} - {formatDate(change.createdAt)}
+                          {change.entityLabel} · Recorded {formatAuditTimestamp(change.createdAt, timeZone)}
                         </span>
                       </span>
                       <Badge className="shrink-0" tone={change.tone}>

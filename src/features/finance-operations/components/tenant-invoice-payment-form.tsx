@@ -27,7 +27,7 @@ import {
   findConfiguredAccountId,
   isTenantPaymentReceivingAccount,
 } from "@/features/finance-accounts/finance-account-selection";
-import { getBusinessDateValue } from "@/lib/dates/business-date";
+import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { formatMoneyDisplay } from "@/lib/money/format";
 
 export type TenantPaymentReceiptResult = {
@@ -68,6 +68,7 @@ function TenantInvoicePaymentFormStateful({
   showAmountInSubmitLabel,
   submitLabel,
 }: TenantInvoicePaymentFormProps) {
+  const { getBusinessDateValue } = useBusinessDate();
   const idempotencyKey = useStableActionId(
     invoice.collectionRoute === "through_ips" ? "payment" : "owner-confirm",
   );
@@ -208,6 +209,9 @@ function TenantInvoicePaymentFormStateful({
           />
         </Field>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Use the actual {invoice.collectionRoute === "through_ips" ? "payment" : "collection"} date, including earlier dates. This date determines the cash reporting period. Record entry time is saved automatically.
+      </p>
       {invoice.collectionRoute === "through_ips" ? (
         <p className="text-xs text-muted-foreground">A receipt is prepared after saving.</p>
       ) : null}

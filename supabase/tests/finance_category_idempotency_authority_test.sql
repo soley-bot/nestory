@@ -1338,9 +1338,11 @@ SELECT is(
 )
 FROM finance_category_idempotency_state;
 
+ALTER TABLE public.activity_logs DISABLE TRIGGER zz_stamp_financial_activity;
 DELETE FROM public.activity_logs
 WHERE previous_values =
   pg_catalog.jsonb_build_object('categoryLineageDuplicateTest', true);
+ALTER TABLE public.activity_logs ENABLE TRIGGER zz_stamp_financial_activity;
 
 SELECT is(
   app_private.valid_finance_category_idempotency_result(
@@ -1626,12 +1628,14 @@ JOIN manual_fresh_duplicate_payload_state AS state
 WHERE activity.action = 'manual_tenant_charge_created'
   AND activity.new_values->>'lineId' = state.result_a->>'lineId';
 
+ALTER TABLE public.activity_logs DISABLE TRIGGER zz_stamp_financial_activity;
 UPDATE public.activity_logs AS activity
 SET actor_id = state.finance_manager_id
 FROM finance_category_idempotency_state AS state
 CROSS JOIN manual_fresh_activity_snapshot AS snapshot
 WHERE activity.organization_id = state.organization_id
   AND activity.id = snapshot.id;
+ALTER TABLE public.activity_logs ENABLE TRIGGER zz_stamp_financial_activity;
 
 SELECT set_config(
   'request.jwt.claim.sub',
@@ -1661,10 +1665,12 @@ SELECT throws_ok(
 
 RESET ROLE;
 
+ALTER TABLE public.activity_logs DISABLE TRIGGER zz_stamp_financial_activity;
 UPDATE public.activity_logs AS activity
 SET actor_id = snapshot.actor_id
 FROM manual_fresh_activity_snapshot AS snapshot
 WHERE activity.id = snapshot.id;
+ALTER TABLE public.activity_logs ENABLE TRIGGER zz_stamp_financial_activity;
 
 SELECT set_config(
   'request.jwt.claim.sub',

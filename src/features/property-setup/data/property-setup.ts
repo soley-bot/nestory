@@ -45,9 +45,11 @@ type LeaseRow = {
 
 export async function getPropertySetupData({
   organizationId,
+  operationalTimezone,
   requestedSelection,
 }: {
   organizationId: string;
+  operationalTimezone?: string;
   requestedSelection: PropertySetupSelection;
 }): Promise<PropertySetupData> {
   const supabase = await createSupabaseServerClient();
@@ -119,7 +121,7 @@ export async function getPropertySetupData({
   let readiness: PropertySetupData["readiness"] = null;
   if (shouldLoadPropertySetupReadiness(selection)) {
     const readinessResult = await supabase.rpc("get_ips_setup_readiness", {
-      p_effective_date: getBusinessDateValue(),
+      p_effective_date: getBusinessDateValue(new Date(), operationalTimezone),
       p_lease_id: selection.leaseId!,
       p_organization_id: organizationId,
       p_property_id: selection.propertyId!,

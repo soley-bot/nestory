@@ -26,12 +26,13 @@ export const DEFAULT_MAINTENANCE_SORT: MaintenanceSortKey = "due_asc";
 
 export function parseMaintenanceSearchParams(
   params: MaintenanceSearchParams,
+  timeZone?: string,
 ): MaintenanceViewQuery {
   const status = parseStatus(params.status);
   const defaultReview = !getFirstSearchParam(params.review) && status !== "all" ? "all" : "open";
   return {
     archiveState: parseArchiveState(params.archiveState),
-    month: parseMonth(params.month),
+    month: parseMonth(params.month, timeZone),
     page: getPositiveIntegerSearchParam(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
     priority: parsePriority(params.priority),
@@ -156,10 +157,10 @@ function parseStatus(
     : "all";
 }
 
-function parseMonth(value: string | string[] | undefined) {
+function parseMonth(value: string | string[] | undefined, timeZone?: string) {
   const candidate = getFirstSearchParam(value);
 
-  return candidate && monthPattern.test(candidate) ? candidate : getCurrentMonthValue();
+  return candidate && monthPattern.test(candidate) ? candidate : getBusinessMonthValue(new Date(), timeZone);
 }
 
 function parsePageSize(value: string | string[] | undefined) {
@@ -171,8 +172,4 @@ function parsePageSize(value: string | string[] | undefined) {
   return [10, 25, 50, 100].includes(parsed)
     ? parsed
     : DEFAULT_MAINTENANCE_PAGE_SIZE;
-}
-
-function getCurrentMonthValue() {
-  return getBusinessMonthValue();
 }

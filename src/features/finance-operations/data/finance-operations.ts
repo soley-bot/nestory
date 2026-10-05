@@ -147,6 +147,7 @@ type LeasePaymentResolutionInput = {
   invoiceId: string;
   leaseId: string;
   organizationId: string;
+  operationalTimezone?: string;
 };
 
 export async function fetchAllActionableRows<T>(
@@ -879,7 +880,7 @@ export async function getLeasePaymentResolutionData(
 
 export async function loadLeasePaymentResolutionData(
   supabase: FinanceServerClient,
-  { invoiceId, leaseId, organizationId }: LeasePaymentResolutionInput,
+  { invoiceId, leaseId, organizationId, operationalTimezone }: LeasePaymentResolutionInput,
   payFromAccounts: LeasePaymentResolutionData["payFromAccounts"] = [],
 ): Promise<LeasePaymentResolutionData | null> {
   const selectedResult = await supabase
@@ -925,7 +926,7 @@ export async function loadLeasePaymentResolutionData(
       .eq("lease_id", leaseId)
       .neq("id", invoiceId)
       .in("payment_status", ["unpaid", "partly_paid"])
-      .gte("due_date", getBusinessDateValue())
+      .gte("due_date", getBusinessDateValue(new Date(), operationalTimezone))
       .order("due_date", { ascending: true })
       .limit(1),
   ]);

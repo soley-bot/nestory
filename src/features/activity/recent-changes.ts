@@ -60,6 +60,7 @@ const actionLabels: Record<string, string> = {
 const hiddenDetailFields = new Set([
   "account_id",
   "actor_id",
+  "audit_actors",
   "archived_by",
   "created_by",
   "custodian_person_id",
@@ -67,6 +68,7 @@ const hiddenDetailFields = new Set([
   "checklist_item_id",
   "counterparty_person_id",
   "organization_id",
+  "recorded_actor_id",
   "period_id",
   "updated_by",
   "voided_by",

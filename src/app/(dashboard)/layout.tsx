@@ -5,6 +5,8 @@ import { ThemeRuntime } from "@/components/theme-runtime";
 import { WorkspacePrivilegedStepUpGate } from "@/features/account/components/workspace-privileged-step-up-gate";
 import { getPrivilegedEmailStepUpStatus } from "@/features/auth/privileged-step-up";
 import { requireWorkspaceContext } from "@/lib/auth/context";
+import { getBusinessDateValue } from "@/lib/dates/business-date";
+import { BusinessDateProvider } from "@/lib/dates/business-date-provider";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +28,7 @@ export default async function DashboardLayout({
     privilegedRoleHint ? getPrivilegedEmailStepUpStatus() : null,
   ]);
   const sidebarState = cookieStore.get("sidebar_state")?.value;
+  const businessClock = new Date();
 
   return (
     <ThemeRuntime
@@ -43,20 +46,27 @@ export default async function DashboardLayout({
         status={stepUpStatus}
         statusCheckRequired={privilegedRoleHint}
       >
-        <AppShell
-          defaultSidebarOpen={sidebarState !== "false"}
-          organizationId={context.organizationId}
-          organizationName={context.organizationName}
-          permissionKeys={[...context.permissionKeys]}
-          role={context.role}
-          roleKind={context.roleKind}
-          roleName={context.roleName}
-          theme={context.theme}
-          userEmail={context.userEmail}
-          userId={context.userId}
+        <BusinessDateProvider
+          businessDate={getBusinessDateValue(businessClock, context.operationalTimezone)}
+          key={context.organizationId}
+          serverTime={businessClock.toISOString()}
+          timeZone={context.operationalTimezone}
         >
-          {children}
-        </AppShell>
+          <AppShell
+            defaultSidebarOpen={sidebarState !== "false"}
+            organizationId={context.organizationId}
+            organizationName={context.organizationName}
+            permissionKeys={[...context.permissionKeys]}
+            role={context.role}
+            roleKind={context.roleKind}
+            roleName={context.roleName}
+            theme={context.theme}
+            userEmail={context.userEmail}
+            userId={context.userId}
+          >
+            {children}
+          </AppShell>
+        </BusinessDateProvider>
       </WorkspacePrivilegedStepUpGate>
     </ThemeRuntime>
   );

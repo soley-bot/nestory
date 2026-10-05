@@ -54,7 +54,7 @@ export async function GET(request: Request) {
   }
 
   const searchParams = Object.fromEntries(url.searchParams);
-  const viewQuery = parseReportSearchParams(searchParams);
+  const viewQuery = parseReportSearchParams(searchParams, membership.operationalTimezone);
   const pdf = await getReportPdf(
     membership.organizationId,
     membership.organizationName,

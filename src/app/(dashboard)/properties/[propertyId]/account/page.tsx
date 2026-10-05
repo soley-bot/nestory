@@ -17,22 +17,20 @@ export default async function PropertyAccountPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { propertyId } = await params;
+  const context = await requireFinanceContext();
   const query = (await searchParams) ?? {};
-  const selectedMonth = validMonth(first(query.month)) ?? getBusinessMonthValue();
+  const selectedMonth = validMonth(first(query.month)) ?? getBusinessMonthValue(new Date(), context.operationalTimezone);
   const requestedOwnerId = validUuid(first(query.ownerPersonId));
   const focusAllocationSetId = validUuid(first(query.focusAllocationSetId));
   const activityFilter = validActivityFilter(first(query.activity));
   const activityPage = positiveInteger(first(query.page));
   const periodStart = `${selectedMonth}-01`;
-  const [context, unscopedData] = await Promise.all([
-    requireFinanceContext(),
-    getOwnerBalanceData({
+  const unscopedData = await getOwnerBalanceData({
       currency: "USD",
       periodEnd: periodStart,
       periodStart,
       propertyId,
-    }),
-  ]);
+    });
   const property = unscopedData.propertyOptions.find((option) => option.id === propertyId);
   if (!property) notFound();
 

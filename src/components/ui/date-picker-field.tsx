@@ -10,7 +10,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
-import { getBusinessDateValue } from "@/lib/dates/business-date";
+import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { formatDate } from "@/lib/dates/format";
 import { cn } from "@/lib/utils";
 import { useDrawerPortalContainer } from "@/components/ui/side-drawer";
@@ -23,26 +23,28 @@ type DatePickerFieldProps = {
   ariaLabel?: string;
   className?: string;
   defaultValue?: string;
-  /** Earliest selectable day, as `YYYY-MM-DD`. */
   minValue?: string;
+  businessDate?: string;
   name: string;
   onValueChange?: (value: string) => void;
   required?: boolean;
 };
 
 export function DatePickerField(props: DatePickerFieldProps) {
+  const { getBusinessDateValue, getToday, timeZone } = useBusinessDate();
   const {
-  "aria-describedby": ariaDescribedBy,
-  "aria-invalid": ariaInvalid,
-  "aria-labelledby": ariaLabelledBy,
-  "aria-required": ariaRequired,
-  ariaLabel,
-  className,
-  defaultValue = "",
-  minValue,
-  name,
-  onValueChange,
-  required = false,
+    "aria-describedby": ariaDescribedBy,
+    "aria-invalid": ariaInvalid,
+    "aria-labelledby": ariaLabelledBy,
+    "aria-required": ariaRequired,
+    ariaLabel,
+    className,
+    defaultValue = "",
+    minValue,
+    businessDate,
+    name,
+    onValueChange,
+    required = false,
   } = props;
   const minDate = useMemo(() => parseDateValue(minValue ?? ""), [minValue]);
   const [open, setOpen] = useState(false);
@@ -51,7 +53,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
   const previousValueRef = useRef(value);
   const portalContainer = useDrawerPortalContainer();
   const [visibleMonth, setVisibleMonth] = useState(() =>
-    getVisibleMonth(defaultValue),
+    getVisibleMonth(defaultValue, businessDate ?? getBusinessDateValue()),
   );
   const selectedDate = useMemo(() => parseDateValue(value), [value]);
 
@@ -191,6 +193,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
                 setOpen(false);
               }}
               selected={selectedDate ?? undefined}
+              today={parseDateValue(businessDate ?? getBusinessDateValue()) ?? undefined}
             />
 
             <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
@@ -206,12 +209,14 @@ export function DatePickerField(props: DatePickerFieldProps) {
                 Clear
               </button>
               <button
+                disabled={Boolean(minValue && (businessDate ?? getToday()) < minValue)}
+                title={`Today in ${timeZone}`}
                 className="rounded-md px-2 py-1 text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => {
-                  const today = getBusinessDateValue();
+                  const today = businessDate ?? getToday();
                   setValue(today);
                   onValueChange?.(today);
-                  setVisibleMonth(getVisibleMonth(today));
+                  setVisibleMonth(getVisibleMonth(today, today));
                   setOpen(false);
                 }}
                 type="button"
@@ -237,9 +242,9 @@ function formatVisibleMonth(date: Date) {
   }).format(date);
 }
 
-function getVisibleMonth(value: string) {
+function getVisibleMonth(value: string, businessDate: string) {
   const parsed = parseDateValue(value);
-  const date = parsed ?? parseDateValue(getBusinessDateValue()) ?? new Date();
+  const date = parsed ?? parseDateValue(businessDate) ?? new Date();
 
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
@@ -251,12 +256,15 @@ function parseDateValue(value: string) {
     return null;
   }
 
-  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const date = new Date(0);
+  date.setFullYear(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  date.setHours(0, 0, 0, 0);
+  return toDateValue(date) === value ? date : null;
 }
 
 function toDateValue(date: Date) {
   return [
-    date.getFullYear(),
+    String(date.getFullYear()).padStart(4, "0"),
     String(date.getMonth() + 1).padStart(2, "0"),
     String(date.getDate()).padStart(2, "0"),
   ].join("-");

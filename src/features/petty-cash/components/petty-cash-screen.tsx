@@ -64,7 +64,7 @@ import {
   PersonSelect,
 } from "@/features/people/components/person-select";
 import type { PersonSelectOption } from "@/features/people/person-select";
-import { getBusinessDateValue } from "@/lib/dates/business-date";
+import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
 import { buildHref } from "@/lib/url/href";
@@ -1036,6 +1036,7 @@ function PettyCashEntryForm({
   properties: PettyCashPropertyOption[];
   units: PettyCashUnitOption[];
 }) {
+  const { getBusinessDateValue } = useBusinessDate();
   const [entryKind, setEntryKind] = useState<string>(
     entry?.entryKind ?? "expense",
   );

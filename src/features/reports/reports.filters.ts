@@ -23,6 +23,7 @@ export const DEFAULT_REPORT_STATUS: ReportStatusFilter = "all";
 
 export function parseReportSearchParams(
   params: ReportSearchParams,
+  timeZone?: string,
 ): ReportsViewQuery {
   const ownerPersonIdParam = getFirstSearchParam(params.ownerPersonId);
   const ownerPersonId = getUuidOrAllSearchParam(params.ownerPersonId);
@@ -40,7 +41,7 @@ export function parseReportSearchParams(
     payeeId: getFirstSearchParam(params.payeeId) ?? "all",
     groupBy: ["property", "unit", "type", "payee", "status"].includes(getFirstSearchParam(params.groupBy) ?? "") ? getFirstSearchParam(params.groupBy) : "none",
     columns: (getFirstSearchParam(params.columns) ?? "").split(",").filter((key) => /^[a-zA-Z][a-zA-Z0-9]{0,39}$/.test(key)).slice(0, 30).join(","),
-    month: parseMonth(params.month, params.date),
+    month: parseMonth(params.month, params.date, timeZone),
     ownerPersonId,
     ...(ownerPersonIdParam &&
     ownerPersonIdParam !== "all" &&
@@ -144,6 +145,7 @@ function parseStatus(value: string | string[] | undefined): ReportStatusFilter {
 function parseMonth(
   monthValue: string | string[] | undefined,
   dateValue: string | string[] | undefined,
+  timeZone?: string,
 ) {
   const month = getFirstSearchParam(monthValue);
 
@@ -157,7 +159,7 @@ function parseMonth(
     return date.slice(0, 7);
   }
 
-  return getCurrentMonthValue();
+  return getBusinessMonthValue(new Date(), timeZone);
 }
 
 function getCurrentMonthValue() {

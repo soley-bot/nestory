@@ -18,7 +18,7 @@ export default async function MaintenancePage({
   const capabilities = getMaintenanceCapabilities(context);
 
   const params = await searchParams;
-  const parsedViewQuery = parseMaintenanceSearchParams(params);
+  const parsedViewQuery = parseMaintenanceSearchParams(params, context.operationalTimezone);
   const viewQuery = normalizeCasesViewQuery(parsedViewQuery, getFirstSearchParam(params.review) === parsedViewQuery.review);
   const routeConfig = getCasesRouteConfig(viewQuery);
   const data = await getMaintenanceScreenData(context.organizationId, viewQuery, {

@@ -1327,27 +1327,36 @@ export function buildCleanupSql() {
   return `\\set ON_ERROR_STOP on
 BEGIN;
 SELECT set_config('app.people_leases_skip_sync', 'on', true);
+SET LOCAL session_replication_role = replica;
 DELETE FROM public.activity_logs
-WHERE organization_id = '${ids.organization}'::uuid;
-DELETE FROM app_private.financial_idempotency_requests
 WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM public.financial_month_locks
 WHERE organization_id = '${ids.organization}'::uuid;
--- Accepted relationship creation now writes immutable billing snapshots and
--- every organization receives default Finance categories. Remove only this
--- fixture's dependents with their history guards disabled before its org row.
-SET LOCAL session_replication_role = replica;
+DELETE FROM app_private.finance_chart_workflow_idempotency_bindings
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM app_private.financial_idempotency_requests
+WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM public.lease_billing_terms
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM app_private.finance_account_activity_authority_history
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM app_private.finance_account_generated_categories
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM public.finance_account_category_links
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM public.finance_account_source_links
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM app_private.finance_account_internal_sources
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM public.finance_account_roles
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM public.finance_accounts
 WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM public.finance_categories
 WHERE organization_id = '${ids.organization}'::uuid;
-SET LOCAL session_replication_role = origin;
-ALTER TABLE public.financial_reconciliation_sources
-  DISABLE TRIGGER enforce_financial_reconciliation_source_mutation;
 DELETE FROM public.financial_reconciliation_sources
 WHERE organization_id = '${ids.organization}'::uuid;
-ALTER TABLE public.financial_reconciliation_sources
-  ENABLE TRIGGER enforce_financial_reconciliation_source_mutation;
+SET LOCAL session_replication_role = origin;
 ALTER TABLE public.import_rows
   DISABLE TRIGGER ab_guard_referenced_lease_import_row_provenance;
 ALTER TABLE public.import_runs
