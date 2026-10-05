@@ -10,7 +10,7 @@ const config = resolveDailyRun(process.env);
 const root = process.cwd();
 const privateDir = path.join(process.env.RUNNER_TEMP, config.project);
 const reports = path.join(root, "ci-reports/daily-workflow");
-const network = `${config.project}-net`;
+const network = `supabase_network_${config.project}`;
 const configuration = path.join(root, "supabase/config.toml");
 const run = (bin, args, options = {}) => execFileSync(bin, args, { cwd: root, encoding: "utf8", timeout: 30000, stdio: ["ignore", "pipe", "pipe"], maxBuffer: 8 * 1024 * 1024, ...options }).trim();
 const docker = args => run("docker", args);
