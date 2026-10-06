@@ -1,10 +1,79 @@
 import fs from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildWorkspacePermissionContext, hasPermission } from "../src/lib/auth/permission-context.ts";
 import { getWorkspaceCapabilitiesFromPermissions } from "../src/lib/auth/capabilities.ts";
 import { assertDailyAuthorities, dailyActors, dailyAuthority, dailyDates, dailyFixture, dailyInvoiceHref, dailyOwnerHref, dailyPermissions, inspectDailyFixture, readDailyBusinessDate } from "./daily-workflow-contract.mjs";
+import { assertDailyReceiptIdentities, dailyIdentityMap, fixtureIdentityProfile, remapDailyFixtureSql } from "./daily-fixture-identities.mjs";
+import { requirePrivilegedStepUp } from "../src/lib/auth/privileged-step-up-guard.ts";
+
+const stepUpMocks = vi.hoisted(() => ({ admin: vi.fn(), server: vi.fn() }));
+vi.mock("@/lib/db/admin", () => ({ createSupabaseAdminClient: stepUpMocks.admin }));
+vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: stepUpMocks.server }));
 
 const baseline = fs.readFileSync(new URL("../supabase/test-fixtures/baseline.sql", import.meta.url), "utf8");
+const dailyEnv = { GITHUB_ACTIONS: "true", CI: "true", RUNNER_OS: "Linux", GITHUB_REPOSITORY: "soley-bot/nestory", GITHUB_EVENT_NAME: "pull_request", GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1", NESTORY_TEST_SHA: "a".repeat(40), NESTORY_DAILY_FIXTURE_IDENTITIES: "1", SUPABASE_DB_CONTAINER: "supabase_db_nestory-daily-123-1", NESTORY_BASE_URL: "http://127.0.0.1:3107" };
+
+describe("daily receipt fixture identities", () => {
+  it("preserves every baseline byte except the four identity references", () => {
+    let mapped = remapDailyFixtureSql(baseline);
+    for (const [before, after] of Object.entries(dailyIdentityMap)) {
+      expect(mapped).not.toContain(before);
+      expect(mapped.split(after)).toHaveLength(baseline.split(before).length);
+      mapped = mapped.replaceAll(after, before);
+    }
+    expect(mapped).toBe(baseline);
+    expect(() => remapDailyFixtureSql("SELECT 1;")).toThrow("Baseline identity missing");
+    expect(() => remapDailyFixtureSql(baseline + dailyFixture.org)).toThrow("identity collision");
+  });
+  it("keeps ordinary fixture loaders unchanged and confines remapping to the daily project", () => {
+    expect(fixtureIdentityProfile({}).sql(baseline)).toBe(baseline);
+    for (const [before, after] of Object.entries(dailyIdentityMap)) {
+      expect(fixtureIdentityProfile({}).id(before)).toBe(before);
+      expect(fixtureIdentityProfile(dailyEnv).id(before)).toBe(after);
+    }
+    const profile = fixtureIdentityProfile(dailyEnv);
+    expect(profile.sql(baseline)).toBe(remapDailyFixtureSql(baseline));
+    expect(() => profile.assertApi("http://127.0.0.1:58321")).not.toThrow();
+    for (const api of ["http://127.0.0.1:54321", "https://example.supabase.co", "http://127.0.0.1:58321/wrong"]) {
+      expect(() => profile.assertApi(api)).toThrow();
+    }
+    for (const overrides of [{ NESTORY_DAILY_FIXTURE_IDENTITIES: "0" }, { CI: "false" }, { SUPABASE_DB_CONTAINER: "supabase_db_nestory" }, { NESTORY_BASE_URL: "https://pilot.nestory-kh.com" }, { SUPABASE_PROJECT_ID: "hosted-project" }]) {
+      expect(() => fixtureIdentityProfile({ ...dailyEnv, ...overrides })).toThrow();
+    }
+  });
+  it("rejects the original fixture before SQL and accepts only valid receipt identities", () => {
+    expect(() => assertDailyReceiptIdentities("00000000-0000-0000-0000-000000000001", dailyActors)).toThrow("organization fails strict UUID");
+    expect(() => assertDailyReceiptIdentities(dailyFixture.org, { finance: { id: "00000000-0000-0000-0000-000000000701" } })).toThrow("finance actor fails strict UUID");
+    expect(() => assertDailyReceiptIdentities(dailyFixture.org, dailyActors)).not.toThrow();
+  });
+  it.each([
+    ["organization", "00000000-0000-0000-0000-000000000001", dailyActors.finance.id],
+    ["actor", dailyFixture.org, "00000000-0000-0000-0000-000000000701"],
+  ])("reproduces the old %s rejection through the real guard before Auth, service RPC or storage", async (_name, organizationId, userId) => {
+    vi.clearAllMocks();
+    const client = { auth: { getClaims: vi.fn(), getUser: vi.fn() } };
+    await expect(requirePrivilegedStepUp({ organizationId, userId }, client)).rejects.toThrow("Privileged email verification required");
+    expect(client.auth.getClaims).not.toHaveBeenCalled();
+    expect(client.auth.getUser).not.toHaveBeenCalled();
+    expect(stepUpMocks.admin).not.toHaveBeenCalled();
+    expect(stepUpMocks.server).not.toHaveBeenCalled();
+  });
+  it.each(Object.keys(dailyActors))("uses the real guard for the mapped %s identity while retaining exact-session proof", async name => {
+    vi.clearAllMocks();
+    const userId = dailyActors[name].id;
+    const sessionId = "a0000000-0000-4000-8000-000000000001";
+    const client = { auth: {
+      getClaims: vi.fn().mockResolvedValue({ data: { claims: { session_id: sessionId, sub: userId } }, error: null }),
+      getUser: vi.fn().mockResolvedValue({ data: { user: { id: userId } }, error: null }),
+    } };
+    const admin = { rpc: vi.fn().mockResolvedValue({ data: true, error: null }) };
+    stepUpMocks.admin.mockReturnValue(admin);
+    await expect(requirePrivilegedStepUp({ organizationId: dailyFixture.org, userId }, client)).resolves.toBe(admin);
+    expect(admin.rpc).toHaveBeenCalledExactlyOnceWith("assert_privileged_email_step_up_satisfied", { p_organization_id: dailyFixture.org, p_user_id: userId, p_session_id: sessionId });
+    expect(client.auth.getClaims).toHaveBeenCalledOnce();
+    expect(client.auth.getUser).toHaveBeenCalledOnce();
+  });
+});
 function contextFor(actor, overrides = {}) {
   // Read the actual fixture grants, then use the application's real normalizer.
   const grants = [...baseline.matchAll(/\('([a-f0-9-]+)'::uuid, '([a-z_.]+)'::public.organization_permission_key\)/g)]

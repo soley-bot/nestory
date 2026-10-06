@@ -135,7 +135,7 @@ async function main() {
   secrets = [status.ANON_KEY, status.SERVICE_ROLE_KEY];
   for (const secret of secrets) console.log(`::add-mask::${secret}`);
   await waitFor(async () => (await fetch(`${dailyOrigins.api}/auth/v1/health`, { headers: { apikey: status.ANON_KEY }, signal: AbortSignal.timeout(2000) })).ok);
-  await command("fixture", ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "scripts/load-test-fixture.mjs"], env, 3 * 60000);
+  await command("fixture", ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "scripts/load-test-fixture.mjs"], { ...env, NESTORY_DAILY_FIXTURE_IDENTITIES: "1" }, 3 * 60000);
   stage = "fixture-preflight";
   const fixture = inspectDailyFixture(statement => run("docker", ["exec", "-i", `supabase_db_${config.project}`, "psql", "-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"], { input: statement, stdio: ["pipe", "pipe", "pipe"] }));
   save("preflight.json", { sha: config.sha, ...fixture });

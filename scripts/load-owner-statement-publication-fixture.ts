@@ -10,16 +10,19 @@ import { loadOwnerStatementPresentation } from "../src/features/reports/data/own
 import { loadOwnerStatementPublication } from "../src/features/reports/data/owner-statement-report";
 import type { Database } from "../src/types/database";
 import { localFixtureCredentials } from "./local-fixture-credentials";
+import { fixtureIdentityProfile } from "./daily-fixture-identities.mjs";
 
-const organizationId = "00000000-0000-0000-0000-000000000001";
+const fixtureIds = fixtureIdentityProfile();
+const organizationId = fixtureIds.id("00000000-0000-0000-0000-000000000001");
 const propertyId = "10000000-0000-0000-0000-000000000004";
 const ownerId = "80000000-0000-0000-0000-000000000014";
-const actorId = "00000000-0000-0000-0000-000000000101";
+const actorId = fixtureIds.id("00000000-0000-0000-0000-000000000101");
 let fixturePhase = "initialize";
 
 async function main() {
   fixturePhase = "runtime";
   const runtime = localRuntime();
+  fixtureIds.assertApi(runtime.apiUrl);
   const client = createClient<Database>(runtime.apiUrl, runtime.anonKey, {
     auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
   });

@@ -34,6 +34,7 @@ let leaseId;
 let invoice;
 let payment;
 let receipt;
+let paymentEvidence;
 const sql = statement => execFileSync("docker", ["exec", "-i", db, "psql", "-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"], { input: statement, encoding: "utf8", timeout: 15000 }).trim();
 const json = statement => JSON.parse(sql(statement).split(/\r?\n/).filter(Boolean).at(-1));
 const authenticated = (actor, statement) => sql(`BEGIN; SELECT set_config('request.jwt.claim.sub','${actor}',true); SET LOCAL ROLE authenticated; ${statement} COMMIT;`);
@@ -73,15 +74,19 @@ async function navigate(href) {
 function assertSameBusinessMonth() {
   assert.equal(`${readDailyBusinessDate(sql, "finance").slice(0, 7)}-01`, dates.month, "Business month changed during the run; no correction or locking across the boundary");
 }
-async function waitSql(statement, expected) {
+async function waitSql(statement, expected, effect) {
+  assert.ok(effect, "Every database wait must name its expected effect");
   const deadline = Date.now() + 20000;
   while (Date.now() < deadline) { if (sql(statement) === expected) return; await new Promise(resolve => setTimeout(resolve, 250)); }
-  throw new Error(`Database effect not observed during ${stage}`);
+  throw new Error(`Database effect not observed during ${stage}: ${effect}`);
+}
+function saveResult(extra = {}) {
+  fs.writeFileSync(path.join(artifactDir, "result.json"), JSON.stringify({ sha: run.sha, phases, complete: false, paymentEvidence, ...extra }, null, 2));
 }
 async function passed(name, evidence) {
   phases.push({ name, passed: true, evidence });
   await page.screenshot({ path: path.join(artifactDir, `${name}.png`), fullPage: true });
-  fs.writeFileSync(path.join(artifactDir, "result.json"), JSON.stringify({ sha: run.sha, phases, complete: false }, null, 2));
+  saveResult();
   console.log(`PASS ${name}`);
 }
 async function select(scope, name, option) {
@@ -134,7 +139,7 @@ try {
   await select(form, "Management fee", "Percentage");
   await form.locator('input[name="managementFeeValue"]').fill("8");
   await form.getByRole("button", { name: "Save tenant and lease", exact: true }).click();
-  await waitSql(`SELECT count(*) FROM public.current_leases WHERE unit_id='${unit}' AND primary_tenant_person_id='${tenant}' AND status='active';`, "1");
+  await waitSql(`SELECT count(*) FROM public.current_leases WHERE unit_id='${unit}' AND primary_tenant_person_id='${tenant}' AND status='active';`, "1", "active lease");
   leaseId = sql(`SELECT id FROM public.current_leases WHERE unit_id='${unit}' AND primary_tenant_person_id='${tenant}' AND status='active';`);
   assert.match(leaseId, /^[a-f0-9-]{36}$/);
   assert.equal(sql(`SELECT count(*) FROM public.lease_occupancies WHERE lease_id='${leaseId}' AND actual_move_in_date='${dates.month}' AND actual_move_in_confidence='confirmed' AND business_lifecycle='occupied';`), "1");
@@ -147,7 +152,7 @@ try {
   assertSameBusinessMonth();
   // Active lease creation and billing-rule triggers must issue this rent. Do not
   // hide a failed creation behind an unrelated recovery action or a SQL insert.
-  await waitSql(`SELECT count(*) FROM public.tenant_invoices WHERE lease_id='${leaseId}' AND billing_period_start='${dates.month}';`, "1");
+  await waitSql(`SELECT count(*) FROM public.tenant_invoices WHERE lease_id='${leaseId}' AND billing_period_start='${dates.month}';`, "1", "issued monthly invoice");
   invoice = json(`SELECT to_jsonb(i)::text FROM public.tenant_invoices i WHERE lease_id='${leaseId}' AND billing_period_start='${dates.month}';`);
   assert.equal(invoice.collection_route, "through_ips");
   assert.equal(invoice.currency, "USD");
@@ -162,16 +167,19 @@ try {
   assert.equal(await paymentDialog.locator('input[name="receivingAccountId"]').inputValue(), fixture.account.id);
   await paymentDialog.locator('input[name="reference"]').fill(reference);
   await paymentDialog.getByRole("button", { name: "Record payment", exact: true }).click();
-  await waitSql(`SELECT count(*) FROM public.tenant_invoice_payments WHERE organization_id='${org}' AND reference='${reference}';`, "1");
+  await waitSql(`SELECT count(*) FROM public.tenant_invoice_payments WHERE organization_id='${org}' AND reference='${reference}';`, "1", "recorded payment");
   payment = json(`SELECT to_jsonb(p)::text FROM public.tenant_invoice_payments p WHERE organization_id='${org}' AND reference='${reference}';`);
   assert.equal(payment.created_by, manager); assert.equal(Number(payment.amount), 40);
   assert.equal(payment.invoice_id, invoice.id); assert.equal(payment.received_date, dates.businessDate);
   assert.equal(Number(sql(`SELECT balance_due FROM public.tenant_invoice_balances WHERE id='${invoice.id}';`)), 80);
-  await waitSql(`SELECT count(*) FROM public.tenant_commercial_document_artifacts WHERE organization_id='${org}' AND source_kind='receipt' AND source_id='${payment.id}' AND publication_status='published';`, "1");
+  paymentEvidence = { persisted: true, paymentId: payment.id, invoiceId: invoice.id, createdBy: payment.created_by, amount: 40, balance: 80, receivedDate: payment.received_date, receiptVerified: false };
+  saveResult(); // Incomplete checkpoint: receipt publication/download are still required.
+  await waitSql(`SELECT count(*) FROM public.tenant_commercial_document_artifacts WHERE organization_id='${org}' AND source_kind='receipt' AND source_id='${payment.id}' AND publication_status='published';`, "1", "published receipt artifact");
   receipt = json(`SELECT to_jsonb(a)::text FROM public.tenant_commercial_document_artifacts a WHERE source_kind='receipt' AND source_id='${payment.id}' AND publication_status='published';`);
   const receiptHref = `/api/finance/documents/${receipt.id}`;
   await page.locator(`a[href="${receiptHref}"]`).first().waitFor();
   const receiptHash = await download(receiptHref, receipt);
+  paymentEvidence = { ...paymentEvidence, receiptVerified: true, receiptId: receipt.id, receiptSha256: receiptHash };
   await passed(stage, { paymentId: payment.id, invoiceId: invoice.id, amount: 40, balance: 80 });
 
   stage = "monthly-correction";
@@ -205,7 +213,7 @@ try {
   await correction.getByRole("button", { name: "Preview correction", exact: true }).click();
   await preview.getByText("60.00", { exact: true }).waitFor();
   await correction.getByRole("button", { name: "Save this month's rent", exact: true }).click();
-  await waitSql(`SELECT count(*) FROM public.tenant_invoice_corrections WHERE tenant_invoice_id='${invoice.id}' AND reason='${reason}' AND created_by='${manager}';`, "1");
+  await waitSql(`SELECT count(*) FROM public.tenant_invoice_corrections WHERE tenant_invoice_id='${invoice.id}' AND reason='${reason}' AND created_by='${manager}';`, "1", "audited monthly correction");
   assert.equal(sql(`SELECT count(*) FROM public.activity_logs WHERE organization_id='${org}' AND entity_type='tenant_invoice' AND entity_id='${invoice.id}' AND action='historical_rent_corrected' AND actor_id='${manager}';`), "1");
   assert.equal(Number(sql(`SELECT balance_due FROM public.tenant_invoice_balances WHERE id='${invoice.id}';`)), 60);
   assert.deepEqual(json(`SELECT to_jsonb(p)::text FROM public.tenant_invoice_payments p WHERE id='${payment.id}';`), payment);
@@ -253,13 +261,13 @@ try {
   const closeForm = closing.getByRole("button", { name: "Close owner month", exact: true }).locator("xpath=ancestor::form");
   await closeForm.getByLabel("Close reason", { exact: true }).fill("Synthetic daily workflow statement proof");
   await closeForm.getByRole("button", { name: "Close owner month", exact: true }).click();
-  await waitSql(`SELECT count(*) FROM public.owner_close_revisions r JOIN public.owner_close_series s ON s.id=r.owner_close_series_id WHERE s.property_id='${property}' AND s.owner_person_id='${owner}' AND s.month_start='${dates.month}' AND r.status='closed';`, "1");
+  await waitSql(`SELECT count(*) FROM public.owner_close_revisions r JOIN public.owner_close_series s ON s.id=r.owner_close_series_id WHERE s.property_id='${property}' AND s.owner_person_id='${owner}' AND s.month_start='${dates.month}' AND r.status='closed';`, "1", "closed owner revision");
   assert.equal(sql(`SELECT r.closed_by FROM public.owner_close_revisions r JOIN public.owner_close_series s ON s.id=r.owner_close_series_id WHERE s.property_id='${property}' AND s.owner_person_id='${owner}' AND s.month_start='${dates.month}' AND r.status='closed';`), manager);
   const publishing = await ownerCloseDialog();
   await publishing.getByText("Ready to publish the owner statement", { exact: true }).waitFor();
   await publishing.getByRole("button", { name: "Publish owner statement", exact: true }).click();
-  await waitSql(`SELECT count(*) FROM public.owner_statement_publications p JOIN public.owner_close_revisions r ON r.id=p.owner_close_revision_id JOIN public.owner_close_series s ON s.id=r.owner_close_series_id WHERE s.property_id='${property}' AND s.owner_person_id='${owner}' AND s.month_start='${dates.month}';`, "1");
-  await waitSql(`SELECT count(*) FROM public.owner_statement_artifacts a JOIN public.owner_statement_publications p ON p.id=a.publication_id JOIN public.owner_close_revisions r ON r.id=p.owner_close_revision_id JOIN public.owner_close_series s ON s.id=r.owner_close_series_id WHERE s.property_id='${property}' AND s.owner_person_id='${owner}' AND s.month_start='${dates.month}';`, "2");
+  await waitSql(`SELECT count(*) FROM public.owner_statement_publications p JOIN public.owner_close_revisions r ON r.id=p.owner_close_revision_id JOIN public.owner_close_series s ON s.id=r.owner_close_series_id WHERE s.property_id='${property}' AND s.owner_person_id='${owner}' AND s.month_start='${dates.month}';`, "1", "owner statement publication");
+  await waitSql(`SELECT count(*) FROM public.owner_statement_artifacts a JOIN public.owner_statement_publications p ON p.id=a.publication_id JOIN public.owner_close_revisions r ON r.id=p.owner_close_revision_id JOIN public.owner_close_series s ON s.id=r.owner_close_series_id WHERE s.property_id='${property}' AND s.owner_person_id='${owner}' AND s.month_start='${dates.month}';`, "2", "both owner statement artifacts");
   const publication = json(`SELECT to_jsonb(p)::text FROM public.owner_statement_publications p JOIN public.owner_close_revisions r ON r.id=p.owner_close_revision_id JOIN public.owner_close_series s ON s.id=r.owner_close_series_id WHERE s.property_id='${property}' AND s.owner_person_id='${owner}' AND s.month_start='${dates.month}';`);
   assert.equal(publication.generated_by, manager);
   const published = await ownerCloseDialog();
@@ -273,9 +281,9 @@ try {
   assert.equal(authoritySnapshot(), originalAuthority);
   await passed(stage, { publicationId: publication.id, retainedPaymentIncludedOnce: true, priorArtifactsUnchanged: true, authorizationUnchanged: true, financialActor: manager, independentFixtureReviewer: admin });
   assertDailyCompletion(phases);
-  fs.writeFileSync(path.join(artifactDir, "result.json"), JSON.stringify({ sha: run.sha, phases, complete: true }, null, 2));
+  saveResult({ complete: true });
 } catch (error) {
   await page?.screenshot({ path: path.join(artifactDir, "failure.png"), fullPage: true }).catch(() => {});
-  fs.writeFileSync(path.join(artifactDir, "result.json"), JSON.stringify({ sha: run.sha, phases, complete: false, failedStage: stage, message: error.message.slice(0,1500) }, null, 2));
+  saveResult({ failedStage: stage, message: error.message.slice(0,1500) });
   throw new Error(`Daily workflow failed at ${stage}; see synthetic evidence.`);
 } finally { await browser.close(); }

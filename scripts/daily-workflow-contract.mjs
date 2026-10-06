@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { assertDailyReceiptIdentities, dailyIdentity } from "./daily-fixture-identities.mjs";
 
 export const dailyFixture = Object.freeze({
-  org: "00000000-0000-0000-0000-000000000001",
+  org: dailyIdentity("00000000-0000-0000-0000-000000000001"),
   branch: "00000000-0000-0000-0000-000000000211",
   property: "10000000-0000-0000-0000-000000000001",
   unit: "20000000-0000-0000-0000-000000000003",
@@ -9,9 +10,9 @@ export const dailyFixture = Object.freeze({
   tenant: "d1000000-0000-0000-0000-000000000001",
 });
 export const dailyActors = Object.freeze({
-  setup: { id: "00000000-0000-0000-0000-000000000101", email: "nestory@gmail.com", role: "super_admin" },
-  finance: { id: "00000000-0000-0000-0000-000000000701", email: "finance.manager@nestory.com", role: "custom", roleId: "00000000-0000-0000-0000-000000000311" },
-  reader: { id: "00000000-0000-0000-0000-000000000801", email: "finance.member@nestory.com", role: "custom", roleId: "00000000-0000-0000-0000-000000000312" },
+  setup: { id: dailyIdentity("00000000-0000-0000-0000-000000000101"), email: "nestory@gmail.com", role: "super_admin" },
+  finance: { id: dailyIdentity("00000000-0000-0000-0000-000000000701"), email: "finance.manager@nestory.com", role: "custom", roleId: "00000000-0000-0000-0000-000000000311" },
+  reader: { id: dailyIdentity("00000000-0000-0000-0000-000000000801"), email: "finance.member@nestory.com", role: "custom", roleId: "00000000-0000-0000-0000-000000000312" },
 });
 export const dailyAuthority = Object.freeze([
   { phase: "move-in", actor: "setup", permissions: ["properties.view", "leases.view", "leases.prepare", "leases.activate"] },
@@ -80,6 +81,7 @@ export function readDailyBusinessDate(sql, actorName) {
 // Invoked only after the orchestrator has verified its newly owned disposable DB.
 // Every statement is read-only; no fixture, permission or financial repair occurs here.
 export function inspectDailyFixture(sql) {
+  assertDailyReceiptIdentities(dailyFixture.org, dailyActors);
   const { org, branch, property, unit, owner, tenant } = dailyFixture;
   const json = statement => JSON.parse(sql(`BEGIN READ ONLY; ${statement} COMMIT;`).trim().split(/\r?\n/).at(-1));
   const actors = Object.fromEntries(Object.entries(dailyActors).map(([key, actor]) => [key, json(`

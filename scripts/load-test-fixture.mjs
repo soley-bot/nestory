@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import activityEntityTypesModule from "../src/features/activity/entity-types.ts";
+import { fixtureIdentityProfile } from "./daily-fixture-identities.mjs";
 
 export const fixtureSupportedActivityEntityTypes =
   activityEntityTypesModule.activityEntityTypes ??
@@ -107,7 +108,7 @@ async function main() {
     "test-fixtures",
     "baseline.sql",
   );
-  const fixtureSql = await readFile(fixturePath, "utf8");
+  const fixtureSql = fixtureIdentityProfile().sql(await readFile(fixturePath, "utf8"));
   const container = findLocalDatabaseContainer(cwd);
   const result = spawnSync(
     "docker",

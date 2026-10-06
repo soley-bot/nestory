@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { fixtureIdentityProfile } from "./daily-fixture-identities.mjs";
 
 import type { Database } from "../src/types/database";
 import {
@@ -9,8 +10,9 @@ import {
   paidCostLifecycleOriginalDate,
 } from "./paid-cost-fixture-periods";
 
-const organizationId = "00000000-0000-0000-0000-000000000001";
-const financeMemberId = "00000000-0000-0000-0000-000000000801";
+const fixtureIds = fixtureIdentityProfile();
+const organizationId = fixtureIds.id("00000000-0000-0000-0000-000000000001");
+const financeMemberId = fixtureIds.id("00000000-0000-0000-0000-000000000801");
 const vendorId = "80000000-0000-0000-0000-000000000006";
 const closePropertyId = "10000000-0000-0000-0000-000000000004";
 const closeOwnerId = "80000000-0000-0000-0000-000000000014";
@@ -27,6 +29,7 @@ let fixturePhase = "initialize";
 
 async function main() {
   const runtime = localRuntime();
+  fixtureIds.assertApi(runtime.apiUrl);
   process.env.NEXT_PUBLIC_SUPABASE_URL = runtime.apiUrl;
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = runtime.anonKey;
   process.env.SUPABASE_SERVICE_ROLE_KEY = runtime.serviceRoleKey;
@@ -436,7 +439,7 @@ async function loadMaintenancePaidCosts({
       { type: "application/pdf" },
     );
     const evidence = await preparePaidCostEvidence({
-      actorId: "00000000-0000-0000-0000-000000000101",
+      actorId: fixtureIds.id("00000000-0000-0000-0000-000000000101"),
       file,
       idempotencyKey: `${key}-evidence`,
       organizationId,
