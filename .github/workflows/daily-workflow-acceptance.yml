@@ -52,6 +52,10 @@ jobs:
           npm exec -- vitest run src/features/property-setup/components/property-setup-screen.test.tsx src/features/finance-operations/components/finance-operations-screen.test.tsx src/features/leases/components/lease-detail-screen.test.tsx src/features/owner-close/components/owner-close-screen.test.tsx src/features/owner-balances/components/owner-balance-ledger.test.tsx --maxWorkers=1 -t 'daily workflow|gives Finance Managers|unmounts a summary operation|links an authorized current issued|keeps superseded publications'
       - name: Install pinned Chromium
         run: npm exec -- playwright install --with-deps chromium
+      - name: Check authenticated artifact download transport
+        env:
+          NODE_OPTIONS: --max-old-space-size=512
+        run: npm exec -- vitest run --config scripts/daily-workflow-browser.config.mjs
       - name: Run one synthetic daily workflow
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/run-daily-workflow-ci.mjs
       - name: Remove only this job's synthetic runtime

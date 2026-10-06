@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { chromium } from "playwright";
 import { findLocalDatabaseContainer } from "./load-test-fixture.mjs";
 import { setHiddenControlValue } from "./playwright-form-controls.mjs";
 import { assertDailyCompletion, assertDailyContainer, assertDailyOrigin, dailyOrigins, resolveDailyRun } from "./daily-workflow-policy.mjs";
 import { dailyActors, dailyFixture, dailyInvoiceHref, dailyOwnerHref, inspectDailyFixture, readDailyBusinessDate } from "./daily-workflow-contract.mjs";
+import { downloadDailyArtifact } from "./daily-workflow-download.mjs";
 
 const run = resolveDailyRun(process.env);
 const root = process.cwd();
@@ -108,13 +108,7 @@ async function ownerCloseDialog() {
   return page.getByRole("dialog", { name: "Close month", exact: true });
 }
 async function download(href, metadata) {
-  assert.ok(href, "Published artifact must have a visible download link");
-  const url = new URL(href, base); assert.equal(url.origin, base);
-  const response = await page.request.get(url.href, { maxRedirects: 0 }); assert.equal(response.status(), 200);
-  const bytes = await response.body();
-  assert.equal(bytes.length, Number(metadata.size_bytes));
-  assert.equal(createHash("sha256").update(bytes).digest("hex"), metadata.sha256);
-  return metadata.sha256;
+  return downloadDailyArtifact(page, base, href, metadata);
 }
 
 try {
