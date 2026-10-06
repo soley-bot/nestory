@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import type { OwnerStatementPublicationModel } from "./owner-statement-report";
+import type { ScopedFinanceContext } from "@/features/finance-operations/data/scoped-finance-context";
 
 export type StatementTransactionDetail = { unit: string; name: string; category: string };
 type Row = Record<string, unknown>;
@@ -9,13 +10,21 @@ type DetailQuery = {
   eq(column: string, value: string): DetailQuery;
   maybeSingle(): PromiseLike<{ data: unknown; error: unknown }>;
 };
+type StatementFinanceReferences = {
+  properties: Pick<ScopedFinanceContext["properties"][number], "id">[];
+  units: Pick<ScopedFinanceContext["units"][number], "id" | "property_id" | "unit_number">[];
+};
 
 // Display enrichment only: never change the frozen dates, amounts, or balances.
 // Follow explicit source IDs. A property's unit count is not attribution evidence.
 export async function loadStatementTransactionDetails(
   client: SupabaseClient<Database>, model: OwnerStatementPublicationModel,
   identity: { ownerName: string; organizationName: string },
+  finance: StatementFinanceReferences,
 ): Promise<Record<number, StatementTransactionDetail>> {
+  if (!finance.properties.some(row => row.id === model.propertyId)) {
+    throw new Error("Statement property is unavailable in the authorized finance context.");
+  }
   const cache = new Map<string, Promise<Row | null>>();
   function read(table: Table, columns: string, id: string, field = "id", fingerprint?: string) {
     const key = `${table}:${field}:${id}:${columns}:${fingerprint ?? ""}`;
@@ -42,7 +51,9 @@ export async function loadStatementTransactionDetails(
   };
   async function unit(row: Row) {
     if (row.unit_id === null) return "Property-level";
-    const found = await required("units", "id, property_id, unit_number", value(row, "unit_id"));
+    const found = finance.units.find(unit => unit.id === value(row, "unit_id"));
+    if (!found) throw new Error("Statement transaction source is unavailable; resolve its unit before export.");
+    if (found.property_id !== model.propertyId) throw new Error("Statement transaction property mismatch.");
     return value(found, "unit_number");
   }
   async function expense(responsibility: Row): Promise<StatementTransactionDetail> {
