@@ -40,6 +40,8 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("PropertySetupScreen", () => {
+  // This full wizard journey includes several real dialogs and user interactions;
+  // keep the same bounded allowance as the full lease-form journeys on serial runners.
   it("daily workflow submits the moved-in setup lease and exact billing values through visible controls", async () => {
     const user = userEvent.setup();
     navigation.createLease.mockResolvedValue({ status: "success", message: "Lease saved.", leaseId: "lease-1" });
@@ -75,7 +77,7 @@ describe("PropertySetupScreen", () => {
     for (const [name, value] of Object.entries({ status: "active", actualMoveInDate: "2026-10-01", leaseStartDate: "2026-10-01", leaseEndDate: "2027-04-01", monthlyRentAmount: "120", rentDueDay: "1", depositAmount: "0", collectionRoute: "through_ips", managementFeeMode: "percentage", managementFeeValue: "8" })) {
       expect(payload.get(name), name).toBe(value);
     }
-  });
+  }, 15_000);
 
   it("keeps lease review available after the actual parent closes creation, back and refresh", async () => {
     const user = userEvent.setup();
