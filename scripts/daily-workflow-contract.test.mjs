@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { buildWorkspacePermissionContext, hasPermission } from "../src/lib/auth/permission-context.ts";
 import { getWorkspaceCapabilitiesFromPermissions } from "../src/lib/auth/capabilities.ts";
-import { assertDailyAuthorities, dailyActors, dailyAuthority, dailyDates, dailyFixture, dailyInvoiceHref, dailyOwnerHref, dailyPermissions, inspectDailyFixture, readDailyBusinessDate } from "./daily-workflow-contract.mjs";
+import { assertDailyAuthorities, dailyActors, dailyAuthority, dailyDates, dailyFixture, dailyInvoiceHref, dailyOwnerHref, dailyPermissions, inspectDailyFixture, prepareDailyCorrectionSource, readDailyBusinessDate } from "./daily-workflow-contract.mjs";
 import { assertDailyReceiptIdentities, dailyIdentityMap, fixtureIdentityProfile, remapDailyFixtureSql } from "./daily-fixture-identities.mjs";
 import { requirePrivilegedStepUp } from "../src/lib/auth/privileged-step-up-guard.ts";
 
@@ -12,6 +12,51 @@ vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: stepUpMocks.serv
 
 const baseline = fs.readFileSync(new URL("../supabase/test-fixtures/baseline.sql", import.meta.url), "utf8");
 const dailyEnv = { GITHUB_ACTIONS: "true", CI: "true", RUNNER_OS: "Linux", GITHUB_REPOSITORY: "soley-bot/nestory", GITHUB_EVENT_NAME: "pull_request", GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1", NESTORY_TEST_SHA: "a".repeat(40), NESTORY_DAILY_FIXTURE_IDENTITIES: "1", SUPABASE_DB_CONTAINER: "supabase_db_nestory-daily-123-1", NESTORY_BASE_URL: "http://127.0.0.1:3107" };
+
+describe("daily correction owner-source prerequisite (mocked SQL boundary)", () => {
+  const invoice = "a1111111-1111-4111-8111-111111111111";
+  const payment = "a2222222-2222-4222-8222-222222222222";
+  const allocation = "a3333333-3333-4333-8333-333333333333";
+  const source = [{ id: allocation, amount: 40 }];
+  it("prepares only the recorded payment with Finance authority and checks its retained amount", () => {
+    const events = [];
+    const sql = vi.fn(statement => { events.push("read"); return statement.includes("jsonb_agg") ? JSON.stringify(source) : "1"; });
+    const command = vi.fn(() => events.push("allocate"));
+    expect(prepareDailyCorrectionSource(sql, command, invoice, payment)).toBe(allocation);
+    expect(events).toEqual(["read", "allocate", "read"]);
+    for (const id of [dailyFixture.org, dailyFixture.property, dailyFixture.unit, invoice, payment, dailyActors.finance.id]) expect(sql.mock.calls[0][0]).toContain(id);
+    expect(command).toHaveBeenCalledExactlyOnceWith(dailyActors.finance.id,
+      `SELECT public.allocate_owner_event('${dailyFixture.org}','tenant_rent_receipt','${allocation}','daily-rent-source-${allocation}');`);
+    expect(sql.mock.calls[1][0]).toContain("gross_signed_amount=40");
+  });
+  it.each([[], [...source, ...source], [{ id: allocation, amount: 39 }], [{ id: "invalid", amount: 40 }]])("rejects a missing, split or changed source before any mutation: %j", rows => {
+    const command = vi.fn();
+    expect(() => prepareDailyCorrectionSource(() => JSON.stringify(rows), command, invoice, payment)).toThrow();
+    expect(command).not.toHaveBeenCalled();
+  });
+  it("stops on command denial without another actor or an unchecked write", () => {
+    const command = vi.fn(() => { throw new Error("Not authorized"); });
+    const sql = vi.fn(() => JSON.stringify(source));
+    expect(() => prepareDailyCorrectionSource(sql, command, invoice, payment)).toThrow("Not authorized");
+    expect(command).toHaveBeenCalledTimes(1); expect(sql).toHaveBeenCalledTimes(1);
+  });
+  it("does not proceed to preview without the verified owner effect", () => {
+    expect(() => prepareDailyCorrectionSource(statement => statement.includes("jsonb_agg") ? JSON.stringify(source) : "0", vi.fn(), invoice, payment)).toThrow("before correction preview");
+  });
+  it("rejects malformed identities before reading and wires preparation before the visible preview", () => {
+    const sql = vi.fn();
+    expect(() => prepareDailyCorrectionSource(sql, vi.fn(), "invalid", payment)).toThrow();
+    expect(sql).not.toHaveBeenCalled();
+    const journey = fs.readFileSync(new URL("./smoke-daily-workflow.mjs", import.meta.url), "utf8");
+    const prepare = journey.indexOf("prepareDailyCorrectionSource(sql, authenticated, invoice.id, payment.id)");
+    const preview = journey.indexOf('name: "Preview correction"');
+    const lock = journey.indexOf("set_financial_month_lock");
+    const save = journey.indexOf('name: "Save this month\'s rent"');
+    for (const index of [prepare, preview, lock, save]) expect(index).toBeGreaterThanOrEqual(0);
+    expect(prepare).toBeLessThan(preview);
+    expect(lock).toBeGreaterThan(save);
+  });
+});
 
 describe("daily receipt fixture identities", () => {
   it("preserves every baseline byte except the four identity references", () => {

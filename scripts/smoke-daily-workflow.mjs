@@ -6,7 +6,7 @@ import { chromium } from "playwright";
 import { findLocalDatabaseContainer } from "./load-test-fixture.mjs";
 import { setHiddenControlValue } from "./playwright-form-controls.mjs";
 import { assertDailyCompletion, assertDailyContainer, assertDailyOrigin, dailyOrigins, resolveDailyRun } from "./daily-workflow-policy.mjs";
-import { dailyActors, dailyFixture, dailyInvoiceHref, dailyOwnerHref, inspectDailyFixture, readDailyBusinessDate } from "./daily-workflow-contract.mjs";
+import { dailyActors, dailyFixture, dailyInvoiceHref, dailyOwnerHref, inspectDailyFixture, prepareDailyCorrectionSource, readDailyBusinessDate } from "./daily-workflow-contract.mjs";
 import { downloadDailyArtifact } from "./daily-workflow-download.mjs";
 
 const run = resolveDailyRun(process.env);
@@ -178,6 +178,7 @@ try {
 
   stage = "monthly-correction";
   assertSameBusinessMonth();
+  const allocation = prepareDailyCorrectionSource(sql, authenticated, invoice.id, payment.id);
   // Prove read-only role denial while this invoice is still eligible to edit.
   await login(dailyActors.reader);
   await navigate(`/leases/${leaseId}?action=edit-current-rent&invoiceId=${invoice.id}&section=rent`);
@@ -213,7 +214,7 @@ try {
   assert.deepEqual(json(`SELECT to_jsonb(p)::text FROM public.tenant_invoice_payments p WHERE id='${payment.id}';`), payment);
   assert.equal(sql(`SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id)::text FROM public.lease_terms t WHERE lease_id='${leaseId}';`), terms);
   assert.equal(sql(`SELECT (to_jsonb(i)-'updated_at'-'updated_by')::text FROM public.tenant_invoices i WHERE id='${invoice.id}';`), invoiceBefore);
-  await passed(stage, { reason, correctedRent: 100, balance: 60, paymentRetained: true, futureTermsUnchanged: true });
+  await passed(stage, { reason, correctedRent: 100, balance: 60, originalPaymentOwnerSourceId: allocation, paymentRetained: true, futureTermsUnchanged: true });
 
   stage = "receipt";
   await invoiceDetails();
@@ -225,8 +226,6 @@ try {
 
   stage = "owner-statement";
   assertSameBusinessMonth();
-  const allocation = sql(`SELECT id FROM public.tenant_invoice_payment_allocations WHERE payment_id='${payment.id}';`);
-  assert.match(allocation, /^[a-f0-9-]{36}$/);
   // These are the existing checked allocation/period commands also used by the
   // rent-browser acceptance helper, not direct ledger writes or a UI fallback.
   for (let pass = 0; pass < 4; pass++) {

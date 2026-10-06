@@ -39,6 +39,33 @@ export function dailyOwnerHref(month) {
   assert.match(month, /^\d{4}-\d{2}-01$/);
   return `/balances?${new URLSearchParams({ view: "summary", month: month.slice(0, 7), propertyId: dailyFixture.property, ownerPersonId: dailyFixture.owner })}`;
 }
+
+// Historical correction requires the original receipt's owner evidence before
+// preview. Prepare only this journey's new rent payment, using the existing
+// Finance Manager command. Do not drain or repair unrelated owner sources here.
+export function prepareDailyCorrectionSource(sql, authenticated, invoiceId, paymentId) {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  assert.match(invoiceId, uuid); assert.match(paymentId, uuid);
+  const { org, property, unit } = dailyFixture;
+  const actor = dailyActors.finance.id;
+  const rows = JSON.parse(sql(`SELECT coalesce(jsonb_agg(jsonb_build_object('id',a.id,'amount',a.amount)),'[]')::text
+    FROM public.tenant_invoice_payment_allocations a
+    JOIN public.tenant_invoice_payments p ON p.organization_id=a.organization_id AND p.id=a.payment_id
+    JOIN public.tenant_invoice_lines l ON l.organization_id=a.organization_id AND l.id=a.invoice_line_id AND l.invoice_id=a.invoice_id
+    WHERE a.organization_id='${org}' AND a.invoice_id='${invoiceId}' AND a.payment_id='${paymentId}'
+      AND p.invoice_id='${invoiceId}' AND p.created_by='${actor}' AND p.amount=40 AND p.reversal_of_id IS NULL
+      AND a.reversal_of_allocation_id IS NULL AND l.property_id='${property}' AND l.unit_id='${unit}' AND l.line_type='rent';`));
+  assert.equal(rows.length, 1, "Expected this journey's single rent payment source");
+  assert.match(rows[0].id, uuid);
+  assert.equal(Number(rows[0].amount), 40, "Owner source must retain the full recorded payment");
+  const allocationId = rows[0].id;
+  authenticated(actor, `SELECT public.allocate_owner_event('${org}','tenant_rent_receipt','${allocationId}','daily-rent-source-${allocationId}');`);
+  assert.equal(sql(`SELECT count(*) FROM public.owner_event_allocation_sets
+    WHERE organization_id='${org}' AND property_id='${property}' AND source_type='tenant_rent_receipt'
+      AND source_line_id='${allocationId}' AND currency='USD' AND gross_signed_amount=40 AND created_by='${actor}';`), "1",
+  "The checked owner source must exist before correction preview");
+  return allocationId;
+}
 export function assertDailyAuthorities(actors) {
   for (const [key, expected] of Object.entries(dailyActors)) {
     const actual = actors[key];
