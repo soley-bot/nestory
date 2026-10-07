@@ -11,15 +11,16 @@ const root = process.cwd();
 const project = `nestory-staff-oct7-task10-${Date.now()}`;
 const source = 'supabase_db_nestory-restricted-task10-20261002';
 const names = [];
+let networkRequested = false;
 const evidence = { project, started: new Date().toISOString(), results: [], services: [], errors: [] };
 const password = randomBytes(24).toString('hex');
 function run(args, input, allowFailure=false) {
-  const r = spawnSync('docker', args, { input, encoding:'utf8', maxBuffer:64*1024*1024 });
-  if (r.status !== 0 && !allowFailure) throw new Error(`docker ${args[0]} failed: ${(r.stderr || '').replaceAll(password,'[local-secret]').slice(0,1000)}`);
+  const r = spawnSync('docker', args, { input, encoding:'utf8', maxBuffer:64*1024*1024, timeout:120_000 });
+  if (r.status !== 0 && !allowFailure) throw new Error(`docker ${args[0]} failed: ${(r.error?.message || r.stderr || '').replaceAll(password,'[local-secret]').slice(0,1000)}`);
   return r;
 }
 function disk() {
-  const r = spawnSync('powershell', ['-NoProfile','-Command','(Get-PSDrive C).Free'], {encoding:'utf8'});
+  const r = spawnSync('powershell', ['-NoProfile','-Command','(Get-PSDrive C).Free'], {encoding:'utf8',timeout:15_000});
   const free = Number(r.stdout.trim());
   evidence.freeBytes = free;
   if (!Number.isFinite(free) || free < 8*1024**3) throw new Error('C free space below 8 GiB or unavailable');
@@ -31,14 +32,28 @@ function launch(suffix,image,env={},port,containerPort,extra=[]) {
   if (port) args.push('-p',`127.0.0.1:${port}:${containerPort}`);
   for(const [k,v] of Object.entries(env)) args.push('-e',`${k}=${v}`);
   args.push(...extra,image);
-  run(args);
   names.push(name);
+  run(args);
   evidence.services.push({name,image,port:port||null});
   console.log(`Started ${suffix}`);
   return name;
 }
 const sleep = ms => new Promise(resolve=>setTimeout(resolve,ms));
 function sql(db,text) { return run(['exec','-i',db,'psql','-U','supabase_admin','-d','postgres','-X','-v','ON_ERROR_STOP=1','-At'],text).stdout; }
+function cleanupOwned(kind, name) {
+  try {
+    const inspection = run(kind === 'network' ? ['network','inspect',name] : ['inspect',name],undefined,true);
+    if (inspection.status !== 0) throw new Error('ownership inspection failed');
+    const resource = JSON.parse(inspection.stdout)[0];
+    const labels = kind === 'network' ? resource.Labels : resource.Config.Labels;
+    if (labels?.['nestory.synthetic.project'] !== project) throw new Error('ownership label did not match; resource was not removed');
+    const removal = run(kind === 'network' ? ['network','rm',name] : ['rm','-f',name],undefined,true);
+    if (removal.status !== 0) throw new Error('removal failed');
+  } catch (error) {
+    evidence.errors.push(`Cleanup ${kind} ${name}: ${error.message}`);
+    process.exitCode = 1;
+  }
+}
 try {
   disk();
   evidence.freeMemoryBytes = freemem();
@@ -47,6 +62,7 @@ try {
   if(counts !== '0|0') throw new Error('Snapshot source is not empty synthetic database');
   const inspect = JSON.parse(run(['inspect',source]).stdout)[0];
   if(inspect.Config.Labels['com.supabase.cli.project'] !== 'nestory-restricted-task10-20261002') throw new Error('Source project identity mismatch');
+  networkRequested = true;
   run(['network','create','--label',`nestory.synthetic.project=${project}`,project]);
   const db = launch('db',inspect.Config.Image,{POSTGRES_PASSWORD:password},null,null);
   let ready=false;
@@ -90,7 +106,7 @@ try {
     if (!tap.valid || response.status !== 0) process.exitCode=1;
   }
 } catch(error){evidence.errors.push(error.message);console.error(error.message);process.exitCode=1;} finally {
-  for(const name of names.reverse()){const inspected=run(['inspect',name],undefined,true);if(inspected.status===0&&JSON.parse(inspected.stdout)[0].Config.Labels['nestory.synthetic.project']===project)run(['rm','-f',name]);}
-  run(['network','rm',project],undefined,true);
+  for(const name of names.reverse()) cleanupOwned('container',name);
+  if (networkRequested) cleanupOwned('network',project);
   evidence.finished=new Date().toISOString();writeFileSync(path.join(root,'tests/staff-isolation/evidence.json'),JSON.stringify(evidence,null,2)+'\n');
 }

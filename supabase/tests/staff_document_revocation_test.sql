@@ -104,7 +104,12 @@ INSERT INTO public.organization_role_permissions(organization_id,role_id,permiss
 SET LOCAL ROLE authenticated;
 SELECT is((SELECT count(*) FROM public.documents WHERE id='ec000000-0000-0000-0000-000000000911'),1::bigint,'C1/A/domain permissions removed: restored fixture access returns');
 RESET ROLE;
+SELECT throws_ok($$UPDATE public.organization_roles SET status='archived',archived_at=now() WHERE id='ec000000-0000-0000-0000-000000000011';$$,'55000','Assigned roles cannot be archived.','Assigned-role lifecycle guard rejects direct archival');
+-- Simulate retained legacy/corrupt state only; restore the lifecycle guard before access assertions.
+ALTER TABLE public.organization_roles DISABLE TRIGGER organization_roles_prevent_assigned_archival;
 UPDATE public.organization_roles SET status='archived',archived_at=now() WHERE id='ec000000-0000-0000-0000-000000000011';
+ALTER TABLE public.organization_roles ENABLE TRIGGER organization_roles_prevent_assigned_archival;
+SELECT ok((SELECT tgenabled <> 'D' FROM pg_trigger WHERE tgrelid='public.organization_roles'::regclass AND tgname='organization_roles_prevent_assigned_archival'),'Assigned-role lifecycle guard is enabled during revocation checks');
 SET LOCAL ROLE authenticated;
 SELECT is(auth.uid(),'ec000000-0000-0000-0000-000000000511'::uuid,'C1/A/role archived: JWT subject unchanged');
 SELECT is_empty($$SELECT id FROM public.documents WHERE id='ec000000-0000-0000-0000-000000000911'$$,'C1/A/role archived: document denied');
@@ -180,7 +185,12 @@ INSERT INTO public.organization_role_permissions(organization_id,role_id,permiss
 SET LOCAL ROLE authenticated;
 SELECT is((SELECT count(*) FROM public.documents WHERE id='ec000000-0000-0000-0000-000000000912'),1::bigint,'C1/B/domain permissions removed: restored fixture access returns');
 RESET ROLE;
+SELECT throws_ok($$UPDATE public.organization_roles SET status='archived',archived_at=now() WHERE id='ec000000-0000-0000-0000-000000000011';$$,'55000','Assigned roles cannot be archived.','Assigned-role lifecycle guard rejects direct archival');
+-- Simulate retained legacy/corrupt state only; restore the lifecycle guard before access assertions.
+ALTER TABLE public.organization_roles DISABLE TRIGGER organization_roles_prevent_assigned_archival;
 UPDATE public.organization_roles SET status='archived',archived_at=now() WHERE id='ec000000-0000-0000-0000-000000000011';
+ALTER TABLE public.organization_roles ENABLE TRIGGER organization_roles_prevent_assigned_archival;
+SELECT ok((SELECT tgenabled <> 'D' FROM pg_trigger WHERE tgrelid='public.organization_roles'::regclass AND tgname='organization_roles_prevent_assigned_archival'),'Assigned-role lifecycle guard is enabled during revocation checks');
 SET LOCAL ROLE authenticated;
 SELECT is(auth.uid(),'ec000000-0000-0000-0000-000000000512'::uuid,'C1/B/role archived: JWT subject unchanged');
 SELECT is_empty($$SELECT id FROM public.documents WHERE id='ec000000-0000-0000-0000-000000000912'$$,'C1/B/role archived: document denied');
@@ -256,7 +266,12 @@ INSERT INTO public.organization_role_permissions(organization_id,role_id,permiss
 SET LOCAL ROLE authenticated;
 SELECT is((SELECT count(*) FROM public.documents WHERE id='ec000000-0000-0000-0000-000000000921'),1::bigint,'C2/A/domain permissions removed: restored fixture access returns');
 RESET ROLE;
+SELECT throws_ok($$UPDATE public.organization_roles SET status='archived',archived_at=now() WHERE id='ec000000-0000-0000-0000-000000000012';$$,'55000','Assigned roles cannot be archived.','Assigned-role lifecycle guard rejects direct archival');
+-- Simulate retained legacy/corrupt state only; restore the lifecycle guard before access assertions.
+ALTER TABLE public.organization_roles DISABLE TRIGGER organization_roles_prevent_assigned_archival;
 UPDATE public.organization_roles SET status='archived',archived_at=now() WHERE id='ec000000-0000-0000-0000-000000000012';
+ALTER TABLE public.organization_roles ENABLE TRIGGER organization_roles_prevent_assigned_archival;
+SELECT ok((SELECT tgenabled <> 'D' FROM pg_trigger WHERE tgrelid='public.organization_roles'::regclass AND tgname='organization_roles_prevent_assigned_archival'),'Assigned-role lifecycle guard is enabled during revocation checks');
 SET LOCAL ROLE authenticated;
 SELECT is(auth.uid(),'ec000000-0000-0000-0000-000000000521'::uuid,'C2/A/role archived: JWT subject unchanged');
 SELECT is_empty($$SELECT id FROM public.documents WHERE id='ec000000-0000-0000-0000-000000000921'$$,'C2/A/role archived: document denied');
@@ -332,7 +347,12 @@ INSERT INTO public.organization_role_permissions(organization_id,role_id,permiss
 SET LOCAL ROLE authenticated;
 SELECT is((SELECT count(*) FROM public.documents WHERE id='ec000000-0000-0000-0000-000000000922'),1::bigint,'C2/B/domain permissions removed: restored fixture access returns');
 RESET ROLE;
+SELECT throws_ok($$UPDATE public.organization_roles SET status='archived',archived_at=now() WHERE id='ec000000-0000-0000-0000-000000000012';$$,'55000','Assigned roles cannot be archived.','Assigned-role lifecycle guard rejects direct archival');
+-- Simulate retained legacy/corrupt state only; restore the lifecycle guard before access assertions.
+ALTER TABLE public.organization_roles DISABLE TRIGGER organization_roles_prevent_assigned_archival;
 UPDATE public.organization_roles SET status='archived',archived_at=now() WHERE id='ec000000-0000-0000-0000-000000000012';
+ALTER TABLE public.organization_roles ENABLE TRIGGER organization_roles_prevent_assigned_archival;
+SELECT ok((SELECT tgenabled <> 'D' FROM pg_trigger WHERE tgrelid='public.organization_roles'::regclass AND tgname='organization_roles_prevent_assigned_archival'),'Assigned-role lifecycle guard is enabled during revocation checks');
 SET LOCAL ROLE authenticated;
 SELECT is(auth.uid(),'ec000000-0000-0000-0000-000000000522'::uuid,'C2/B/role archived: JWT subject unchanged');
 SELECT is_empty($$SELECT id FROM public.documents WHERE id='ec000000-0000-0000-0000-000000000922'$$,'C2/B/role archived: document denied');
