@@ -1,24 +1,17 @@
 "use client";
 
-import { useActionState, useId } from "react";
-import {
-  requestPasswordRecoveryAction,
-  type AuthActionState,
-} from "@/features/auth/actions";
+import { useId } from "react";
+import { requestPasswordRecoveryAction } from "@/features/auth/actions";
+import { useAuthForm } from "./use-auth-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-const initialState: AuthActionState = {};
-
 export function ForgotPasswordForm() {
-  const [state, action, pending] = useActionState(
-    requestPasswordRecoveryAction,
-    initialState,
-  );
+  const { state, action, pending, formRef, onSubmit } = useAuthForm(requestPasswordRecoveryAction);
   const emailErrorId = useId();
 
   return (
-    <form action={action} className="min-w-0 space-y-5 [overflow-wrap:anywhere]">
+    <form action={action} aria-busy={pending} className="min-w-0 space-y-5 [overflow-wrap:anywhere]" onSubmit={onSubmit} ref={formRef}>
       {state.message ? (
         <p
           className={
@@ -27,6 +20,7 @@ export function ForgotPasswordForm() {
               : "rounded-md border border-danger/25 bg-danger-soft px-3.5 py-3 text-sm leading-5 text-danger"
           }
           role={state.status === "success" ? "status" : "alert"}
+          tabIndex={-1}
         >
           {state.message}
         </p>
@@ -40,6 +34,7 @@ export function ForgotPasswordForm() {
           autoComplete="email"
           className="mt-2 box-border h-11 px-3 text-sm"
           name="email"
+          readOnly={pending}
           required
           type="email"
         />

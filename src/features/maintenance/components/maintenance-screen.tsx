@@ -128,7 +128,7 @@ import type {
   MaintenanceViewQuery,
 } from "@/features/maintenance/maintenance.types";
 import { getOperatorActivityDetails } from "@/features/workspace-operations/operator-activity";
-import { canTransitionMaintenanceStatus } from "@/features/maintenance/maintenance.workflow";
+import { canTransitionMaintenanceStatus, getMaintenanceWorkflowState } from "@/features/maintenance/maintenance.workflow";
 import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { cn } from "@/lib/utils";
 
@@ -505,6 +505,7 @@ export function MaintenanceScreen({
         <>
           <div className="min-h-0 min-w-0 flex-1 p-3 md:p-0">
             <MaintenanceTable
+              actor={actor}
               cases={visibleCases}
               emptyLabel={emptyLabel}
               fillHeight
@@ -801,7 +802,7 @@ function MaintenanceCasesCommandBar({
             onQueryChange={search.onQueryChange}
           onCompositionChange={search.onCompositionChange}
             onSubmit={search.onSubmit}
-            placeholder={`Search property, unit, owner or ${listLabel.toLowerCase()}`}
+            placeholder="Search maintenance"
             query={query}
             submitLabel={`Search ${listLabel}`}
           />
@@ -989,7 +990,7 @@ function MaintenanceFilters({
           onQueryChange={search.onQueryChange}
           onCompositionChange={search.onCompositionChange}
           onSubmit={search.onSubmit}
-          placeholder={`Search property, unit, owner or ${listLabel.toLowerCase()}`}
+          placeholder="Search maintenance"
           query={query}
           submitLabel={`Search ${listLabel}`}
         />
@@ -1103,6 +1104,7 @@ function MaintenanceScopeSummary({
 }
 
 function MaintenanceTable({
+  actor,
   cases,
   emptyLabel,
   fillHeight = false,
@@ -1110,6 +1112,7 @@ function MaintenanceTable({
   recordLabel,
   selectedTaskId,
 }: {
+  actor: MaintenanceActor;
   cases: MaintenanceCase[];
   emptyLabel: string;
   fillHeight?: boolean;
@@ -1136,18 +1139,20 @@ function MaintenanceTable({
             {cases.map((maintenanceCase) => (
               <li className={cn("min-w-0 space-y-2 p-3 [overflow-wrap:anywhere]", selectedTaskId === maintenanceCase.id && "bg-accent", maintenanceCase.isArchived && "text-muted-foreground")} key={maintenanceCase.id}>
                 <Link className="block rounded-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" href={maintenanceCase.hrefs.task} prefetch={false}>{maintenanceCase.title}</Link>
-                <p>{maintenanceCase.propertyLabel}</p>
-                <p className="text-xs text-muted-foreground">{maintenanceCase.unitLabel}</p>
+                <MaintenanceLocation label={maintenanceCase.propertyLabel} href={maintenanceCase.hrefs.property} />
+                <MaintenanceLocation className="text-xs text-muted-foreground" label={maintenanceCase.unitLabel} href={maintenanceCase.hrefs.unit} />
                 <div className="flex flex-wrap gap-1.5">
                   <Badge tone={maintenanceCase.statusTone}>{maintenanceCase.statusLabel}</Badge>
                   <Badge tone={maintenanceCase.priorityTone}>{maintenanceCase.priorityLabel}</Badge>
                   {maintenanceCase.isArchived ? <Badge tone="warning">Archived</Badge> : null}
                 </div>
                 <p className={cn("text-xs text-muted-foreground", maintenanceCase.progressTone === "danger" && "text-danger")}>Due {formatMaintenanceTableDueDate(maintenanceCase)}{maintenanceCase.dueTime ? ` at ${maintenanceCase.dueTime}` : ""}</p>
+                <p className="text-xs">Assigned to: {maintenanceCase.assigneeLabel}</p>
+                <MaintenanceNextAction actor={actor} maintenanceCase={maintenanceCase} onSelect={onSelect} />
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <details className="min-w-0 max-w-full flex-1">
-                    <summary className="cursor-pointer rounded-sm text-xs text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">Owner / Vendor</summary>
-                    <dl className="mt-2 space-y-1 text-xs"><div><dt className="text-muted-foreground">Owner</dt><dd>{maintenanceCase.assigneeLabel}</dd></div><div><dt className="text-muted-foreground">Vendor</dt><dd>{maintenanceCase.vendorLabel}</dd></div></dl>
+                    <summary className="cursor-pointer rounded-sm text-xs text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">Vendor and cost</summary>
+                    <MaintenanceVendorCost maintenanceCase={maintenanceCase} />
                   </details>
                   <Button aria-label={`Preview ${maintenanceCase.title}`} aria-pressed={selectedTaskId === maintenanceCase.id} onClick={(event) => { event.currentTarget.focus(); onSelect(maintenanceCase.id); }} size="sm" type="button" variant="outline">Preview</Button>
                 </div>
@@ -1157,10 +1162,10 @@ function MaintenanceTable({
           </ul>
         )}>
           <colgroup>
-            <col className="w-[33%]" />
+            <col className="w-[32%]" />
+            <col className="w-[26%]" />
+            <col className="w-[15%]" />
             <col className="w-[27%]" />
-            <col className="w-[17%]" />
-            <col className="w-[23%]" />
           </colgroup>
           <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
@@ -1169,7 +1174,7 @@ function MaintenanceTable({
               </th>
               <th className="px-1.5 py-2.5 font-semibold">Property / Unit</th>
               <th className="px-1.5 py-2.5 font-semibold">Status</th>
-              <th className="px-1.5 py-2.5 font-semibold">Owner / Vendor</th>
+              <th className="px-1.5 py-2.5 font-semibold">Assigned to / Next action</th>
             </tr>
           </thead>
           <tbody>
@@ -1239,10 +1244,8 @@ function MaintenanceTable({
                   ) : null}
                 </td>
                 <td className="px-1.5 py-2">
-                  <p className="whitespace-normal [overflow-wrap:anywhere]">{maintenanceCase.propertyLabel}</p>
-                  <p className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">
-                    {maintenanceCase.unitLabel}
-                  </p>
+                  <MaintenanceLocation label={maintenanceCase.propertyLabel} href={maintenanceCase.hrefs.property} />
+                  <MaintenanceLocation className="mt-0.5 text-xs text-muted-foreground" label={maintenanceCase.unitLabel} href={maintenanceCase.hrefs.unit} />
                 </td>
                 <td className="px-1.5 py-2">
                   <div className="flex flex-wrap gap-1.5">
@@ -1258,9 +1261,11 @@ function MaintenanceTable({
                 </td>
                 <td className="px-1.5 py-2">
                   <p className="whitespace-normal [overflow-wrap:anywhere]">{maintenanceCase.assigneeLabel}</p>
-                  <p className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">
-                    {maintenanceCase.vendorLabel}
-                  </p>
+                  <MaintenanceNextAction actor={actor} maintenanceCase={maintenanceCase} onSelect={onSelect} />
+                  <details className="mt-1 text-xs [overflow-wrap:anywhere]" onClick={(event) => event.stopPropagation()}>
+                    <summary className="cursor-pointer rounded-sm text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">Vendor and cost</summary>
+                    <MaintenanceVendorCost maintenanceCase={maintenanceCase} />
+                  </details>
                 </td>
               </tr>
             ))}
@@ -1268,6 +1273,37 @@ function MaintenanceTable({
         </Table>
       </div>
     </div>
+  );
+}
+
+function MaintenanceLocation({ className, href, label }: { className?: string; href?: string; label: string }) {
+  const classes = cn("block whitespace-normal [overflow-wrap:anywhere]", className);
+  return href ? (
+    <Link className={cn(classes, "rounded-sm underline decoration-border underline-offset-4 hover:decoration-current focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring")} href={href} onClick={(event) => event.stopPropagation()} prefetch={false}>
+      {label}
+    </Link>
+  ) : <span className={classes}>{label}</span>;
+}
+
+function MaintenanceNextAction({ actor, maintenanceCase, onSelect }: { actor: MaintenanceActor; maintenanceCase: MaintenanceCase; onSelect: (taskId: string) => void }) {
+  const workflow = getMaintenanceWorkflowState(maintenanceCase, actor);
+  if (maintenanceCase.isArchived || maintenanceCase.status === "completed" || maintenanceCase.status === "cancelled") {
+    return <p className="mt-0.5 text-xs text-muted-foreground">{maintenanceCase.isArchived ? "Archived" : workflow.nextActionLabel}</p>;
+  }
+  return (
+    <button aria-label={`Next action for ${maintenanceCase.title}: ${workflow.nextActionLabel}`} className="mt-0.5 block max-w-full rounded-sm text-left text-xs whitespace-normal [overflow-wrap:anywhere] underline decoration-border underline-offset-4 hover:decoration-current focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={(event) => { event.stopPropagation(); onSelect(maintenanceCase.id); }} type="button">
+      {workflow.nextActionLabel}
+    </button>
+  );
+}
+
+function MaintenanceVendorCost({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {
+  return (
+    <dl className="mt-2 space-y-1 text-xs">
+      <div><dt className="text-muted-foreground">Vendor</dt><dd>{maintenanceCase.vendorLabel}</dd></div>
+      <div><dt className="text-muted-foreground">Actual cost</dt><dd>{maintenanceCase.actualCostLabel}</dd></div>
+      <div><dt className="text-muted-foreground">Estimate</dt><dd>{maintenanceCase.costEstimateLabel}</dd></div>
+    </dl>
   );
 }
 
@@ -1540,7 +1576,7 @@ function LinkGrid({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {
       ? {
           href: maintenanceCase.hrefs.timeline,
           icon: <ListChecks size={14} />,
-          label: "Timeline",
+          label: "Audit history",
         }
       : null,
     maintenanceCase.hrefs.ledger
@@ -1892,7 +1928,7 @@ export function MaintenanceForm({
               label="Assignee"
               error={state.fieldErrors?.assigneePersonId?.[0]}
             >
-              <SelectControl
+              <MaintenanceReadableSelect
                 ariaLabel="Assignee"
                 name="assigneePersonId"
                 onValueChange={setAssigneePersonId}
@@ -1926,10 +1962,7 @@ export function MaintenanceForm({
 
         </FormSection>
         </MaintenanceOptionalSection>
-        <MaintenanceOptionalSection title="More details">
-                  <Field label="Category" error={state.fieldErrors?.category?.[0]}>
-            <MaintenanceDraftInput defaultValue={defaults.category} name="category" required />
-          </Field>
+        <MaintenanceOptionalSection title="Follow up">
         <FormSection title="Schedule">
           <div className="grid gap-4 sm:grid-cols-3">
             {mode === "create" ? <input name="status" type="hidden" value={defaults.status} /> : (
@@ -2026,6 +2059,8 @@ export function MaintenanceForm({
           </div>
 
         </FormSection>
+        </MaintenanceOptionalSection>
+        <MaintenanceOptionalSection title={mode === "edit" && canRecordActualCost ? "Record cost" : "Cost details"}>
         <FormSection title="Costs">
           <Field label="Vendor" error={state.fieldErrors?.vendorPersonId?.[0]}>
             {costScopeLocked ? (
@@ -2035,7 +2070,7 @@ export function MaintenanceForm({
                 value={defaults.vendorPersonId ?? ""}
               />
             ) : null}
-            <SelectControl
+            <MaintenanceReadableSelect
               ariaLabel="Vendor"
               defaultValue={defaults.vendorPersonId ?? ""}
               disabled={costScopeLocked}
@@ -2083,15 +2118,16 @@ export function MaintenanceForm({
                 : "The property, unit, and vendor are locked to the approved financial history. Update the actual cost only when submitting a new adjustment."}
             </p>
           ) : null}
-
-
-
+        </FormSection>
+        </MaintenanceOptionalSection>
+        <MaintenanceOptionalSection title="More details">
+          <Field label="Category" error={state.fieldErrors?.category?.[0]}>
+            <MaintenanceDraftInput defaultValue={defaults.category} name="category" required />
+          </Field>
           <ChecklistEditor
             error={state.fieldErrors?.checklistText?.[0]}
             value={defaults.checklistText}
           />
-
-        </FormSection>
         </MaintenanceOptionalSection>
         {state.message ? (
           <p

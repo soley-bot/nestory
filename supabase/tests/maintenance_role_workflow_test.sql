@@ -4,6 +4,28 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
 SELECT plan(110);
 
+INSERT INTO auth.users(id,email) VALUES ('00000000-0000-0000-0000-000000000101','synthetic-maintenance-101@example.test'),('00000000-0000-0000-0000-000000000301','synthetic-maintenance-301@example.test'),('00000000-0000-0000-0000-000000000501','synthetic-maintenance-501@example.test'),('00000000-0000-0000-0000-000000000601','synthetic-maintenance-601@example.test') ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.organizations(id,name,slug) VALUES ('00000000-0000-0000-0000-000000000001','Synthetic maintenance company','synthetic-maintenance') ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.organization_branches(id,organization_id,name,code,status) VALUES ('00000000-0000-0000-0000-000000000211','00000000-0000-0000-0000-000000000001','Synthetic assigned branch','SYNTHETIC-A','active') ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.people(id,organization_id,display_name) VALUES ('80000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001','Synthetic maintenance person 1'),('80000000-0000-0000-0000-000000000007','00000000-0000-0000-0000-000000000001','Synthetic maintenance person 7'),('80000000-0000-0000-0000-000000000008','00000000-0000-0000-0000-000000000001','Synthetic maintenance person 8'),('80100000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001','Synthetic owner') ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.person_roles(organization_id,person_id,role) VALUES ('00000000-0000-0000-0000-000000000001','80000000-0000-0000-0000-000000000001','tenant'),('00000000-0000-0000-0000-000000000001','80000000-0000-0000-0000-000000000007','staff'),('00000000-0000-0000-0000-000000000001','80000000-0000-0000-0000-000000000008','staff'),('00000000-0000-0000-0000-000000000001','80100000-0000-0000-0000-000000000001','owner') ON CONFLICT DO NOTHING;
+INSERT INTO public.person_branch_relationships(organization_id,person_id,branch_id) VALUES ('00000000-0000-0000-0000-000000000001','80000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000211'),('00000000-0000-0000-0000-000000000001','80000000-0000-0000-0000-000000000007','00000000-0000-0000-0000-000000000211'),('00000000-0000-0000-0000-000000000001','80000000-0000-0000-0000-000000000008','00000000-0000-0000-0000-000000000211') ON CONFLICT DO NOTHING;
+-- Existing activated custom assignments must not re-enter the legacy INSERT guard.
+INSERT INTO public.organization_members(organization_id,user_id,role,person_id,branch_id)
+SELECT '00000000-0000-0000-0000-000000000001'::uuid,'00000000-0000-0000-0000-000000000101'::uuid,'super_admin',NULL::uuid,NULL::uuid
+WHERE NOT EXISTS (SELECT 1 FROM public.organization_members WHERE organization_id='00000000-0000-0000-0000-000000000001' AND user_id='00000000-0000-0000-0000-000000000101');
+INSERT INTO public.organization_members(organization_id,user_id,role,person_id,branch_id)
+SELECT '00000000-0000-0000-0000-000000000001'::uuid,'00000000-0000-0000-0000-000000000501'::uuid,'operations_manager','80000000-0000-0000-0000-000000000007'::uuid,'00000000-0000-0000-0000-000000000211'::uuid
+WHERE NOT EXISTS (SELECT 1 FROM public.organization_members WHERE organization_id='00000000-0000-0000-0000-000000000001' AND user_id='00000000-0000-0000-0000-000000000501');
+INSERT INTO public.organization_members(organization_id,user_id,role,person_id,branch_id)
+SELECT '00000000-0000-0000-0000-000000000001'::uuid,'00000000-0000-0000-0000-000000000601'::uuid,'operations_member','80000000-0000-0000-0000-000000000008'::uuid,'00000000-0000-0000-0000-000000000211'::uuid
+WHERE NOT EXISTS (SELECT 1 FROM public.organization_members WHERE organization_id='00000000-0000-0000-0000-000000000001' AND user_id='00000000-0000-0000-0000-000000000601');
+ALTER TABLE public.properties DISABLE TRIGGER properties_guard_branch_scope;
+INSERT INTO public.properties(id,organization_id,branch_id,name,code,property_type,rental_structure,status) VALUES ('10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000211','Synthetic maintenance property','SYNTHETIC-P','apartment','multi_unit','active') ON CONFLICT (id) DO NOTHING;
+ALTER TABLE public.properties ENABLE TRIGGER properties_guard_branch_scope;
+INSERT INTO public.units(id,organization_id,property_id,unit_number,status) VALUES ('20000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','SYNTHETIC-U','vacant') ON CONFLICT (id) DO NOTHING;
+
+
 CREATE TEMP TABLE maintenance_role_workflow_state (
   created_task_id uuid
 ) ON COMMIT DROP;
@@ -161,6 +183,7 @@ VALUES (
   'Maintenance Boundary Organization',
   'maintenance-boundary-organization'
 );
+INSERT INTO public.organization_members(organization_id,user_id,role) VALUES ('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000301','super_admin') ON CONFLICT (organization_id,user_id) DO NOTHING;
 
 INSERT INTO public.organization_branches (
   id,

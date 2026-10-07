@@ -167,7 +167,10 @@ function MaintenanceCostHandoffPanel({
 
       {isLocked ? (
         <p className="text-xs leading-5 text-muted-foreground">
-          The submitted amount and vendor cannot be changed. You can still finish the work.
+          The submitted amount and vendor cannot be changed.{" "}
+          {maintenanceCase.status === "completed"
+            ? "The work is complete. Finance review is still pending."
+            : "You can still finish the work."}
         </p>
       ) : (
         <form action={action} className="space-y-3 rounded-md border border-border bg-card p-3">
@@ -311,7 +314,7 @@ function CoordinatedExecutionPanel({
           title="Start work"
         >
           <CoordinatedButton action={action} actionName="start" disabled={pending} taskId={maintenanceCase.id}>
-            <Play size={14} /> Start coordinated work
+            <Play size={14} /> Start work
           </CoordinatedButton>
         </ActionConsequence>
       ) : null}

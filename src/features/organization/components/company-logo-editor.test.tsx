@@ -79,6 +79,23 @@ afterEach(() => {
 });
 
 describe("CompanyLogoEditor", () => {
+  it("shows removal failures inline and allows a successful retry", async () => {
+    removeOrganizationLogoAction.mockRejectedValueOnce(new Error("Synthetic connection failure"));
+    removeOrganizationLogoAction.mockResolvedValueOnce({ status: "success", message: "Company logo removed." });
+    render(<CompanyLogoEditor {...commonProps} />);
+    selectFile();
+    fireEvent.submit(getRemoveForm());
+    expect((await screen.findByRole("alert")).textContent).toBe("The company logo could not be removed. Try again.");
+    await waitForReady();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(screen.getByText("new-logo.png")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Remove logo" }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.submit(getRemoveForm());
+    expect((await screen.findByRole("status")).textContent).toBe("Company logo removed.");
+    expect(removeOrganizationLogoAction).toHaveBeenCalledTimes(2);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
   it("previews a selection locally, preserves proportions, and releases preview URLs", async () => {
     const revoke = vi.fn();
     vi.stubGlobal("URL", class extends URL {

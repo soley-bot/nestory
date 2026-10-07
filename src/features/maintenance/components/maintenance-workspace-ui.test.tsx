@@ -41,6 +41,7 @@ const maintenanceActions = vi.hoisted(() => ({
   executeCoordinated: vi.fn(async () => ({})),
   restore: vi.fn(async () => ({})),
   review: vi.fn(async () => ({})),
+  submitCost: vi.fn(async () => ({})),
   update: vi.fn(async () => ({})),
   updateStatus: vi.fn(async () => ({})),
 }));
@@ -62,6 +63,7 @@ vi.mock("@/features/maintenance/actions", () => ({
     maintenanceActions.executeCoordinated,
   restoreMaintenanceCaseAction: maintenanceActions.restore,
   reviewMaintenanceCompletionAction: maintenanceActions.review,
+  submitMaintenanceCostAction: maintenanceActions.submitCost,
   updateMaintenanceCaseAction: maintenanceActions.update,
   updateMaintenanceStatusAction: maintenanceActions.updateStatus,
 }));
@@ -160,7 +162,8 @@ describe("maintenance workspace redesign contract", () => {
     const compact = within(screen.getByRole("list", { name: "Maintenance cases" }));
     expect(compact.getByRole("link", { name: "Repair sink" })).not.toBeNull();
     expect(compact.getByText("High")).not.toBeNull();
-    expect(compact.getByText("Owner / Vendor", { selector: "summary" })).not.toBeNull();
+    expect(compact.getByText("Assigned to: Pich")).not.toBeNull();
+    expect(compact.getByText("Vendor and cost", { selector: "summary" })).not.toBeNull();
     const preview = compact.getByRole("button", {name: "Preview Repair sink"});
     preview.focus();
     await userEvent.keyboard("{Enter}");
@@ -169,6 +172,69 @@ describe("maintenance workspace redesign contract", () => {
     expect(screen.getByRole("dialog", {name:"Edit maintenance case"})).not.toBeNull();
     fireEvent.click(screen.getByRole("button", {name:"Close drawer"}));
     await waitFor(() => expect(document.activeElement).toBe(preview));
+  });
+
+  it("links full location names without opening quick view and opens the next action by keyboard", async () => {
+    const record = makeCase();
+    record.propertyLabel = "Riverside House — North building, residential wing";
+    record.unitLabel = "Unit 2A — second floor, east corridor";
+    record.hrefs = { ...record.hrefs, property: "/properties?propertyId=property-1", unit: "/units?unitId=unit-1", timeline: "/maintenance-timeline?taskId=task-1" };
+    renderMaintenance({ cases: [record] });
+    const table = within(screen.getByRole("table"));
+    expect(table.getByRole("columnheader", { name: "Assigned to / Next action" })).not.toBeNull();
+    for (const [label, href] of [[record.propertyLabel, record.hrefs.property], [record.unitLabel, record.hrefs.unit]]) {
+      const link = table.getByRole("link", { name: label });
+      expect(link.getAttribute("href")).toBe(href);
+      expect(link.className).not.toMatch(/truncate|line-clamp/);
+      fireEvent.click(link);
+      expect(screen.queryByRole("dialog")).toBeNull();
+    }
+    const nextAction = table.getByRole("button", { name: "Next action for Repair sink: Confirm assignment" });
+    nextAction.focus();
+    await userEvent.keyboard("{Enter}");
+    const preview = within(screen.getByRole("dialog", { name: "Repair sink quick view" }));
+    expect(preview.getByRole("link", { name: "Audit history" }).getAttribute("href")).toBe(record.hrefs.timeline);
+  });
+
+  it("retains vendor and cost details without triggering a row preview", async () => {
+    renderMaintenance();
+    const table = within(screen.getByRole("table"));
+    const disclosure = table.getByText("Vendor and cost", { selector: "summary" });
+    await userEvent.click(disclosure);
+    expect((disclosure.closest("details") as HTMLDetailsElement).open).toBe(true);
+    expect(table.getByText("Rapid Repairs")).not.toBeNull();
+    expect(table.getByText("No actual cost")).not.toBeNull();
+    expect(table.getByText("USD 100.00")).not.toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("keeps missing location links as readable labels and uses member next actions", () => {
+    renderMaintenance({ actorRole: "operations_member" });
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText("Riverside House")).not.toBeNull();
+    expect(table.queryByRole("link", { name: "Riverside House" })).toBeNull();
+    expect(table.getByRole("button", { name: "Next action for Repair sink: Start work" })).not.toBeNull();
+  });
+
+  it.each(["super_admin", "operations_member"] as const)("shows completed work awaiting Finance to %s without reopening work", async (actorRole) => {
+    const record = makeCase();
+    record.status = "completed";
+    record.statusLabel = "Completed";
+    record.actualCostAmount = 45;
+    record.costSubmission = { id: "submission-1", status: "submitted", submittedAt: "2026-10-07T04:00:00Z", reviewReason: null };
+    renderMaintenance({ actorRole, cases: [record] });
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText("Completed")).not.toBeNull();
+    expect(table.getByText("Waiting for Finance review")).not.toBeNull();
+    expect(table.queryByText("No action required")).toBeNull();
+    const row = table.getAllByRole("row")[1]!;
+    row.focus();
+    await userEvent.keyboard("{Enter}");
+    const preview = within(screen.getByRole("dialog", { name: "Repair sink quick view" }));
+    expect(preview.getByText("Waiting for Finance review")).not.toBeNull();
+    expect(preview.queryByRole("button", { name: /start work|approve completion/i })).toBeNull();
+    expect(maintenanceActions.updateStatus).not.toHaveBeenCalled();
+    expect(maintenanceActions.submitCost).not.toHaveBeenCalled();
   });
 
   it("keeps Maintenance queue-first with collapsed filters and keyboard quick view", () => {
@@ -334,7 +400,7 @@ describe("maintenance workspace redesign contract", () => {
     );
 
     expect(screen.queryByRole("combobox", { name: "Status" })).toBeNull();
-    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
+    fireEvent.click(screen.getByText("Follow up", { selector: "summary" }));
     expect(screen.getByRole("combobox", { name: "Priority" }).textContent).toBe("Normal");
     const form = container.querySelector("form")!;
     expect(new FormData(form).get("status")).toBe("pending");
@@ -352,10 +418,10 @@ describe("maintenance workspace redesign contract", () => {
     for (const [name, value] of Object.entries({ propertyId: "property-1", branchId: "branch-1", assigneePersonId: "person-1", vendorPersonId: "vendor-1", actualCostAmount: "75", recurrenceFrequency: "monthly", dueTime: "09:30", reminderDate: "2026-07-17", reminderTime: "08:00", checklistText: "[ ] Check valve" })) expect(data.get(name)).toBe(value);
     const cost = form.elements.namedItem("actualCostAmount") as HTMLInputElement;
     expect(cost.readOnly).toBe(true);
-    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
-    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
+    fireEvent.click(screen.getByText("Record cost", { selector: "summary" }));
+    fireEvent.click(screen.getByText("Record cost", { selector: "summary" }));
     expect(new FormData(form).get("vendorPersonId")).toBe("vendor-1");
-    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
+    fireEvent.click(screen.getByText("Follow up", { selector: "summary" }));
     await screen.findByRole("button", { name: "Reminder date" });
     expect(new FormData(form).get("reminderDate")).toBe("2026-07-17");
     expect(new FormData(form).getAll("reminderDate")).toHaveLength(1);
@@ -372,7 +438,7 @@ describe("maintenance workspace redesign contract", () => {
     fireEvent.change(container.querySelector('[name="costEstimateAmount"]')!, { target: { value: "125" } });
     fireEvent.submit(container.querySelector("form")!);
     await waitFor(() => expect(screen.getByText("Enter a category.")).toBeTruthy());
-    await waitFor(() => expect(container.querySelectorAll("details")[1].open).toBe(true));
+    await waitFor(() => expect(screen.getByText("More details", { selector: "summary" }).closest("details")!.open).toBe(true));
     expect((title as HTMLTextAreaElement).value).toBe("New unsaved repair title");
     const failedDraft = new FormData(container.querySelector("form")!);
     expect(failedDraft.get("description")).toBe("Keep these unsaved notes");
@@ -395,9 +461,9 @@ describe("maintenance workspace redesign contract", () => {
     const form = container.querySelector("form")!;
     const actualCost = form.elements.namedItem("actualCostAmount") as HTMLInputElement;
     expect(actualCost.readOnly).toBe(false);
-    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
+    fireEvent.click(screen.getByText("Record cost", { selector: "summary" }));
     fireEvent.change(actualCost, { target: { value: "125.50" } });
-    fireEvent.click(screen.getByText("More details", { selector: "summary" }));
+    fireEvent.click(screen.getByText("Record cost", { selector: "summary" }));
     fireEvent.submit(form);
     await waitFor(() => expect(screen.getByText("Enter a category.")).toBeTruthy());
     expect(actualCost.value).toBe("125.50");
@@ -876,6 +942,23 @@ describe("maintenance workspace redesign contract", () => {
       screen.getByRole("dialog", { name: "Inspect boiler quick view" }),
     ).not.toBeNull();
   });
+
+  it("keeps long calendar titles and locations readable through event and overflow access", async () => {
+    const record = makeCase("long-calendar", "Replace the kitchen sink supply pipe " + "T".repeat(160));
+    record.propertyLabel = "Riverside House North building residential wing";
+    record.unitLabel = "Unit 2A second floor east corridor";
+    const hidden = { ...record, id: "hidden-calendar", title: "Check the electrical cabinet " + "H".repeat(160), hrefs: { task: "/maintenance?taskId=hidden-calendar" } };
+    renderWorkflowSurface("agenda", [record, makeCase("second"), makeCase("third"), hidden], vi.fn());
+    const event = screen.getByRole("button", { name: new RegExp(record.title) });
+    event.focus();
+    await userEvent.keyboard("{Enter}");
+    const dialog = within(screen.getByRole("dialog", { name: `${record.title} calendar event` }));
+    expect(dialog.getByRole("link", { name: record.title })).not.toBeNull();
+    expect(dialog.getByText(`${record.propertyLabel} / ${record.unitLabel}`)).not.toBeNull();
+    await userEvent.click(dialog.getByRole("button", { name: "Close event" }));
+    await userEvent.click(screen.getByRole("button", { name: "1 more" }));
+    expect(within(screen.getByRole("dialog", { name: "1 more calendar events" })).getByRole("link", { name: hidden.title }).getAttribute("href")).toBe(hidden.hrefs.task);
+  });
 });
 
 describe("maintenance board accessible alternative", () => {
@@ -1271,7 +1354,7 @@ describe("MaintenanceForm drawer draft safety", () => {
   ])("guards actual %s selections", async (name, label, option, value) => {
     const user = await openDrawer();
     const drawer = screen.getByRole("dialog", { name: "Edit maintenance" });
-    await user.click(within(drawer).getByText("More details", { selector: "summary" }));
+    await user.click(within(drawer).getByText(label === "Vendor" ? "Record cost" : "Follow up", { selector: "summary" }));
     within(drawer).getByRole("combobox", { name: label }).focus();
     await user.keyboard("{ArrowDown}");
     await user.click(await screen.findByRole("option", { name: option }));
