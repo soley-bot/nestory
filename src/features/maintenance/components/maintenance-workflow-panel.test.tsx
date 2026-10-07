@@ -58,7 +58,7 @@ describe("MaintenanceInspector role-safe workflow", () => {
     );
 
     expect(screen.getByText("Manager-coordinated work")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /start coordinated work/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /start work/i })).toBeTruthy();
     expect(screen.queryByText("Upload doc")).toBeNull();
     expect(screen.queryByRole("link", { name: "Property" })).toBeNull();
     expect(screen.getByText(/HOME - Home/)).toBeTruthy();
@@ -112,7 +112,7 @@ describe("MaintenanceInspector role-safe workflow", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: /start coordinated work/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /start work/i })).toBeTruthy();
     const consequence = screen.getByRole("region", {
       name: "Start work",
     });
@@ -163,13 +163,14 @@ describe("MaintenanceInspector role-safe workflow", () => {
     expect(screen.queryByText("Link actual cost to ledger")).toBeNull();
   });
 
-  it("shows a submitted maintenance cost as locked and awaiting Finance", () => {
+  it.each(["in_progress", "completed"] as const)("keeps submitted cost locked with accurate %s guidance", (status) => {
     render(
       <MaintenanceWorkflowPanel
         actor={{ branchId: "branch-1", role: "operations_manager" } as never}
         capabilities={getMaintenanceCapabilities("operations_manager")}
         maintenanceCase={{
           ...makeCase(),
+          status,
           actualCostAmount: 125.5,
           actualCostLabel: "USD 125.50",
           costSubmission: {
@@ -187,6 +188,13 @@ describe("MaintenanceInspector role-safe workflow", () => {
     expect(
       screen.queryByRole("button", { name: "Submit cost to Finance" }),
     ).toBeNull();
+    if (status === "completed") {
+      expect(screen.queryByText(/You can still finish the work/)).toBeNull();
+      expect(screen.getByText(/The work is complete\. Finance review is still pending/)).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /finish work/i })).toBeNull();
+    } else {
+      expect(screen.getByText(/You can still finish the work/)).toBeTruthy();
+    }
   });
 
   it("keeps technical identifiers out of ordinary activity details", () => {

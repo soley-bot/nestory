@@ -220,7 +220,7 @@ function BoardListSurface({
     >
       <table
         aria-label="Work order list"
-        className="w-full min-w-[760px] border-collapse text-left text-sm"
+        className="w-full min-w-[760px] table-fixed border-collapse text-left text-sm"
       >
         <thead className="bg-[var(--table-header-bg)] text-xs uppercase text-muted-foreground">
           <tr>
@@ -278,13 +278,13 @@ function BoardListSurface({
                   </Badge>
                 </div>
               </td>
-              <td className="px-3 py-2">
+              <td className="px-3 py-2 whitespace-normal [overflow-wrap:anywhere]">
                 <p>{maintenanceCase.propertyLabel}</p>
                 <p className="text-xs text-muted-foreground">
                   {maintenanceCase.unitLabel}
                 </p>
               </td>
-              <td className="px-3 py-2">
+              <td className="px-3 py-2 whitespace-normal [overflow-wrap:anywhere]">
                 <p>{maintenanceCase.assigneeLabel}</p>
                 <p className="text-xs text-muted-foreground">
                   {maintenanceCase.vendorLabel}

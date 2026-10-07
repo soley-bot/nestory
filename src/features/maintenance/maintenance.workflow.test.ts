@@ -8,6 +8,21 @@ import {
 } from "@/features/maintenance/maintenance.workflow";
 
 describe("maintenance workflow", () => {
+  it.each(["coordinator", "assigned"] as const)("keeps completed work awaiting Finance visible to %s", (workflowMode) => {
+    const maintenanceCase = { assigneeLabel: "Pich", status: "completed" as const, costSubmission: { id: "submission-1", status: "submitted" as const, submittedAt: "2026-10-07T04:00:00Z", reviewReason: null } };
+    const actor = { dataScope: "branch" as const, workflowMode };
+    expect(getMaintenanceWorkflowState(maintenanceCase, actor)).toMatchObject({ stageLabel: "Completed", nextActionLabel: "Waiting for Finance review", isWaitingOnCurrentActor: false });
+    expect(getMaintenanceWorkflowState({ ...maintenanceCase, costSubmission: { ...maintenanceCase.costSubmission, status: "approved" } }, actor).nextActionLabel).toBe("No action required");
+  });
+
+  it("describes coordinator follow-up and closing in plain language", () => {
+    const actor = { dataScope: "branch" as const, workflowMode: "coordinator" as const };
+    const maintenanceCase = { assigneeLabel: "Pich", status: "in_progress" as const, executionMode: "member_assigned" as const };
+    expect(getMaintenanceWorkflowState(maintenanceCase, actor).nextActionLabel).toBe("Follow up on work");
+    expect(getMaintenanceWorkflowState({ ...maintenanceCase, executionMode: "manager_coordinated" }, actor).nextActionLabel).toBe("Finish work or report a problem");
+    expect(getMaintenanceWorkflowState({ ...maintenanceCase, status: "pending", executionMode: "manager_coordinated" }, actor).nextActionLabel).toBe("Start work");
+  });
+
   it("makes submitted work a manager handoff and a member waiting state", () => {
     const maintenanceCase = {
       activity: [],

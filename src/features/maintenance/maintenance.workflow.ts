@@ -47,7 +47,7 @@ export function getCoordinatedMaintenanceActions(
 
 export function getMaintenanceWorkflowState(
   maintenanceCase: Pick<MaintenanceCase, "assigneeLabel" | "status"> &
-    Partial<Pick<MaintenanceCase, "activity" | "blockedReason" | "executionMode" | "latestReviewInstruction">>,
+    Partial<Pick<MaintenanceCase, "activity" | "blockedReason" | "costSubmission" | "executionMode" | "latestReviewInstruction">>,
   actor: MaintenanceActor,
 ): MaintenanceWorkflowState {
   const latestReviewInstruction = maintenanceCase.latestReviewInstruction;
@@ -66,12 +66,13 @@ export function getMaintenanceWorkflowState(
   }
 
   if (maintenanceCase.status === "completed") {
+    const waitingForFinance = maintenanceCase.costSubmission?.status === "submitted";
     return {
       currentOwnerLabel: "Complete",
       isWaitingOnCurrentActor: false,
       latestReviewInstruction,
-      nextActionLabel: "No action required",
-      nextHandoffLabel: "Responsibility has ended",
+      nextActionLabel: waitingForFinance ? "Waiting for Finance review" : "No action required",
+      nextHandoffLabel: waitingForFinance ? "Work is complete. Finance review is still pending." : "Responsibility has ended",
       stageLabel: "Completed",
     };
   }
@@ -111,8 +112,8 @@ export function getMaintenanceWorkflowState(
       isWaitingOnCurrentActor: !isMember,
       latestReviewInstruction,
       nextActionLabel: maintenanceCase.status === "in_progress"
-        ? "Complete or block work"
-        : "Start coordinated work",
+        ? "Finish work or report a problem"
+        : "Start work",
       nextHandoffLabel: "Manager coordinates the work through completion",
       stageLabel,
     };
@@ -230,7 +231,7 @@ function getOperationalStageLabel(status: MaintenanceStatus) {
 
 function getOperationalNextAction(status: MaintenanceStatus, isMember: boolean) {
   if (status === "blocked") return isMember ? "Resume when unblocked" : "Coordinate blocker";
-  if (status === "in_progress") return isMember ? "Complete checklist or submit for review" : "Monitor execution";
+  if (status === "in_progress") return isMember ? "Complete checklist or submit for review" : "Follow up on work";
   if (status === "pending" || status === "scheduled") return isMember ? "Start work" : "Confirm assignment";
   return "No action required";
 }

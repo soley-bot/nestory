@@ -188,7 +188,7 @@ function InboxSurface({
               >
                 <div className="min-w-0 flex-1">
                   <Link
-                    className="block truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                    className="block whitespace-normal [overflow-wrap:anywhere] font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                     href={maintenanceCase.hrefs.task}
                     prefetch={false}
                   >
@@ -258,7 +258,7 @@ function AgendaSurface({
           <CalendarNavLink href={monthLinks.next} label="Next month">
             <ChevronRight size={15} />
           </CalendarNavLink>
-          <h2 className="ml-2 truncate text-xl font-normal leading-7">
+          <h2 className="ml-2 whitespace-normal [overflow-wrap:anywhere] text-xl font-normal leading-7">
             {formatMonthLabel(month)}
           </h2>
         </div>
@@ -278,7 +278,7 @@ function AgendaSurface({
               </span>
             ))}
           </div>
-          <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6">
+          <div className="grid min-h-0 flex-1 auto-rows-[minmax(100px,auto)] grid-cols-7">
             {calendarDays.map((day, index) => (
               <CalendarDayCell
                 activeCaseId={activeCase?.id}
@@ -549,7 +549,7 @@ function MaintenanceCard({
         selected={selected}
       />
       <div className="mt-2 flex min-w-0 text-left">
-        <span className="min-w-0 truncate text-xs font-medium text-muted-foreground">
+        <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere] text-xs font-medium text-muted-foreground">
           {maintenanceCase.dueLabel}
         </span>
       </div>
@@ -612,7 +612,7 @@ function CalendarDayCell({
           {day.dayNumber}
         </span>
       </div>
-      <div className="relative z-10 mt-0.5 space-y-1 overflow-hidden">
+      <div className="relative z-10 mt-0.5 min-w-0 space-y-1">
         {dayCases.slice(0, 3).map((maintenanceCase) => (
           <CalendarCaseButton
             expanded={activeCaseId === maintenanceCase.id}
@@ -664,7 +664,7 @@ function CalendarCaseButton({
       onClick={(event) => onActivate(maintenanceCase, event.currentTarget)}
       type="button"
     >
-      <span className="block truncate font-medium">{maintenanceCase.title}</span>
+      <span className="block whitespace-normal [overflow-wrap:anywhere] font-medium">{maintenanceCase.title}</span>
     </button>
   );
 }
@@ -688,7 +688,7 @@ function CalendarEventPopover({
     <div
       aria-label={`${maintenanceCase.title} calendar event`}
       aria-modal="false"
-      className="absolute left-1/2 top-24 z-30 w-[min(420px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-border bg-card shadow-xl"
+      className="absolute left-1/2 top-24 z-30 min-w-0 w-[min(420px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-border bg-card shadow-xl [overflow-wrap:anywhere]"
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           event.preventDefault();
@@ -717,9 +717,9 @@ function CalendarEventPopover({
           )}
         />
         <div className="min-w-0">
-          <h3 className="break-words text-lg font-normal leading-6">
+          <h3 className="min-w-0 text-lg font-normal leading-6 [overflow-wrap:anywhere]">
             <Link
-              className="inline-flex min-h-6 items-center rounded outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+              className="block min-h-6 min-w-0 max-w-full whitespace-normal rounded outline-none [overflow-wrap:anywhere] hover:underline focus-visible:ring-2 focus-visible:ring-ring"
               href={maintenanceCase.hrefs.task}
               prefetch={false}
             >
@@ -736,7 +736,7 @@ function CalendarEventPopover({
             </Badge>
           </div>
           <div className="mt-4 space-y-2 text-sm">
-            <p className="truncate">
+            <p className="whitespace-normal [overflow-wrap:anywhere]">
               {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
             </p>
             <p className="text-muted-foreground">{maintenanceCase.reminderLabel}</p>
@@ -804,14 +804,14 @@ function CalendarOverflowPopover({
           >
             <div className="min-w-0 flex-1">
               <Link
-                className="flex min-h-6 items-center truncate rounded font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                className="block min-h-6 min-w-0 max-w-full whitespace-normal rounded font-medium outline-none [overflow-wrap:anywhere] hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                 href={maintenanceCase.hrefs.task}
                 prefetch={false}
                 ref={index === 0 ? firstActionRef : undefined}
               >
                 {maintenanceCase.title}
               </Link>
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              <p className="mt-0.5 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">
                 {maintenanceCase.statusLabel} / {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
               </p>
             </div>
@@ -900,14 +900,14 @@ function CardHeader({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <Link
-            className="block truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            className="block whitespace-normal [overflow-wrap:anywhere] font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
             href={maintenanceCase.hrefs.task}
             prefetch={false}
             title={maintenanceCase.title}
           >
             {maintenanceCase.title}
           </Link>
-          <p className="mt-1 truncate text-xs text-muted-foreground">
+          <p className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">
             {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
           </p>
         </div>
@@ -935,8 +935,8 @@ function CardHeader({
         </Badge>
       </div>
       <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-        <span className="truncate">Assignee: {maintenanceCase.assigneeLabel}</span>
-        <span className="truncate">Vendor: {maintenanceCase.vendorLabel}</span>
+        <span className="whitespace-normal [overflow-wrap:anywhere]">Assignee: {maintenanceCase.assigneeLabel}</span>
+        <span className="whitespace-normal [overflow-wrap:anywhere]">Vendor: {maintenanceCase.vendorLabel}</span>
       </div>
     </div>
   );
