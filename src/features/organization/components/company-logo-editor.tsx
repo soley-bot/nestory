@@ -73,6 +73,10 @@ export const CompanyLogoEditor = forwardRef<SettingsEditorHandle, {
         setState(result);
         if (result.status === "success") router.refresh();
         return result;
+      } catch {
+        const result: OrganizationActionState = { status: "error", message: "The company logo could not be removed. Try again." };
+        setState(result);
+        return result;
       } finally {
         actionPendingRef.current = false;
       }

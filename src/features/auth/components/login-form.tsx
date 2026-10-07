@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useId } from "react";
-import { loginAction, type AuthActionState } from "@/features/auth/actions";
+import { useId } from "react";
+import { loginAction } from "@/features/auth/actions";
+import { useAuthForm } from "./use-auth-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-const initialState: AuthActionState = {};
 
 function FieldError({ errors, id }: { errors?: string[]; id: string }) {
   if (!errors?.length) {
@@ -17,17 +16,18 @@ function FieldError({ errors, id }: { errors?: string[]; id: string }) {
 }
 
 export function LoginForm({ nextPath }: { nextPath?: string }) {
-  const [state, action, pending] = useActionState(loginAction, initialState);
+  const { state, action, pending, formRef, onSubmit } = useAuthForm(loginAction);
   const emailErrorId = useId();
   const passwordErrorId = useId();
 
   return (
-    <form action={action} className="min-w-0 space-y-5 [overflow-wrap:anywhere]">
+    <form action={action} aria-busy={pending} className="min-w-0 space-y-5 [overflow-wrap:anywhere]" onSubmit={onSubmit} ref={formRef}>
       <input name="next" type="hidden" value={nextPath ?? "/workspace"} />
       {state.message ? (
         <p
           className="rounded-md border border-danger/25 bg-danger-soft px-3.5 py-3 text-sm leading-5 text-danger"
           role="alert"
+          tabIndex={-1}
         >
           {state.message}
         </p>
@@ -42,6 +42,7 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
           className="mt-2 box-border h-11 px-3 text-sm text-foreground placeholder:text-muted-foreground"
           name="email"
           placeholder="you@example.com"
+          readOnly={pending}
           required
           type="email"
         />
@@ -57,6 +58,7 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
           className="mt-2 box-border h-11 px-3 text-sm text-foreground placeholder:text-muted-foreground"
           name="password"
           placeholder="Enter password"
+          readOnly={pending}
           required
           type="password"
         />
