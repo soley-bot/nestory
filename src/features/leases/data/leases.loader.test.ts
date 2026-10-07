@@ -77,6 +77,17 @@ describe("lease screen data readiness", () => {
     });
   });
 
+  it("fails the lease screen when the required business-date RPC denies an otherwise readable scoped lease", async () => {
+    const { client } = leaseLoaderStub({
+      rows: leaseRows(1), scopedOnly: true,
+      businessDateResult: { data: null, count: null, status: 403, statusText: "Forbidden", error: { code: "42501", message: "Not authorized", details: "", hint: "" } },
+    });
+    createSupabaseServerClient.mockResolvedValue(client);
+    await expect(getLeasesScreenData(organizationId)).rejects.toThrow("Could not load the company rent business date");
+    expect(client.rpc).toHaveBeenCalledWith("get_lease_rent_business_date", { p_organization_id: organizationId });
+    expect(createSupabaseServerClient).toHaveBeenCalledTimes(1);
+  });
+
   it("uses scoped readiness for a focused lease without finance authority context", async () => {
     // Break caught: the legacy readiness resolver throws 42501 after the list starts working.
     const rows = leaseRows(1);
@@ -250,6 +261,7 @@ describe("lease screen data readiness", () => {
 
 function leaseLoaderStub({
   readinessResult,
+  businessDateResult,
   rows,
   scopedOnly = false,
   contextResult,
@@ -258,6 +270,7 @@ function leaseLoaderStub({
   directDepositEvents = [],
 }: {
   readinessResult?: QueryResult;
+  businessDateResult?: QueryResult;
   rows: ReturnType<typeof leaseRows>;
   scopedOnly?: boolean;
   contextResult?: QueryResult;
@@ -287,7 +300,7 @@ function leaseLoaderStub({
     },
   );
   const rpc = vi.fn((name: string, args: Record<string, unknown>) => {
-    if (name === "get_lease_rent_business_date") return query(ok("2026-09-28"));
+    if (name === "get_lease_rent_business_date") return query(businessDateResult ?? ok("2026-09-28"));
     if (name === "get_lease_read_context") {
       return query(contextResult ?? ok({
         properties: [{ archived_at: null, code: "PILOT", id: propertyId, name: "Pilot Property", rental_structure: "single_space" }],

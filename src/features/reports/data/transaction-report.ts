@@ -221,57 +221,45 @@ export async function getTransactionReport({
       periodEnd: period.end,
     };
     if (needs("management-fee")) {
-      const fees = await loadTransactionReportPages((from, to) =>
-        supabase
-          .from("management_fee_occurrences")
-          .select(
-            "id, organization_id, property_id, lease_id, tenant_invoice_id, fee_date, currency, amount, reversal_of_id, tenant_invoices!inner(unit_id)",
-            { count: "exact" },
-          )
-          .eq("organization_id", organizationId)
-          .eq("property_id", property.id)
-          .gte("fee_date", period.start)
-          .lte("fee_date", period.end)
-          .order("id")
-          .range(from, to),
-      );
-      for (const fee of fees) {
+      // Fee table SELECT requires internal authority. The existing P&L RPC
+      // applies the caller's property permission and exposes the same fee facts.
+      for await (const fee of iterateRecognizedTransactionEvents(profitClient, scope, "management-fee")) {
         if (
-          fee.organization_id !== organizationId ||
-          fee.property_id !== property.id ||
+          fee.organizationId !== organizationId ||
+          fee.propertyId !== property.id ||
           fee.currency !== "USD" ||
-          fee.fee_date < period.start ||
-          fee.fee_date > period.end ||
-          !fee.tenant_invoices
+          fee.recognizedOn < period.start ||
+          fee.recognizedOn > period.end ||
+          fee.sourceParentType !== "tenant_invoice" || !fee.sourceParentId
         )
           throw new Error("Management fee source escaped report scope.");
-        const amount = parseExactMoneyToCents(fee.amount);
+        const amount = fee.signedAmountCents;
         if (
-          (fee.reversal_of_id && amount > BigInt(0)) ||
-          (!fee.reversal_of_id && amount < BigInt(0))
+          (fee.isReversal && amount > BigInt(0)) ||
+          (!fee.isReversal && amount < BigInt(0))
         )
           throw new Error(
             "Management fee reversal has inconsistent signed money.",
           );
         add({
-          id: `management_fee_occurrence:${fee.id}`,
-          sourceId: fee.id,
+          id: fee.eventKey,
+          sourceId: fee.sourceId,
           category: "Management fee",
-          date: fee.fee_date,
-          propertyId: fee.property_id,
-          unitId: fee.tenant_invoices.unit_id,
+          date: fee.recognizedOn,
+          propertyId: fee.propertyId,
+          unitId: fee.unitId,
           type: "management-fee",
-          status: fee.reversal_of_id ? "reversal" : "incurred",
+          status: fee.isReversal ? "reversal" : "incurred",
           description: "Management fee",
           amountCents: amount,
           payeeId: null,
-          href: `/rent-income?invoiceId=${encodeURIComponent(fee.tenant_invoice_id)}`,
+          href: `/rent-income?invoiceId=${encodeURIComponent(fee.sourceParentId)}`,
           recordType: "property-account-entry",
         });
       }
     }
     if (needs("rent-charge"))
-      for await (const event of iterateRentChargeEvents(profitClient, scope)) {
+      for await (const event of iterateRecognizedTransactionEvents(profitClient, scope, "rent-charge")) {
         add({
           id: event.eventKey,
           sourceId: event.sourceId,
@@ -750,9 +738,10 @@ async function enrichPaidCosts(
   }
 }
 
-async function* iterateRentChargeEvents(
+async function* iterateRecognizedTransactionEvents(
   client: OwnerProfitLossEventsRpcClient,
   scope: OwnerProfitLossEventScope,
+  type: "rent-charge" | "management-fee",
 ) {
   let cursor: OwnerProfitLossEventCursor | null = null;
   let scanned = 0;
@@ -762,7 +751,7 @@ async function* iterateRentChargeEvents(
     for (const event of page.rows) {
       if (++scanned > 100_000)
         throw new Error(
-          "Rent charge source exceeds 100,000 scanned events; narrow the scope.",
+          "Recognized transaction source exceeds 100,000 scanned events; narrow the scope.",
         );
       // Cursor and exhaustion use the complete page, including unrelated events.
       cursor = {
@@ -770,16 +759,15 @@ async function* iterateRentChargeEvents(
         sourceType: event.sourceType,
         sourceId: event.sourceId,
       };
-      if (
-        event.sourceType !== "tenant_invoice_line" ||
-        event.categoryReportingGroup !== "rent"
-      )
+      if (type === "management-fee"
+        ? event.sourceType !== "management_fee_occurrence"
+        : event.sourceType !== "tenant_invoice_line" || event.categoryReportingGroup !== "rent")
         continue;
       if (matched.has(event.eventKey))
-        throw new Error("Duplicate rent charge source.");
+        throw new Error("Duplicate recognized transaction source.");
       matched.add(event.eventKey);
       if (matched.size > MAX_ROWS)
-        throw new Error("Rent charges exceed 10,000 rows; narrow the scope.");
+        throw new Error("Recognized transactions exceed 10,000 rows; narrow the scope.");
       yield event;
     }
     if (page.rows.length < page.pageSize) return;

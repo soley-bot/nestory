@@ -616,6 +616,10 @@ describe("LeaseDetailScreen", () => {
     fireEvent.change(within(dialog).getByLabelText("Corrected rent amount"), {
       target: { value: "1100" },
     });
+    await user.click(within(dialog).getByRole("button", { name: "Preview correction" }));
+    expect((within(dialog).getByLabelText("Reason") as HTMLInputElement).validity.valueMissing).toBe(true);
+    expect(historicalCorrectionMocks.preview).not.toHaveBeenCalled();
+    expect(within(dialog).queryByRole("button", { name: "Save this month's rent" })).toBeNull();
     await user.type(
       within(dialog).getByLabelText("Reason"),
       "Signed correction for this month",
@@ -625,6 +629,11 @@ describe("LeaseDetailScreen", () => {
     expect(within(dialog).getByText("Rent balance after edit")).not.toBeNull();
     expect(within(dialog).getByText("700.00")).not.toBeNull();
     expect(within(dialog).getByRole("button", { name: "Save this month's rent" })).not.toBeNull();
+    const preview = within(dialog).getByRole("region", { name: "Correction preview" });
+    expect(within(preview).getByText("400.00", { exact: true })).toBeTruthy();
+    fireEvent.change(within(dialog).getByLabelText("Corrected rent amount"), { target: { value: "1101" } });
+    expect(within(dialog).getByText("The inputs changed after preview. Preview again before applying.", { exact: true })).toBeTruthy();
+    expect(within(dialog).queryByRole("button", { name: "Save this month's rent" })).toBeNull();
   });
 
   it.each([false, true])("describes correction cash honestly without promising tenant credit (blocked: %s)", async (blocked) => {

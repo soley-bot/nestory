@@ -40,6 +40,45 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("PropertySetupScreen", () => {
+  // This full wizard journey includes several real dialogs and user interactions;
+  // keep the same bounded allowance as the full lease-form journeys on serial runners.
+  it("daily workflow submits the moved-in setup lease and exact billing values through visible controls", async () => {
+    const user = userEvent.setup();
+    navigation.createLease.mockResolvedValue({ status: "success", message: "Lease saved.", leaseId: "lease-1" });
+    render(<PropertySetupScreen data={creationData} step={3} />);
+    await user.click(screen.getByRole("button", { name: "Create new lease" }));
+    const form = screen.getByRole("form", { name: "Add lease form" }) as HTMLFormElement;
+    await user.click(within(form).getByRole("button", { name: "Next" }));
+    for (const [name, value] of [["leaseStartDate", "2026-10-01"], ["leaseEndDate", "2027-04-01"]]) {
+      const input = form.elements.namedItem(name!);
+      if (!(input instanceof HTMLInputElement)) throw new Error(`Expected input ${name}`);
+      fireEvent.input(input, { target: { value } });
+    }
+    await user.click(within(form).getByRole("combobox", { name: /^Move-in status(?:\s*\(required\))?$/ }));
+    await user.click(screen.getByRole("option", { name: "Tenant moved in on the lease start date" }));
+    await user.click(within(form).getByRole("button", { name: "Next" }));
+    for (const [name, value] of [["monthlyRentAmount", "120"], ["rentDueDay", "1"], ["depositAmount", "0"]]) {
+      const input = form.elements.namedItem(name!);
+      if (!(input instanceof HTMLInputElement)) throw new Error(`Expected input ${name}`);
+      fireEvent.change(input, { target: { value } });
+    }
+    await user.click(within(form).getByRole("button", { name: "Next" }));
+    await user.click(within(form).getByRole("button", { name: "Change billing setup" }));
+    await user.click(within(form).getByRole("combobox", { name: "Who collects rent?" }));
+    await user.click(screen.getByRole("option", { name: /^Collected by (?!owner$)/ }));
+    await user.click(within(form).getByRole("combobox", { name: "Management fee" }));
+    await user.click(screen.getByRole("option", { name: "Percentage" }));
+    const managementFeeValue = form.elements.namedItem("managementFeeValue");
+    if (!(managementFeeValue instanceof HTMLInputElement)) throw new Error("Expected management fee input");
+    fireEvent.change(managementFeeValue, { target: { value: "8" } });
+    await user.click(within(form).getByRole("button", { name: "Save tenant and lease" }));
+    await waitFor(() => expect(navigation.createLease).toHaveBeenCalledTimes(1));
+    const payload = navigation.createLease.mock.calls[0]![1] as FormData;
+    for (const [name, value] of Object.entries({ status: "active", actualMoveInDate: "2026-10-01", leaseStartDate: "2026-10-01", leaseEndDate: "2027-04-01", monthlyRentAmount: "120", rentDueDay: "1", depositAmount: "0", collectionRoute: "through_ips", managementFeeMode: "percentage", managementFeeValue: "8" })) {
+      expect(payload.get(name), name).toBe(value);
+    }
+  }, 15_000);
+
   it("keeps lease review available after the actual parent closes creation, back and refresh", async () => {
     const user = userEvent.setup();
     let resolveSave!: (value: object) => void;

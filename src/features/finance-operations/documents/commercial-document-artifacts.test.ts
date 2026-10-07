@@ -57,6 +57,39 @@ afterEach(() => {
 });
 
 describe("commercial document artifact publication", () => {
+  it.each([
+    ["legacy synthetic", "00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000701", false],
+    ["valid synthetic", "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000701", true],
+  ])("runs the real receipt renderer and step-up guard for %s identities", async (_name, org, actor, valid) => {
+    const actual = await vi.importActual<typeof import("@/lib/auth/privileged-step-up-guard")>("@/lib/auth/privileged-step-up-guard");
+    requirePrivilegedStepUp.mockImplementation(actual.requirePrivilegedStepUp);
+    const harness = artifactHarness({ sourceResponses: [receiptSource({ issuer: { organization_id: org, name: "Synthetic company" } })] });
+    const sessionId = "30000000-0000-4000-8000-000000000001";
+    const client = { ...harness.client, auth: {
+      getClaims: vi.fn().mockResolvedValue({ data: { claims: { session_id: sessionId, sub: actor } }, error: null }),
+      getUser: vi.fn().mockResolvedValue({ data: { user: { id: actor } }, error: null }),
+    } };
+    const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => name === "assert_privileged_email_step_up_satisfied"
+      ? { data: true, error: null }
+      : harness.admin.rpc(name, args));
+    vi.mocked(createSupabaseAdminClient).mockReturnValue({ ...harness.admin, rpc } as never);
+    const publication = publishTenantReceiptArtifactImpl({ client: client as unknown as SupabaseClient<Database>, organizationId: org, actorId: actor, paymentId });
+    if (!valid) {
+      await expect(publication).rejects.toThrow("Privileged email verification required");
+      expect(client.auth.getClaims).not.toHaveBeenCalled();
+      expect(client.auth.getUser).not.toHaveBeenCalled();
+      expect(createSupabaseAdminClient).not.toHaveBeenCalled();
+      expect(eventsOf(harness.events, "storage.upload")).toHaveLength(0);
+      expect(eventsOf(harness.events, "client.register")).toHaveLength(0);
+    } else {
+      await expect(publication).resolves.toMatchObject({ artifactId });
+      expect(rpc).toHaveBeenCalledWith("assert_privileged_email_step_up_satisfied", { p_organization_id: org, p_user_id: actor, p_session_id: sessionId });
+      const bytes = onlyEvent(harness.events, "storage.upload").bytes as Uint8Array;
+      expect(Buffer.from(bytes).subarray(0, 8).toString("latin1")).toBe("%PDF-1.4");
+      expect(eventsOf(harness.events, "client.register")).toHaveLength(1);
+    }
+  });
+
   it("fails before admin Storage publication when exact-session proof is unavailable", async () => {
     const harness = artifactHarness();
     vi.mocked(createSupabaseAdminClient).mockReturnValue(harness.admin as never);

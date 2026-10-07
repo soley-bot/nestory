@@ -3,39 +3,27 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import type { OwnerStatementPresentation } from "@/features/reports/data/pdf";
 import type { OwnerStatementPublicationModel } from "@/features/reports/data/owner-statement-report";
+import { loadScopedFinanceContext } from "@/features/finance-operations/data/scoped-finance-context";
 import { loadStatementTransactionDetails } from "./owner-statement-transaction-details";
 
 export async function loadOwnerStatementPresentation(
   client: SupabaseClient<Database>,
   model: OwnerStatementPublicationModel,
 ): Promise<OwnerStatementPresentation> {
-  const [organization, property, owner] = await Promise.all([
-    client
-      .from("organizations")
-      .select("name, logo_storage_path")
-      .eq("id", model.organizationId)
-      .single(),
-    client
-      .from("properties")
-      .select("name, code")
-      .eq("organization_id", model.organizationId)
-      .eq("id", model.propertyId)
-      .single(),
-    client
-      .from("people")
-      .select("display_name")
-      .eq("organization_id", model.organizationId)
-      .eq("id", model.ownerPersonId)
-      .single(),
-  ]);
+  // Finance readers may not open property records. Reuse the checked finance
+  // context, then select exact frozen identities from its authorized choices.
+  const finance = await loadScopedFinanceContext(client, model.organizationId, model.propertyId);
+  const property = finance.properties.find(row => row.id === model.propertyId);
+  const owner = finance.people.find(row => row.id === model.ownerPersonId);
+  if (!property) throw new Error("Owner Statement property identity could not be loaded.");
+  if (!owner) throw new Error("Owner Statement owner identity could not be loaded.");
+  const organization = await client
+    .from("organizations")
+    .select("name, logo_storage_path")
+    .eq("id", model.organizationId)
+    .single();
   if (organization.error || !organization.data) {
     throw new Error("Owner Statement company identity could not be loaded.");
-  }
-  if (property.error || !property.data) {
-    throw new Error("Owner Statement property identity could not be loaded.");
-  }
-  if (owner.error || !owner.data) {
-    throw new Error("Owner Statement owner identity could not be loaded.");
   }
 
   const logo = organization.data.logo_storage_path
@@ -43,10 +31,10 @@ export async function loadOwnerStatementPresentation(
     : undefined;
   return {
     logo,
-    transactionDetails: await loadStatementTransactionDetails(client, model, { ownerName: owner.data.display_name, organizationName: organization.data.name }),
+    transactionDetails: await loadStatementTransactionDetails(client, model, { ownerName: owner.display_name, organizationName: organization.data.name }, finance),
     organizationName: organization.data.name,
-    ownerName: owner.data.display_name,
-    propertyLabel: [property.data.code, property.data.name].filter(Boolean).join(" / "),
+    ownerName: owner.display_name,
+    propertyLabel: [property.code, property.name].filter(Boolean).join(" / "),
   };
 }
 
