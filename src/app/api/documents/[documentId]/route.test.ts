@@ -37,6 +37,7 @@ describe("GET /api/documents/[documentId]", () => {
     const bytes = validPdfBytes();
     maybeSingle.mockResolvedValue({
       data: {
+        content_sha256: null,
         file_name: 'lease/..\\signed:\"2026\r\nX-Evil: yes?.pdf',
         mime_type: "application/pdf",
         size_bytes: bytes.byteLength,

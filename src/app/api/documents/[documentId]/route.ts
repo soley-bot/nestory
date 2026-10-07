@@ -80,19 +80,18 @@ export async function GET(
     if (bytes.byteLength !== document.size_bytes) {
       return textResponse(UNAVAILABLE, 409);
     }
+    if (
+      document.content_sha256 !== null
+      && createHash("sha256").update(bytes).digest("hex") !== document.content_sha256
+    ) {
+      return textResponse(UNAVAILABLE, 409);
+    }
+
     const verified = await validateUploadedFileContent(
       new File([bytes], document.file_name, { type: document.mime_type }),
       [document.mime_type],
     );
     if (!verified.ok) {
-      const retainedHash = createHash("sha256").update(bytes).digest("hex");
-      if (
-        document.content_sha256 !== null
-        && retainedHash !== document.content_sha256
-      ) {
-        return textResponse(UNAVAILABLE, 409);
-      }
-
       const legacyFilename = `${sanitizeAttachmentFilename(document.file_name).slice(0, 160)}.unverified-download`;
       const body = bytes.buffer.slice(
         bytes.byteOffset,
