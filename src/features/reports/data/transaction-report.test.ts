@@ -635,10 +635,8 @@ describe("transaction loader source authority", () => {
       financeContext: context,
       supabase: api,
     });
-    expect(events.calls).toHaveLength(0);
-    expect(calls.map((call) => call.table)).toEqual([
-      "management_fee_occurrences",
-    ]);
+    expect(events.calls).toHaveLength(1);
+    expect(calls).toEqual([]);
   });
   it("rejects inaccessible scope and source failures", async () => {
     const { api } = client();
@@ -660,31 +658,25 @@ describe("transaction loader source authority", () => {
       }),
     ).rejects.toThrow("RPC denied");
   });
-  it("reads actual signed fee occurrences without scanning unrelated P&L events", async () => {
-    events.fail = true; // Any use of the unfiltered P&L RPC would fail this test.
+  it("reads signed fee occurrences through property-scoped Finance after more than 10,000 unrelated events", async () => {
     const fee = {
-      id: "fee",
-      organization_id: "org",
-      property_id: "p1",
-      fee_date: "2026-09-08",
-      amount: "1.25",
+      sourceId: "fee", eventKey: "management_fee_occurrence:fee", sourceType: "management_fee_occurrence",
+      organizationId: "org",
+      propertyId: "p1",
+      recognizedOn: "2026-09-08",
+      signedAmountCents: BigInt(125),
       currency: "USD",
-      reversal_of_id: null,
-      lease_id: "lease",
-      tenant_invoice_id: "invoice",
-      tenant_invoices: { unit_id: "u1" },
+      isReversal: false,
+      leaseId: "lease",
+      sourceParentId: "invoice", sourceParentType: "tenant_invoice",
+      unitId: "u1",
     };
-    const { api, calls } = client({
-      management_fee_occurrences: [
-        fee,
-        { ...fee, id: "reverse", amount: "-0.25", reversal_of_id: "fee" },
-        ...Array.from({ length: 10001 }, (_, i) => ({
-          ...fee,
-          id: `old-fee-${i}`,
-          fee_date: "2020-01-01",
-        })),
-      ],
-    });
+    events.profit = [
+      ...Array.from({ length: 10001 }, (_, i) => ({ sourceType: "owner_invoice_line", sourceId: `other-${i}`, recognizedOn: "2026-09-08", eventKey: `owner_invoice_line:other-${i}` })),
+      fee,
+      { ...fee, sourceId: "reverse", eventKey: "management_fee_occurrence:reverse", signedAmountCents: BigInt(-25), isReversal: true },
+    ];
+    const { api, calls } = client();
     const report = await getTransactionReport({
       organizationId: "org",
       viewQuery: query({ report: "management-fees" }),
@@ -693,10 +685,9 @@ describe("transaction loader source authority", () => {
     });
     expect(report.summary[0].value).toBe("$1.00");
     expect(report.rows).toHaveLength(2);
-    expect(events.calls).toHaveLength(0);
-    expect(calls.map((call) => call.table)).toEqual([
-      "management_fee_occurrences",
-    ]);
+    expect(report.rows.map(row => row.sourceLinks[0].href)).toEqual(["/rent-income?invoiceId=invoice", "/rent-income?invoiceId=invoice"]);
+    expect(events.calls).toHaveLength(21);
+    expect(calls).toEqual([]);
   });
   it("continues past 10,000 unrelated P&L events without losing a later rent charge", async () => {
     events.profit = [

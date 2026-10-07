@@ -2,6 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import type { OwnerStatementPublicationModel } from "./owner-statement-report";
 import type { ScopedFinanceContext } from "@/features/finance-operations/data/scoped-finance-context";
+import { loadOwnerProfitLossEventPage } from "./owner-profit-loss-events";
+import { getReportMonthRange } from "../reports.filters";
+import type { OwnerProfitLossEvent, OwnerProfitLossEventCursor, OwnerProfitLossEventsRpcClient } from "./owner-profit-loss-events.types";
 
 export type StatementTransactionDetail = { unit: string; name: string; category: string };
 type Row = Record<string, unknown>;
@@ -26,6 +29,7 @@ export async function loadStatementTransactionDetails(
     throw new Error("Statement property is unavailable in the authorized finance context.");
   }
   const cache = new Map<string, Promise<Row | null>>();
+  const feeMonths = new Map<string, Promise<Map<string, OwnerProfitLossEvent>>>();
   function read(table: Table, columns: string, id: string, field = "id", fingerprint?: string) {
     const key = `${table}:${field}:${id}:${columns}:${fingerprint ?? ""}`;
     if (!cache.has(key)) cache.set(key, (async () => {
@@ -60,6 +64,43 @@ export async function loadStatementTransactionDetails(
     const item = await required("finance_expense_items", "id, property_id, unit_id, vendor_label, category", value(responsibility, "finance_expense_item_id"));
     return { unit: await unit(item), name: String(item.vendor_label ?? ""), category: value(item, "category") };
   }
+  async function managementFee(id: string, charge?: Row): Promise<StatementTransactionDetail> {
+    // Direct fee SELECTs require an internal authority context that a normal
+    // Finance request does not have. Reuse the checked property P&L projection.
+    const line = charge ?? await required("owner_invoice_lines", "id, property_id, source_type, source_id, recognized_on", id, "source_id");
+    if (line.source_type !== "management_fee" || line.source_id !== id) throw new Error("Statement fee source mismatch.");
+    const date = value(line, "recognized_on");
+    if (!/^\d{4}-(0[1-9]|1[0-2])-\d{2}$/.test(date)) throw new Error("Statement fee recognition date is invalid.");
+    const month = date.slice(0, 7);
+    const period = getReportMonthRange(month);
+    // Historical line dates were backfilled from a monthly invoice's first
+    // issue date. Search that month by exact fee ID, never the cash-settlement month.
+    if (!feeMonths.has(month)) feeMonths.set(month, (async () => {
+      const fees = new Map<string, OwnerProfitLossEvent>();
+      const scope = {
+        organizationId: model.organizationId, propertyId: model.propertyId,
+        currency: model.currency, periodStart: period.start, periodEnd: period.end,
+      };
+      let cursor: OwnerProfitLossEventCursor | null = null;
+      let scanned = 0;
+      for (;;) {
+        const page = await loadOwnerProfitLossEventPage(client as unknown as OwnerProfitLossEventsRpcClient, scope, cursor);
+        for (const event of page.rows) {
+          if (++scanned > 100_000) throw new Error("Statement fee lookup exceeds 100,000 events.");
+          if (event.recognizedOn < period.start || event.recognizedOn > period.end) throw new Error("Statement fee recognition date mismatch.");
+          cursor = { recognizedOn: event.recognizedOn, sourceId: event.sourceId, sourceType: event.sourceType };
+          if (event.sourceType === "management_fee_occurrence") fees.set(event.sourceId, event);
+        }
+        if (page.rows.length < page.pageSize) break;
+      }
+      return fees;
+    })());
+    const fee = (await feeMonths.get(month)!).get(id);
+    if (!fee || fee.sourceParentType !== "tenant_invoice" || !fee.sourceParentId) {
+      throw new Error("Statement management fee source is unavailable; resolve its unit before export.");
+    }
+    return { unit: await unit({ unit_id: fee.unitId }), name: identity.organizationName, category: "Management Fees" };
+  }
   async function resolve(type: string, id: string, depth = 0, fingerprint?: string): Promise<StatementTransactionDetail> {
     if (depth > 16) throw new Error("Statement reversal chain is invalid.");
     if (type === "tenant_rent_receipt" || type === "owner_direct_rent_receipt") {
@@ -69,18 +110,14 @@ export async function loadStatementTransactionDetails(
       return { unit: await unit(line), name: String(invoice.recipient_label ?? ""), category: String(line.customer_label || "Rent") };
     }
     if (type === "management_fee_occurrence") {
-      const fee = await required("management_fee_occurrences", "id, property_id, tenant_invoice_id, lease_id", id);
-      const invoice = fee.tenant_invoice_id
-        ? await required("tenant_invoices", "id, property_id, unit_id", value(fee, "tenant_invoice_id"))
-        : await required("leases", "id, property_id, unit_id", value(fee, "lease_id"));
-      return { unit: await unit(invoice), name: identity.organizationName, category: "Management Fees" };
+      return managementFee(id);
     }
     if (type === "owner_paid_cost") return expense(await required("ips_expense_responsibilities", "id, property_id, finance_expense_item_id", id));
     if (type === "owner_invoice_payment") {
       const allocation = await read("owner_payment_allocations", "id, owner_invoice_line_id", id)
         ?? await required("owner_charge_cash_allocations", "id, property_id, owner_invoice_line_id", id);
-      const line = await required("owner_invoice_lines", "id, property_id, source_type, source_id, reversal_of_id", value(allocation, "owner_invoice_line_id"));
-      if (line.source_type === "management_fee") return resolve("management_fee_occurrence", value(line, "source_id"), depth + 1);
+      const line = await required("owner_invoice_lines", "id, property_id, source_type, source_id, recognized_on, reversal_of_id", value(allocation, "owner_invoice_line_id"));
+      if (line.source_type === "management_fee") return managementFee(value(line, "source_id"), line);
       const responsibility = await required("ips_expense_responsibilities", "id, property_id, finance_expense_item_id", String(line.reversal_of_id ?? line.id), "owner_invoice_line_id");
       return expense(responsibility);
     }
