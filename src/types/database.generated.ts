@@ -11653,6 +11653,16 @@ export type Database = {
         }
         Returns: Json
       }
+      get_deposit_statement_source: {
+        Args: {
+          p_application_id: string
+          p_organization_id: string
+          p_owner_person_id: string
+          p_property_id: string
+          p_source_fingerprint: string
+        }
+        Returns: Json
+      }
       get_expense_submission_evidence: {
         Args: { p_organization_id: string; p_submission_ids: string[] }
         Returns: {

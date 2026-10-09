@@ -4,7 +4,7 @@ import type { OwnerStatementPublicationModel } from "./owner-statement-report";
 import type { ScopedFinanceContext } from "@/features/finance-operations/data/scoped-finance-context";
 import { loadOwnerProfitLossEventPage } from "./owner-profit-loss-events";
 import { resolveDepositStatementDetail, type DepositStatementSourceReader } from "./deposit-statement-detail-adapter";
-import { createDepositStatementSourceReader, type DepositStatementRpcClient } from "./deposit-statement-source-reader";
+import { createDepositStatementSourceReader } from "./deposit-statement-source-reader";
 import { getReportMonthRange } from "../reports.filters";
 import type { OwnerProfitLossEvent, OwnerProfitLossEventCursor, OwnerProfitLossEventsRpcClient } from "./owner-profit-loss-events.types";
 
@@ -26,7 +26,7 @@ export async function loadStatementTransactionDetails(
   client: SupabaseClient<Database>, model: OwnerStatementPublicationModel,
   identity: { ownerName: string; organizationName: string },
   finance: StatementFinanceReferences,
-  depositSourceReader: DepositStatementSourceReader = createDepositStatementSourceReader(client as unknown as DepositStatementRpcClient),
+  depositSourceReader: DepositStatementSourceReader = createDepositStatementSourceReader(client),
 ): Promise<Record<number, StatementTransactionDetail>> {
   if (!finance.properties.some(row => row.id === model.propertyId)) {
     throw new Error("Statement property is unavailable in the authorized finance context.");

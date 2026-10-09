@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { unzipSync, strFromU8 } from "fflate";
 import { loadStatementTransactionDetails } from "./owner-statement-transaction-details";
@@ -35,11 +36,22 @@ it.each(packets)("renders authorized deposit $operation in PDF and XLSX without 
   const presentation = { ...identity, propertyLabel: "Synthetic property", transactionDetails: details };
   const bytes = buildOwnerStatementPdf(model, presentation);
   const pdf = Buffer.from(bytes).toString("latin1");
-  const sheet = strFromU8(unzipSync(buildOwnerStatementXlsx(model, presentation))["xl/worksheets/sheet1.xml"]);
+  const workbook = buildOwnerStatementXlsx(model, presentation);
+  const sheet = strFromU8(unzipSync(workbook)["xl/worksheets/sheet1.xml"]);
   expect(isContainedPdf(bytes)).toBe(true);
   expect(sheet).toContain(reversal ? "Deposit Rent Reversal" : "Deposit Applied to Rent");
+  expect(sheet).toContain("Deposit reclassification");
+  const pdfText = [...pdf.matchAll(/\(((?:\\.|[^\\)])*)\) Tj/g)].map(match => match[1]).join("");
+  expect(pdfText.replace(/\s+/g, "")).toContain("Depositreclassification");
   expect(sheet).toContain(source.unitId ? "A1" : "Property-level");
   expect(sheet).toContain(`<v>${reversal ? "1150.00" : "1350.00"}</v>`);
   expect(pdf).toContain(reversal ? "$1,150.00" : "$1,350.00");
   expect(model).toEqual(before);
+  if (process.env.DEPOSIT_EXPORT_OUTPUT_DIR) {
+    const directory = process.env.DEPOSIT_EXPORT_OUTPUT_DIR;
+    mkdirSync(directory, { recursive: true });
+    const stem = `synthetic-deposit-${source.operation}-${source.applicationId}`;
+    writeFileSync(join(directory, `${stem}.pdf`), bytes);
+    writeFileSync(join(directory, `${stem}.xlsx`), workbook);
+  }
 });
