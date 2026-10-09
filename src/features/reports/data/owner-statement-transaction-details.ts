@@ -3,6 +3,8 @@ import type { Database } from "@/types/database";
 import type { OwnerStatementPublicationModel } from "./owner-statement-report";
 import type { ScopedFinanceContext } from "@/features/finance-operations/data/scoped-finance-context";
 import { loadOwnerProfitLossEventPage } from "./owner-profit-loss-events";
+import { resolveDepositStatementDetail, type DepositStatementSourceReader } from "./deposit-statement-detail-adapter";
+import { createDepositStatementSourceReader, type DepositStatementRpcClient } from "./deposit-statement-source-reader";
 import { getReportMonthRange } from "../reports.filters";
 import type { OwnerProfitLossEvent, OwnerProfitLossEventCursor, OwnerProfitLossEventsRpcClient } from "./owner-profit-loss-events.types";
 
@@ -24,6 +26,7 @@ export async function loadStatementTransactionDetails(
   client: SupabaseClient<Database>, model: OwnerStatementPublicationModel,
   identity: { ownerName: string; organizationName: string },
   finance: StatementFinanceReferences,
+  depositSourceReader: DepositStatementSourceReader = createDepositStatementSourceReader(client as unknown as DepositStatementRpcClient),
 ): Promise<Record<number, StatementTransactionDetail>> {
   if (!finance.properties.some(row => row.id === model.propertyId)) {
     throw new Error("Statement property is unavailable in the authorized finance context.");
@@ -131,6 +134,11 @@ export async function loadStatementTransactionDetails(
       if (!event) throw new Error("Statement reversal source is unavailable.");
       const original = await required("owner_event_allocation_sets", "id, property_id, source_type, source_line_id, source_fingerprint", value(event, "reversal_of_allocation_set_id"));
       return resolve(value(original, "source_type"), value(original, "source_line_id"), depth + 1, value(original, "source_fingerprint"));
+    }
+    if (type === "deposit_rent_application") {
+      if (!fingerprint) throw new Error("Deposit statement source fingerprint is missing.");
+      return resolveDepositStatementDetail({ organizationId: model.organizationId, propertyId: model.propertyId,
+        ownerPersonId: model.ownerPersonId, applicationId: id, sourceFingerprint: fingerprint }, finance, depositSourceReader);
     }
     if (type === "security_deposit_receipt" || type === "security_deposit_refund") {
       const event = await required("lease_deposit_events", "id, property_id, lease_deposit_id", id);
