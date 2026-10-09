@@ -53,6 +53,12 @@ real file generation from synthetic SQL responses, **not authenticated browser
 downloads**, publication or production behavior. The report remains explicitly
 limited to deposit settlement; it does not certify complete owner profit/loss.
 
+The first draft CI run exposed an existing document-restore test race: it could
+observe success text inside the dialog before the closing effect ran. The test
+now waits for the dialog to close without weakening its permission or duplicate-
+write assertions. All 17 tests in that file passed locally; revised candidate CI
+must still clear. This correction does not alter production application code.
+
 One interrupted command session left an idle database created by this task. Its
 exact generated name was verified with no active sessions before local cleanup.
 The harness now records its database name, source hash, completion and cleanup.
