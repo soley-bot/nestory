@@ -8,7 +8,7 @@ export default async function ReportsPage() {
 
   return (
     <WorkspacePage title="Reports">
-      <ReportsDirectory canReadFinance={context.capabilities.canReadFinance} />
+      <ReportsDirectory canReadFinance={context.capabilities.canReadFinance} canReadDeposits={context.permissionKeys.has("finance.view") && context.permissionKeys.has("leases.view")} />
     </WorkspacePage>
   );
 }

@@ -188,6 +188,8 @@ export type TrustedReport = {
   kind: ReportKind;
   ownerOptions?: ReportOwnerOption[];
   periodLabel: string;
+  /** Preserve source evidence and warnings across export continuation rows. */
+  preserveRowDetails?: boolean;
   rows: TrustedReportRow[];
   scopeLabel: string;
   scopeValidation?: {
