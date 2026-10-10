@@ -94,3 +94,17 @@ No other stack or historical recovery keeper was modified.
 
 Historical mocked or prior 24-hour recovery evidence does not replace these
 checks. The prior recovery keeper was deliberately left untouched.
+# Product activation checkpoint — 2026-10-10
+
+The approved candidate now includes eight forward migrations (the checked reader,
+five preserved SQL companions, the activity audit classifier, and approved grants),
+ordinary-session lease controls for custody/application/reversal, and a deposit
+settlement report with PDF/Excel downloads. No production migration has run yet.
+
+The complete 201-migration chain was installed into the separate local project
+`nestory-deposit-acceptance-20261009` (API 58321, database 58322). Database lint and
+generated public types passed. The assembled disposable SQL harness passed all
+53 checks and removed its own database. Activation-focused tests passed 121/121;
+new custody-action and report membership boundary tests passed 11/11. TypeScript
+and full ESLint passed. Authenticated browser acceptance is in progress; it is
+not yet a release clearance. The original checkout remains untouched.

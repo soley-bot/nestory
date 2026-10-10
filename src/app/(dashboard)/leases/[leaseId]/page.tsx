@@ -113,6 +113,7 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
         canEditCurrentRent:
           context.permissionKeys.has("finance.correct_records") && canViewFinance,
         canCorrectHistoricalRent: context.roleKind === "super_admin",
+        canCorrectFinance: context.permissionKeys.has("finance.correct_records"),
       }}
       historicalRentCorrectionCandidates={historicalRentCorrectionCandidates}
       currentRentEditInvoiceId={

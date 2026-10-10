@@ -152,6 +152,405 @@ export type Database = {
           },
         ]
       }
+      deposit_rent_allocations: {
+        Row: {
+          amount: number
+          application_id: string
+          created_at: string
+          created_by: string
+          id: string
+          invoice_id: string
+          invoice_line_id: string
+          organization_id: string
+          property_id: string
+          reversal_of_allocation_id: string | null
+          signed_amount: number | null
+        }
+        Insert: {
+          amount: number
+          application_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          invoice_id: string
+          invoice_line_id: string
+          organization_id: string
+          property_id: string
+          reversal_of_allocation_id?: string | null
+          signed_amount?: number | null
+        }
+        Update: {
+          amount?: number
+          application_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          invoice_id?: string
+          invoice_line_id?: string
+          organization_id?: string
+          property_id?: string
+          reversal_of_allocation_id?: string | null
+          signed_amount?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deposit_rent_allocations_invoice_line_id_fkey"
+            columns: ["invoice_line_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_line_balances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_allocations_invoice_line_id_fkey"
+            columns: ["invoice_line_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_allocations_organization_id_application_id_pr_fkey"
+            columns: [
+              "organization_id",
+              "application_id",
+              "property_id",
+              "invoice_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "deposit_rent_applications"
+            referencedColumns: [
+              "organization_id",
+              "id",
+              "property_id",
+              "invoice_id",
+            ]
+          },
+          {
+            foreignKeyName: "deposit_rent_allocations_reversal_of_allocation_id_fkey"
+            columns: ["reversal_of_allocation_id"]
+            isOneToOne: true
+            referencedRelation: "deposit_rent_allocations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deposit_rent_applications: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          custodian: string
+          custody_confirmation_id: string
+          deposit_event_id: string
+          id: string
+          invoice_id: string
+          lease_deposit_id: string
+          liability_account_id: string
+          organization_id: string
+          owner_person_id: string | null
+          property_id: string
+          reason: string
+          reversal_of_application_id: string | null
+          settlement_date: string
+          unit_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          custodian: string
+          custody_confirmation_id: string
+          deposit_event_id: string
+          id?: string
+          invoice_id: string
+          lease_deposit_id: string
+          liability_account_id: string
+          organization_id: string
+          owner_person_id?: string | null
+          property_id: string
+          reason: string
+          reversal_of_application_id?: string | null
+          settlement_date: string
+          unit_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          currency?: Database["public"]["Enums"]["currency_code"]
+          custodian?: string
+          custody_confirmation_id?: string
+          deposit_event_id?: string
+          id?: string
+          invoice_id?: string
+          lease_deposit_id?: string
+          liability_account_id?: string
+          organization_id?: string
+          owner_person_id?: string | null
+          property_id?: string
+          reason?: string
+          reversal_of_application_id?: string | null
+          settlement_date?: string
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deposit_rent_applications_custody_confirmation_id_fkey"
+            columns: ["custody_confirmation_id"]
+            isOneToOne: false
+            referencedRelation: "deposit_rent_custody_confirmations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_applications_deposit_event_id_fkey"
+            columns: ["deposit_event_id"]
+            isOneToOne: true
+            referencedRelation: "lease_deposit_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_applications_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_balances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_applications_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_applications_lease_deposit_id_fkey"
+            columns: ["lease_deposit_id"]
+            isOneToOne: false
+            referencedRelation: "lease_deposits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_applications_liability_account_id_fkey"
+            columns: ["liability_account_id"]
+            isOneToOne: false
+            referencedRelation: "finance_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_applications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_applications_owner_person_id_fkey"
+            columns: ["owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_applications_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_applications_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_applications_reversal_of_application_id_fkey"
+            columns: ["reversal_of_application_id"]
+            isOneToOne: true
+            referencedRelation: "deposit_rent_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_applications_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deposit_rent_custody_confirmations: {
+        Row: {
+          confirmed_on: string
+          created_at: string
+          created_by: string
+          custodian: string
+          evidence_reference: string
+          id: string
+          lease_deposit_id: string
+          liability_account_id: string
+          organization_id: string
+          owner_person_id: string | null
+          property_id: string
+          verified_held_amount: number
+        }
+        Insert: {
+          confirmed_on: string
+          created_at?: string
+          created_by: string
+          custodian: string
+          evidence_reference: string
+          id?: string
+          lease_deposit_id: string
+          liability_account_id: string
+          organization_id: string
+          owner_person_id?: string | null
+          property_id: string
+          verified_held_amount: number
+        }
+        Update: {
+          confirmed_on?: string
+          created_at?: string
+          created_by?: string
+          custodian?: string
+          evidence_reference?: string
+          id?: string
+          lease_deposit_id?: string
+          liability_account_id?: string
+          organization_id?: string
+          owner_person_id?: string | null
+          property_id?: string
+          verified_held_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deposit_rent_custody_confirmations_lease_deposit_id_fkey"
+            columns: ["lease_deposit_id"]
+            isOneToOne: true
+            referencedRelation: "lease_deposits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_custody_confirmations_liability_account_id_fkey"
+            columns: ["liability_account_id"]
+            isOneToOne: false
+            referencedRelation: "finance_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_custody_confirmations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_custody_confirmations_owner_person_id_fkey"
+            columns: ["owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_custody_confirmations_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_custody_confirmations_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["property_id"]
+          },
+        ]
+      }
+      deposit_rent_owner_bridges: {
+        Row: {
+          allocation_set_id: string
+          application_id: string
+          created_at: string
+          created_by: string
+          custody_signed_amount: number
+          ips_held_signed_amount: number
+          liability_account_id: string
+          organization_id: string
+          owner_person_id: string
+          property_owner_id: string
+        }
+        Insert: {
+          allocation_set_id: string
+          application_id: string
+          created_at?: string
+          created_by: string
+          custody_signed_amount: number
+          ips_held_signed_amount: number
+          liability_account_id: string
+          organization_id: string
+          owner_person_id: string
+          property_owner_id: string
+        }
+        Update: {
+          allocation_set_id?: string
+          application_id?: string
+          created_at?: string
+          created_by?: string
+          custody_signed_amount?: number
+          ips_held_signed_amount?: number
+          liability_account_id?: string
+          organization_id?: string
+          owner_person_id?: string
+          property_owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deposit_rent_owner_bridges_allocation_set_id_fkey"
+            columns: ["allocation_set_id"]
+            isOneToOne: true
+            referencedRelation: "owner_event_allocation_sets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_owner_bridges_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "deposit_rent_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_owner_bridges_liability_account_id_fkey"
+            columns: ["liability_account_id"]
+            isOneToOne: false
+            referencedRelation: "finance_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_owner_bridges_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_owner_bridges_owner_person_id_fkey"
+            columns: ["owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_rent_owner_bridges_property_owner_id_fkey"
+            columns: ["property_owner_id"]
+            isOneToOne: false
+            referencedRelation: "property_owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           archived_at: string | null
@@ -10626,6 +11025,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           currency: Database["public"]["Enums"]["currency_code"] | null
+          deposit_settled_amount: number | null
           due_date: string | null
           id: string | null
           invoice_number: string | null
@@ -10705,6 +11105,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           customer_label: string | null
+          deposit_settled_amount: number | null
           description: string | null
           id: string | null
           income_item_id: string | null
@@ -10778,6 +11179,18 @@ export type Database = {
           p_source_type: string
         }
         Returns: Json
+      }
+      apply_deposit_to_rent: {
+        Args: {
+          p_allocations: Json
+          p_date: string
+          p_deposit: string
+          p_invoice: string
+          p_key: string
+          p_org: string
+          p_reason: string
+        }
+        Returns: string
       }
       approve_rent_policy_version: {
         Args: { p_organization_id: string; p_policy_id: string }
@@ -10880,6 +11293,17 @@ export type Database = {
         }
         Returns: string
       }
+      begin_deposit_rent_journal_attempt: {
+        Args: {
+          p_key: string
+          p_lease: string
+          p_org: string
+          p_payload_hash: string
+          p_revision: number
+          p_token: string
+        }
+        Returns: Json
+      }
       begin_paid_cost_evidence_cleanup: {
         Args: { p_organization_id: string; p_storage_path: string }
         Returns: boolean
@@ -10940,6 +11364,20 @@ export type Database = {
       commit_unit_import_run: {
         Args: { p_import_run_id: string; p_organization_id: string }
         Returns: Json
+      }
+      confirm_deposit_rent_custody: {
+        Args: {
+          p_custodian: string
+          p_date: string
+          p_deposit: string
+          p_evidence: string
+          p_expected_held: number
+          p_key: string
+          p_liability_account: string
+          p_org: string
+          p_owner: string
+        }
+        Returns: string
       }
       confirm_owner_collected_rent: {
         Args: {
@@ -11618,6 +12056,16 @@ export type Database = {
         }
         Returns: string
       }
+      execute_deposit_rent_journal: {
+        Args: {
+          p_key: string
+          p_lease: string
+          p_org: string
+          p_payload_hash: string
+          p_token: string
+        }
+        Returns: Json
+      }
       fingerprint_document_content: {
         Args: {
           p_content_sha256: string
@@ -11650,6 +12098,19 @@ export type Database = {
           p_organization_id: string
           p_owner_person_id: string
           p_property_id: string
+        }
+        Returns: Json
+      }
+      get_deposit_rent_journal: {
+        Args: { p_lease: string; p_org: string }
+        Returns: Json
+      }
+      get_deposit_rent_report_sources: {
+        Args: {
+          p_end: string
+          p_org: string
+          p_properties: string[]
+          p_unit?: string
         }
         Returns: Json
       }
@@ -11834,6 +12295,20 @@ export type Database = {
           tenant_name: string
           unit_id: string
         }[]
+      }
+      get_local_deposit_rent_candidates: {
+        Args: { p_lease_id: string; p_organization_id: string }
+        Returns: Json
+      }
+      get_local_lease_deposit_report_snapshot: {
+        Args: {
+          p_organization_id: string
+          p_period_end: string
+          p_period_start: string
+          p_property_ids: string[]
+          p_unit_id?: string
+        }
+        Returns: Json
       }
       get_maintenance_cost_status_history: {
         Args: { p_organization_id: string; p_task_ids: string[] }
@@ -12370,6 +12845,15 @@ export type Database = {
       post_petty_cash_entry: {
         Args: { p_entry_id: string; p_organization_id: string }
         Returns: string
+      }
+      prepare_deposit_rent_journal: {
+        Args: {
+          p_expected_snapshot: string
+          p_lease: string
+          p_org: string
+          p_payload: Json
+        }
+        Returns: Json
       }
       prepare_privileged_email_step_up: {
         Args: {
@@ -13000,6 +13484,16 @@ export type Database = {
           p_publication_id: string
         }
         Returns: Json
+      }
+      reverse_deposit_rent_application: {
+        Args: {
+          p_date: string
+          p_key: string
+          p_org: string
+          p_original: string
+          p_reason: string
+        }
+        Returns: string
       }
       reverse_expense: {
         Args: {

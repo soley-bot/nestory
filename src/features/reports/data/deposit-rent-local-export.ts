@@ -56,7 +56,7 @@ export function createLocalDepositExportHandler(dependencies: LocalDepositExport
       // Repeat both readers after rendering, immediately before release.
       await revalidateLocalDepositScope(client, reportScope);
       return new Response(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer, {
-        headers: { ...headers, "X-Nestory-Local-Validation": "deposit-rent-only",
+        headers: { ...headers, "X-Nestory-Report-Scope": "deposit-rent-only",
           "Content-Type": scope.format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           "Content-Disposition": `attachment; filename="${report.exportFilenameBase}.${scope.format}"` },
       });

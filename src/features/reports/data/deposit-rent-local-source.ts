@@ -128,9 +128,9 @@ export async function loadLocalDepositReport(client: LocalDepositClient, scope: 
   if (projection.model.incomeCents === null) throw new LocalDepositExportError(409, "Deposit settlement attribution is incomplete for this scope.");
   // Complete only for this bounded settlement report. Never certify whole-owner
   // profit or show absent expense families as zero.
-  projection.report.title = "Local deposit rent settlement report - Cash basis";
-  projection.report.description = "Local validation draft: applied deposits only; not a complete owner profit-and-loss report. No new bank receipt.";
-  projection.report.exportFilenameBase = `local-deposit-rent-cash-${scope.periodStart}-${scope.periodEnd}`;
+  projection.report.title = "Deposit rent settlements - Cash basis";
+  projection.report.description = "Rent settled from existing deposits on the application date, including reversals. No new bank receipt. This report covers deposit settlements only.";
+  projection.report.exportFilenameBase = `deposit-rent-settlements-${scope.periodStart}-${scope.periodEnd}`;
   projection.report.summary = projection.report.summary.slice(0, 1).map(metric => ({ ...metric, label: "Rent settled from deposits" }));
   return projection.report;
 }

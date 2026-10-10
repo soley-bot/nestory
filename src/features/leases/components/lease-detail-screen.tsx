@@ -38,6 +38,8 @@ import { LeasePaymentResolutionView } from "@/features/leases/components/lease-p
 import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
 import { FeePaymentDateModal } from "@/features/leases/components/fee-payment-date-modal";
 import { LeaseForm } from "@/features/leases/components/lease-form";
+import { DepositRentModal } from "@/features/leases/local-deposit-rent/shared-journal-modal";
+import { DepositCustodyModal } from "@/features/leases/local-deposit-rent/custody-modal";
 import { findConfiguredAccountId } from "@/features/finance-accounts/finance-account-selection";
 import {
   cancelLeaseActivationAction,
@@ -106,6 +108,7 @@ export type LeaseActionPermissions = {
   canPrepare: boolean;
   canEditCurrentRent?: boolean;
   canCorrectHistoricalRent?: boolean;
+  canCorrectFinance?: boolean;
 };
 
 type LeaseRouteNotice = {
@@ -158,6 +161,7 @@ export function LeaseDetailScreen({
   const { getBusinessDateValue } = useBusinessDate();
   const router = useRouter();
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
+  const [depositDialog, setDepositDialog] = useState<"rent" | "custody" | null>(null);
   const [transition, setTransition] = useState<LeaseTransition | null>(null);
   const [termChange, setTermChange] = useState<LeaseTermChange | null>(null);
   const [historicalRentCorrectionOpen, setHistoricalRentCorrectionOpen] =
@@ -415,6 +419,10 @@ export function LeaseDetailScreen({
             />
           ) : drawer.mode === "deposit" ? (
             <LeaseDepositPanel
+              canUseForRent={canViewFinance && permissions.canChangeTerms && (canRecordPayments || Boolean(permissions.canCorrectFinance))}
+              canConfirmCustody={canViewFinance && permissions.canChangeTerms && Boolean(permissions.canCorrectFinance)}
+              onUseForRent={() => { setDrawer(null); setDepositDialog("rent"); }}
+              onConfirmCustody={() => { setDrawer(null); setDepositDialog("custody"); }}
               canManage={permissions.canChangeTerms && (
                 !lease.isArchived || ["ended", "terminated", "cancelled"].includes(lease.statusValue)
               )}
@@ -438,6 +446,13 @@ export function LeaseDetailScreen({
           )}
         </SideDrawer>
       ) : null}
+
+      {depositDialog === "rent" ? <DepositRentModal leaseId={lease.id} onClose={() => setDepositDialog(null)} onSuccess={message => {
+        setDepositDialog(null); setStatusMessage(message); router.refresh();
+      }}/> : null}
+      {depositDialog === "custody" ? <DepositCustodyModal leaseId={lease.id} accounts={leaseDepositAccounts} onClose={() => setDepositDialog(null)} onSuccess={message => {
+        setDepositDialog(null); setStatusMessage(message); router.refresh();
+      }}/> : null}
 
       {transition && currentOccupancy ? (
         transition === "activate" ? (
@@ -553,12 +568,20 @@ function preserveDepositSubmission(form: HTMLFormElement | null) {
 }
 
 function LeaseDepositPanel({
+  canUseForRent,
+  canConfirmCustody,
+  onUseForRent,
+  onConfirmCustody,
   canManage,
   lease,
   leaseDepositAccounts,
   onClose,
   onSuccess,
 }: {
+  canUseForRent: boolean;
+  canConfirmCustody: boolean;
+  onUseForRent: () => void;
+  onConfirmCustody: () => void;
   canManage: boolean;
   lease: LeaseSummary;
   leaseDepositAccounts: FinanceOperationsData["leaseDepositAccounts"];
@@ -736,6 +759,14 @@ function LeaseDepositPanel({
           </section>
         );
       })}
+
+      {canUseForRent || canConfirmCustody ? <section aria-label="Deposit rent settlement" className="space-y-3 border-t border-border pt-4">
+        <p className="text-sm text-muted-foreground">Use confirmed deposit money to settle issued rent. The deposit balance and rent due change together; no new bank payment is recorded.</p>
+        <div className="flex flex-wrap gap-2">
+          {canUseForRent ? <Button type="button" onClick={onUseForRent}>Use deposit for rent</Button> : null}
+          {canConfirmCustody ? <Button type="button" variant="outline" onClick={onConfirmCustody}>Confirm deposit custody</Button> : null}
+        </div>
+      </section> : null}
 
       <DepositActionMessage state={depositState} />
       <DepositActionMessage state={reversalState} />

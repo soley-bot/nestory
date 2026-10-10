@@ -7,6 +7,7 @@ import {Modal} from "@/components/ui/modal";
 import {SelectControl} from "@/components/ui/select-control";
 import type {DepositRentDraft,DepositRentPreview,DepositRentRecovery} from "./contracts";
 import {listDormantDepositRent,previewDormantDepositRent,confirmDormantDepositRent} from "./shared-journal-product-actions";
+import {listDepositRent,previewDepositRent,confirmDepositRent} from "./shared-journal-product-actions";
 import type {SharedJournalActions,SharedJournalView} from "./shared-journal-workflow";
 // Shared backend variant of existing controls; frozen original is unchanged.
 function SharedDepositRentModalContent({leaseId,actions,onClose,onSuccess}:{leaseId:string;actions:SharedJournalActions;onClose:()=>void;onSuccess:(message:string)=>void;enabledForLocalTests?:boolean}){
@@ -58,6 +59,7 @@ function SharedDepositRentModalContent({leaseId,actions,onClose,onSuccess}:{leas
             <label className="grid gap-1.5 text-sm font-medium">Deposit<SelectControl ariaLabel="Deposit" name="depositId" value={depositId} required placeholder="Choose a deposit" options={view.deposits.map(row=>({value:row.id,label:`${row.label} · USD ${row.amount} available · ${row.custodianLabel}${row.eligible?"":" · unavailable"}`,disabled:!row.eligible}))}
               onValueChange={value=>{invalidate();setDepositId(value);}}/></label>
             {deposit?<p>{deposit.custodianLabel}. Available deposit: USD {deposit.amount}.</p>:null}
+            {view.deposits.some(row=>!row.eligible)?<p className="text-sm text-muted-foreground">Unavailable deposits need confirmed custody and matching owner allocations, with one unchanged owner. Review deposit custody and the property’s owner balances before applying rent.</p>:null}
             <label className="grid gap-1.5 text-sm font-medium">Invoice<SelectControl ariaLabel="Invoice" name="invoiceId" value={invoiceId} required placeholder="Choose an issued invoice" options={view.invoices.filter(row=>row.issued).map(row=>({value:row.id,label:`${row.label} · USD ${row.amount} due`,disabled:row.amount==="0.00"}))}
               onValueChange={value=>{invalidate();setInvoiceId(value);setSelection("");setAmount("");}}/></label>
           </>:null}
@@ -85,3 +87,8 @@ export function SharedJournalDepositRentModal(props:Parameters<typeof SharedDepo
 }
 
 export function DormantSharedJournalDepositRentModal(props:Omit<Parameters<typeof SharedDepositRentModalContent>[0],"enabledForLocalTests"|"actions">){return <SharedJournalDepositRentModal {...props} actions={{list:listDormantDepositRent,preview:previewDormantDepositRent,confirm:confirmDormantDepositRent}} enabledForLocalTests={false}/>;}
+
+const productActions = {list:listDepositRent,preview:previewDepositRent,confirm:confirmDepositRent};
+export function DepositRentModal(props:Omit<Parameters<typeof SharedDepositRentModalContent>[0],"enabledForLocalTests"|"actions">) {
+  return <SharedDepositRentModalContent {...props} actions={productActions}/>;
+}

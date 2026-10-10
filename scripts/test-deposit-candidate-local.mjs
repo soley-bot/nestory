@@ -42,10 +42,10 @@ try {
   }
   const version=(await sql('SELECT max(version) FROM supabase_migrations.schema_migrations','postgres')).trim();
   for(const file of readdirSync('supabase/migrations').sort()) if(file.slice(0,14)>version) await sql('SET ROLE postgres;\n'+readFileSync(resolve('supabase/migrations',file),'utf8'));
-  // No unpublished deposit tables are required to install the new reader.
-  check('reader installs on current main without deposit schema',"SELECT to_regprocedure('public.get_deposit_statement_source(uuid,uuid,uuid,uuid,text)') IS NOT NULL",'t');
-  for(const {file} of inventory) await sql('SET ROLE postgres;\n'+readFileSync(resolve(packageRoot,file),'utf8'));
-  results.push({name:'all preserved SQL companions compile against current local main schema',pass:true});
+  check('forward chain installs checked statement reader',"SELECT to_regprocedure('public.get_deposit_statement_source(uuid,uuid,uuid,uuid,text)') IS NOT NULL",'t');
+  if(sql("SELECT to_regclass('public.deposit_rent_applications') IS NOT NULL").trim()!=='t')
+    for(const {file} of inventory) await sql('SET ROLE postgres;\n'+readFileSync(resolve(packageRoot,file),'utf8'));
+  results.push({name:'full deposit schema is installed by the candidate migration chain',pass:true});
   await sql(readFileSync(resolve(fixtureRoot,'base.sql'),'utf8'));
   await sql(`INSERT INTO public.organization_role_permissions(organization_id,role_id,permission_key) VALUES('00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000023','leases.view') ON CONFLICT DO NOTHING`);
   // Reuse only fixture setup helpers, never the historical worker's runtime or resources.

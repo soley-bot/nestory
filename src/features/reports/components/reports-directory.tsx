@@ -8,7 +8,7 @@ const groups = [
   { title: "Owners", kinds: ["monthly-owner-activity", "unit-profit-loss"] },
 ];
 
-export function ReportsDirectory({ canReadFinance = false }: { canReadFinance?: boolean }) {
+export function ReportsDirectory({ canReadFinance = false, canReadDeposits = false }: { canReadFinance?: boolean; canReadDeposits?: boolean }) {
   return <div className="workspace-gutter-x max-w-6xl space-y-4 py-3">
     <p className="text-sm text-muted-foreground">Choose a report to filter, review source records, and export.</p>
     {groups.map((group) => <section aria-label={`${group.title} reports`} key={group.title}>
@@ -17,6 +17,7 @@ export function ReportsDirectory({ canReadFinance = false }: { canReadFinance?: 
         {reportCatalog.filter((report) => group.kinds.includes(report.kind)).map((report) =>
           <DirectoryLink key={report.kind} href={`/reports/${report.kind}`} title={report.title} description={report.description} />)}
         {group.title === "Owners" && canReadFinance ? <DirectoryLink href="/balances?view=statements" title="Official owner statements" description="Saved monthly statements for each owner. Download the retained PDF or Excel." /> : null}
+        {group.title === "Rent" && canReadDeposits ? <DirectoryLink href="/reports/deposit-rent" title="Deposit rent settlements" description="Rent settled from existing deposits, reversals, and custody changes. Download PDF or Excel." /> : null}
       </div>
     </section>)}
   </div>;

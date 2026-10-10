@@ -51,9 +51,9 @@ describe("unmounted, disabled local source/client/export integration",()=>{
     const h=harness();const response=await h.handle(request());expect(response.status).toBe(200);
     expect(h.rpc.mock.calls.map(([name])=>name)).toEqual(["get_finance_read_context","get_lease_read_context","get_local_lease_deposit_report_snapshot","get_finance_read_context","get_lease_read_context"]);
     expect(h.rpc.mock.calls[1][1].p_lease_ids).toEqual([lease]);
-    expect(response.headers.get("Cache-Control")).toBe("private, no-store");expect(response.headers.get("X-Nestory-Local-Validation")).toBe("deposit-rent-only");
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");expect(response.headers.get("X-Nestory-Report-Scope")).toBe("deposit-rent-only");
     const sheet=strFromU8(unzipSync(new Uint8Array(await response.arrayBuffer()))["xl/worksheets/sheet1.xml"]!);
-    expect(sheet).toContain("Local deposit rent settlement report");expect(sheet).toContain("Rent settled from deposits");expect(sheet).toContain("USD 300.00");
+    expect(sheet).toContain("Deposit rent settlements");expect(sheet).toContain("Rent settled from deposits");expect(sheet).toContain("USD 300.00");
     expect(sheet).toContain(application);expect(sheet).toContain("new bank receipt 0.00");expect(sheet).not.toContain("Net operating income");
     expect(h.dependencies.membership).toHaveBeenCalledTimes(2);
   });

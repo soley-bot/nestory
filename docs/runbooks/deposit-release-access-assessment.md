@@ -1,9 +1,8 @@
 # Deposit release access assessment — 2026-10-09
 
-Production access changes are **held**. The current instruction permits tested
-releases but excludes security/access changes; the coordinator has requested this
-assessment before obtaining any action-time approval. No production migration,
-grant, activation, merge, deployment, or customer financial mutation was performed.
+The user approved the specific production access changes in this assessment on
+2026-10-09 at 23:39 UTC. Production release still requires a cleared candidate and
+the protected release workflow. Testing uses only isolated synthetic data.
 
 ## Candidate and current state
 
@@ -15,10 +14,11 @@ grant, activation, merge, deployment, or customer financial mutation was perform
   selected additive files. Five financial SQL bodies are retained byte-for-byte
   under `docs/design/deposit-rent-candidate`, with a SHA-256 manifest. Their old
   filenames are historical proposal identities, **not installed migrations**.
-- Product journal and report entry points remain hard-disabled and unmounted.
+- The release candidate mounts ordinary-session lease actions, explicit custody
+  confirmation, and a bounded deposit settlement report with PDF/Excel downloads.
 - Current main has none of these new deposit-application/journal definitions.
-  This is a Git comparison, not a fresh hosted ACL attestation. Hosted preflight
-  must verify actual state before any production write.
+  A fresh hosted catalog check confirmed their absence (see the baseline below).
+  Hash-based hosted preflight remains required before any production write.
 
 ## Proposed access changes
 
@@ -83,3 +83,8 @@ Source: preserved SQL and the repository release runbook. Supabase documents the
 distinction between function execution grants and row authorization in its
 [database function guide](https://supabase.com/docs/guides/database/functions)
 and [RLS guide](https://supabase.com/docs/guides/database/postgres/row-level-security).
+## Approval and hosted baseline
+
+The user approved the specific access changes above on 2026-10-09 at 23:39 UTC. This approval permits the exact grants and policy described here after applicable validation; it does not waive release checks or authorize customer-data testing.
+
+Read-only hosted catalog inspection on 2026-10-09 found all nine proposed function names absent, and no `deposit_rent_applications` or `deposit_rent_allocations` tables. The healthy `nestory` project remains at 193 migrations, head `20261006031038`. The protected release workflow must still perform its complete hash-based hosted preflight before writing.

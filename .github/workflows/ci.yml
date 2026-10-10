@@ -401,6 +401,9 @@ jobs:
       - name: Test database
         run: npm run test:database
 
+      - name: Test deposit rent settlement with isolated synthetic data
+        run: node scripts/test-deposit-candidate-local.mjs
+
       - name: Test photo and logo Storage concurrency
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/photo-logo-storage-concurrency.node-test.mjs
 

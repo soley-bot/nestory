@@ -5,8 +5,7 @@ import { createSupabaseServerClient } from "@/lib/db/server";
 import { createLocalDepositExportHandler } from "./deposit-rent-local-export";
 import type { LocalDepositClient } from "./deposit-rent-local-source";
 
-// Concrete ordinary-session binding; not mounted in app/ and always disabled.
-// No new endpoint, execution grant, finance-only read or service credentials.
+// Both the report page and downloads require lease and finance read access.
 export async function getLocalDepositMembership(userId: string) {
     const membership = await getFinanceReportMembershipForUser(userId);
     if (!membership || !hasPermission(membership.permissionContext, "leases.view")
@@ -19,3 +18,9 @@ export const handleDisabledLocalDepositExport = createLocalDepositExportHandler(
   membership: getLocalDepositMembership,
   client: async () => await createSupabaseServerClient() as unknown as LocalDepositClient,
 });
+
+export const handleDepositRentExport = createLocalDepositExportHandler({
+  currentUser: getCurrentUser,
+  membership: getLocalDepositMembership,
+  client: async () => await createSupabaseServerClient() as unknown as LocalDepositClient,
+}, true);
