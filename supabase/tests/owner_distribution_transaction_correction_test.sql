@@ -75,7 +75,7 @@ SELECT is((SELECT public.correct_owner_distribution('dd150000-0000-4000-8000-000
  'Correct actual bank date','date-test-correct') FROM owner_date_state),
  (SELECT corrected FROM owner_date_state),'retry is idempotent');
 SELECT throws_ok($$SELECT public.correct_owner_distribution('dd150000-0000-4000-8000-000000000001',
- (original->>'property_withdrawal_id')::uuid,current_date-10,400,'Original payout',
+ (original->>'property_withdrawal_id')::uuid,(date_trunc('month',current_date)-interval '2 days')::date,400,'Original payout',
  'Correct actual bank date','date-test-correct') FROM owner_date_state$$,
  NULL,NULL,'same key cannot be reused with a different payload');
 SELECT throws_ok($$SELECT public.correct_owner_distribution('dd150000-0000-4000-8000-000000000001',

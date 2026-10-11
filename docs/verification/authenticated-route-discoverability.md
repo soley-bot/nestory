@@ -1,8 +1,8 @@
 # Authenticated route discoverability
 
-<!-- contract-sha256:f45ceb891dc647cf46c3e0d832d3b4e5fc6e2df8d3032d692e401809b6de84a4 -->
+<!-- contract-sha256:512e548baaad9e84901cd2821a2961a8c09f2d0e0b2596df98fb433d6cac1988 -->
 
-This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 50 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
+This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 51 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
 
 Classifications are `global`, `context`, `profile`, or `intentionally inaccessible`. An authorized page is incomplete unless its visible entry and browser journey from the current shell or contextual origin both exist.
 
@@ -70,6 +70,8 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 | `/recurring-tasks` | `requirePermission("maintenance.view")` / `maintenance.view` | global via shell-recurring; pending sa:recurring | Intentionally inaccessible — Requires maintenance.view. | Intentionally inaccessible — Requires maintenance.view. | global via shell-recurring; pending om:recurring | context via maintenance-recurring; pending omem:recurring | none |
 <!-- authenticated-route:/rent-income -->
 | `/rent-income` | `requireFinanceContext` / `canReadFinance` | global via shell-rent; pending sa:rent | global via shell-rent; pending fm:rent | global via shell-rent; pending fmem:rent | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
+<!-- authenticated-route:/reports/deposit-rent -->
+| `/reports/deposit-rent` | `requirePermission("finance.view")` / `canReadFinance` | context via deposit-report; pending sa:deposit-report | context via deposit-report; pending fm:deposit-report | context via deposit-report; pending fmem:deposit-report | Intentionally inaccessible — Requires leases.view and finance.view. | Intentionally inaccessible — Requires leases.view and finance.view. | none |
 <!-- authenticated-route:/reports/[reportKind] -->
 | `/reports/[reportKind]` | `requireFinanceReportContext` / `canReadFinanceReports` | context via report-detail; pending sa:report-detail | context via report-detail; pending fm:report-detail | Intentionally inaccessible — Requires canReadFinanceReports. | Intentionally inaccessible — Requires canReadFinanceReports. | Intentionally inaccessible — Requires canReadFinanceReports. | finance-safe-property-account, no-admin-unit-link, no-admin-person-link |
 <!-- authenticated-route:/reports -->
@@ -117,6 +119,4 @@ Browser evidence pending the exact-HEAD local fixture run.
 
 - Public, authentication, invitation, API, and error routes are outside this authenticated dashboard inventory.
 - Direct-denial checks prove authorization only; they are not counted as discoverability evidence.
-- Chart of Accounts and account activity are Finance-readable; account lifecycle mutations remain Super Admin-only.
-- Operations Member discovery of Recurring work, Inspections, and Work orders uses the existing mobile Maintenance workspace menu at 390x844; it does not certify desktop discovery. Their existing `maintenance.view` guards and mutation permissions are unchanged.
 - Hosted Supabase, Vercel, email, real IPS data, and production deployment remain unchanged.

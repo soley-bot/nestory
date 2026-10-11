@@ -1825,6 +1825,56 @@
     }
   },
   {
+    "route": "/reports/deposit-rent",
+    "source": "src/app/(dashboard)/reports/deposit-rent/page.tsx",
+    "phase": 3,
+    "surface": "detail",
+    "roles": [
+      "super_admin",
+      "finance_manager",
+      "finance_member"
+    ],
+    "states": [
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked"
+    ],
+    "evidence": {
+      "populated": [
+        "src/app/(dashboard)/reports/deposit-rent/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/reports/deposit-rent/page.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/reports/deposit-rent/page.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/reports/deposit-rent/page.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/reports/deposit-rent?propertyId=10000000-0000-0000-0000-000000000001&month=2026-10",
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/reports/deposit-rent/page.tsx",
+        "src/features/reports/data/deposit-rent-local-server.test.ts"
+      ],
+      "limitations": [
+        "Deposit settlement history only; requires both leases.view and finance.view."
+      ]
+    }
+  },
+  {
     "route": "/reports/[reportKind]",
     "source": "src/app/(dashboard)/reports/[reportKind]/page.tsx",
     "phase": 3,

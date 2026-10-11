@@ -235,6 +235,7 @@ describe("lease detail route", () => {
           canArchive: true,
           canChangeTerms: true,
           canClose: true,
+          canCorrectFinance: false,
           canCorrectHistoricalRent: false,
           canEditCurrentRent: false,
           canPrepare: true,

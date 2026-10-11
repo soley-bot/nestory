@@ -419,6 +419,7 @@ export function LeaseDetailScreen({
             />
           ) : drawer.mode === "deposit" ? (
             <LeaseDepositPanel
+              canReadSettlements={canViewFinance}
               canUseForRent={canViewFinance && permissions.canChangeTerms && (canRecordPayments || Boolean(permissions.canCorrectFinance))}
               canConfirmCustody={canViewFinance && permissions.canChangeTerms && Boolean(permissions.canCorrectFinance)}
               onUseForRent={() => { setDrawer(null); setDepositDialog("rent"); }}
@@ -568,6 +569,7 @@ function preserveDepositSubmission(form: HTMLFormElement | null) {
 }
 
 function LeaseDepositPanel({
+  canReadSettlements,
   canUseForRent,
   canConfirmCustody,
   onUseForRent,
@@ -578,6 +580,7 @@ function LeaseDepositPanel({
   onClose,
   onSuccess,
 }: {
+  canReadSettlements: boolean;
   canUseForRent: boolean;
   canConfirmCustody: boolean;
   onUseForRent: () => void;
@@ -769,6 +772,7 @@ function LeaseDepositPanel({
       </section> : null}
 
       <DepositActionMessage state={depositState} />
+      {canReadSettlements ? <Link className="text-sm font-medium underline underline-offset-4" href={`/reports/deposit-rent?propertyId=${lease.propertyId}&month=${getBusinessDateValue().slice(0, 7)}`}>Deposit settlement report</Link> : null}
       <DepositActionMessage state={reversalState} />
     </div>
   );

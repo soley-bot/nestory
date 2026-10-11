@@ -14,6 +14,12 @@ Browser artifacts: `artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-a
 
 ## Route matrix
 
+<!-- route-evidence:/reports/deposit-rent -->
+Deposit settlement report added in October 2026. Its focused route and membership
+tests pass; authenticated download, reversal, custody and restart evidence is
+recorded separately in `docs/runbooks/deposit-release-validation.md`. The August
+viewport counts below do not include this route.
+
 | Manifest route | Smoke path | Super Admin final path | Finance Manager | Finance Member | Operations Manager | Operations Member | Anonymous | States | Viewports / a11y | Query | Limitation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 <!-- route-evidence:/workspace -->
