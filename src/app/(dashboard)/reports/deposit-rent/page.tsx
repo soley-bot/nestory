@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { WorkspacePage } from "@/components/layout/workspace-page";
@@ -12,7 +11,6 @@ import { createSupabaseServerClient } from "@/lib/db/server";
 import { getBusinessMonthValue } from "@/lib/dates/business-date";
 import { loadScopedFinanceContext } from "@/features/finance-operations/data/scoped-finance-context";
 import { loadLocalDepositReport, type LocalDepositClient } from "@/features/reports/data/deposit-rent-local-source";
-import type { TrustedReport } from "@/features/reports/reports.types";
 
 export default async function DepositRentReportPage({ searchParams }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -25,7 +23,7 @@ export default async function DepositRentReportPage({ searchParams }: {
   });
   const client = await createSupabaseServerClient();
   const finance = await loadScopedFinanceContext(client, context.organizationId);
-  let report: TrustedReport | undefined, message = "", download = "";
+  let report: Awaited<ReturnType<typeof loadLocalDepositReport>> | undefined, message = "", download = "";
   if (!parsed.success) message = "Choose a valid property and month.";
   else if (parsed.data.propertyId) {
     if (!finance.properties.some(row => row.id === parsed.data.propertyId)) message = "This property is unavailable for your current access.";
@@ -37,7 +35,7 @@ export default async function DepositRentReportPage({ searchParams }: {
         report = await loadLocalDepositReport(client as unknown as LocalDepositClient, {
           actorId: context.userId, organizationId: context.organizationId, propertyIds: [parsed.data.propertyId], periodStart: from, periodEnd: to,
         });
-        download = new URLSearchParams({ propertyId: parsed.data.propertyId, from, to }).toString();
+        download = new URLSearchParams({ propertyId: parsed.data.propertyId, from, to, expectedFingerprint: report.sourceFingerprint }).toString();
       } catch { message = "The deposit sources could not be verified for this scope. Review the deposit history and try again."; }
     }
   }
@@ -55,7 +53,7 @@ export default async function DepositRentReportPage({ searchParams }: {
       {message ? <ErrorState title="Unable to show deposit settlements" message={message} /> : null}
       {report ? <>
         <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm">{property?.code} · {property?.name} · {report.periodLabel}</p>
-          <div className="flex gap-3 text-sm"><Link className="underline" href={`/api/reports/deposit-rent?${download}&format=pdf`} prefetch={false}>Download PDF</Link><Link className="underline" href={`/api/reports/deposit-rent?${download}&format=xlsx`} prefetch={false}>Download Excel</Link></div>
+          <div className="flex gap-3 text-sm"><a className="underline" href={`/api/reports/deposit-rent?${download}&format=pdf`}>Download PDF</a><a className="underline" href={`/api/reports/deposit-rent?${download}&format=xlsx`}>Download Excel</a></div>
         </div>
         <dl className="border-y border-border py-3">{report.summary.map(row => <div key={row.label}><dt className="text-sm text-muted-foreground">{row.label}</dt><dd className="text-lg font-semibold">{row.value}</dd></div>)}</dl>
         <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th className="border-b p-2">Date</th><th className="border-b p-2">Movement</th><th className="border-b p-2">USD amount</th><th className="border-b p-2">Source details</th></tr></thead><tbody>{reportRows.map(row => <tr key={row.id}>

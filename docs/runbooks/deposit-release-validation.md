@@ -1,9 +1,10 @@
 # Deposit candidate validation, 2026-10-09
 
-This is a **dormant review candidate, not a cleared release**. Production access
-changes remain held. Product actions and export entry points stay disabled and
-unmounted. No hosted migration, production grant, merge, deployment or customer
-financial mutation has been performed by this validation task.
+This records the historical dormant candidate validation from October 9.
+The approved activation and completed authenticated acceptance are recorded in
+[the October 11 acceptance record](deposit-release-acceptance-20261011.md).
+The historical checks and remaining gates below describe their original stage;
+they are not the current deployment status.
 
 ## Preserved baseline and implementation
 

@@ -132,5 +132,5 @@ export async function loadLocalDepositReport(client: LocalDepositClient, scope: 
   projection.report.description = "Rent settled from existing deposits on the application date, including reversals. No new bank receipt. This report covers deposit settlements only.";
   projection.report.exportFilenameBase = `deposit-rent-settlements-${scope.periodStart}-${scope.periodEnd}`;
   projection.report.summary = projection.report.summary.slice(0, 1).map(metric => ({ ...metric, label: "Rent settled from deposits" }));
-  return projection.report;
+  return { ...projection.report, sourceFingerprint: packet.fingerprint };
 }

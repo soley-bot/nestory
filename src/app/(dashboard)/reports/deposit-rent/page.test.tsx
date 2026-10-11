@@ -25,7 +25,7 @@ describe("deposit settlement report route", () => {
     vi.clearAllMocks();
     requirePermission.mockResolvedValue(context);
     finance.mockResolvedValue({ properties: [{ id: propertyId, code: "SYN", name: "Synthetic property" }] });
-    report.mockResolvedValue({ periodLabel: "October 2026", columns: [], rows: [], summary: [] });
+    report.mockResolvedValue({ periodLabel: "October 2026", columns: [], rows: [], summary: [], sourceFingerprint: "a".repeat(64) });
   });
   it("gives finance members an accessible lease breadcrumb", async () => {
     const html = await render({ month: "2026-10" });
@@ -51,9 +51,10 @@ describe("deposit settlement report route", () => {
     expect(report).toHaveBeenCalledWith(client, { actorId: "actor", organizationId: "company", propertyIds: [propertyId], periodStart: "2026-10-01", periodEnd: "2026-10-31" });
     expect(html).toContain("Download PDF");
     expect(html).toContain("Download Excel");
+    expect(html.match(new RegExp(`expectedFingerprint=${"a".repeat(64)}`, "g"))).toHaveLength(2);
   });
   it("does not count technical metadata as deposit activity", async () => {
-    report.mockResolvedValue({ periodLabel: "October 2026", columns: [], summary: [], rows: [{ id: "metadata:fingerprint", title: "Report context", cells: { detail: "technical-fingerprint" } }] });
+    report.mockResolvedValue({ periodLabel: "October 2026", columns: [], summary: [], sourceFingerprint: "a".repeat(64), rows: [{ id: "metadata:fingerprint", title: "Report context", cells: { detail: "technical-fingerprint" } }] });
     const html = await render({ propertyId, month: "2026-10" });
     expect(html).toContain("No deposit activity in this period");
     expect(html).not.toContain("technical-fingerprint");
