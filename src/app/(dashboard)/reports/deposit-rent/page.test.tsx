@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { requirePermission, client, finance, report } = vi.hoisted(() => ({
@@ -9,6 +10,9 @@ vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: async () => clie
 vi.mock("@/features/finance-operations/data/scoped-finance-context", () => ({ loadScopedFinanceContext: finance }));
 vi.mock("@/features/reports/data/deposit-rent-local-source", () => ({ loadLocalDepositReport: report }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw Error(`redirect:${path}`); } }));
+vi.mock("@/components/layout/workspace-page", () => ({ WorkspacePage: ({ children, breadcrumbItems }: {
+  children: ReactNode; breadcrumbItems: { href: string; label: string }[];
+}) => <main>{breadcrumbItems.map(item => <a key={item.href} href={item.href}>{item.label}</a>)}{children}</main> }));
 import DepositRentReportPage from "./page";
 
 const propertyId = "00000000-0000-4000-8000-000000000031";
