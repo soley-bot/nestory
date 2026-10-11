@@ -22,10 +22,14 @@ beforeEach(() => {
   vi.mocked(getCurrentUser).mockResolvedValue({ id: id(6) } as Awaited<ReturnType<typeof getCurrentUser>>);
   vi.mocked(getWorkspaceMembershipForUser).mockResolvedValue(member());
   vi.mocked(createSupabaseServerClient).mockResolvedValue({ rpc } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>);
-  vi.mocked(readLocalDepositRentSnapshot).mockResolvedValue({ actorId: id(6), deposits: [{ id: id(2) }] } as Awaited<ReturnType<typeof readLocalDepositRentSnapshot>>);
+  vi.mocked(readLocalDepositRentSnapshot).mockResolvedValue({ actorId: id(6), businessDate: "2026-10-09", deposits: [{ id: id(2) }] } as Awaited<ReturnType<typeof readLocalDepositRentSnapshot>>);
   rpc.mockResolvedValue({ data: id(7), error: null });
 });
 describe("custody product action authority", () => {
+  it("rejects a date after the checked company business date before calling the command", async () => {
+    expect((await confirmDepositCustody({ ...input, date: "2026-10-10" })).status).toBe("error");
+    expect(rpc).not.toHaveBeenCalled();
+  });
   it.each(permissions)("does not call the financial command without %s", async missing => {
     vi.mocked(getWorkspaceMembershipForUser).mockResolvedValue(member(permissions.filter(key => key !== missing)));
     expect((await confirmDepositCustody(input)).status).toBe("error");

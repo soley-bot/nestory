@@ -41,7 +41,10 @@ export default async function DepositRentReportPage({ searchParams }: {
       } catch { message = "The deposit sources could not be verified for this scope. Review the deposit history and try again."; }
     }
   }
-  return <WorkspacePage title="Deposit rent settlements" breadcrumbItems={[{ href: "/reports", label: "Reports" }]}>
+  const reportRows = report?.rows.filter(row => !row.id.startsWith("metadata:")) ?? [];
+  const property = parsed.success ? finance.properties.find(row => row.id === parsed.data.propertyId) : undefined;
+  return <WorkspacePage title="Deposit rent settlements" breadcrumbItems={context.capabilities.canReadFinanceReports
+    ? [{ href: "/reports", label: "Reports" }] : [{ href: "/leases", label: "Leases" }]}>
     <div className="workspace-gutter-x space-y-5 py-4">
       <p className="max-w-3xl text-sm text-muted-foreground">Rent settled from existing deposits is recognized on the application date. Receipts remain deposit custody until applied; an application does not create a new bank payment.</p>
       <form className="flex flex-wrap items-end gap-3">
@@ -51,17 +54,17 @@ export default async function DepositRentReportPage({ searchParams }: {
       </form>
       {message ? <ErrorState title="Unable to show deposit settlements" message={message} /> : null}
       {report ? <>
-        <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm">{report.scopeLabel} · {report.periodLabel}</p>
+        <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm">{property?.code} · {property?.name} · {report.periodLabel}</p>
           <div className="flex gap-3 text-sm"><Link className="underline" href={`/api/reports/deposit-rent?${download}&format=pdf`} prefetch={false}>Download PDF</Link><Link className="underline" href={`/api/reports/deposit-rent?${download}&format=xlsx`} prefetch={false}>Download Excel</Link></div>
         </div>
         <dl className="border-y border-border py-3">{report.summary.map(row => <div key={row.label}><dt className="text-sm text-muted-foreground">{row.label}</dt><dd className="text-lg font-semibold">{row.value}</dd></div>)}</dl>
-        <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th className="border-b p-2">Date</th><th className="border-b p-2">Movement</th><th className="border-b p-2">USD amount</th><th className="border-b p-2">Source details</th></tr></thead><tbody>{report.rows.filter(row => !row.id.startsWith("metadata:")).map(row => <tr key={row.id}>
+        <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th className="border-b p-2">Date</th><th className="border-b p-2">Movement</th><th className="border-b p-2">USD amount</th><th className="border-b p-2">Source details</th></tr></thead><tbody>{reportRows.map(row => <tr key={row.id}>
           <td className="border-b p-2 align-top">{row.cells.date}</td>
           <td className="border-b p-2 align-top">{row.title}</td>
           <td className="border-b p-2 align-top">{row.cells.amount}</td>
           <td className="border-b p-2 align-top"><details><summary className="cursor-pointer">View source details</summary><p className="max-w-xl whitespace-pre-wrap break-words py-2">{row.cells.source}<br />{row.cells.detail}</p></details></td>
         </tr>)}</tbody></table></div>
-        {!report.rows.length ? <EmptyState kind="empty" title="No deposit activity in this period" /> : null}
+        {!reportRows.length ? <EmptyState kind="empty" title="No deposit activity in this period" /> : null}
         <p className="text-xs text-muted-foreground">Deposit settlements only. View owner balances and official statements for the complete custody history.</p>
       </> : !message ? <p className="text-sm text-muted-foreground">Choose a property and month to review its deposit settlements.</p> : null}
     </div>

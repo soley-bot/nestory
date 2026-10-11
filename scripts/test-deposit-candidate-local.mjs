@@ -163,6 +163,15 @@ try {
     finance,leases,snapshot,
   },null,2));
   results.push({name:'ordinary report snapshot retains all six application and reversal sources',pass:true});
+  seed(6000,'through_ips',500,300,500,false);
+  sql(actor(101,`SELECT public.allocate_owner_event(${q(1)},'security_deposit_receipt',${q(6006)},'custody-date-receipt')`,true));
+  const businessToday=sql(`SELECT app_private.rent_business_date(${q(1)},pg_catalog.statement_timestamp())`).trim();
+  const businessTomorrow=sql(`SELECT app_private.rent_business_date(${q(1)},pg_catalog.statement_timestamp())+1`).trim();
+  const confirmCustodyOn=(date,key)=>`SELECT public.confirm_deposit_rent_custody(${q(1)},${q(6002)},${q(81)},'ips',NULL,'${date}',500,'Synthetic custody date evidence','${key}')`;
+  denied('ordinary actor cannot confirm future custody',auth(101,confirmCustodyOn(businessTomorrow,'custody-future-rejected')),'22023');
+  check('future custody rejection leaves no immutable confirmation or idempotency claim',`SELECT NOT EXISTS(SELECT 1 FROM public.deposit_rent_custody_confirmations WHERE lease_deposit_id=${q(6002)}) AND NOT EXISTS(SELECT 1 FROM app_private.financial_idempotency_requests WHERE idempotency_key='custody-future-rejected')`,'t');
+  sql(actor(101,confirmCustodyOn(businessToday,'custody-current-business-date'),true));
+  check('current organization business date is accepted for custody',`SELECT confirmed_on='${businessToday}' FROM public.deposit_rent_custody_confirmations WHERE lease_deposit_id=${q(6002)}`,'t');
   // Missing schema is an explicit runtime error, not an accidental table query.
   denied('missing unpublished schema fails closed',`BEGIN; ALTER TABLE public.deposit_rent_applications RENAME TO unavailable_applications; SET LOCAL "request.jwt.claim.sub"=${q(102)}; SET LOCAL ROLE authenticated; ${call()}; ROLLBACK;`,'55000');
   run.completed=true;

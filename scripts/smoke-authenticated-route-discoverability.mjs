@@ -303,9 +303,10 @@ async function openContextJourney(page, journey, chain) {
     },
     "deposit-report": async () => {
       await openContextJourney(page, { ...journey, entryId: "lease-detail", route: "/leases/[leaseId]" }, chain);
+      await page.getByRole("link", { name: "Rent & deposit", exact: true }).click();
       await page.getByRole("button", { name: /^(Manage|Settle|View) deposit$/ }).click();
       await clickAndWait(page, page.getByRole("link", { name: "Deposit settlement report", exact: true }), journey.route);
-      chain.push("Manage deposit", "Deposit settlement report");
+      chain.push("Rent & deposit", "Deposit details", "Deposit settlement report");
     },
     "report-detail": async () => {
       await fromGlobal(page, chain, "/reports", "Reports");

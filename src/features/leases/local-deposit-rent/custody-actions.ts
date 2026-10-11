@@ -45,6 +45,7 @@ export async function confirmDepositCustody(input: z.infer<typeof custodySchema>
   try {
     const value = custodySchema.parse(input);
     const { client, member, snapshot } = await custodyContext(value.leaseId);
+    if (value.date > snapshot.businessDate) throw Error("Future custody date");
     if (!snapshot.deposits.some(row => row.id === value.depositId)) throw Error("Deposit scope changed");
     const result = await (client as unknown as LocalDepositClient).rpc("confirm_deposit_rent_custody", {
       p_org: member.organizationId, p_deposit: value.depositId, p_liability_account: value.liabilityAccountId,
