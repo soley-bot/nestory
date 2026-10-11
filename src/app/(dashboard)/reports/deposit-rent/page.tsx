@@ -4,6 +4,8 @@ import { z } from "zod";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { SelectControl } from "@/components/ui/select-control";
 import { requirePermission } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
@@ -16,7 +18,7 @@ export default async function DepositRentReportPage({ searchParams }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const context = await requirePermission("finance.view");
-  if (!context.permissionKeys.has("leases.view")) redirect("/no-access?reason=permission");
+  if (!context.permissionKeys.has("leases.view")) redirect("/no-access?reason=capability");
   const params = await searchParams;
   const parsed = z.object({ propertyId: z.uuid().optional(), month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }).safeParse({
     propertyId: params.propertyId || undefined, month: params.month ?? getBusinessMonthValue(new Date(), context.operationalTimezone),
@@ -47,14 +49,19 @@ export default async function DepositRentReportPage({ searchParams }: {
         <label className="grid gap-1.5 text-sm font-medium">Month<Input type="month" name="month" aria-label="Settlement month" required defaultValue={parsed.success ? parsed.data.month : undefined}/></label>
         <Button type="submit">View settlements</Button>
       </form>
-      {message ? <p role="alert">{message}</p> : null}
+      {message ? <ErrorState title="Unable to show deposit settlements" message={message} /> : null}
       {report ? <>
         <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm">{report.scopeLabel} · {report.periodLabel}</p>
           <div className="flex gap-3 text-sm"><Link className="underline" href={`/api/reports/deposit-rent?${download}&format=pdf`} prefetch={false}>Download PDF</Link><Link className="underline" href={`/api/reports/deposit-rent?${download}&format=xlsx`} prefetch={false}>Download Excel</Link></div>
         </div>
         <dl className="border-y border-border py-3">{report.summary.map(row => <div key={row.label}><dt className="text-sm text-muted-foreground">{row.label}</dt><dd className="text-lg font-semibold">{row.value}</dd></div>)}</dl>
-        <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{report.columns.map(column => <th key={column.key} className="border-b p-2 font-medium">{column.label}</th>)}</tr></thead><tbody>{report.rows.map(row => <tr key={row.id}>{report.columns.map(column => <td key={column.key} className="max-w-xl whitespace-pre-wrap break-words border-b p-2 align-top">{row.cells[column.key]}</td>)}</tr>)}</tbody></table></div>
-        {!report.rows.length ? <p>No deposit activity in this period.</p> : null}
+        <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th className="border-b p-2">Date</th><th className="border-b p-2">Movement</th><th className="border-b p-2">USD amount</th><th className="border-b p-2">Source details</th></tr></thead><tbody>{report.rows.filter(row => !row.id.startsWith("metadata:")).map(row => <tr key={row.id}>
+          <td className="border-b p-2 align-top">{row.cells.date}</td>
+          <td className="border-b p-2 align-top">{row.title}</td>
+          <td className="border-b p-2 align-top">{row.cells.amount}</td>
+          <td className="border-b p-2 align-top"><details><summary className="cursor-pointer">View source details</summary><p className="max-w-xl whitespace-pre-wrap break-words py-2">{row.cells.source}<br />{row.cells.detail}</p></details></td>
+        </tr>)}</tbody></table></div>
+        {!report.rows.length ? <EmptyState kind="empty" title="No deposit activity in this period" /> : null}
         <p className="text-xs text-muted-foreground">Deposit settlements only. View owner balances and official statements for the complete custody history.</p>
       </> : !message ? <p className="text-sm text-muted-foreground">Choose a property and month to review its deposit settlements.</p> : null}
     </div>

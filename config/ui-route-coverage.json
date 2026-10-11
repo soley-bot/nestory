@@ -1845,13 +1845,16 @@
         "src/app/(dashboard)/reports/deposit-rent/page.tsx"
       ],
       "empty": [
-        "src/app/(dashboard)/reports/deposit-rent/page.tsx"
+        "src/app/(dashboard)/reports/deposit-rent/page.tsx",
+        "src/components/ui/empty-state.tsx"
       ],
       "error": [
-        "src/app/(dashboard)/reports/deposit-rent/page.tsx"
+        "src/app/(dashboard)/reports/deposit-rent/page.tsx",
+        "src/components/ui/error-state.tsx"
       ],
       "permission-blocked": [
-        "src/app/(dashboard)/reports/deposit-rent/page.tsx"
+        "src/app/(dashboard)/reports/deposit-rent/page.tsx",
+        "src/components/ui/status-notice.tsx"
       ]
     },
     "smoke": {
