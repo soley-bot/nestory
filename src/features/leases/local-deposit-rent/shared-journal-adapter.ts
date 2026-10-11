@@ -6,16 +6,17 @@ const uuid=z.uuid(), hash=z.string().regex(/^[a-f0-9]{64}$/);
 const proofSchema=z.strictObject({token:uuid,idempotencyKey:uuid,payloadHash:hash,revision:z.number().int().positive()});
 const packetSchema=z.strictObject({scope:z.strictObject({organizationId:uuid,actorId:uuid,leaseId:uuid}),
  selectedScope:z.strictObject({propertyId:uuid,unitId:uuid.nullable()}),token:uuid,idempotencyKey:uuid,payload:sharedJournalPayloadSchema,
- payloadHash:hash,snapshotHash:hash,authorizationHash:hash,expiresAt:z.number().int().positive(),revision:z.number().int().positive(),state:z.enum(["preview","attempted","resolved"]),
- result:z.strictObject({commandId:uuid,message:z.string().min(1).max(300)}).optional()})
- .refine(r=>(r.state==="resolved")===(r.result!==undefined)).refine(r=>r.state!=="preview"||r.revision===1&&r.result===undefined);
+ payloadHash:hash,snapshotHash:hash,authorizationHash:hash,expiresAt:z.number().int().positive(),revision:z.number().int().positive(),state:z.enum(["preview","attempted","resolved","rejected"]),
+ result:z.strictObject({commandId:uuid,message:z.string().min(1).max(300)}).optional(),
+ rejection:z.strictObject({message:z.string().min(1).max(300)}).optional()})
+ .refine(r=>(r.state==="resolved")===(r.result!==undefined)).refine(r=>(r.state==="rejected")===(r.rejection!==undefined)).refine(r=>r.state!=="preview"||r.revision===1);
 export class SharedJournalError extends Error {constructor(public readonly status:401|403|409|503,message:string){super(message);}}
 export type SharedJournalSessionDependencies={identity():Promise<{actorId:string;organizationId:string}|null>;client():Promise<LocalDepositClient>};
 function checkedPacket(raw:unknown,identity:{actorId:string;organizationId:string},leaseId:string):SharedJournalIntent{
  const text=JSON.stringify(raw);if(!text||new TextEncoder().encode(text).byteLength>16384)throw new SharedJournalError(503,"The original intent could not be verified. Keep its saved details.");
  const r=packetSchema.parse(raw);if(r.scope.actorId!==identity.actorId||r.scope.organizationId!==identity.organizationId||r.scope.leaseId!==leaseId||r.payload.leaseId!==leaseId||canonicalJournalPayload(r.payload).hash!==r.payloadHash)
   throw new SharedJournalError(503,"The original intent could not be verified. Keep its saved details.");
- return Object.freeze({...r,scope:Object.freeze(r.scope),selectedScope:Object.freeze(r.selectedScope),payload:Object.freeze(r.payload),...(r.result?{result:Object.freeze(r.result)}:{})});
+ return Object.freeze({...r,scope:Object.freeze(r.scope),selectedScope:Object.freeze(r.selectedScope),payload:Object.freeze(r.payload),...(r.result?{result:Object.freeze(r.result)}:{}),...(r.rejection?{rejection:Object.freeze(r.rejection)}:{})});
 }
 function rpcError(code?:string):never{
  if(code==="28000"||code==="PGRST301")throw new SharedJournalError(401,"Sign in before retrying the original action.");
@@ -29,7 +30,7 @@ export function createOrdinarySharedJournalPort(deps:SharedJournalSessionDepende
  async function session(leaseId:string){uuid.parse(leaseId);const identity=await deps.identity();if(!identity)throw new SharedJournalError(401,"Sign in before retrying the original action.");uuid.parse(identity.actorId);uuid.parse(identity.organizationId);return {identity,client:await deps.client()};}
  async function call(client:LocalDepositClient,name:string,args:Record<string,unknown>){const r=await client.rpc(name,args);if(r.error)rpcError(r.error.code);return r.data;}
  async function original(name:string,leaseId:string,input:JournalProof){const proof=proofSchema.parse(input),{identity,client}=await session(leaseId);const raw=await call(client,name,{p_org:identity.organizationId,p_lease:leaseId,p_token:proof.token,p_key:proof.idempotencyKey,p_payload_hash:proof.payloadHash,...(name==="begin_deposit_rent_journal_attempt"?{p_revision:proof.revision}:{})});const r=checkedPacket(raw,identity,leaseId);
-  if(r.token!==proof.token||r.idempotencyKey!==proof.idempotencyKey||r.payloadHash!==proof.payloadHash||r.state==="preview"||name==="execute_deposit_rent_journal"&&r.state!=="resolved")throw new SharedJournalError(503,"The original outcome could not be verified. Retry its saved key.");return r;}
+  if(r.token!==proof.token||r.idempotencyKey!==proof.idempotencyKey||r.payloadHash!==proof.payloadHash||r.state==="preview"||name==="execute_deposit_rent_journal"&&!['resolved','rejected'].includes(r.state))throw new SharedJournalError(503,"The original outcome could not be verified. Retry its saved key.");return r;}
  return {readCurrent:async leaseId=>{const {identity,client}=await session(leaseId);const raw=await call(client,"get_deposit_rent_journal",{p_org:identity.organizationId,p_lease:leaseId});return raw===null?null:checkedPacket(raw,identity,leaseId);},
   prepare:async(input:SharedJournalPayload)=>{const canonical=canonicalJournalPayload(input),{identity,client}=await session(canonical.payload.leaseId);
    const candidate=await call(client,"get_local_deposit_rent_candidates",{p_organization_id:identity.organizationId,p_lease_id:canonical.payload.leaseId});

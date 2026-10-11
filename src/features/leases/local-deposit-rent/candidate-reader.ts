@@ -8,10 +8,10 @@ export const localDepositCandidateSchema=z.strictObject({version:z.literal(1),pu
   sourceHash:z.string().regex(/^[a-f0-9]{64}$/i),fingerprint:z.string().regex(/^[a-f0-9]{64}$/i),
   deposits:z.array(z.strictObject({id:uuid,leaseId:uuid,label,held:money,obligation:money,custodyVerified:z.boolean(),custodian:z.enum(["ips","owner"]).nullable(),
     singleUnchangedOwner:z.boolean(),custodyReconciles:z.boolean(),archived:z.boolean(),earliestDate:z.iso.date()})).max(100),
-  invoices:z.array(z.strictObject({id:uuid,leaseId:uuid,label,outstanding:money,issued:z.boolean(),rentLines:z.array(z.strictObject({id:uuid,label,outstanding:money})).max(1000)})).max(100),
+  invoices:z.array(z.strictObject({id:uuid,leaseId:uuid,label,outstanding:money,issued:z.boolean(),rentLines:z.array(z.strictObject({id:uuid,label,outstanding:money})).max(1000)})).max(1000),
   applications:z.array(z.strictObject({id:uuid,depositId:uuid,invoiceId:uuid,label,amount:money,date:z.iso.date(),active:z.boolean(),consumed:z.boolean(),reversalOf:uuid.nullable()})).max(1000),
   closedMonths:z.array(z.string().regex(/^\d{4}-\d{2}$/)).max(1000),
-  census:z.strictObject({deposits:z.array(uuid).max(100),invoices:z.array(uuid).max(100),rentLines:z.array(uuid).max(1000),events:z.array(uuid).max(5000),
+  census:z.strictObject({deposits:z.array(uuid).max(100),invoices:z.array(uuid).max(1000),rentLines:z.array(uuid).max(1000),events:z.array(uuid).max(5000),
     applications:z.array(uuid).max(1000),allocations:z.array(uuid).max(5000),custody:z.array(uuid).max(100),bridges:z.array(uuid).max(1000)}),
 });
 export type LocalDepositRentSnapshot=z.infer<typeof localDepositCandidateSchema>;

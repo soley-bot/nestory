@@ -20,7 +20,7 @@ function SharedDepositRentModalContent({leaseId,actions,onClose,onSuccess}:{leas
   useEffect(()=>{alive.current=true;return()=>{alive.current=false;revision.current+=1;};},[]);
   useEffect(()=>{let active=true;revision.current+=1;
     actions.list(leaseId).then(result=>{if(!active)return;if(result.status==="error"){setMessage(result.message);return;}
-      setView(result.value);if(result.value.lastResolvedMessage)setMessage(result.value.lastResolvedMessage);setOperation(result.value.canApply?"apply":"reverse");setRecovery(result.value.recovery??null);
+      setView(result.value);if(result.value.lastResolvedMessage||result.value.lastRejectedMessage)setMessage(result.value.lastResolvedMessage??result.value.lastRejectedMessage!);setOperation(result.value.canApply?"apply":"reverse");setRecovery(result.value.recovery??null);
     }).catch(()=>{if(active)setMessage("Deposit rent details could not be loaded. Reload the lease.");});
     return()=>{active=false;revision.current+=1;};
   },[actions,leaseId]);
@@ -36,7 +36,7 @@ function SharedDepositRentModalContent({leaseId,actions,onClose,onSuccess}:{leas
     const original=recovery??(preview?{...preview,reason}:null);if(!original||busy.current)return;
     busy.current=true;setPending(true);setMessage(null);setRecovery(original);setPreview(null);const current=revision.current;
     try{const result=await actions.confirm({leaseId,token:original.token,idempotencyKey:original.idempotencyKey});if(!alive.current||current!==revision.current)return;
-      if(result.status==="success"){setRecovery(null);setView(null);setMessage(result.value.message);onSuccess(result.value.message);}else {let nextMessage=result.message;if(result.recoveryState==="unused"){const refreshed=await actions.list(leaseId);if(!alive.current||current!==revision.current)return;if(refreshed.status==="success"){setView(refreshed.value);setRecovery(refreshed.value.recovery??null);setPreview(null);nextMessage=refreshed.value.lastResolvedMessage??result.message;}}setMessage(nextMessage);}
+      if(result.status==="success"){setRecovery(null);setView(null);setMessage(result.value.message);onSuccess(result.value.message);}else {let nextMessage=result.message;if(result.recoveryState==="unused"){const refreshed=await actions.list(leaseId);if(!alive.current||current!==revision.current)return;if(refreshed.status==="success"){setView(refreshed.value);setRecovery(refreshed.value.recovery??null);setPreview(null);nextMessage=refreshed.value.lastRejectedMessage??refreshed.value.lastResolvedMessage??result.message;}}setMessage(nextMessage);}
     }catch{if(alive.current&&current===revision.current)setMessage("The original action is unconfirmed. Reopen this lease and retry it before making another change.");}
     finally{busy.current=false;if(alive.current)setPending(false);}
   }

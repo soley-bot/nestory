@@ -24,6 +24,15 @@ async function prepare(user:ReturnType<typeof userEvent.setup>){
   return await screen.findByRole("button",{name:"Confirm deposit application"});
 }
 describe("actual product controls bound to dormant shared-journal workflow",()=>{
+ it("reopens controls after a proved rejection and prepares a new identity without reporting success",async()=>{
+  const f=sharedModalFixture(),user=userEvent.setup(),success=vi.fn();render(<SharedJournalDepositRentModal enabledForLocalTests leaseId={ids.lease} actions={f.actions} onClose={vi.fn()} onSuccess={success}/>);
+  const button=await prepare(user),original=f.current()!;f.control.definitiveRejection=true;await user.click(button);
+  await screen.findByText(/No changes from this attempt were saved/);expect(f.current()!.state).toBe("rejected");expect(success).not.toHaveBeenCalled();
+  expect(screen.queryByRole("button",{name:/Retry original/})).toBeNull();
+  f.control.definitiveRejection=false;await user.click(screen.getByRole("button",{name:"Preview changes"}));await screen.findByRole("button",{name:"Confirm deposit application"});
+  expect(f.current()!.token).not.toBe(original.token);expect(f.current()!.idempotencyKey).not.toBe(original.idempotencyKey);
+  await user.click(screen.getByRole("button",{name:"Confirm deposit application"}));await waitFor(()=>expect(success).toHaveBeenCalledTimes(1));
+ });
  it.each(["ips","owner"] as const)("uses the original %s custodian after switching from an unrelated apply selection",async custodian=>{
   const f=sharedModalFixture(custodian),user=userEvent.setup();
   const applied=await f.h.rpc("apply_deposit_to_rent",{p_org:ids.org,p_deposit:ids.deposit,p_invoice:ids.invoice,p_date:"2026-10-05",p_allocations:[{lineId:ids.line,amount:"100.00"}],p_reason:"Synthetic original application",p_key:"copy-original-application"});expect(applied.error).toBeNull();

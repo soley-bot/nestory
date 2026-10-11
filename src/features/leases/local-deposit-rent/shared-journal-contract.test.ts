@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { createJournalPreview, replaceJournalPreview, beginJournalAttempt, recoverJournalIntent, resolveJournalAttempt, canonicalJournalPayload, type SharedJournalIntent } from "./shared-journal-contract";
+import { createJournalPreview, replaceJournalPreview, beginJournalAttempt, recoverJournalIntent, resolveJournalAttempt, rejectJournalAttempt, canonicalJournalPayload, type SharedJournalIntent } from "./shared-journal-contract";
 const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
 const scope={organizationId:id(1),actorId:id(2),leaseId:id(3)}, selectedScope={propertyId:id(10),unitId:id(11)}, auth={scope,selectedScope,allowed:true,authorizationHash:"a".repeat(64)};
 const make=(n=4)=>createJournalPreview({scope,selectedScope,token:id(n),idempotencyKey:id(n+1),payload:{operation:"apply",leaseId:scope.leaseId,depositId:id(6),invoiceId:id(7),lineId:id(8),amount:"100.00",date:"2026-10-04",reason:"Settle rent"},snapshotHash:"b".repeat(64),authorizationHash:auth.authorizationHash,expiresAt:1000});
@@ -10,6 +10,22 @@ const result={commandId:id(99),message:"Original action confirmed."};
 // clients use the same atomic slot; execution commits result+financial count.
 function service(initial:SharedJournalIntent){let current=initial,postings=0;const archive:SharedJournalIntent[]=[];let tail=Promise.resolve();const atomic=<T>(fn:()=>T)=>{const task=tail.then(fn);tail=task.then(()=>undefined,()=>undefined);return task;};return {client:()=>({begin:()=>atomic(()=>current=beginJournalAttempt(current,proof(initial),auth,initial.snapshotHash,1)),execute:(loseResponse=false)=>atomic(()=>{if(current.state!=="resolved"){const resolved=resolveJournalAttempt(current,proof(initial),auth,result);postings++;current=resolved;}if(loseResponse)throw Error("Response lost after commit");return recoverJournalIntent(current,proof(initial),auth);}),replace:(next:SharedJournalIntent)=>atomic(()=>{const old=current;current=replaceJournalPreview(current,next,auth);archive.push(old);return current;}),read:()=>atomic(()=>current)}),postings:()=>postings,archive};}
 describe("dormant shared journal contract",()=>{
+ it("replaces unused or terminal evidence after an authorized role change while keeping attempted authority strict",()=>{
+  const original=make(),attempted=beginJournalAttempt(original,proof(original),auth,original.snapshotHash,1),resolved=resolveJournalAttempt(attempted,proof(original),auth,result),rejected=rejectJournalAttempt(attempted,proof(original),auth,"No financial changes were saved.");
+  const changed={...auth,authorizationHash:"c".repeat(64)},next=createJournalPreview({...make(20),authorizationHash:changed.authorizationHash});
+  for(const current of [original,resolved,rejected])expect(replaceJournalPreview(current,next,changed)).toEqual(next);
+  expect(()=>replaceJournalPreview(attempted,next,changed)).toThrow("access");
+  for(const current of [original,resolved,rejected])expect(()=>replaceJournalPreview(current,next,{...changed,allowed:false})).toThrow("access");
+ });
+ it("preserves rejected proof and prevents conversion into a success or reuse of its identity",()=>{
+  const original=make(),attempted=beginJournalAttempt(original,proof(original),auth,original.snapshotHash,1),rejected=rejectJournalAttempt(attempted,proof(original),auth,"No financial changes were saved.");
+  expect(rejected).toMatchObject({state:"rejected",token:original.token,idempotencyKey:original.idempotencyKey,payloadHash:original.payloadHash,revision:3});
+  expect(rejected.result).toBeUndefined();expect(Object.isFrozen(rejected.rejection)).toBe(true);
+  expect(rejectJournalAttempt(rejected,proof(original),auth,rejected.rejection!.message)).toBe(rejected);
+  expect(()=>rejectJournalAttempt(original,proof(original),auth,"Denied")).toThrow("attempted");
+  expect(()=>resolveJournalAttempt(rejected,proof(original),auth,result)).toThrow("Rejected");
+  expect(()=>replaceJournalPreview(rejected,make(),auth)).toThrow("new intent identity");
+ });
  it("matches independent fixed cross-language canonical text and SHA256 vectors",()=>{const vectors=JSON.parse(readFileSync("scripts/deposit-rent-journal-canonical-vectors.json","utf8"));for(const v of vectors){const actual=canonicalJournalPayload(v.payload);expect(actual.text,v.name).toBe(v.canonicalText);expect(actual.hash,v.name).toBe(v.sha256);}});
  it("rejects nonfresh replacements, result-bearing previews and forged payload evidence",()=>{const original=make(),next=make(20);for(const invalid of [{...next,state:"attempted" as const},{...next,state:"resolved" as const,result},{...next,result},{...next,revision:2},{...next,payloadHash:"c".repeat(64)}])expect(()=>replaceJournalPreview(original,invalid,auth)).toThrow();});
  it("rejects property/unit transfer on attempt, execute and recovery even with unchanged access",()=>{const a=make(),b=beginJournalAttempt(a,proof(a),auth,a.snapshotHash,1);for(const changed of [{propertyId:id(50),unitId:selectedScope.unitId},{...selectedScope,unitId:id(50)}]){const authority={...auth,selectedScope:changed};expect(()=>beginJournalAttempt(a,proof(a),authority,a.snapshotHash,1)).toThrow("access");expect(()=>recoverJournalIntent(b,proof(a),authority)).toThrow("access");expect(()=>resolveJournalAttempt(b,proof(a),authority,result)).toThrow("access");}});

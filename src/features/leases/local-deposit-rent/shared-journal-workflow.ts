@@ -4,7 +4,7 @@ import type { DepositRentDraft, DepositRentLocalActions, DepositRentPreview, Dep
 import { sharedJournalPayloadSchema, type SharedDepositJournalPort, type SharedJournalIntent } from "./shared-journal-contract";
 import type { LocalDepositRentSnapshot } from "./candidate-reader";
 import { SharedJournalError } from "./shared-journal-adapter";
-export type SharedJournalView = DepositRentView & { businessDate: string; lastResolvedMessage?: string };
+export type SharedJournalView = DepositRentView & { businessDate: string; lastResolvedMessage?: string; lastRejectedMessage?: string };
 export type SharedJournalActions = Omit<DepositRentLocalActions, "list" | "confirm"> & {
   list(leaseId: string): Promise<{ status: "success"; value: SharedJournalView } | { status: "error"; message: string }>;
   confirm(input: { leaseId: string; token: string; idempotencyKey: string }): Promise<{ status: "success"; value: { message: string } } | { status: "error"; message: string; recoveryState?: "unused" | "original" }>;
@@ -39,6 +39,7 @@ export function createSharedJournalWorkflow(deps: SharedJournalWorkflowDependenc
           view.recovery = { token: r.token, idempotencyKey: r.idempotencyKey, operation: payload.operation, date: payload.date, amount, reason: payload.reason };
         }
         if (r?.state === "resolved") view.lastResolvedMessage = r.result!.message;
+        if (r?.state === "rejected") view.lastRejectedMessage = r.rejection!.message;
         return { status: "success", value: view };
       } catch { return error(); }
     },
@@ -56,6 +57,7 @@ export function createSharedJournalWorkflow(deps: SharedJournalWorkflowDependenc
         if (!r || r.token !== checked.token || r.idempotencyKey !== checked.idempotencyKey) throw new SharedJournalError(409, "Original intent conflict.");
         const attempted = r.state === "preview" ? await deps.journal.beginAttempt(checked.leaseId, proof(r)) : r;
         executeRequested = true; const resolved = await deps.journal.executeOriginal(checked.leaseId, proof(attempted));
+        if (resolved.state === "rejected" && resolved.rejection) return { status: "error", recoveryState: "unused", message: resolved.rejection.message };
         if (resolved.state !== "resolved" || !resolved.result) throw new SharedJournalError(503, "Original result unknown.");
         return { status: "success", value: { message: resolved.result.message } };
       } catch (caught) {

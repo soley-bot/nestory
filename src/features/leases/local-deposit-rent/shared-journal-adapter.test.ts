@@ -12,6 +12,14 @@ function setup(){const h=fixture(),snapshot=h.snapshot(),identity={actorId:ids.a
 const proof=(r:SharedJournalIntent)=>({token:r.token,idempotencyKey:r.idempotencyKey,payloadHash:r.payloadHash,revision:r.revision});
 const req=(body:unknown,origin="http://127.0.0.1:50123")=>new Request("http://127.0.0.1:50123/journal",{method:"POST",headers:{origin,"Content-Type":"application/json"},body:JSON.stringify(body)});
 describe("dormant ordinary shared-journal adapter",()=>{
+ it("accepts only a proof-matched terminal rejection without success evidence",async()=>{
+  const h=setup(),rejection={message:"The action was rejected. No financial changes were saved."};
+  h.rpc.mockResolvedValue({data:{...h.record,state:"rejected",revision:3,rejection},error:null});
+  expect(await h.port.executeOriginal(ids.lease,proof(h.record))).toMatchObject({state:"rejected",rejection});
+  for(const invalid of [{...h.record,state:"rejected" as const,revision:3},{...h.record,state:"rejected" as const,revision:3,rejection,result:{commandId:id(80),message:"Success"}},{...h.record,state:"attempted" as const,revision:2,rejection}]){
+    h.rpc.mockResolvedValue({data:invalid,error:null});await expect(h.port.executeOriginal(ids.lease,proof(h.record))).rejects.toThrow();
+  }
+ });
  it("binds org/actor to server session, verifies candidate and sends canonical payload with DB snapshot",async()=>{const h=setup();expect(await h.port.prepare(h.record.payload)).toEqual(h.record);expect(h.rpc).toHaveBeenLastCalledWith("prepare_deposit_rent_journal",{p_org:ids.org,p_lease:ids.lease,p_payload:h.record.payload,p_expected_snapshot:h.snapshot.fingerprint});});
  it("uses only saved proof for separate durable begin and original execution",async()=>{const h=setup();expect((await h.port.beginAttempt(ids.lease,proof(h.record))).state).toBe("attempted");expect((await h.port.executeOriginal(ids.lease,proof(h.record))).state).toBe("resolved");expect(h.rpc).toHaveBeenLastCalledWith("execute_deposit_rent_journal",{p_org:ids.org,p_lease:ids.lease,p_token:h.record.token,p_key:h.record.idempotencyKey,p_payload_hash:h.record.payloadHash});});
  it("denies absent identity before client creation and maps private backend denial safely",async()=>{const h=setup();h.who.mockResolvedValueOnce(null);await expect(h.port.readCurrent(ids.lease)).rejects.toMatchObject({status:401});expect(h.client).not.toHaveBeenCalled();h.setError({code:"42501",message:"private secret"});await expect(h.port.readCurrent(ids.lease)).rejects.toMatchObject({status:403});});

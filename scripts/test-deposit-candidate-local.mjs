@@ -172,6 +172,107 @@ try {
   check('future custody rejection leaves no immutable confirmation or idempotency claim',`SELECT NOT EXISTS(SELECT 1 FROM public.deposit_rent_custody_confirmations WHERE lease_deposit_id=${q(6002)}) AND NOT EXISTS(SELECT 1 FROM app_private.financial_idempotency_requests WHERE idempotency_key='custody-future-rejected')`,'t');
   sql(actor(101,confirmCustodyOn(businessToday,'custody-current-business-date'),true));
   check('current organization business date is accepted for custody',`SELECT confirmed_on='${businessToday}' FROM public.deposit_rent_custody_confirmations WHERE lease_deposit_id=${q(6002)}`,'t');
+  // A separately committed business change may invalidate an already attempted
+  // command. Persist a proved rollback; retain immutable original evidence.
+  seed(7000,'through_ips',500,300,500);
+  const prepareFor=(lease,payload)=>{
+    const candidate=JSON.parse(sql(auth(101,`SELECT public.get_local_deposit_rent_candidates(${q(1)},${q(lease)})`)).trim());
+    return JSON.parse(sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.prepare_deposit_rent_journal(${q(1)},${q(lease)},'${JSON.stringify(payload)}','${candidate.fingerprint}')`,true)).trim());
+  };
+  const argsFor=(lease,r)=>`${q(1)},${q(lease)},'${r.token}','${r.idempotencyKey}','${r.payloadHash}'`;
+  const racePayload={...payload,leaseId:id(7000),depositId:id(7002),invoiceId:id(7003),lineId:id(7005)};
+  const raceIntent=prepareFor(7000,racePayload),raceArgs=argsFor(7000,raceIntent);
+  sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.begin_deposit_rent_journal_attempt(${raceArgs},${raceIntent.revision})`,true));
+  sql(actor(101,`SELECT public.apply_deposit_to_rent(${q(1)},${q(7002)},${q(7003)},'2026-10-04','[{"lineId":"${id(7005)}","amount":"250.00"}]','Separately committed settlement','journal-competing-settlement')`,true));
+  const rejected=JSON.parse(sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.execute_deposit_rent_journal(${raceArgs})`,true)).trim());
+  if(rejected.state!=='rejected'||rejected.token!==raceIntent.token||rejected.idempotencyKey!==raceIntent.idempotencyKey||rejected.payloadHash!==raceIntent.payloadHash||rejected.result||!rejected.rejection?.message)throw Error('Definitive rejection evidence missing');
+  results.push({name:'invalidated attempted command persists proof-matched terminal rejection',pass:true});
+  check('rejected command rolls back its claim, financial rows and balance changes',`SELECT NOT EXISTS(SELECT 1 FROM app_private.financial_idempotency_requests WHERE idempotency_key='${raceIntent.idempotencyKey}') AND (SELECT count(*)=1 FROM public.deposit_rent_applications WHERE lease_deposit_id=${q(7002)}) AND app_private.deposit_rent_held(${q(1)},${q(7002)})=250 AND (SELECT balance_due=50 FROM public.tenant_invoice_balances WHERE id=${q(7003)})`,'t');
+  const rejectionReplay=JSON.parse(sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.execute_deposit_rent_journal(${raceArgs})`,true)).trim());
+  if(JSON.stringify(rejectionReplay)!==JSON.stringify(rejected))throw Error('Rejection replay changed evidence');
+  results.push({name:'rejected original retry returns unchanged terminal evidence without dispatch',pass:true});
+  const replacement=prepareFor(7000,{...racePayload,amount:'50.00'});
+  if(replacement.token===raceIntent.token||replacement.idempotencyKey===raceIntent.idempotencyKey)throw Error('Rejected identity reused');
+  check('replacement archives immutable rejected intent',`SELECT state='rejected' AND revision=3 AND result_id IS NULL AND result_message IS NOT NULL FROM app_private.deposit_rent_journal_intents WHERE token='${raceIntent.token}'`,'t');
+  const replacementArgs=argsFor(7000,replacement);
+  sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.begin_deposit_rent_journal_attempt(${replacementArgs},${replacement.revision}); SELECT public.execute_deposit_rent_journal(${replacementArgs})`,true));
+  check('new identity after rejection can settle remaining rent exactly once',`SELECT app_private.deposit_rent_held(${q(1)},${q(7002)})=200 AND (SELECT balance_due=0 FROM public.tenant_invoice_balances WHERE id=${q(7003)}) AND (SELECT count(*)=2 FROM public.deposit_rent_applications WHERE lease_deposit_id=${q(7002)})`,'t');
+  // Role changes must not require an unused/resolved predecessor's historical
+  // authority, but still cannot replace or execute an attempted original.
+  seed(8000);
+  const rolePayload={...payload,leaseId:id(8000),depositId:id(8002),invoiceId:id(8003),lineId:id(8005)};
+  const rolePreview=prepareFor(8000,rolePayload);
+  const changeCorrectPermission=(add)=>sql(`SET ROLE postgres; ${add?`INSERT INTO public.organization_role_permissions(organization_id,role_id,permission_key) VALUES(${q(1)},${q(21)},'finance.correct_records') ON CONFLICT DO NOTHING`:`DELETE FROM public.organization_role_permissions WHERE role_id=${q(21)} AND permission_key='finance.correct_records'`}`);
+  changeCorrectPermission(false);
+  const roleRead=JSON.parse(sql(auth(101,`SELECT public.get_deposit_rent_journal(${q(1)},${q(8000)})`)).trim());
+  if(roleRead.token!==rolePreview.token||roleRead.state!=='preview')throw Error('Authorized unused preview read blocked by changed role');
+  results.push({name:'authorized role change can read unused predecessor without changing its proof',pass:true});
+  const roleReplacement=prepareFor(8000,rolePayload);
+  if(roleReplacement.authorizationHash===rolePreview.authorizationHash)throw Error('Fixture authority did not change');
+  results.push({name:'authorized new preview binds current authority after unused predecessor role change',pass:true});
+  const roleArgs=argsFor(8000,roleReplacement);
+  sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.begin_deposit_rent_journal_attempt(${roleArgs},${roleReplacement.revision})`,true));
+  changeCorrectPermission(true);
+  denied('role change still rejects recovery of attempted original',auth(101,`SELECT public.get_deposit_rent_journal(${q(1)},${q(8000)})`),'42501');
+  denied('role change still rejects attempted original execution',auth(101,`SELECT public.execute_deposit_rent_journal(${roleArgs})`),'42501');
+  const freshRoleCandidate=JSON.parse(sql(auth(101,`SELECT public.get_local_deposit_rent_candidates(${q(1)},${q(8000)})`)).trim());
+  denied('role change cannot replace attempted evidence',auth(101,`SELECT public.prepare_deposit_rent_journal(${q(1)},${q(8000)},'${JSON.stringify(rolePayload)}','${freshRoleCandidate.fingerprint}')`),'42501');
+  check('denied changed authority retains original attempted key and payload',`SELECT state='attempted' AND idempotency_key='${roleReplacement.idempotencyKey}' AND payload_hash='${roleReplacement.payloadHash}' FROM app_private.deposit_rent_journal_intents WHERE token='${roleReplacement.token}'`,'t');
+  changeCorrectPermission(false);
+  sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.execute_deposit_rent_journal(${roleArgs})`,true));
+  changeCorrectPermission(true);
+  const terminalRead=JSON.parse(sql(auth(101,`SELECT public.get_deposit_rent_journal(${q(1)},${q(8000)})`)).trim());
+  if(terminalRead.state!=='resolved')throw Error('Resolved evidence read blocked by role change');
+  results.push({name:'authorized role change can read resolved original outcome',pass:true});
+  const afterResolved=prepareFor(8000,rolePayload);
+  if(afterResolved.authorizationHash!==rolePreview.authorizationHash||afterResolved.token===terminalRead.token)throw Error('Resolved predecessor prevented current-authority replacement');
+  results.push({name:'resolved predecessor permits a fresh identity under current authority',pass:true});
+  seed(9000);
+  const committedPayload={...payload,leaseId:id(9000),depositId:id(9002),invoiceId:id(9003),lineId:id(9005)};
+  const committedIntent=prepareFor(9000,committedPayload),committedArgs=argsFor(9000,committedIntent);
+  sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.begin_deposit_rent_journal_attempt(${committedArgs},${committedIntent.revision})`,true));
+  // Test-only failpoints are transactional and confined to this owned database.
+  const failpoint=(code)=>`CREATE OR REPLACE FUNCTION public.apply_deposit_to_rent(p_org uuid,p_deposit uuid,p_invoice uuid,p_date date,p_allocations jsonb,p_reason text,p_key text) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $failpoint$ BEGIN RAISE EXCEPTION 'Synthetic command failure' USING ERRCODE='${code}'; END $failpoint$`;
+  denied('serialization uncertainty does not become a terminal rejection',`BEGIN; ${failpoint('40001')}; SET LOCAL "request.jwt.claim.sub"=${q(101)}; SET LOCAL ROLE authenticated; SELECT public.execute_deposit_rent_journal(${committedArgs}); ROLLBACK;`,'40001');
+  check('serialization failure retains attempted evidence and no posting',`SELECT (SELECT state='attempted' AND revision=2 FROM app_private.deposit_rent_journal_intents WHERE token='${committedIntent.token}') AND NOT EXISTS(SELECT 1 FROM public.deposit_rent_applications WHERE lease_deposit_id=${q(9002)})`,'t');
+  sql(actor(101,`SELECT public.apply_deposit_to_rent(${q(1)},${q(9002)},${q(9003)},'2026-10-04','[{"lineId":"${id(9005)}","amount":"100.00"}]','${payload.reason}','${committedIntent.idempotencyKey}')`,true));
+  denied('existing committed original evidence cannot be relabeled rejected',`BEGIN; ${failpoint('23514')}; SET LOCAL "request.jwt.claim.sub"=${q(101)}; SET LOCAL ROLE authenticated; SELECT public.execute_deposit_rent_journal(${committedArgs}); ROLLBACK;`,'23514');
+  check('previous commit retains attempted original until checked replay resolves it',`SELECT (SELECT state='attempted' AND revision=2 FROM app_private.deposit_rent_journal_intents WHERE token='${committedIntent.token}') AND (SELECT count(*)=1 FROM public.deposit_rent_applications WHERE lease_deposit_id=${q(9002)})`,'t');
+  const committedReplay=JSON.parse(sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.execute_deposit_rent_journal(${committedArgs})`,true)).trim());
+  if(committedReplay.state!=='resolved')throw Error('Committed original replay did not resolve');
+  check('checked original replay resolves committed identity without a duplicate posting',`SELECT count(*) FROM public.deposit_rent_applications WHERE lease_deposit_id=${q(9002)}`,'1');
+  // The proposed active-null-owner case is forbidden by a validated released
+  // constraint. Preserve that ownership readiness rule rather than bypass it.
+  denied('released owner readiness constraint rejects an active assignment without a start',`BEGIN; SET LOCAL session_replication_role=replica; UPDATE public.property_owners SET started_on=NULL WHERE id=${q(43)}; ROLLBACK;`,'23514');
+  seed(12000,'through_ips',500,500,500,false);
+  sql(`BEGIN; SET LOCAL session_replication_role=replica;
+    UPDATE public.lease_billing_terms SET effective_from='2017-01-01' WHERE id=${q(12001)};
+    INSERT INTO public.tenant_invoices(organization_id,invoice_number,property_id,lease_id,billing_term_id,billing_period_start,billing_period_end,issue_date,due_date,collection_route,recipient_kind,recipient_person_id,recipient_label,total_amount,lifecycle,voided_at,voided_by)
+    SELECT ${q(1)},'SYNTH-HISTORY-'||n,${q(31)},${q(12000)},${q(12001)},
+      ('2026-10-01'::date-n*interval '1 month')::date,('2026-10-01'::date-(n-1)*interval '1 month'-interval '1 day')::date,
+      ('2026-10-01'::date-n*interval '1 month')::date,('2026-10-01'::date-n*interval '1 month'+interval '9 days')::date,
+      'through_ips','individual',${q(41)},'Synthetic historical tenant',1,'void',clock_timestamp(),${q(101)}
+    FROM generate_series(1,101) n; COMMIT;`);
+  const longLeaseCandidate=JSON.parse(sql(auth(101,`SELECT public.get_local_deposit_rent_candidates(${q(1)},${q(12000)})`)).trim());
+  if(longLeaseCandidate.invoices.length!==1||longLeaseCandidate.invoices[0].id!==id(12003)||longLeaseCandidate.census.invoices.length!==1)throw Error('Historical invoice inventory blocked or displaced current invoice');
+  check('over 100 historical invoices remain validated without occupying current operation packet',`SELECT count(*) FROM public.tenant_invoices WHERE lease_id=${q(12000)}`,'102');
+  sql(actor(101,`SELECT public.allocate_owner_event(${q(1)},'security_deposit_receipt',${q(12006)},'long-lease-receipt'); SELECT public.confirm_deposit_rent_custody(${q(1)},${q(12002)},${q(81)},'ips',NULL,'2026-10-02',500,'Synthetic long lease custody','long-lease-custody')`,true));
+  check('lease with over 100 historical invoices can confirm deposit custody',`SELECT count(*) FROM public.deposit_rent_custody_confirmations WHERE lease_deposit_id=${q(12002)}`,'1');
+  denied('excluded historical invoice cannot hide a corrupted property',`BEGIN; SET LOCAL session_replication_role=replica; UPDATE public.tenant_invoices SET property_id=${q(32)} WHERE invoice_number='SYNTH-HISTORY-1'; SET LOCAL session_replication_role=origin; SET LOCAL "request.jwt.claim.sub"=${q(101)}; SET LOCAL ROLE authenticated; SELECT public.get_local_deposit_rent_candidates(${q(1)},${q(12000)}); ROLLBACK;`,'23514');
+  const longLeaseApplication=journalCommand(12000,{...payload,leaseId:id(12000),depositId:id(12002),invoiceId:id(12003),lineId:id(12005),amount:'500.00'});
+  const paidApplicationCandidate=JSON.parse(sql(auth(101,`SELECT public.get_local_deposit_rent_candidates(${q(1)},${q(12000)})`)).trim());
+  if(paidApplicationCandidate.invoices.length!==1||paidApplicationCandidate.invoices[0].outstanding!=='0.00'||paidApplicationCandidate.applications[0].id!==longLeaseApplication.result.commandId)throw Error('Paid deposit application lost its reversal invoice');
+  results.push({name:'fully settled invoice stays in candidate through its original deposit application',pass:true});
+  journalCommand(12000,{operation:'reverse',leaseId:id(12000),date:'2026-10-05',reason:'Synthetic long lease reversal',applicationId:longLeaseApplication.result.commandId});
+  check('lease with over 100 historical invoices can apply and fully reverse deposits',`SELECT app_private.deposit_rent_held(${q(1)},${q(12002)})=500 AND (SELECT balance_due=500 FROM public.tenant_invoice_balances WHERE id=${q(12003)})`,'t');
+  seed(13000);
+  const archivedPayload={...payload,leaseId:id(13000),depositId:id(13002),invoiceId:id(13003),lineId:id(13005)};
+  const archivedIntent=prepareFor(13000,archivedPayload),archivedArgs=argsFor(13000,archivedIntent);
+  sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.begin_deposit_rent_journal_attempt(${archivedArgs},${archivedIntent.revision})`,true));
+  sql(`BEGIN; SET LOCAL session_replication_role=replica; UPDATE public.lease_deposits SET archived_at=clock_timestamp() WHERE id=${q(13002)}; COMMIT;`);
+  const archiveRejection=JSON.parse(sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.execute_deposit_rent_journal(${archivedArgs})`,true)).trim());
+  if(archiveRejection.state!=='rejected')throw Error('Archived deposit rejection left attempted intent stuck');
+  check('deposit archived after durable begin produces rejection with no posting or claim',`SELECT NOT EXISTS(SELECT 1 FROM public.deposit_rent_applications WHERE lease_deposit_id=${q(13002)}) AND NOT EXISTS(SELECT 1 FROM app_private.financial_idempotency_requests WHERE idempotency_key='${archivedIntent.idempotencyKey}')`,'t');
   // Missing schema is an explicit runtime error, not an accidental table query.
   denied('missing unpublished schema fails closed',`BEGIN; ALTER TABLE public.deposit_rent_applications RENAME TO unavailable_applications; SET LOCAL "request.jwt.claim.sub"=${q(102)}; SET LOCAL ROLE authenticated; ${call()}; ROLLBACK;`,'55000');
   run.completed=true;
