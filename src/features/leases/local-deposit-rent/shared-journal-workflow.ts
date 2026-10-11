@@ -18,9 +18,9 @@ const allowed = (permissions: readonly string[], op: "apply" | "reverse") => ["l
 function effects(s: LocalDepositRentSnapshot, r: SharedJournalIntent): DepositRentPreview {
   const d = r.payload, original = d.operation === "reverse" ? s.applications.find(row => row.id === d.applicationId) : undefined;
   const deposit = s.deposits.find(row => row.id === (d.operation === "apply" ? d.depositId : original?.depositId)), invoice = s.invoices.find(row => row.id === (d.operation === "apply" ? d.invoiceId : original?.invoiceId));
-  if (!deposit || !invoice || r.selectedScope.propertyId !== s.propertyId || r.selectedScope.unitId !== s.unitId) throw new SharedJournalError(409, "Original selected scope could not be verified.");
+  if (!deposit || deposit.custodian === null || !invoice || r.selectedScope.propertyId !== s.propertyId || r.selectedScope.unitId !== s.unitId) throw new SharedJournalError(409, "Original selected scope could not be verified.");
   const amount = d.operation === "apply" ? d.amount : original!.amount, signed = cents(amount) * (d.operation === "apply" ? BigInt(1) : -BigInt(1));
-  return { token: r.token, idempotencyKey: r.idempotencyKey, operation: d.operation, date: d.date, amount, heldAfter: money(cents(deposit.held) - signed), outstandingAfter: money(cents(invoice.outstanding) - signed), custodyChange: money(-signed), ownerCashChange: deposit.custodian === "ips" ? money(signed) : "0.00" };
+  return { token: r.token, idempotencyKey: r.idempotencyKey, operation: d.operation, date: d.date, amount, heldAfter: money(cents(deposit.held) - signed), outstandingAfter: money(cents(invoice.outstanding) - signed), custodyChange: money(-signed), ownerCashChange: deposit.custodian === "ips" ? money(signed) : "0.00", custodian: deposit.custodian };
 }
 // Additive shared backend for the actual modal controls. No mounted actions,
 // filesystem persistence, frontend key generation or finance-only read fallback.

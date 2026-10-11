@@ -73,7 +73,7 @@ function SharedDepositRentModalContent({leaseId,actions,onClose,onSuccess}:{leas
         {preview?<div className="space-y-3 border-t border-border pt-3 text-sm">
           <p>{operation==="apply"?"Apply":"Restore"} USD {preview.amount} on {preview.date}.</p>
           <dl className="grid grid-cols-2 gap-2"><dt>Deposit held after</dt><dd>USD {preview.heldAfter}</dd><dt>Invoice due after</dt><dd>USD {preview.outstandingAfter}</dd><dt>Owner money held by IPS: change</dt><dd>USD {preview.ownerCashChange}</dd></dl>
-          <p>No new bank payment. {deposit?.custodianLabel==="The owner holds the deposit"?"Owner-held money does not increase money held by IPS.":"Already-held deposit money is reclassified for the owner."}</p>
+          <p>No new bank payment. {preview.custodian==="owner"?"Owner-held money does not increase money held by IPS.":"Already-held deposit money is reclassified for the owner."}</p>
           <Button type="button" disabled={pending} onClick={()=>void confirm()}>{operation==="apply"?"Confirm deposit application":"Confirm full reversal"}</Button>
         </div>:null}
       </form>:!message?<p role="status">Loading deposit rent details.</p>:null}

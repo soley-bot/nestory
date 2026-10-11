@@ -5,7 +5,7 @@ export type DepositRentView={leaseLabel:string;canApply:boolean;canReverse:boole
   deposits:Array<DepositRentChoice&{eligible:boolean;custodianLabel:string}>;
   invoices:Array<DepositRentChoice&{issued:boolean;rentLines:DepositRentChoice[]}>;
   applications:DepositRentChoice[];recovery?:DepositRentRecovery};
-export type DepositRentPreview={token:string;idempotencyKey:string;operation:"apply"|"reverse";date:string;amount:string;heldAfter:string;outstandingAfter:string;ownerCashChange:string;custodyChange:string};
+export type DepositRentPreview={token:string;idempotencyKey:string;operation:"apply"|"reverse";date:string;amount:string;heldAfter:string;outstandingAfter:string;ownerCashChange:string;custodyChange:string;custodian:"ips"|"owner"};
 export type DepositRentResult<T>={status:"success";value:T}|{status:"error";message:string};
 export type DepositRentLocalActions={list(leaseId:string):Promise<DepositRentResult<DepositRentView>>;preview(draft:DepositRentDraft):Promise<DepositRentResult<DepositRentPreview>>;
   confirm(input:{leaseId:string;token:string;idempotencyKey:string}):Promise<DepositRentResult<{message:string}>>};

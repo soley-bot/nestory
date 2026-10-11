@@ -126,6 +126,11 @@ export async function loadLocalDepositReport(client: LocalDepositClient, scope: 
   { generatedAt: new Date().toISOString(), expectedFingerprint: packet.fingerprint });
   if (projection.unlinkedAppliedEventIds.length) throw new LocalDepositExportError(409, "Unlinked deposit application requires review.");
   if (projection.model.incomeCents === null) throw new LocalDepositExportError(409, "Deposit settlement attribution is incomplete for this scope.");
+  // Normalize all custody events to verify source/reversal lineage, but expose
+  // only rent allocations and their owner bridge in this settlement report.
+  // Custody history and independent expense warnings belong to other reports.
+  projection.report.rows = projection.report.rows.filter(row => row.id.startsWith("deposit_rent_allocation:")
+    || row.id.startsWith("owner-bridge:") || row.id.startsWith("metadata:"));
   // Complete only for this bounded settlement report. Never certify whole-owner
   // profit or show absent expense families as zero.
   projection.report.title = "Deposit rent settlements - Cash basis";

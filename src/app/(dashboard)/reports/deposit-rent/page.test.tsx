@@ -56,7 +56,7 @@ describe("deposit settlement report route", () => {
   it("does not count technical metadata as deposit activity", async () => {
     report.mockResolvedValue({ periodLabel: "October 2026", columns: [], summary: [], sourceFingerprint: "a".repeat(64), rows: [{ id: "metadata:fingerprint", title: "Report context", cells: { detail: "technical-fingerprint" } }] });
     const html = await render({ propertyId, month: "2026-10" });
-    expect(html).toContain("No deposit activity in this period");
+    expect(html).toContain("No deposit rent settlements in this period");
     expect(html).not.toContain("technical-fingerprint");
   });
 });

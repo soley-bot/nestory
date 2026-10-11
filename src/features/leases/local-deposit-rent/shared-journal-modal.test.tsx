@@ -3,7 +3,7 @@ import {cleanup,render,screen,waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {afterEach,beforeAll,beforeEach,describe,expect,it,vi} from "vitest";
 import {SharedJournalDepositRentModal,DormantSharedJournalDepositRentModal} from "./shared-journal-modal";
-import {ids} from "./workflow.test-fixture";
+import {ids,id} from "./workflow.test-fixture";
 import {sharedModalFixture} from "./shared-journal-modal.fixture";
 // Real Modal, SelectControl, DatePickerField, Input and Button. Only missing DOM
 // platform primitives are supplied; no component/action mock replaces the UI.
@@ -24,6 +24,21 @@ async function prepare(user:ReturnType<typeof userEvent.setup>){
   return await screen.findByRole("button",{name:"Confirm deposit application"});
 }
 describe("actual product controls bound to dormant shared-journal workflow",()=>{
+ it.each(["ips","owner"] as const)("uses the original %s custodian after switching from an unrelated apply selection",async custodian=>{
+  const f=sharedModalFixture(custodian),user=userEvent.setup();
+  const applied=await f.h.rpc("apply_deposit_to_rent",{p_org:ids.org,p_deposit:ids.deposit,p_invoice:ids.invoice,p_date:"2026-10-05",p_allocations:[{lineId:ids.line,amount:"100.00"}],p_reason:"Synthetic original application",p_key:"copy-original-application"});expect(applied.error).toBeNull();
+  const actions={...f.actions,list:async(leaseId:string)=>{
+    const result=await f.actions.list(leaseId);if(result.status==="success")result.value.deposits.unshift({id:id(999),label:"Other deposit",amount:"500.00",eligible:true,custodianLabel:custodian==="ips"?"The owner holds the deposit":"IPS holds the deposit"});return result;
+  }};
+  render(<SharedJournalDepositRentModal enabledForLocalTests leaseId={ids.lease} actions={actions} onClose={vi.fn()} onSuccess={vi.fn()}/>);
+  await user.click(await screen.findByRole("combobox",{name:"Deposit"}));await user.click(screen.getByRole("option",{name:/^Other deposit/}));
+  await user.click(screen.getByRole("combobox",{name:"Action"}));await user.click(screen.getByRole("option",{name:"Reverse a full application"}));
+  await user.click(screen.getByRole("combobox",{name:"Original application"}));await user.click(screen.getByRole("option",{name:/USD 100\.00/}));
+  await user.click(screen.getByRole("button",{name:"Reversal date"}));await user.click(screen.getByRole("button",{name:"Today"}));
+  await user.type(screen.getByRole("textbox",{name:"Reason"}),"Verify original custody explanation");await user.click(screen.getByRole("button",{name:"Preview changes"}));
+  await screen.findByRole("button",{name:"Confirm full reversal"});
+  expect(screen.getByText(custodian==="owner"?"No new bank payment. Owner-held money does not increase money held by IPS.":"No new bank payment. Already-held deposit money is reclassified for the owner.")).toBeTruthy();
+ });
  it("refreshes only a proven unused stale preview and preserves explicit draft details",async()=>{
   const f=sharedModalFixture(),user=userEvent.setup(),success=vi.fn();render(<SharedJournalDepositRentModal enabledForLocalTests leaseId={ids.lease} actions={f.actions} onClose={vi.fn()} onSuccess={success}/>);
   const button=await prepare(user),oldKey=f.current()!.idempotencyKey;const snapshot=f.h.snapshot.bind(f.h);vi.spyOn(f.h,"snapshot").mockImplementation(()=>({...snapshot(),businessDate:"2026-10-06"}));f.control.businessConflict=true;await user.click(button);

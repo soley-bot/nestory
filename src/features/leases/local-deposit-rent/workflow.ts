@@ -73,7 +73,7 @@ export function createLocalDepositRentWorkflow(deps:LocalDepositRentDependencies
       if(!original||!original.active||original.consumed||original.reversalOf!==null||d.date<original.date||cents(deposit.held)+cents(original.amount)>cents(deposit.obligation))fail("This application cannot be reversed. Review its date and any later owner payments.");amount=original.amount;
     }
     const signed=cents(amount)*(d.operation==="apply"?BigInt(1):BigInt(-1));
-    return {operation:d.operation,date:d.date,amount,heldAfter:decimal(cents(deposit.held)-signed),outstandingAfter:decimal(cents(invoice.outstanding)-signed),custodyChange:decimal(-signed),ownerCashChange:deposit.custodian==="ips"?decimal(signed):"0.00"};
+    return {operation:d.operation,date:d.date,amount,heldAfter:decimal(cents(deposit.held)-signed),outstandingAfter:decimal(cents(invoice.outstanding)-signed),custodyChange:decimal(-signed),ownerCashChange:deposit.custodian==="ips"?decimal(signed):"0.00",custodian:deposit.custodian};
   }
   const journalScope=(who:LocalDepositRentIdentity,leaseId:string)=>({organizationId:who.organizationId,actorId:who.actorId,leaseId});
   return {

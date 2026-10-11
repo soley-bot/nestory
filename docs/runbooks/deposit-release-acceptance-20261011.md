@@ -32,7 +32,13 @@ ordinary SSR sessions, PostgreSQL RPCs and the built application were exercised.
 | Official owner statement | Two distinct fictional reviewers approved known zero opening components. The month was calculated and locked, closed and published through the browser. Downloaded PDF and Excel match retained SHA-256/size and contain application, full-reversal and deposit reclassification detail. |
 | Origin | Replaying an actual authenticated action with an untrusted Origin was rejected before execution by the Next.js action guard. |
 | SQL invariants | Disposable candidate harness: 56 passed, completed and cleaned up; includes future custody rejection without idempotency residue, both custodians, retry/concurrency, scope isolation and permission revocation. |
-| Repository verification | Broad unit/UI/contracts passed; affected pgTAP date-correction and step-up suites passed; 33 focused report/route tests passed; final production build and TypeScript passed. |
+| Repository verification | Broad unit/UI/contracts passed; affected pgTAP date-correction and step-up suites passed; 37 final focused review regressions passed; production build and TypeScript passed. |
+
+Final review corrections preserve complete custody history for source validation
+and official statements while limiting the specialized report's page/PDF/Excel
+rows to rent allocations and their owner bridges. A receipt-only period has no
+settlements. Reversal preview copy uses the checked original application's
+custodian, including after switching from an unrelated apply-mode selection.
 
 Detailed synthetic evidence is in ignored `artifacts/deposit-release/acceptance`,
 `artifacts/deposit-candidate` and `output/playwright` in the isolated checkout.

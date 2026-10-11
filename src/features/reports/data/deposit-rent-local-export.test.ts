@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { strFromU8, unzipSync } from "fflate";
 import { createLocalDepositExportHandler, LOCAL_DEPOSIT_EXPORT_ENABLED } from "./deposit-rent-local-export";
-import type { LocalDepositClient } from "./deposit-rent-local-source";
+import { loadLocalDepositReport, type LocalDepositClient } from "./deposit-rent-local-source";
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const actor=id(1), org=id(2), property=id(3), unit=id(4), lease=id(5), deposit=id(6), receipt=id(7), event=id(8), allocation=id(9), application=id(10);
@@ -42,6 +42,24 @@ function harness(change?: (data: ReturnType<typeof fixture>)=>void, options: {me
 function request(format="xlsx",extra="") {return new Request(`http://local.test/local-validation?propertyId=${property}&unitId=${unit}&from=2026-10-01&to=2026-10-31&format=${format}${extra}`);}
 
 describe("unmounted, disabled local source/client/export integration",()=>{
+  it.each(["pdf", "xlsx"])("exports only settlements, without paired custody amount rows in %s", async format => {
+    const h=harness(data=>{ data.context.deposit_events[0].event_date="2026-10-01"; data.packet.events[0].event_date="2026-10-01"; });
+    const response=await h.handle(request(format));expect(response.status).toBe(200);
+    const bytes=new Uint8Array(await response.arrayBuffer());
+    const text=format==="xlsx"?strFromU8(unzipSync(bytes)["xl/worksheets/sheet1.xml"]):[...Buffer.from(bytes).toString("latin1").matchAll(/\(((?:\\.|[^\\)])*)\) Tj/g)].map(match=>match[1].replace(/\\([\\()])/g,"$1")).join("");
+    expect(text).not.toContain("Activity: custody");expect(text).not.toContain("-USD 300.00");
+    expect(text.replace(/\s+/g,"")).toContain(allocation);expect(text.replace(/\s+/g,"")).toContain("Ownercustodyreclassification");
+  });
+  it("keeps receipt-only history verified while exposing no settlement rows",async()=>{
+    const h=harness(data=>{
+      data.context.deposit_events=[data.context.deposit_events[0]];data.packet.events=[data.packet.events[0]];
+      data.context.deposit_events[0].event_date="2026-10-01";data.packet.events[0].event_date="2026-10-01";
+      data.packet.allocations=[];data.packet.ownerBridges=[];data.packet.census.events=[receipt];data.packet.census.allocations=[];data.packet.census.ownerBridges=[];
+    });
+    const report=await loadLocalDepositReport({rpc:h.rpc},{actorId:actor,organizationId:org,propertyIds:[property],unitId:unit,periodStart:"2026-10-01",periodEnd:"2026-10-31"});
+    expect(report.rows.filter(row=>!row.id.startsWith("metadata:"))).toEqual([]);
+    expect(report.sourceFingerprint).toBe(fingerprint);expect(report.summary[0].value).toBe("USD 0.00");
+  });
   it("is disabled by default and request flags cannot activate it",async()=>{
     expect(LOCAL_DEPOSIT_EXPORT_ENABLED).toBe(false);const h=harness();
     const response=await createLocalDepositExportHandler(h.dependencies)(request("xlsx","&enabled=true&basis=cash"));

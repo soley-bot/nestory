@@ -62,7 +62,7 @@ export default async function DepositRentReportPage({ searchParams }: {
           <td className="border-b p-2 align-top">{row.cells.amount}</td>
           <td className="border-b p-2 align-top"><details><summary className="cursor-pointer">View source details</summary><p className="max-w-xl whitespace-pre-wrap break-words py-2">{row.cells.source}<br />{row.cells.detail}</p></details></td>
         </tr>)}</tbody></table></div>
-        {!reportRows.length ? <EmptyState kind="empty" title="No deposit activity in this period" /> : null}
+        {!reportRows.length ? <EmptyState kind="empty" title="No deposit rent settlements in this period" /> : null}
         <p className="text-xs text-muted-foreground">Deposit settlements only. View owner balances and official statements for the complete custody history.</p>
       </> : !message ? <p className="text-sm text-muted-foreground">Choose a property and month to review its deposit settlements.</p> : null}
     </div>
