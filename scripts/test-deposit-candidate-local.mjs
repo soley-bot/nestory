@@ -234,6 +234,7 @@ try {
   // Test-only failpoints are transactional and confined to this owned database.
   const failpoint=(code)=>`CREATE OR REPLACE FUNCTION public.apply_deposit_to_rent(p_org uuid,p_deposit uuid,p_invoice uuid,p_date date,p_allocations jsonb,p_reason text,p_key text) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $failpoint$ BEGIN RAISE EXCEPTION 'Synthetic command failure' USING ERRCODE='${code}'; END $failpoint$`;
   denied('serialization uncertainty does not become a terminal rejection',`BEGIN; ${failpoint('40001')}; SET LOCAL "request.jwt.claim.sub"=${q(101)}; SET LOCAL ROLE authenticated; SELECT public.execute_deposit_rent_journal(${committedArgs}); ROLLBACK;`,'40001');
+  denied('unknown prerequisite failure retains original attempted recovery',`BEGIN; ${failpoint('55000')}; SET LOCAL "request.jwt.claim.sub"=${q(101)}; SET LOCAL ROLE authenticated; SELECT public.execute_deposit_rent_journal(${committedArgs}); ROLLBACK;`,'55000');
   check('serialization failure retains attempted evidence and no posting',`SELECT (SELECT state='attempted' AND revision=2 FROM app_private.deposit_rent_journal_intents WHERE token='${committedIntent.token}') AND NOT EXISTS(SELECT 1 FROM public.deposit_rent_applications WHERE lease_deposit_id=${q(9002)})`,'t');
   sql(actor(101,`SELECT public.apply_deposit_to_rent(${q(1)},${q(9002)},${q(9003)},'2026-10-04','[{"lineId":"${id(9005)}","amount":"100.00"}]','${payload.reason}','${committedIntent.idempotencyKey}')`,true));
   denied('existing committed original evidence cannot be relabeled rejected',`BEGIN; ${failpoint('23514')}; SET LOCAL "request.jwt.claim.sub"=${q(101)}; SET LOCAL ROLE authenticated; SELECT public.execute_deposit_rent_journal(${committedArgs}); ROLLBACK;`,'23514');
@@ -273,6 +274,24 @@ try {
   const archiveRejection=JSON.parse(sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.execute_deposit_rent_journal(${archivedArgs})`,true)).trim());
   if(archiveRejection.state!=='rejected')throw Error('Archived deposit rejection left attempted intent stuck');
   check('deposit archived after durable begin produces rejection with no posting or claim',`SELECT NOT EXISTS(SELECT 1 FROM public.deposit_rent_applications WHERE lease_deposit_id=${q(13002)}) AND NOT EXISTS(SELECT 1 FROM app_private.financial_idempotency_requests WHERE idempotency_key='${archivedIntent.idempotencyKey}')`,'t');
+  seed(14000,'through_ips',500,500,500,false);
+  sql(`BEGIN; SET LOCAL session_replication_role=replica;
+    UPDATE public.lease_deposit_events SET event_date='2026-09-01' WHERE id=${q(14006)};
+    UPDATE public.tenant_invoices SET billing_period_start='2026-09-01',billing_period_end='2026-09-30',issue_date='2026-09-01',due_date='2026-09-10' WHERE id=${q(14003)};
+    UPDATE public.tenant_invoice_lines SET recognized_on='2026-09-01' WHERE id=${q(14005)};
+    UPDATE public.finance_income_items SET due_date='2026-09-10' WHERE id=${q(14004)}; COMMIT;`);
+  sql(actor(101,`SELECT public.allocate_owner_event(${q(1)},'security_deposit_receipt',${q(14006)},'locked-month-receipt'); SELECT public.confirm_deposit_rent_custody(${q(1)},${q(14002)},${q(81)},'ips',NULL,'2026-09-02',500,'Synthetic prior month custody','locked-month-custody')`,true));
+  const lockedPayload={...payload,leaseId:id(14000),depositId:id(14002),invoiceId:id(14003),lineId:id(14005),date:'2026-09-10'};
+  const lockedIntent=prepareFor(14000,lockedPayload),lockedArgs=argsFor(14000,lockedIntent);
+  sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.begin_deposit_rent_journal_attempt(${lockedArgs},${lockedIntent.revision})`,true));
+  sql(`BEGIN; SET LOCAL session_replication_role=replica;
+    INSERT INTO public.financial_month_locks(organization_id,branch_id,month_start,is_locked,reason,locked_by,locked_at)
+    SELECT ${q(1)},branch_id,'2026-09-01',true,'Synthetic lock after durable begin',${q(101)},clock_timestamp() FROM public.properties WHERE id=${q(31)}; COMMIT;`);
+  const lockedRejection=JSON.parse(sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.execute_deposit_rent_journal(${lockedArgs})`,true)).trim());
+  if(lockedRejection.state!=='rejected')throw Error('Known locked-month conflict left original attempted');
+  check('month locked after durable begin records rollback rejection with no posting or claim',`SELECT NOT EXISTS(SELECT 1 FROM public.deposit_rent_applications WHERE lease_deposit_id=${q(14002)}) AND NOT EXISTS(SELECT 1 FROM app_private.financial_idempotency_requests WHERE idempotency_key='${lockedIntent.idempotencyKey}')`,'t');
+  journalCommand(14000,{...lockedPayload,date:'2026-10-04',reason:'Synthetic replacement in open month'});
+  check('known locked-month rejection permits a fresh action in an open month',`SELECT app_private.deposit_rent_held(${q(1)},${q(14002)})=400 AND (SELECT balance_due=400 FROM public.tenant_invoice_balances WHERE id=${q(14003)})`,'t');
   // Missing schema is an explicit runtime error, not an accidental table query.
   denied('missing unpublished schema fails closed',`BEGIN; ALTER TABLE public.deposit_rent_applications RENAME TO unavailable_applications; SET LOCAL "request.jwt.claim.sub"=${q(102)}; SET LOCAL ROLE authenticated; ${call()}; ROLLBACK;`,'55000');
   run.completed=true;

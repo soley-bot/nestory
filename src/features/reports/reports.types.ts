@@ -67,6 +67,7 @@ export type ReportsViewQuery = {
 export type ReportSourceRecordType =
   | "document"
   | "deposit-event"
+  | "deposit-rent-allocation"
   | "expense-obligation"
   | "lease"
   | "ledger"
