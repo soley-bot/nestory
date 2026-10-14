@@ -110,7 +110,7 @@ describe("invitation acceptance", () => {
     );
   });
 
-  it("sets the password before accepting a new invited identity", async () => {
+  it.each(["Abcdefg1", "CorrectHorse9Battery"])("sets an accepted new password before invitation acceptance: %s", async (password) => {
     rpc
       .mockResolvedValueOnce({ data: [invitation], error: null })
       .mockResolvedValueOnce({ data: "member-1", error: null });
@@ -120,13 +120,13 @@ describe("invitation acceptance", () => {
     });
     const formData = new FormData();
     formData.set("invitationId", invitationId);
-    formData.set("password", "CorrectHorse9Battery");
-    formData.set("passwordConfirm", "CorrectHorse9Battery");
+    formData.set("password", password);
+    formData.set("passwordConfirm", password);
 
     await expect(acceptInvitationAction({}, formData)).rejects.toThrow(
       "redirect:/workspace",
     );
-    expect(updateUser).toHaveBeenCalledWith({ password: "CorrectHorse9Battery" });
+    expect(updateUser).toHaveBeenCalledWith({ password });
     expect(adminRpc).toHaveBeenCalledWith(
       "record_auth_password_credential_proof",
       {
@@ -143,6 +143,24 @@ describe("invitation acceptance", () => {
     expect(adminRpc.mock.invocationCallOrder[0]).toBeLessThan(
       rpc.mock.invocationCallOrder[1],
     );
+  });
+
+  it("rejects seven-character invitation passwords before changing credentials or membership", async () => {
+    rpc.mockResolvedValueOnce({ data: [invitation], error: null });
+    const formData = new FormData();
+    formData.set("invitationId", invitationId);
+    formData.set("password", "Abcdef1");
+    formData.set("passwordConfirm", "Abcdef1");
+
+    await expect(acceptInvitationAction({}, formData)).resolves.toMatchObject({
+      status: "error",
+      fieldErrors: {
+        password: ["Use at least 8 characters with lowercase, uppercase, and a number. Symbols are optional."],
+      },
+    });
+    expect(updateUser).not.toHaveBeenCalled();
+    expect(adminRpc).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledTimes(1);
   });
 
   it("keeps membership pending when a new identity cannot set its password", async () => {

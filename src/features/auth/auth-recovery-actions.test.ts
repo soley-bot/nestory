@@ -110,7 +110,7 @@ describe("password recovery actions", () => {
     expect(updateUser).not.toHaveBeenCalled();
   });
 
-  it("updates the password, clears the recovery session, and returns to login", async () => {
+  it.each(["Abcdefg1", "CorrectHorse9Battery"])("accepts the new password, clears recovery, and returns to login: %s", async (password) => {
     getUser.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
     updateUser.mockResolvedValue({ error: null });
     signOut.mockResolvedValue({ error: null });
@@ -118,14 +118,14 @@ describe("password recovery actions", () => {
       throw new Error(`redirect:${path}`);
     });
     const formData = new FormData();
-    formData.set("password", "CorrectHorse9Battery");
-    formData.set("passwordConfirm", "CorrectHorse9Battery");
+    formData.set("password", password);
+    formData.set("passwordConfirm", password);
 
     await expect(updatePasswordAction({}, formData)).rejects.toThrow(
       "redirect:/login?password=updated",
     );
     expect(updateUser).toHaveBeenCalledWith({
-      password: "CorrectHorse9Battery",
+      password,
     });
     expect(adminRpc).toHaveBeenCalledWith(
       "record_auth_password_credential_proof",
@@ -139,6 +139,22 @@ describe("password recovery actions", () => {
     );
     expect(cookieDelete).toHaveBeenCalledWith("nestory_recovery");
     expect(signOut).toHaveBeenCalledOnce();
+  });
+
+  it("rejects seven-character recovery passwords before changing credentials", async () => {
+    const formData = new FormData();
+    formData.set("password", "Abcdef1");
+    formData.set("passwordConfirm", "Abcdef1");
+
+    await expect(updatePasswordAction({}, formData)).resolves.toMatchObject({
+      status: "error",
+      fieldErrors: {
+        password: ["Use at least 8 characters with lowercase, uppercase, and a number. Symbols are optional."],
+      },
+    });
+    expect(updateUser).not.toHaveBeenCalled();
+    expect(adminRpc).not.toHaveBeenCalled();
+    expect(signOut).not.toHaveBeenCalled();
   });
 
   it("does not establish credential proof when recovery password update fails", async () => {

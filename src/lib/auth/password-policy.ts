@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-export const NEW_PASSWORD_MIN_LENGTH = 12;
+export const NEW_PASSWORD_MIN_LENGTH = 8;
 export const NEW_PASSWORD_REQUIREMENT =
-  "Use at least 12 characters with lowercase, uppercase, and a number.";
+  "Use at least 8 characters with lowercase, uppercase, and a number. Symbols are optional.";
 
 export const newPasswordSchema = z.string().superRefine((password, context) => {
   if (

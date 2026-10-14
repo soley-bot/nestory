@@ -3,15 +3,18 @@ import { newPasswordSchema } from "@/lib/auth/password-policy";
 
 describe("new password policy", () => {
   it.each([
-    "Short1",
-    "alllowercase1",
-    "ALLUPPERCASE1",
-    "NoDigitsHere",
+    "Abcdef1",
+    "abcdefg1",
+    "ABCDEFG1",
+    "Abcdefgh",
   ])("rejects a weak new password: %s", (password) => {
     expect(newPasswordSchema.safeParse(password).success).toBe(false);
   });
 
-  it("accepts a twelve-character mixed-case password with a digit", () => {
-    expect(newPasswordSchema.safeParse("NestorySafe1").success).toBe(true);
-  });
+  it.each(["Abcdefg1", "Abcdef1!", "NestorySafe1"])(
+    "accepts a mixed-case password with a digit at or above eight characters: %s",
+    (password) => {
+      expect(newPasswordSchema.safeParse(password).success).toBe(true);
+    },
+  );
 });
