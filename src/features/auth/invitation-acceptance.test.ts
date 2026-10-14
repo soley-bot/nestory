@@ -147,11 +147,13 @@ describe("invitation acceptance", () => {
   });
 
   it("rejects seven-character invitation passwords before changing credentials or membership", async () => {
+    const tooShortPassword = "A" + "b".repeat(5) + "1";
+    expect(tooShortPassword).toHaveLength(7);
     rpc.mockResolvedValueOnce({ data: [invitation], error: null });
     const formData = new FormData();
     formData.set("invitationId", invitationId);
-    formData.set("password", "Abcdef1");
-    formData.set("passwordConfirm", "Abcdef1");
+    formData.set("password", tooShortPassword);
+    formData.set("passwordConfirm", tooShortPassword);
 
     await expect(acceptInvitationAction({}, formData)).resolves.toMatchObject({
       status: "error",

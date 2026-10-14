@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { FIXTURE_USERS } from "./ips-readiness-recovery-core.mjs";
-import { statementTarget, verifyStatementTarget, reconcileFreshStatement, verifyStatementArtifact } from "./owner-statement-readiness-core.mjs";
+import { statementTarget, requireStatementPassword, verifyStatementTarget, reconcileFreshStatement, verifyStatementArtifact } from "./owner-statement-readiness-core.mjs";
 
 const input = () => ({ cwd: "D:/nestory/.worktrees/ips-production-readiness-20261014",
   config: `project_id = "${statementTarget.project}"\n[api]\nport = 59321\n`, fixtureHash: "a".repeat(64),
@@ -14,6 +16,24 @@ const input = () => ({ cwd: "D:/nestory/.worktrees/ips-production-readiness-2026
     SUPABASE_DB_CONTAINER: statementTarget.container, NESTORY_BASE_URL: statementTarget.app },
   now: Date.parse("2026-10-14T13:30:00.000Z") });
 
+test("official statement requires explicit nonempty baseline input without revealing it", () => {
+  for (const value of [undefined, null, "", " \t\n", {}]) {
+    assert.throws(() => requireStatementPassword({ NESTORY_TEST_PASSWORD: value }), {
+      message: "NESTORY_TEST_PASSWORD must be supplied for the local baseline account.",
+    });
+  }
+  const supplied = randomUUID();
+  assert.equal(requireStatementPassword({ NESTORY_TEST_PASSWORD: supplied }), supplied);
+});
+test("runner rejects missing input before reading target state or creating runtime artifacts", () => {
+  const child = spawnSync(process.execPath, [fileURLToPath(new URL("./smoke-ips-owner-statement-readiness.mjs", import.meta.url))], {
+    env: { ...process.env, NESTORY_TEST_PASSWORD: "" }, encoding: "utf8", timeout: 10_000, windowsHide: true,
+  });
+  assert.ifError(child.error);
+  assert.notEqual(child.status, 0);
+  assert.match(child.stderr, /NESTORY_TEST_PASSWORD must be supplied for the local baseline account\./);
+  assert.equal(child.stdout, "");
+});
 test("official statement guard accepts only the current fixed readiness source", () => {
   verifyStatementTarget(input());
   for (const field of ["IPS_LOCAL_HANDOFF", "IPS_OWNER_STATEMENT_HANDOFF", "SUPABASE_DB_CONTAINER", "NESTORY_BASE_URL"]) {

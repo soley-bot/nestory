@@ -143,9 +143,11 @@ describe("password recovery actions", () => {
   });
 
   it("rejects seven-character recovery passwords before changing credentials", async () => {
+    const tooShortPassword = "A" + "b".repeat(5) + "1";
+    expect(tooShortPassword).toHaveLength(7);
     const formData = new FormData();
-    formData.set("password", "Abcdef1");
-    formData.set("passwordConfirm", "Abcdef1");
+    formData.set("password", tooShortPassword);
+    formData.set("passwordConfirm", tooShortPassword);
 
     await expect(updatePasswordAction({}, formData)).resolves.toMatchObject({
       status: "error",

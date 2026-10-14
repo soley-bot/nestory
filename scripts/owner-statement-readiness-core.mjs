@@ -8,6 +8,14 @@ export const statementTarget = Object.freeze({
   organization: "00000000-0000-0000-0000-000000000001",
 });
 
+export function requireStatementPassword(env) {
+  const supplied = env.NESTORY_TEST_PASSWORD;
+  if (typeof supplied !== "string" || supplied.trim().length === 0) {
+    throw new Error("NESTORY_TEST_PASSWORD must be supplied for the local baseline account.");
+  }
+  return supplied;
+}
+
 export function verifyStatementTarget({ cwd, config, manifest, fixtureHash, status, env, now }) {
   assert.match(cwd.replaceAll("\\", "/"), /\/ips-production-readiness-20261014$/);
   assert.equal(env.IPS_LOCAL_HANDOFF, statementTarget.project);

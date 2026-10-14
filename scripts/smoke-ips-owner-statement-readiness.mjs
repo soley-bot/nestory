@@ -10,10 +10,11 @@ import { createClient } from "@supabase/supabase-js";
 import { chromium } from "playwright";
 import { localRecoveryDocker } from "./local-recovery-docker.mjs";
 import { assertRecoveryContainer, FIXTURE_USERS, sha256 } from "./ips-readiness-recovery-core.mjs";
-import { statementTarget as target, verifyStatementTarget, reconcileFreshStatement, verifyStatementArtifact } from "./owner-statement-readiness-core.mjs";
+import { statementTarget as target, requireStatementPassword, verifyStatementTarget, reconcileFreshStatement, verifyStatementArtifact } from "./owner-statement-readiness-core.mjs";
 
 const cwd = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 assert.equal(process.argv.length, 2, "Alternate target arguments are unsupported");
+const baselinePassword = requireStatementPassword(process.env);
 const readJson = name => JSON.parse(readFileSync(path.join(cwd, name), "utf8").replace(/^\uFEFF/, ""));
 const manifest = readJson(".codex-artifacts/ips-readiness-source-manifest.json");
 const status = readJson(".codex-artifacts/isolated-local-status.json");
@@ -57,7 +58,6 @@ const baselineActors = {
   finance_member: { id: "00000000-0000-0000-0000-000000000801", email: "finance.member@nestory.com" },
   operations_manager: { id: "00000000-0000-0000-0000-000000000501", email: "operations.manager@nestory.com" },
 };
-const baselinePassword = process.env.NESTORY_TEST_PASSWORD ?? "123456789";
 const password = `Synthetic-${randomUUID()}!`;
 const actors = {};
 report.actors = actors;
