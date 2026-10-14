@@ -62,11 +62,13 @@ describe("custody product action authority", () => {
   });
   it("offers stale custody for explicit renewal while excluding current and archived deposits", async () => {
     vi.mocked(readLocalDepositRentSnapshot).mockResolvedValue({ actorId: id(6), businessDate: "2026-10-09", fingerprint: input.fingerprint, propertyId: id(10), deposits: [
-      { id: id(2), label: "Original security deposit", held: "600.00", custodyVerified: true, custodyCurrent: false, archived: false },
+      { id: id(2), label: "Original security deposit", held: "600.00", custodyVerified: true, custodyCurrent: false, liabilityAccountActive: true, archived: false },
       { id: id(8), custodyVerified: true, custodyCurrent: true, archived: false },
       { id: id(9), custodyVerified: false, custodyCurrent: false, archived: true },
+      { id: id(11), custodyVerified: true, custodyCurrent: false, liabilityAccountActive: false, archived: false },
+      { id: id(12), label: "New deposit", held: "20.00", custodyVerified: false, custodyCurrent: false, liabilityAccountActive: false, archived: false },
     ] } as Awaited<ReturnType<typeof readLocalDepositRentSnapshot>>);
     vi.mocked(loadScopedFinanceContext).mockResolvedValue({ owner_assignments: [], people: [] } as unknown as Awaited<ReturnType<typeof loadScopedFinanceContext>>);
-    expect(await getDepositCustodyOptions(input.leaseId)).toMatchObject({ status: "success", fingerprint: input.fingerprint, deposits: [{ id: id(2), needsRenewal: true, held: "600.00" }] });
+    expect(await getDepositCustodyOptions(input.leaseId)).toMatchObject({ status: "success", fingerprint: input.fingerprint, deposits: [{ id: id(2), needsRenewal: true, held: "600.00" }, { id: id(12), needsRenewal: false, held: "20.00" }] });
   });
 });

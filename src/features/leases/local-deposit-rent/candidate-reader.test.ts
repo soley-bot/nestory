@@ -5,7 +5,7 @@ describe("checked candidate reader contract",()=>{
   it("retains stale immutable custody history without declaring its attestation current",()=>{
     const h=fixture(),s=h.snapshot();s.deposits[0].custodyCurrent=false;
     expect(parseLocalDepositCandidates(s,ids.org,ids.lease).deposits[0]).toMatchObject({custodyVerified:true,custodyCurrent:false});
-    s.deposits[0].custodyVerified=false;s.deposits[0].custodyCurrent=true;s.census.custody=[];
+    s.deposits[0].custodyVerified=false;s.deposits[0].custodyCurrent=true;s.deposits[0].liabilityAccountActive=false;s.census.custody=[];
     expect(()=>parseLocalDepositCandidates(s,ids.org,ids.lease)).toThrow("incomplete");
   });
   it("retains more than 100 explicit invoice choices with exact independent identity census",()=>{

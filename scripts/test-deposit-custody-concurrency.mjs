@@ -31,6 +31,21 @@ export async function custodyConcurrency(context) {
   const release=async worker=>{worker.child.stdin.end('COMMIT;\n');await worker.done;if(worker.code!==0)throw Error(worker.err);};
   const ordinary=body=>`BEGIN; SET LOCAL "request.jwt.claim.sub"=${q(101)}; SET LOCAL ROLE authenticated; ${body};`;
   try {
+    if(context.accountArchive) {
+      const {args,lease}=context.accountArchive;
+      const reverse=start('custody_reverse_account_lock',ordinary(`SELECT public.execute_deposit_rent_journal(${args})`),true);
+      await ready(reverse);
+      check('historical reversal holds a shared row-lock relation on its exact liability account',`SELECT EXISTS(SELECT 1 FROM pg_locks lock JOIN pg_stat_activity activity ON activity.pid=lock.pid WHERE activity.datname='${db}' AND activity.application_name='custody_reverse_account_lock' AND lock.relation='public.finance_accounts'::regclass AND lock.mode='RowShareLock' AND lock.granted)`,'t');
+      const archive=start('custody_archive_waits',`BEGIN; SET LOCAL "request.jwt.claim.sub"=${q(106)}; SET LOCAL ROLE authenticated; SELECT public.set_finance_account_archived(${q(1)},${q(81)},true,NULL); COMMIT;`);
+      await blocked(archive);
+      results.push({name:'real authenticated account archival waits for concurrent historical reversal',pass:true});
+      await release(reverse);await archive.done;
+      if(archive.code!==0)throw Error(`Concurrent legitimate account archival failed: ${archive.err}`);
+      const result=JSON.parse(reverse.out.split('\n').find(line=>line.startsWith('{'))??'null');
+      if(result?.state!=='resolved')throw Error('Concurrent historical reversal did not resolve');
+      check('serialized reversal then archival preserves restored balances and inactive original account',`SELECT app_private.deposit_rent_held(${q(1)},${q(lease+2)})=500 AND (SELECT balance_due=500 FROM public.tenant_invoice_balances WHERE id=${q(lease+3)}) AND (SELECT archived_at IS NOT NULL AND archived_by=${q(106)} FROM public.finance_accounts WHERE id=${q(81)}) AND (SELECT liability_account_id=${q(81)} FROM public.deposit_rent_applications WHERE id='${result.result.commandId}')`,'t');
+      return;
+    }
     seed(17000,'through_ips',500,600,700);
     const intent=prepareFor(17000,custodyPayload(17000)),args=argsFor(17000,intent);
     sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.begin_deposit_rent_journal_attempt(${args},${intent.revision})`,true));

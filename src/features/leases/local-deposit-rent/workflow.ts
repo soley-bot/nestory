@@ -33,7 +33,7 @@ function selected(s:LocalDepositRentSnapshot,d:Draft){
   return {deposit,invoice,original};
 }
 function scopeHash(s:LocalDepositRentSnapshot,d:Draft){const {deposit,invoice}=selected(s,d);return hash([s.organizationId,s.leaseId,s.propertyId,s.unitId,deposit.id,invoice.id]);}
-function eligible(deposit:LocalDepositRentSnapshot["deposits"][number]){return !deposit.archived&&deposit.custodyVerified&&deposit.custodyCurrent&&deposit.custodian!==null&&deposit.singleUnchangedOwner&&deposit.custodyReconciles&&cents(deposit.held)>BigInt(0);}
+function eligible(deposit:LocalDepositRentSnapshot["deposits"][number]){return !deposit.archived&&deposit.custodyVerified&&deposit.custodyCurrent&&deposit.liabilityAccountActive&&deposit.custodian!==null&&deposit.singleUnchangedOwner&&deposit.custodyReconciles&&cents(deposit.held)>BigInt(0);}
 
 // Not a Server Action or mounted route. Production activation and grants remain held.
 export function createLocalDepositRentWorkflow(deps:LocalDepositRentDependencies,enabledForLocalTests=LOCAL_DEPOSIT_RENT_WORKFLOW_ENABLED):DepositRentLocalActions{
@@ -62,7 +62,7 @@ export function createLocalDepositRentWorkflow(deps:LocalDepositRentDependencies
   }
   function effects(s:LocalDepositRentSnapshot,d:Draft){
     const {deposit,invoice,original}=selected(s,d);
-    if(!deposit.custodyVerified||d.operation==="apply"&&!deposit.custodyCurrent||!deposit.singleUnchangedOwner||!deposit.custodyReconciles||deposit.custodian===null)fail("Confirm current deposit custody and one unchanged owner before using it for rent. Later deposit activity needs renewed evidence.");
+    if(!deposit.custodyVerified||d.operation==="apply"&&(!deposit.custodyCurrent||!deposit.liabilityAccountActive)||!deposit.singleUnchangedOwner||!deposit.custodyReconciles||deposit.custodian===null)fail("New rent applications need current custody, an active liability account and one unchanged owner. Existing applications retain their original reversal account.");
     if(d.date>s.businessDate||d.date<deposit.earliestDate)fail("Choose a date within the verified deposit history and on or before today.");
     if(s.closedMonths.includes(d.date.slice(0,7)))fail("This financial month is closed. Follow the existing reopen process before continuing.");
     let amount:string;
@@ -80,7 +80,7 @@ export function createLocalDepositRentWorkflow(deps:LocalDepositRentDependencies
     list:leaseId=>run(async()=>{
       const {who,s}=await read(leaseId);return deps.intentStore.withLease(journalScope(who,leaseId),async journal=>{
         const intent=journal.read();return {leaseLabel:s.leaseLabel,canApply:allowed(who,"apply"),canReverse:allowed(who,"reverse"),
-          deposits:s.deposits.map(row=>({id:row.id,label:row.label,amount:row.held,eligible:eligible(row),custodianLabel:!row.custodyVerified?"Deposit custody is not verified":!row.custodyCurrent?"Renew deposit custody evidence":row.custodian==="ips"?"IPS holds the deposit":"The owner holds the deposit"})),
+          deposits:s.deposits.map(row=>({id:row.id,label:row.label,amount:row.held,eligible:eligible(row),custodianLabel:!row.custodyVerified?"Deposit custody is not verified":!row.liabilityAccountActive?"Original liability account is archived; reversal remains available":!row.custodyCurrent?"Renew deposit custody evidence":row.custodian==="ips"?"IPS holds the deposit":"The owner holds the deposit"})),
           invoices:s.invoices.map(row=>({id:row.id,label:row.label,amount:row.outstanding,issued:row.issued,rentLines:row.rentLines.map(line=>({id:line.id,label:line.label,amount:line.outstanding}))})),
           applications:s.applications.filter(row=>row.active&&!row.consumed).map(row=>({id:row.id,label:row.label,amount:row.amount})),
           ...(intent?.state==="attempted"?{recovery:{token:intent.token,idempotencyKey:intent.idempotencyKey,operation:intent.draft.operation,date:intent.draft.date,amount:intent.amount,reason:intent.draft.reason}}:{})};

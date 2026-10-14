@@ -6,7 +6,7 @@ const label=z.string().trim().min(1).max(120).refine(value=>!/[a-f0-9]{8}-[a-f0-
 export const localDepositCandidateSchema=z.strictObject({version:z.literal(1),purpose:z.literal("local-deposit-rent-candidates"),actorId:uuid,
   organizationId:uuid,leaseId:uuid,propertyId:uuid,unitId:uuid.nullable(),leaseLabel:label,businessDate:z.iso.date(),consistency:z.literal("statement_snapshot"),complete:z.literal(true),
   sourceHash:z.string().regex(/^[a-f0-9]{64}$/i),fingerprint:z.string().regex(/^[a-f0-9]{64}$/i),
-  deposits:z.array(z.strictObject({id:uuid,leaseId:uuid,label,held:money,obligation:money,custodyVerified:z.boolean(),custodyCurrent:z.boolean(),custodian:z.enum(["ips","owner"]).nullable(),
+  deposits:z.array(z.strictObject({id:uuid,leaseId:uuid,label,held:money,obligation:money,custodyVerified:z.boolean(),custodyCurrent:z.boolean(),liabilityAccountActive:z.boolean(),custodian:z.enum(["ips","owner"]).nullable(),
     singleUnchangedOwner:z.boolean(),custodyReconciles:z.boolean(),archived:z.boolean(),earliestDate:z.iso.date()})).max(100),
   invoices:z.array(z.strictObject({id:uuid,leaseId:uuid,label,outstanding:money,issued:z.boolean(),rentLines:z.array(z.strictObject({id:uuid,label,outstanding:money})).max(1000)})).max(1000),
   applications:z.array(z.strictObject({id:uuid,depositId:uuid,invoiceId:uuid,label,amount:money,date:z.iso.date(),active:z.boolean(),consumed:z.boolean(),reversalOf:uuid.nullable()})).max(1000),
@@ -25,7 +25,7 @@ export function parseLocalDepositCandidates(data:unknown,organizationId:string,l
     ||!sameCandidateIds(s.applications.map(row=>row.id),s.census.applications)||!sameCandidateIds(s.census.bridges,s.census.applications)
     ||s.deposits.filter(row=>row.custodyVerified).length!==s.census.custody.length
     ||s.census.allocations.length<s.census.applications.length
-    ||s.deposits.some(row=>row.custodyVerified&&row.custodian===null||row.custodyCurrent&&!row.custodyVerified)||s.applications.some(row=>!s.census.deposits.includes(row.depositId)||!s.census.invoices.includes(row.invoiceId)
+    ||s.deposits.some(row=>row.custodyVerified&&row.custodian===null||(row.custodyCurrent||row.liabilityAccountActive)&&!row.custodyVerified)||s.applications.some(row=>!s.census.deposits.includes(row.depositId)||!s.census.invoices.includes(row.invoiceId)
       ||row.reversalOf!==null&&!s.census.applications.includes(row.reversalOf)))throw Error("Candidate identity or parent scope incomplete");
   for(const ids of Object.values(s.census))if(new Set(ids).size!==ids.length)throw Error("Candidate census duplicates");
   return s;

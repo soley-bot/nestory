@@ -29,7 +29,7 @@ export async function getDepositCustodyOptions(leaseId: string) {
         return person ? [{ id: person.id, label: person.display_name, from: row.started_on, to: row.ended_on }] : [];
       });
     return { status: "success" as const, businessDate: snapshot.businessDate, fingerprint: snapshot.fingerprint, owners,
-      deposits: snapshot.deposits.filter(row => !row.archived && !row.custodyCurrent).map(row => ({ id: row.id, label: row.label, held: row.held, needsRenewal: row.custodyVerified })) };
+      deposits: snapshot.deposits.filter(row => !row.archived && !row.custodyCurrent && (!row.custodyVerified || row.liabilityAccountActive)).map(row => ({ id: row.id, label: row.label, held: row.held, needsRenewal: row.custodyVerified })) };
   } catch {
     return { status: "error" as const, message: "Deposit custody details could not be loaded. Check your access and reload the lease." };
   }

@@ -359,6 +359,69 @@ try {
   check('historical retry cannot refresh stale custody evidence',`SELECT NOT app_private.deposit_rent_custody_current(${q(1)},${q(16002)},'2026-10-04') AND (SELECT count(*)=1 FROM app_private.deposit_rent_custody_attestations WHERE custody_confirmation_id='${oldConfirmation.id}')`,'t');
   await custodyConcurrency({endpoint,container,db,sql,seed,id,q,actor,auth,results,check,prepareFor,argsFor,custodyPayload,custodyCandidate,receiptFor,renewalFor,freshKey});
   check('custody renewal and concurrency create no tenant cash payments','SELECT count(*) FROM public.tenant_invoice_payments','0');
+  // Archive through the real authenticated chart lifecycle, after legitimate
+  // IPS-held and owner-held applications. Never fake archival via replica mode.
+  seed(20000,'through_ips',500,500,600,false);
+  const unconfirmedAccountCandidate=custodyCandidate(20000);
+  if(unconfirmedAccountCandidate.deposits[0].custodyVerified!==false||unconfirmedAccountCandidate.deposits[0].liabilityAccountActive!==false)throw Error('Unconfirmed custody must not imply a bound active account');
+  sql(actor(101,`SELECT public.allocate_owner_event(${q(1)},'security_deposit_receipt',${q(20006)},'archive-initial-confirm-receipt'); SET LOCAL ROLE authenticated; SELECT public.confirm_deposit_rent_custody(${q(1)},${q(20002)},${q(81)},'ips',NULL,'2026-10-02',500,'Synthetic initial active account evidence','archive-initial-confirm-custody')`,true));
+  if(custodyCandidate(20000).deposits[0].liabilityAccountActive!==true)throw Error('Initial confirmation did not bind selected active account');
+  results.push({name:'unconfirmed deposit can initially confirm an explicitly selected active liability account',pass:true});
+  const archivedAccountScenarios=[];
+  for(const [lease,custodian] of [[18000,'ips'],[19000,'owner']]) {
+    seed(lease,'through_ips',500,500,600,custodian==='ips');
+    if(custodian==='owner')sql(actor(101,`SELECT public.allocate_owner_event(${q(1)},'security_deposit_receipt',${q(lease+6)},'archive-owner-initial-receipt'); SELECT public.confirm_deposit_rent_custody(${q(1)},${q(lease+2)},${q(81)},'owner',${q(42)},'2026-10-02',500,'Synthetic original owner evidence','archive-owner-original-custody')`,true));
+    const application=journalCommand(lease,custodyPayload(lease));
+    const applicationId=application.result.commandId;
+    const fingerprint=sql(`SELECT app_private.deposit_rent_owner_fingerprint(${q(1)},'${applicationId}')`).trim();
+    const sourceCall=call({app:applicationId,fingerprint});
+    archivedAccountScenarios.push({lease,custodian,application,applicationId,fingerprint,sourceCall,
+      statement:sql(auth(102,sourceCall)).trim(),
+      original:sql(`SELECT to_jsonb(a) FROM public.deposit_rent_applications a WHERE id='${applicationId}'`).trim(),
+      attestation:sql(`SELECT attestation_id FROM app_private.deposit_rent_application_attestations WHERE application_id='${applicationId}'`).trim()});
+  }
+  seed(21000,'through_ips',500,500,600);
+  const concurrentArchiveApplication=journalCommand(21000,custodyPayload(21000));
+  const concurrentReverse=prepareFor(21000,{operation:'reverse',leaseId:id(21000),date:'2026-10-05',reason:'Synthetic account archive concurrency',applicationId:concurrentArchiveApplication.result.commandId});
+  const concurrentReverseArgs=argsFor(21000,concurrentReverse);
+  sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.begin_deposit_rent_journal_attempt(${concurrentReverseArgs},${concurrentReverse.revision})`,true));
+  await custodyConcurrency({endpoint,container,db,sql,q,results,check,accountArchive:{lease:21000,args:concurrentReverseArgs}});
+  // Repeat the same legitimate lifecycle request to prove archival is stable.
+  sql(actor(106,`SET LOCAL ROLE authenticated; SELECT public.set_finance_account_archived(${q(1)},${q(81)},true,NULL)`,true));
+  check('real authenticated account archival succeeds with existing deposit history',`SELECT archived_at IS NOT NULL AND archived_by=${q(106)} FROM public.finance_accounts WHERE id=${q(81)}`,'t');
+  const corruptAccountThenRead=change=>`BEGIN; SET LOCAL session_replication_role=replica; ${change}; SET LOCAL session_replication_role=origin; SET LOCAL "request.jwt.claim.sub"=${q(101)}; SET LOCAL ROLE authenticated; SELECT public.get_local_deposit_rent_candidates(${q(1)},${q(18000)}); ROLLBACK;`;
+  for(const [label,change] of [
+    ['organization',`UPDATE public.finance_accounts SET organization_id=${q(2)} WHERE id=${q(81)}`],
+    ['account class',`UPDATE public.finance_accounts SET account_class='asset',account_subtype='other_current_asset',use_for_lease_deposits=false WHERE id=${q(81)}`],
+    ['account subtype',`UPDATE public.finance_accounts SET account_subtype='long_term_liability',use_for_lease_deposits=false WHERE id=${q(81)}`],
+    ['deposit-use flag',`UPDATE public.finance_accounts SET use_for_lease_deposits=false WHERE id=${q(81)}`],
+    ['custody property',`UPDATE public.deposit_rent_custody_confirmations SET property_id=${q(32)} WHERE lease_deposit_id=${q(18002)}`],
+  ])denied(`archived account exception still rejects inconsistent ${label}`,corruptAccountThenRead(change),'23514');
+  for(const scenario of archivedAccountScenarios) {
+    const {lease,custodian,application,applicationId,sourceCall,statement,original,attestation}=scenario;
+    const candidate=custodyCandidate(lease);
+    if(candidate.deposits[0].liabilityAccountActive!==false||!candidate.applications.some(row=>row.id===applicationId&&row.active&&!row.consumed))throw Error(`${custodian}: archived account removed reversal candidate`);
+    results.push({name:`${custodian} archived account retains checked historical reversal candidate`,pass:true});
+    check(`${custodian} account archival preserves ordinary historical statement`,auth(102,sourceCall),statement);
+    const replay=JSON.parse(sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.execute_deposit_rent_journal(${argsFor(lease,application)})`,true)).trim());
+    if(replay.state!=='resolved'||replay.result.commandId!==applicationId)throw Error(`${custodian}: archived account changed original application retry`);
+    results.push({name:`${custodian} archived account preserves checked original application retry`,pass:true});
+    // Direct privileged fixture invocation reaches the write boundary while
+    // retaining current user/scope checks; public direct EXECUTE stays revoked.
+    const deniedApplyKey=`archived-${custodian}-new-apply`,deniedRenewKey=freshKey(lease);
+    denied(`${custodian} archived account blocks a new rent application`,actor(101,`SELECT public.apply_deposit_to_rent(${q(1)},${q(lease+2)},${q(lease+3)},'2026-10-05','[{"lineId":"${id(lease+5)}","amount":"100.00"}]','Synthetic inactive account application','${deniedApplyKey}')`),'22023');
+    denied(`${custodian} archived account blocks custody renewal`,auth(101,renewalFor(lease,400,deniedRenewKey,'2026-10-05',custodian==='owner'?{custodian,owner:id(42)}:{})),'22023');
+    check(`${custodian} inactive-account denials leave no financial claim`, `SELECT NOT EXISTS(SELECT 1 FROM app_private.financial_idempotency_requests WHERE idempotency_key IN ('${deniedApplyKey}','${deniedRenewKey}'))`,'t');
+    const reversed=journalCommand(lease,{operation:'reverse',leaseId:id(lease),date:'2026-10-05',reason:'Synthetic historical account reversal',applicationId});
+    if(reversed.state!=='resolved')throw Error(`${custodian}: archived-account historical reversal rejected`);
+    check(`${custodian} ordinary full reversal preserves original archived account and custody identity`, `SELECT r.liability_account_id=o.liability_account_id AND r.liability_account_id=${q(81)} AND r.custody_confirmation_id=o.custody_confirmation_id AND r.custodian=o.custodian AND r.owner_person_id IS NOT DISTINCT FROM o.owner_person_id FROM public.deposit_rent_applications r JOIN public.deposit_rent_applications o ON o.id=r.reversal_of_application_id WHERE r.id='${reversed.result.commandId}'`,'t');
+    check(`${custodian} historical reversal preserves original immutable application`, `SELECT to_jsonb(a) FROM public.deposit_rent_applications a WHERE id='${applicationId}'`,original);
+    check(`${custodian} historical reversal keeps original attestation mapping`, `SELECT attestation_id FROM app_private.deposit_rent_application_attestations WHERE application_id='${reversed.result.commandId}'`,attestation);
+    check(`${custodian} archived-account reversal restores held and unpaid balances`, `SELECT app_private.deposit_rent_held(${q(1)},${q(lease+2)})=500 AND (SELECT balance_due=500 FROM public.tenant_invoice_balances WHERE id=${q(lease+3)}) AND (SELECT count(*)=2 FROM public.deposit_rent_applications WHERE lease_deposit_id=${q(lease+2)})`,'t');
+    check(`${custodian} archived-account reversal conserves owner bridge movements`, `SELECT count(*)=2 AND sum(b.custody_signed_amount)=0 AND sum(b.ips_held_signed_amount)=0 AND bool_and(b.liability_account_id=${q(81)}) FROM public.deposit_rent_owner_bridges b JOIN public.deposit_rent_applications a ON a.id=b.application_id WHERE a.lease_deposit_id=${q(lease+2)}`,'t');
+  }
+  check('historical reversals never reactivate archived liability account',`SELECT archived_at IS NOT NULL AND archived_by=${q(106)} FROM public.finance_accounts WHERE id=${q(81)}`,'t');
+  check('archived-account reversals create no tenant cash payments','SELECT count(*) FROM public.tenant_invoice_payments','0');
   // Missing schema is an explicit runtime error, not an accidental table query.
   denied('missing unpublished schema fails closed',`BEGIN; ALTER TABLE public.deposit_rent_applications RENAME TO unavailable_applications; SET LOCAL "request.jwt.claim.sub"=${q(102)}; SET LOCAL ROLE authenticated; ${call()}; ROLLBACK;`,'55000');
   run.completed=true;

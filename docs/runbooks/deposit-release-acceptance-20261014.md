@@ -1,4 +1,4 @@
-# Deposit custody renewal acceptance, 2026-10-14
+# Deposit custody renewal and historical reversal acceptance, 2026-10-14
 
 This continues [the October 11 acceptance record](deposit-release-acceptance-20261011.md)
 for [PR230](https://github.com/soley-bot/nestory/pull/230). The interrupted local
@@ -25,15 +25,26 @@ are private, have RLS without caller policies, and retain existing step-up and
 immutable audit enforcement. No execution grant, staff permission or public read
 scope was added. Historical statement fingerprints/projections remain unchanged.
 
+Historical full reversal also preserves the original compatible liability
+account after it is archived. The account is locked while reversing; new rent
+applications and custody renewals still require an active account. Candidate
+data exposes that distinction so an archived account cannot enable a new
+application or hide an existing reversible application. Organization, property,
+account class, subtype and deposit-use checks remain enforced.
+
 Verified before final release:
 
-- 123 disposable PostgreSQL checks passed and the database was cleaned up.
+- 157 disposable PostgreSQL checks passed and the database was cleaned up.
   Coverage includes actual lock contention between receipt, renewal and journal
   application, parallel same-key renewal, stale original retry, role/company/branch
   denial, step-up, audit immutability, reversal lineage and zero new cash payments.
-- 50 focused application tests, TypeScript and the production build passed.
-- Migration discipline passed: 193 immutable base migrations and 14 forward
-  migrations; the expected final hosted ledger is 207.
+  The additional archived-account cases reproduce the prior failure, use the
+  real checked account-archive RPC for IPS and owner custody, and observe actual
+  lock contention between archival and reversal. They cover original account
+  and attestation preservation, stable replay and invalid account semantics.
+- 51 focused application tests, TypeScript and changed-file lint passed.
+- Migration discipline passed: 193 immutable base migrations and 15 forward
+  migrations; the expected final hosted ledger is 208.
 - 28 real Auth/API checks passed again after the local forward migrations.
 - Applying the two interrupted/new local migrations preserved existing financial
   records and published statement SHA-256/size evidence exactly.
@@ -42,6 +53,12 @@ Fresh browser acceptance uses fictional property 33 and lease 18000 in an open
 September month. The earlier published October property/statement remains intact.
 Later receipts still require the existing owner-event allocation before rent
 application; custody renewal does not bypass owner-register reconciliation.
+The real browser confirmed initial custody, recorded a later receipt, showed
+that stale evidence blocks application, renewed custody, and applied USD 100.
+Authenticated API balances then showed USD 500 held and USD 500 outstanding.
+The actual settlement PDF and Excel downloaded successfully; the rent
+collections screen separately showed USD 100 deposits applied and USD 0 cash
+received.
 Detailed results are retained in ignored `artifacts/deposit-release/acceptance`,
 `artifacts/deposit-candidate` and `output/playwright`. Fixture credentials and
 browser authentication state remain private ignored files.
