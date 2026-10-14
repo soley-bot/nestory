@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AuthWeakPasswordError } from "@supabase/supabase-js";
 
 const {
   adminRpc,
@@ -169,5 +170,40 @@ describe("password recovery actions", () => {
       status: "error",
     });
     expect(adminRpc).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      label: "length rejection",
+      error: new AuthWeakPasswordError("CorrectHorse9Battery private@example.invalid provider-token-canary", 422, ["length"]),
+      message: "Use at least 8 characters with lowercase, uppercase, and a number. Symbols are optional.",
+    },
+    {
+      label: "leaked password rejection",
+      error: new AuthWeakPasswordError("CorrectHorse9Battery private@example.invalid provider-token-canary", 422, ["pwned"]),
+      message: "This password has appeared in a data breach. Choose a different password that you have not used elsewhere.",
+    },
+    {
+      label: "unknown provider failure",
+      error: Object.assign(new Error("weak_password pwned CorrectHorse9Battery private@example.invalid provider-token-canary"), { code: "unexpected_failure" }),
+      message: "We could not update the password. Request a new recovery link.",
+    },
+  ])("returns safe instructions and preserves recovery after $label", async ({ error, message }) => {
+    getUser.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
+    updateUser.mockResolvedValue({ error });
+    const formData = new FormData();
+    formData.set("password", "CorrectHorse9Battery");
+    formData.set("passwordConfirm", "CorrectHorse9Battery");
+
+    const result = await updatePasswordAction({}, formData);
+
+    expect(result).toEqual({ message, status: "error" });
+    for (const privateDetail of ["CorrectHorse9Battery", "private@example.invalid", "provider-token-canary"]) {
+      expect(JSON.stringify(result)).not.toContain(privateDetail);
+    }
+    expect(adminRpc).not.toHaveBeenCalled();
+    expect(cookieDelete).not.toHaveBeenCalled();
+    expect(signOut).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
   });
 });

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { AuthActionState } from "@/features/auth/actions";
 import { recordPasswordCredentialProof } from "@/lib/auth/password-credential-proof";
-import { newPasswordSchema } from "@/lib/auth/password-policy";
+import { getNewPasswordRejectionMessage, newPasswordSchema } from "@/lib/auth/password-policy";
 import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -137,7 +137,8 @@ export async function acceptInvitationAction(
     });
     if (passwordError) {
       return {
-        message: "The password could not be created. Try again or request a new invitation.",
+        message: getNewPasswordRejectionMessage(passwordError)
+          ?? "The password could not be created. Try again or request a new invitation.",
         status: "error",
       };
     }
