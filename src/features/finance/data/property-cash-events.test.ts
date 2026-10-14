@@ -85,6 +85,45 @@ const scope = {
 };
 
 describe("property cash event adapter", () => {
+  it.each([1000, 1201])("reads %i equal-date events through exact boundaries and a smaller server cap", async (count) => {
+    const rows = Array.from({ length: count }, (_, index) => row(String(index).padStart(12, "0")));
+    const calls: Array<Record<string, unknown>> = [];
+    const client: PropertyCashEventsRpcClient = { async rpc(_name, args) {
+      calls.push(args);
+      const start = args.p_after_source_id === null ? 0 : rows.findIndex(row => row.source_id === args.p_after_source_id) + 1;
+      return { data: rows.slice(start, start + 200), error: null };
+    } };
+    const loaded = [];
+    for await (const page of iteratePropertyCashEventPages(client, { ...scope, pageSize: 500 })) loaded.push(...page);
+    expect(loaded.map(event => event.sourceId)).toEqual(rows.map(row => row.source_id));
+    expect(calls).toHaveLength(Math.ceil(count / 200) + 1);
+    expect(calls.at(-1)?.p_after_source_id).toBe(rows.at(-1)?.source_id);
+  });
+
+  it("propagates a later page error and permits a complete fresh retry", async () => {
+    const rows = [row("001"), row("002"), row("003")];
+    let fail = true;
+    const client: PropertyCashEventsRpcClient = { async rpc(_name, args) {
+      if (args.p_after_source_id === "002" && fail) return { data: null, error: { message: "temporary page failure" } };
+      const start = args.p_after_source_id === null ? 0 : rows.findIndex(row => row.source_id === args.p_after_source_id) + 1;
+      return { data: rows.slice(start, start + 2), error: null };
+    } };
+    const failed = iteratePropertyCashEventPages(client, scope);
+    expect((await failed.next()).value).toHaveLength(2);
+    await expect(failed.next()).rejects.toThrow("temporary page failure");
+    fail = false;
+    const loaded = [];
+    for await (const page of iteratePropertyCashEventPages(client, scope)) loaded.push(...page);
+    expect(loaded).toHaveLength(3);
+  });
+
+  it.each([
+    { organization_id: "other" },
+    { event_date: "2026-08-01", cursor_event_date: "2026-08-01" },
+  ])("rejects rows outside organization or period scope", async (overrides) => {
+    await expect(loadPropertyCashEventPage(clientWithPages([[row("001", overrides)]]), scope)).rejects.toThrow(/outside the requested/);
+  });
+
   it("normalizes exact signed movements without retired projection fields", () => {
     const sourceId = "44444444-4444-4444-8444-444444444444";
     const normalized = normalizePropertyCashEvent(

@@ -155,8 +155,12 @@ SELECT is(jsonb_array_length((SELECT finance->'terms' FROM scoped_results)),2,'F
 SELECT is(jsonb_array_length((SELECT finance->'properties' FROM scoped_results)),2,'Finance keeps archived scoped property labels');
 SELECT is(jsonb_array_length((SELECT finance->'owner_assignments' FROM scoped_results)),2,'historical ended owners remain available for report date filtering');
 SELECT is(jsonb_array_length((SELECT finance->'people' FROM scoped_results)),4,'only related tenants and owners are projected');
-SELECT is(public.get_finance_read_context((SELECT org FROM read_scope_state),(SELECT property_id FROM read_scope_rows WHERE kind='active_a')),
-  (SELECT finance FROM scoped_results),'requested allowed property preserves selector choices');
+SELECT is(public.get_finance_read_context((SELECT org FROM read_scope_state),(SELECT property_id FROM read_scope_rows WHERE kind='active_a'))->'properties',
+  (SELECT finance->'properties' FROM scoped_results),'requested allowed property preserves minimal property selectors');
+SELECT is(jsonb_array_length(public.get_finance_read_context((SELECT org FROM read_scope_state),(SELECT property_id FROM read_scope_rows WHERE kind='active_a'))->'leases'),
+  1,'requested property narrows heavy lease context before serialization');
+SELECT is(jsonb_array_length(public.get_finance_read_context((SELECT org FROM read_scope_state),(SELECT property_id FROM read_scope_rows WHERE kind='active_a'))->'terms'),
+  1,'requested property narrows lease terms');
 SELECT is(jsonb_array_length(public.get_lease_read_context((SELECT org FROM read_scope_state))->'terms'),0,'NULL IDs cannot enumerate lease detail');
 SELECT is(jsonb_array_length(public.get_lease_read_context((SELECT org FROM read_scope_state),ARRAY[]::uuid[])->'terms'),0,'empty IDs cannot enumerate lease detail');
 SELECT is(jsonb_array_length(public.get_lease_read_context((SELECT org FROM read_scope_state))->'availability_terms'),1,'availability preserves active lease and allowed term-status filtering');

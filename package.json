@@ -42,6 +42,7 @@
     "leases:test-history-integrity": "node scripts/lease-history-integrity-concurrency.mjs",
     "leases:test-deposit-default": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/legacy-deposit-default-concurrency.node-test.mjs",
     "leases:test-relationships": "node scripts/lease-relationship-concurrency.mjs",
+    "properties:test-concurrency": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/property-checked-update-concurrency.node-test.mjs",
     "owners:test-readiness": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/report-owner-roster-preflight.node-test.mjs scripts/owner-roster-readiness-concurrency.node-test.mjs",
     "owners:test-workflow": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/owner-opening-balance-schema-concurrency.node-test.mjs scripts/owner-opening-balance-workflow-concurrency.node-test.mjs",
     "owners:test-lifecycle": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/owner-balance-lifecycle-concurrency.node-test.mjs scripts/owner-balance-lifecycle-correction-concurrency.node-test.mjs scripts/owner-balance-lifecycle-fixture-contract.node-test.mjs scripts/owner-balance-lifecycle-loaded-fixture.node-test.mjs",

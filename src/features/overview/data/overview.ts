@@ -20,6 +20,7 @@ import {
 } from "@/features/maintenance/maintenance.facts";
 import type { MaintenancePriority } from "@/features/maintenance/maintenance.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
 import type { CurrencyCode } from "@/lib/money/format";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
 
@@ -48,8 +49,6 @@ type UnitRow = {
 type LeaseRow = {
   id: string;
   lease_end_date: string;
-  monthly_rent_amount: number;
-  monthly_rent_currency: CurrencyCode;
   primary_tenant_person_id: string | null;
   property_id: string;
   unit_id: string | null;
@@ -70,13 +69,6 @@ type LedgerWindowRow = {
   transaction_date: string;
 };
 
-type LedgerNetRow = {
-  amount: number;
-  currency: CurrencyCode;
-  direction: string;
-  property_id: string;
-};
-
 type MaintenanceTaskRow = {
   due_date: string | null;
   id: string;
@@ -91,20 +83,7 @@ type MaintenanceTaskWithFacts = {
   task: MaintenanceTaskRow;
 };
 
-type PagedQuery<T> = {
-  range: (
-    from: number,
-    to: number,
-  ) => PromiseLike<{
-    data: T[] | null;
-    error: { message: string } | null;
-  }>;
-};
-
-type PageQueryFactory<T> = (from: number, to: number) => ReturnType<PagedQuery<T>["range"]>;
-
 type PersonRow = {
-  display_name: string;
   id: string;
   primary_email: string | null;
   primary_phone: string | null;
@@ -122,13 +101,8 @@ type PersonContactRow = {
 };
 
 type PropertyOwnerRow = {
-  archived_at: string | null;
-  ended_on: string | null;
   id: string;
-  is_primary: boolean;
-  person_id: string;
   property_id: string;
-  started_on: string;
 };
 
 export async function getOverviewScreenData(
@@ -152,136 +126,138 @@ export async function getOverviewScreenData(
   const currentMonthEndInput = monthScope.before;
   const recentExpenseStart = addDaysToDateString(businessToday, -30);
 
-  let propertiesQuery = supabase
-    .from("properties")
-    .select("id, code, name, rental_structure, status")
-    .eq("organization_id", organizationId)
-    .is("archived_at", null)
-    .neq("status", "inactive")
-    .order("code", { ascending: true });
-  const propertyOptionsQuery = supabase
-    .from("properties")
-    .select("id, code, name, rental_structure, status")
-    .eq("organization_id", organizationId)
-    .is("archived_at", null)
-    .neq("status", "inactive")
-    .order("code", { ascending: true });
-  let unitsQuery = supabase
-    .from("units")
-    .select("id, property_id, status")
-    .eq("organization_id", organizationId)
-    .is("archived_at", null)
-    .neq("status", "inactive");
-  let leasesQuery = supabase
-    .from("current_leases")
-    .select("id, unit_id, property_id, lease_end_date, monthly_rent_amount, monthly_rent_currency, primary_tenant_person_id")
-    .eq("organization_id", organizationId)
-    .is("archived_at", null)
-    .in("status", [...activeLeaseStatuses]);
-  const rentTermsQuery = supabase
+  const propertyFilter = effectiveQuery.propertyId === "all"
+    ? {}
+    : { property_id: effectiveQuery.propertyId };
+  const rentTermsQuery = () => supabase
     .from("lease_terms")
-    .select("lease_id, rent_amount, rent_currency, payment_frequency, status")
+    .select("id, lease_id, rent_amount, rent_currency, payment_frequency, status")
     .eq("organization_id", organizationId)
     .eq("authority_kind", "authoritative")
     .is("archived_at", null)
     .in("status", [...resolvedRentTermStatuses])
     .lte("start_date", businessToday)
-    .gte("end_date", businessToday)
-    .order("id", { ascending: true });
-  let ledgerWindowQuery = supabase
-    .from("ledger_entries")
-    .select("transaction_date, direction, amount, currency")
-    .eq("organization_id", organizationId)
-    .is("archived_at", null)
-    .gte("transaction_date", ledgerStartInput)
-    .lt("transaction_date", currentMonthEndInput);
-  let ledgerNetQuery = supabase
-    .from("ledger_entries")
-    .select("property_id, direction, amount, currency")
-    .eq("organization_id", organizationId)
-    .is("archived_at", null);
-  let propertyOwnersQuery = supabase
-    .from("property_owners")
-    .select(
-      "id, property_id, person_id, ownership_percent, is_primary, started_on, ended_on, archived_at",
-    )
-    .eq("organization_id", organizationId)
-    .is("archived_at", null)
-    .order("property_id", { ascending: true })
-    .order("id", { ascending: true });
-  let openMaintenanceQuery = supabase
-    .from("tasks")
-    .select("id, property_id, title, status, priority, due_date")
-    .eq("organization_id", organizationId)
-    .is("archived_at", null)
-    .in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES]);
-  let documentsQuery = supabase
-    .from("documents")
-    .select("property_id, ledger_entry_id")
-    .eq("organization_id", organizationId)
-    .is("archived_at", null);
-  const peopleQuery = supabase
-    .from("people")
-    .select("id, display_name, primary_email, primary_phone")
-    .eq("organization_id", organizationId)
-    .is("archived_at", null);
-  const rolesQuery = supabase
-    .from("person_roles")
-    .select("person_id, role")
-    .eq("organization_id", organizationId)
-    .eq("status", "active")
-    .is("archived_at", null);
-  const contactsQuery = supabase
-    .from("person_contacts")
-    .select("person_id, email, phone")
-    .eq("organization_id", organizationId)
-    .is("archived_at", null)
-    .or("email.not.is.null,phone.not.is.null");
-
-  if (effectiveQuery.propertyId !== "all") {
-    const propertyId = effectiveQuery.propertyId;
-    propertiesQuery = propertiesQuery.eq("id", propertyId);
-    unitsQuery = unitsQuery.eq("property_id", propertyId);
-    leasesQuery = leasesQuery.eq("property_id", propertyId);
-    ledgerWindowQuery = ledgerWindowQuery.eq("property_id", propertyId);
-    ledgerNetQuery = ledgerNetQuery.eq("property_id", propertyId);
-    propertyOwnersQuery = propertyOwnersQuery.eq("property_id", propertyId);
-    openMaintenanceQuery = openMaintenanceQuery.eq("property_id", propertyId);
-    documentsQuery = documentsQuery.eq("property_id", propertyId);
-  }
+    .gte("end_date", businessToday);
 
   const [
     propertiesResult,
-    propertyOptionsResult,
     unitsResult,
     leasesResult,
     rentTermsResult,
     ledgerWindowResult,
-    ledgerNetResult,
+    ledgerCountResult,
+    largeRecentExpenseCountResult,
     peopleResult,
     rolesResult,
-    contactsResult,
     propertyOwnersResult,
     openMaintenanceResult,
     documentsResult,
     recentActivityResult,
   ] = await Promise.all([
-    loadAllRows(pageFactory(propertiesQuery), "overview properties"),
-    loadAllRows(pageFactory(propertyOptionsQuery), "overview property options"),
-    loadAllRows(pageFactory(unitsQuery), "overview units"),
-    loadAllRows(pageFactory(leasesQuery), "overview leases"),
-    loadAllRows(pageFactory(rentTermsQuery), "overview rent terms"),
-    loadAllRows(pageFactory(ledgerWindowQuery), "overview ledger window"),
-    loadAllRows(pageFactory(ledgerNetQuery), "overview property ledger net"),
-    loadAllRows(pageFactory(peopleQuery), "overview people"),
-    loadAllRows(pageFactory(rolesQuery), "overview person roles"),
-    loadAllRows(pageFactory(contactsQuery), "overview person contacts"),
-    loadAllRows(pageFactory(propertyOwnersQuery), "overview property owners"),
-    loadAllRows(
-      pageFactory<MaintenanceTaskRow>(openMaintenanceQuery),
-      "overview maintenance",
-    ),
-    loadAllRows(pageFactory(documentsQuery), "overview documents"),
+    // One complete property read also supplies the property picker.
+    readAllRows((from, to) => supabase
+      .from("properties")
+      .select("id, code, name, rental_structure, status")
+      .eq("organization_id", organizationId)
+      .is("archived_at", null)
+      .neq("status", "inactive")
+      .order("code", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to)),
+    readAllRows((from, to) => supabase
+      .from("units")
+      .select("id, property_id, status")
+      .eq("organization_id", organizationId)
+      .match(propertyFilter)
+      .is("archived_at", null)
+      .neq("status", "inactive")
+      .order("id", { ascending: true })
+      .range(from, to)),
+    readAllRows((from, to) => supabase
+      .from("current_leases")
+      .select("id, unit_id, property_id, lease_end_date, primary_tenant_person_id")
+      .eq("organization_id", organizationId)
+      .match(propertyFilter)
+      .is("archived_at", null)
+      .in("status", [...activeLeaseStatuses])
+      .order("id", { ascending: true })
+      .range(from, to)),
+    // A property selection loads only its leases' terms after leases resolve.
+    effectiveQuery.propertyId === "all"
+      ? readAllRows((from, to) => rentTermsQuery()
+        .order("id", { ascending: true }).range(from, to))
+      : Promise.resolve({ data: [], error: null }),
+    readAllRows((from, to) => supabase
+      .from("ledger_entries")
+      .select("id, transaction_date, direction, amount, currency")
+      .eq("organization_id", organizationId)
+      .match(propertyFilter)
+      .is("archived_at", null)
+      .gte("transaction_date", ledgerStartInput)
+      .lt("transaction_date", currentMonthEndInput)
+      .order("id", { ascending: true })
+      .range(from, to)),
+    // Setup needs an exact count, not every historical ledger entry.
+    supabase
+      .from("ledger_entries")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .match(propertyFilter)
+      .is("archived_at", null),
+    // This operating alert follows business today, independently of chart month.
+    supabase
+      .from("ledger_entries")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .match(propertyFilter)
+      .is("archived_at", null)
+      .eq("direction", "expense")
+      .gte("amount", largeExpenseReviewThreshold)
+      .gte("transaction_date", recentExpenseStart)
+      .lt("transaction_date", addDaysToDateString(businessToday, 1)),
+    readAllRows((from, to) => supabase
+      .from("people")
+      .select("id, primary_email, primary_phone")
+      .eq("organization_id", organizationId)
+      .is("archived_at", null)
+      .order("id", { ascending: true })
+      .range(from, to)),
+    readAllRows((from, to) => supabase
+      .from("person_roles")
+      .select("id, person_id, role")
+      .eq("organization_id", organizationId)
+      .eq("status", "active")
+      .is("archived_at", null)
+      .order("id", { ascending: true })
+      .range(from, to)),
+    readAllRows((from, to) => supabase
+      .from("property_owners")
+      .select("id, property_id")
+      .eq("organization_id", organizationId)
+      .match(propertyFilter)
+      .eq("is_primary", true)
+      .is("ended_on", null)
+      .is("archived_at", null)
+      .order("id", { ascending: true })
+      .range(from, to)),
+    readAllRows((from, to) => supabase
+      .from("tasks")
+      .select("id, property_id, title, status, priority, due_date")
+      .eq("organization_id", organizationId)
+      .match(propertyFilter)
+      .is("archived_at", null)
+      .in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES])
+      .order("id", { ascending: true })
+      .range(from, to)),
+    readAllRows((from, to) => supabase
+      .from("documents")
+      .select("id, property_id")
+      .eq("organization_id", organizationId)
+      .match(propertyFilter)
+      .is("archived_at", null)
+      .not("property_id", "is", null)
+      .order("id", { ascending: true })
+      .range(from, to)),
     supabase
       .from("activity_logs")
       .select(
@@ -289,44 +265,65 @@ export async function getOverviewScreenData(
       )
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(8),
   ]);
 
   assertNoError(propertiesResult.error, "overview properties");
-  assertNoError(propertyOptionsResult.error, "overview property options");
   assertNoError(unitsResult.error, "overview units");
   assertNoError(leasesResult.error, "overview leases");
   assertNoError(rentTermsResult.error, "overview rent terms");
   assertNoError(ledgerWindowResult.error, "overview ledger window");
-  assertNoError(ledgerNetResult.error, "overview property ledger net");
   assertNoError(peopleResult.error, "overview people");
   assertNoError(rolesResult.error, "overview person roles");
-  assertNoError(contactsResult.error, "overview person contacts");
   assertNoError(propertyOwnersResult.error, "overview property owners");
   assertNoError(openMaintenanceResult.error, "overview maintenance");
   assertNoError(documentsResult.error, "overview documents");
   assertNoError(recentActivityResult.error, "overview activity");
+  const ledgerEntryCount = requireExactCount(ledgerCountResult, "overview ledger count");
+  const largeRecentExpenseCount = requireExactCount(
+    largeRecentExpenseCountResult, "overview recent expenses",
+  );
 
-  const properties = (propertiesResult.data ?? []) as PropertyRow[];
-  const propertyOptions = (
-    (propertyOptionsResult.data ?? []) as PropertyRow[]
-  ).filter((property) => property.status !== "inactive");
-  const activeProperties = properties.filter(
-    (property) => property.status !== "inactive",
+  const propertyOptions = ((propertiesResult.data ?? []) as PropertyRow[])
+    .filter((property) => property.status !== "inactive");
+  const activeProperties = propertyOptions.filter((property) =>
+    effectiveQuery.propertyId === "all" || property.id === effectiveQuery.propertyId,
   );
   const activePropertyIds = new Set(activeProperties.map((property) => property.id));
   const operationalUnits = ((unitsResult.data ?? []) as UnitRow[]).filter(
-    (unit) =>
-      unit.status !== "inactive" && activePropertyIds.has(unit.property_id),
+    (unit) => unit.status !== "inactive" && activePropertyIds.has(unit.property_id),
   );
   const currentLeases = (leasesResult.data ?? []) as LeaseRow[];
-  const currentRentTerms = (rentTermsResult.data ?? []) as LeaseRentTermRow[];
   const ledgerRows = (ledgerWindowResult.data ?? []) as LedgerWindowRow[];
-  const ledgerNetRows = (ledgerNetResult.data ?? []) as LedgerNetRow[];
   const activePeople = (peopleResult.data ?? []) as PersonRow[];
-  const roles = (rolesResult.data ?? []) as PersonRoleRow[];
-  const contacts = (contactsResult.data ?? []) as PersonContactRow[];
+  const activePersonIds = new Set(activePeople.map((person) => person.id));
+  const roles = ((rolesResult.data ?? []) as PersonRoleRow[])
+    .filter((role) => activePersonIds.has(role.person_id));
   const propertyOwners = (propertyOwnersResult.data ?? []) as PropertyOwnerRow[];
+  const [scopedRentTermsResult, contactsResult] = await Promise.all([
+    effectiveQuery.propertyId === "all"
+      ? Promise.resolve(rentTermsResult)
+      : readAllRowsByIds(currentLeases.map((lease) => lease.id), (ids, from, to) =>
+        rentTermsQuery().in("lease_id", ids)
+          .order("id", { ascending: true }).range(from, to)),
+    // Extra contacts can only change the check for people without a primary value.
+    readAllRowsByIds(activePeople
+      .filter((person) => !hasText(person.primary_email) && !hasText(person.primary_phone))
+      .map((person) => person.id), (ids, from, to) => supabase
+      .from("person_contacts")
+      .select("id, person_id, email, phone")
+      .eq("organization_id", organizationId)
+      .in("person_id", ids)
+      .is("archived_at", null)
+      .or("email.not.is.null,phone.not.is.null")
+      .order("id", { ascending: true })
+      .range(from, to)),
+  ]);
+  assertNoError(scopedRentTermsResult.error, "overview rent terms");
+  assertNoError(contactsResult.error, "overview person contacts");
+  const currentRentTerms = (scopedRentTermsResult.data ?? []) as LeaseRentTermRow[];
+  const contacts = (contactsResult.data ?? []) as PersonContactRow[];
   const operationalLeaseScope = splitOperationalLeases({
     activeProperties,
     currentLeases,
@@ -335,7 +332,6 @@ export async function getOverviewScreenData(
   const operationalCurrentLeases = operationalLeaseScope.operational;
   const invalidScopeLeases = operationalLeaseScope.needsReview;
   const documents = (documentsResult.data ?? []) as Array<{
-    ledger_entry_id: string | null;
     property_id: string | null;
   }>;
   const openMaintenanceTasks = (
@@ -374,11 +370,7 @@ export async function getOverviewScreenData(
   );
   const roleCounts = getRoleCounts(roles);
   const currentPropertyOwnerIds = new Set(
-    propertyOwners.flatMap((owner) =>
-      owner.is_primary && !owner.archived_at && !owner.ended_on
-        ? [owner.property_id]
-        : [],
-    ),
+    propertyOwners.map((owner) => owner.property_id),
   );
   const missingOwnerLinks = activeProperties.filter(
     (property) => !currentPropertyOwnerIds.has(property.id),
@@ -395,10 +387,7 @@ export async function getOverviewScreenData(
   const missingTenantLeases = operationalCurrentLeases.filter(
     (lease) => !lease.primary_tenant_person_id,
   );
-  const largeRecentExpenses = getLargeRecentExpenses({
-    ledgerRows,
-    recentExpenseStart,
-  });
+
   const mtdLedgerRows = ledgerRows.filter(
     (entry) =>
       entry.transaction_date >= toDateInput(currentMonthStart) &&
@@ -409,7 +398,7 @@ export async function getOverviewScreenData(
       ? `${Math.round((occupiedUnits.length / operationalUnits.length) * 100)}%`
       : "0%";
   const attentionItems = buildAttentionItems({
-    largeRecentExpenses,
+    largeRecentExpenseCount,
     invalidScopeLeases,
     leaseGapUnits: nonVacantLeaseGapUnits,
     leasesEndingSoon,
@@ -431,7 +420,7 @@ export async function getOverviewScreenData(
     attentionTotal: attentionItems.reduce((total, item) => total + item.count, 0),
     dashboardSummary: buildDashboardSummary({
       attentionItems,
-      largeRecentExpenses,
+      largeRecentExpenseCount,
       leaseGapUnits: nonVacantLeaseGapUnits,
       leasesEndingSoon,
       missingTenantLeases,
@@ -494,9 +483,9 @@ export async function getOverviewScreenData(
         operationalUnits.length > 0 ||
         activePeople.length > 0 ||
         currentLeases.length > 0 ||
-        ledgerNetRows.length > 0 ||
+        ledgerEntryCount > 0 ||
         openMaintenanceCount > 0,
-      ledgerEntryCount: ledgerNetRows.length,
+      ledgerEntryCount,
       peopleCount: activePeople.length,
       propertyCount: activeProperties.length,
       unitCount: operationalUnits.length,
@@ -504,29 +493,20 @@ export async function getOverviewScreenData(
   };
 }
 
-function pageFactory<T>(query: unknown): PageQueryFactory<T> {
-  const pagedQuery = query as PagedQuery<T>;
-  return (from, to) => pagedQuery.range(from, to);
-}
-
-async function loadAllRows<T>(queryPage: PageQueryFactory<T>, label: string) {
-  const rows: T[] = [];
-  const pageSize = 1_000;
-
-  while (true) {
-    const result = await queryPage(rows.length, rows.length + pageSize - 1);
-    assertNoError(result.error, label);
-    const pageRows = result.data ?? [];
-    rows.push(...pageRows);
-    if (pageRows.length < pageSize) break;
+function requireExactCount(
+  result: { count: number | null; error: { message: string } | null },
+  label: string,
+) {
+  assertNoError(result.error, label);
+  if (result.count === null) {
+    throw new Error(`Could not load ${label}: exact count is missing.`);
   }
-
-  return { data: rows, error: null };
+  return result.count;
 }
 
 function buildDashboardSummary({
   attentionItems,
-  largeRecentExpenses,
+  largeRecentExpenseCount,
   leaseGapUnits,
   leasesEndingSoon,
   missingTenantLeases,
@@ -536,7 +516,7 @@ function buildDashboardSummary({
   vacantUnits,
 }: {
   attentionItems: OverviewAttentionItem[];
-  largeRecentExpenses: LedgerWindowRow[];
+  largeRecentExpenseCount: number;
   leaseGapUnits: UnitRow[];
   leasesEndingSoon: LeaseRow[];
   missingTenantLeases: LeaseRow[];
@@ -618,11 +598,11 @@ function buildDashboardSummary({
     };
   }
 
-  if (largeRecentExpenses.length > 0) {
+  if (largeRecentExpenseCount > 0) {
     return {
       actionHref: largeExpenseReviewHref,
       actionLabel: "Review expenses",
-      detail: `${largeRecentExpenses.length} expenses in 30 days are above the review threshold.`,
+      detail: `${largeRecentExpenseCount} expenses in 30 days are above the review threshold.`,
       headline: "Recent expenses deserve a closer look.",
       tone: "warning" as const,
     };
@@ -704,7 +684,7 @@ function buildMetrics({
 
 function buildAttentionItems({
   invalidScopeLeases,
-  largeRecentExpenses,
+  largeRecentExpenseCount,
   leaseGapUnits,
   leasesEndingSoon,
   missingTenantLeases,
@@ -715,7 +695,7 @@ function buildAttentionItems({
   vacantUnits,
 }: {
   invalidScopeLeases: LeaseRow[];
-  largeRecentExpenses: LedgerWindowRow[];
+  largeRecentExpenseCount: number;
   leaseGapUnits: UnitRow[];
   leasesEndingSoon: LeaseRow[];
   missingTenantLeases: LeaseRow[];
@@ -843,10 +823,10 @@ function buildAttentionItems({
           tone: "danger",
         }
       : null,
-    largeRecentExpenses.length > 0
+    largeRecentExpenseCount > 0
       ? {
           actionLabel: "Review expenses",
-          count: largeRecentExpenses.length,
+          count: largeRecentExpenseCount,
           helper: "Last 30 days above review threshold",
           href: largeExpenseReviewHref,
           id: "large-recent-expenses",
@@ -916,8 +896,7 @@ function buildOccupancyByProperty({
         first.percent - second.percent ||
         second.totalUnits - first.totalUnits ||
         first.label.localeCompare(second.label),
-    )
-    .slice(0, 8);
+    );
 }
 
 function buildMaintenanceByProperty({
@@ -1064,7 +1043,7 @@ function buildLedgerFlowChart({
       continue;
     }
 
-    const amount = Number(row.amount);
+    const amount = Math.round(Number(row.amount) * 100);
 
     if (row.direction === "expense") {
       point.expense += amount;
@@ -1075,7 +1054,12 @@ function buildLedgerFlowChart({
     }
   }
 
-  return Array.from(points.values());
+  return Array.from(points.values(), (point) => ({
+    ...point,
+    expense: point.expense / 100,
+    income: point.income / 100,
+    net: point.net / 100,
+  }));
 }
 
 function buildExpectedRent(
@@ -1180,25 +1164,6 @@ function getLeasesEndingSoon(currentLeases: LeaseRow[], today: string) {
   return currentLeases.filter(
     (lease) => lease.lease_end_date >= today && lease.lease_end_date <= soon,
   );
-}
-
-function getLargeRecentExpenses({
-  ledgerRows,
-  recentExpenseStart,
-}: {
-  ledgerRows: LedgerWindowRow[];
-  recentExpenseStart: string;
-}) {
-  return ledgerRows.filter((row) => {
-    if (
-      row.direction !== "expense" ||
-      row.transaction_date < recentExpenseStart
-    ) {
-      return false;
-    }
-
-    return Number(row.amount) >= largeExpenseReviewThreshold;
-  });
 }
 
 function getRoleCounts(roles: PersonRoleRow[]) {

@@ -2,6 +2,7 @@ import { needsBoundedSearch, readBoundedSearch } from "@/lib/search/bounded-regi
 import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
 import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
 import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import type { CurrencyCode } from "@/lib/money/format";
@@ -72,7 +73,6 @@ type LeaseAvailabilityTermRow = {
   start_date: string;
   status: string;
 };
-const RENT_SORT_CURRENCIES: CurrencyCode[] = ["USD"];
 const BLOCKING_LEASE_TERM_STATUSES = new Set(["active", "draft", "upcoming"]);
 
 export async function getLeasesScreenData(
@@ -238,77 +238,8 @@ export async function getLeasesScreenData(
       }),
     );
 
-  if (viewQuery.sort === "rent_desc") {
-    const countResult = await buildLeasesQuery({
-      count: "exact",
-      head: true,
-      sort: "none",
-    }).range(0, 0);
-
-    if (countResult.error) {
-      throw new Error(`Could not load leases: ${countResult.error.message}`);
-    }
-
-    const pagination = buildLeasePagination({
-      page: viewQuery.page,
-      pageSize: viewQuery.pageSize,
-      totalCount: countResult.count ?? 0,
-    });
-
-    if (pagination.totalCount === 0) {
-      return {
-        billingFormConfig,
-        leases: [],
-        pagination,
-        propertyOptions: toPropertyOptions(properties),
-        tenantOptions,
-        unitOptions,
-      };
-    }
-
-    const rentWindowSize = pagination.page * pagination.pageSize;
-    const rentResults = await Promise.all(
-      RENT_SORT_CURRENCIES.map((currency) =>
-        buildLeasesQuery({ currency, sort: "rent_desc" }).range(
-          0,
-          rentWindowSize - 1,
-        ),
-      ),
-    );
-
-    for (const result of rentResults) {
-      if (result.error) {
-        throw new Error(`Could not load leases: ${result.error.message}`);
-      }
-    }
-
-    const sortedLeases = sortLeaseSummaries(
-      toLeaseSummaries(
-        rentResults.flatMap((result) => parseScopedLeaseRows(result.data)),
-      ),
-      "rent_desc",
-    );
-    const visibleLeases = getLeasePageSummaries(sortedLeases, pagination);
-
-    return {
-      billingFormConfig,
-      leases: await enrichLeaseSummaries({
-        leases: visibleLeases,
-        loadRentReadiness: Boolean(viewQuery.leaseId),
-        organizationId,
-        propertiesById,
-        readinessDate,
-        readinessClock,
-        supabase,
-        unitsById,
-      }),
-      pagination,
-      propertyOptions: toPropertyOptions(properties),
-      tenantOptions,
-      unitOptions,
-    };
-  }
-
+  // Rent is USD-only, so the database can sort and page it directly. Fetching
+  // the entire prefix would silently truncate deep pages at the server row cap.
   let range = getRange(viewQuery.page, viewQuery.pageSize);
   let leasesResult = await buildLeasesQuery({ count: "exact" }).range(
     range.from,
@@ -375,7 +306,8 @@ export async function getHistoricalRentCorrectionCandidates(
   const supabase = await createSupabaseServerClient();
   const currentDate =
     options.rentBusinessDate ?? new Date().toISOString().slice(0, 10);
-  let invoiceQuery = supabase
+  const { data: invoices, error: invoiceError } = await readAllRows((from, to) => {
+    let invoiceQuery = supabase
     .from("tenant_invoice_balances")
     .select(
       "id, invoice_number, billing_period_start, billing_period_end, due_date, currency, payment_status, paid_through_ips, collected_by_owner",
@@ -384,13 +316,12 @@ export async function getHistoricalRentCorrectionCandidates(
     .eq("lease_id", leaseId)
     .eq("lifecycle", "issued")
     .lte("billing_period_start", currentDate);
-  if (options.currentPeriodOnly) {
-    invoiceQuery = invoiceQuery.gte("billing_period_end", currentDate);
-  }
-  const { data: invoices, error: invoiceError } = await invoiceQuery.order(
-    "billing_period_start",
-    { ascending: false },
-  );
+    if (options.currentPeriodOnly) {
+      invoiceQuery = invoiceQuery.gte("billing_period_end", currentDate);
+    }
+    return invoiceQuery.order("billing_period_start", { ascending: false })
+      .order("id").range(from, to);
+  });
 
   if (invoiceError) {
     throw new Error(
@@ -405,13 +336,13 @@ export async function getHistoricalRentCorrectionCandidates(
   let currentRentInvoiceIds: Set<string> | null = null;
   if (options.currentPeriodOnly) {
     const { data: currentRentInvoices, error: currentRentInvoiceError } =
-      await supabase
+      await readAllRowsByIds(invoiceIds, (ids, from, to) => supabase
         .from("tenant_invoices")
         .select("id")
         .eq("organization_id", organizationId)
         .eq("lease_id", leaseId)
         .eq("generation_source", "lease_rules_v1")
-        .in("id", invoiceIds);
+        .in("id", ids).order("id").range(from, to));
     if (currentRentInvoiceError) {
       throw new Error(
         `Could not load current rent invoice eligibility: ${currentRentInvoiceError.message}`,
@@ -424,24 +355,24 @@ export async function getHistoricalRentCorrectionCandidates(
 
   const [{ data: lines, error: lineError }, { data: corrections, error: correctionError }, { data: fees, error: feeError }] =
     await Promise.all([
-      supabase
+      readAllRowsByIds(invoiceIds, (ids, from, to) => supabase
         .from("tenant_invoice_lines")
         .select("id, invoice_id, amount, reversal_of_id, supersedes_line_id")
         .eq("organization_id", organizationId)
         .eq("line_type", "rent")
         .is("reversal_of_id", null)
         .is("supersedes_line_id", null)
-        .in("invoice_id", invoiceIds),
-      supabase
+        .in("invoice_id", ids).order("id").range(from, to)),
+      readAllRowsByIds(invoiceIds, (ids, from, to) => supabase
         .from("tenant_invoice_corrections")
-        .select("tenant_invoice_id, action")
+        .select("id, tenant_invoice_id, action")
         .eq("organization_id", organizationId)
         .in("action", ["historical_rent", "management_fee"])
-        .in("tenant_invoice_id", invoiceIds),
-      supabase.from("management_fee_occurrences")
-        .select("tenant_invoice_id, amount")
+        .in("tenant_invoice_id", ids).order("id").range(from, to)),
+      readAllRowsByIds(invoiceIds, (ids, from, to) => supabase.from("management_fee_occurrences")
+        .select("id, tenant_invoice_id, amount")
         .eq("organization_id", organizationId)
-        .in("tenant_invoice_id", invoiceIds),
+        .in("tenant_invoice_id", ids).order("id").range(from, to)),
     ]);
 
   if (lineError) {
@@ -539,7 +470,7 @@ async function enrichLeaseSummaries({
       .map((lease) => lease.unitId)
       .filter((unitId): unitId is string => Boolean(unitId)),
   );
-  const propertyIds = new Set(leases.map((lease) => lease.propertyId));
+  const wholePropertyIds = new Set(leases.filter((lease) => !lease.unitId).map((lease) => lease.propertyId));
   const [
     readContext,
     documentsResult,
@@ -550,40 +481,43 @@ async function enrichLeaseSummaries({
     readinessResults,
   ] = await Promise.all([
     loadScopedLeaseContext(supabase, organizationId, detailLeaseIds),
-    supabase
+    readAllRowsByIds(detailLeaseIds, (ids, from, to) => supabase
       .from("documents")
       .select(
         "id, lease_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at",
       )
       .eq("organization_id", organizationId)
-      .in("lease_id", detailLeaseIds)
+      .in("lease_id", ids)
       .is("archived_at", null)
-      .order("uploaded_at", { ascending: false }),
-    supabase
+      .order("uploaded_at", { ascending: false })
+      .order("id").range(from, to)),
+    readAllRowsByIds(detailLeaseIds, (ids, from, to) => supabase
       .from("timeline_events")
       .select("id, lease_id, event_date, event_type, title")
       .eq("organization_id", organizationId)
-      .in("lease_id", detailLeaseIds)
+      .in("lease_id", ids)
       .is("archived_at", null)
       .order("event_date", { ascending: false })
-      .order("id", { ascending: false }),
-    supabase
+      .order("id", { ascending: false }).range(from, to)),
+    readAllRowsByIds(detailLeaseIds, (ids, from, to) => supabase
       .from("activity_logs")
       .select(
         "id, entity_type, entity_id, action, previous_values, new_values, created_at",
       )
       .eq("organization_id", organizationId)
       .eq("entity_type", "lease")
-      .in("entity_id", detailLeaseIds)
-      .order("created_at", { ascending: false }),
-    buildLeaseLedgerQuery(supabase, organizationId, propertyIds, unitIds),
-    supabase
+      .in("entity_id", ids)
+      .order("created_at", { ascending: false })
+      .order("id").range(from, to)),
+    loadLeaseLedgerRows(supabase, organizationId, wholePropertyIds, unitIds),
+    readAllRowsByIds(detailLeaseIds, (ids, from, to) => supabase
       .from("lease_activation_schedules")
       .select("id, lease_id, activation_date, status, failure_message")
       .eq("organization_id", organizationId)
-      .in("lease_id", detailLeaseIds)
+      .in("lease_id", ids)
       .in("status", ["pending", "failed"])
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false })
+      .order("id").range(from, to)),
     loadRentReadiness
       ? Promise.all(
           leases.map(async (lease) => ({
@@ -808,13 +742,13 @@ async function loadLeaseBillingFormConfig(
       .select("name, operational_timezone")
       .eq("id", organizationId)
       .single(),
-    supabase
+    readAllRows((from, to) => supabase
       .from("people")
       .select("id, display_name")
       .eq("organization_id", organizationId)
       .eq("party_type", "company")
       .is("archived_at", null)
-      .order("display_name"),
+      .order("display_name").order("id").range(from, to)),
     supabase.rpc("get_lease_rent_business_date", { p_organization_id: organizationId }),
   ]);
 
@@ -859,15 +793,16 @@ export async function loadEffectiveRentPolicyCalendarDate(
   organizationId: string,
   date = new Date(),
 ) {
-  const result = await supabase
+  const result = await readAllRows((from, to) => supabase
     .from("rent_policy_versions")
     .select(
-      "effective_from, rent_calculation_timezone, version_number",
+      "id, effective_from, rent_calculation_timezone, version_number",
     )
     .eq("organization_id", organizationId)
     .eq("lifecycle", "approved")
     .order("effective_from", { ascending: true })
-    .order("version_number", { ascending: true });
+    .order("version_number", { ascending: true })
+    .order("id").range(from, to));
 
   if (
     result.error &&
@@ -899,25 +834,25 @@ export function getOptionalLeaseBackboneRows<T>(
   throw new Error(`Could not load ${label}: ${result.error.message}`);
 }
 
-function buildLeaseLedgerQuery(
+async function loadLeaseLedgerRows(
   supabase: SupabaseServerClient,
   organizationId: string,
-  propertyIds: ReadonlySet<string>,
+  wholePropertyIds: ReadonlySet<string>,
   unitIds: ReadonlySet<string>,
 ) {
-  let query = supabase
-    .from("ledger_entries")
-    .select("id, property_id, unit_id")
-    .eq("organization_id", organizationId)
-    .is("archived_at", null);
-
-  if (unitIds.size > 0) {
-    query = query.in("unit_id", [...unitIds]);
-  } else {
-    query = query.in("property_id", [...propertyIds]);
-  }
-
-  return query;
+  const [unitRows, propertyRows] = await Promise.all([
+    readAllRowsByIds([...unitIds], (ids, from, to) => supabase
+      .from("ledger_entries").select("id, property_id, unit_id")
+      .eq("organization_id", organizationId).is("archived_at", null)
+      .in("unit_id", ids).order("id").range(from, to)),
+    readAllRowsByIds([...wholePropertyIds], (ids, from, to) => supabase
+      .from("ledger_entries").select("id, property_id, unit_id")
+      .eq("organization_id", organizationId).is("archived_at", null)
+      .in("property_id", ids).is("unit_id", null).order("id").range(from, to)),
+  ]);
+  if (unitRows.error) return unitRows;
+  if (propertyRows.error) return propertyRows;
+  return { data: [...(unitRows.data ?? []), ...(propertyRows.data ?? [])], error: null };
 }
 
 async function addLeasePartyPeople(
@@ -941,11 +876,11 @@ async function addLeasePartyPeople(
     return rows;
   }
 
-  const peopleResult = await supabase
+  const peopleResult = await readAllRowsByIds([...personIds], (ids, from, to) => supabase
     .from("people")
     .select("id, display_name, primary_email, primary_phone")
     .eq("organization_id", organizationId)
-    .in("id", [...personIds]);
+    .in("id", ids).order("id").range(from, to));
 
   if (peopleResult.error) {
     if (isMissingSchemaObjectMessage(peopleResult.error.message, ["people"])) {
@@ -994,12 +929,14 @@ async function addLeaseBillingRecipientLabels(
       ),
     ),
   ];
-  const peopleResult = personIds.length
-    ? await supabase
+  const scopedPersonIds = new Set(scopedPeople.map((person) => person.id));
+  const missingPersonIds = personIds.filter((id) => !scopedPersonIds.has(id));
+  const peopleResult = missingPersonIds.length
+    ? await readAllRowsByIds(missingPersonIds, (ids, from, to) => supabase
         .from("people")
         .select("id, display_name")
         .eq("organization_id", organizationId)
-        .in("id", personIds)
+        .in("id", ids).order("id").range(from, to))
     : { data: [], error: null };
 
   if (peopleResult.error) {
@@ -1338,49 +1275,6 @@ function uniqueStrings(values: string[]) {
   return [...new Set(values)];
 }
 
-function compareLeaseSummaries(first: LeaseSummary, second: LeaseSummary) {
-  return (
-    Number(first.isArchived) - Number(second.isArchived) ||
-    second.formValues.leaseStartDate.localeCompare(
-      first.formValues.leaseStartDate,
-    ) ||
-    compareStrings(first.tenantName, second.tenantName)
-  );
-}
-
-function sortLeaseSummaries(
-  leases: LeaseSummary[],
-  sort: LeaseViewQuery["sort"],
-) {
-  return [...leases].sort((first, second) => {
-    if (sort === "end_asc") {
-      return (
-        first.formValues.leaseEndDate.localeCompare(
-          second.formValues.leaseEndDate,
-        ) || compareStrings(first.tenantName, second.tenantName)
-      );
-    }
-
-    if (sort === "tenant_asc") {
-      return (
-        compareStrings(first.tenantName, second.tenantName) ||
-        second.formValues.leaseStartDate.localeCompare(
-          first.formValues.leaseStartDate,
-        )
-      );
-    }
-
-    if (sort === "rent_desc") {
-      return (
-        second.rentUsd - first.rentUsd ||
-        compareStrings(first.tenantName, second.tenantName)
-      );
-    }
-
-    return compareLeaseSummaries(first, second);
-  });
-}
-
 function buildLeasePagination({
   page,
   pageSize,
@@ -1403,22 +1297,6 @@ function buildLeasePagination({
     totalCount,
     totalPages,
   };
-}
-
-function getLeasePageSummaries(
-  leases: LeaseSummary[],
-  pagination: LeasePagination,
-) {
-  const start = pagination.totalCount === 0 ? 0 : pagination.from - 1;
-
-  return leases.slice(start, pagination.to);
-}
-
-function compareStrings(first: string, second: string) {
-  return first.localeCompare(second, undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
 }
 
 function getRange(page: number, pageSize: number) {

@@ -1124,6 +1124,8 @@ function simplifyDatabaseMessage(message: string) {
 }
 
 function revalidateFinance() {
+  revalidatePath("/properties/[propertyId]/finance", "page");
+  revalidatePath("/units/[unitId]/finance", "page");
   for (const path of [
     "/finance",
     "/rent-income",

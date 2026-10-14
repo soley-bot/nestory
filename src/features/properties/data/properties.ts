@@ -75,7 +75,7 @@ type PropertyCurrentLeaseSummaryRow = {
 };
 
 const propertySelect =
-  "id, name, code, property_type, owner, address, status, registered_date, rental_structure, acquisition_date, notes, archived_at";
+  "id, name, code, property_type, owner, address, status, registered_date, rental_structure, acquisition_date, notes, archived_at, edit_version";
 const propertyImageMimeTypes = ["image/jpeg", "image/png", "image/webp"] as const;
 const propertyRelationshipBatchSize = 75;
 
@@ -157,7 +157,6 @@ export async function getPropertySummaries(
 
   const propertyRows = propertiesResult.data ?? [];
   const summaries = await loadPropertySummariesForRows({
-    activeOwnerLinks: activeOwnerLinks ?? undefined,
     organizationId,
     properties: propertyRows,
     supabase,
@@ -173,12 +172,10 @@ export async function getPropertySummaries(
 }
 
 async function loadPropertySummariesForRows({
-  activeOwnerLinks,
   organizationId,
   properties,
   supabase,
 }: {
-  activeOwnerLinks?: ReadonlyMap<string, ActiveOwnerLink>;
   organizationId: string;
   properties: PropertyRecord[];
   supabase: SupabaseServerClient;
@@ -189,8 +186,9 @@ async function loadPropertySummariesForRows({
     return [];
   }
 
-  const ownerLinks =
-    activeOwnerLinks ?? (await getActiveOwnerLinks(organizationId, propertyIds));
+  // Ownership must be read after the versioned Property rows. Reusing the
+  // earlier owner-filter lookup could pair a fresh version with stale owners.
+  const ownerLinks = await getActiveOwnerLinks(organizationId, propertyIds);
 
   const propertyIdList = [...propertyIds];
   const [
@@ -432,7 +430,6 @@ async function getPagedPropertiesScreenData({
   return {
     pagination,
     properties: await loadPropertySummariesForRows({
-      activeOwnerLinks,
       organizationId,
       properties: rowsResult.properties,
       supabase,
@@ -583,9 +580,23 @@ export async function getPropertyDetail(
 ) {
   const supabase = await createSupabaseServerClient();
   const detailRecordLimit = 8;
+  // Read the version first: a later ownership change then produces a safe
+  // conflict, never a fresh version attached to an older owner snapshot.
+  const propertyResult = await supabase
+    .from("properties")
+    .select(propertySelect)
+    .eq("organization_id", organizationId)
+    .eq("id", propertyId)
+    .maybeSingle();
+
+  if (propertyResult.error) {
+    throw new Error(`Could not load property: ${propertyResult.error.message}`);
+  }
+  if (!propertyResult.data) {
+    return null;
+  }
 
   const [
-    propertyResult,
     unitsResult,
     ownerRowsResult,
     activeLeasesResult,
@@ -598,14 +609,6 @@ export async function getPropertyDetail(
     maintenanceResult,
     activityResult,
   ] = await Promise.all([
-    supabase
-      .from("properties")
-      .select(
-        "id, name, code, property_type, owner, address, status, registered_date, rental_structure, acquisition_date, notes, archived_at",
-      )
-      .eq("organization_id", organizationId)
-      .eq("id", propertyId)
-      .maybeSingle(),
     supabase
       .from("units")
       .select(
@@ -718,14 +721,6 @@ export async function getPropertyDetail(
       .order("created_at", { ascending: false })
       .limit(6),
   ]);
-
-  if (propertyResult.error) {
-    throw new Error(`Could not load property: ${propertyResult.error.message}`);
-  }
-
-  if (!propertyResult.data) {
-    return null;
-  }
 
   if (unitsResult.error) {
     throw new Error(`Could not load property units: ${unitsResult.error.message}`);

@@ -98,7 +98,9 @@ export async function* iteratePropertyCashEventPages(
 
     yield filtered;
 
-    if (page.rows.length < page.pageSize) return;
+    // PostgREST may enforce a smaller row cap than the requested RPC page.
+    // Only an empty page proves completion; the source cursor always advances.
+    if (page.rows.length === 0) return;
   }
 }
 
@@ -259,6 +261,10 @@ function assertEventScope(
   }
   if (event.currency !== scope.currency) {
     throw new Error("Property cash RPC returned mixed or unsupported currency.");
+  }
+  parseBusinessDate(event.eventDate);
+  if (event.eventDate < scope.periodStart || event.eventDate > scope.periodEnd) {
+    throw new Error("Property cash RPC returned a row outside the requested period.");
   }
 }
 

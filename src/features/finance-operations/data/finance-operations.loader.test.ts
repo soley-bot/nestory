@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { getFinanceAccountsData } from "@/features/finance-accounts/data/finance-accounts";
 import { getFinanceOperationsData } from "@/features/finance-operations/data/finance-operations";
+import { parseRentInvoiceQuery } from "../rent-invoice-query";
 
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(),
@@ -26,6 +27,28 @@ vi.mock("@/features/finance-accounts/data/finance-accounts", () => ({
 }));
 
 describe("finance operations initial reads", () => {
+  it("hydrates only the invoice page and scopes context before loading a selected property", async () => {
+    const invoices = Array.from({ length: 50 }, (_, index) => ({
+      id: `invoice-${index}`, organization_id: "organization-1", property_id: "property-1", unit_id: null, lease_id: "lease-1",
+      invoice_number: `INV-${index}`, issue_date: "2026-08-01", due_date: "2026-08-05", billing_period_start: "2026-08-01", billing_period_end: "2026-08-31",
+      collection_route: "through_ips", recipient_label: "Tenant", occupant_labels: [], currency: "USD", total_amount: 10.25, balance_due: 10.25,
+      paid_through_ips: 0, collected_by_owner: 0, payment_status: "unpaid",
+    }));
+    const harness = createFinanceReadHarness({
+      properties: { data: [{ id: "property-1", code: "P", name: "Property", archived_at: null }] },
+      rent_invoice_page: { data: { invoices, selectedInvoice: null, pagination: { from: 1, to: 50, page: 1, pageSize: 50, totalCount: 1251, totalPages: 26 }, totalVisibleCount: 1251, totalsByCurrency: [{ currency: "USD", collected: 0, outstanding: 12822.75 }], propertyOptions: [{ id: "property-1", label: "Property" }] } },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getFinanceOperationsData("organization-1", "property-1", { includeExpenses: false, rentInvoiceQuery: parseRentInvoiceQuery({}) });
+    expect(result.tenantInvoices).toHaveLength(50);
+    expect(result.tenantInvoicePage?.pagination.totalCount).toBe(1251);
+    expect(harness.rpcCalls).toContainEqual(["get_finance_read_context", { p_organization_id: "organization-1", p_requested_property_id: "property-1" }]);
+    expect(harness.queries.some(query => ["tenant_invoice_balances", "owner_invoice_balances", "property_account_entries"].includes(query.table))).toBe(false);
+    const lineQueries = harness.queries.filter(query => query.table === "tenant_invoice_line_balances");
+    expect(lineQueries).toHaveLength(1);
+    expect(lineQueries[0].filters).toContainEqual(["in:invoice_id", invoices.map(invoice => invoice.id)]);
+    expect(harness.queries.filter(query => ["property_finance_positions", "rent_generation_exceptions"].includes(query.table)).every(query => query.filters.some(([column, value]) => column === "property_id" && value === "property-1"))).toBe(true);
+  });
   it("excludes confirmed archived rent targets while retaining ended and termless leases needing recovery", async () => {
     const lease = {
       property_id: "property-1", unit_id: null, primary_tenant_person_id: "tenant-1",
@@ -446,6 +469,7 @@ function createFinanceReadHarness(
     terms: overrides.lease_terms?.data ?? [], billing_terms: overrides.lease_billing_terms?.data ?? [],
   } } };
   const queries: Array<{ table: string; filters: Array<[string, unknown]> }> = [];
+  const rpcCalls: Array<[string, unknown]> = [];
   let active = 0;
   let peak = 0;
 
@@ -541,16 +565,17 @@ function createFinanceReadHarness(
   return {
     client: {
       from: (table: string) => new Query(table),
-      rpc: (name: string) => new Query(
+      rpc: (name: string, args: unknown) => { rpcCalls.push([name, args]); return new Query(
         name === "get_finance_read_context"
           ? "scoped_context"
           : name === "get_lease_rent_business_date"
             ? "rent_business_date"
-            : "rpc",
-      ),
+            : name === "get_rent_invoice_page" ? "rent_invoice_page" : "rpc",
+      ); },
     },
     maxInFlight: () => peak,
     queries,
+    rpcCalls,
   };
 }
 

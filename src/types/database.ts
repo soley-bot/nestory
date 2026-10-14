@@ -811,6 +811,26 @@ type RpcFunctionOverrides = {
       p_status: string;
     }
   >;
+  update_property_details_checked: WithArgs<
+    "update_property_details_checked",
+    {
+      p_acquisition_date: string | null;
+      p_address: string | null;
+      p_code: string;
+      p_expected_version: string;
+      p_name: string;
+      p_notes: string | null;
+      p_organization_id: string;
+      p_owner: string | null;
+      p_owner_ownership_percent: string | null;
+      p_owner_person_id: string | null;
+      p_owner_started_on: string | null;
+      p_property_id: string;
+      p_property_type: string;
+      p_registered_date: string | null;
+      p_status: string;
+    }
+  >;
   update_timeline_event: WithArgs<
     "update_timeline_event",
     {

@@ -44,6 +44,37 @@ describe("lease screen data readiness", () => {
     getPersonSelectOptions.mockClear();
   });
 
+  it("loads a deep rent page directly without fetching a capped prefix", async () => {
+    const rows = leaseRows(1200).map(row => ({ ...row, monthly_rent_amount: 500, tenant_name: "Equal name" }));
+    const { client } = leaseLoaderStub({ rows });
+    createSupabaseServerClient.mockResolvedValue(client);
+    const result = await getLeasesScreenData(organizationId, parseLeaseSearchParams({ page: "22", pageSize: "50", sort: "rent_desc" }));
+    expect(result.pagination).toMatchObject({ page: 22, totalCount: 1200 });
+    expect(result.leases.map(lease => lease.id)).toEqual(rows.slice(1050, 1100).map(row => row.id));
+    const lists = client.rpc.mock.results.filter((_, index) => client.rpc.mock.calls[index][0] === "get_scoped_leases_with_effective_rent");
+    expect(lists).toHaveLength(1);
+    expect(lists[0].value.range).toHaveBeenCalledWith(1050, 1099);
+    expect(lists[0].value.order).toHaveBeenLastCalledWith("id");
+  });
+
+  it("counts all selected lease records and both whole-property and unit ledger rows", async () => {
+    const rows = leaseRows(2);
+    rows[1].unit_id = "selected-unit";
+    const documents = Array.from({ length: 1001 }, (_, index) => ({
+      id: `document-${index}`, organization_id: organizationId, lease_id: rows[0].id,
+      archived_at: null, uploaded_at: "2026-10-01", category: "lease", file_name: "Agreement", mime_type: "application/pdf", size_bytes: 1, storage_path: "agreement",
+    }));
+    const ledger = Array.from({ length: 1001 }, (_, index) => ({ id: `ledger-${index}`, organization_id: organizationId, archived_at: null, property_id: propertyId, unit_id: null }));
+    const { client } = leaseLoaderStub({ rows, supportingRows: {
+      documents: [...documents, { ...documents[0], id: "foreign-org", organization_id: "other" }, { ...documents[0], id: "foreign-lease", lease_id: "other" }],
+      ledger_entries: [...ledger, { ...ledger[0], id: "unit-ledger", unit_id: "selected-unit" }, { ...ledger[0], id: "foreign-unit", unit_id: "other" }, { ...ledger[0], id: "foreign-org", organization_id: "other" }],
+    } });
+    createSupabaseServerClient.mockResolvedValue(client);
+    const result = await getLeasesScreenData(organizationId);
+    expect(result.leases[0].recordCounts).toMatchObject({ documents: 1001, ledgerEntries: 1001 });
+    expect(result.leases[1].recordCounts).toMatchObject({ documents: 0, ledgerEntries: 1 });
+  });
+
   it.each(["start_desc", "rent_desc"])("pages a broad owner search through the scoped lease RPC (%s)", async (sort) => {
     const properties = Array.from({ length: 400 }, (_, index) => ({ id: index ? `20000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}` : propertyId, code: `P${index}`, name: "Property", ownerNames: ["Shared Owner"] }));
     vi.mocked(loadPortfolioSearch).mockResolvedValue(createPortfolioSearch(properties, []));
@@ -268,6 +299,7 @@ function leaseLoaderStub({
   listResult,
   fundedDeposit = false,
   directDepositEvents = [],
+  supportingRows = {},
 }: {
   readinessResult?: QueryResult;
   businessDateResult?: QueryResult;
@@ -277,6 +309,7 @@ function leaseLoaderStub({
   listResult?: QueryResult;
   fundedDeposit?: boolean;
   directDepositEvents?: Array<Record<string, unknown>>;
+  supportingRows?: Record<string, Array<Record<string, unknown>>>;
 }) {
   const readinessRpc = vi.fn(
     (name: string, args: Record<string, unknown>) => {
@@ -356,7 +389,7 @@ function leaseLoaderStub({
     units: ok([]),
   };
   const from = vi.fn((table: string) =>
-    query(scopedOnly && ["properties", "units", "people", "lease_terms"].includes(table) ? ok([]) : tableResults[table] ?? ok([])),
+    query(supportingRows[table] ? ok(supportingRows[table]) : scopedOnly && ["properties", "units", "people", "lease_terms"].includes(table) ? ok([]) : tableResults[table] ?? ok([]), Boolean(supportingRows[table])),
   );
 
   return {
@@ -379,7 +412,7 @@ function leaseRows(count: number) {
     property_id: propertyId,
     status: "active",
     tenant_name: `Tenant ${index + 1}`,
-    unit_id: null,
+    unit_id: null as string | null,
   }));
 }
 
@@ -393,13 +426,14 @@ function ok(data: unknown, count: number | null = null): QueryResult {
   };
 }
 
-function query(result: QueryResult) {
+function query(result: QueryResult, applyFilters = false) {
   let bounds: [number, number] | undefined;
+  const filters: Array<(row: Record<string, unknown>) => boolean> = [];
   const builder = {
-    eq: vi.fn(() => builder),
+    eq: vi.fn((field: string, value: unknown) => { filters.push(row => row[field] === value); return builder; }),
     gte: vi.fn(() => builder),
-    in: vi.fn(() => builder),
-    is: vi.fn(() => builder),
+    in: vi.fn((field: string, values: unknown[]) => { filters.push(row => values.includes(row[field])); return builder; }),
+    is: vi.fn((field: string, value: unknown) => { filters.push(row => row[field] === value); return builder; }),
     limit: vi.fn(() => builder),
     lt: vi.fn(() => builder),
     maybeSingle: vi.fn(() => builder),
@@ -412,7 +446,11 @@ function query(result: QueryResult) {
     then: (
       resolve: (value: QueryResult) => unknown,
       reject?: (reason: unknown) => unknown,
-    ) => Promise.resolve(bounds && Array.isArray(result.data) ? { ...result, data: result.data.slice(bounds[0], bounds[1] + 1) } : result).then(resolve, reject),
+    ) => {
+      if (!Array.isArray(result.data)) return Promise.resolve(result).then(resolve, reject);
+      const rows = applyFilters ? result.data.filter(row => filters.every(matches => matches(row))) : result.data;
+      return Promise.resolve({ ...result, data: rows.slice(bounds?.[0] ?? 0, Math.min((bounds?.[1] ?? 999) + 1, (bounds?.[0] ?? 0) + 1000)) }).then(resolve, reject);
+    },
   };
 
   return builder;

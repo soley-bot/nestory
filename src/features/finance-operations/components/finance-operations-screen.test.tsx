@@ -2197,7 +2197,7 @@ describe("FinanceOperationsScreen", () => {
         expect.stringContaining("INV-HIGHER"),
         expect.stringContaining("INV-LOWER"),
       ]);
-      expect(screen.getByText("Showing 2 of 4 invoices")).not.toBeNull();
+      expect(screen.getByText("Matching 2 of 4 invoices")).not.toBeNull();
     } finally {
       vi.useRealTimers();
     }
@@ -4560,3 +4560,67 @@ function expenseSubmission(
     vendorLabel: "Sokha Repairs",
   };
 }
+
+it("shows full-result totals and pagination while rendering only the current invoice page", () => {
+  const input = data();
+  input.tenantInvoices = [tenantInvoice()];
+  input.tenantInvoicePage = {
+    pagination: { page: 26, pageSize: 50, from: 1251, to: 1251, totalCount: 1251, totalPages: 26 },
+    totalVisibleCount: 1251, totalsByCurrency: [{ currency: "USD", collected: 3075, outstanding: 12822.75 }],
+    propertyOptions: [{ id: "property-1", label: "Home" }, { id: "property-2", label: "Other home" }],
+  };
+  navigation.pathname = "/rent-income";
+  navigation.searchParams = new URLSearchParams("page=26&status=open&q=Morgan");
+  render(<FinanceOperationsScreen {...input} {...financeCapabilities()} organizationName="IPS" view="rent" />);
+  const summary = screen.getByRole("region", { name: "Finance summary" });
+  expect(summary.textContent).toContain("USD 12,822.75");
+  expect(summary.textContent).toContain("USD 3,075.00");
+  expect(screen.getByText("Page 26 of 26")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Previous" }).getAttribute("href")).toBe("/rent-income?page=25&status=open&q=Morgan");
+  expect(screen.getAllByRole("button", { name: /View invoice/ })).toHaveLength(1);
+});
+
+it("keeps an off-page report selection current after refresh and hides it after scope navigation", () => {
+  const input = data();
+  input.tenantInvoices = [];
+  input.selectedTenantInvoice = { ...tenantInvoice(), id: "report-invoice" };
+  const element = () => <FinanceOperationsScreen {...input} {...financeCapabilities()} initialInvoiceId="report-invoice" organizationName="IPS" view="rent" />;
+  const view = render(element());
+  expect(screen.getByRole("dialog").textContent).toContain("INV-202608-001");
+  input.selectedTenantInvoice = { ...input.selectedTenantInvoice, balanceDue: 0, paymentStatus: "paid", collectedByOwner: 640 };
+  view.rerender(element());
+  expect(within(screen.getByRole("dialog")).queryByRole("button", { name: /Record tenant payment/ })).toBeNull();
+  input.selectedTenantInvoice = undefined;
+  view.rerender(element());
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+const manualChargeContextMock = vi.hoisted(() => ({ load: vi.fn() }));
+vi.mock("../manual-charge-invoice-context", () => ({ loadManualChargeInvoiceContext: manualChargeContextMock.load }));
+
+it("verifies an invoice outside the filtered page before allowing a manual charge and inherits its future due date", async () => {
+  const user = userEvent.setup();
+  let resolveInvoice!: (value: { id: string; invoiceNumber: string; dueDate: string }) => void;
+  manualChargeContextMock.load.mockReturnValueOnce(new Promise(resolve => { resolveInvoice = resolve; }));
+  const input = data();
+  input.tenantInvoices = [];
+  input.tenantInvoicePage = {
+    pagination: { page: 1, pageSize: 50, from: 0, to: 0, totalCount: 0, totalPages: 1 },
+    totalVisibleCount: 1251, totalsByCurrency: [], propertyOptions: [],
+  };
+  navigation.pathname = "/rent-income";
+  navigation.searchParams = new URLSearchParams("page=27&status=open&q=no-match");
+  render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordPayments: true })}
+    organizationName="IPS" scope={{ id: "property-1", kind: "property", label: "Home", propertyId: "property-1", propertyLabel: "Home" }} view="rent" />);
+  await user.click(screen.getByRole("button", { name: "Bill tenant" }));
+  const dialog = screen.getByRole("dialog", { name: "Bill tenant" });
+  expect(within(dialog).getByRole("button", { name: "Bill tenant" })).toHaveProperty("disabled", true);
+  expect(dialog.querySelector('input[name="dueDate"]')).toBeNull();
+  expect(manualChargeContextMock.load).toHaveBeenLastCalledWith({ leaseId: "lease-1", billingPeriod: getBusinessDateValue().slice(0, 7) });
+  resolveInvoice({ id: "outside-page-paid", invoiceNumber: "OLD-PAID-INVOICE", dueDate: "2099-12-25" });
+  await waitFor(() => expect(within(dialog).getByRole("button", { name: "Bill tenant" })).toHaveProperty("disabled", false));
+  const dueDate = dialog.querySelector<HTMLInputElement>('input[name="dueDate"]');
+  expect(dueDate?.type).toBe("hidden");
+  expect(dueDate?.value).toBe("2099-12-25");
+  expect(within(dialog).getByText(/OLD-PAID-INVOICE/)).toBeTruthy();
+});

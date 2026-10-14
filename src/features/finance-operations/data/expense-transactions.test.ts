@@ -108,6 +108,6 @@ describe("complete transaction reads", () => {
     expect(result.lines).toHaveLength(520);
     expect(result.submissions).toHaveLength(520);
     expect(result.childLinks).toHaveLength(520);
-    expect(ranges).toEqual([[0, 499], [500, 999]]);
+    expect(ranges).toEqual([[0, 499], [500, 999], [520, 1019]]);
   });
 });

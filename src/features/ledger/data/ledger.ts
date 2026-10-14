@@ -2,6 +2,7 @@ import { readBoundedSearch } from "@/lib/search/bounded-register";
 import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
 import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
 import {
   formatPropertyOptionLabel,
   formatUnitOptionLabel,
@@ -34,7 +35,6 @@ import { documentDownloadUrl } from "@/lib/uploads/document-download";
 
 const ledgerEntrySelect =
   "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description, source_type, source_id, reversal_of_ledger_entry_id, archived_at";
-const maxRelatedSearchIds = 100;
 
 type PropertyRow = {
   code: string;
@@ -106,24 +106,26 @@ export async function getLedgerScreenData(
     periodLocksResult,
     recentActivityResult,
   ] = await Promise.all([
-    supabase
+    readAllRows((from, to) => supabase
       .from("properties")
       .select("id, name, code")
       .eq("organization_id", organizationId)
       .is("archived_at", null)
-      .order("name", { ascending: true }),
-    supabase
+      .order("name", { ascending: true })
+      .order("id").range(from, to)),
+    readAllRows((from, to) => supabase
       .from("units")
       .select("id, property_id, unit_number")
       .eq("organization_id", organizationId)
-      .is("archived_at", null),
-    supabase
+      .is("archived_at", null)
+      .order("id").range(from, to)),
+    readAllRows((from, to) => supabase
       .from("financial_month_locks")
       .select("id, month_start, is_locked, locked_at, reason")
       .eq("organization_id", organizationId)
       .eq("is_locked", true)
       .order("month_start", { ascending: false })
-      .limit(24),
+      .order("id").range(from, to)),
     supabase
       .from("activity_logs")
       .select(
@@ -132,6 +134,7 @@ export async function getLedgerScreenData(
       .eq("organization_id", organizationId)
       .in("entity_type", ["timeline_event", "ledger_entry", "financial_month"])
       .order("created_at", { ascending: false })
+      .order("id")
       .limit(6),
   ]);
 
@@ -715,12 +718,13 @@ async function getLinkedTimelineEvents(
     return [];
   }
 
-  const result = await supabase
+  const result = await readAllRowsByIds(ledgerEntryIds, (ids, from, to) => supabase
     .from("timeline_events")
     .select("id, ledger_entry_id, title, archived_at")
     .eq("organization_id", organizationId)
-    .in("ledger_entry_id", ledgerEntryIds)
-    .order("created_at", { ascending: false });
+    .in("ledger_entry_id", ids)
+    .order("created_at", { ascending: false })
+    .order("id").range(from, to));
 
   if (result.error) {
     throw new Error(
@@ -740,14 +744,16 @@ async function getLinkedLedgerDocuments(
     return [];
   }
 
-  const result = await supabase
+  const result = await readAllRowsByIds(ledgerEntryIds, (ids, from, to) => supabase
     .from("documents")
     .select(
       "id, ledger_entry_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at",
     )
     .eq("organization_id", organizationId)
-    .in("ledger_entry_id", ledgerEntryIds)
-    .is("archived_at", null);
+    .in("ledger_entry_id", ids)
+    .is("archived_at", null)
+    .order("uploaded_at", { ascending: false })
+    .order("id").range(from, to));
 
   if (result.error) {
     throw new Error(`Could not load ledger documents: ${result.error.message}`);
@@ -765,16 +771,16 @@ async function getLinkedLedgerActivity(
     return [];
   }
 
-  const result = await supabase
+  const result = await readAllRowsByIds(ledgerEntryIds, (ids, from, to) => supabase
     .from("activity_logs")
     .select(
       "id, entity_type, entity_id, action, previous_values, new_values, created_at",
     )
     .eq("organization_id", organizationId)
     .eq("entity_type", "ledger_entry")
-    .in("entity_id", ledgerEntryIds)
+    .in("entity_id", ids)
     .order("created_at", { ascending: false })
-    .limit(120);
+    .order("id").range(from, to));
 
   if (result.error) {
     throw new Error(
@@ -790,17 +796,18 @@ async function getLedgerEntryIdsMatchingTimelineSearch(
   organizationId: string,
   tokens: string[],
 ) {
-  let query = supabase
+  const result = await readAllRows((from, to) => {
+    let query = supabase
     .from("timeline_events")
-    .select("ledger_entry_id")
+    .select("id, ledger_entry_id")
     .eq("organization_id", organizationId)
     .not("ledger_entry_id", "is", null);
 
-  for (const token of tokens) {
-    query = query.or(`title.ilike.%${token}%,description.ilike.%${token}%`);
-  }
-
-  const result = await query.limit(maxRelatedSearchIds);
+    for (const token of tokens) {
+      query = query.or(`title.ilike.%${token}%,description.ilike.%${token}%`);
+    }
+    return query.order("id").range(from, to);
+  });
 
   if (result.error) {
     throw new Error(
@@ -865,7 +872,7 @@ function buildLedgerSearchGroups({
 }
 
 function addInCondition(conditions: string[], column: string, ids: string[]) {
-  const uniqueIds = Array.from(new Set(ids)).slice(0, maxRelatedSearchIds);
+  const uniqueIds = Array.from(new Set(ids));
 
   if (uniqueIds.length > 0) {
     conditions.push(`${column}.in.(${uniqueIds.join(",")})`);
