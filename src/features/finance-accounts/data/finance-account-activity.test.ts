@@ -30,6 +30,57 @@ describe("getFinanceAccountActivity", () => {
     mocks.iteratePropertyCashEvents.mockImplementation(() => asyncRows([]));
   });
 
+  it("includes the 1001st readable property and its exact account authority under a smaller server cap", async () => {
+    const properties = Array.from({ length: 1001 }, (_, index) => ({
+      id: `property-${String(index).padStart(4, "0")}`, code: "TIE", name: "Synthetic property", archived_at: null,
+    }));
+    const event = propertyCashEvent({ propertyId: properties[1000].id, amountCents: BigInt(12345),
+      eventKey: "deposit_event:last", sourceId: "last", reconciliationSourceId: null });
+    const authorities = Array.from({ length: 1001 }, (_, index) => ({
+      authority_id: index === 1000 ? event.eventKey : `deposit_event:${index}`,
+      authority_kind: "event", event_key: index === 1000 ? event.eventKey : `deposit_event:${index}`,
+      event_matches: index === 1000, valid_from: "-infinity", valid_to: null,
+    }));
+    const client = clientFixture({ properties, authorities });
+    mocks.createSupabaseServerClient.mockResolvedValue(client);
+    mocks.iteratePropertyCashEvents.mockImplementation((_client, scope) => asyncRows(
+      scope.propertyId === properties[1000].id ? [event] : [],
+    ));
+    const activity = await getFinanceAccountActivity("org-1", "operating-account", filters);
+    expect(activity?.properties).toHaveLength(1001);
+    expect(activity?.rows).toHaveLength(1);
+    expect(activity?.rows[0].propertyId).toBe(properties[1000].id);
+    expect(activity?.total).toBe("123.45");
+    expect(client.from.mock.calls.filter(([table]) => table === "properties")).toHaveLength(7);
+    expect(client.rpc).toHaveBeenCalledTimes(7);
+  });
+
+  it("batches more than 1000 contact and lease identities without losing the final activity contact", async () => {
+    const events = Array.from({ length: 1001 }, (_, index) => ownerProfitLossEvent({
+      sourceId: `line-${index}`, eventKey: `tenant_invoice_line:${index}`, sourceType: "tenant_invoice_line",
+      sourceParentType: "tenant_invoice", economicClass: "owner_income", categoryCode: "rent", categoryId: "rent-category",
+      leaseId: `lease-${index}`, signedAmountCents: BigInt(100),
+    }));
+    const client = clientFixture({ account: accountRow({ account_class: "income" }),
+      categories: [{ id: "rent-category", code: "rent" }], categoryLinks: [{ category_id: "rent-category" }],
+      leases: events.map((event, index) => ({ id: event.leaseId, primary_tenant_person_id: `tenant-${index}` })),
+      people: events.map((_, index) => ({ id: `tenant-${index}`, display_name: `Tenant ${index}` })),
+    });
+    mocks.createSupabaseServerClient.mockResolvedValue(client);
+    mocks.iterateOwnerProfitLossEvents.mockImplementation(() => asyncRows(events));
+    const activity = await getFinanceAccountActivity("org-1", "income", filters);
+    expect(activity?.rows).toHaveLength(1001);
+    expect(activity?.total).toBe("1001.00");
+    expect(activity?.rows.find(row => row.id === events[1000].eventKey)?.contact).toBe("Tenant 1000");
+    for (const [index, [table]] of client.from.mock.calls.entries()) {
+      if (table !== "leases" && table !== "people") continue;
+      const query = client.from.mock.results[index].value;
+      expect(query.in.mock.calls[0][1].length).toBeLessThanOrEqual(100);
+      expect(query.eq).toHaveBeenCalledWith("organization_id", "org-1");
+      expect(query.order).toHaveBeenCalledWith("id");
+    }
+  });
+
   it("shows source-backed bank movements without inventing journal entries", async () => {
     // Break caught: using ledger rows, or ignoring the account's source bridge,
     // can duplicate one cash movement or attribute another bank's activity.
@@ -161,6 +212,49 @@ describe("getFinanceAccountActivity", () => {
       sourceHref: expect.stringMatching(/^\/leases/),
     }));
     expect(activity?.total).toBe("450.00");
+  });
+
+  it.each([false, true])("shows checked deposit liability movements on their original account, reversed=%s", async (reversed) => {
+    const events = [propertyCashEvent({
+      amountCents: BigInt(0), depositLiabilityEffectCents: BigInt(-10000),
+      operatingCashEffectCents: BigInt(0), ownerCashEffectCents: BigInt(0),
+      sourceType: "deposit_event", eventKey: "deposit_event:application", sourceId: "application",
+      sourceParentType: "deposit_rent_application", sourceParentId: "application-command",
+      ledgerEntryId: null, reconciliationSourceId: null, economicClass: "security_deposit",
+    })];
+    if (reversed) events.push(propertyCashEvent({ ...events[0], eventKey: "deposit_event:reversal", sourceId: "reversal",
+      sourceParentId: "reversal-command", depositLiabilityEffectCents: BigInt(10000), isReversal: true }));
+    // A malformed/unresolved application must not contribute even with an exact account binding.
+    events.push(propertyCashEvent({ ...events[0], eventKey: "deposit_event:unresolved", sourceId: "unresolved",
+      resolutionState: "unresolved", depositLiabilityEffectCents: null }));
+    mocks.iteratePropertyCashEvents.mockImplementation(() => asyncRows(events));
+    for (const matches of [true, false]) {
+      mocks.createSupabaseServerClient.mockResolvedValue(clientFixture({
+        account: accountRow({ id: "deposits", account_class: "liability", account_subtype: "current_liability",
+          archived_at: "2026-09-01", system_role: "security_deposits", use_for_lease_deposits: true }),
+        authorities: events.map(event => ({ authority_id: event.eventKey, authority_kind: "event",
+          event_key: event.eventKey, event_matches: matches, valid_from: "-infinity", valid_to: null })),
+      }));
+      const activity = await getFinanceAccountActivity("org-1", "deposits", filters);
+      expect(activity?.rows).toHaveLength(matches ? (reversed ? 2 : 1) : 0);
+      expect(activity?.total).toBe(matches && !reversed ? "-100.00" : "0.00");
+      if (matches) expect(activity?.rows[0]).toMatchObject({ decrease: "100.00", sourceHref: "/leases/lease-1" });
+    }
+  });
+
+  it("does not invent a bank activity row for a zero-cash deposit reclassification", async () => {
+    const event = propertyCashEvent({ amountCents: BigInt(0), depositLiabilityEffectCents: BigInt(-10000),
+      sourceType: "deposit_event", sourceParentType: "deposit_rent_application", ledgerEntryId: null,
+      operatingCashEffectCents: BigInt(0), ownerCashEffectCents: BigInt(0) });
+    mocks.iteratePropertyCashEvents.mockImplementation(() => asyncRows([event]));
+    mocks.createSupabaseServerClient.mockResolvedValue(clientFixture({
+      account: accountRow({ account_class: "asset" }),
+      authorities: [{ authority_id: event.eventKey, authority_kind: "event", event_key: event.eventKey,
+        event_matches: true, valid_from: "-infinity", valid_to: null }],
+    }));
+    const activity = await getFinanceAccountActivity("org-1", "bank", filters);
+    expect(activity?.rows).toEqual([]);
+    expect(activity?.total).toBe("0.00");
   });
 
   it("returns the same null result for unknown and property-unauthorized accounts", async () => {
@@ -558,7 +652,7 @@ function clientFixture({
     }),
     rpc: authorities === undefined && ownerSources.length === 0
       ? undefined
-      : vi.fn((name: string) => Promise.resolve({
+      : vi.fn((name: string) => chainQuery({
           data: name === "get_owner_balance_source_ledger" ? ownerSources : (authorities ?? []),
           error: null,
         })),
@@ -566,19 +660,29 @@ function clientFixture({
 }
 
 function chainQuery(result: { data: unknown; error: { message: string } | null }) {
+  let start = 0;
+  let end = 199;
+  let membership: { field: string; ids: string[] } | undefined;
   const query = {
     eq: vi.fn(),
     in: vi.fn(),
     maybeSingle: vi.fn().mockResolvedValue(result),
     order: vi.fn(),
+    range: vi.fn(),
     select: vi.fn(),
     then: (
       resolve: (value: typeof result) => unknown,
       reject?: (reason: unknown) => unknown,
-    ) => Promise.resolve(result).then(resolve, reject),
+    ) => {
+      const rows = Array.isArray(result.data) && membership
+        ? result.data.filter(row => membership!.ids.includes(row[membership!.field])) : result.data;
+      return Promise.resolve({ ...result, data: Array.isArray(rows) ? rows.slice(start, Math.min(end + 1, start + 200)) : rows })
+        .then(resolve, reject);
+    },
   };
   query.eq.mockReturnValue(query);
-  query.in.mockReturnValue(query);
+  query.in.mockImplementation((field: string, ids: string[]) => { membership = { field, ids }; return query; });
+  query.range.mockImplementation((from: number, to: number) => { start = from; end = to; return query; });
   query.order.mockReturnValue(query);
   query.select.mockReturnValue(query);
   return query;

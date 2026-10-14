@@ -1,3 +1,5 @@
 supabase/migrations/*.sql text eol=lf
 supabase/migration-reconciliations/*.json text eol=lf
 src/app/vendor/shadcn-tailwind.css text eol=lf
+# Preserve the reviewed SQL proposal bytes used by the local acceptance manifest.
+docs/design/deposit-rent-candidate/*.sql -text

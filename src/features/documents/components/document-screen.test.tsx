@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -66,7 +66,8 @@ describe("DocumentScreen workspace contract", () => {
     expect(within(dialog).getByRole("alert").textContent).toBe("Synthetic restore failed. Try again.");
     await user.click(within(dialog).getByRole("button", { name: "Restore" }));
     expect(await screen.findByText("Synthetic document restored.")).toBeTruthy();
-    expect(screen.queryByRole("dialog", { name: "Restore document" })).toBeNull();
+    // Success text can render inside the panel before its closing effect runs.
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Restore document" })).toBeNull());
     expect(documentActions.restoreDocumentAction).toHaveBeenCalledTimes(2);
     expect(documentActions.restoreDocumentAction.mock.calls[0][1].get("documentId")).toBe("document-1");
   });

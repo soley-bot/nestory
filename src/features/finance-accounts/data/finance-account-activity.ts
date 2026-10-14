@@ -11,6 +11,7 @@ import type {
   OwnerProfitLossEventsRpcClient,
 } from "@/features/reports/data/owner-profit-loss-events.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
 
 export type FinanceAccountActivityFilters = {
   periodEnd: string;
@@ -73,6 +74,13 @@ type AuthorityRow = {
   valid_to: string | null;
 };
 
+type ActivityRpcQuery = PromiseLike<{
+  data: AuthorityRow[] | null; error: { message: string } | null;
+}> & {
+  order(column: string): ActivityRpcQuery;
+  range(from: number, to: number): ActivityRpcQuery;
+};
+
 type OwnerAssignmentRow = {
   ended_on: string | null;
   person_id: string;
@@ -105,32 +113,31 @@ export async function getFinanceAccountActivity(
   const account = accountResult.data as AccountRow;
 
   const rpcClient = client as unknown as {
-    rpc?: (name: string, args: Record<string, unknown>) => PromiseLike<{
-      data: AuthorityRow[] | null; error: { message: string } | null;
-    }>;
+    rpc?: (name: string, args: Record<string, unknown>) => ActivityRpcQuery;
   };
   let authorityRows: AuthorityRow[] = [];
   let authorityContractLoaded = false;
   if (rpcClient.rpc) {
-    const authorityResult = await rpcClient.rpc("get_finance_account_activity_authorities", {
+    const authorityResult = await readAllRows<AuthorityRow>((from, to) => rpcClient.rpc!("get_finance_account_activity_authorities", {
       p_account_id: accountId,
       p_organization_id: organizationId,
       p_period_end: filters.periodEnd,
       p_period_start: filters.periodStart,
       p_property_id: filters.propertyId ?? null,
-    });
+    }).order("authority_kind").order("authority_id").order("valid_from")
+      .order("valid_to").order("event_key").order("event_matches").range(from, to));
     assertRead("authority", authorityResult.error);
     authorityRows = authorityResult.data ?? [];
     authorityContractLoaded = true;
   }
 
   const [propertiesResult, sourceLinksResult, categoryLinksResult] = await Promise.all([
-    client.from("properties").select("id, code, name, archived_at")
-      .eq("organization_id", organizationId).order("code").order("name"),
-    client.from("finance_account_source_links").select("source_id")
-      .eq("organization_id", organizationId).eq("account_id", accountId),
-    client.from("finance_account_category_links").select("category_id")
-      .eq("organization_id", organizationId).eq("account_id", accountId),
+    readAllRows((from, to) => client.from("properties").select("id, code, name, archived_at")
+      .eq("organization_id", organizationId).order("code").order("name").order("id").range(from, to)),
+    readAllRows((from, to) => client.from("finance_account_source_links").select("source_id")
+      .eq("organization_id", organizationId).eq("account_id", accountId).order("source_id").range(from, to)),
+    readAllRows((from, to) => client.from("finance_account_category_links").select("category_id")
+      .eq("organization_id", organizationId).eq("account_id", accountId).order("category_id").range(from, to)),
   ]);
   assertRead("properties", propertiesResult.error);
   assertRead("source mappings", sourceLinksResult.error);
@@ -160,8 +167,8 @@ export async function getFinanceAccountActivity(
   }
   let categoryCodes = new Set<string>();
   if (categoryIds.length > 0) {
-    const categoriesResult = await client.from("finance_categories").select("id, code")
-      .eq("organization_id", organizationId).in("id", categoryIds);
+    const categoriesResult = await readAllRowsByIds(categoryIds, (ids, from, to) => client.from("finance_categories").select("id, code")
+      .eq("organization_id", organizationId).in("id", ids).order("id").range(from, to));
     assertRead("categories", categoriesResult.error);
     categoryCodes = new Set((categoriesResult.data ?? []).map(
       (row: { code: string }) => row.code,
@@ -204,9 +211,9 @@ export async function getFinanceAccountActivity(
   }
 
   if (account.account_class === "equity") {
-    const assignmentsResult = await client.from("property_owners")
-      .select("property_id, person_id, started_on, ended_on")
-      .eq("organization_id", organizationId);
+    const assignmentsResult = await readAllRows((from, to) => client.from("property_owners")
+      .select("id, property_id, person_id, started_on, ended_on")
+      .eq("organization_id", organizationId).order("id").range(from, to));
     assertRead("owner assignments", assignmentsResult.error);
     const assignments = (assignmentsResult.data ?? []) as OwnerAssignmentRow[];
     const assignmentKeys = new Set<string>();
@@ -218,14 +225,14 @@ export async function getFinanceAccountActivity(
       if (assignmentKeys.has(key)) continue;
       assignmentKeys.add(key);
       if (!rpcClient.rpc) continue;
-      const sourceResult = await rpcClient.rpc("get_owner_balance_source_ledger", {
+      const sourceResult = await readAllRows<AuthorityRow>((from, to) => rpcClient.rpc!("get_owner_balance_source_ledger", {
         p_currency: "USD",
         p_organization_id: organizationId,
         p_owner_person_id: assignment.person_id,
         p_period_end: monthStart(filters.periodEnd),
         p_period_start: monthStart(filters.periodStart),
         p_property_id: assignment.property_id,
-      });
+      }).order("allocation_set_id").order("movement_id").range(from, to));
       assertRead("owner activity", sourceResult.error);
       for (const source of (sourceResult.data ?? []) as unknown as OwnerSourceRow[]) {
         if (source.event_date < filters.periodStart || source.event_date > filters.periodEnd) continue;
@@ -275,8 +282,8 @@ export async function getFinanceAccountActivity(
   const leaseIds = new Set(selectedProfitLossEvents.flatMap(({ event }) => event.leaseId ? [event.leaseId] : []));
   const tenantByLeaseId = new Map<string, string>();
   if (leaseIds.size > 0) {
-    const leasesResult = await client.from("leases").select("id, primary_tenant_person_id")
-      .eq("organization_id", organizationId).in("id", [...leaseIds]);
+    const leasesResult = await readAllRowsByIds([...leaseIds], (ids, from, to) => client.from("leases").select("id, primary_tenant_person_id")
+      .eq("organization_id", organizationId).in("id", ids).order("id").range(from, to));
     assertRead("leases", leasesResult.error);
     for (const lease of (leasesResult.data ?? []) as Array<{ id: string; primary_tenant_person_id: string | null }>) {
       if (lease.primary_tenant_person_id) tenantByLeaseId.set(lease.id, lease.primary_tenant_person_id);
@@ -286,8 +293,8 @@ export async function getFinanceAccountActivity(
     event.sourceParentType === "owner_invoice" && event.sourceParentId ? [event.sourceParentId] : []));
   const ownerByInvoiceId = new Map<string, string>();
   if (ownerInvoiceIds.size > 0) {
-    const invoicesResult = await client.from("owner_invoices").select("id, owner_person_id")
-      .eq("organization_id", organizationId).in("id", [...ownerInvoiceIds]);
+    const invoicesResult = await readAllRowsByIds([...ownerInvoiceIds], (ids, from, to) => client.from("owner_invoices").select("id, owner_person_id")
+      .eq("organization_id", organizationId).in("id", ids).order("id").range(from, to));
     assertRead("owner invoices", invoicesResult.error);
     for (const invoice of (invoicesResult.data ?? []) as Array<{ id: string; owner_person_id: string }>) {
       ownerByInvoiceId.set(invoice.id, invoice.owner_person_id);
@@ -297,9 +304,10 @@ export async function getFinanceAccountActivity(
     event.sourceType === "owner_invoice_line" ? [event.sourceId] : []));
   const expenseItemByLineId = new Map<string, string>();
   if (expenseLineIds.size > 0) {
-    const responsibilitiesResult = await client.from("ips_expense_responsibilities")
+    const responsibilitiesResult = await readAllRowsByIds([...expenseLineIds], (ids, from, to) => client.from("ips_expense_responsibilities")
       .select("owner_invoice_line_id, finance_expense_item_id")
-      .eq("organization_id", organizationId).in("owner_invoice_line_id", [...expenseLineIds]);
+      .eq("organization_id", organizationId).in("owner_invoice_line_id", ids)
+      .order("owner_invoice_line_id").order("finance_expense_item_id").range(from, to));
     assertRead("expense responsibilities", responsibilitiesResult.error);
     for (const responsibility of (responsibilitiesResult.data ?? []) as Array<{
       finance_expense_item_id: string; owner_invoice_line_id: string;
@@ -309,9 +317,9 @@ export async function getFinanceAccountActivity(
   }
   const vendorByExpenseItemId = new Map<string, string>();
   if (expenseItemByLineId.size > 0) {
-    const expenseItemsResult = await client.from("finance_expense_items")
+    const expenseItemsResult = await readAllRowsByIds([...expenseItemByLineId.values()], (ids, from, to) => client.from("finance_expense_items")
       .select("id, vendor_person_id").eq("organization_id", organizationId)
-      .in("id", [...expenseItemByLineId.values()]);
+      .in("id", ids).order("id").range(from, to));
     assertRead("expense contacts", expenseItemsResult.error);
     for (const item of (expenseItemsResult.data ?? []) as Array<{ id: string; vendor_person_id: string | null }>) {
       if (item.vendor_person_id) vendorByExpenseItemId.set(item.id, item.vendor_person_id);
@@ -330,8 +338,8 @@ export async function getFinanceAccountActivity(
   for (const { ownerPersonId } of selectedOwnerSources) peopleIds.add(ownerPersonId);
   const peopleById = new Map<string, string>();
   if (peopleIds.size > 0) {
-    const peopleResult = await client.from("people").select("id, display_name")
-      .eq("organization_id", organizationId).in("id", [...peopleIds]);
+    const peopleResult = await readAllRowsByIds([...peopleIds], (ids, from, to) => client.from("people").select("id, display_name")
+      .eq("organization_id", organizationId).in("id", ids).order("id").range(from, to));
     assertRead("contacts", peopleResult.error);
     for (const person of (peopleResult.data ?? []) as Array<{ display_name: string; id: string }>) {
       peopleById.set(person.id, person.display_name);
@@ -383,6 +391,7 @@ function cashEffect(
 ) {
   if (event.resolutionState !== "resolved") return null;
   if (account.account_class === "asset") {
+    if (event.amountCents === BigInt(0)) return null;
     return exactMatch || (event.reconciliationSourceId && (
       authorityMatches(authorities, "source", event.reconciliationSourceId, event.eventDate)
       || (!authorityContractLoaded && sourceIds.has(event.reconciliationSourceId))
@@ -398,6 +407,7 @@ function cashEffect(
     return event.depositLiabilityEffectCents;
   }
   if (account.account_class === "liability" && account.account_subtype === "credit_card") {
+    if (event.amountCents === BigInt(0)) return null;
     return exactMatch || (event.reconciliationSourceId && (
       authorityMatches(authorities, "source", event.reconciliationSourceId, event.eventDate)
       || (!authorityContractLoaded && sourceIds.has(event.reconciliationSourceId))

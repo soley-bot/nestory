@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getRentReport } from "@/features/reports/data/rent-reports";
+import { buildTrustedReportPdf } from "./pdf";
+import { buildTrustedReportXlsx } from "./excel";
+import { strFromU8, unzipSync } from "fflate";
 import type { ScopedFinanceContext } from "@/features/finance-operations/data/scoped-finance-context";
 import type { ReportsViewQuery } from "@/features/reports/reports.types";
 import type { createSupabaseServerClient } from "@/lib/db/server";
@@ -13,6 +16,31 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("rent reporting", () => {
+  it.each(["1000.00", "300.00"])("deducts %s of deposit settlements while keeping receipts separate", async amount => {
+    const h=harness({tenant_invoice_balances:[invoice("i1",{due_date:"2026-09-30"})],tenant_invoice_lines:[line("l1","i1","1000.00")],deposit_rent_allocations:[{id:"deposit-paid",organization_id:"org",property_id:"p1",invoice_id:"i1",invoice_line_id:"l1",signed_amount:amount}]});
+    const report=await getRentReport({organizationId:"org",viewQuery:query(),supabase:h.client});
+    expect(report.rows[0].amounts).toMatchObject({received:"0.00",depositsApplied:amount,outstanding:amount==="1000.00"?"0.00":"700.00"});
+    expect(report.rows[0].cells.status).toBe(amount==="1000.00"?"Paid":"Partial");
+    expect(report.summary.find(row=>row.label==="Received")?.value).toBe("USD 0.00");
+    expect(report.summary.find(row=>row.label==="Deposits applied")?.value).toBe(amount==="1000.00"?"USD 1,000.00":"USD 300.00");
+    expect(report.rows[0].sourceLinks.at(-1)).toMatchObject({id:"deposit-paid",recordType:"deposit-rent-allocation"});
+    const pdf=Buffer.from(buildTrustedReportPdf({organizationName:"Synthetic company",report})).toString("latin1");
+    const pdfText=[...pdf.matchAll(/\(((?:\\.|[^\\)])*)\) Tj/g)].map(match=>match[1]).join("");
+    const sheet=strFromU8(unzipSync(buildTrustedReportXlsx(report))["xl/worksheets/sheet1.xml"]!);
+    for(const exported of [pdfText,sheet])expect(exported.replace(/\s+/g,"")).toContain("Depositsapplied");
+  });
+  it("nets full deposit reversal exactly once and restores unpaid rent without adding receipts", async()=>{
+    const h=harness({tenant_invoice_balances:[invoice("i1",{due_date:"2026-09-30"})],tenant_invoice_lines:[line("l1","i1","1000.00")],deposit_rent_allocations:[{id:"deposit-paid",organization_id:"org",property_id:"p1",invoice_id:"i1",invoice_line_id:"l1",signed_amount:"1000.00"},{id:"deposit-reversed",organization_id:"org",property_id:"p1",invoice_id:"i1",invoice_line_id:"l1",signed_amount:"-1000.00"}]});
+    const report=await getRentReport({organizationId:"org",viewQuery:query(),supabase:h.client});
+    expect(report.rows[0].amounts).toMatchObject({received:"0.00",depositsApplied:"0.00",outstanding:"1000.00"});expect(report.rows[0].cells.status).toBe("Unpaid");
+    expect(report.rows[0].sourceLinks.map(row=>row.id)).toEqual(["l1","deposit-paid","deposit-reversed"]);
+  });
+  it("fails closed on foreign deposit parent scope and negative net settlement",async()=>{
+    for(const change of [{property_id:"p2"},{invoice_id:"i2"},{signed_amount:"-1.00"}]){
+      const h=harness({tenant_invoice_balances:[invoice("i1")],tenant_invoice_lines:[line("l1","i1","1000")],deposit_rent_allocations:[{id:"bad",organization_id:"org",property_id:"p1",invoice_id:"i1",invoice_line_id:"l1",signed_amount:"1.00",...change}]});
+      await expect(getRentReport({organizationId:"org",viewQuery:query(),supabase:h.client})).rejects.toThrow(/scope|negative/);
+    }
+  });
   it("includes scoped property-level leases once alongside units, with effective rent and source links", async () => {
     const scoped = context();
     scoped.properties.push({
@@ -309,6 +337,7 @@ describe("rent reporting", () => {
     expect(report.summary.map((metric) => metric.value)).toEqual([
       "USD 1,100.00",
       "USD 625.00",
+      "USD 0.00",
       "USD 500.00",
       "USD 25.00",
     ]);
@@ -345,6 +374,7 @@ describe("rent reporting", () => {
     expect(report.rows[0].amounts).toEqual({
       charges: "950.01",
       received: "950.01",
+      depositsApplied: "0.00",
       outstanding: "0.00",
       credit: "0.00",
     });
@@ -452,6 +482,7 @@ describe("rent reporting", () => {
       "USD 40.00",
       "USD 0.00",
       "USD 0.00",
+      "USD 0.00",
     ]);
     expect(elapsedMs).toBeLessThan(3000);
   }, 10_000);
@@ -461,6 +492,7 @@ describe("rent reporting", () => {
     "tenant_invoice_lines",
     "finance_receipt_allocations",
     "owner_collection_confirmation_allocations",
+    "deposit_rent_allocations",
     "rent_policy_versions",
   ])("fails closed when %s fails", async (failedTable) => {
     const h = harness(

@@ -27,6 +27,7 @@ describe("ReportsPage", () => {
     auth.requireFinanceReportContext.mockResolvedValue({
       organizationName: "Nestory",
       capabilities: { canReadFinance: false },
+      permissionKeys: new Set(["finance.publish"]),
     });
 
     render(await ReportsPage());
@@ -40,6 +41,7 @@ describe("ReportsPage", () => {
     auth.requireFinanceReportContext.mockResolvedValue({
       organizationName: "Nestory",
       capabilities: { canReadFinance: true },
+      permissionKeys: new Set(["finance.publish", "finance.view", "leases.view"]),
     });
 
     render(await ReportsPage());
@@ -53,6 +55,8 @@ describe("ReportsPage", () => {
       ),
     ).toBe("/reports/unit-profit-loss");
     expect(auth.requireFinanceReportContext).toHaveBeenCalledOnce();
+    expect(screen.getByRole("link", { name: /Deposit rent settlements/ }).getAttribute("href"))
+      .toBe("/reports/deposit-rent");
     expect(screen.getByRole("link", { name: /Official owner statements/ }).getAttribute("href"))
       .toBe("/balances?view=statements");
   });

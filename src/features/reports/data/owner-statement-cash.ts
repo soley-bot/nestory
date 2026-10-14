@@ -81,6 +81,8 @@ function ownerStatementTransactionLabel(sourceType: string | undefined, fallback
 
   const labels: Record<string, string> = {
 
+    deposit_rent_application: "Deposit reclassification",
+
     management_fee_occurrence: "Management fee",
 
     owner_close_correction: "Correction",
