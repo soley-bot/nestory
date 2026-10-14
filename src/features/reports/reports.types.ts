@@ -67,6 +67,7 @@ export type ReportsViewQuery = {
 export type ReportSourceRecordType =
   | "document"
   | "deposit-event"
+  | "deposit-rent-allocation"
   | "expense-obligation"
   | "lease"
   | "ledger"
@@ -188,6 +189,8 @@ export type TrustedReport = {
   kind: ReportKind;
   ownerOptions?: ReportOwnerOption[];
   periodLabel: string;
+  /** Preserve source evidence and warnings across export continuation rows. */
+  preserveRowDetails?: boolean;
   rows: TrustedReportRow[];
   scopeLabel: string;
   scopeValidation?: {

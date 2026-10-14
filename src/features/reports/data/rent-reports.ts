@@ -53,6 +53,10 @@ const ownerReceiptSchema = z.object({
   invoice_line_id: z.string(),
   signed_amount: money,
 });
+const depositAllocationSchema = ownerReceiptSchema.extend({
+  invoice_id: z.string(),
+  property_id: z.string(),
+});
 const policySchema = z.object({
   effective_from: z.string(),
   rent_calculation_timezone: z.string(),
@@ -469,7 +473,7 @@ export async function getRentReport({
         .order("id")
         .range(from, to),
   );
-  const [receipts, ownerReceipts] = await Promise.all([
+  const [receipts, ownerReceipts, depositAllocations] = await Promise.all([
     readBatches(
       lines.flatMap((line) =>
         line.income_item_id ? [line.income_item_id] : [],
@@ -493,6 +497,19 @@ export async function getRentReport({
         supabase
           .from("owner_collection_confirmation_allocations")
           .select("id, invoice_line_id, signed_amount", { count: "exact" })
+          .eq("organization_id", organizationId)
+          .in("invoice_line_id", ids)
+          .order("id")
+          .range(from, to),
+    ),
+    readBatches(
+      lines.map((line) => line.id),
+      "deposit rent allocations",
+      depositAllocationSchema,
+      (ids, from, to) =>
+        supabase
+          .from("deposit_rent_allocations")
+          .select("id, invoice_id, invoice_line_id, property_id, signed_amount", { count: "exact" })
           .eq("organization_id", organizationId)
           .in("invoice_line_id", ids)
           .order("id")
@@ -527,12 +544,21 @@ export async function getRentReport({
     if (invoiceId)
       appendToIndex(ownerReceiptsByInvoiceId, invoiceId, receipt);
   }
+  const invoiceById = new Map(selectedInvoices.map(invoice => [invoice.id, invoice]));
+  const depositsByInvoiceId = new Map<string, typeof depositAllocations>();
+  for (const allocation of depositAllocations) {
+    const invoice = invoiceById.get(allocation.invoice_id);
+    if (!invoice || invoiceIdByLineId.get(allocation.invoice_line_id) !== invoice.id || allocation.property_id !== invoice.property_id)
+      throw new Error("Deposit settlement is outside the selected rent invoice scope.");
+    appendToIndex(depositsByInvoiceId, invoice.id, allocation);
+  }
   const rows = selectedInvoices
     .flatMap((invoice): TrustedReportRow[] => {
       const invoiceLines = linesByInvoiceId.get(invoice.id) ?? [];
       if (!invoiceLines.length) return [];
       const paid = receiptsByInvoiceId.get(invoice.id) ?? [];
       const ownerPaid = ownerReceiptsByInvoiceId.get(invoice.id) ?? [];
+      const depositPaid = depositsByInvoiceId.get(invoice.id) ?? [];
       const charges = invoiceLines.reduce(
         (sum, line) => sum + line.amount,
         BigInt(0),
@@ -543,7 +569,10 @@ export async function getRentReport({
       );
       if (received < BigInt(0))
         throw new Error("Rent receipts have an invalid negative net balance.");
-      const balance = charges - received;
+      const depositsApplied = depositPaid.reduce((sum, allocation) => sum + allocation.signed_amount, BigInt(0));
+      if (depositsApplied < BigInt(0))
+        throw new Error("Deposit settlements have an invalid negative net balance.");
+      const balance = charges - received - depositsApplied;
       const outstanding = balance > BigInt(0) ? balance : BigInt(0);
       const credit = balance < BigInt(0) ? -balance : BigInt(0);
       const status =
@@ -553,7 +582,7 @@ export async function getRentReport({
             ? "paid"
             : invoice.due_date < today
               ? "overdue"
-              : received > BigInt(0)
+              : received + depositsApplied > BigInt(0)
                 ? "partial"
                 : "unpaid";
       if (
@@ -582,6 +611,12 @@ export async function getRentReport({
           recordType: "owner-collection-allocation" as const,
           href,
         })),
+        ...depositPaid.map((allocation) => ({
+          id: allocation.id,
+          label: allocation.signed_amount < BigInt(0) ? "Deposit rent reversal allocation" : "Deposit rent settlement allocation",
+          recordType: "deposit-rent-allocation" as const,
+          href,
+        })),
       ];
       return [
         {
@@ -592,7 +627,7 @@ export async function getRentReport({
           sourceLinks,
           sourceCount: sourceLinks.length,
           sourceSummary:
-            "Signed rent charges and current receipt allocations; non-rent invoice lines excluded",
+            "Signed rent charges, receipt allocations and deposit settlements; non-rent invoice lines excluded",
           tone: status === "overdue" ? "danger" : "neutral",
           cells: {
             property: propertyLabel(invoice.property_id),
@@ -605,6 +640,7 @@ export async function getRentReport({
             dueDate: invoice.due_date,
             charges: usd(charges),
             received: usd(received),
+            depositsApplied: usd(depositsApplied),
             outstanding: usd(outstanding),
             credit: usd(credit),
             status: label(status),
@@ -612,6 +648,7 @@ export async function getRentReport({
           amounts: {
             charges: formatExactCents(charges),
             received: formatExactCents(received),
+            depositsApplied: formatExactCents(depositsApplied),
             outstanding: formatExactCents(outstanding),
             credit: formatExactCents(credit),
           },
@@ -623,7 +660,7 @@ export async function getRentReport({
     ...base,
     title: "Rent collections",
     description:
-      "Rent lines on invoices issued in the selected range. Received, outstanding and credit are their current settlement positions, including signed corrections; this is not cash received within the date range.",
+      "Rent lines on invoices issued in the selected range. Receipts and deposits applied are shown separately in current settlement balances, including reversals; this is not cash received within the date range.",
     periodLabel: `Issued ${period.start} – ${period.end} · Balances current at ${today}`,
     emptyTitle: "No rent invoices match",
     emptyDescription:
@@ -636,7 +673,7 @@ export async function getRentReport({
       { key: "invoice", label: "Invoice" },
       { key: "issued", label: "Issued" },
       { key: "dueDate", label: "Due date" },
-      ...["charges", "received", "outstanding", "credit"].map((key) => ({
+      ...["charges", "received", "depositsApplied", "outstanding", "credit"].map((key) => ({
         key,
         label: label(key),
         align: "right" as const,
@@ -644,7 +681,7 @@ export async function getRentReport({
       })),
       { key: "status", label: "Status" },
     ],
-    summary: ["charges", "received", "outstanding", "credit"].map((key) =>
+    summary: ["charges", "received", "depositsApplied", "outstanding", "credit"].map((key) =>
       metric(label(key), usd(total(rows, key)), rows.length),
     ),
     filterOptions: {
@@ -653,11 +690,12 @@ export async function getRentReport({
       ),
     },
     totalsTraceLabel:
-      "Totals sum visible signed rent lines and their current IPS/owner allocations. Credits are shown separately from outstanding rent.",
+      "Totals sum visible signed rent lines, current IPS/owner receipts and deposit applications net of reversals. Deposits applied are separate from receipts; credits are separate from outstanding rent.",
   };
 }
 
 function label(value: string) {
+  if (value === "depositsApplied") return "Deposits applied";
   return value.charAt(0).toUpperCase() + value.slice(1).replaceAll("_", " ");
 }
 function usd(cents: bigint) {

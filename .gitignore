@@ -33,6 +33,9 @@
 /.codex/
 /.playwright-cli/
 /.codex-artifacts/
+/artifacts/deposit-candidate/
+/artifacts/deposit-reader-access/
+/artifacts/deposit-release/
 /.superpowers/
 /.temp/
 /.worktrees/
