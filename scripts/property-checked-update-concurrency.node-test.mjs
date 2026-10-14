@@ -1,32 +1,32 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { test } from "node:test";
-import { findLocalDatabaseContainer } from "./load-test-fixture.mjs";
+import { propertyConcurrencyTarget } from "./property-concurrency-target.mjs";
 
 // CI uses its verified configured local stack. Developer runs require an explicit
 // isolated readiness stack, even when another shared local database is running.
-let container = process.env.PROPERTY_CONCURRENCY_DB_CONTAINER;
-if (process.env.CI === "true") {
-  const configured = findLocalDatabaseContainer(resolve(import.meta.dirname, ".."));
-  assert.ok(!container || container === configured, "Property test database must match the verified local CI configuration.");
-  container = configured;
-} else {
-  assert.match(container ?? "", /^supabase_db_nestory-ips-readiness-[a-z0-9-]+$/,
-    "Set PROPERTY_CONCURRENCY_DB_CONTAINER to the isolated readiness database container.");
+function execute(command, args, input, { worker = false, ...options } = {}) {
+  if (worker) return spawn(command, args, { ...options, shell: false, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+  const result = spawnSync(command, args, { ...options, input, encoding: "utf8", shell: false, windowsHide: true, timeout: 30_000 });
+  if (result.error) throw result.error;
+  assert.equal(result.status, 0, result.stderr);
+  return result.stdout;
 }
+const database = await propertyConcurrencyTarget({
+  config: readFileSync(resolve(import.meta.dirname, "../supabase/config.toml"), "utf8"),
+  execute,
+});
 const ids = Object.fromEntries(["org", "actor", "branch", "property", "ownerA", "ownerB"].map((key) => [key, randomUUID()]));
 // PostgreSQL truncates application_name at 63 bytes. Preserve the distinct
 // contender suffix so lock observation and teardown identify exact sessions.
 const prefix = `prop-${randomUUID()}`;
 const sessions = [];
-const args = ["exec", "-i", container, "psql", "-X", "-qAt", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=verbose"];
 
 function run(sql) {
-  const result = spawnSync("docker", args, { input: sql, encoding: "utf8", shell: false, timeout: 30_000 });
-  assert.equal(result.status, 0, result.stderr);
-  return result.stdout.trim();
+  return database.run(sql);
 }
 function begin(name) {
   return `BEGIN; SET LOCAL statement_timeout='20s'; SET LOCAL idle_in_transaction_session_timeout='25s';
@@ -42,7 +42,7 @@ function version() { return run(`SELECT edit_version FROM public.properties WHER
 function activityCount() { return Number(run(`SELECT count(*) FROM public.activity_logs WHERE entity_id='${ids.property}' AND action='property_updated';`)); }
 function start(name, sql) {
   assert.ok(Buffer.byteLength(name, "utf8") <= 63, "Concurrency session name exceeds PostgreSQL's limit.");
-  const child = spawn("docker", args, { shell: false });
+  const child = database.spawnWorker();
   const session = { child, name, stdout: "", stderr: "", closed: false };
   session.done = new Promise((resolve, reject) => {
     child.on("error", reject);
