@@ -2,6 +2,12 @@ import {describe,expect,it} from "vitest";
 import {fixture,id,ids} from "./workflow.test-fixture";
 import {parseLocalDepositCandidates,readLocalDepositRentSnapshot} from "./candidate-reader";
 describe("checked candidate reader contract",()=>{
+  it("retains stale immutable custody history without declaring its attestation current",()=>{
+    const h=fixture(),s=h.snapshot();s.deposits[0].custodyCurrent=false;
+    expect(parseLocalDepositCandidates(s,ids.org,ids.lease).deposits[0]).toMatchObject({custodyVerified:true,custodyCurrent:false});
+    s.deposits[0].custodyVerified=false;s.deposits[0].custodyCurrent=true;s.census.custody=[];
+    expect(()=>parseLocalDepositCandidates(s,ids.org,ids.lease)).toThrow("incomplete");
+  });
   it("retains more than 100 explicit invoice choices with exact independent identity census",()=>{
     const h=fixture(),s=h.snapshot();s.invoices=Array.from({length:101},(_,index)=>({...s.invoices[0],id:id(1000+index),rentLines:[{...s.invoices[0].rentLines[0],id:id(2000+index)}]}));
     s.census.invoices=s.invoices.map(row=>row.id);s.census.rentLines=s.invoices.flatMap(row=>row.rentLines.map(line=>line.id));

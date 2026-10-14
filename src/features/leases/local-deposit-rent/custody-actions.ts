@@ -28,8 +28,8 @@ export async function getDepositCustodyOptions(leaseId: string) {
         const person = finance.people.find(person => person.id === row.person_id && !person.archived_at);
         return person ? [{ id: person.id, label: person.display_name, from: row.started_on, to: row.ended_on }] : [];
       });
-    return { status: "success" as const, businessDate: snapshot.businessDate, owners,
-      deposits: snapshot.deposits.filter(row => !row.archived && !row.custodyVerified).map(row => ({ id: row.id, label: row.label, held: row.held })) };
+    return { status: "success" as const, businessDate: snapshot.businessDate, fingerprint: snapshot.fingerprint, owners,
+      deposits: snapshot.deposits.filter(row => !row.archived && !row.custodyCurrent).map(row => ({ id: row.id, label: row.label, held: row.held, needsRenewal: row.custodyVerified })) };
   } catch {
     return { status: "error" as const, message: "Deposit custody details could not be loaded. Check your access and reload the lease." };
   }
@@ -38,7 +38,7 @@ export async function getDepositCustodyOptions(leaseId: string) {
 const custodySchema = z.strictObject({
   leaseId: z.uuid(), depositId: z.uuid(), liabilityAccountId: z.uuid(),
   custodian: z.enum(["ips", "owner"]), ownerId: z.uuid().nullable(), date: z.iso.date(),
-  held: z.string().regex(/^\d{1,12}\.\d{2}$/), evidence: z.string().trim().min(8).max(200), key: z.uuid(),
+  held: z.string().regex(/^\d{1,12}\.\d{2}$/), evidence: z.string().trim().min(8).max(200), key: z.uuid(), fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
 }).refine(value => (value.custodian === "owner") === (value.ownerId !== null));
 
 export async function confirmDepositCustody(input: z.infer<typeof custodySchema>) {
@@ -47,12 +47,18 @@ export async function confirmDepositCustody(input: z.infer<typeof custodySchema>
     const { client, member, snapshot } = await custodyContext(value.leaseId);
     if (value.date > snapshot.businessDate) throw Error("Future custody date");
     if (!snapshot.deposits.some(row => row.id === value.depositId)) throw Error("Deposit scope changed");
+    // Original retries retain their checked snapshot and key. The database owns
+    // replay before freshness validation; a new key cannot attest a stale view.
     const result = await (client as unknown as LocalDepositClient).rpc("confirm_deposit_rent_custody", {
       p_org: member.organizationId, p_deposit: value.depositId, p_liability_account: value.liabilityAccountId,
       p_custodian: value.custodian, p_owner: value.ownerId, p_date: value.date,
-      p_expected_held: Number(value.held), p_evidence: value.evidence, p_key: value.key,
+      p_expected_held: Number(value.held), p_evidence: value.evidence, p_key: `${value.key}:${value.fingerprint}`,
     });
     if (result.error) throw Error("Custody confirmation rejected");
+    const current = await readLocalDepositRentSnapshot(client as unknown as LocalDepositClient, member.organizationId, value.leaseId);
+    if (!current.deposits.some(row => row.id === value.depositId && row.custodyCurrent)) {
+      return { status: "error" as const, message: "The original confirmation is saved, but later deposit activity needs renewed custody evidence. Close and reload before starting again." };
+    }
     for (const path of ["/leases", "/balances", "/reports", "/timeline"]) revalidatePath(path);
     return { status: "success" as const, message: "Deposit custody confirmed." };
   } catch {

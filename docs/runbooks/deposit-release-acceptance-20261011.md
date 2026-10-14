@@ -1,5 +1,8 @@
 # Deposit release acceptance, 2026-10-11
 
+Continued custody renewal validation is recorded in
+[the October 14 acceptance record](deposit-release-acceptance-20261014.md).
+
 PR [230](https://github.com/soley-bot/nestory/pull/230) activates ordinary-session
 deposit custody confirmation, partial rent application, full reversal and the
 bounded deposit settlement report. The specific access changes were approved on

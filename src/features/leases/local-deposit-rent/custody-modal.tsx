@@ -40,16 +40,16 @@ export function DepositCustodyModal({ leaseId, accounts, onClose, onSuccess }: {
   return <Modal open title="Confirm deposit custody" onClose={() => { if (!busy.current) onClose(); }}
     description="Confirm who already holds this deposit using your supporting records.">
     <div className="space-y-4 p-4">
-      <p className="text-sm text-muted-foreground">This records custody evidence. It does not receive, transfer or pay out money. Confirm the full deposit held and the liability account from your records.</p>
+      <p className="text-sm text-muted-foreground">This records custody evidence. It does not receive, transfer or pay out money. Confirm the full deposit held and the liability account from your records. Later deposit activity needs renewed evidence using the original custodian, owner and liability account.</p>
       {options?.status === "error" ? <p role="alert">{options.message}</p> : null}
       {options?.status === "success" && !original ? options.deposits.length ? <form className="space-y-4" onSubmit={event => {
         event.preventDefault(); const data = new FormData(event.currentTarget);
         void save({ leaseId, depositId, custodian: custodian as "ips" | "owner",
           ownerId: custodian === "owner" ? String(data.get("ownerId")) : null,
           liabilityAccountId: String(data.get("account")), date, held: String(data.get("held")),
-          evidence: String(data.get("evidence")), key: crypto.randomUUID() });
+          evidence: String(data.get("evidence")), key: crypto.randomUUID(), fingerprint: options.fingerprint });
       }}>
-        <label className="grid gap-1.5 text-sm font-medium">Deposit<SelectControl ariaLabel="Deposit to verify" name="depositId" value={depositId} onValueChange={setDepositId} required placeholder="Choose a deposit" options={options.deposits.map(row => ({ value: row.id, label: `${row.label} — USD ${row.held} held` }))}/></label>
+        <label className="grid gap-1.5 text-sm font-medium">Deposit<SelectControl ariaLabel="Deposit to verify" name="depositId" value={depositId} onValueChange={setDepositId} required placeholder="Choose a deposit" options={options.deposits.map(row => ({ value: row.id, label: `${row.needsRenewal ? "Renew evidence: " : ""}${row.label} - USD ${row.held} held` }))}/></label>
         <label className="grid gap-1.5 text-sm font-medium">Who holds this deposit?<SelectControl ariaLabel="Deposit custodian" name="custodian" value={custodian} onValueChange={setCustodian} required placeholder="Choose from your records" options={[{ value: "ips", label: "IPS holds the deposit" }, { value: "owner", label: "The owner holds the deposit" }]}/></label>
         {custodian === "owner" ? <label className="grid gap-1.5 text-sm font-medium">Owner<SelectControl ariaLabel="Deposit custodian owner" name="ownerId" required placeholder="Choose the owner" options={options.owners.filter(row => !date || (!row.from || row.from <= date) && (!row.to || date < row.to)).map(row => ({ value: row.id, label: row.label }))}/></label> : null}
         <label className="grid gap-1.5 text-sm font-medium">Liability account<SelectControl ariaLabel="Custody liability account" name="account" required placeholder="Choose the liability account" options={accounts.map(row => ({ value: row.id, label: row.displayName }))}/></label>
