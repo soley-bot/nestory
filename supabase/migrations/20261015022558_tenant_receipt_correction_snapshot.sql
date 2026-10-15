@@ -18,6 +18,20 @@ WITH RECURSIVE source AS (
   JOIN source s ON c.organization_id=s.organization_id AND c.tenant_invoice_id=s.invoice_id
 ), source_replay AS (
   SELECT r.* FROM replays r WHERE r.settlement_kind='ips_payment' AND r.replacement_settlement_id=p_payment
+), later_corrections AS (
+  -- Consuming this payment proves an atomic correction came afterwards.
+  -- Follow its signed-line successors transitively: payment replacement
+  -- lineage can end at a zero reapplication while later corrections continue.
+  SELECT r.correction_occurrence_id AS id FROM replays r
+  WHERE r.settlement_kind='ips_payment' AND r.original_settlement_id=p_payment
+  UNION
+  SELECT child.correction_occurrence_id
+  FROM later_corrections c
+  JOIN public.tenant_invoice_lines parent ON parent.organization_id=p_org AND parent.correction_occurrence_id=c.id
+  JOIN source s ON s.organization_id=parent.organization_id AND s.invoice_id=parent.invoice_id
+  JOIN public.tenant_invoice_lines child ON child.organization_id=parent.organization_id
+    AND child.invoice_id=parent.invoice_id AND child.supersedes_line_id=parent.id
+  WHERE child.correction_occurrence_id IS NOT NULL
 ), line_ancestry AS (
   SELECT l.id,l.supersedes_line_id,l.correction_occurrence_id
   FROM public.tenant_invoice_lines l
@@ -120,10 +134,8 @@ WITH RECURSIVE source AS (
         AND a.responsibility='tenant' AND a.created_at<s.created_at),0) AS adjustment,
     EXISTS(SELECT 1 FROM correction_times c WHERE c.recorded_at=s.created_at
       AND c.id NOT IN(SELECT id FROM known_corrections)
-      -- An original explicitly consumed by the correction necessarily came
-      -- before that atomic command, even with a legacy shared clock.
-      AND NOT EXISTS(SELECT 1 FROM replays r WHERE r.correction_occurrence_id=c.id
-        AND r.settlement_kind='ips_payment' AND r.original_settlement_id=s.id))
+      -- Proven descendants are after this receipt, never known-before totals.
+      AND c.id NOT IN(SELECT id FROM later_corrections))
     OR EXISTS(SELECT 1 FROM public.tenant_invoice_lines l
       WHERE l.organization_id=s.organization_id AND l.invoice_id=s.invoice_id
         AND l.correction_occurrence_id IS NULL AND l.created_at=s.created_at

@@ -606,6 +606,9 @@ VALUES
     'a1000000-0000-4000-8000-000000000001'
   );
 
+-- The financial audit trigger stamps each INSERT with statement_timestamp(),
+-- overriding supplied legacy created_at values. Separate statements preserve
+-- the original -> reversal -> later receipt chronology this fixture requires.
 INSERT INTO public.tenant_invoice_payments (
   id, organization_id, invoice_id, receipt_number, received_date, amount,
   currency, reconciliation_source_id, reference, created_at, created_by,
@@ -626,7 +629,12 @@ VALUES
     'IPS transfer',
     '2026-01-15 10:00:00+00',
     'a1000000-0000-4000-8000-000000000001', NULL, NULL
-  ),
+  );
+INSERT INTO public.tenant_invoice_payments (
+  id, organization_id, invoice_id, receipt_number, received_date, amount,
+  currency, reconciliation_source_id, reference, created_at, created_by,
+  reversal_of_id, reversal_reason
+) VALUES
   (
     'a9000000-0000-4000-8000-000000000002',
     'a0000000-0000-4000-8000-000000000001',
@@ -642,7 +650,12 @@ VALUES
     '2026-01-16 10:00:00+00',
     'a1000000-0000-4000-8000-000000000001',
     'a9000000-0000-4000-8000-000000000001', 'Payment reversed'
-  ),
+  );
+INSERT INTO public.tenant_invoice_payments (
+  id, organization_id, invoice_id, receipt_number, received_date, amount,
+  currency, reconciliation_source_id, reference, created_at, created_by,
+  reversal_of_id, reversal_reason
+) VALUES
   (
     'a9000000-0000-4000-8000-000000000003',
     'a0000000-0000-4000-8000-000000000001',
@@ -657,7 +670,12 @@ VALUES
     'Invalid direct-owner receipt fixture',
     '2026-03-15 10:00:00+00',
     'a1000000-0000-4000-8000-000000000001', NULL, NULL
-  ),
+  );
+INSERT INTO public.tenant_invoice_payments (
+  id, organization_id, invoice_id, receipt_number, received_date, amount,
+  currency, reconciliation_source_id, reference, created_at, created_by,
+  reversal_of_id, reversal_reason
+) VALUES
   (
     'a9000000-0000-4000-8000-000000000004',
     'a0000000-0000-4000-8000-000000000001',
@@ -668,6 +686,17 @@ VALUES
     '2026-01-17 10:00:00+00',
     'a1000000-0000-4000-8000-000000000001', NULL, NULL
   );
+
+SELECT ok((
+  SELECT original.created_at < reversal.created_at AND reversal.created_at < later.created_at
+  FROM public.tenant_invoice_payments original
+  JOIN public.tenant_invoice_payments reversal ON reversal.organization_id=original.organization_id
+    AND reversal.reversal_of_id=original.id
+  JOIN public.tenant_invoice_payments later ON later.organization_id=original.organization_id
+    AND later.invoice_id=original.invoice_id
+  WHERE original.id='a9000000-0000-4000-8000-000000000001'
+    AND later.id='a9000000-0000-4000-8000-000000000004'
+), 'receipt fixture has actual recorded original, reversal, then alternate-source payment order');
 
 SET LOCAL ROLE authenticated;
 SELECT pg_catalog.set_config(

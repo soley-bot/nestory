@@ -148,13 +148,30 @@ DO $$ DECLARE c receipt_case%ROWTYPE; BEGIN
   FROM public.historical_rent_settlement_reapplications r WHERE r.organization_id=c.org AND r.original_settlement_id=c.payment_id;
  PERFORM public.correct_historical_rent(c.org,c.invoice_id,90,1,'Second tied causal correction',
   public.preview_historical_rent_correction(c.org,c.invoice_id,90,1)->>'previewHash','receipt-causal-two');
+ PERFORM public.correct_historical_rent(c.org,c.invoice_id,80,1,'Third tied causal correction',
+  public.preview_historical_rent_correction(c.org,c.invoice_id,80,1)->>'previewHash','receipt-causal-three');
 END; $$;
 SELECT is(public.get_tenant_commercial_document_publication_source(org,'receipt',replacement_id)#>>'{payment,remaining_balance}',
- '60.00','causal lineage preserves first replacement era across two same-statement corrections') FROM receipt_case;
+ '60.00','transitive lineage preserves first replacement era across three same-statement corrections') FROM receipt_case;
 SELECT is(public.get_tenant_commercial_document_publication_source(c.org,'receipt',r.replacement_settlement_id)#>>'{payment,remaining_balance}',
  '50.00','second tied correction includes its ancestral charge and nets earlier replay')
  FROM receipt_case c JOIN public.historical_rent_settlement_reapplications r ON r.organization_id=c.org AND r.original_settlement_id=c.replacement_id;
+SELECT is(public.get_tenant_commercial_document_publication_source(c.org,'receipt',third.replacement_settlement_id)#>>'{payment,remaining_balance}',
+ '40.00','third tied correction retains its own eighty-dollar era')
+ FROM receipt_case c JOIN public.historical_rent_settlement_reapplications second ON second.organization_id=c.org AND second.original_settlement_id=c.replacement_id
+ JOIN public.historical_rent_settlement_reapplications third ON third.organization_id=c.org AND third.original_settlement_id=second.replacement_settlement_id;
 ROLLBACK TO tied_causal_corrections;
+SAVEPOINT zero_reapplication_guard;
+UPDATE receipt_case SET extra_payment_id=public.record_tenant_invoice_payment_with_account(
+ org,invoice_id,30,today,account_id,'Zero-reapplication second original',NULL,'receipt-zero-original');
+SELECT public.allocate_owner_event(c.org,'tenant_rent_receipt',a.id,'receipt-zero-owner-'||a.id)
+ FROM receipt_case c JOIN public.tenant_invoice_payment_allocations a ON a.organization_id=c.org AND a.payment_id=c.extra_payment_id;
+-- Current checked commands do not permit tenant-credit/zero-reapplication
+-- creation. Preserve that boundary rather than forge financial fixture rows.
+SELECT throws_ok(format('SELECT public.correct_historical_rent(%L,%L,20,1,%L,%L,%L)',org,invoice_id,
+ 'Unsupported zero reapplication',public.preview_historical_rent_correction(org,invoice_id,20,1)->>'previewHash','receipt-zero-denied'),
+ '55000','historical_rent_correction_blocked','receipt projection does not enable unsupported tenant-credit corrections') FROM receipt_case;
+ROLLBACK TO zero_reapplication_guard;
 -- Atomic correction policy: all old settlements net away, then replacements
 -- follow original receipt order. Internal loop state is not a receipt balance.
 SAVEPOINT multiple_originals;
