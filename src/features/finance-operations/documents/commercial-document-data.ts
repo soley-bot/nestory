@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { tenantReceiptSourceError } from "@/features/finance-operations/documents/tenant-receipt-publication-error";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import type {
@@ -146,6 +147,7 @@ async function loadSource(
     },
   );
   if (result.error) {
+    if (sourceKind === "receipt") throw tenantReceiptSourceError(result.error);
     throw new Error(
       sourceKind === "invoice"
         ? "Tenant Invoice source is unavailable."

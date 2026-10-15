@@ -19,6 +19,7 @@ type SearchComboProps = {
   ariaLabel: string;
   className?: string;
   disabled?: boolean;
+  maxLength?: number;
   onQueryChange?: (value: string) => void;
   onCompositionChange?: (composing: boolean) => void;
   onScopeChange?: (value: string) => void;
@@ -37,6 +38,7 @@ export function SearchCombo({
   ariaLabel,
   className,
   disabled = false,
+  maxLength,
   onQueryChange,
   onCompositionChange,
   onScopeChange,
@@ -93,6 +95,7 @@ export function SearchCombo({
               size={16}
             />
             <SearchInput
+              maxLength={maxLength}
               aria-activedescendant={activeSuggestion ? `${listboxId}-${encodeURIComponent(activeSuggestion.id)}` : undefined}
               aria-autocomplete={onSuggestionSelect ? "list" : undefined}
               aria-controls={hasSuggestions ? listboxId : undefined}

@@ -3442,7 +3442,10 @@ describe("FinanceOperationsScreen", () => {
     ).toBe("/api/finance/documents/recovered-receipt");
   });
 
-  it("keeps failed receipt retry announced and usable with its exact payment", async () => {
+  it.each([
+    { requiresReview: false, message: "Receipt PDF unavailable.", label: "keeps an ordinary failure retryable" },
+    { requiresReview: true, message: "Receipt history needs finance support review. Retrying cannot resolve the payment order.", label: "stops retries when receipt history requires review" },
+  ])("$label with its exact payment", async ({ requiresReview, message }) => {
     const user = userEvent.setup();
     const input = data();
     const invoice = tenantInvoice();
@@ -3470,7 +3473,8 @@ describe("FinanceOperationsScreen", () => {
     ];
     input.tenantInvoices = [invoice];
     financeActionMocks.retryTenantReceiptPdfAction.mockResolvedValueOnce({
-      message: "Receipt PDF unavailable.",
+      message,
+      ...(requiresReview ? { receiptRequiresReview: true } : {}),
       status: "error",
     });
 
@@ -3487,14 +3491,37 @@ describe("FinanceOperationsScreen", () => {
     );
     const retry = screen.getByRole("button", { name: "Create receipt again" });
     await user.click(retry);
-    expect((await screen.findByRole("alert")).textContent).toContain(
-      "Receipt PDF unavailable.",
-    );
-    retry.focus();
-    expect(document.activeElement).toBe(retry);
+    expect((await screen.findByRole("alert")).textContent).toContain(message);
+    if (requiresReview) {
+      expect(screen.queryByRole("button", { name: "Create receipt again" })).toBeNull();
+    } else {
+      retry.focus();
+      expect(document.activeElement).toBe(retry);
+    }
     const retryFormData = financeActionMocks.retryTenantReceiptPdfAction.mock
       .calls[0]?.[1] as FormData;
     expect(retryFormData.get("paymentId")).toBe("payment-retry-failed");
+  });
+
+  it("confirms payment without offering another receipt attempt when history requires review", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    const invoice = tenantInvoice();
+    invoice.collectionRoute = "through_ips";
+    input.tenantInvoices = [invoice];
+    const message = "Payment recorded. Receipt history needs finance support review. Retrying cannot resolve the payment order.";
+    financeActionMocks.recordTenantInvoicePaymentAction.mockResolvedValueOnce({
+      message, paymentId: "payment-needs-review", publicationStatus: "failed", receiptRequiresReview: true, status: "success",
+    });
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordPayments: true })} organizationName="Fixture" view="rent" />);
+    await user.click(screen.getByRole("button", { name: "View invoice INV-202608-001" }));
+    await user.click(screen.getByRole("button", { name: "Record payment" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Record payment" })).getByRole("button", { name: "Record payment" }));
+    expect((await screen.findByRole("status")).textContent).toContain(message);
+    expect(screen.queryByRole("button", { name: "Create receipt again" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Record payment" })).toBeNull();
+    expect(financeActionMocks.recordTenantInvoicePaymentAction).toHaveBeenCalledOnce();
+    expect(financeActionMocks.retryTenantReceiptPdfAction).not.toHaveBeenCalled();
   });
 
   it("daily workflow opens the exact invoice then records payment from its details and exposes the receipt", async () => {

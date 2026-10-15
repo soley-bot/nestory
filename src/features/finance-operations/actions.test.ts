@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  TenantReceiptHistoryReviewRequiredError,
+  tenantReceiptHistoryReviewMessage,
+} from "@/features/finance-operations/documents/tenant-receipt-publication-error";
 
 const {
   adminDownload,
@@ -763,6 +767,20 @@ describe("tenant commercial document publication actions", () => {
     );
   });
 
+  it("keeps the payment committed when receipt history needs finance review, even if failure marking fails", async () => {
+    publishTenantReceiptArtifact.mockRejectedValueOnce(new TenantReceiptHistoryReviewRequiredError());
+    markReceiptPublicationFailed.mockRejectedValueOnce(new Error("marker unavailable"));
+    await expect(recordTenantInvoicePaymentAction({}, tenantPaymentForm())).resolves.toEqual({
+      message: `Payment recorded. ${tenantReceiptHistoryReviewMessage}`,
+      paymentId: submissionId,
+      publicationStatus: "failed",
+      receiptRequiresReview: true,
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(revalidatePath).toHaveBeenCalledWith("/leases");
+  });
+
   it("keeps a committed payment successful when receipt failure marking also fails", async () => {
     publishTenantReceiptArtifact.mockRejectedValueOnce(new Error("provider failed"));
     markReceiptPublicationFailed.mockRejectedValueOnce(new Error("marker failed"));
@@ -890,6 +908,29 @@ describe("tenant commercial document publication actions", () => {
     await expect(retryTenantReceiptPdfAction({}, formData)).rejects.toBe(
       redirectInterrupt,
     );
+  });
+
+  it("directs ambiguous receipt history to finance review without asking for another retry", async () => {
+    const formData = new FormData();
+    formData.set("paymentId", submissionId);
+    publishTenantReceiptArtifact.mockRejectedValueOnce(new TenantReceiptHistoryReviewRequiredError());
+    await expect(retryTenantReceiptPdfAction({}, formData)).resolves.toEqual({
+      message: tenantReceiptHistoryReviewMessage,
+      receiptRequiresReview: true,
+      status: "error",
+    });
+    expect(requireFinanceOperationContext).toHaveBeenCalledOnce();
+    expect(rpc).not.toHaveBeenCalled();
+    expect(markReceiptPublicationFailed).not.toHaveBeenCalled();
+  });
+
+  it("does not classify an ordinary error by matching its message alone", async () => {
+    const formData = new FormData();
+    formData.set("paymentId", submissionId);
+    publishTenantReceiptArtifact.mockRejectedValueOnce(new Error("tenant_receipt_snapshot_order_ambiguous"));
+    await expect(retryTenantReceiptPdfAction({}, formData)).resolves.toEqual({
+      message: "Receipt PDF unavailable.", status: "error",
+    });
   });
 });
 

@@ -32,6 +32,10 @@ import {
   publishTenantReceiptArtifact,
 } from "@/features/finance-operations/documents/commercial-document-artifacts";
 import type { Json } from "@/types/database";
+import {
+  TenantReceiptHistoryReviewRequiredError,
+  tenantReceiptHistoryReviewMessage,
+} from "@/features/finance-operations/documents/tenant-receipt-publication-error";
 import type { FinanceOperationsActionState } from "@/features/finance-operations/finance-operations.types";
 import {
   leaseBillingRuleSchema,
@@ -610,6 +614,13 @@ export async function recordTenantInvoicePaymentAction(
     }
     revalidateTenantPayment();
     unstable_rethrow(error);
+    if (error instanceof TenantReceiptHistoryReviewRequiredError) {
+      return {
+        ...receiptUnavailableState(paymentId),
+        message: `Payment recorded. ${tenantReceiptHistoryReviewMessage}`,
+        receiptRequiresReview: true,
+      };
+    }
     return receiptUnavailableState(paymentId);
   }
 }
@@ -682,6 +693,13 @@ export async function retryTenantReceiptPdfAction(
   } catch (error) {
     unstable_rethrow(error);
     revalidateFinance();
+    if (error instanceof TenantReceiptHistoryReviewRequiredError) {
+      return {
+        message: tenantReceiptHistoryReviewMessage,
+        receiptRequiresReview: true,
+        status: "error",
+      };
+    }
     return { message: "Receipt PDF unavailable.", status: "error" };
   }
 }

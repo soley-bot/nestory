@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RentPropertyUnavailableError } from "../rent-invoice-query";
 import type { createSupabaseServerClient } from "@/lib/db/server";
 
 const nullableText = z.string().nullable();
@@ -63,6 +64,7 @@ export async function loadScopedFinanceContext(
     p_organization_id: organizationId,
     ...(propertyId ? { p_requested_property_id: propertyId } : {}),
   });
+  if (result.error?.code === "42501" && propertyId) throw new RentPropertyUnavailableError();
   if (result.error) throw new Error(`Could not load finance read context: ${result.error.message}`);
   const parsed = financeContextSchema.safeParse(result.data);
   if (!parsed.success) throw new Error("Could not load finance read context: malformed response");

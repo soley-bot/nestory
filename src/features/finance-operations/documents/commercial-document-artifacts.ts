@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { tenantReceiptSourceError } from "@/features/finance-operations/documents/tenant-receipt-publication-error";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requirePrivilegedStepUp } from "@/lib/auth/privileged-step-up-guard";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
@@ -642,6 +643,7 @@ async function loadPublicationSource(
     },
   );
   if (result.error) {
+    if (sourceKind === "receipt") throw tenantReceiptSourceError(result.error);
     throw new Error(
       sourceKind === "invoice"
         ? "Tenant Invoice source is unavailable."

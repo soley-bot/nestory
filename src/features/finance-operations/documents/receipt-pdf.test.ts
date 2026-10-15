@@ -67,6 +67,33 @@ describe("tenant receipt PDF", () => {
     expect(text).not.toContain("INTERNAL-MARKUP-SECRET");
   });
 
+  it.each([1, 2])("renders %i correction separator(s) without altering receipt source values", (corrections) => {
+    const reference = "Receipt original payment" + " \u00b7 Historical rent correction".repeat(corrections);
+    const model = {
+      ...receiptModel(),
+      allocations: [{ amount: "40.00", label: "Historical rent" }],
+      amountPreviouslyPaid: "0.00",
+      invoiceTotal: "100.00",
+      paymentAmount: "40.00",
+      paymentReference: reference,
+      remainingBalance: "60.00",
+    };
+    const originalModel = structuredClone(model);
+    const bytes = buildTenantReceiptPdf(model);
+    const text = pdfText(bytes);
+    expect(isContainedPdf(bytes)).toBe(true);
+    const renderedText = [...text.matchAll(/\(([^()]*)\) Tj ET/g)].map((match) => match[1]).join(" ");
+    expect(renderedText).toContain(reference.replace(/\u00b7/g, "-"));
+    expect(renderedText).toContain("INVOICE TOTAL USD 100.00 PREVIOUSLY PAID USD 0.00 THIS PAYMENT USD 40.00 REMAINING BALANCE USD 60.00");
+    expect(model).toEqual(originalModel);
+  });
+
+  it("still rejects unsupported reference characters instead of silently removing them", () => {
+    expect(() => buildTenantReceiptPdf({
+      ...receiptModel(), paymentReference: "Receipt \u00b7 correction \u2603",
+    })).toThrow("Tenant commercial PDFs support basic Latin text and USD only.");
+  });
+
   it("wraps long allocations across pages and repeats the document header", () => {
     const allocations = Array.from({ length: 68 }, (_, index) => ({
       amount: `${index + 1}.00`,

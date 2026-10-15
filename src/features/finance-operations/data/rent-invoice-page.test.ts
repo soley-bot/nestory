@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { loadRentInvoicePage } from "./rent-invoice-page";
-import { parseRentInvoiceQuery } from "../rent-invoice-query";
+import { parseRentInvoiceQuery, RentPropertyUnavailableError } from "../rent-invoice-query";
 
 export const invoiceRow = (id = "invoice-1") => ({
   id, organization_id: "organization-1", property_id: "property-1", unit_id: "unit-1", lease_id: "lease-1",
@@ -17,6 +17,32 @@ export const invoicePage = () => ({
 });
 
 describe("rent invoice page", () => {
+  it.each(["bad", "------------------------------------", ["all", "00000000-0000-4000-8000-000000000030"]].map(property => ({ property })))("rejects an invalid or ambiguous property selector before querying: $property", ({ property }) => {
+    expect(() => parseRentInvoiceQuery({ property })).toThrow("This property is unavailable for your current access.");
+  });
+
+  it("bounds a bookmarked search to the same 500 characters shown in the filter", () => {
+    expect(parseRentInvoiceQuery({ q: "  " + "a".repeat(501) + "  " }).query).toBe("a".repeat(500));
+    expect(parseRentInvoiceQuery({ q: "a".repeat(500) }).query).toBe("a".repeat(500));
+    expect(parseRentInvoiceQuery({ q: "a".repeat(499) + "\u{1f3e0}" }).query).toBe("a".repeat(499));
+  });
+
+  it("normalizes valid uppercase UUID bookmarks without discarding their scope", () => {
+    expect(parseRentInvoiceQuery({ property: "019ED022-93F8-7F10-9896-BD6FEE371BB0" }).propertyId).toBe("019ed022-93f8-7f10-9896-bd6fee371bb0");
+  });
+
+  it("uses the first repeated search value just like the displayed URL filter", () => {
+    expect(parseRentInvoiceQuery({ q: [" Morgan ", "ignored"] }).query).toBe("Morgan");
+    expect(parseRentInvoiceQuery({ q: ["a".repeat(501), "ignored"] }).query).toBe("a".repeat(500));
+  });
+
+  it("treats property access revoked after preflight as unavailable without retrying unscoped", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { code: "42501", message: "Not authorized" } });
+    await expect(loadRentInvoicePage({ rpc } as never, "organization-1", "property-1", parseRentInvoiceQuery({}))).rejects.toBeInstanceOf(RentPropertyUnavailableError);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc.mock.calls[0][1].p_property_id).toBe("property-1");
+  });
+
   it("loads one bounded page with full totals and a separately selected report invoice", async () => {
     const rpc = vi.fn().mockResolvedValue({ data: invoicePage(), error: null });
     const result = await loadRentInvoicePage({ rpc } as never, "organization-1", "property-1", {

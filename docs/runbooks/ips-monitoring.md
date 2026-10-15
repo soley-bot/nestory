@@ -2,21 +2,24 @@
 
 This runbook separates application guarantees, observed scheduler configuration,
 and operational acceptance. The 2026-10-15 audit started from PR231 candidate
-`f031e43ab6c4c463a47ef78eaf959126e0585284`; the fixes described below are
-the October 15 follow-up to that candidate. Release remains held. No production
-cron invocation, test alert, notification, credential/configuration change or
-customer-record query was performed for this audit.
+`f031e43ab6c4c463a47ef78eaf959126e0585284` while release was held. PR231,
+including the October 15 fixes below, is now deployed at main SHA
+`c25daa516cd8444ea67dbe17c9066acf3e21b03d`, confirmed by READY production
+deployment `dpl_9s3EogovVPDbHrnk5S8ooVWUzaEx`. The original observations below
+remain dated historical evidence; the post-release observations follow them.
+No production cron invocation, test alert, notification, credential/configuration
+change or customer-record query was performed for these monitoring audits.
 
 ## Current disposition
 
 | Area | Evidence | Remaining limit |
 | --- | --- | --- |
-| Scheduler authentication | Local fix lets only the exact `/api/cron/maintenance` pathname reach the route's existing bearer-secret guard without a Supabase session. Missing/wrong bearer remains 401; missing secret remains 503. | This fix is not deployed. Project key-name metadata does not establish an effective runtime secret. |
-| Failed execution visibility | Candidate route captures a fixed sanitized Sentry error for RPC errors, thrown/setup failures, and now malformed successful results. The generic 500 and single invocation are preserved even if capture throws. | Capture calls are not proof of durable storage, Sentry ingestion, alert rules or delivery. |
+| Scheduler authentication | Deployed source lets only the exact `/api/cron/maintenance` pathname reach the route's existing bearer-secret guard without a Supabase session. Local tests verify missing/wrong bearer returns 401 and missing secret returns 503. | No signed hosted invocation was performed. Project key-name metadata does not establish an effective runtime secret. |
+| Failed execution visibility | Deployed source captures a fixed sanitized Sentry error for RPC errors, thrown/setup failures and malformed successful results. Local tests verify the generic 500 and single invocation even if capture throws. | Capture calls are not proof of durable storage, Sentry ingestion, alert rules or delivery. |
 | Duplicate business effects | SQL serializes runs with a blocking transaction advisory lock; occurrence and outbox-attempt uniqueness prevent repeated business effects. Existing SQL tests cover recurrence replay and orphan cleanup. | This is not exactly-once HTTP execution or a durable per-run ledger. The audit did not run concurrent database sessions. |
 | Persistent maintenance schedule | Source has no Vercel/workflow schedule. Fresh deployed Vercel metadata has zero cron definitions; hosted pg_cron has three other jobs, none referencing maintenance. | No persistent maintenance scheduler is verified. An external scheduler, if one exists, needs its own identity/configuration evidence. |
 | Missed/late execution detection | Existing aggregate-only diagnostic SQL can inspect job history and business backlogs under separate read authorization. | No approved freshness/backlog policy or automatic missed-maintenance-run evaluator is established. |
-| Operator and delivery | No destination, accountable operator, approved thresholds or delivery receipt was supplied. | Operational monitoring acceptance remains unverified. |
+| Operator and delivery | Existing team-wide Sentry integration metadata is confirmed. No destination, accountable operator, approved thresholds or delivery receipt was supplied. | Integration metadata does not establish alert rules, event ingestion or delivery. Operational monitoring acceptance remains unverified. |
 
 ## Local fixes and their regression evidence
 
@@ -65,10 +68,10 @@ Relevant source:
 - `supabase/tests/ips_operational_readiness_batch_test.sql`
 
 The installed Next route-handler and proxy guides were read before these edits.
-Integration/build validation remains with the release coordinator; this local
-unit result does not establish hosted scheduler execution.
+The release coordinator's build/release evidence is separate; these local unit
+results and deployment identity do not establish hosted scheduler execution.
 
-## Read-only deployed configuration observations
+## Historical pre-release configuration observations
 
 At **2026-10-15T00:44:43.959185Z**, a bounded READ ONLY query against the linked
 production project returned exactly three pg_cron jobs, with cron timezone `GMT`:
@@ -110,6 +113,71 @@ repository workflows (`ci.yml`, `daily-workflow-acceptance.yml`) do not schedule
 the production maintenance runner. `next.config.ts` explicitly sets
 `automaticVercelMonitors: false`. These observations do not rule out an external
 scheduler outside the inspected configuration.
+
+## Post-release read-only observations: 2026-10-15
+
+The canonical `www.nestory-kh.com` alias and current project cron configuration
+point to READY production deployment `dpl_9s3EogovVPDbHrnk5S8ooVWUzaEx`,
+main SHA `c25daa516cd8444ea67dbe17c9066acf3e21b03d`. The alias metadata was
+last updated at **2026-10-15T01:18:32.222Z**. This confirms deployed source
+identity, not a new runtime/browser test or a signed maintenance invocation.
+
+At **2026-10-15T01:41:19.119681Z**, a bounded READ ONLY query against Supabase
+project `pfvmztxktkwyewvxfgot` reported the same three active pg_cron jobs,
+timezone `GMT`, with `cron.log_run=on`. Each had **24 executions, 24 succeeded,
+zero failed and zero running/starting** in the trailing 24 hours: **72/72**
+scheduler executions in total. None references maintenance automation.
+
+| Job | Schedule | Latest successful end UTC | Seconds since success at observation |
+| --- | --- | --- | ---: |
+| `nestory-hourly-rent-generation` | `17 * * * *` | 2026-10-15T01:17:00.251211Z | 1459 |
+| `nestory-hourly-lease-activation` | `11 * * * *` | 2026-10-15T01:11:00.218945Z | 1819 |
+| `nestory-deferred-owner-cash` | `41 * * * *` | 2026-10-15T01:41:00.446649Z | 19 |
+
+Scheduler success does not prove every business row completed successfully.
+The elapsed values are observations, not approved freshness thresholds. Only
+aggregate metadata was returned, with no raw job commands, messages or customer
+rows. The query used a five-second statement timeout, one-second lock timeout
+and ROLLBACK. Catalog name matching found only the notification outbox/attempt
+tables among candidate maintenance-history names; that heuristic alone is not
+an exhaustive absence proof. The source still has no separate durable
+maintenance execution/failure ledger.
+
+At **2026-10-15T01:43:15Z**, the scoped Vercel project GET reported
+`crons.definitions=[]` for the deployed PR231 SHA. No production-target
+`CRON_SECRET` key was listed; a production-target Sentry DSN key was listed.
+Only presence booleans were retained, without values. Effective inherited or
+runtime configuration remains unverified. No persistent maintenance schedule
+is established in Vercel or pg_cron; any external scheduler needs its own proof.
+
+At **2026-10-15T01:43:43Z**, a scoped Vercel CLI GET returned zero project
+drains. The connector's earlier 404 was not used as absence evidence. At
+**2026-10-15T01:46:22Z**, a CLI GET of Sentry integration configurations returned
+an external integration with `projectSelection=all`, plus a marketplace
+integration with selected-project scope and an empty project list. Thus an
+existing team-wide Sentry integration is confirmed. The connector's earlier
+403 was not used as absence evidence. This metadata does not identify the
+Sentry project, production ingestion, retention, alert rules, destinations or
+delivery; no callable Sentry read connector was available and no alert was sent.
+
+Hosted backup/PITR enabled state, successful checkpoint, recoverable window and
+retention remain **unverified**. Supabase project details reported
+`ACTIVE_HEALTHY` but exposed no backup fields; database catalogs and cron history
+do not prove platform backups. Local Supabase CLI help failed before any hosted
+backup request on a telemetry-file permission error. No credentials or settings
+were changed to work around it. The documented read-only backup metadata GET
+requires existing `database:read` or `backups_read` access; existing authorized
+dashboard metadata is another evidence path. Database backups exclude Storage
+object bytes, which need separate recovery evidence. See the
+[backup API reference](https://supabase.com/docs/reference/api/v1-list-all-backups)
+and [backup coverage documentation](https://supabase.com/docs/guides/platform/backups),
+read on October 15. No restore, backup download or paid resource was requested.
+
+Sanitized observations and the executed query are retained under
+`.codex-artifacts/ips-followup-20261015/hosted/` as `evidence.json`,
+`scheduler-aggregate-readonly.sql` and `readiness-notes.md`. These ignored local
+artifacts supplement this runbook; their existence does not close the operational
+acceptance gaps below.
 
 ## Failure, replay and monitoring semantics
 

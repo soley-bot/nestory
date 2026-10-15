@@ -2,28 +2,18 @@
 // resets a database, deletes fixtures, or changes existing organization grants.
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
-import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
-import { localHarness, quote as q, rpc, target, verifyTarget } from "./ips-integrated-readiness-fixture.mjs";
-import { assertRecoveryContainer, assertRecoverySource, FIXTURE_USERS, sha256 } from "./ips-readiness-recovery-core.mjs";
-import { localRecoveryDocker } from "./local-recovery-docker.mjs";
+import { localHarness, quote as q, rpc as callRpc, target } from "./ips-integrated-readiness-fixture.mjs";
+import { sha256 } from "./ips-readiness-recovery-core.mjs";
+import { openRetainedRentTarget, rentArtifactRoot } from "./rent-readiness-target.mjs";
 import { downloadDailyArtifact } from "./daily-workflow-download.mjs";
 import { setHiddenControlValue } from "./playwright-form-controls.mjs";
 
 const cwd = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-function verifyRentTarget({ config, status, manifest, fixtureHash, env, now }) {
-  verifyTarget({ config, status, cwd, handoff: env.IPS_LOCAL_HANDOFF });
-  assert.equal(env.IPS_RENT_HANDOFF, target.project, "Explicit rent journey handoff is required");
-  assert.equal(env.NESTORY_BASE_URL, target.app, "Wrong app target");
-  assert.equal(env.SUPABASE_DB_CONTAINER, target.container, "Wrong database target");
-  assert.match(env.IPS_RENT_CONTAINER_ID ?? "", /^[a-f0-9]{64}$/, "Explicit container identity is required");
-  assert.equal(env.IPS_RENT_CONTAINER_ID, manifest.containerId, "Source manifest identity changed");
-  assertRecoverySource({ config, manifest, fixtureHash, now, explicitContainer: env.SUPABASE_DB_CONTAINER });
-}
 function assertInvoicePage(page, ids, expected, excluded = false) {
   assert.equal(page.totalVisibleCount, 1);
   assert.deepEqual(page.pagination, { page: 1, pageSize: 50, totalCount: excluded ? 0 : 1,
@@ -42,19 +32,6 @@ function assertInvoicePage(page, ids, expected, excluded = false) {
 // Pure guard checks are intentionally available without reading manifests,
 // loading credentials, opening Docker, or contacting an app.
 function selfTest() {
-  const now = Date.now(), hash = "a".repeat(64), containerId = "b".repeat(64);
-  const valid = { config: `project_id = "${target.project}"\n`, now,
-    fixtureHash: hash, status: { API_URL: target.api, ANON_KEY: "test", SERVICE_ROLE_KEY: "test" },
-    manifest: { project: target.project, sourceKind: "fresh-reset-plus-committed-synthetic-baseline", containerId,
-      fixtureSha256: hash, loadedAt: new Date(now).toISOString(), organizationIds: ["00000000-0000-0000-0000-000000000001"], authUserIds: FIXTURE_USERS },
-    env: { IPS_LOCAL_HANDOFF: target.project, IPS_RENT_HANDOFF: target.project,
-      NESTORY_BASE_URL: target.app, SUPABASE_DB_CONTAINER: target.container, IPS_RENT_CONTAINER_ID: containerId } };
-  verifyRentTarget(valid);
-  for (const key of Object.keys(valid.env)) assert.throws(() => verifyRentTarget({ ...valid, env: { ...valid.env, [key]: "wrong" } }));
-  assert.throws(() => verifyRentTarget({ ...valid, config: 'project_id = "nestory"\n' }));
-  assert.throws(() => verifyRentTarget({ ...valid, manifest: { ...valid.manifest, containerId: "c".repeat(64) } }));
-  assert.throws(() => verifyRentTarget({ ...valid, status: { ...valid.status, API_URL: "https://example.test" } }));
-  assert.throws(() => verifyRentTarget({ ...valid, now: now + 3 * 60 * 60_000 }));
   const ids = { invoice: randomUUID(), org: randomUUID(), property: randomUUID(), lease: randomUUID() };
   const expected = { charge: 100, cash: 0, balance: 100, status: "unpaid" };
   const row = { id: ids.invoice, organization_id: ids.org, property_id: ids.property, lease_id: ids.lease,
@@ -69,53 +46,62 @@ function selfTest() {
   const excluded = { ...page, invoices: [], pagination: { ...page.pagination, totalCount: 0, from: 0, to: 0 }, totalsByCurrency: [] };
   assertInvoicePage(excluded, ids, expected, true);
   assert.throws(() => assertInvoicePage({ ...excluded, invoices: [row] }, ids, expected, true));
-  console.log("PASS rent target guards and financial reconciliation self-test (14 rejection cases)");
+  console.log("PASS rent financial reconciliation self-test (5 rejection cases); target guards have separate contract tests");
 }
 
 async function main() {
   assert.equal(process.argv.length, 2, "Alternate runtime targets or arguments are unsupported");
-  const readJson = name => JSON.parse(readFileSync(path.join(cwd, name), "utf8").replace(/^\uFEFF/, ""));
-  const manifest = readJson(".codex-artifacts/ips-readiness-source-manifest.json");
-  const status = readJson(".codex-artifacts/isolated-local-status.json");
-  verifyRentTarget({ config: readFileSync(path.join(cwd, "supabase/config.toml"), "utf8"), status, manifest,
-    fixtureHash: sha256(readFileSync(path.join(cwd, "supabase/test-fixtures/baseline.sql"))), env: process.env });
-  const git = spawnSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8", shell: false, windowsHide: true });
-  assert.equal(git.status, 0); const candidate = git.stdout.trim(); assert.match(candidate, /^[a-f0-9]{40}$/);
+  const retained = await openRetainedRentTarget({ cwd });
+  const manifest = retained.manifest, candidate = manifest.gitSha;
+  // Existing private local status is read in memory only. No status command,
+  // copying, refresh or credential persistence is performed by this runner.
+  let status;
+  try { status = JSON.parse(readFileSync(path.join(cwd, ".codex-artifacts/isolated-local-status.json"), "utf8").replace(/^\uFEFF/, "")); }
+  catch { throw Error("Existing local Auth status is unavailable or invalid"); }
+  assert.equal(status.API_URL, target.api, "Existing local Auth status targets another API");
+  assert.ok(status.ANON_KEY && status.SERVICE_ROLE_KEY, "Existing local Auth keys are unavailable");
   const runId = randomUUID(), ids = { org: randomUUID(), branch: randomUUID(), role: randomUUID() }, actors = {};
   const password = randomBytes(24).toString("base64url") + "aA1!";
   const redact = value => [password, status.ANON_KEY, status.SERVICE_ROLE_KEY].reduce((text, secret) => text.replaceAll(secret, "[REDACTED]"), String(value));
-  const output = path.join(cwd, ".codex-artifacts/rent-readiness", runId); mkdirSync(output, { recursive: true });
+  const output = path.join(cwd, rentArtifactRoot, "runs", runId); mkdirSync(output, { recursive: true });
   const report = { runId, candidate, target, sourceContainerId: manifest.containerId, ids, actors,
     startedAt: new Date().toISOString(), completed: false, phases: [],
     cleanup: "Only fresh generated fixtures were created; retained for review. No global cleanup.",
-    provenance: "Repository SHA and disk build ID are recorded; root must attest the served build separately." };
+    retainedManifestPath: retained.manifestPath, retainedManifestSha256: process.env.IPS_RENT_MANIFEST_SHA256,
+    provenance: "Approved retained census, exact migration bodies, repository SHA and disk build ID recorded; root must attest the served build separately." };
   try { report.diskBuildId = readFileSync(path.join(cwd, ".next/BUILD_ID"), "utf8").trim(); } catch { /* Optional disk provenance. */ }
   const save = () => writeFileSync(path.join(output, "report.json"), redact(JSON.stringify(report, null, 2)));
   const phase = (name, evidence = {}) => { report.phases.push({ name, ...evidence }); save(); console.log(`PASS ${name}`); };
-  let browser, context, page, stage = "guarded setup";
+  let browser, context, page, boundaryError, stage = "guarded setup";
   save();
   try {
     const harness = await localHarness(cwd);
-    // Bind each SQL operation to the manifest through the verified local engine,
-    // including when a shell has an unrelated DOCKER_HOST/context configured.
-    const execute = (command, args, input, options = {}) => {
-      const result = spawnSync(command, args, { input, encoding: "utf8", shell: false, windowsHide: true,
-        timeout: 90_000, maxBuffer: 16 * 1024 * 1024, ...options });
-      assert.equal(result.status, 0, "Verified local Docker/SQL operation failed"); return result.stdout;
-    };
-    const { docker } = await localRecoveryDocker({ execute });
-    const sql = statement => {
-      const format = '{"name":{{json .Name}},"id":{{json .Id}},"running":{{json .State.Running}},"project":{{json (index .Config.Labels "com.supabase.cli.project")}},"image":{{json .Image}}}';
-      assertRecoveryContainer(JSON.parse(docker(["inspect", target.container, "--format", format])), manifest.containerId);
-      return docker(["exec", "-i", manifest.containerId, "psql", "-X", "-qAt", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1"], `SET statement_timeout='20s';\n${statement}`).trim();
-    };
+    const sql = statement => { retained.check(); return retained.rawSql(`SET statement_timeout='20s';\n${statement}`); };
+    const rpc = (client, name, args) => { retained.check(); return callRpc(client, name, args); };
     assert.equal(sql("SELECT current_database();"), "postgres");
     const json = statement => JSON.parse(sql(statement));
+    const expectedManagerPermissions = ["leases.view", "leases.prepare", "leases.activate", "leases.change_terms", "leases.close", "leases.archive",
+      "finance.view", "finance.record_payments", "finance.approve_expenses", "finance.submit_expenses", "finance.correct_records", "finance.close_periods", "finance.publish"].sort();
+    assert.deepEqual(json("SELECT coalesce(jsonb_agg(permission_key::text ORDER BY permission_key::text),'[]') FROM public.organization_role_permissions WHERE organization_id='00000000-0000-0000-0000-000000000001' AND role_id='00000000-0000-0000-0000-000000000311';"), expectedManagerPermissions,
+      "Retained Finance Manager role differs from the reviewed fixture; no actor will be created");
+    // Harmless real Auth read binds the API to the approved full database census
+    // before creating any account; never rely on an API key alone as identity.
+    const apiUsers = new Set();
+    for (let page = 1; ; page++) {
+      const result = await harness.admin.auth.admin.listUsers({ page, perPage: 500 });
+      assert.equal(result.error, null, "Existing local Auth binding could not be verified");
+      assert.ok(Array.isArray(result.data.users)); if (result.data.users.length === 0) break;
+      for (const user of result.data.users) { assert.ok(!apiUsers.has(user.id), "Auth census page repeated"); apiUsers.add(user.id); }
+      assert.ok(apiUsers.size <= manifest.census.authUserIds.length, "API contains an unapproved Auth identity");
+    }
+    assert.deepEqual([...apiUsers].sort(), manifest.census.authUserIds, "API Auth census differs from approved database");
     for (const name of ["admin", "manager"]) {
+      retained.check();
       const email = `rent-${runId}-${name}@example.test`;
       const created = await harness.admin.auth.admin.createUser({ email, password, email_confirm: true });
       assert.equal(created.error, null, "Synthetic local Auth provisioning failed");
-      assert.match(created.data.user.id, uuid); actors[name] = { id: created.data.user.id, email }; save();
+      assert.match(created.data.user.id, uuid); actors[name] = { id: created.data.user.id, email };
+      retained.additions.authUserIds.push(created.data.user.id); retained.additions.authUserIds.sort(); save();
     }
     sql(`BEGIN;
       INSERT INTO public.organizations(id,name,slug) VALUES(${q(ids.org)},'Synthetic rent readiness',${q(`rent-${runId}`)});
@@ -129,7 +115,11 @@ async function main() {
         SELECT ${q(ids.org)},${q(ids.role)},permission_key FROM public.organization_role_permissions WHERE organization_id='00000000-0000-0000-0000-000000000001' AND role_id='00000000-0000-0000-0000-000000000311';
       INSERT INTO public.organization_members(organization_id,user_id,role,branch_id,custom_role_id) VALUES(${q(ids.org)},${q(actors.manager.id)},'custom',${q(ids.branch)},${q(ids.role)});
       COMMIT;`);
-    const admin = await harness.actor(actors.admin.email, password), manager = await harness.actor(actors.manager.email, password);
+    retained.additions.organizationIds.push(ids.org); retained.additions.organizationIds.sort();
+    retained.check();
+    const admin = await harness.actor(actors.admin.email, password);
+    retained.check();
+    const manager = await harness.actor(actors.manager.email, password);
     for (const role of ["owner", "tenant"]) {
       ids[role] = await rpc(admin, "create_person", { p_organization_id: ids.org, p_branch_id: ids.branch,
         p_display_name: `Synthetic rent ${role} ${runId.slice(0, 8)}`, p_legal_name: null, p_party_type: "individual",
@@ -185,7 +175,13 @@ async function main() {
     await reconcile("issued-charge", { charge: 120, cash: 0, balance: 120, status: "unpaid" });
     browser = await chromium.launch({ headless: true });
     context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: "block" });
-    await context.route("**/*", route => [target.app, target.api].includes(new URL(route.request().url()).origin) ? route.continue() : route.abort("blockedbyclient"));
+    await context.route("**/*", route => {
+      if (![target.app, target.api].includes(new URL(route.request().url()).origin)) return route.abort("blockedbyclient");
+      if (route.request().method() === "POST" && route.request().headers()["next-action"]) {
+        try { retained.check(); } catch (error) { boundaryError = error; return route.abort("blockedbyclient"); }
+      }
+      return route.continue();
+    });
     page = await context.newPage(); page.setDefaultTimeout(30_000);
     await page.goto(`${target.app}/login`, { waitUntil: "networkidle" });
     await page.getByLabel("Email").fill(actors.manager.email); await page.getByLabel("Password", { exact: true }).fill(password);
@@ -277,9 +273,10 @@ async function main() {
     const interruptionComplete = new Promise(resolve => { finishInterruption = resolve; });
     const reverseRoute = `${target.app}/rent-income**`;
     const reverseHandler = async route => {
-      if (interrupted || route.request().method() !== "POST" || !route.request().headers()["next-action"]) return route.continue();
+      if (interrupted || route.request().method() !== "POST" || !route.request().headers()["next-action"]) return route.fallback();
       interrupted = true;
       try {
+        retained.check();
         const response = await route.fetch(); assert.equal(response.status(), 200, "Reversal server action failed");
         // Observe the committed append before discarding its browser response.
         await waitSql(`SELECT count(*) FROM public.tenant_invoice_payments WHERE organization_id=${q(ids.org)} AND reversal_of_id=${q(ids.replacement)};`, "1");
@@ -320,7 +317,7 @@ async function main() {
     phase("immutable original receipt, source payment, issued header, future terms and actor/reason audit retained");
     report.completed = true; report.completedAt = new Date().toISOString(); save(); console.log(`PASS rent readiness ${runId}`);
   } catch (error) {
-    report.failure = { stage, message: redact(error?.message ?? error) }; save();
+    report.failure = { stage, message: redact(boundaryError?.message ?? error?.message ?? error) }; save();
     if (page) await page.screenshot({ path: path.join(output, "failure.png"), fullPage: true }).catch(() => {});
     throw Error(`Rent readiness failed during ${stage}; credential-free evidence: ${output}`, { cause: undefined });
   } finally { await context?.close(); await browser?.close(); }

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
+import { TenantReceiptHistoryReviewRequiredError } from "@/features/finance-operations/documents/tenant-receipt-publication-error";
 import {
   downloadTenantCommercialDocumentArtifact,
   markReceiptPublicationFailed,
@@ -57,6 +58,41 @@ afterEach(() => {
 });
 
 describe("commercial document artifact publication", () => {
+  it.each([
+    ["55000", "tenant_receipt_snapshot_order_ambiguous", true],
+    ["55000", "another_source_failure", false],
+    ["42501", "tenant_receipt_snapshot_order_ambiguous", false],
+    [undefined, "tenant_receipt_snapshot_order_ambiguous", false],
+  ])("preserves the narrow receipt history error before Storage (%s, %s)", async (code, message, requiresReview) => {
+    const client = { rpc: vi.fn().mockResolvedValue({ data: null, error: { code, message } }) };
+    const publication = publishTenantReceiptArtifact({
+      client: client as unknown as SupabaseClient<Database>, organizationId, paymentId,
+    });
+    if (requiresReview) {
+      await expect(publication).rejects.toBeInstanceOf(TenantReceiptHistoryReviewRequiredError);
+    } else {
+      await expect(publication).rejects.not.toBeInstanceOf(TenantReceiptHistoryReviewRequiredError);
+      await expect(publication).rejects.toThrow("Tenant Receipt source is unavailable.");
+    }
+    expect(client.rpc).toHaveBeenCalledOnce();
+    expect(createSupabaseAdminClient).not.toHaveBeenCalled();
+    expect(requirePrivilegedStepUp).not.toHaveBeenCalled();
+  });
+
+  it("returns a published receipt before loading or rendering its historical money snapshot", async () => {
+    const harness = artifactHarness({ sourceResponses: [{
+      artifact: { ...publishedArtifact(), document_number: "RCT-2026-0018" },
+    }] });
+    await expect(publishTenantReceiptArtifact({
+      client: harness.client as unknown as SupabaseClient<Database>, organizationId, paymentId,
+    })).resolves.toEqual({
+      artifactId, documentNumber: "RCT-2026-0018", href: `/api/finance/documents/${artifactId}`,
+    });
+    expect(eventNames(harness.events)).toEqual(["client.source"]);
+    expect(createSupabaseAdminClient).not.toHaveBeenCalled();
+    expect(requirePrivilegedStepUp).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["legacy synthetic", "00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000701", false],
     ["valid synthetic", "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000701", true],

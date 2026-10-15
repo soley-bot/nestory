@@ -1,3 +1,19 @@
+import { getUuidSearchParam } from "@/lib/validation/search-params";
+
+export const RENT_INVOICE_SEARCH_LIMIT = 500;
+
+export function boundRentInvoiceSearch(value: string) {
+  // Keep the input's UTF-16 limit without splitting a supplementary character.
+  return value.slice(0, RENT_INVOICE_SEARCH_LIMIT).replace(/[\uD800-\uDBFF]$/, "");
+}
+
+export class RentPropertyUnavailableError extends Error {
+  constructor() {
+    super("This property is unavailable for your current access.");
+    this.name = "RentPropertyUnavailableError";
+  }
+}
+
 export type RentInvoiceSearchParams = {
   due?: string | string[];
   overdueDays?: string | string[];
@@ -11,13 +27,16 @@ export type RentInvoiceSearchParams = {
 export function parseRentInvoiceQuery(params: RentInvoiceSearchParams) {
   const value = (input: string | string[] | undefined) => typeof input === "string" ? input.trim() : "";
   const page = Number(value(params.page));
-  const property = value(params.property);
+  const property = value(params.property).toLowerCase();
+  if (Array.isArray(params.property) || property && property !== "all" && !getUuidSearchParam(property)) {
+    throw new RentPropertyUnavailableError();
+  }
   return {
     due: oneOf(value(params.due), ["all", "next_7_days", "overdue", "this_month", "today"] as const, "all"),
     overdueDays: oneOf(value(params.overdueDays), ["all", "7", "30", "60"] as const, "all"),
     page: Number.isSafeInteger(page) && page > 0 ? Math.min(page, 2_147_483_647) : 1,
     propertyId: property && property !== "all" ? property : undefined,
-    query: value(params.q),
+    query: boundRentInvoiceSearch(value(Array.isArray(params.q) ? params.q[0] : params.q)),
     sort: oneOf(value(params.sort), ["balance_desc", "default", "due_asc", "due_desc", "tenant_asc"] as const, "default"),
     status: oneOf(value(params.status), ["all", "open", "paid", "partly_paid", "unpaid"] as const, "all"),
   };
