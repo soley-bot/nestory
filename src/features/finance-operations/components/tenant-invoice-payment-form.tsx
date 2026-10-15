@@ -33,6 +33,7 @@ import { formatMoneyDisplay } from "@/lib/money/format";
 export type TenantPaymentReceiptResult = {
   href: string | null;
   paymentId: string | null;
+  requiresReview?: boolean;
   unavailable: boolean;
 };
 
@@ -128,6 +129,7 @@ function TenantInvoicePaymentFormStateful({
       onReceiptResult({
         href: state.artifactHref ?? null,
         paymentId: state.paymentId ?? null,
+        ...(state.receiptRequiresReview ? { requiresReview: true } : {}),
         unavailable: state.publicationStatus === "failed",
       });
     }

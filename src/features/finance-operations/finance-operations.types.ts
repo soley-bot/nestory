@@ -305,5 +305,6 @@ export type FinanceOperationsActionState = {
   message?: string;
   paymentId?: string;
   publicationStatus?: "failed" | "published";
+  receiptRequiresReview?: boolean;
   status?: "error" | "success";
 };

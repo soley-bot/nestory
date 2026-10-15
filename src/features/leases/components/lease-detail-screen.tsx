@@ -2099,14 +2099,14 @@ function LeasePaymentReceiptAction({
   }
 
   if (!result.unavailable) return null;
-  if (!result.paymentId || !canRetry) {
+  if (!result.paymentId || !canRetry || result.requiresReview) {
     return <span className="text-muted-foreground">Receipt unavailable</span>;
   }
 
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-2">
       <input name="paymentId" type="hidden" value={result.paymentId} />
-      <LeaseReceiptRetrySubmit />
+      {!state.receiptRequiresReview ? <LeaseReceiptRetrySubmit /> : null}
       {state.status === "error" && state.message ? (
         <span className="text-danger" role="alert">
           {state.message}

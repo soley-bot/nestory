@@ -525,6 +525,7 @@ function estimateCommercialTextWidth(
 function sanitizeCommercialText(value: string) {
   return (
     value
+      .replace(/\u00b7/g, "-")
       .replace(/[\u2010-\u2015]/g, "-")
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201c\u201d]/g, '"')

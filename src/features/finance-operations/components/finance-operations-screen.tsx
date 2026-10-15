@@ -393,7 +393,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
                 </a>
               ) : receiptResult?.unavailable && receiptResult.paymentId ? (
                 <ReceiptAction
-                  canRetry={props.canRecordPayments}
+                  canRetry={props.canRecordPayments && !receiptResult.requiresReview}
                   onSuccess={(state) => {
                     setReceiptResult({
                       href: state.artifactHref ?? null,
@@ -2638,7 +2638,7 @@ function ReceiptAction({
     <form action={formAction} className="flex flex-wrap items-center justify-end gap-2">
       <input name="paymentId" type="hidden" value={settlement.id} />
       <span className="text-muted-foreground">Receipt unavailable</span>
-      {canRetry ? <SubmitButton label="Create receipt again" /> : null}
+      {canRetry && !state.receiptRequiresReview ? <SubmitButton label="Create receipt again" /> : null}
       <ActionMessage state={state} />
     </form>
   );

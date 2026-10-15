@@ -2,6 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import {
+  TenantReceiptHistoryReviewRequiredError,
+  tenantReceiptHistoryReviewMessage,
+} from "@/features/finance-operations/documents/tenant-receipt-publication-error";
+import {
   loadTenantInvoicePdfModel,
   loadTenantReceiptPdfModel,
   type InvoicePublicationInput,
@@ -24,6 +28,35 @@ afterEach(() => {
 });
 
 describe("commercial document authoritative snapshot loading", () => {
+  it.each([
+    ["55000", "tenant_receipt_snapshot_order_ambiguous", true],
+    ["55000", "another_source_failure", false],
+    ["42501", "tenant_receipt_snapshot_order_ambiguous", false],
+    [undefined, "tenant_receipt_snapshot_order_ambiguous", false],
+    ["55000", "tenant_receipt_snapshot_order_ambiguous: details", false],
+  ])("maps only the exact receipt history error (%s, %s)", async (code, message, requiresReview) => {
+    const client = fakeDataClient({ rpcError: { code, message } });
+    const result = loadTenantReceiptPdfModel(
+      client as unknown as SupabaseClient<Database>, organizationId, paymentId,
+    );
+    if (requiresReview) {
+      await expect(result).rejects.toBeInstanceOf(TenantReceiptHistoryReviewRequiredError);
+      await expect(result).rejects.toThrow(tenantReceiptHistoryReviewMessage);
+    } else {
+      await expect(result).rejects.not.toBeInstanceOf(TenantReceiptHistoryReviewRequiredError);
+      await expect(result).rejects.toThrow("Tenant Receipt source is unavailable.");
+    }
+  });
+
+  it("keeps invoice source errors generic even for the receipt history code and message", async () => {
+    const client = fakeDataClient({ rpcError: {
+      code: "55000", message: "tenant_receipt_snapshot_order_ambiguous",
+    } });
+    await expect(loadTenantInvoicePdfModel(
+      client as unknown as SupabaseClient<Database>, organizationId, invoiceId, publicationInput,
+    )).rejects.toThrow("Tenant Invoice source is unavailable.");
+  });
+
   it("rejects an Invoice source hidden by organization scope instead of accepting caller identity", async () => {
     const client = fakeDataClient({
       rpcError: { message: "tenant_commercial_document_source_not_found" },
@@ -493,7 +526,7 @@ function fakeDataClient({
     name: string;
     operational_timezone: string;
   };
-  rpcError?: { message: string } | null;
+  rpcError?: { code?: string; message: string } | null;
   source?: Record<string, unknown>;
   tenantInvoice?: { occupant_labels: string[] };
 } = {}) {

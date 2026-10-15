@@ -443,6 +443,22 @@ describe("TenantInvoicePaymentForm", () => {
       },
       label: "publication fails",
     },
+    {
+      actionResult: {
+        message: "Payment recorded. Receipt history needs finance support review. Retrying cannot resolve the payment order.",
+        paymentId: "payment-3",
+        publicationStatus: "failed" as const,
+        receiptRequiresReview: true,
+        status: "success" as const,
+      },
+      expectedReceipt: {
+        href: null,
+        paymentId: "payment-3",
+        requiresReview: true,
+        unavailable: true,
+      },
+      label: "receipt history requires review",
+    },
   ])(
     "reports receipt publication when $label without changing payment success",
     async ({ actionResult, expectedReceipt }) => {

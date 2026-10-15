@@ -427,6 +427,38 @@ describe("LeaseDetailScreen", () => {
     ).not.toBeNull();
   });
 
+  it.each([true, false])("preserves payment success and stops ambiguous receipt retries (initial result: %s)", async (initialReview) => {
+    const message = "Receipt history needs finance support review. Retrying cannot resolve the payment order.";
+    actionMocks.recordTenantInvoicePaymentAction.mockResolvedValue({
+      message: `Payment recorded. ${initialReview ? message : "Receipt unavailable."}`,
+      paymentId: "payment-review",
+      publicationStatus: "failed",
+      ...(initialReview ? { receiptRequiresReview: true } : {}),
+      status: "success",
+    });
+    actionMocks.retryTenantReceiptPdfAction.mockResolvedValue({
+      message, receiptRequiresReview: true, status: "error",
+    });
+    const view = renderDetail("overview", makeLease(), allLeasePermissions, {
+      paymentResolution: resolutionFixture(),
+    });
+    fireEvent.submit(view.container.querySelector("form")!);
+    await waitFor(() => expect(routerMocks.replace).toHaveBeenCalledWith("/leases/lease-1"));
+    view.rerender(detailElement("overview"));
+    expect(screen.getByRole("status").textContent).toContain("Payment recorded.");
+    if (initialReview) {
+      expect(screen.getByRole("status").textContent).toContain(message);
+      expect(actionMocks.retryTenantReceiptPdfAction).not.toHaveBeenCalled();
+    } else {
+      fireEvent.submit(screen.getByRole("button", { name: "Create receipt again" }).closest("form")!);
+      expect((await screen.findByRole("alert")).textContent).toBe(message);
+      const form = actionMocks.retryTenantReceiptPdfAction.mock.calls[0]![1] as FormData;
+      expect(form.get("paymentId")).toBe("payment-review");
+    }
+    expect(screen.queryByRole("button", { name: "Create receipt again" })).toBeNull();
+    expect(actionMocks.recordTenantInvoicePaymentAction).toHaveBeenCalledOnce();
+  });
+
   it("replaces the focused URL after an authoritative payment succeeds", async () => {
     actionMocks.recordTenantInvoicePaymentAction.mockResolvedValue({
       artifactHref: "/api/finance/documents/receipt-1",
