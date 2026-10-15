@@ -158,14 +158,14 @@ describe("finance routes", () => {
 
   it.each([false, true])("uses operator cash capability on unit finance and skips expense reads for rent (%s)", async canOperateFinance => {
     requireFinanceContext.mockResolvedValue({ capabilities: { canOperateFinance }, organizationId: "organization-1", organizationName: "IPS", permissionKeys: new Set(["finance.view"]) });
-    getFinanceOperationsData.mockResolvedValue({ propertyOptions: [{ id: "property-1", label: "Riverside" }] });
-    getUnitDetail.mockResolvedValue({ propertyId: "property-1", propertyName: "Riverside", unitNumber: "2A" });
+    getFinanceOperationsData.mockResolvedValue({ propertyOptions: [{ id: "00000000-0000-4000-8000-000000000030", label: "Riverside" }] });
+    getUnitDetail.mockResolvedValue({ propertyId: "00000000-0000-4000-8000-000000000030", propertyName: "Riverside", unitNumber: "2A" });
     renderToStaticMarkup(await UnitFinancePage({ params: Promise.resolve({ unitId: "unit-1" }), searchParams: Promise.resolve({ view: "rent" }) }));
     expect(screenSpy).toHaveBeenCalledWith(expect.objectContaining({ canRecordOwnerCash: canOperateFinance }));
-    expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", "property-1", expect.objectContaining({ includeExpenses: false }));
+    expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", "00000000-0000-4000-8000-000000000030", expect.objectContaining({ includeExpenses: false }));
     getFinanceOperationsData.mockClear();
-    renderToStaticMarkup(await PropertyFinancePage({ params: Promise.resolve({ propertyId: "property-1" }), searchParams: Promise.resolve({ view: "rent" }) }));
-    expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", "property-1", expect.objectContaining({ includeExpenses: false }));
+    renderToStaticMarkup(await PropertyFinancePage({ params: Promise.resolve({ propertyId: "00000000-0000-4000-8000-000000000030" }), searchParams: Promise.resolve({ view: "rent" }) }));
+    expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", "00000000-0000-4000-8000-000000000030", expect.objectContaining({ includeExpenses: false }));
   });
 
   it.each([false, true])("delegates property record navigation for scoped finance only when readable (%s)", async (canViewPropertyRecords) => {

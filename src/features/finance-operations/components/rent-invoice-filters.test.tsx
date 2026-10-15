@@ -9,7 +9,36 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: navigation.replace }),
   useSearchParams: () => new URLSearchParams(navigation.params),
 }));
-afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
+afterEach(() => { navigation.params = "q=old&status=open&property=property-a"; cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
+it("shows a bounded bookmarked search and explains the limit", () => {
+  navigation.params = new URLSearchParams({ q: "a".repeat(501), status: "open" }).toString();
+  render(<RentInvoiceFilterBar invoices={[]} resultCount={0} />);
+  const input = screen.getByRole("textbox", { name: "Search rent invoices" });
+  expect((input as HTMLInputElement).value).toBe("a".repeat(500));
+  expect(input.getAttribute("maxlength")).toBe("500");
+  expect(screen.getByText("Search is limited to 500 characters.")).toBeTruthy();
+  navigation.params = "q=old&status=open&property=property-a";
+});
+
+it("keeps an overlong paste bounded in the input and requested URL", async () => {
+  vi.useFakeTimers();
+  render(<RentInvoiceFilterBar invoices={[]} resultCount={0} />);
+  const input = screen.getByRole("textbox", { name: "Search rent invoices" }) as HTMLInputElement;
+  fireEvent.change(input, { target: { value: "a".repeat(499) + "\u{1f3e0}" } });
+  expect(input.value).toBe("a".repeat(499));
+  await act(() => vi.advanceTimersByTimeAsync(500));
+  expect(navigation.replace).toHaveBeenLastCalledWith("/rent-income?q=" + "a".repeat(499) + "&status=open&property=property-a", { scroll: false });
+});
+
+it("displays the first repeated query and normalizes uppercase property bookmarks", () => {
+  navigation.params = "q=Morgan&q=ignored";
+  render(<RentInvoiceFilterBar invoices={[]} resultCount={0} />);
+  expect((screen.getByRole("textbox", { name: "Search rent invoices" }) as HTMLInputElement).value).toBe("Morgan");
+  const propertyId = "019ed022-93f8-7f10-9896-bd6fee371bb0";
+  const invoice = { id: "invoice", propertyId, paymentStatus: "unpaid" } as TenantInvoiceSummary;
+  expect(getRentInvoiceView([invoice], new URLSearchParams({ property: propertyId.toUpperCase() }), "2026-10-15").filteredInvoices).toEqual([invoice]);
+});
+
 it("searches while typing and clears only the search while keeping rent filters", async () => {
   vi.useFakeTimers();
   render(<RentInvoiceFilterBar invoices={[]} resultCount={0} />);

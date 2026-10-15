@@ -1,7 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
 import { loadRentInvoicePage } from "./rent-invoice-page";
-import type { RentInvoiceQuery } from "../rent-invoice-query";
+import { RentPropertyUnavailableError, type RentInvoiceQuery } from "../rent-invoice-query";
 import { loadScopedFinanceContext, type ScopedBillingTerm } from "@/features/finance-operations/data/scoped-finance-context";
 import {
   getExpenseAccountOptions,
@@ -313,8 +313,18 @@ export async function getFinanceOperationsData(
   if (options.completeTransactionHistory && !propertyId) throw new Error("Choose a property before loading complete transaction history.");
   if (options.accountActivityOnly && (!propertyId || options.completeTransactionHistory)) throw new Error("Recent account activity requires a property and bounded history.");
   if (options.rentInvoiceQuery && (options.accountActivityOnly || options.completeTransactionHistory)) throw new Error("Rent invoice pages require bounded rent history.");
+  if (options.rentInvoiceQuery && propertyId) propertyId = propertyId.toLowerCase();
   const supabase = await createSupabaseServerClient();
   let rentInvoiceResult: Awaited<ReturnType<typeof loadRentInvoicePage>> | undefined;
+  // Resolve the selected property through the checked finance reader before any
+  // dependent reads. Reuse its result below; never retry an unavailable scope as
+  // an unfiltered portfolio query.
+  const rentReadContext = options.rentInvoiceQuery && propertyId
+    ? await loadScopedFinanceContext(supabase, organizationId, propertyId)
+    : undefined;
+  if (rentReadContext && !rentReadContext.properties.some(property => property.id === propertyId)) {
+    throw new RentPropertyUnavailableError();
+  }
   const rentBusinessDateResult = await supabase.rpc(
     "get_lease_rent_business_date",
     { p_organization_id: organizationId },
@@ -343,7 +353,7 @@ export async function getFinanceOperationsData(
       .select("operational_timezone")
       .eq("id", organizationId)
       .single(),
-    () => loadScopedFinanceContext(supabase, organizationId, propertyId),
+    async () => rentReadContext ?? loadScopedFinanceContext(supabase, organizationId, propertyId),
     () => fetchAllActionableRows(async (from, to) => supabase
       .from("people")
       .select("id, display_name, party_type, archived_at")

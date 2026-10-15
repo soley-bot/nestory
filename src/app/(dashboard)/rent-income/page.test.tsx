@@ -31,6 +31,7 @@ vi.mock(
 );
 
 import RentIncomePage from "./page";
+import { RentPropertyUnavailableError } from "@/features/finance-operations/rent-invoice-query";
 
 afterEach(cleanup);
 
@@ -53,6 +54,34 @@ describe("RentIncomePage repair routing", () => {
       permissionKeys: new Set(["leases.change_terms", "leases.view"]),
     });
     mocks.financeData.mockResolvedValue({});
+  });
+
+  it("renders a recoverable unavailable property without loading broader totals", async () => {
+    render(await RentIncomePage({ searchParams: Promise.resolve({ property: "bad", page: "8", q: "Morgan", status: "open" }) }));
+    expect(screen.getByRole("alert").textContent).toBe("This property is unavailable for your current access.");
+    expect(screen.getByRole("link", { name: "Clear property filter" }).getAttribute("href")).toBe("/rent-income?q=Morgan&status=open");
+    expect(mocks.financeData).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("finance-operations")).toBeNull();
+  });
+
+  it("keeps a stale property's scope unavailable until the user clears it", async () => {
+    const property = "00000000-0000-4000-8000-000000000030";
+    mocks.financeData.mockRejectedValueOnce(new RentPropertyUnavailableError());
+    render(await RentIncomePage({ searchParams: Promise.resolve({ property, page: "8", status: "paid" }) }));
+    expect(screen.getByRole("alert").textContent).toBe("This property is unavailable for your current access.");
+    expect(screen.getByRole("link", { name: "Clear property filter" }).getAttribute("href")).toBe("/rent-income?status=paid");
+    expect(mocks.financeData).toHaveBeenCalledExactlyOnceWith("organization-1", property, expect.objectContaining({ rentInvoiceQuery: expect.objectContaining({ propertyId: property }) }));
+    expect(screen.queryByTestId("finance-operations")).toBeNull();
+  });
+
+  it("does not convert operational read failures into empty financial results", async () => {
+    mocks.financeData.mockRejectedValueOnce(new Error("database unavailable"));
+    await expect(RentIncomePage({})).rejects.toThrow("database unavailable");
+  });
+
+  it("bounds a long URL search before loading authoritative totals", async () => {
+    await RentIncomePage({ searchParams: Promise.resolve({ q: "a".repeat(501) }) });
+    expect(mocks.financeData).toHaveBeenCalledWith("organization-1", undefined, expect.objectContaining({ rentInvoiceQuery: expect.objectContaining({ query: "a".repeat(500) }) }));
   });
 
   it("passes the exact billing repair lease from the setup link", async () => {
@@ -108,10 +137,11 @@ describe("RentIncomePage repair routing", () => {
   });
 
   it("passes property, paging and search to the bounded server query", async () => {
-    await RentIncomePage({ searchParams: Promise.resolve({ property: "property-1", page: "8", status: "paid", q: "Morgan 7FD2", sort: "due_asc" }) });
-    expect(mocks.financeData).toHaveBeenCalledWith("organization-1", "property-1", expect.objectContaining({
+    const propertyId = "00000000-0000-4000-8000-000000000030";
+    await RentIncomePage({ searchParams: Promise.resolve({ property: propertyId, page: "8", status: "paid", q: "Morgan 7FD2", sort: "due_asc" }) });
+    expect(mocks.financeData).toHaveBeenCalledWith("organization-1", propertyId, expect.objectContaining({
       includeExpenses: false,
-      rentInvoiceQuery: expect.objectContaining({ propertyId: "property-1", page: 8, status: "paid", query: "Morgan 7FD2", sort: "due_asc" }),
+      rentInvoiceQuery: expect.objectContaining({ propertyId, page: 8, status: "paid", query: "Morgan 7FD2", sort: "due_asc" }),
     }));
   });
 });

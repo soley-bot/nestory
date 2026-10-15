@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { boundRentInvoiceSearch, RENT_INVOICE_SEARCH_LIMIT } from "../rent-invoice-query";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { useFilterNavigation } from "@/components/data/use-filter-navigation";
 import { matchesSearchText } from "@/lib/search/text";
@@ -72,6 +73,7 @@ export function RentInvoiceFilterBar({
   scoped?: boolean;
 }) {
   const searchParams = useSearchParams();
+  const rawSearch = searchParams.get("q")?.trim() ?? "";
   const navigation = useFilterNavigation(getRentInvoiceFilters(searchParams).query, "q", true);
   const filters = getRentInvoiceFilters(navigation.params ?? searchParams);
   const visibleInvoices = invoices.filter(isVisibleTenantInvoice);
@@ -105,7 +107,8 @@ export function RentInvoiceFilterBar({
         <div className="flex flex-col gap-2 p-2 sm:flex-row sm:items-center">
           <SearchCombo
             ariaLabel="Search rent invoices"
-            onQueryChange={search.onQueryChange}
+            maxLength={RENT_INVOICE_SEARCH_LIMIT}
+            onQueryChange={value => search.onQueryChange(boundRentInvoiceSearch(value))}
             onCompositionChange={search.onCompositionChange}
             onSubmit={search.onSubmit}
             placeholder="Search property, unit, owner, tenant or invoice"
@@ -191,6 +194,9 @@ export function RentInvoiceFilterBar({
           </div>
         </details>
       </div>
+      {rawSearch !== boundRentInvoiceSearch(rawSearch) ? (
+        <p className="text-xs text-muted-foreground" role="status">Search is limited to {RENT_INVOICE_SEARCH_LIMIT} characters.</p>
+      ) : null}
       {filtersActive ? (
         <p className="text-xs text-muted-foreground" role="status">
           Matching {resultCount} of {visibleCount}{" "}
@@ -230,8 +236,8 @@ function getRentInvoiceFilters(searchParams: RentSearchParams): RentInvoiceFilte
       ["all", "7", "30", "60"] as const,
       "all",
     ),
-    propertyId: searchParams.get("property")?.trim() || "all",
-    query: searchParams.get("q")?.trim() ?? "",
+    propertyId: searchParams.get("property")?.trim().toLowerCase() || "all",
+    query: boundRentInvoiceSearch(searchParams.get("q")?.trim() ?? ""),
     sort: oneOf(
       searchParams.get("sort"),
       ["balance_desc", "default", "due_asc", "due_desc", "tenant_asc"] as const,

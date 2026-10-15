@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { createSupabaseServerClient } from "@/lib/db/server";
 import type { Database } from "@/types/database";
-import type { RentInvoiceQuery } from "../rent-invoice-query";
+import { RentPropertyUnavailableError, type RentInvoiceQuery } from "../rent-invoice-query";
 
 export const RENT_INVOICE_PAGE_SIZE = 50;
 
@@ -51,6 +51,7 @@ export async function loadRentInvoicePage(
     p_overdue_days: query.overdueDays === "all" ? 0 : Number(query.overdueDays),
     p_sort: query.sort, p_page: query.page, p_page_size: RENT_INVOICE_PAGE_SIZE,
   });
+  if (result.error?.code === "42501" && propertyId) throw new RentPropertyUnavailableError();
   if (result.error) throw new Error(`Could not load rent invoices: ${result.error.message}`);
   const parsed = pageSchema.safeParse(result.data);
   if (!parsed.success) throw new Error("Could not load rent invoices: malformed page response");
