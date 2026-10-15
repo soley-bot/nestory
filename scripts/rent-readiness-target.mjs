@@ -1,13 +1,13 @@
 // Retained-stack handoff for this one local journey. Capturing observations is
 // read-only and does not approve them; the coordinator supplies the exact hash.
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { target } from "./ips-integrated-readiness-fixture.mjs";
-import { assertRecoveryContainer, sha256 } from "./ips-readiness-recovery-core.mjs";
+import { assertRecoveryContainer } from "./ips-readiness-recovery-core.mjs";
 import { localRecoveryDocker } from "./local-recovery-docker.mjs";
 import { canonicalMigrationHash, hashGitMigrationBody, isMigrationBodyEffectivelyEmpty, reconstructLocalMigrationDescriptors } from "./hosted-migration-parity-core.mjs";
 
@@ -16,10 +16,42 @@ export const rentManifestMaxAgeMs = 30 * 60_000;
 const hashPattern = /^[a-f0-9]{64}$/;
 const idPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const ownedIdPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
-const sourceFiles = ["scripts/rent-readiness-target.mjs", "scripts/rent-readiness-target.node-test.mjs", "scripts/smoke-ips-rent-readiness.mjs"];
+// Exhaustive local runtime import closure, checked independently by the import
+// graph regression. Tests are not executable dependencies of this journey.
+export const rentRuntimeSourceFiles = Object.freeze([
+  "scripts/daily-workflow-download.mjs",
+  "scripts/deposit-candidate-target.mjs",
+  "scripts/hosted-migration-parity-core.mjs",
+  "scripts/ips-integrated-readiness-fixture.mjs",
+  "scripts/ips-readiness-recovery-core.mjs",
+  "scripts/local-recovery-docker.mjs",
+  "scripts/playwright-form-controls.mjs",
+  "scripts/rent-readiness-target.mjs",
+  "scripts/smoke-ips-rent-readiness.mjs",
+]);
+// Integrity checks must not rely on an imported helper being attested.
+const sha256 = value => createHash("sha256").update(value).digest("hex");
 // Independently mapped and confirmed by the coordinator before this follow-up.
 const preservedBaselineSha256 = "7000fc3c1f79bf7b1d8de58abe2e0e40bb243a5e6107c92599e06981887d4148";
 const committedMigrationCache = new Map();
+const committedSourceCache = new Map();
+
+export function verifyRentSourceFiles(committed, working) {
+  for (const rows of [committed, working]) {
+    assert.deepEqual(rows.map(row => row.file), rentRuntimeSourceFiles, "Incomplete rent runtime source inventory");
+    for (const row of rows) {
+      assert.ok(Buffer.isBuffer(row.bytes), "Runtime source bytes are required");
+      assert.ok(Buffer.from(row.bytes.toString("utf8"), "utf8").equals(row.bytes), "Runtime source must be valid UTF-8");
+    }
+  }
+  return Object.fromEntries(committed.map((row, index) => {
+    const bytes = working[index].bytes;
+    assert.equal(sha256(bytes.toString("utf8").replaceAll("\r\n", "\n")),
+      sha256(row.bytes.toString("utf8").replaceAll("\r\n", "\n")), `Uncommitted runtime source: ${row.file}`);
+    // HEAD permits checkout line endings; manifest approval pins exact bytes.
+    return [row.file, sha256(bytes)];
+  }));
+}
 
 export function validateRentEnvironment({ cwd, config, env }) {
   assert.equal(path.basename(cwd), "ips-production-readiness-20261014", "Wrong rent worktree");
@@ -85,6 +117,8 @@ export function approveRentManifest({ bytes, approvedSha256, baselineBytes, gitS
   assert.match(manifest.apiContainerId ?? "", hashPattern, "Missing owned API container identity");
   assert.equal(manifest.baselineManifestSha256, sha256(baselineBytes), "Original baseline provenance changed");
   assert.match(gitSha, /^[a-f0-9]{40}$/); assert.equal(manifest.gitSha, gitSha, "Checkout changed after retained-stack capture");
+  assert.deepEqual(Object.keys(sourceHashes).sort(), rentRuntimeSourceFiles, "Incomplete rent runtime source hashes");
+  assert.ok(Object.values(sourceHashes).every(hash => hashPattern.test(hash)), "Malformed rent runtime source hash");
   assert.deepEqual(manifest.sourceHashes, sourceHashes, "Harness changed after retained-stack capture");
   const age = now - Date.parse(manifest.checkedAt);
   assert.ok(Number.isFinite(age) && age >= 0 && age <= rentManifestMaxAgeMs, "Retained-stack observation is stale or future dated");
@@ -135,29 +169,39 @@ COMMIT;`;
 const read = file => readFileSync(file);
 function gitRead(cwd, args, input) {
   const result = spawnSync("git", args, { cwd, input, shell: false, windowsHide: true, timeout: 30_000, maxBuffer: 64 * 1024 * 1024 });
-  assert.equal(result.status, 0, "Cannot read immutable Git migration evidence"); return result.stdout;
+  assert.equal(result.status, 0, "Cannot read immutable Git evidence"); return result.stdout;
 }
-function committedMigrations(cwd, gitSha) {
-  if (committedMigrationCache.has(gitSha)) return committedMigrationCache.get(gitSha);
-  const files = gitRead(cwd, ["ls-tree", "-r", "--name-only", gitSha, "--", "supabase/migrations"]).toString("utf8").trim().split("\n").sort();
-  assert.ok(files.length > 0 && files.every(file => /^supabase\/migrations\/\d{14}_[a-z0-9_]+\.sql$/.test(file)), "Unknown committed migration path");
+function committedFileBytes(cwd, gitSha, files) {
   const batch = gitRead(cwd, ["cat-file", "--batch"], files.map(file => `${gitSha}:${file}\n`).join(""));
   let cursor = 0;
   const rows = files.map(file => {
     const end = batch.indexOf(10, cursor); assert.ok(end >= cursor, "Truncated Git blob header");
     const match = batch.subarray(cursor, end).toString("ascii").match(/^[a-f0-9]{40} blob (\d+)$/);
-    assert.ok(match, "Invalid Git migration blob");
+    assert.ok(match, "Missing or invalid Git source blob");
     const length = Number(match[1]); cursor = end + 1;
-    assert.ok(Number.isSafeInteger(length) && cursor + length < batch.length && batch[cursor + length] === 10, "Truncated Git migration body");
-    const body = batch.subarray(cursor, cursor + length).toString("utf8"); cursor += length + 1;
-    const name = path.basename(file); return { version: name.slice(0, 14), name: name.slice(15, -4), body };
+    assert.ok(Number.isSafeInteger(length) && cursor + length < batch.length && batch[cursor + length] === 10, "Truncated Git source body");
+    const bytes = batch.subarray(cursor, cursor + length); cursor += length + 1;
+    return { file, bytes };
   });
   assert.equal(cursor, batch.length, "Unexpected extra Git blob output");
+  return rows;
+}
+function committedMigrations(cwd, gitSha) {
+  if (committedMigrationCache.has(gitSha)) return committedMigrationCache.get(gitSha);
+  const files = gitRead(cwd, ["ls-tree", "-r", "--name-only", gitSha, "--", "supabase/migrations"]).toString("utf8").trim().split("\n").sort();
+  assert.ok(files.length > 0 && files.every(file => /^supabase\/migrations\/\d{14}_[a-z0-9_]+\.sql$/.test(file)), "Unknown committed migration path");
+  const rows = committedFileBytes(cwd, gitSha, files).map(({ file, bytes }) => {
+    const name = path.basename(file); return { version: name.slice(0, 14), name: name.slice(15, -4), body: bytes.toString("utf8") };
+  });
   committedMigrationCache.set(gitSha, rows); return rows;
 }
 function readLocalInputs(cwd) {
   const gitSha = gitRead(cwd, ["rev-parse", "HEAD"]).toString("ascii").trim();
   assert.match(gitSha, /^[a-f0-9]{40}$/);
+  if (!committedSourceCache.has(gitSha)) committedSourceCache.set(gitSha, committedFileBytes(cwd, gitSha, rentRuntimeSourceFiles));
+  // Re-read every working dependency at capture and before each later write.
+  const sourceHashes = verifyRentSourceFiles(committedSourceCache.get(gitSha),
+    rentRuntimeSourceFiles.map(file => ({ file, bytes: read(path.join(cwd, file)) })));
   const migrationFiles = readdirSync(path.join(cwd, "supabase/migrations")).filter(name => name.endsWith(".sql")).sort();
   assert.ok(migrationFiles.every(name => /^\d{14}_[a-z0-9_]+\.sql$/.test(name)), "Unknown migration filename");
   const workingMigrations = migrationFiles.map(file => ({
@@ -166,8 +210,7 @@ function readLocalInputs(cwd) {
   verifyWorkingRentMigrations(localMigrations, workingMigrations);
   const baselineBytes = read(path.join(cwd, ".codex-artifacts/ips-readiness-source-manifest.json"));
   assert.equal(sha256(baselineBytes), preservedBaselineSha256, "Historical baseline provenance bytes changed");
-  return { gitSha, localMigrations, baselineBytes,
-    sourceHashes: Object.fromEntries(sourceFiles.map(file => [file, sha256(read(path.join(cwd, file)))])) };
+  return { gitSha, localMigrations, baselineBytes, sourceHashes };
 }
 
 async function rentRuntime(cwd, env) {

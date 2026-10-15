@@ -1,14 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { isBuiltin } from "node:module";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import { target } from "./ips-integrated-readiness-fixture.mjs";
 import { sha256 } from "./ips-readiness-recovery-core.mjs";
 import { describeMigrationStatement } from "./hosted-migration-parity-core.mjs";
 import { localRecoveryDocker } from "./local-recovery-docker.mjs";
-import { approveRentManifest, censusHash, rentBoundarySql, rentManifestMaxAgeMs, validateRentEnvironment, verifyRentApiContainer, verifyRentBoundary, verifyRentMigrations, verifyWorkingRentMigrations } from "./rent-readiness-target.mjs";
+import { approveRentManifest, censusHash, rentBoundarySql, rentManifestMaxAgeMs, rentRuntimeSourceFiles, validateRentEnvironment, verifyRentApiContainer, verifyRentBoundary, verifyRentMigrations, verifyRentSourceFiles, verifyWorkingRentMigrations } from "./rent-readiness-target.mjs";
 
 const now = Date.parse("2026-10-15T12:00:00.000Z"), gitSha = "a".repeat(40), containerId = "b".repeat(64);
-const baselineBytes = Buffer.from("preserved baseline provenance"), sourceHashes = { harness: "c".repeat(64) };
+const baselineBytes = Buffer.from("preserved baseline provenance");
+const sourceHashes = Object.fromEntries(rentRuntimeSourceFiles.map(file => [file, "c".repeat(64)]));
 const org = "00000000-0000-0000-0000-000000000001", actor = "00000000-0000-0000-0000-000000000101";
 const newId = "70000000-0000-4000-8000-000000000001";
 const localMigrations = [{ version: "20261015005100", name: "rent_test", body: "SELECT 1;\r\n" }];
@@ -20,6 +26,119 @@ const manifest = { schemaVersion: 1, sourceKind: "retained-readiness-stack", che
   census, censusSha256: censusHash(census), migrations: verifyRentMigrations(localMigrations, migrations), migrationHead: "20261015005100" };
 const bytes = Buffer.from(JSON.stringify(manifest)), approvedSha256 = sha256(bytes);
 const valid = { bytes, approvedSha256, baselineBytes, gitSha, sourceHashes, now };
+
+// Independently inspect syntax instead of repeating the production inventory.
+// Computed executable references require review, not an assumed dependency.
+function runtimeDependencies(file, body) {
+  const source = ts.createSourceFile(file, body, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  assert.equal(source.parseDiagnostics.length, 0, `Cannot inspect runtime imports: ${file}`);
+  const specifiers = new Set(), requireFactories = new Set(), loaders = new Set(["require"]);
+  const walk = (node, visit) => { visit(node); ts.forEachChild(node, child => walk(child, visit)); };
+  walk(source, node => {
+    if (ts.isImportDeclaration(node) && node.moduleSpecifier.text === "node:module") {
+      for (const binding of node.importClause?.namedBindings?.elements ?? []) {
+        if ((binding.propertyName ?? binding.name).text === "createRequire") requireFactories.add(binding.name.text);
+      }
+    }
+  });
+  walk(source, node => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer &&
+      ts.isCallExpression(node.initializer) && ts.isIdentifier(node.initializer.expression) &&
+      requireFactories.has(node.initializer.expression.text)) loaders.add(node.name.text);
+  });
+  const isModuleUrl = node => ts.isNewExpression(node) && ts.isIdentifier(node.expression) &&
+    node.expression.text === "URL" && node.arguments?.[1]?.getText(source) === "import.meta.url";
+  const literal = node => {
+    if (node && ts.isStringLiteralLike(node)) return node.text;
+    if (node && isModuleUrl(node)) return literal(node.arguments[0]);
+    assert.fail(`Unsupported computed runtime reference: ${file}`);
+  };
+  walk(source, node => {
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier) {
+      specifiers.add(literal(node.moduleSpecifier));
+    }
+    if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+      ts.isIdentifier(node.expression) && loaders.has(node.expression.text))) specifiers.add(literal(node.arguments[0]));
+    if (isModuleUrl(node)) specifiers.add(literal(node.arguments[0]));
+  });
+  const dependencies = [];
+  for (const specifier of specifiers) {
+    if (isBuiltin(specifier) || ["playwright", "@supabase/supabase-js"].includes(specifier)) continue;
+    assert.match(specifier, /^\.{1,2}\/[^?#\\]+\.mjs$/, `Unsupported runtime reference: ${file}`);
+    const dependency = path.posix.normalize(path.posix.join(path.posix.dirname(file), specifier));
+    assert.ok(dependency.startsWith("scripts/") && !dependency.includes("/../"), "Runtime dependency leaves scripts");
+    dependencies.push(dependency);
+  }
+  return dependencies.sort();
+}
+
+test("pinned files equal the complete executable local import closure, including transitive helpers", () => {
+  const root = fileURLToPath(new URL("../", import.meta.url));
+  const pending = ["scripts/rent-readiness-target.mjs", "scripts/smoke-ips-rent-readiness.mjs"], visited = new Set();
+  while (pending.length) {
+    const file = pending.pop();
+    if (visited.has(file)) continue;
+    visited.add(file);
+    pending.push(...runtimeDependencies(file, readFileSync(path.join(root, file), "utf8")));
+  }
+  assert.deepEqual([...visited].sort(), rentRuntimeSourceFiles);
+  assert.ok(!rentRuntimeSourceFiles.some(file => file.endsWith(".node-test.mjs")));
+});
+
+test("dependency drift inspection includes import, re-export, dynamic import, CommonJS and module-relative URLs", () => {
+  assert.deepEqual(runtimeDependencies("scripts/entry.mjs", `
+    import './static.mjs'; export { value } from './exported.mjs';
+    import('./dynamic.mjs'); require('./required.mjs');
+    import { createRequire as makeRequire } from 'node:module';
+    const load = makeRequire(import.meta.url); load('./created-require.mjs');
+    new URL('./worker.mjs', import.meta.url);
+    import(new URL('./url-import.mjs', import.meta.url));
+  `), ["created-require", "dynamic", "exported", "required", "static", "url-import", "worker"].map(name => `scripts/${name}.mjs`));
+  for (const body of ["import(variable)", "require(variable)", "new URL(variable, import.meta.url)",
+    "import 'file:///outside.mjs'", "import './unreviewed.cjs'", "import '../outside.mjs'",
+    "import { createRequire } from 'node:module'; const load = createRequire(import.meta.url); load(variable)"]) {
+    assert.throws(() => runtimeDependencies("scripts/entry.mjs", body));
+  }
+});
+
+const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
+const readGit = args => execFileSync("git", args, { cwd: repositoryRoot, windowsHide: true, timeout: 30_000 });
+const pinnedHead = readGit(["rev-parse", "HEAD"]).toString("ascii").trim();
+const committedSources = rentRuntimeSourceFiles.map(file => ({ file, bytes: readGit(["show", `${pinnedHead}:${file}`]) }));
+
+for (const file of rentRuntimeSourceFiles) {
+  test(`unchanged HEAD cannot authorize modified executable dependency: ${file}`, () => {
+    assert.doesNotThrow(() => verifyRentSourceFiles(committedSources, committedSources));
+    const working = committedSources.map(row => row.file === file
+      ? { ...row, bytes: Buffer.concat([row.bytes, Buffer.from("\n// Uncommitted executable dependency drift.\n")]) } : row);
+    assert.throws(() => verifyRentSourceFiles(committedSources, working), /Uncommitted runtime source:/);
+    assert.equal(readGit(["rev-parse", "HEAD"]).toString("ascii").trim(), pinnedHead);
+    const changedHashes = { ...sourceHashes, [file]: "d".repeat(64) };
+    assert.throws(() => approveRentManifest({ ...valid, sourceHashes: changedHashes }), /Harness changed/);
+  });
+}
+
+test("HEAD verification permits only CRLF normalization while approval preserves exact source bytes", () => {
+  const lf = committedSources.map(row => ({ ...row, bytes: Buffer.from(row.bytes.toString("utf8").replaceAll("\r\n", "\n")) }));
+  const crlf = lf.map(row => ({ ...row, bytes: Buffer.from(row.bytes.toString("utf8").replaceAll("\n", "\r\n")) }));
+  const lfHashes = verifyRentSourceFiles(lf, lf), crlfHashes = verifyRentSourceFiles(lf, crlf);
+  assert.notDeepEqual(lfHashes, crlfHashes);
+  const lfBytes = Buffer.from(JSON.stringify({ ...manifest, sourceHashes: lfHashes }));
+  assert.throws(() => approveRentManifest({ ...valid, bytes: lfBytes, approvedSha256: sha256(lfBytes), sourceHashes: crlfHashes }), /Harness changed/);
+  for (const working of [lf.slice(1), [...lf, { file: "scripts/unreviewed.mjs", bytes: Buffer.from("export {}") }],
+    lf.map((row, index) => index ? row : { ...row, bytes: Buffer.concat([Buffer.from("\uFEFF"), row.bytes]) }),
+    lf.map((row, index) => index ? row : { ...row, bytes: Buffer.concat([row.bytes, Buffer.from([255])]) })]) {
+    assert.throws(() => verifyRentSourceFiles(lf, working));
+  }
+});
+
+test("an approved shallow or test-only source inventory cannot authorize the runtime", () => {
+  for (const hashes of [{ harness: "c".repeat(64) }, { ...sourceHashes, "scripts/rent-readiness-target.node-test.mjs": "c".repeat(64) },
+    Object.fromEntries(Object.entries(sourceHashes).filter(([file]) => file !== "scripts/local-recovery-docker.mjs"))]) {
+    const oldBytes = Buffer.from(JSON.stringify({ ...manifest, sourceHashes: hashes }));
+    assert.throws(() => approveRentManifest({ ...valid, bytes: oldBytes, approvedSha256: sha256(oldBytes), sourceHashes: hashes }), /Incomplete rent runtime source hashes/);
+  }
+});
 
 test("retained capture cannot authorize itself; exact coordinator hash and preserved baseline bytes are required", () => {
   assert.deepEqual(approveRentManifest(valid), manifest);
