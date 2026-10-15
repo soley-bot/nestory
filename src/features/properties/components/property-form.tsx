@@ -91,10 +91,25 @@ export function PropertyForm({
   const isOwnerScope = scope === "owner";
   const showsOwnership = isEditMode || collectOwnership;
   const [state, action, pending] = useActionState(
-    isEditMode ? updatePropertyAction : createPropertyAction,
+    isEditMode
+      ? async (previous: PropertyActionState, formData: FormData): Promise<PropertyActionState> => {
+          try {
+            return await updatePropertyAction(previous, formData);
+          } catch {
+            // A lost Server Action response must leave the same draft/version
+            // available for retry, even if its transaction already committed.
+            return {
+              message: "We could not confirm the save. Your edits are still here; retry to check or complete it safely.",
+              status: "error",
+            };
+          }
+        }
+      : createPropertyAction,
     initialState,
   );
-  const defaults = getPropertyDefaults(property, initialValues);
+  // Keep the editable values and their version together until this editor closes.
+  const [defaults] = useState(() => getPropertyDefaults(property, initialValues));
+  const [expectedVersion] = useState(property?.editVersion ?? "");
   const [creationIdempotencyKey] = useState(() => crypto.randomUUID());
   const [selectedOwnerPersonId, setSelectedOwnerPersonId] = useState(
     defaults.ownerPersonId ?? "",
@@ -125,7 +140,9 @@ export function PropertyForm({
       (isEditMode || closeOnCreateSuccess)
     ) {
       onSuccess?.(
-        isOwnerScope ? "Owner assigned." : state.message ?? "Property saved.",
+        isOwnerScope && state.changed !== false
+          ? "Owner assigned."
+          : state.message ?? "Property saved.",
         state.propertyId,
       );
       onClose();
@@ -137,6 +154,7 @@ export function PropertyForm({
     onClose,
     onSuccess,
     state.message,
+    state.changed,
     state.propertyId,
     state.status,
   ]);
@@ -211,7 +229,15 @@ export function PropertyForm({
         <CreateSuccessActions propertyId={state.propertyId} />
       ) : null}
       {isEditMode && property ? (
-        <input name="propertyId" type="hidden" value={property.id} />
+        <>
+          <input name="propertyId" type="hidden" value={property.id} />
+          <input name="expectedVersion" type="hidden" value={expectedVersion} />
+          {state.status === "error" ? (
+            <a className="text-sm text-primary underline" href={`/properties/${property.id}`} rel="noopener noreferrer" target="_blank">
+              Open latest property in another tab
+            </a>
+          ) : null}
+        </>
       ) : null}
       {!isEditMode ? (
         <input
@@ -473,7 +499,7 @@ export function PropertyForm({
       </FormSection>
       ) : null}
 
-      {!isOwnerScope ? (
+      {!isOwnerScope && !isEditMode ? (
       <FormSection title="Photo">
         <RecordField
           error={state.fieldErrors?.photo?.[0]}
@@ -490,6 +516,13 @@ export function PropertyForm({
           />
         </RecordField>
       </FormSection>
+      ) : null}
+
+      {isEditMode && !isOwnerScope && property ? (
+        <p className="text-sm text-muted-foreground">
+          Add photos separately in the property&apos;s Files tab after saving.
+          {" "}<a className="text-primary underline" href={`/properties/${property.id}?section=files`} rel="noopener noreferrer" target="_blank">Open photos</a>
+        </p>
       ) : null}
 
       {isEditMode && !isOwnerScope ? (

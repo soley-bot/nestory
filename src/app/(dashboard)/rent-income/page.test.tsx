@@ -104,5 +104,14 @@ describe("RentIncomePage repair routing", () => {
     const screen = document.querySelector('[data-testid="finance-operations"]');
     expect(screen?.getAttribute("data-initial-rent-lease-id")).toBe("lease-1");
     expect(screen?.getAttribute("data-initial-billing-lease-id")).toBe("");
+    expect(mocks.financeData).toHaveBeenCalledWith("organization-1", undefined, expect.objectContaining({ rentInvoiceQuery: expect.objectContaining({ leaseId: "lease-1" }) }));
+  });
+
+  it("passes property, paging and search to the bounded server query", async () => {
+    await RentIncomePage({ searchParams: Promise.resolve({ property: "property-1", page: "8", status: "paid", q: "Morgan 7FD2", sort: "due_asc" }) });
+    expect(mocks.financeData).toHaveBeenCalledWith("organization-1", "property-1", expect.objectContaining({
+      includeExpenses: false,
+      rentInvoiceQuery: expect.objectContaining({ propertyId: "property-1", page: 8, status: "paid", query: "Morgan 7FD2", sort: "due_asc" }),
+    }));
   });
 });

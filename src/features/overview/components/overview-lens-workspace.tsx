@@ -27,7 +27,7 @@ export function OverviewLensWorkspace({ data, query }: { data: OverviewScreenDat
           <LeasingPropertyPreviewList
             expiringLeaseCount={data.leaseRiskCount}
             month={query.month}
-            rows={data.occupancyByProperty}
+            rows={data.occupancyByProperty.slice(0, 8)}
           />
         ) : lens === "maintenance" ? (
           <MaintenancePropertyPreviewList rows={data.maintenanceByProperty} />

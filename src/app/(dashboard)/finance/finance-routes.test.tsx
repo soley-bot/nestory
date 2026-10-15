@@ -51,7 +51,7 @@ describe("finance routes", () => {
     requireFinanceContext.mockResolvedValue({ capabilities: {}, organizationId: "organization-1", organizationName: "Nestory", permissionKeys: new Set(["finance.view"]) });
     renderToStaticMarkup(await RentIncomePage({ searchParams: Promise.resolve({ invoiceId, leaseId: "lease-1" }) }));
     expect(screenSpy).toHaveBeenCalledWith(expect.objectContaining({ initialInvoiceId: invoiceId, initialRentLeaseId: undefined }));
-    expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", "property-1", { includeExpenses: false, completeTransactionHistory: true });
+    expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", undefined, expect.objectContaining({ includeExpenses: false, rentInvoiceQuery: expect.objectContaining({ selectedInvoiceId: invoiceId }) }));
     expect(lookup.eq).toHaveBeenCalledWith("organization_id", "organization-1");
   });
 
@@ -224,7 +224,7 @@ describe("finance routes", () => {
         expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", undefined, { expenseMonth: "2026-08" });
         expect(screenSpy).toHaveBeenCalledWith(expect.objectContaining({ expenseMonth: "2026-08" }));
       } else if (view === "rent") {
-        expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", undefined, { includeExpenses: false });
+        expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1", undefined, expect.objectContaining({ includeExpenses: false, rentInvoiceQuery: expect.objectContaining({ page: 1 }) }));
       } else {
         expect(getFinanceOperationsData).toHaveBeenCalledWith("organization-1");
       }

@@ -3,12 +3,13 @@ import { reportReturnHref } from "@/features/reports/report-return";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { FinanceOperationsScreen } from "@/features/finance-operations/components/finance-operations-screen";
 import { getFinanceOperationsData } from "@/features/finance-operations/data/finance-operations";
+import { parseRentInvoiceQuery, type RentInvoiceSearchParams } from "@/features/finance-operations/rent-invoice-query";
 import { requireFinanceContext } from "@/lib/auth/context";
 
 export default async function RentIncomePage({
   searchParams = Promise.resolve({}),
 }: {
-  searchParams?: Promise<{ action?: string; leaseId?: string; invoiceId?: string; returnTo?: string }>;
+  searchParams?: Promise<RentInvoiceSearchParams & { action?: string; leaseId?: string; invoiceId?: string; returnTo?: string }>;
 }) {
   const context = await requireFinanceContext();
   const query = await searchParams;
@@ -16,7 +17,11 @@ export default async function RentIncomePage({
     ? await (await createSupabaseServerClient()).from("tenant_invoices").select("id,property_id").eq("organization_id", context.organizationId).eq("id", query.invoiceId).maybeSingle()
     : null;
   if (selectedInvoice?.error) throw new Error("Could not load the report invoice.");
-  const data = await getFinanceOperationsData(context.organizationId, selectedInvoice?.data?.property_id, { includeExpenses: false, ...(selectedInvoice?.data ? { completeTransactionHistory: true } : {}) });
+  const rentInvoiceQuery = parseRentInvoiceQuery(query);
+  const data = await getFinanceOperationsData(context.organizationId, rentInvoiceQuery.propertyId, {
+    includeExpenses: false,
+    rentInvoiceQuery: { ...rentInvoiceQuery, ...(!query.invoiceId && query.action !== "billing" && query.leaseId ? { leaseId: query.leaseId } : {}), selectedInvoiceId: selectedInvoice?.data?.id },
+  });
   const initialBillingLeaseId =
     query.action === "billing" ? query.leaseId : undefined;
   return (
@@ -43,7 +48,7 @@ export default async function RentIncomePage({
       canViewLeases={context.permissionKeys.has("leases.view")}
       canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       initialBillingLeaseId={initialBillingLeaseId}
-      initialRentLeaseId={query.invoiceId ? undefined : query.leaseId}
+      initialRentLeaseId={query.invoiceId || query.action === "billing" ? undefined : query.leaseId}
       organizationName={context.organizationName}
       view="rent"
     />

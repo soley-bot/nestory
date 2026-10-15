@@ -99,6 +99,7 @@ import { OwnerContributionControl } from "@/features/owner-balances/components/o
 import { TransactionWorkspace } from "./transaction-workspace";
 import { TransactionRowActions } from "./transaction-row-actions";
 import { AccountEntryActions } from "./account-entry-actions";
+import { useManualChargeInvoiceContext } from "./use-manual-charge-invoice-context";
 import { sortPropertyAccountEntriesNewestFirst } from "@/features/finance-operations/property-account";
 import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { ExpenseChangeHistory } from "./expense-change-history";
@@ -235,7 +236,9 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
   const [modal, setModal] = useState<ModalState | null>(() => {
     const submission = props.expenseSubmissions.find(item => item.id === props.initialExpenseId || item.lines?.some(line => line.submissionId === props.initialExpenseId));
     if (submission) return { mode: "expense-details", submission };
-    const invoice = props.tenantInvoices.find(item => item.id === props.initialInvoiceId);
+    const invoice = props.selectedTenantInvoice?.id === props.initialInvoiceId
+      ? props.selectedTenantInvoice
+      : props.tenantInvoices.find(item => item.id === props.initialInvoiceId);
     return invoice ? { mode: "invoice-details", invoice } : null;
   });
   const [invoicePdfResultHref, setInvoicePdfResultHref] = useState<string | null>(
@@ -293,8 +296,17 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
         : true)
       ? drawer
       : null;
+  // A route refresh may change page, property or payment balance while a dialog
+  // is open. Resolve invoice dialogs from the current authorized response.
+  const modalInvoice = modal && "invoice" in modal && modal.invoice;
+  const currentModalInvoice = modalInvoice && modal.mode !== "owner-payment"
+    ? [...props.tenantInvoices, ...(props.selectedTenantInvoice ? [props.selectedTenantInvoice] : [])].find(invoice => invoice.id === modalInvoice.id)
+    : undefined;
+  const currentModal = modalInvoice && modal?.mode !== "owner-payment"
+    ? currentModalInvoice ? { ...modal, invoice: currentModalInvoice } as ModalState : null
+    : modal;
   const visibleModal =
-    modal && canRenderFinanceModal(modal, props) ? modal : null;
+    currentModal && canRenderFinanceModal(currentModal, props) ? currentModal : null;
   const visibleDetailDrawer =
     visibleModal && isFinanceDetailSurface(visibleModal) ? visibleModal : null;
   const visibleActionModal = visibleDetailDrawer ? null : visibleModal;
@@ -582,6 +594,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
         >
           {visibleActionModal.mode === "manual-charge" ? (
             <ManualTenantChargeForm
+              invoicesArePaginated={Boolean(props.tenantInvoicePage)}
               leaseChargeAccounts={props.leaseChargeAccounts}
               fixedLease={visibleActionModal.lease}
               invoices={props.tenantInvoices}
@@ -837,7 +850,7 @@ function getScreen(
                   className="text-xs text-muted-foreground"
                   id="tenant-payment-unavailable-reason"
                 >
-                  No open tenant invoices
+                  {props.tenantInvoicePage ? "No open invoices on this page" : "No open tenant invoices"}
                 </span>
               ) : null}
             </div>
@@ -845,6 +858,7 @@ function getScreen(
         ) : undefined,
       body: (
         <RentView
+          page={props.tenantInvoicePage}
           positions={props.positions}
           invoices={invoices}
           openModal={openModal}
@@ -852,7 +866,7 @@ function getScreen(
           scoped={props.scope !== undefined}
         />
       ),
-      context: `${invoices.length} ${invoices.length === 1 ? "invoice" : "invoices"}`,
+      context: `${props.tenantInvoicePage?.pagination.totalCount ?? invoices.length} ${(props.tenantInvoicePage?.pagination.totalCount ?? invoices.length) === 1 ? "invoice" : "invoices"}`,
       contextHref: "/rent-income",
       title: focusedLease
         ? `First rent charge · ${focusedLease.tenantLabel}`
@@ -1731,12 +1745,14 @@ function HistoricalRentRecoveryForm({
 }
 
 function RentView({
+  page,
   positions,
   invoices,
   openModal,
   organizationName,
   scoped,
 }: {
+  page?: FinanceOperationsData["tenantInvoicePage"];
   positions: FinanceOperationsData["positions"];
   invoices: TenantInvoiceSummary[];
   openModal: (modal: ModalState) => void;
@@ -1745,17 +1761,17 @@ function RentView({
 }) {
   const { getBusinessDateValue } = useBusinessDate();
   const searchParams = useSearchParams();
-  const { filteredInvoices } = getRentInvoiceView(
+  const filteredInvoices = page ? invoices : getRentInvoiceView(
     invoices,
     searchParams,
     getBusinessDateValue(),
     positions,
-  );
-  const unpaid = filteredInvoices.reduce(
+  ).filteredInvoices;
+  const unpaid = page ? page.totalsByCurrency.reduce((sum, total) => sum + total.outstanding, 0) : filteredInvoices.reduce(
     (sum, invoice) => sum + invoice.balanceDue,
     0,
   );
-  const collected = filteredInvoices.reduce(
+  const collected = page ? page.totalsByCurrency.reduce((sum, total) => sum + total.collected, 0) : filteredInvoices.reduce(
     (sum, invoice) => sum + invoice.paidThroughIps + invoice.collectedByOwner,
     0,
   );
@@ -1765,24 +1781,27 @@ function RentView({
         items={[
           { label: "Collected", value: <Money amount={collected} /> },
           { label: "Outstanding", value: <Money amount={unpaid} /> },
-          { label: "Invoices", value: filteredInvoices.length },
+          { label: "Invoices", value: page?.pagination.totalCount ?? filteredInvoices.length },
         ]}
       />
       <RentInvoiceFilterBar
         invoices={invoices}
-        resultCount={filteredInvoices.length}
+        resultCount={page?.pagination.totalCount ?? filteredInvoices.length}
+        totalCount={page?.totalVisibleCount}
+        properties={page?.propertyOptions}
+        scoped={scoped}
       />
       <section className="min-h-0 flex-1" data-slot="rent-invoices-surface">
         {filteredInvoices.length === 0 ? (
           <EmptyState
             body={
-              invoices.length === 0
+              (page?.totalVisibleCount ?? invoices.length) === 0
                 ? "Rent charges are generated automatically from each active Lease."
                 : "Clear or change the filters to see more invoices. Only tenant charges appear here; cash already recorded as income is in Transactions and cannot be received again."
             }
             className="flex-1 rounded-xl border border-border/80 bg-card shadow-sm"
             kind="empty"
-            title={invoices.length === 0 ? "No rent invoices" : "No matching invoices"}
+            title={(page?.totalVisibleCount ?? invoices.length) === 0 ? "No rent invoices" : "No matching invoices"}
           />
         ) : (
           <TableFrame className="p-0">
@@ -1889,6 +1908,7 @@ function RentView({
             </Table>
           </TableFrame>
         )}
+        {page ? <PaginationControls pagination={page.pagination} /> : null}
       </section>
     </div>
   );
@@ -4642,6 +4662,7 @@ function WithdrawalForm({
 }
 
 function ManualTenantChargeForm({
+  invoicesArePaginated = false,
   leaseChargeAccounts,
   fixedLease,
   invoices,
@@ -4650,6 +4671,7 @@ function ManualTenantChargeForm({
   onSuccess,
   scope,
 }: {
+  invoicesArePaginated?: boolean;
   leaseChargeAccounts: FinanceOperationsData["leaseChargeAccounts"];
   fixedLease?: FinanceLease;
   invoices: TenantInvoiceSummary[];
@@ -4689,7 +4711,8 @@ function ManualTenantChargeForm({
 
   // A charge for a month that already has an invoice joins it and inherits its
   // due date, so the operator is shown that date instead of being asked for one.
-  const existingInvoice = invoices.find(
+  const invoiceContext = useManualChargeInvoiceContext(invoicesArePaginated, leaseId, billingPeriod);
+  const existingInvoice = invoicesArePaginated ? invoiceContext.invoice : invoices.find(
     (invoice) =>
       invoice.leaseId === leaseId &&
       invoice.billingPeriodStart.slice(0, 7) === billingPeriod &&
@@ -4705,7 +4728,8 @@ function ManualTenantChargeForm({
         event.preventDefault();
         setCategoryAccountId(submittedCategoryAccountIdRef.current);
       }}
-      onSubmit={() => {
+      onSubmit={(event) => {
+        if (!invoiceContext.ready) { event.preventDefault(); return; }
         submittedCategoryAccountIdRef.current = categoryAccountId;
       }}
     >
@@ -4788,7 +4812,10 @@ function ManualTenantChargeForm({
             required
           />
         </Field>
-        {existingInvoice ? (
+        {!invoiceContext.ready ? <Field label="Due date">
+          <p role="status" className="text-sm text-muted-foreground">{invoiceContext.error ?? (leaseId ? "Checking the billing month's invoice..." : "Choose a lease to check its invoice.")}</p>
+          {invoiceContext.error ? <Button type="button" variant="outline" onClick={invoiceContext.retry}>Retry invoice check</Button> : null}
+        </Field> : existingInvoice ? (
           <Field label="Due date">
             <input
               name="dueDate"
@@ -4836,7 +4863,7 @@ function ManualTenantChargeForm({
         <Button onClick={onClose} type="button" variant="outline">
           Cancel
         </Button>
-        <SubmitButton label="Bill tenant" />
+        <SubmitButton label="Bill tenant" disabled={!invoiceContext.ready} />
       </FormFooter>
     </form>
   );

@@ -62,6 +62,31 @@ describe("OverviewScreen", () => {
     expect(classTokens(operatingWork)).not.toContain("overflow-y-auto");
   });
 
+  it("sums all properties while rendering at most eight ranked properties", () => {
+    const completeData = {
+      ...data,
+      occupancyByProperty: Array.from({ length: 10 }, (_, index) => ({
+        ...data.occupancyByProperty[0],
+        href: `/units?propertyId=property-${index}`,
+        label: `Property ${index}`,
+        unoccupiedUnits: index,
+      })),
+    };
+    render(<OverviewScreen data={completeData} query={{ ...query, lens: "leasing" }} />);
+
+    const summary = screen.getByRole("region", { name: "Leasing summary" });
+    expect(within(summary).getByRole("link", { name: "45" })).toBeTruthy();
+    expect(within(summary).getByRole("link", { name: "10" })).toBeTruthy();
+    const priorities = screen.getByRole("region", { name: "Leasing operating work" });
+    expect(within(priorities).getAllByRole("button")).toHaveLength(8);
+    expect(within(priorities).queryByText("Property 8")).toBeNull();
+
+    cleanup();
+    render(<OverviewScreen data={completeData} query={query} />);
+    expect(within(screen.getByRole("table", { name: "Property occupancy" })).getAllByRole("row")).toHaveLength(9);
+    expect(screen.queryByText("Property 8")).toBeNull();
+  });
+
   it("shows clear metrics without duplicated explanatory copy", () => {
     render(<OverviewScreen data={data} query={query} />);
 

@@ -19,6 +19,8 @@ const AUTH_SESSION_ROUTE = "/auth/session";
 const PUBLIC_ROUTES = new Set([
   "/",
   "/accept-invite",
+  // This exact endpoint authenticates scheduler requests with its own bearer guard.
+  "/api/cron/maintenance",
   "/api/local-smoke-target",
   AUTH_CALLBACK_ROUTE,
   AUTH_COMPLETE_ROUTE,

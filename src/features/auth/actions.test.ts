@@ -52,7 +52,7 @@ describe("auth actions workspace entry", () => {
     expect(adminRpc).toHaveBeenCalledOnce();
   });
 
-  it("sends successful password login through the workspace resolver", async () => {
+  it.each(["password123", "legacy"])("preserves existing password login acceptance for %s", async (password) => {
     redirect.mockImplementation((path: string) => {
       throw new Error(`redirect:${path}`);
     });
@@ -63,7 +63,7 @@ describe("auth actions workspace entry", () => {
     adminRpc.mockResolvedValue({ error: null });
     const formData = new FormData();
     formData.set("email", "member@example.com");
-    formData.set("password", "password123");
+    formData.set("password", password);
 
     await expect(loginAction({}, formData)).rejects.toThrow(
       "redirect:/workspace",
@@ -80,6 +80,10 @@ describe("auth actions workspace entry", () => {
       adminRpc.mock.invocationCallOrder[0],
     );
     expect(redirect).toHaveBeenCalledWith("/workspace");
+    expect(signInWithPassword).toHaveBeenCalledWith({
+      email: "member@example.com",
+      password,
+    });
   });
 
   it("does not establish credential proof when password login fails", async () => {

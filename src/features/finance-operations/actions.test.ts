@@ -175,6 +175,8 @@ describe("rent generation recovery action", () => {
       p_organization_id: organizationId,
     });
     expect(requirePermission).toHaveBeenCalledWith("finance.record_payments");
+    expect(revalidatePath).toHaveBeenCalledWith("/properties/[propertyId]/finance", "page");
+    expect(revalidatePath).toHaveBeenCalledWith("/units/[unitId]/finance", "page");
   });
 
   it("passes an organization tenant-billing category code to the checked charge RPC", async () => {

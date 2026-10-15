@@ -12,7 +12,6 @@ vi.mock("@/features/auth/invitation-acceptance", () => ({
 
 import { AcceptInvitationForm } from "@/features/auth/components/accept-invitation-form";
 import { UpdatePasswordForm } from "@/features/auth/components/update-password-form";
-import { NEW_PASSWORD_REQUIREMENT } from "@/lib/auth/password-policy";
 
 afterEach(cleanup);
 
@@ -28,9 +27,11 @@ describe("password policy forms", () => {
   ])("discloses and mirrors the policy for %s", (_label, renderForm) => {
     render(renderForm());
 
-    expect(screen.getByText(NEW_PASSWORD_REQUIREMENT)).toBeTruthy();
+    expect(screen.getByText(
+      "Use at least 8 characters with lowercase, uppercase, and a number. Symbols are optional.",
+    )).toBeTruthy();
     for (const input of screen.getAllByLabelText(/password/i)) {
-      expect(input.getAttribute("minlength")).toBe("12");
+      expect(input.getAttribute("minlength")).toBe("8");
     }
   });
 });

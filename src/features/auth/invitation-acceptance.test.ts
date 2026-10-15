@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AuthWeakPasswordError } from "@supabase/supabase-js";
 
 const { adminRpc, getUser, redirect, rpc, updateUser } = vi.hoisted(() => ({
   adminRpc: vi.fn(),
@@ -110,7 +111,7 @@ describe("invitation acceptance", () => {
     );
   });
 
-  it("sets the password before accepting a new invited identity", async () => {
+  it.each(["Abcdefg1", "CorrectHorse9Battery"])("sets an accepted new password before invitation acceptance: %s", async (password) => {
     rpc
       .mockResolvedValueOnce({ data: [invitation], error: null })
       .mockResolvedValueOnce({ data: "member-1", error: null });
@@ -120,13 +121,13 @@ describe("invitation acceptance", () => {
     });
     const formData = new FormData();
     formData.set("invitationId", invitationId);
-    formData.set("password", "CorrectHorse9Battery");
-    formData.set("passwordConfirm", "CorrectHorse9Battery");
+    formData.set("password", password);
+    formData.set("passwordConfirm", password);
 
     await expect(acceptInvitationAction({}, formData)).rejects.toThrow(
       "redirect:/workspace",
     );
-    expect(updateUser).toHaveBeenCalledWith({ password: "CorrectHorse9Battery" });
+    expect(updateUser).toHaveBeenCalledWith({ password });
     expect(adminRpc).toHaveBeenCalledWith(
       "record_auth_password_credential_proof",
       {
@@ -143,6 +144,26 @@ describe("invitation acceptance", () => {
     expect(adminRpc.mock.invocationCallOrder[0]).toBeLessThan(
       rpc.mock.invocationCallOrder[1],
     );
+  });
+
+  it("rejects seven-character invitation passwords before changing credentials or membership", async () => {
+    const tooShortPassword = "A" + "b".repeat(5) + "1";
+    expect(tooShortPassword).toHaveLength(7);
+    rpc.mockResolvedValueOnce({ data: [invitation], error: null });
+    const formData = new FormData();
+    formData.set("invitationId", invitationId);
+    formData.set("password", tooShortPassword);
+    formData.set("passwordConfirm", tooShortPassword);
+
+    await expect(acceptInvitationAction({}, formData)).resolves.toMatchObject({
+      status: "error",
+      fieldErrors: {
+        password: ["Use at least 8 characters with lowercase, uppercase, and a number. Symbols are optional."],
+      },
+    });
+    expect(updateUser).not.toHaveBeenCalled();
+    expect(adminRpc).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledTimes(1);
   });
 
   it("keeps membership pending when a new identity cannot set its password", async () => {
@@ -188,6 +209,41 @@ describe("invitation acceptance", () => {
       status: "error",
     });
     expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    {
+      label: "character rejection",
+      error: new AuthWeakPasswordError("CorrectHorse9Battery private@example.invalid provider-token-canary", 422, ["characters"]),
+      message: "Use at least 8 characters with lowercase, uppercase, and a number. Symbols are optional.",
+    },
+    {
+      label: "leaked password rejection",
+      error: new AuthWeakPasswordError("CorrectHorse9Battery private@example.invalid provider-token-canary", 422, ["pwned"]),
+      message: "This password has appeared in a data breach. Choose a different password that you have not used elsewhere.",
+    },
+    {
+      label: "unknown provider failure",
+      error: Object.assign(new Error("weak_password pwned CorrectHorse9Battery private@example.invalid provider-token-canary"), { code: "unexpected_failure" }),
+      message: "The password could not be created. Try again or request a new invitation.",
+    },
+  ])("returns safe instructions and keeps membership pending after $label", async ({ error, message }) => {
+    rpc.mockResolvedValueOnce({ data: [invitation], error: null });
+    updateUser.mockResolvedValue({ error });
+    const formData = new FormData();
+    formData.set("invitationId", invitationId);
+    formData.set("password", "CorrectHorse9Battery");
+    formData.set("passwordConfirm", "CorrectHorse9Battery");
+
+    const result = await acceptInvitationAction({}, formData);
+
+    expect(result).toEqual({ message, status: "error" });
+    for (const privateDetail of ["CorrectHorse9Battery", "private@example.invalid", "provider-token-canary"]) {
+      expect(JSON.stringify(result)).not.toContain(privateDetail);
+    }
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(adminRpc).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
   });
 
   it("accepts an existing identity without changing its password", async () => {

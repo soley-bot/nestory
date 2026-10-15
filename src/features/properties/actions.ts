@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAssetPhotoAction } from "@/features/photos/actions";
-import { requirePermission } from "@/lib/auth/context";
+import { requirePermission, requireWorkspaceContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { validateUploadedFileContent } from "@/lib/uploads/upload-content";
 import { postgresUuid } from "@/lib/validation/postgres-uuid";
@@ -28,6 +28,7 @@ type PropertyFieldErrors = {
 };
 
 export type PropertyActionState = {
+  changed?: boolean;
   fieldErrors?: PropertyFieldErrors;
   message?: string;
   propertyId?: string;
@@ -340,13 +341,21 @@ export async function updatePropertyAction(
   _state: PropertyActionState,
   formData: FormData,
 ): Promise<PropertyActionState> {
-  const context = await requirePermission("properties.write");
+  const context = await requireWorkspaceContext();
+  if (!context.permissionKeys.has("properties.write")) {
+    return {
+      message: "You no longer have permission to save this property. Your edits are still here.",
+      status: "error",
+    };
+  }
   const parsedPropertyId = propertyIdSchema.safeParse(
     readString(formData, "propertyId"),
   );
   const parsed = propertyMutationSchema.safeParse(
     readPropertyMutationInput(formData),
   );
+  const parsedVersion = postgresUuid("Reopen the property to load its latest version.")
+    .safeParse(readString(formData, "expectedVersion"));
 
   if (!parsedPropertyId.success) {
     return {
@@ -359,20 +368,26 @@ export async function updatePropertyAction(
     return invalidFormState(parsed.error);
   }
 
-  const photoError = await validateInlinePhotoFile(formData);
-
-  if (photoError) {
+  if (!parsedVersion.success) {
     return {
-      fieldErrors: { photo: [photoError] },
+      message: "Reopen the property to load its latest version. Your edits have not been saved.",
+      status: "error",
+    };
+  }
+  const photo = formData.get("photo");
+  if (photo instanceof File && photo.size > 0) {
+    return {
+      message: "Add photos from the property's Files tab after saving these details.",
       status: "error",
     };
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("update_property_details", {
+  const { data, error } = await Promise.resolve(supabase.rpc("update_property_details_checked", {
     p_acquisition_date: nullableString(parsed.data.acquisitionDate),
     p_address: nullableString(parsed.data.address),
     p_code: parsed.data.code,
+    p_expected_version: parsedVersion.data,
     p_name: parsed.data.name,
     p_notes: nullableString(parsed.data.notes),
     p_organization_id: context.organizationId,
@@ -384,7 +399,7 @@ export async function updatePropertyAction(
     p_property_type: parsed.data.propertyType,
     p_registered_date: nullableString(parsed.data.registeredDate),
     p_status: parsed.data.status,
-  });
+  })).catch(() => ({ data: null, error: { message: "Save response unavailable" } }));
 
   if (error) {
     return {
@@ -393,22 +408,31 @@ export async function updatePropertyAction(
     };
   }
 
-  const photoState = await uploadInlinePropertyPhoto({
-    formData,
-    isCover: readString(formData, "hasPhoto") !== "true",
-    propertyId: parsedPropertyId.data,
-  });
-
-  if (photoState?.status === "error") {
-    return photoState;
+  const result = z.object({
+    changed: z.boolean(),
+    property_id: postgresUuid("Invalid property response."),
+    version: postgresUuid("Invalid property version."),
+  }).safeParse(data);
+  if (!result.success || result.data.property_id !== parsedPropertyId.data) {
+    return {
+      message: "We could not confirm the save. Your edits are still here; retry to check or complete it safely.",
+      status: "error",
+    };
   }
 
-  revalidatePropertyPaths(parsedPropertyId.data);
+  // A retry can discover that its earlier transaction committed before the
+  // response/invalidation arrived. Refresh that recovered state, but keep an
+  // unchanged submission from the current version entirely free of invalidation.
+  if (result.data.changed || result.data.version !== parsedVersion.data) {
+    revalidatePath("/properties");
+    revalidatePath(`/properties/${parsedPropertyId.data}`);
+    revalidatePath("/overview");
+    revalidatePath("/people");
+  }
 
   return {
-    message: photoState
-      ? "Property updated and photo uploaded."
-      : "Property updated.",
+    changed: result.data.changed,
+    message: result.data.changed ? "Property updated." : "No changes to save.",
     propertyId: parsedPropertyId.data,
     status: "success",
   };
@@ -597,6 +621,18 @@ async function uploadInlinePropertyPhoto({
 }
 
 function propertyActionErrorMessage(message: string) {
+  if (message.includes("Property changed since this editor was opened")) {
+    return "This property changed while you were editing. Your edits are still here. Open the latest property in another tab to compare, then reopen this editor before saving.";
+  }
+
+  if (message.includes("Save response unavailable")) {
+    return "We could not confirm the save. Your edits are still here; retry to check or complete it safely.";
+  }
+
+  if (message.includes("Not authorized")) {
+    return "You no longer have permission to save this property. Your edits are still here.";
+  }
+
   if (message.includes("duplicate key")) {
     return "A property with this code already exists.";
   }

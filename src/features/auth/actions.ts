@@ -9,7 +9,7 @@ import {
 import { getPasswordRecoveryUser } from "@/lib/auth/recovery-session";
 import { getLoginPath, safeLoginNextPath } from "@/lib/auth/login-redirect";
 import { recordPasswordCredentialProof } from "@/lib/auth/password-credential-proof";
-import { newPasswordSchema } from "@/lib/auth/password-policy";
+import { getNewPasswordRejectionMessage, newPasswordSchema } from "@/lib/auth/password-policy";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type AuthFieldErrors = {
@@ -144,7 +144,8 @@ export async function updatePasswordAction(
 
   if (error) {
     return {
-      message: "We could not update the password. Request a new recovery link.",
+      message: getNewPasswordRejectionMessage(error)
+        ?? "We could not update the password. Request a new recovery link.",
       status: "error",
     };
   }

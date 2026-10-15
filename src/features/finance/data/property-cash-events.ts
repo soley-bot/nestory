@@ -98,7 +98,9 @@ export async function* iteratePropertyCashEventPages(
 
     yield filtered;
 
-    if (page.rows.length < page.pageSize) return;
+    // PostgREST may enforce a smaller row cap than the requested RPC page.
+    // Only an empty page proves completion; the source cursor always advances.
+    if (page.rows.length === 0) return;
   }
 }
 
@@ -132,8 +134,28 @@ export function normalizePropertyCashEvent(
     "resolution state",
   );
   const amountCents = parseExactMoneyToCents(row.amount);
-  if (amountCents === BigInt(0)) {
+  // Deposit-to-rent applications consume an existing liability without cash.
+  // Only the RPC's checked application lineage admits this zero-cash shape.
+  const isDepositReclassification = resolutionState === "resolved"
+    && sourceType === "deposit_event"
+    && row.source_parent_type === "deposit_rent_application"
+    && row.source_parent_id !== null && row.lease_id !== null
+    && row.economic_class === "security_deposit"
+    && row.ledger_entry_id === null && row.reconciliation_source_id === null
+    && [row.owner_cash_effect, row.operating_cash_effect, row.management_fee_effect]
+      .every((effect) => effect !== null && parseExactMoneyToCents(effect) === BigInt(0))
+    && row.deposit_liability_effect !== null
+    && (row.is_reversal
+      ? row.reversal_source_type === "deposit_event" && row.reversal_source_id !== null
+        && parseExactMoneyToCents(row.deposit_liability_effect) > BigInt(0)
+      : row.reversal_source_type === null && row.reversal_source_id === null
+        && parseExactMoneyToCents(row.deposit_liability_effect) < BigInt(0));
+  if (amountCents === BigInt(0) && !isDepositReclassification) {
     throw new Error("Property cash event amount cannot be zero.");
+  }
+  if (row.source_parent_type === "deposit_rent_application"
+    && (amountCents !== BigInt(0) || !isDepositReclassification)) {
+    throw new Error("Deposit reclassification requires checked liability effects and zero cash.");
   }
 
   const effects = [
@@ -259,6 +281,10 @@ function assertEventScope(
   }
   if (event.currency !== scope.currency) {
     throw new Error("Property cash RPC returned mixed or unsupported currency.");
+  }
+  parseBusinessDate(event.eventDate);
+  if (event.eventDate < scope.periodStart || event.eventDate > scope.periodEnd) {
+    throw new Error("Property cash RPC returned a row outside the requested period.");
   }
 }
 

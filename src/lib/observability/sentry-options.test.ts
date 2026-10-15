@@ -259,9 +259,11 @@ describe("Sentry event privacy", () => {
       message: "UnrecognizedActionError",
       tags: {
         boundary: "private-workspace-name",
+        error_code: "private-error",
         error_kind: "react_recoverable_error",
         has_digest: "private-digest",
         has_stack: "yes",
+        operation: "private-operation",
         route: "/units/[unitId]",
       },
     });
@@ -269,6 +271,38 @@ describe("Sentry event privacy", () => {
     expect(event?.tags).toEqual({ route: "/units/[unitId]" });
     expect(event?.exception?.values?.[0]).not.toHaveProperty("value");
     expect(event).not.toHaveProperty("message");
+  });
+
+  it("retains maintenance failure tags while removing request credentials and payloads", () => {
+    const event = scrubSentryEvent({
+      type: undefined,
+      exception: {
+        values: [{ type: "Error", value: "Private maintenance payload" }],
+      },
+      extra: { nonce: "private-nonce", payload: "private-payload" },
+      request: {
+        headers: { authorization: "Bearer private-token" },
+        data: { payload: "private-payload" },
+        url: "https://example.test/api/cron/maintenance?nonce=private-nonce",
+      },
+      tags: {
+        error_code: "maintenance_automation_failed",
+        handled: "true",
+        operation: "maintenance_automation",
+        route: "/api/cron/maintenance",
+        nonce: "private-nonce",
+      },
+    });
+
+    expect(event?.tags).toEqual({
+      error_code: "maintenance_automation_failed",
+      handled: "true",
+      operation: "maintenance_automation",
+      route: "/api/cron/maintenance",
+    });
+    expect(event?.request).toEqual({ url: "/api/cron/maintenance" });
+    expect(event?.exception?.values?.[0]).toEqual({ type: "Error" });
+    expect(JSON.stringify(event)).not.toMatch(/private-/);
   });
 });
 

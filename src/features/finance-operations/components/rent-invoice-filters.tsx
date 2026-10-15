@@ -61,15 +61,22 @@ export function isVisibleTenantInvoice(invoice: TenantInvoiceSummary) {
 export function RentInvoiceFilterBar({
   invoices,
   resultCount,
+  totalCount,
+  properties,
+  scoped = false,
 }: {
   invoices: TenantInvoiceSummary[];
   resultCount: number;
+  totalCount?: number;
+  properties?: { id: string; label: string }[];
+  scoped?: boolean;
 }) {
   const searchParams = useSearchParams();
-  const navigation = useFilterNavigation(getRentInvoiceFilters(searchParams).query, "q");
+  const navigation = useFilterNavigation(getRentInvoiceFilters(searchParams).query, "q", true);
   const filters = getRentInvoiceFilters(navigation.params ?? searchParams);
   const visibleInvoices = invoices.filter(isVisibleTenantInvoice);
-  const propertyOptions = uniqueRentPropertyOptions(visibleInvoices);
+  const propertyOptions = properties ?? uniqueRentPropertyOptions(visibleInvoices);
+  const visibleCount = totalCount ?? visibleInvoices.length;
   const activeAdvancedFilterCount = countAdvancedFilters(filters);
   const filtersActive = filters.query.length > 0 || activeAdvancedFilterCount > 0;
   const replaceFilters = (updates: Record<string, string>, resetSearch = false) => {
@@ -135,7 +142,7 @@ export function RentInvoiceFilterBar({
             ) : null}
           </summary>
           <div className="grid gap-3 border-t border-border p-3 sm:grid-cols-2 lg:grid-cols-5">
-            <FilterField label="Property">
+            {!scoped ? <FilterField label="Property">
               <SelectControl
                 ariaLabel="Property"
                 onValueChange={(value) => replaceFilters({ property: value })}
@@ -148,7 +155,7 @@ export function RentInvoiceFilterBar({
                 ]}
                 value={filters.propertyId}
               />
-            </FilterField>
+            </FilterField> : null}
             <FilterField label="Invoice status">
               <SelectControl
                 ariaLabel="Invoice status"
@@ -186,8 +193,8 @@ export function RentInvoiceFilterBar({
       </div>
       {filtersActive ? (
         <p className="text-xs text-muted-foreground" role="status">
-          Showing {resultCount} of {visibleInvoices.length}{" "}
-          {visibleInvoices.length === 1 ? "invoice" : "invoices"}
+          Matching {resultCount} of {visibleCount}{" "}
+          {visibleCount === 1 ? "invoice" : "invoices"}
         </p>
       ) : null}
     </>

@@ -8732,6 +8732,7 @@ export type Database = {
           code: string
           created_at: string
           created_by: string | null
+          edit_version: string
           id: string
           name: string
           notes: string | null
@@ -8753,6 +8754,7 @@ export type Database = {
           code: string
           created_at?: string
           created_by?: string | null
+          edit_version?: string
           id?: string
           name: string
           notes?: string | null
@@ -8774,6 +8776,7 @@ export type Database = {
           code?: string
           created_at?: string
           created_by?: string | null
+          edit_version?: string
           id?: string
           name?: string
           notes?: string | null
@@ -12717,6 +12720,23 @@ export type Database = {
           vendor_person_id: string
         }[]
       }
+      get_rent_invoice_page: {
+        Args: {
+          p_due?: string
+          p_lease_id?: string
+          p_organization_id: string
+          p_overdue_days?: number
+          p_page?: number
+          p_page_size?: number
+          p_property_id?: string
+          p_query?: string
+          p_selected_invoice_id?: string
+          p_sort?: string
+          p_status?: string
+          p_unit_id?: string
+        }
+        Returns: Json
+      }
       get_report_documents_snapshot: {
         Args: { p_organization_id: string }
         Returns: Json
@@ -14245,6 +14265,26 @@ export type Database = {
           p_status: string
         }
         Returns: string
+      }
+      update_property_details_checked: {
+        Args: {
+          p_acquisition_date: string
+          p_address: string
+          p_code: string
+          p_expected_version: string
+          p_name: string
+          p_notes: string
+          p_organization_id: string
+          p_owner: string
+          p_owner_ownership_percent: number
+          p_owner_person_id: string
+          p_owner_started_on: string
+          p_property_id: string
+          p_property_type: string
+          p_registered_date: string
+          p_status: string
+        }
+        Returns: Json
       }
       update_rent_policy_draft: {
         Args: {

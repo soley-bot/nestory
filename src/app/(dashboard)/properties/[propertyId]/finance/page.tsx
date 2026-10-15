@@ -8,13 +8,14 @@ import {
   scopeFinanceOperationsData,
 } from "@/features/finance-operations/data/finance-operations";
 import { requireFinanceContext } from "@/lib/auth/context";
+import { parseRentInvoiceQuery, type RentInvoiceSearchParams } from "@/features/finance-operations/rent-invoice-query";
 
 export default async function PropertyFinancePage({
   params,
   searchParams = Promise.resolve({}),
 }: {
   params: Promise<{ propertyId: string }>;
-  searchParams?: Promise<{ view?: string; expenseMonth?: string | string[] }>;
+  searchParams?: Promise<RentInvoiceSearchParams & { view?: string; expenseMonth?: string | string[] }>;
 }) {
   const [{ propertyId }, query, context] = await Promise.all([
     params,
@@ -22,7 +23,7 @@ export default async function PropertyFinancePage({
     requireFinanceContext(),
   ]);
   const expenseMonth = typeof query.expenseMonth === "string" && /^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(query.expenseMonth) ? query.expenseMonth : "";
-  const allData = await getFinanceOperationsData(context.organizationId, propertyId, { expenseMonth, includeExpenses: query.view !== "rent", accountActivityOnly: query.view === "owner", completeTransactionHistory: !["rent", "expenses", "owner"].includes(query.view ?? ""), includeAccountSources: !["rent", "expenses", "owner"].includes(query.view ?? "") || query.view === "owner" });
+  const allData = await getFinanceOperationsData(context.organizationId, propertyId, { expenseMonth, includeExpenses: query.view !== "rent", accountActivityOnly: query.view === "owner", completeTransactionHistory: !["rent", "expenses", "owner"].includes(query.view ?? ""), includeAccountSources: !["rent", "expenses", "owner"].includes(query.view ?? "") || query.view === "owner", ...(query.view === "rent" ? { rentInvoiceQuery: parseRentInvoiceQuery({ ...query, property: propertyId }) } : {}) });
   const property = allData.propertyOptions.find((option) => option.id === propertyId);
   if (!property) notFound();
   const data = scopeFinanceOperationsData(allData, { propertyId });

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createOverviewFixture, type OverviewFixtureResult } from "./overview.test-fixture";
 import { getOverviewScreenData } from "@/features/overview/data/overview";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -384,48 +385,6 @@ describe("getOverviewScreenData", () => {
   });
 });
 
-type SupabaseResult = {
-  count?: number | null;
-  data?: unknown[];
-  error?: { message: string } | null;
-};
-
-function createSupabaseStub(results: Record<string, SupabaseResult> = {}) {
-  return {
-    from: vi.fn((table: string) => createQuery(results[table] ?? { data: [] })),
-  } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>;
-}
-
-function createQuery(result: SupabaseResult) {
-  const chain = () => query;
-  const query = {
-    eq: chain,
-    gte: chain,
-    in: chain,
-    is: chain,
-    limit: chain,
-    lt: chain,
-    lte: chain,
-    neq: chain,
-    or: chain,
-    order: chain,
-    range: (from: number, to: number) =>
-      Promise.resolve({
-        count: result.count ?? null,
-        data: (result.data ?? []).slice(from, to + 1),
-        error: result.error ?? null,
-      }),
-    select: chain,
-    then: (
-      onFulfilled: (value: SupabaseResult) => unknown,
-      onRejected?: (reason: unknown) => unknown,
-    ) =>
-      Promise.resolve({
-        count: result.count ?? null,
-        data: (result.data ?? []).slice(0, 1_000),
-        error: result.error ?? null,
-      }).then(onFulfilled, onRejected),
-  };
-
-  return query;
+function createSupabaseStub(results: Record<string, OverviewFixtureResult> = {}) {
+  return createOverviewFixture(results).client;
 }

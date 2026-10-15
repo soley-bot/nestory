@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { custodyConcurrency } from './test-deposit-custody-concurrency.mjs';
 import { localRecoveryDocker } from './local-recovery-docker.mjs';
+import { assertDepositCandidateTarget, selectDepositContainer } from './deposit-candidate-target.mjs';
 
 const packageRoot = resolve('docs/design/deposit-rent-candidate');
 const fixtureRoot = resolve('scripts/fixtures/deposit-rent');
@@ -20,17 +21,26 @@ function execute(command,args,input,options={}) {
   return r.stdout;
 }
 const {docker,endpoint}=await localRecoveryDocker({execute});
-const container='supabase_db_nestory';
+const config=readFileSync(resolve('supabase/config.toml'),'utf8');
+const runningContainers=(await docker(['ps','--filter','name=^/supabase_db_','--format','{{.Names}}'])).split(/\r?\n/).map(name=>name.trim()).filter(Boolean);
+const container=selectDepositContainer(config,runningContainers,process.env.SUPABASE_DB_CONTAINER);
 const db=`deposit_candidate_${Date.now()}`;
+const target=Object.freeze({config,container,db,endpoint});
+assertDepositCandidateTarget(target);
 const out=resolve('artifacts/deposit-candidate');mkdirSync(out,{recursive:true});
-const run={database:db,startedAt:new Date().toISOString(),completed:false,cleanedUp:false,
+const run={database:db,container,endpoint,startedAt:new Date().toISOString(),completed:false,cleanedUp:false,
   harnessSha256:createHash('sha256').update(readFileSync('scripts/test-deposit-candidate-local.mjs')).digest('hex')};
 writeFileSync(resolve(out,'run.json'),JSON.stringify(run,null,2));
-const sql=(body,database=db)=>docker(['exec','-i',container,'psql','-X','-qAt','-U','supabase_admin','-d',database,'-v','ON_ERROR_STOP=1','-v','VERBOSITY=verbose'],body);
+const sql=(body,database=db)=>{
+  assertDepositCandidateTarget(target);
+  if(database!==db && database!=='postgres')throw Error('Deposit harness refuses an unowned SQL target.');
+  return docker(['exec','-i',container,'psql','-X','-qAt','-U','supabase_admin','-d',database,'-v','ON_ERROR_STOP=1','-v','VERBOSITY=verbose'],body);
+};
 const results=[];
 let created=false;
 const check=(name,body,expected)=>{try{const actual=sql(body).trim();if(expected && actual!==expected)throw Error(`Expected ${expected}, got ${actual}`);results.push({name,pass:true});}catch(e){results.push({name,pass:false,error:e.message});throw e;}};
 try {
+  assertDepositCandidateTarget(target);
   await docker(['exec',container,'createdb','-U','supabase_admin','-O','postgres',db]);
   created=true;
   const schema=await docker(['exec',container,'pg_dump','-U','supabase_admin','-d','postgres','--schema-only','--exclude-schema=supabase_migrations','--exclude-extension=pg_cron','--exclude-schema=cron']);
@@ -66,7 +76,35 @@ try {
   check('same-key application creates only one financial application','SELECT count(*) FROM public.deposit_rent_applications','1');
   const call=(overrides={})=>`SELECT public.get_deposit_statement_source('${overrides.org??id(1)}','${overrides.property??id(31)}','${overrides.owner??id(42)}','${overrides.app??app.id}','${overrides.fingerprint??app.fingerprint}')`;
   const auth=(who,body)=>actor(who,'SET LOCAL ROLE authenticated; '+body);
+  const cashPageCall=()=>`public.get_property_cash_events_page(${q(1)},${q(31)},'USD','2026-10-01','2026-10-31',NULL,NULL,NULL,1000)`;
+  const captureLiabilityProjection=(name)=>writeFileSync(resolve(out,`${name}.json`),sql(auth(102,`SELECT coalesce(jsonb_agg(to_jsonb(event) ORDER BY event.event_date,event.source_id),'[]'::jsonb) FROM ${cashPageCall()} event WHERE event.lease_id=${q(2000)} AND event.source_type='deposit_event' AND event.event_date>='2026-10-04'`)).trim());
+  captureLiabilityProjection('partial-liability-projection');
+  const checkLiabilityProjection=(name,lease,count,net)=>check(name,auth(102,`SELECT count(*)=${count}
+    AND bool_and(resolution_state='resolved' AND resolution_reason IS NULL AND amount=0
+      AND owner_cash_effect=0 AND operating_cash_effect=0 AND management_fee_effect=0
+      AND source_parent_type='deposit_rent_application' AND ledger_entry_id IS NULL AND reconciliation_source_id IS NULL
+      AND deposit_liability_effect=CASE WHEN is_reversal THEN 100 ELSE -100 END)
+    AND sum(deposit_liability_effect)=${net}
+    FROM ${cashPageCall()} WHERE lease_id=${q(lease)} AND source_type='deposit_event' AND event_date>='2026-10-04'`),'t');
+  checkLiabilityProjection('partial application projects liability decrease with exactly zero cash',2000,1,-100);
+  const invoicePageCall=(lease,invoice,status='all')=>`public.get_rent_invoice_page(${q(1)},${q(31)},p_lease_id=>${q(lease)},p_selected_invoice_id=>${q(invoice)},p_status=>'${status}')`;
+  const checkInvoicePage=(name,lease,invoice,status,balance,deposit)=>check(name,auth(102,`WITH page AS (SELECT ${invoicePageCall(lease,invoice,status)} result)
+    SELECT (result#>>'{pagination,totalCount}')::integer=1 AND (result->>'totalVisibleCount')::integer=1
+      AND jsonb_array_length(result->'invoices')=1 AND result#>>'{invoices,0,payment_status}'='${status}'
+      AND (result#>>'{invoices,0,balance_due}')::numeric=${balance}
+      AND (result#>>'{invoices,0,deposit_settled_amount}')::numeric=${deposit}
+      AND result#>>'{totalsByCurrency,0,currency}'='USD'
+      AND (result#>>'{totalsByCurrency,0,outstanding}')::numeric=${balance}
+      AND (result#>>'{totalsByCurrency,0,collected}')::numeric=0
+      AND result#>>'{selectedInvoice,id}'='${id(invoice)}' FROM page`),'t');
+  checkInvoicePage('finance-only paginated partial deposit settlement keeps cash collected at zero',2000,2003,'partly_paid',400,100);
+  check('status-excluded deposit invoice remains available as an explicit selection with its inherited due date',auth(102,`WITH page AS (SELECT ${invoicePageCall(2000,2003,'paid')} result)
+    SELECT (result#>>'{pagination,totalCount}')::integer=0 AND jsonb_array_length(result->'invoices')=0
+      AND result#>>'{selectedInvoice,id}'='${id(2003)}' AND result#>>'{selectedInvoice,due_date}'='2026-10-10'
+      AND result#>>'{selectedInvoice,payment_status}'='partly_paid' FROM page`),'t');
   const denied=(name,body,code)=>{let error;try{sql(body);}catch(e){error=e.message;}if(!error?.includes(code))throw Error(`${name}: expected ${code}, got ${error??'success'}`);results.push({name,pass:true});};
+  for(const who of [103,104,105])denied(`cash reclassification remains finance and branch scoped for actor ${who}`,auth(who,`SELECT * FROM ${cashPageCall()}`),'42501');
+  check('cash reclassification private resolver remains inaccessible to ordinary roles',`SELECT NOT has_function_privilege('authenticated','app_private.deposit_rent_cash_event_is_resolved(uuid,uuid,uuid)','EXECUTE') AND NOT has_function_privilege('anon','app_private.deposit_rent_cash_event_is_resolved(uuid,uuid,uuid)','EXECUTE') AND NOT has_function_privilege('service_role','app_private.deposit_rent_cash_event_is_resolved(uuid,uuid,uuid)','EXECUTE')`,'t');
   check('finance-only ordinary role reads exact display projection',auth(102,`SELECT (${call().replace('SELECT ','')}->>'applicationId')='${app.id}'`),'t');
   const packet=JSON.parse(sql(auth(102,call())).trim().split('\n').at(-1));
   if(packet.sourceFingerprint!==app.fingerprint||packet.leaseId!==id(2000)||packet.operation!=='apply')throw Error('Projection mismatch');
@@ -90,6 +128,28 @@ try {
   if(reversalPacket.operation!=='full-reversal'||reversalPacket.originalApplicationId!==app.id||reversalPacket.leaseId!==id(2000))throw Error('Reversal lineage mismatch');
   results.push({name:'ordinary finance role reads actual command-created full reversal',pass:true});
   check('full reversal restores deposit and invoice to 500',`SELECT app_private.deposit_rent_held(${q(1)},${q(2002)})=500 AND (SELECT balance_due=500 FROM public.tenant_invoice_balances WHERE id=${q(2003)})`,'t');
+  checkInvoicePage('paginated reversal restores unpaid status and outstanding without creating cash',2000,2003,'unpaid',500,0);
+  captureLiabilityProjection('reversed-liability-projection');
+  checkLiabilityProjection('reversal restores deposit liability without any cash movement',2000,2,0);
+  // Resolve private identities before SET ROLE; the projection never grants table access.
+  const eventIds=JSON.parse(sql(`SELECT jsonb_object_agg(id,deposit_event_id) FROM public.deposit_rent_applications`).trim());
+  const unresolvedCash=(name,change,applicationId=app.id)=>check(name,`BEGIN; SET LOCAL session_replication_role=replica; ${change};
+    SET LOCAL session_replication_role=origin; SET LOCAL "request.jwt.claim.sub"=${q(102)}; SET LOCAL ROLE authenticated;
+    SELECT count(*)=1 AND bool_and(resolution_state='unresolved' AND resolution_reason IS NOT NULL
+      AND owner_cash_effect IS NULL AND operating_cash_effect IS NULL AND deposit_liability_effect IS NULL AND management_fee_effect IS NULL)
+    FROM ${cashPageCall()} WHERE source_id='${eventIds[applicationId]}'; ROLLBACK;`,'t');
+  for(const [label,change] of [
+    ['event amount',`UPDATE public.lease_deposit_events SET amount=101 WHERE id='${eventIds[app.id]}'`],
+    ['event date',`UPDATE public.lease_deposit_events SET event_date='2026-10-06' WHERE id='${eventIds[app.id]}'`],
+    ['event account',`UPDATE public.lease_deposit_events SET liability_account_id=NULL WHERE id='${eventIds[app.id]}'`],
+    ['lease property',`UPDATE public.leases SET property_id=${q(32)} WHERE id=${q(2000)}`],
+    ['invoice property',`UPDATE public.tenant_invoices SET property_id=${q(32)} WHERE id=${q(2003)}`],
+    ['missing bridge',`DELETE FROM public.deposit_rent_owner_bridges WHERE application_id='${app.id}'`],
+    ['bridge conservation',`UPDATE public.deposit_rent_owner_bridges SET custody_signed_amount=-99 WHERE application_id='${app.id}'`],
+    ['original reversal event',`UPDATE public.lease_deposit_events SET reversal_of_id=${q(2006)} WHERE id='${eventIds[reversed.id]}'`],
+  ])unresolvedCash(`cash reclassification fails closed for changed ${label}`,change,label==='original reversal event'?reversed.id:app.id);
+  unresolvedCash('reversal fails closed when original application event changes',`UPDATE public.lease_deposit_events SET amount=101 WHERE id='${eventIds[app.id]}'`,reversed.id);
+  check('legacy deposit events without ledger evidence stay unresolved',auth(102,`SELECT resolution_state='unresolved' AND deposit_liability_effect IS NULL FROM ${cashPageCall()} WHERE source_id=${q(2006)}`),'t');
   check('reversal creates no tenant cash payment','SELECT count(*) FROM public.tenant_invoice_payments','0');
   // The following grants exist only in this process-owned synthetic database.
   // Source container database and production permissions remain unchanged.
@@ -164,6 +224,35 @@ try {
     finance,leases,snapshot,
   },null,2));
   results.push({name:'ordinary report snapshot retains all six application and reversal sources',pass:true});
+  // Extra finance integration fixtures follow the fixed six-source report
+  // packet, preserving that existing deposit acceptance evidence unchanged.
+  seed(22000,'through_ips',500,100,600);
+  const fullySettled=journalCommand(22000,{...payload,leaseId:id(22000),depositId:id(22002),invoiceId:id(22003),lineId:id(22005)});
+  if(fullySettled.state!=='resolved')throw Error('Full finance integration settlement did not resolve');
+  checkInvoicePage('paginated full deposit settlement is paid with zero outstanding and zero cash collected',22000,22003,'paid',0,100);
+  check('fully deposit-settled invoice leaves open results but remains an explicit selection',auth(102,`WITH page AS (SELECT ${invoicePageCall(22000,22003,'open')} result)
+    SELECT (result#>>'{pagination,totalCount}')::integer=0 AND jsonb_array_length(result->'invoices')=0
+      AND result#>>'{selectedInvoice,payment_status}'='paid' AND (result#>>'{selectedInvoice,balance_due}')::numeric=0 FROM page`),'t');
+  journalCommand(22000,{operation:'reverse',leaseId:id(22000),date:'2026-10-05',reason:'Synthetic paginated invoice reversal',applicationId:fullySettled.result.commandId});
+  checkInvoicePage('full deposit reversal returns the invoice to unpaid results with cash unchanged',22000,22003,'unpaid',100,0);
+  check('bounded first page retains a deposit-reversed invoice selected beyond its fifty rows',`BEGIN; SET LOCAL session_replication_role=replica;
+    INSERT INTO public.tenant_invoices(id,organization_id,invoice_number,property_id,lease_id,billing_term_id,billing_period_start,billing_period_end,issue_date,due_date,collection_route,recipient_kind,recipient_person_id,recipient_label,total_amount,lifecycle)
+    SELECT test.id(30000+n*10+3),${q(1)},'PAGE-'||n,${q(31)},${q(22000)},${q(22001)},
+      (date '2030-01-01'+(n-1)*interval '1 month')::date,(date '2030-01-01'+n*interval '1 month'-interval '1 day')::date,
+      '2030-01-01','2030-01-10','through_ips','individual',${q(41)},'Synthetic tenant',1,'issued' FROM generate_series(1,51) n;
+    INSERT INTO public.finance_income_items(id,organization_id,property_id,lease_id,payer_label,due_date,amount_due)
+    SELECT test.id(30000+n*10+4),${q(1)},${q(31)},${q(22000)},'Synthetic tenant','2030-01-10',1 FROM generate_series(1,51) n;
+    INSERT INTO public.tenant_invoice_lines(id,organization_id,invoice_id,income_item_id,line_type,customer_label,amount,sort_order,property_id,currency,recognized_on)
+    SELECT test.id(30000+n*10+5),${q(1)},test.id(30000+n*10+3),test.id(30000+n*10+4),'rent','Synthetic page rent',1,1,${q(31)},'USD','2030-01-01' FROM generate_series(1,51) n;
+    SET LOCAL session_replication_role=origin; SET LOCAL "request.jwt.claim.sub"=${q(102)}; SET LOCAL ROLE authenticated;
+    WITH page AS (SELECT ${invoicePageCall(22000,22003)} result)
+    SELECT jsonb_array_length(result->'invoices')=50 AND (result#>>'{pagination,totalCount}')::integer=52
+      AND (result#>>'{pagination,totalPages}')::integer=2 AND (result#>>'{totalsByCurrency,0,outstanding}')::numeric=151
+      AND (result#>>'{totalsByCurrency,0,collected}')::numeric=0
+      AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(result->'invoices') row WHERE row->>'id'='${id(22003)}')
+      AND result#>>'{selectedInvoice,id}'='${id(22003)}' AND result#>>'{selectedInvoice,payment_status}'='unpaid'
+      AND (result#>>'{selectedInvoice,balance_due}')::numeric=100 FROM page; ROLLBACK;`,'t');
+  check('off-page finance fixture rolls back before the remaining deposit acceptance checks',"SELECT count(*) FROM public.tenant_invoices WHERE invoice_number LIKE 'PAGE-%'",'0');
   seed(6000,'through_ips',500,300,500,false);
   sql(actor(101,`SELECT public.allocate_owner_event(${q(1)},'security_deposit_receipt',${q(6006)},'custody-date-receipt')`,true));
   const businessToday=sql(`SELECT app_private.rent_business_date(${q(1)},pg_catalog.statement_timestamp())`).trim();
@@ -357,7 +446,7 @@ try {
   const oldConfirmation=JSON.parse(sql(`SELECT to_jsonb(c) FROM public.deposit_rent_custody_confirmations c WHERE lease_deposit_id=${q(16002)}`).trim());
   check('original plain confirmation key still replays exact historical identity',auth(101,`SELECT public.confirm_deposit_rent_custody(${q(1)},${q(16002)},${q(81)},'ips',NULL,'2026-10-02',500,'Synthetic custody evidence','confirm-16000-key')`),oldConfirmation.id);
   check('historical retry cannot refresh stale custody evidence',`SELECT NOT app_private.deposit_rent_custody_current(${q(1)},${q(16002)},'2026-10-04') AND (SELECT count(*)=1 FROM app_private.deposit_rent_custody_attestations WHERE custody_confirmation_id='${oldConfirmation.id}')`,'t');
-  await custodyConcurrency({endpoint,container,db,sql,seed,id,q,actor,auth,results,check,prepareFor,argsFor,custodyPayload,custodyCandidate,receiptFor,renewalFor,freshKey});
+  await custodyConcurrency({...target,sql,seed,id,q,actor,auth,results,check,prepareFor,argsFor,custodyPayload,custodyCandidate,receiptFor,renewalFor,freshKey});
   check('custody renewal and concurrency create no tenant cash payments','SELECT count(*) FROM public.tenant_invoice_payments','0');
   // Archive through the real authenticated chart lifecycle, after legitimate
   // IPS-held and owner-held applications. Never fake archival via replica mode.
@@ -385,7 +474,7 @@ try {
   const concurrentReverse=prepareFor(21000,{operation:'reverse',leaseId:id(21000),date:'2026-10-05',reason:'Synthetic account archive concurrency',applicationId:concurrentArchiveApplication.result.commandId});
   const concurrentReverseArgs=argsFor(21000,concurrentReverse);
   sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.begin_deposit_rent_journal_attempt(${concurrentReverseArgs},${concurrentReverse.revision})`,true));
-  await custodyConcurrency({endpoint,container,db,sql,q,results,check,accountArchive:{lease:21000,args:concurrentReverseArgs}});
+  await custodyConcurrency({...target,sql,q,results,check,accountArchive:{lease:21000,args:concurrentReverseArgs}});
   // Repeat the same legitimate lifecycle request to prove archival is stable.
   sql(actor(106,`SET LOCAL ROLE authenticated; SELECT public.set_finance_account_archived(${q(1)},${q(81)},true,NULL)`,true));
   check('real authenticated account archival succeeds with existing deposit history',`SELECT archived_at IS NOT NULL AND archived_by=${q(106)} FROM public.finance_accounts WHERE id=${q(81)}`,'t');
@@ -419,6 +508,7 @@ try {
     check(`${custodian} historical reversal keeps original attestation mapping`, `SELECT attestation_id FROM app_private.deposit_rent_application_attestations WHERE application_id='${reversed.result.commandId}'`,attestation);
     check(`${custodian} archived-account reversal restores held and unpaid balances`, `SELECT app_private.deposit_rent_held(${q(1)},${q(lease+2)})=500 AND (SELECT balance_due=500 FROM public.tenant_invoice_balances WHERE id=${q(lease+3)}) AND (SELECT count(*)=2 FROM public.deposit_rent_applications WHERE lease_deposit_id=${q(lease+2)})`,'t');
     check(`${custodian} archived-account reversal conserves owner bridge movements`, `SELECT count(*)=2 AND sum(b.custody_signed_amount)=0 AND sum(b.ips_held_signed_amount)=0 AND bool_and(b.liability_account_id=${q(81)}) FROM public.deposit_rent_owner_bridges b JOIN public.deposit_rent_applications a ON a.id=b.application_id WHERE a.lease_deposit_id=${q(lease+2)}`,'t');
+    checkLiabilityProjection(`${custodian} archived-account application and reversal remain resolved liability activity with zero cash`,lease,2,0);
   }
   check('historical reversals never reactivate archived liability account',`SELECT archived_at IS NOT NULL AND archived_by=${q(106)} FROM public.finance_accounts WHERE id=${q(81)}`,'t');
   check('archived-account reversals create no tenant cash payments','SELECT count(*) FROM public.tenant_invoice_payments','0');
@@ -433,6 +523,7 @@ try {
   writeFileSync(resolve(out,'database-results.json'),JSON.stringify(results,null,2));
   // db was created by this process with a generated fixed-prefix identifier.
   if(created) {
+    assertDepositCandidateTarget(target);
     await docker(['exec',container,'dropdb','-U','supabase_admin',db]);
     run.cleanedUp=true;
   }

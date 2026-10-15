@@ -1,16 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createAssetPhotoAction, requirePermission, revalidatePath, rpc } =
+const { createAssetPhotoAction, requirePermission, requireWorkspaceContext, revalidatePath, rpc } =
   vi.hoisted(() => ({
     createAssetPhotoAction: vi.fn(),
     requirePermission: vi.fn(),
+    requireWorkspaceContext: vi.fn(),
     revalidatePath: vi.fn(),
     rpc: vi.fn(),
   }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/features/photos/actions", () => ({ createAssetPhotoAction }));
-vi.mock("@/lib/auth/context", () => ({ requirePermission }));
+vi.mock("@/lib/auth/context", () => ({ requirePermission, requireWorkspaceContext }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: async () => ({ rpc }),
 }));
@@ -28,11 +29,14 @@ const branchId = "90000000-0000-4000-8000-000000000001";
 const otherBranchId = "90000000-0000-4000-8000-000000000002";
 const ownerPersonId = "80000000-0000-0000-0000-000000000004";
 const propertyId = "10000000-0000-0000-0000-000000000001";
+const editVersion = "20000000-0000-4000-8000-000000000001";
 
 describe("property ownership authority inputs", () => {
   beforeEach(() => {
     createAssetPhotoAction.mockReset();
     requirePermission.mockReset();
+    requireWorkspaceContext.mockReset();
+    requireWorkspaceContext.mockResolvedValue({ organizationId, permissionKeys: new Set(["properties.write"]) });
     revalidatePath.mockReset();
     rpc.mockReset();
     createAssetPhotoAction.mockResolvedValue({ status: "success" });
@@ -40,7 +44,12 @@ describe("property ownership authority inputs", () => {
       isSuperAdmin: true,
       organizationId,
     });
-    rpc.mockResolvedValue({ data: propertyId, error: null });
+    rpc.mockImplementation(async (name) => ({
+      data: name === "update_property_details_checked"
+        ? { property_id: propertyId, version: editVersion, changed: true }
+        : propertyId,
+      error: null,
+    }));
   });
 
   it("creates basic property identity without requiring owner or status setup", async () => {
@@ -263,10 +272,11 @@ describe("property ownership authority inputs", () => {
       propertyId,
       status: "success",
     });
-    expect(rpc).toHaveBeenCalledWith("update_property_details", {
+    expect(rpc).toHaveBeenCalledWith("update_property_details_checked", {
       p_acquisition_date: null,
       p_address: null,
       p_code: "CTR",
+      p_expected_version: editVersion,
       p_name: "Central Residence",
       p_notes: null,
       p_organization_id: organizationId,
@@ -279,7 +289,7 @@ describe("property ownership authority inputs", () => {
       p_registered_date: null,
       p_status: "active",
     });
-    expect(requirePermission).toHaveBeenCalledWith("properties.write");
+    expect(requireWorkspaceContext).toHaveBeenCalledTimes(1);
   });
 
   it.each(["0", "-1", "100.001", "1.0000", "share"])(
@@ -308,7 +318,7 @@ describe("property ownership authority inputs", () => {
       status: "success",
     });
     expect(rpc).toHaveBeenCalledWith(
-      "update_property_details",
+      "update_property_details_checked",
       expect.objectContaining({ p_owner_ownership_percent: "60.000" }),
     );
   });
@@ -358,6 +368,86 @@ describe("property ownership authority inputs", () => {
     });
     expect(requirePermission).toHaveBeenCalledWith("properties.archive");
   });
+
+  it("rejects a missing version before contacting the database", async () => {
+    const formData = propertyForm();
+    formData.delete("expectedVersion");
+    expect(await updatePropertyAction({}, formData)).toMatchObject({
+      status: "error", message: expect.stringContaining("latest version"),
+    });
+    expect(rpc).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("keeps a revoked writer in the editor instead of redirecting away from the draft", async () => {
+    requireWorkspaceContext.mockResolvedValueOnce({ organizationId, permissionKeys: new Set() });
+    expect(await updatePropertyAction({}, propertyForm())).toMatchObject({ status: "error", message: expect.stringContaining("permission") });
+    expect(rpc).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("does not invalidate or upload on a database-confirmed no-op", async () => {
+    rpc.mockResolvedValueOnce({ data: { property_id: propertyId, version: editVersion, changed: false }, error: null });
+    expect(await updatePropertyAction({}, propertyForm())).toMatchObject({
+      status: "success", message: "No changes to save.", changed: false,
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
+    expect(createAssetPhotoAction).not.toHaveBeenCalled();
+  });
+
+  it("invalidates affected property views once after a confirmed mutation", async () => {
+    await updatePropertyAction({}, propertyForm());
+    expect(revalidatePath.mock.calls).toEqual([
+      ["/properties"], [`/properties/${propertyId}`], ["/overview"], ["/people"],
+    ]);
+  });
+
+  it.each([
+    ["Property changed since this editor was opened", "while you were editing"],
+    ["Not authorized", "permission"],
+    ["Property not found", "find that property"],
+  ])("returns %s without invalidation or a fallback write", async (message, expected) => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message } });
+    expect(await updatePropertyAction({}, propertyForm())).toMatchObject({
+      status: "error", message: expect.stringContaining(expected),
+    });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("uses only the authorized organization even if the submission spoofs it", async () => {
+    const formData = propertyForm();
+    formData.set("organizationId", "another-organization");
+    await updatePropertyAction({}, formData);
+    expect(rpc).toHaveBeenCalledWith("update_property_details_checked", expect.objectContaining({ p_organization_id: organizationId }));
+  });
+
+  it("allows retry after a lost response without inventing a new version", async () => {
+    rpc.mockRejectedValueOnce(new Error("connection lost"));
+    rpc.mockResolvedValueOnce({ data: { property_id: propertyId, version: "20000000-0000-4000-8000-000000000002", changed: false }, error: null });
+    const formData = propertyForm();
+    const first = await updatePropertyAction({}, formData);
+    expect(first).toMatchObject({ status: "error", message: expect.stringContaining("confirm the save") });
+    expect(await updatePropertyAction(first, formData)).toMatchObject({ status: "success", changed: false });
+    expect(rpc.mock.calls[0]).toEqual(rpc.mock.calls[1]);
+    expect(revalidatePath.mock.calls).toEqual([
+      ["/properties"], [`/properties/${propertyId}`], ["/overview"], ["/people"],
+    ]);
+  });
+
+  it("fails closed on an unconfirmed database response", async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: null });
+    expect(await updatePropertyAction({}, propertyForm())).toMatchObject({ status: "error" });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects inline edit photos before a property write", async () => {
+    const formData = propertyForm();
+    formData.set("photo", invalidJpegFile("property.jpg"));
+    expect(await updatePropertyAction({}, formData)).toMatchObject({ status: "error", message: expect.stringContaining("Files tab") });
+    expect(rpc).not.toHaveBeenCalled();
+    expect(createAssetPhotoAction).not.toHaveBeenCalled();
+  });
 });
 
 function propertyForm() {
@@ -373,6 +463,7 @@ function propertyForm() {
   formData.set("ownershipPercent", "");
   formData.set("propertyType", "Apartment");
   formData.set("propertyId", propertyId);
+  formData.set("expectedVersion", editVersion);
   formData.set("registeredDate", "");
   formData.set("status", "active");
   return formData;

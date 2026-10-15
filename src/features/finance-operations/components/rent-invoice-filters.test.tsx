@@ -28,3 +28,17 @@ it("finds rent by a secondary owner and compact unit code without including a si
   const view = getRentInvoiceView([first, second], new URLSearchParams({q: "MORGAN 7FD2"}), "2026-09-27", positions);
   expect(view.filteredInvoices.map(invoice => invoice.id)).toEqual(["i1"]);
 });
+
+it("resets the page for rapid search and clear actions while retaining report return context", async () => {
+  vi.useFakeTimers();
+  navigation.params = "page=8&status=open&returnTo=%2Freports%2Frent";
+  const view = render(<RentInvoiceFilterBar invoices={[]} resultCount={1251} totalCount={1551} properties={[{ id: "property-a", label: "House A" }]} />);
+  fireEvent.change(screen.getByRole("textbox", { name: "Search rent invoices" }), { target: { value: "Morgan" } });
+  await act(() => vi.advanceTimersByTimeAsync(500));
+  expect(navigation.replace).toHaveBeenLastCalledWith("/rent-income?status=open&returnTo=%2Freports%2Frent&q=Morgan", { scroll: false });
+  view.rerender(<RentInvoiceFilterBar invoices={[]} resultCount={1251} totalCount={1551} />);
+  fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  await act(() => vi.advanceTimersByTimeAsync(500));
+  expect(navigation.replace).toHaveBeenLastCalledWith("/rent-income?returnTo=%2Freports%2Frent", { scroll: false });
+  navigation.params = "q=old&status=open&property=property-a";
+});

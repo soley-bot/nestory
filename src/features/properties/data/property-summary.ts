@@ -15,6 +15,7 @@ export type PropertyRecord = {
   acquisition_date?: string | null;
   archived_at?: string | null;
   code: string;
+  edit_version?: string;
   id: string;
   name: string;
   notes?: string | null;
@@ -40,6 +41,7 @@ export type PropertySummary = {
   code: string;
   currentLeaseCount: number;
   currentLeaseUnitCount: number;
+  editVersion?: string;
   formValues: PropertyFormValues;
   hasActiveOwnerLink: boolean;
   id: string;
@@ -105,6 +107,7 @@ export function buildPropertySummary({
     code: property.code,
     currentLeaseCount: resolvedCurrentLeaseCount,
     currentLeaseUnitCount: resolvedCurrentLeaseUnitCount,
+    editVersion: property.edit_version,
     formValues: {
       acquisitionDate: property.acquisition_date ?? "",
       address: property.address ?? "",

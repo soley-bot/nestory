@@ -143,7 +143,7 @@ export function PortfolioWorkspace({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.occupancyByProperty.map((property) => (
+                  {data.occupancyByProperty.slice(0, 8).map((property) => (
                     <TableRow key={property.href}>
                       <TableCell className="max-w-56 truncate py-1.5 pl-3 font-medium">
                         <Link className="hover:underline" href={property.href}>

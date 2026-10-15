@@ -9,13 +9,14 @@ import {
 } from "@/features/finance-operations/data/finance-operations";
 import { getUnitDetail } from "@/features/units/data/units";
 import { requireFinanceContext } from "@/lib/auth/context";
+import { parseRentInvoiceQuery, type RentInvoiceSearchParams } from "@/features/finance-operations/rent-invoice-query";
 
 export default async function UnitFinancePage({
   params,
   searchParams = Promise.resolve({}),
 }: {
   params: Promise<{ unitId: string }>;
-  searchParams?: Promise<{ view?: string; expenseMonth?: string | string[] }>;
+  searchParams?: Promise<RentInvoiceSearchParams & { view?: string; expenseMonth?: string | string[] }>;
 }) {
   const [{ unitId }, query, context] = await Promise.all([
     params,
@@ -28,7 +29,7 @@ export default async function UnitFinancePage({
   const allData = await getFinanceOperationsData(
     context.organizationId,
     unit.propertyId,
-    { expenseMonth, includeExpenses: query.view !== "rent", completeTransactionHistory: !["rent", "expenses"].includes(query.view ?? ""), includeAccountSources: !["rent", "expenses"].includes(query.view ?? "") },
+    { expenseMonth, includeExpenses: query.view !== "rent", completeTransactionHistory: !["rent", "expenses"].includes(query.view ?? ""), includeAccountSources: !["rent", "expenses"].includes(query.view ?? ""), ...(query.view === "rent" ? { rentInvoiceQuery: { ...parseRentInvoiceQuery({ ...query, property: unit.propertyId }), unitId } } : {}) },
   );
   const data = scopeFinanceOperationsData(allData, {
     propertyId: unit.propertyId,

@@ -265,6 +265,8 @@ export type PropertyAccountEntry = {
 };
 
 export type FinanceOperationsData = {
+  tenantInvoicePage?: import("./data/rent-invoice-page").RentInvoicePage;
+  selectedTenantInvoice?: TenantInvoiceSummary;
   accountActivityIsRecent?: boolean;
   accountSourcesComplete?: boolean;
   expenseEntryOptions?: Pick<FinanceOperationsData, "propertyOptions" | "unitOptions" | "positions" | "payFromAccounts">;

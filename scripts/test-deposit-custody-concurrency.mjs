@@ -1,12 +1,14 @@
 // Invoked only by the owned disposable-database harness. Wait for observed
 // PostgreSQL lock contention, never assume ordering from a sleep duration.
 import { spawn } from 'node:child_process';
+import { assertDepositCandidateTarget } from './deposit-candidate-target.mjs';
 
 export async function custodyConcurrency(context) {
   const {endpoint,container,db,sql,seed,q,actor,results,check,prepareFor,argsFor,custodyPayload,custodyCandidate,receiptFor,renewalFor,freshKey}=context;
-  if(!/^deposit_candidate_[0-9]+$/.test(db)||container!=='supabase_db_nestory')throw Error('Concurrency requires process-owned synthetic database');
+  assertDepositCandidateTarget(context);
   const workers=[];
   const start=(name,body,hold=false)=>{
+    assertDepositCandidateTarget(context);
     const child=spawn('docker',['--host',endpoint,'exec','-i',container,'psql','-X','-qAt','-U','supabase_admin','-d',db,'-v','ON_ERROR_STOP=1','-v','VERBOSITY=verbose'],{stdio:['pipe','pipe','pipe'],windowsHide:true});
     const worker={name,child,out:'',err:'',closed:false,code:null};
     worker.done=new Promise(resolve=>{child.on('error',error=>{worker.err+=error.message;});child.on('close',code=>{worker.closed=true;worker.code=code;resolve(worker);});});
@@ -74,6 +76,7 @@ export async function custodyConcurrency(context) {
     if(custodyCandidate(17000).deposits[0].custodyCurrent!==true)throw Error('Concurrent renewal did not restore current custody');
     results.push({name:'serialized renewal restores current evidence after concurrent receipt',pass:true});
   } finally {
+    assertDepositCandidateTarget(context);
     // Scope cleanup to exact owned database and generated worker names. Backend
     // termination rolls back any open synthetic transaction before DROP DATABASE.
     for(const worker of workers)if(!worker.closed){

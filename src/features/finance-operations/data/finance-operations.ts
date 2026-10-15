@@ -1,4 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
+import { loadRentInvoicePage } from "./rent-invoice-page";
+import type { RentInvoiceQuery } from "../rent-invoice-query";
 import { loadScopedFinanceContext, type ScopedBillingTerm } from "@/features/finance-operations/data/scoped-finance-context";
 import {
   getExpenseAccountOptions,
@@ -154,17 +157,7 @@ export async function fetchAllActionableRows<T>(
   fetchPage: (from: number, to: number) => Promise<DataPageResult<T>>,
   pageSize = 500,
 ): Promise<DataPageResult<T>> {
-  const rows: T[] = [];
-
-  for (let from = 0; ; from += pageSize) {
-    const page = await fetchPage(from, from + pageSize - 1);
-    if (page.error) return { data: null, error: page.error };
-    const pageRows = page.data ?? [];
-    rows.push(...pageRows);
-    if (pageRows.length < pageSize) break;
-  }
-
-  return { data: rows, error: null };
+  return readAllRows(fetchPage, pageSize);
 }
 
 export async function fetchRowsByIdBatches<T>(
@@ -177,20 +170,7 @@ export async function fetchRowsByIdBatches<T>(
   batchSize = 100,
   pageSize = 500,
 ): Promise<DataPageResult<T>> {
-  const rows: T[] = [];
-  const uniqueIds = [...new Set(ids)];
-
-  for (let index = 0; index < uniqueIds.length; index += batchSize) {
-    const batchIds = uniqueIds.slice(index, index + batchSize);
-    const result = await fetchAllActionableRows(
-      (from, to) => fetchPage(batchIds, from, to),
-      pageSize,
-    );
-    if (result.error) return { data: null, error: result.error };
-    rows.push(...(result.data ?? []));
-  }
-
-  return { data: rows, error: null };
+  return readAllRowsByIds(ids, fetchPage, batchSize, pageSize);
 }
 
 async function runFinanceReadTasks<
@@ -327,12 +307,14 @@ export function toExpenseSubmissionSummary(
 export async function getFinanceOperationsData(
   organizationId: string,
   propertyId?: string | null,
-  options: { includeAccountSources?: boolean; completeTransactionHistory?: boolean; expenseMonth?: string; includeExpenses?: boolean; accountActivityOnly?: boolean } = {},
+  options: { includeAccountSources?: boolean; completeTransactionHistory?: boolean; expenseMonth?: string; includeExpenses?: boolean; accountActivityOnly?: boolean; rentInvoiceQuery?: RentInvoiceQuery } = {},
 ): Promise<FinanceOperationsData> {
   if (options.expenseMonth && !/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(options.expenseMonth)) throw new Error("Choose a valid expense month.");
   if (options.completeTransactionHistory && !propertyId) throw new Error("Choose a property before loading complete transaction history.");
   if (options.accountActivityOnly && (!propertyId || options.completeTransactionHistory)) throw new Error("Recent account activity requires a property and bounded history.");
+  if (options.rentInvoiceQuery && (options.accountActivityOnly || options.completeTransactionHistory)) throw new Error("Rent invoice pages require bounded rent history.");
   const supabase = await createSupabaseServerClient();
+  let rentInvoiceResult: Awaited<ReturnType<typeof loadRentInvoicePage>> | undefined;
   const rentBusinessDateResult = await supabase.rpc(
     "get_lease_rent_business_date",
     { p_organization_id: organizationId },
@@ -361,30 +343,38 @@ export async function getFinanceOperationsData(
       .select("operational_timezone")
       .eq("id", organizationId)
       .single(),
-    () => loadScopedFinanceContext(supabase, organizationId),
-    () => supabase
+    () => loadScopedFinanceContext(supabase, organizationId, propertyId),
+    () => fetchAllActionableRows(async (from, to) => supabase
       .from("people")
       .select("id, display_name, party_type, archived_at")
       .eq("organization_id", organizationId)
-      .order("display_name"),
-    () => supabase.from("person_roles").select("person_id, role")
-      .eq("organization_id", organizationId).eq("status", "active").is("archived_at", null),
-    () => options.accountActivityOnly ? Promise.resolve<DataPageResult<TenantInvoiceBalanceRow>>({ data: [], error: null }) : getTenantInvoiceBalanceRows(supabase, organizationId, propertyId, options.completeTransactionHistory),
-    () => getUnresolvedRentGenerationExceptions(supabase, organizationId),
-    () => getOwnerInvoiceBalanceRows(supabase, organizationId, propertyId),
+      .order("display_name").order("id").range(from, to)),
+    () => fetchAllActionableRows(async (from, to) => supabase.from("person_roles").select("person_id, role")
+      .eq("organization_id", organizationId).eq("status", "active").is("archived_at", null)
+      .order("person_id").order("role").range(from, to)),
+    async () => {
+      if (options.accountActivityOnly) return { data: [] as TenantInvoiceBalanceRow[], error: null };
+      if (!options.rentInvoiceQuery) return getTenantInvoiceBalanceRows(supabase, organizationId, propertyId, options.completeTransactionHistory);
+      rentInvoiceResult = await loadRentInvoicePage(supabase, organizationId, propertyId, options.rentInvoiceQuery);
+      return { data: mergeRowsById(rentInvoiceResult.invoices, rentInvoiceResult.selectedInvoice ? [rentInvoiceResult.selectedInvoice] : []), error: null };
+    },
+    () => getUnresolvedRentGenerationExceptions(supabase, organizationId, propertyId),
+    () => options.rentInvoiceQuery ? Promise.resolve<DataPageResult<OwnerInvoiceBalanceRow>>({ data: [], error: null }) : getOwnerInvoiceBalanceRows(supabase, organizationId, propertyId),
     () => options.includeExpenses === false || options.accountActivityOnly ? Promise.resolve<DataPageResult<ExpenseSubmissionRow>>({ data: [], error: null }) : getExpenseSubmissionRows(supabase, organizationId, propertyId, options.expenseMonth),
-    () => supabase
-      .from("property_finance_positions")
-      .select("*")
-      .eq("organization_id", organizationId)
-      .order("property_code"),
-    () => options.completeTransactionHistory ? fetchAllActionableRows(async (from, to) => buildAccountEntryQuery(supabase, organizationId, propertyId, {from, to})) : buildAccountEntryQuery(supabase, organizationId, propertyId),
-    () => supabase
+    () => fetchAllActionableRows(async (from, to) => {
+      let query = supabase.from("property_finance_positions").select("*").eq("organization_id", organizationId);
+      // Multi-property expense lines retain their authorized held-cash hints.
+      // Rent and account views only need the selected property's position.
+      if (propertyId && (options.includeExpenses === false || options.accountActivityOnly || options.rentInvoiceQuery)) query = query.eq("property_id", propertyId);
+      return query.order("property_code").order("property_id").range(from, to);
+    }),
+    () => options.rentInvoiceQuery ? Promise.resolve<DataPageResult<AccountEntryRow>>({ data: [], error: null }) : options.completeTransactionHistory ? fetchAllActionableRows(async (from, to) => buildAccountEntryQuery(supabase, organizationId, propertyId, {from, to})) : buildAccountEntryQuery(supabase, organizationId, propertyId),
+    () => fetchAllActionableRows(async (from, to) => supabase
       .from("financial_reconciliation_sources")
       .select("id, property_id, code, display_name, archived_at")
       .eq("organization_id", organizationId)
-      .order("code"),
-    () => supabase
+      .order("code").order("id").range(from, to)),
+    () => fetchAllActionableRows(async (from, to) => supabase
       .from("finance_categories")
       .select(
         "id, namespace, code, display_label, reporting_group, sort_order, is_default, is_active, archived_at",
@@ -392,7 +382,7 @@ export async function getFinanceOperationsData(
       .eq("organization_id", organizationId)
       .order("namespace")
       .order("sort_order")
-      .order("display_label"),
+      .order("display_label").order("id").range(from, to)),
   ] as const);
 
   const results = [
@@ -681,6 +671,12 @@ export async function getFinanceOperationsData(
       }) satisfies FinanceCategory,
   );
   return {
+    tenantInvoicePage: rentInvoiceResult?.page,
+    selectedTenantInvoice: rentInvoiceResult?.selectedInvoice ? toTenantInvoice(
+      rentInvoiceResult.selectedInvoice, propertyById, unitById, linesByInvoiceId,
+      generationByInvoiceId, settlementsByInvoiceId, commercialDocuments.invoices,
+      commercialDocuments.invoicePublicationSnapshots,
+    )[0] : undefined,
     accountActivityIsRecent: Boolean(options.accountActivityOnly),
     accountSourcesComplete: Boolean(options.completeTransactionHistory && options.includeAccountSources),
     historicalLeases: readContext.leases.map(lease => {
@@ -798,7 +794,7 @@ export async function getFinanceOperationsData(
         propertyId: exception.property_id,
       } satisfies RentGenerationException),
     ),
-    tenantInvoices: (tenantInvoicesResult.data ?? []).flatMap((row) =>
+    tenantInvoices: (rentInvoiceResult?.invoices ?? tenantInvoicesResult.data ?? []).flatMap((row) =>
       toTenantInvoice(
         row as TenantInvoiceBalanceRow,
         propertyById,
@@ -1065,6 +1061,9 @@ export function scopeFinanceOperationsData(
 
   return {
     accountActivityIsRecent: data.accountActivityIsRecent,
+    tenantInvoicePage: data.tenantInvoicePage,
+    selectedTenantInvoice: data.selectedTenantInvoice && inScope(data.selectedTenantInvoice.propertyId, data.selectedTenantInvoice.unitId) ? data.selectedTenantInvoice : undefined,
+    rentBusinessDate: data.rentBusinessDate,
     accountSourcesComplete: data.accountSourcesComplete,
     historicalLeases: data.historicalLeases?.filter(lease => lease.propertyId === scope.propertyId && (!scope.unitId || lease.unitId === scope.unitId)),
     expenseEntryOptions: data.expenseEntryOptions ?? {
@@ -1389,13 +1388,16 @@ export function buildSettlementsByInvoiceId(
 async function getUnresolvedRentGenerationExceptions(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   organizationId: string,
+  propertyId?: string | null,
 ): Promise<DataPageResult<RentGenerationExceptionRow>> {
   return fetchAllActionableRows(async (from, to) => {
-    const { data, error } = await supabase
+    let query = supabase
       .from("rent_generation_exceptions")
       .select("*")
       .eq("organization_id", organizationId)
-      .is("resolved_at", null)
+      .is("resolved_at", null);
+    if (propertyId) query = query.eq("property_id", propertyId);
+    const { data, error } = await query
       .order("last_attempt_at", { ascending: false })
       .order("id")
       .range(from, to);
@@ -1472,7 +1474,7 @@ async function getTenantInvoiceBalanceRows(
       actionableResult.data ?? [],
       historyResult.data ?? [],
     ).sort((left, right) =>
-      (right.due_date ?? "").localeCompare(left.due_date ?? ""),
+      (right.due_date ?? "").localeCompare(left.due_date ?? "") || (left.id ?? "").localeCompare(right.id ?? ""),
     ),
     error: null,
   };
@@ -1540,7 +1542,7 @@ async function getOwnerInvoiceBalanceRows(
       actionableResult.data ?? [],
       historyResult.data ?? [],
     ).sort((left, right) =>
-      (right.due_date ?? "").localeCompare(left.due_date ?? ""),
+      (right.due_date ?? "").localeCompare(left.due_date ?? "") || (left.id ?? "").localeCompare(right.id ?? ""),
     ),
     error: null,
   };

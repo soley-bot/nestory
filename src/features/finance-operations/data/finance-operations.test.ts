@@ -175,7 +175,7 @@ describe("fetchAllActionableRows", () => {
       data: source,
       error: null,
     });
-    expect(fetchPage).toHaveBeenCalledTimes(3);
+    expect(fetchPage).toHaveBeenCalledTimes(4);
     expect(fetchPage).toHaveBeenNthCalledWith(3, 500, 749);
   });
 });
@@ -203,7 +203,7 @@ describe("fetchRowsByIdBatches", () => {
     await expect(
       fetchRowsByIdBatches(invoiceIds, fetchPage, 100, 500),
     ).resolves.toEqual({ data: source, error: null });
-    expect(fetchPage).toHaveBeenCalledTimes(5);
+    expect(fetchPage).toHaveBeenCalledTimes(8);
     expect(fetchPage.mock.calls.every(([ids]) => ids.length <= 100)).toBe(true);
     expect(fetchPage).toHaveBeenNthCalledWith(
       2,
@@ -212,7 +212,7 @@ describe("fetchRowsByIdBatches", () => {
       999,
     );
     expect(fetchPage).toHaveBeenNthCalledWith(
-      5,
+      7,
       invoiceIds.slice(200),
       0,
       499,
@@ -803,7 +803,7 @@ describe("commercial document links", () => {
       artifactId: rows.at(-1)!.id,
       publicationStatus: "published",
     });
-    expect(client.from).toHaveBeenCalledTimes(13);
+    expect(client.from).toHaveBeenCalledTimes(26);
     expect(queries.every((query) => query.range.mock.calls.length === 1)).toBe(
       true,
     );

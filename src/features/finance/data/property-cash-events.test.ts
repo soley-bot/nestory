@@ -8,6 +8,7 @@ import type {
   PropertyCashEventDatabaseRow,
   PropertyCashEventsRpcClient,
 } from "@/features/finance/data/property-cash-events.types";
+import { summarizePropertyCashMovements } from "@/features/finance/data/property-cash-events.totals";
 
 const organizationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const propertyId = "11111111-1111-4111-8111-111111111111";
@@ -85,6 +86,98 @@ const scope = {
 };
 
 describe("property cash event adapter", () => {
+  function reclassification(isReversal = false): PropertyCashEventDatabaseRow {
+    return row("44444444-4444-4444-8444-444444444444", {
+      amount: "0.00", source_type: "deposit_event", cursor_source_type: "deposit_event",
+      source_parent_type: "deposit_rent_application", source_parent_id: propertyId,
+      lease_id: unitId, economic_class: "security_deposit", ledger_entry_id: null,
+      owner_cash_effect: "0.00", operating_cash_effect: "0.00",
+      deposit_liability_effect: isReversal ? "100.00" : "-100.00",
+      is_reversal: isReversal, reversal_source_type: isReversal ? "deposit_event" : null,
+      reversal_source_id: isReversal ? organizationId : null,
+    });
+  }
+
+  it.each([false, true])("accepts checked deposit reclassification with zero cash, reversal=%s", (reversed) => {
+    const event = normalizePropertyCashEvent(reclassification(reversed));
+    expect(event.amountCents).toBe(BigInt(0));
+    expect(event.ownerCashEffectCents).toBe(BigInt(0));
+    expect(event.operatingCashEffectCents).toBe(BigInt(0));
+    expect(event.depositLiabilityEffectCents).toBe(BigInt(reversed ? 10000 : -10000));
+  });
+
+  it.each(["100.00", "-100.00"])("rejects invented cash on a deposit application: %s", (amount) => {
+    expect(() => normalizePropertyCashEvent({ ...reclassification(), amount }))
+      .toThrow("Deposit reclassification requires checked liability effects and zero cash");
+  });
+
+  it("keeps property cash summaries unchanged while applying and restoring liability", async () => {
+    async function* events(reversed: boolean) {
+      yield normalizePropertyCashEvent(reclassification());
+      if (reversed) yield normalizePropertyCashEvent(reclassification(true));
+    }
+    for (const reversed of [false, true]) {
+      const totals = await summarizePropertyCashMovements(events(reversed));
+      expect(totals.depositLiabilityMovementCents).toBe(BigInt(reversed ? 0 : -10000));
+      expect(totals.ownerCashMovementCents).toBe(BigInt(0));
+      expect(totals.operatingIncomeCents).toBe(BigInt(0));
+      expect(totals.operatingExpenseCents).toBe(BigInt(0));
+      expect(totals.managementFeeEffectCents).toBe(BigInt(0));
+      expect(totals.unresolved.count).toBe(0);
+    }
+  });
+
+  it.each([
+    { source_parent_type: "lease_deposit" }, { source_parent_id: null }, { lease_id: null },
+    { economic_class: "operating_income" }, { ledger_entry_id: propertyId },
+    { reconciliation_source_id: propertyId }, { owner_cash_effect: "100.00" },
+    { operating_cash_effect: "100.00" }, { management_fee_effect: "100.00" },
+    { deposit_liability_effect: "0.00" }, { deposit_liability_effect: "100.00" },
+    { resolution_state: "unresolved" }, { reversal_source_id: propertyId },
+  ])("rejects zero-cash rows lacking complete reclassification evidence: %j", (overrides) => {
+    expect(() => normalizePropertyCashEvent({ ...reclassification(), ...overrides }))
+      .toThrow("amount cannot be zero");
+  });
+
+  it.each([1000, 1201])("reads %i equal-date events through exact boundaries and a smaller server cap", async (count) => {
+    const rows = Array.from({ length: count }, (_, index) => row(String(index).padStart(12, "0")));
+    const calls: Array<Record<string, unknown>> = [];
+    const client: PropertyCashEventsRpcClient = { async rpc(_name, args) {
+      calls.push(args);
+      const start = args.p_after_source_id === null ? 0 : rows.findIndex(row => row.source_id === args.p_after_source_id) + 1;
+      return { data: rows.slice(start, start + 200), error: null };
+    } };
+    const loaded = [];
+    for await (const page of iteratePropertyCashEventPages(client, { ...scope, pageSize: 500 })) loaded.push(...page);
+    expect(loaded.map(event => event.sourceId)).toEqual(rows.map(row => row.source_id));
+    expect(calls).toHaveLength(Math.ceil(count / 200) + 1);
+    expect(calls.at(-1)?.p_after_source_id).toBe(rows.at(-1)?.source_id);
+  });
+
+  it("propagates a later page error and permits a complete fresh retry", async () => {
+    const rows = [row("001"), row("002"), row("003")];
+    let fail = true;
+    const client: PropertyCashEventsRpcClient = { async rpc(_name, args) {
+      if (args.p_after_source_id === "002" && fail) return { data: null, error: { message: "temporary page failure" } };
+      const start = args.p_after_source_id === null ? 0 : rows.findIndex(row => row.source_id === args.p_after_source_id) + 1;
+      return { data: rows.slice(start, start + 2), error: null };
+    } };
+    const failed = iteratePropertyCashEventPages(client, scope);
+    expect((await failed.next()).value).toHaveLength(2);
+    await expect(failed.next()).rejects.toThrow("temporary page failure");
+    fail = false;
+    const loaded = [];
+    for await (const page of iteratePropertyCashEventPages(client, scope)) loaded.push(...page);
+    expect(loaded).toHaveLength(3);
+  });
+
+  it.each([
+    { organization_id: "other" },
+    { event_date: "2026-08-01", cursor_event_date: "2026-08-01" },
+  ])("rejects rows outside organization or period scope", async (overrides) => {
+    await expect(loadPropertyCashEventPage(clientWithPages([[row("001", overrides)]]), scope)).rejects.toThrow(/outside the requested/);
+  });
+
   it("normalizes exact signed movements without retired projection fields", () => {
     const sourceId = "44444444-4444-4444-8444-444444444444";
     const normalized = normalizePropertyCashEvent(
