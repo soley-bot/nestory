@@ -29,7 +29,7 @@ After both browser runs completed, the exact owned application process on port 5
 - Supporting financial reads: deterministic pagination continues past both 1,000 rows and lower configured caps, batches ID filters, and fails on errors, malformed responses, or duplicate IDs. Ledger locks, documents, history and lease correction inputs are complete. Deep USD rent sorting uses direct ranges instead of a capped prefix.
 - Manual charges: an exact authorized lease/month lookup finds existing invoices outside the current page or filter, preserving their due date. Pending/error states block submission, retry is available, and interrupted responses cannot replace a newer selection. The pre-existing race where another user creates an invoice after this lookup is not made atomic by this change.
 - Property edits: a database version token and checked RPC serialize competing changes. No-op saves create no timestamp/activity writes; identical retries succeed; stale conflicting edits preserve the draft. A replay after a committed save refreshes affected paths. Existing photos are managed in the Files tab so the property edit transaction is not coupled to a separate non-idempotent upload; creation-photo behavior is unchanged.
-- Four new forward migrations introduce invoice pagination, checked property updates, correct deposit-application liability projection and authorization before manual-charge existence probes. The liability correction reads existing posting evidence; it does not create a second cash receipt or alter posting authority. No old migration, credential, index or Auth setting is changed.
+- Five new forward migrations introduce invoice pagination, checked property updates, correct deposit-application liability projection, authorization before manual-charge existence probes and explicit denial for a missing maintenance-history role. The liability correction reads existing posting evidence; it does not create a second cash receipt or alter posting authority. No old migration, credential, index or Auth setting is changed.
 - Finance account activity completes all supporting selectors and cash-event pages beyond 1,000 records. Valid deposit application/reversal evidence projects a liability decrease/increase with zero cash; malformed evidence stays unresolved and archived historical accounts remain readable.
 - Maintenance failures report one sanitized monitoring event for returned RPC errors, thrown RPC failures and setup failures. The generic HTTP response, authorization and single invocation are preserved. This code change does not establish a deployed schedule or delivered alert.
 - The manual-charge account wrapper checks its existing organization/property permission before reading lease/account existence or idempotency bindings. Unauthorized callers receive the same denial for existing and missing foreign leases. The underlying command's checks and RPC grants remain intact.
@@ -87,6 +87,71 @@ Obtain through the parent/release owner, without contacting IPS from this task:
 - Signed IPS UAT outcomes and unresolved-exception disposition.
 - Backup/Storage coverage, approved RPO/RTO, recovery owner and restoration evidence.
 - Monitoring thresholds, support/escalation ownership and rollback criteria/decision owner.
+
+## October 15 follow-up: access, monitoring and operational procedure
+
+This follow-up starts from `f031e43ab6c4c463a47ef78eaf959126e0585284`, whose full
+GitHub CI run `38584541442` passed. Those results do not validate later edits.
+PR231 remains a draft and the deployed application remains the deposit release
+`eaf3fa8327d2e93df11244e06cdb4f4b93f3d25b`.
+
+- **Access isolation:** a new transaction-isolated pgTAP file calls four
+  previously untested RPC boundaries directly: expense summaries, membership
+  lists, maintenance cost history and rent-policy draft updates. It compares
+  exact allowed rows and verifies rejected policy writes leave both rows and
+  activity unchanged. Source review exposed a NULL legacy-role check that could
+  allow a custom member without maintenance permission to read an assigned
+  task's cost history. The narrow forward migration explicitly denies NULL
+  roles with `42501`, retaining the three existing allowed legacy roles, query
+  scope and grants. Database execution on this new candidate is pending below.
+- **Maintenance:** eight new regression cases reproduced scheduler interception
+  and malformed-success behavior. The exact scheduler endpoint now reaches its
+  existing bearer guard; neighboring paths remain protected. Invalid or absent
+  counters produce one sanitized failure and no retry. All 45 focused
+  route/proxy tests passed. This does not establish an operating scheduler.
+- **Recovery and monitoring:** the new [recovery procedure](../runbooks/ips-recovery-and-rollback.md)
+  joins containment, immutable financial effects, separate DB/Auth/Storage
+  coverage and return-to-service approval. The [monitoring runbook](../runbooks/ips-monitoring.md)
+  records deployed schedule/configuration evidence, missing durable run history
+  and missed-run detection, and the operational inputs still required.
+- **Rent lifecycle:** `scripts/smoke-ips-rent-readiness.mjs` prepares a disjoint
+  synthetic real-Auth/browser journey through receipt publication, correction,
+  replacement-settlement reversal and immutable receipt download. It compares
+  paginated invoice totals with cash and receivable state, and tests replay.
+  Its pure `node scripts/smoke-ips-rent-readiness.mjs --self-test` is separate
+  from runtime acceptance. The actual journey remains unexecuted.
+
+The rent runner requires the exact isolated worktree/project, loopback app/API,
+a fresh valid synthetic-source manifest, its matching full container ID and
+explicit `IPS_LOCAL_HANDOFF`, `IPS_RENT_HANDOFF`, `NESTORY_BASE_URL`,
+`SUPABASE_DB_CONTAINER` and `IPS_RENT_CONTAINER_ID` values. Read its guard
+contract before use; an expired manifest must not be refreshed by changing its
+timestamp or claiming a baseline was loaded. The runner creates a fresh
+organization and actors, retains evidence, and does not start services, load a
+baseline, reset a database or delete fixtures.
+
+### Execution blockers and release disposition
+
+The October 15 supported browser retry failed before connection with the same
+trusted Node runtime exit. The two specifically approved GitGuardian incident
+dispositions therefore remain **pending execution**; no scanner setting was
+changed. GitGuardian continues to fail on `f031e43`, although the branch-required
+Application and Database checks pass. No merge or deployment was attempted.
+
+Local Docker Desktop also fails before starting its engine. Its startup log
+reports that `sailor-ingest.sock` cannot be accessed/renamed. The supported
+startup attempts did not make the engine pipe available. No reset, deletion,
+permission change or runtime-data repair was attempted; the retained synthetic
+volume and prior evidence remain preserved. New SQL validation must use the
+isolated branch CI runner while this remains unresolved. The new real-Auth rent
+browser journey remains blocked locally, rather than counted as passed.
+
+Full lint, TypeScript, the full unit tier (3,182 passed, one explicit-input skip),
+the rent harness's 14 pure rejection cases, migration discipline and fresh
+independent source review passed. Broader checks and isolated branch CI for
+these edits remain pending at preparation time; the October 14 passes remain
+historical. The PR's exact-head checks and attached release evidence record
+subsequent execution without converting the blocked rent journey into a pass.
 
 ## Initial candidate verification record
 

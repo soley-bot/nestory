@@ -22,8 +22,8 @@ export async function GET(request: Request) {
       p_limit: 100,
       p_run_at: runAt,
     });
-    if (!result.error) {
-      return Response.json(result.data ?? { delivered: 0, generated: 0 });
+    if (!result.error && hasValidRunCounters(result.data)) {
+      return Response.json(result.data);
     }
   } catch {
     // Setup and transport failures have the same response; never retry an unknown outcome.
@@ -42,4 +42,12 @@ export async function GET(request: Request) {
     { error: "Maintenance automation failed." },
     { status: 500 },
   );
+}
+
+function hasValidRunCounters(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return "generated" in value && typeof value.generated === "number"
+    && Number.isSafeInteger(value.generated) && value.generated >= 0
+    && "delivered" in value && typeof value.delivered === "number"
+    && Number.isSafeInteger(value.delivered) && value.delivered >= 0;
 }

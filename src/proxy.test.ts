@@ -360,6 +360,41 @@ describe("proxy", () => {
     expect(response.status).toBe(200);
   });
 
+  it("forwards a bearer-only maintenance scheduler request to the route's own secret guard", async () => {
+    getClaims.mockResolvedValue({ data: { claims: null }, error: null });
+
+    const response = await proxy(new NextRequest("https://www.nestory-kh.com/api/cron/maintenance", {
+      headers: { authorization: "Bearer scheduler-test-value" },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.headers.get("x-middleware-request-authorization")).toBe("Bearer scheduler-test-value");
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
+    expect(response.headers.get("content-security-policy")).toContain("script-src 'self' 'nonce-");
+  });
+
+  it.each([
+    "/api/cron/maintenance/child",
+    "/api/cron/maintenance-extra",
+    "/api/cron/maintenance%2Fchild",
+    "/api/cron/other",
+    "/api/reports/pdf",
+    "/finance",
+  ])("does not extend the scheduler exception to another protected path: %s", async (path) => {
+    getClaims.mockResolvedValue({ data: { claims: null }, error: null });
+
+    const response = await proxy(new NextRequest(`https://www.nestory-kh.com${path}`, {
+      headers: { authorization: "Bearer scheduler-test-value" },
+    }));
+
+    expect(response.status).toBe(307);
+    expect(new URL(response.headers.get("location")!).pathname).toBe("/login");
+    expect(response.headers.get("x-middleware-next")).toBeNull();
+    expectAuthRefreshHeaders(response);
+  });
+
   it.each(["/auth/complete?next=%2Faccept-invite", "/auth/session"])(
     "keeps the implicit email boundary public without a session: %s",
     async (path) => {

@@ -73,6 +73,35 @@ describe("maintenance automation cron route", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { label: "null", data: null },
+    { label: "array", data: [] },
+    { label: "missing counter", data: { generated: 0, payload: "private-payload" } },
+    { label: "string counter", data: { generated: "1", delivered: 0 } },
+    { label: "negative counter", data: { generated: -1, delivered: 0 } },
+    { label: "fractional counter", data: { generated: 0, delivered: 0.5 } },
+    { label: "unsafe counter", data: { generated: Number.MAX_SAFE_INTEGER + 1, delivered: 0 } },
+  ])("reports a malformed successful RPC result: $label", async ({ data }) => {
+    rpc.mockResolvedValue({ data, error: null });
+
+    const response = await GET(authorizedRequest());
+
+    await expectSanitizedFailure(response);
+    expect(rpc).toHaveBeenCalledOnce();
+  });
+
+  it("preserves a valid zero-work result and its database run timestamp", async () => {
+    const data = { generated: 0, delivered: 0, run_at: "2030-01-15T09:00:00+00:00" };
+    rpc.mockResolvedValue({ data, error: null });
+
+    const response = await GET(authorizedRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(data);
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("reports a handled RPC failure without capturing its payload or request credentials", async () => {
     rpc.mockResolvedValue({
       data: { payload: "private-payload" },
