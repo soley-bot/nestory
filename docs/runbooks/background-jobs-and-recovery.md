@@ -1,5 +1,11 @@
 # Background jobs and recovery verification
 
+October 16 follow-up: the isolated maintenance observability candidate adds
+durable outcomes for its observed runner path and an offline freshness
+assessment. See [Observed maintenance runs](maintenance-run-history.md) for the
+new contract and its verification limits. The October 3 findings below remain
+historical; no schedule or operational activation is established by this update.
+
 ## Scope and evidence
 
 Inspected main `9b9d7a86` on 2026-10-03. This runbook preserves existing runners and contains no schedule creation or recovery execution commands. PR #186 reminder lifecycle and PR #188 frozen statement rendering remain held; neither patch is included. Coordinator `01a0f1c6-1aab-7373-86a0-74d79c95500b` owns integration. No UI changes are included.

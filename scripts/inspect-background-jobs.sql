@@ -45,4 +45,13 @@ SELECT count(*) AS unresolved_rent_exceptions,
 FROM public.rent_generation_exceptions
 WHERE resolved_at IS NULL;
 
+-- This bounded display covers only the observed maintenance runner path.
+-- Use inspect-maintenance-runs.sql for complete unresolved-run aggregates;
+-- a recent page cannot establish that older registrations were resolved.
+SELECT run_id, status, registered_at, finished_at, generated, delivered,
+  failure_code
+FROM app_private.maintenance_automation_runs
+ORDER BY registered_at DESC, run_id DESC
+LIMIT 100;
+
 ROLLBACK;
