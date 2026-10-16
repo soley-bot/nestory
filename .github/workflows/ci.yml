@@ -395,6 +395,11 @@ jobs:
           npm run db:types
           git diff --exit-code -- src/types/database.generated.ts
 
+      - name: Test observed maintenance commits, interruption and concurrency
+        env:
+          MAINTENANCE_RUNS_LOCAL_PROJECT: nestory
+        run: npm run maintenance:test-runs
+
       - name: Load database test baseline
         run: npm run db:test:fixture
 

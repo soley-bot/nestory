@@ -11307,6 +11307,10 @@ export type Database = {
         }
         Returns: Json
       }
+      begin_maintenance_automation_run: {
+        Args: { p_limit?: number; p_run_id: string }
+        Returns: Json
+      }
       begin_paid_cost_evidence_cleanup: {
         Args: { p_organization_id: string; p_storage_path: string }
         Returns: boolean
@@ -12067,6 +12071,10 @@ export type Database = {
           p_payload_hash: string
           p_token: string
         }
+        Returns: Json
+      }
+      execute_maintenance_automation_run: {
+        Args: { p_run_id: string }
         Returns: Json
       }
       fingerprint_document_content: {

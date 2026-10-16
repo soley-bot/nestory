@@ -10,7 +10,16 @@ remain dated historical evidence; the post-release observations follow them.
 No production cron invocation, test alert, notification, credential/configuration
 change or customer-record query was performed for these monitoring audits.
 
-## Current disposition
+## October 16 source follow-up
+
+The isolated October 16 candidate adds an observed-run ledger and an offline,
+explicit-policy health evaluator. Its contract and operating limits are in
+[Observed maintenance runs](maintenance-run-history.md). This is a source
+follow-up; the dated deployed observations below do not verify its rollout,
+scheduler activation, freshness policy or alert delivery. Current verification
+is recorded separately in [the October 16 readiness checkpoint](../verification/ips-operations-readiness-2026-10-16.md).
+
+## October 15 disposition
 
 | Area | Evidence | Remaining limit |
 | --- | --- | --- |
@@ -195,8 +204,8 @@ transport failure can follow a committed database result. Do not automatically
 retry or interpret a missing response as a rollback; inspect existing state
 through the authorized operator path before a separately authorized rerun.
 
-There is no separate durable maintenance execution/failure ledger in this
-route. A SQL exception rolls back the transaction, including any ordinary
+At the October 15 checkpoint there was no separate durable maintenance
+execution/failure ledger in this route. A SQL exception rolls back the transaction, including any ordinary
 in-transaction failure record; fixing durable history would require a separately
 reviewed persistence/runner contract. Missed executions never reach the route,
 so error capture alone cannot detect them. These are technical gaps, not tests
