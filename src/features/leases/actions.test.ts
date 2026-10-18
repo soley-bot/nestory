@@ -90,6 +90,27 @@ describe("Lease occupancy evidence input", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/reports");
   });
 
+  it.each([
+    [
+      "rent_change_must_follow_term_start",
+      "Choose a month within the active term. Use Correct historical rent for an earlier term.",
+    ],
+    [
+      "issued_rent_change_requires_month_start",
+      "Choose the first day of the month to update issued rent. Issued periods currently require monthly billing.",
+    ],
+  ])("explains the effective-date constraint %s", async (message, expected) => {
+    rpc.mockResolvedValueOnce({ data: null, error: { code: "22023", message } });
+
+    await expect(
+      scheduleFutureRentTermAction({}, futureRentTermForm()),
+    ).resolves.toEqual({
+      status: "error",
+      message: expected,
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
   it("directs a one-off issued final period to audited historical correction", async () => {
     const form = futureRentTermForm();
     rpc.mockResolvedValueOnce({
