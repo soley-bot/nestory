@@ -7,6 +7,16 @@ const filterKeys: Record<string, string[]> = {
   account: [],
 };
 
+export function propertyFinanceReturnLinks(propertyId: string, value: unknown) {
+  const returnTo = financeReturnHref(value);
+  const suffix = returnTo ? `?${new URLSearchParams({ returnTo })}` : "";
+  return {
+    propertiesHref: returnTo?.split("?", 1)[0] === "/properties" ? returnTo : "/properties",
+    propertyHref: `/properties/${propertyId}${suffix}`,
+    transactionsHref: `/properties/${propertyId}/finance${suffix}`,
+  };
+}
+
 export function financeTabHref(base: string, view: string, query: string, originQuery: string) {
   const source = new URLSearchParams(query);
   const params = new URLSearchParams({ view: view === "account" ? "owner" : view });

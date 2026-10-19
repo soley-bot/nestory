@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { RecordForm } from "@/components/ui/record-form";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer, useDrawerDraftGuard, useDrawerCloseRequest } from "@/components/ui/side-drawer";
@@ -1102,7 +1103,7 @@ function LeaseBillingRulesForm({
   }, [onClose, onSuccess, router, state.message, state.status]);
 
   return (
-    <form action={action} className="space-y-4 p-4">
+    <RecordForm action={action} ariaLabel="Lease billing rules" contentClassName="space-y-4 p-4" onCancel={onClose} pending={pending} saveLabel="Save billing rules" savingLabel="Saving..." state={state}>
       <input name="leaseId" type="hidden" value={lease.id} />
       <input
         name="expectedCurrentBillingRuleId"
@@ -1167,27 +1168,7 @@ function LeaseBillingRulesForm({
       <p className="text-sm text-muted-foreground">
         To change an issued fee, use Manage lease → Correct management fee.
       </p>
-      {state.message ? (
-        <p
-          className={
-            state.status === "error"
-              ? "text-sm text-danger"
-              : "text-sm text-muted-foreground"
-          }
-          role="status"
-        >
-          {state.message}
-        </p>
-      ) : null}
-      <div className="flex justify-end gap-2 border-t border-border pt-4">
-        <Button onClick={onClose} type="button" variant="ghost">
-          Cancel
-        </Button>
-        <Button disabled={pending} type="submit">
-          {pending ? "Saving..." : "Save billing rules"}
-        </Button>
-      </div>
-    </form>
+    </RecordForm>
   );
 }
 
@@ -1661,7 +1642,7 @@ function LeaseTermModal({
 
   return (
     <Modal onClose={onClose} open title={copy.title}>
-      <form action={formAction} className="space-y-5 p-4">
+      <RecordForm action={formAction} ariaLabel={copy.title} contentClassName="space-y-5 p-4" onCancel={onClose} pending={pending} saveLabel={copy.submitLabel} savingLabel="Saving..." state={state}>
         <input name="leaseId" type="hidden" value={lease.id} />
         <input name="supersedesTermId" type="hidden" value={term.id} />
         <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
@@ -1732,28 +1713,7 @@ function LeaseTermModal({
 
         {mode !== "renewal" ? <p className="text-sm text-muted-foreground">Choose the first day of the month to change its rent, including the current or a past month within this active term. For an earlier term, use Correct historical rent. Issued rent and the ongoing schedule update together. Previous amounts remain in history.</p> : null}
 
-        {state.message ? (
-          <p
-            className={
-              state.status === "error"
-                ? "text-sm text-danger"
-                : "text-sm text-muted-foreground"
-            }
-            role="status"
-          >
-            {state.message}
-          </p>
-        ) : null}
-
-        <div className="flex justify-end gap-2 border-t border-border pt-4">
-          <Button onClick={onClose} type="button" variant="ghost">
-            Cancel
-          </Button>
-          <Button disabled={pending} type="submit">
-            {pending ? "Saving..." : copy.submitLabel}
-          </Button>
-        </div>
-      </form>
+      </RecordForm>
     </Modal>
   );
 }

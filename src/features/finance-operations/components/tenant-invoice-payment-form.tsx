@@ -4,11 +4,14 @@ import {
   useActionState,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
 import { useFormStatus } from "react-dom";
+import { useOverlayDraftGuard, type OverlayDraftGuard } from "@/components/ui/overlay-dismissal-context";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
@@ -77,7 +80,10 @@ function TenantInvoicePaymentFormStateful({
     invoice.collectionRoute === "through_ips"
       ? recordTenantInvoicePaymentAction
       : confirmOwnerCollectionAction;
-  const [state, formAction] = useActionState(action, {});
+  const [state, formAction, pending] = useActionState(action, {});
+  const [dirty, setDirty] = useState(false);
+  const [confirmInvoiceSwitch, setConfirmInvoiceSwitch] = useState(false);
+  useOverlayDraftGuard(useMemo<OverlayDraftGuard>(() => ({ status: pending ? "saving" : state.status === "success" ? "saved" : dirty || state.status === "error" ? "dirty" : "clean" }), [pending, dirty, state.status]));
   const [amountValue, setAmountValue] = useState(String(invoice.balanceDue));
   const errorId = useId();
   const errorRef = useRef<HTMLParagraphElement | null>(null);
@@ -139,6 +145,8 @@ function TenantInvoicePaymentFormStateful({
   return (
     <form
       action={formAction}
+      onChangeCapture={() => setDirty(true)}
+      onInputCapture={() => setDirty(true)}
       aria-describedby={state.status === "error" ? errorId : undefined}
       className="space-y-4 p-4"
       onSubmitCapture={(event) => {
@@ -260,12 +268,28 @@ function TenantInvoicePaymentFormStateful({
       ) : null}
       <FormFooter>
         {onChooseAnother ? (
-          <Button onClick={onChooseAnother}>Choose another</Button>
+          <Button type="button" disabled={pending} onClick={() => {
+            if (dirty || state.status === "error") setConfirmInvoiceSwitch(true);
+            else onChooseAnother();
+          }}>Choose another</Button>
         ) : (
           <span />
         )}
         <SubmitButton label={actionLabel} />
       </FormFooter>
+      <ConfirmationDialog
+        cancelLabel="Keep editing"
+        confirmLabel={pending ? undefined : "Discard changes"}
+        description="Your changes will be lost when you choose another invoice."
+        onCancel={() => setConfirmInvoiceSwitch(false)}
+        onConfirm={(event) => {
+          if (pending) { event.preventDefault(); return; }
+          setConfirmInvoiceSwitch(false);
+          onChooseAnother?.();
+        }}
+        open={confirmInvoiceSwitch}
+        title="Discard unsaved changes?"
+      />
     </form>
   );
 }

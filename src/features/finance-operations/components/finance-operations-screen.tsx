@@ -15,6 +15,7 @@ import {
   type ReactNode,
 } from "react";
 import { useFormStatus } from "react-dom";
+import { useOverlayDraftGuard, type OverlayDraftGuard } from "@/components/ui/overlay-dismissal-context";
 import { ChevronRight, Eye, Plus, WalletCards } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { PaginationControls } from "@/components/data/pagination-controls";
@@ -45,7 +46,7 @@ import {
   buildLeaseCurrentRentEditHref,
   buildLeasePaymentResolutionHref,
 } from "@/features/leases/lease-detail-route";
-import { financeReturnHref, financeTabHref } from "@/features/finance-operations/finance-tab-route";
+import { financeReturnHref, financeTabHref, propertyFinanceReturnLinks } from "@/features/finance-operations/finance-tab-route";
 import { workflowReturnHref } from "@/features/leases/workflow-return";
 import type { LeaseBillingRule } from "@/features/leases/lease.types";
 import {
@@ -208,6 +209,8 @@ const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
+  const returnTo = useSearchParams().get("returnTo");
+  const propertyReturnLinks = propertyFinanceReturnLinks(input.scope?.propertyId ?? "", returnTo);
   const props = {
     ...input,
     expenseSubmissions: input.expenseSubmissions.map((submission) => ({
@@ -331,16 +334,16 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
                     ? [{ href: "/finance", label: "Finance" }]
                     : props.scope.kind === "property"
                     ? [
-                        { href: "/properties", label: "Properties" },
+                        { href: propertyReturnLinks.propertiesHref, label: "Properties" },
                         {
-                          href: `/properties/${props.scope.id}`,
+                          href: propertyReturnLinks.propertyHref,
                           label: props.scope.label,
                         },
                       ]
                     : [
-                        { href: "/properties", label: "Properties" },
+                        { href: propertyReturnLinks.propertiesHref, label: "Properties" },
                         {
-                          href: `/properties/${props.scope.propertyId}`,
+                          href: propertyReturnLinks.propertyHref,
                           label: props.scope.propertyLabel,
                         },
                         {
@@ -3015,6 +3018,7 @@ function PropertyAccountView({
   onRecordWithdrawal?: () => void;
   position: PropertyFinancePosition | null;
 }) {
+  const returnTo = useSearchParams().get("returnTo");
   const [showHistory, setShowHistory] = useState(false);
   if (!position)
     return (
@@ -3063,7 +3067,7 @@ function PropertyAccountView({
           </span>
         </div>
       ) : null}
-      {activityIsRecent ? <p className="text-sm text-muted-foreground">Latest 300 activity records. <Link className="font-medium text-primary underline" href={`/properties/${position.propertyId}/finance`}>Open Transactions for earlier activity</Link>.</p> : null}
+      {activityIsRecent ? <p className="text-sm text-muted-foreground">Latest 300 activity records. <Link className="font-medium text-primary underline" href={propertyFinanceReturnLinks(position.propertyId, returnTo).transactionsHref}>Open Transactions for earlier activity</Link>.</p> : null}
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={showHistory} onChange={event => setShowHistory(event.target.checked)} />Show correction history</label>
       {orderedEntries.length === 0 ? (
         <EmptyState
@@ -4207,7 +4211,7 @@ function ExpenseReviewForm({
   submission: ExpenseSubmissionSummary;
 }) {
   const idempotencyKey = useStableActionId(`expense-${decision}`);
-  const [state, action] = useActionState(
+  const [state, action, pending] = useActionState(
     reviewExpenseAction,
     actionInitialState,
   );
@@ -4231,10 +4235,12 @@ function ExpenseReviewForm({
           ?.displayName ?? "the selected paid-from account",
       )
     : expensePaymentSourceLabel(submission.fundingSourceLabel);
+  const [dirty, setDirty] = useState(false);
+  useOverlayDraftGuard(useMemo<OverlayDraftGuard>(() => ({ status: pending ? "saving" : state.status === "success" ? "saved" : dirty || state.status === "error" ? "dirty" : "clean" }), [pending, dirty, state.status]));
   useSuccess(state, onSuccess);
 
   return (
-    <form action={action} className="space-y-4 p-4">
+    <form action={action} className="space-y-4 p-4" onChangeCapture={() => setDirty(true)} onInputCapture={() => setDirty(true)}>
       <input name="decision" type="hidden" value={decision} />
       <ExpenseLines submission={submission} />
 
@@ -4406,14 +4412,17 @@ function ExpenseReviewForm({
 }
 
 function ExpenseCancellationForm({ submission, onSuccess }: { submission: ExpenseSubmissionSummary; onSuccess: (message: string) => void }) {
-  const [state, action] = useActionState(cancelExpenseAction, actionInitialState);
+  const [state, action, pending] = useActionState(cancelExpenseAction, actionInitialState);
   const idempotencyKey = useStableActionId("cancel-expense");
+  const [reason, setReason] = useState("");
+  const [dirty, setDirty] = useState(false);
+  useOverlayDraftGuard(useMemo<OverlayDraftGuard>(() => ({ status: pending ? "saving" : state.status === "success" ? "saved" : dirty || state.status === "error" ? "dirty" : "clean" }), [pending, dirty, state.status]));
   useSuccess(state, onSuccess);
-  return <form action={action} className="space-y-4 p-4">
+  return <form action={action} className="space-y-4 p-4" onChangeCapture={() => setDirty(true)} onInputCapture={() => setDirty(true)}>
     <input name="transactionId" type="hidden" value={submission.transactionId ?? ""} />
     <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
     <p className="text-sm">Cancel this pending expense? No balance changes will be posted. Its history will be kept.</p>
-    <Field label="Reason"><Input name="reason" minLength={3} maxLength={500} required /></Field>
+    <Field label="Reason"><Input name="reason" value={reason} onChange={event => setReason(event.target.value)} minLength={3} maxLength={500} required /></Field>
     <ActionMessage state={state} />
     <FormFooter><span /><SubmitButton label="Cancel expense" /></FormFooter>
   </form>;
@@ -4427,15 +4436,17 @@ function ExpenseReversalForm({
   submission: ExpenseSubmissionSummary;
 }) {
   const idempotencyKey = useStableActionId("expense-reversal");
-  const [state, action] = useActionState(
+  const [state, action, pending] = useActionState(
     reverseExpenseAction,
     actionInitialState,
   );
   const [reason, setReason] = useState("");
+  const [dirty, setDirty] = useState(false);
+  useOverlayDraftGuard(useMemo<OverlayDraftGuard>(() => ({ status: pending ? "saving" : state.status === "success" ? "saved" : dirty || state.status === "error" ? "dirty" : "clean" }), [pending, dirty, state.status]));
   useSuccess(state, onSuccess);
 
   return (
-    <form action={action} className="space-y-4 p-4">
+    <form action={action} className="space-y-4 p-4" onChangeCapture={() => setDirty(true)} onInputCapture={() => setDirty(true)}>
       <input name={submission.transactionId ? "transactionId" : "submissionId"} type="hidden" value={submission.transactionId ?? submission.id} />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
       <input name="reason" type="hidden" value={reason} />

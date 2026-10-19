@@ -21,10 +21,12 @@ import type { LeaseRecordSection } from "@/features/leases/lease-detail-route";
 import type {
   HistoricalRentCorrectionCandidate,
   LeaseBillingFormConfig,
+  LeaseBillingRule,
 } from "@/features/leases/lease.types";
 
 const historicalCorrectionMocks = vi.hoisted(() => ({ apply: vi.fn(), preview: vi.fn() }));
 const depositActionMocks = vi.hoisted(() => ({ record: vi.fn() }));
+const leaseEditorMocks = vi.hoisted(() => ({ billing: vi.fn(), term: vi.fn() }));
 const actionMocks = vi.hoisted(() => ({
   confirmOwnerCollectionAction: vi.fn(),
   recordTenantInvoicePaymentAction: vi.fn(),
@@ -66,8 +68,8 @@ vi.mock("@/features/leases/actions", () => ({
   restoreLeaseAction: async () => ({}),
   reverseLeaseDepositEventAction: async () => ({}),
   scheduleLeaseActivationAction: async () => ({}),
-  scheduleFutureRentTermAction: async () => ({}),
-  saveLeaseBillingRulesAction: async () => ({}),
+  scheduleFutureRentTermAction: (...args: unknown[]) => leaseEditorMocks.term(...args),
+  saveLeaseBillingRulesAction: (...args: unknown[]) => leaseEditorMocks.billing(...args),
   transitionLeaseLifecycleAction: async () => ({}),
   updateLeaseAction: async () => ({}),
 }));
@@ -86,6 +88,8 @@ vi.mock("next/navigation", () => ({
 
 beforeEach(() => {
   depositActionMocks.record.mockReset().mockResolvedValue({});
+  leaseEditorMocks.billing.mockReset().mockResolvedValue({});
+  leaseEditorMocks.term.mockReset().mockResolvedValue({});
   historicalCorrectionMocks.apply.mockReset();
   historicalCorrectionMocks.preview.mockReset();
   actionMocks.confirmOwnerCollectionAction.mockReset();
@@ -947,6 +951,60 @@ describe("LeaseDetailScreen", () => {
       dialog.querySelector<HTMLInputElement>('input[name="supersedesTermId"]')
         ?.value,
     ).toBe("term-1");
+  });
+
+  it.each(["Renew lease", "Change rent"])("preserves edited %s fields on Escape and blocks dismissal while saving", async title => {
+    let finish!: (value: { status: string; message: string }) => void;
+    leaseEditorMocks.term.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    const user = userEvent.setup();
+    renderDetail("overview");
+    if (title === "Change rent") {
+      await user.click(screen.getByRole("button", { name: "Manage lease" }));
+      await user.click(screen.getByRole("menuitem", { name: title }));
+    } else await user.click(screen.getByRole("button", { name: title }));
+    const dialog = screen.getByRole("dialog", { name: title });
+    const amount = within(dialog).getByLabelText("Rent amount");
+    await user.clear(amount);
+    await user.type(amount, "1234");
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect((amount as HTMLInputElement).value).toBe("1234");
+    fireEvent.submit(dialog.querySelector("form")!);
+    await waitFor(() => expect(leaseEditorMocks.term).toHaveBeenCalledOnce());
+    expect((within(dialog).getByRole("button", { name: "Cancel" }) as HTMLButtonElement).disabled).toBe(true);
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("alertdialog", { name: "Saving is still in progress" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Continue waiting" }));
+    await act(async () => finish({ status: "error", message: "Save could not be confirmed." }));
+    expect((amount as HTMLInputElement).value).toBe("1234");
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).not.toBeNull();
+  });
+
+  it("preserves dirty billing rules when cancelling and protects a pending save", async () => {
+    let finish!: (value: { status: string; message: string }) => void;
+    leaseEditorMocks.billing.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    const user = userEvent.setup();
+    const lease = makeLease();
+    lease.billingRules = [billingRule({ id: "billing-current", state: "current" })];
+    renderDetail("rent", lease);
+    await user.click(screen.getByRole("button", { name: "Change rules" }));
+    const drawer = screen.getByRole("dialog", { name: "Change billing rules" });
+    const input = drawer.querySelector<HTMLInputElement>('input[name="managementFeeValue"]')!;
+    await user.clear(input);
+    await user.type(input, "15");
+    await user.click(within(drawer).getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    fireEvent.submit(drawer.querySelector("form")!);
+    await waitFor(() => expect(leaseEditorMocks.billing).toHaveBeenCalledOnce());
+    expect((within(drawer).getByRole("button", { name: "Cancel" }) as HTMLButtonElement).disabled).toBe(true);
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("alertdialog", { name: "Saving is still in progress" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Continue waiting" }));
+    await act(async () => finish({ status: "error", message: "Save could not be confirmed." }));
+    expect(input.value).toBe("15");
   });
 
   it("completes move-out through the checked end transition", async () => {
@@ -1851,8 +1909,8 @@ function makeLease() {
 }
 
 function billingRule(
-  overrides: Partial<Record<string, unknown>> = {},
-) {
+  overrides: Partial<LeaseBillingRule> = {},
+): LeaseBillingRule {
   return {
     billingRecipientKind: "individual",
     billingRecipientLabel: "Alice Tenant",
