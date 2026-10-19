@@ -36,6 +36,18 @@ import { RentPropertyUnavailableError } from "@/features/finance-operations/rent
 afterEach(cleanup);
 
 describe("RentIncomePage repair routing", () => {
+  it("loads the finance-only lease filter on the server and preserves its safe return context", async () => {
+    const returnTo = "/leases/lease-1?section=rent&returnTo=%2Fleases%3Fq%3DDara%26page%3D2";
+    render(await RentIncomePage({ searchParams: Promise.resolve({ leaseId: "lease-1", returnTo }) }));
+    expect(mocks.financeData).toHaveBeenCalledWith("organization-1", undefined, expect.objectContaining({ rentInvoiceQuery: expect.objectContaining({ leaseId: "lease-1" }) }));
+    expect(screen.getByRole("link", { name: "Back to lease" }).getAttribute("href")).toBe(returnTo);
+  });
+
+  it.each(["https://evil.invalid/leases/one", "//evil.invalid/leases/one"])("does not render an unsafe lease return %s", async (returnTo) => {
+    render(await RentIncomePage({ searchParams: Promise.resolve({ leaseId: "lease-1", returnTo }) }));
+    expect(screen.queryByRole("link", { name: "Back to lease" })).toBeNull();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireFinanceContext.mockResolvedValue({

@@ -113,7 +113,7 @@ describe("LeaseDetailScreen", () => {
     const lease = makeLease();
     lease.formValues.unitId = unitId;
     const origin = unitId ? "/units/unit-1?section=lease" : "/properties/property-1?section=overview";
-    renderDetail("rent", lease, allLeasePermissions, { returnTo: origin });
+    renderDetail("rent", lease, allLeasePermissions, { returnTo: origin, canViewPropertyRecords: true });
     const href = screen.getByRole("link", { name: "View rent and charges" }).getAttribute("href")!;
     const url = new URL(href, "https://nestory.invalid");
     expect(url.pathname).toBe(unitId ? "/units/unit-1/finance" : "/properties/property-1/finance");
@@ -132,6 +132,20 @@ describe("LeaseDetailScreen", () => {
     renderDetail("rent", makeLease(), allLeasePermissions, { canViewFinance: false });
     expect(screen.queryByRole("link", { name: "View rent and charges" })).toBeNull();
     expect(screen.getByRole("heading", { name: "Rent & deposit" })).toBeTruthy();
+  });
+
+  it.each(["unit-1", null])("uses authorized lease-filtered finance without property access for %s", (unitId) => {
+    const lease = makeLease();
+    lease.formValues.unitId = unitId;
+    renderDetail("rent", lease, allLeasePermissions, { canViewPropertyRecords: false, returnTo: "/leases?q=Dara&page=2" });
+    const href = screen.getByRole("link", { name: "View rent and charges" }).getAttribute("href")!;
+    const url = new URL(href, "https://nestory.invalid");
+    expect(url.pathname).toBe("/rent-income");
+    expect(url.searchParams.get("leaseId")).toBe(lease.id);
+    const origin = new URL(url.searchParams.get("returnTo")!, "https://nestory.invalid");
+    expect(origin.pathname).toBe(`/leases/${lease.id}`);
+    expect(origin.searchParams.get("section")).toBe("rent");
+    expect(origin.searchParams.get("returnTo")).toBe("/leases?q=Dara&page=2");
   });
 
   it("retains the filtered origin after payment success without losing receipt guidance", async () => {

@@ -354,6 +354,7 @@ export function LeaseDetailScreen({
         <LeaseDetailView
           returnTo={originHref}
           rentChargesHref={canViewFinance ? buildLeaseRentChargesHref({
+            canViewPropertyRecords,
             leaseId: lease.id,
             propertyId: lease.formValues.propertyId,
             unitId: lease.formValues.unitId,

@@ -93,12 +93,19 @@ export function buildLeaseRecordHref({
   return buildHref(`/leases/${leaseId}`, { section, returnTo: workflowReturnHref(returnTo) });
 }
 
-export function buildLeaseRentChargesHref({ leaseId, propertyId, unitId, returnTo }: {
+export function buildLeaseRentChargesHref({ leaseId, propertyId, unitId, returnTo, canViewPropertyRecords = true }: {
   leaseId: string;
   propertyId: string;
   unitId?: string | null;
   returnTo?: string;
+  canViewPropertyRecords?: boolean;
 }) {
+  if (!canViewPropertyRecords) {
+    return buildHref("/rent-income", {
+      leaseId,
+      returnTo: buildLeaseRecordHref({ leaseId, section: "rent", returnTo }),
+    });
+  }
   return buildHref(unitId ? `/units/${unitId}/finance` : `/properties/${propertyId}/finance`, {
     view: "rent",
     returnTo: buildLeaseRecordHref({ leaseId, section: "rent", returnTo }),
