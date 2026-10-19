@@ -782,6 +782,13 @@ export async function submitExpenseAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
+  const posting = formData.get("expenseIntent") === "post";
+  if (posting && (!formData.has("lines") || formData.has("replacementTransactionId") || formData.get("responsibility") !== "owner")) {
+    return actionError("Direct posting is available for new owner expenses only.");
+  }
+  if (posting && formData.get("confirmedPayFromAccountId") !== formData.get("payFromAccountId")) {
+    return actionError("Confirm the paid-from account before posting the expense.");
+  }
   const evidenceFile = formData.get("evidenceFile");
   // React's multipart decoder gives an unselected file input the default
   // Blob filename. Accept both representations of that empty browser part.
@@ -804,6 +811,10 @@ export async function submitExpenseAction(
     if (replacement && !replacement.success) return validationError(replacement.error);
 
     const context = await requireFinanceSubmissionContext();
+    if (posting) {
+      await requireFinanceReviewContext();
+      await requireFinanceReversalContext();
+    }
     if (replacement?.success && replacement.data.expectedStatus === "approved") await requireFinanceReversalContext();
     const supabase = await createSupabaseServerClient();
     let evidenceDocumentId: string | null = null;
@@ -864,14 +875,14 @@ export async function submitExpenseAction(
           p_reason: replacement.data.replacementReason,
           p_reversal_date: replacement.data.reversalDate,
         })
-      : await supabase.rpc("submit_expense_transaction", expensePayload);
+      : await supabase.rpc(posting ? "post_expense_transaction" : "submit_expense_transaction", expensePayload);
     if (isPrivilegedStepUpRequiredError(error)) {
       return actionError(privilegedStepUpRequiredActionMessage);
     }
     if (error) return expenseWorkflowError(error.message);
     revalidateFinance();
     return {
-      message: replacement?.success ? replacement.data.expectedStatus === "approved" ? "Expense corrected. Reports and balances are updated; the original is kept in history." : "Changes saved for review. The previous version is kept in history." : "Paid cost submitted for Finance review.",
+      message: replacement?.success ? replacement.data.expectedStatus === "approved" ? "Expense corrected. Reports and balances are updated; the original is kept in history." : "Changes saved for review. The previous version is kept in history." : posting ? "Expense posted. Reports and balances are updated." : "Paid cost submitted for Finance review.",
       status: "success",
     };
   }

@@ -2335,6 +2335,32 @@ describe("FinanceOperationsScreen", () => {
     ).toBe("lease-1");
   });
 
+  it.each([true, false])("offers direct owner expense posting only with existing self-approval authority (%s)", (selfApproval) => {
+    render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canSubmitExpense: true, canReviewExpense: true })} canApproveOwnExpense={selfApproval} organizationName="IPS" view="expenses" />);
+    fireEvent.click(screen.getByRole("button", { name: "Record property expense" }));
+    expect(screen.getByRole("button", { name: selfApproval ? "Post expense" : "Submit for review" })).not.toBeNull();
+    const confirmation = screen.queryByRole("checkbox", { name: /I confirm this expense was paid from/ });
+    if (selfApproval) {
+      expect(confirmation).toHaveProperty("required", true);
+      expect(confirmation).toHaveProperty("checked", false);
+    } else expect(confirmation).toBeNull();
+  });
+
+  it("requires paid-from confirmation again when the account changes", async () => {
+    const user = userEvent.setup();
+    render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canSubmitExpense: true, canReviewExpense: true })} canApproveOwnExpense organizationName="IPS" view="expenses" scope={{ id: "property-1", kind: "property", label: "Home", propertyId: "property-1", propertyLabel: "Home" }} />);
+    await user.click(screen.getByRole("button", { name: "Record property expense" }));
+    await user.click(screen.getByRole("checkbox", { name: /I confirm this expense was paid from/ }));
+    expect(screen.getByRole("checkbox", { name: /I confirm this expense was paid from/ })).toHaveProperty("checked", true);
+    const submitted = new FormData(screen.getByRole("form", { name: "Record property expense form" }) as HTMLFormElement);
+    expect(submitted.get("expenseIntent")).toBe("post");
+    expect(submitted.get("confirmedPayFromAccountId")).toBe(submitted.get("payFromAccountId"));
+    await user.click(screen.getByLabelText("Pay from"));
+    await user.click(await screen.findByRole("option", { name: "Company card" }));
+    expect(screen.getByRole("checkbox", { name: /I confirm this expense was paid from Company card/ })).toHaveProperty("checked", false);
+    expect(new FormData(screen.getByRole("form", { name: "Record property expense form" }) as HTMLFormElement).get("confirmedPayFromAccountId")).toBeNull();
+  });
+
   it("previews the owner-borne expense before review", async () => {
     const input = data();
     input.reconciliationSources = [];
