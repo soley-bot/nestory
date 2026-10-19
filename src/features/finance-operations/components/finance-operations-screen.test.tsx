@@ -1181,6 +1181,49 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
   });
 
+  it.each([true, false])("shows expiry review without amount or generation, lease access=%s", canViewLeases => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-15T05:00:00Z"));
+    const input = data();
+    input.leases[0].billing = null;
+    input.rentGenerationExceptions = [{
+      attemptCount: 5, billingPeriodStart: "2026-09-01", code: "billing_setup_missing",
+      id: "expired", lastAttemptAt: "2026-09-15T01:00:00Z", leaseId: "lease-1",
+      message: "Review billing setup", propertyId: "property-1", expiredTermEndDate: "2026-08-31",
+    }];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canConfigureRent: true, canRetryCurrentRent: true })}
+      canViewLeases={canViewLeases} organizationName="IPS" view="work" />);
+    const row = screen.getByText("Review lease renewal or move-out").closest("tr")!;
+    expect(within(row).getByText(/this exception does not establish that rent is owed/)).not.toBeNull();
+    expect(within(row).getAllByRole("cell")[2].textContent).toBe("—");
+    expect(screen.queryByRole("button", { name: /Generate missing rent/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Set up" })).toBeNull();
+    if (canViewLeases) expect(screen.getByRole("link", { name: "Review lease" }).getAttribute("href")).toBe("/leases/lease-1");
+    else {
+      expect(screen.queryByRole("link", { name: "Review lease" })).toBeNull();
+      expect(screen.getByText("Ask a lease administrator to review")).not.toBeNull();
+    }
+    vi.useRealTimers();
+  });
+
+  it("keeps current renewal setup visible alongside an expired historical month", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-15T05:00:00Z"));
+    const input = data();
+    input.leases[0].billing = null;
+    input.rentGenerationExceptions = [{
+      attemptCount: 5, billingPeriodStart: "2026-09-01", code: "billing_setup_missing",
+      id: "expired", lastAttemptAt: "2026-09-15T01:00:00Z", leaseId: "lease-1",
+      message: "Review billing setup", propertyId: "property-1", expiredTermEndDate: "2026-08-31",
+    }];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canConfigureRent: true, canRetryCurrentRent: true })}
+      canViewLeases organizationName="IPS" view="work" />);
+    expect(screen.getByRole("button", { name: "Set up" })).not.toBeNull();
+    expect(screen.getByRole("link", { name: "Review lease" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /Generate missing rent/ })).toBeNull();
+    vi.useRealTimers();
+  });
+
   it("shows automatic-rent exceptions without restoring a manual invoice path", () => {
     const input = data();
     input.leases[0].billing = billing();

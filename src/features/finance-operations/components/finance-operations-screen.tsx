@@ -1105,10 +1105,15 @@ function FinanceWorkView({
   const router = useRouter();
   const searchParams = useSearchParams();
   const businessDate = getBusinessDateValue();
+  const currentExpiredLeaseIds = new Set(rentGenerationExceptions
+    .filter(exception => exception.expiredTermEndDate
+      && exception.billingPeriodStart.slice(0, 7) === businessDate.slice(0, 7))
+    .map(exception => exception.leaseId));
   const leasesNeedingSetup = leases.filter(
     (lease) =>
       (lease.status === "active" || lease.status === "notice_given") &&
-      !isLeaseBillingRuleComplete(lease.billing),
+      !isLeaseBillingRuleComplete(lease.billing) &&
+      !currentExpiredLeaseIds.has(lease.id),
   );
   const leaseById = new Map(leases.map((lease) => [lease.id, lease]));
   const tenantDue = tenantInvoices.filter((invoice) => invoice.balanceDue > 0);
@@ -1347,6 +1352,7 @@ function FinanceWorkView({
                       ) : item.kind === "exception" ? (
                         <RentGenerationExceptionRow
                           canRecover={canRetryCurrentRent}
+                          canViewLeases={canViewLeases}
                           exception={item.exception}
                           lease={item.lease}
                           primaryAction
@@ -1598,11 +1604,13 @@ function formatCount(count: number, singular: string) {
 
 function RentGenerationExceptionRow({
   canRecover,
+  canViewLeases,
   exception,
   lease,
   primaryAction = false,
 }: {
   canRecover: boolean;
+  canViewLeases: boolean;
   exception: RentGenerationException;
   lease: FinanceLease | null;
   primaryAction?: boolean;
@@ -1612,18 +1620,26 @@ function RentGenerationExceptionRow({
   return (
     <tr className="border-b border-border">
       <Td>
-        <p className="font-medium">Rent generation needs attention</p>
-        <p className="text-xs text-muted-foreground">{exception.message}</p>
+        <p className="font-medium">{exception.expiredTermEndDate ? "Review lease renewal or move-out" : "Rent generation needs attention"}</p>
+        <p className="text-xs text-muted-foreground">{exception.expiredTermEndDate
+          ? `The recorded rent term ended ${formatDate(exception.expiredTermEndDate)}. No recorded rent term covers ${monthLabel}. Confirm renewal or move-out before generating rent; this exception does not establish that rent is owed.`
+          : exception.message}</p>
         <p className="mt-1 text-xs text-muted-foreground">
           {exception.attemptCount}{" "}
           {exception.attemptCount === 1 ? "attempt" : "attempts"}
         </p>
       </Td>
       <Td>{lease?.propertyLabel ?? "Property unavailable"}</Td>
-      <Td>{lease ? <Money amount={lease.monthlyRent} /> : "—"}</Td>
+      <Td>{lease && !exception.expiredTermEndDate ? <Money amount={lease.monthlyRent} /> : "—"}</Td>
       <Td>{monthLabel}</Td>
       <Td align="right">
-        {canRecover ? (
+        {exception.expiredTermEndDate ? (
+          canViewLeases ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/leases/${exception.leaseId}`}>Review lease</Link>
+            </Button>
+          ) : <span className="text-xs text-muted-foreground">Ask a lease administrator to review</span>
+        ) : canRecover ? (
           <RentGenerationRetry
             exceptionId={exception.id}
             monthLabel={monthLabel}

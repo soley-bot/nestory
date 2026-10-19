@@ -111,6 +111,27 @@ describe("finance operations initial reads", () => {
     expect(result.rentGenerationExceptions.map(exception => exception.id)).toEqual(["current", "ended", "termless"]);
   });
 
+  it("classifies exceptions from their own scoped authoritative terms and billing month", async () => {
+    const harness = createFinanceReadHarness({
+      properties: { data: [{ id: "property-1", code: "P", name: "Property", archived_at: null }] },
+      recovery_leases: { data: ["expired", "covered", "termless"].map(id => ({ id, property_id: "property-1", archived_at: null })) },
+      lease_terms: { data: [
+        { lease_id: "expired", start_date: "2026-01-01", end_date: "2026-09-30", rent_amount: 500 },
+        { lease_id: "covered", start_date: "2026-10-15", end_date: "2027-09-30", rent_amount: 500 },
+        { lease_id: "other-lease", start_date: "2026-01-01", end_date: "2027-09-30", rent_amount: 500 },
+      ] },
+      rent_generation_exceptions: { data: ["expired", "covered", "termless", "unavailable"].map(id => ({
+        id, lease_id: id, property_id: "property-1", attempt_count: 1, billing_period_start: "2026-10-01",
+        error_code: "billing_setup_missing", last_attempt_at: "2026-10-01", safe_message: "Review billing", resolved_at: null,
+      })) },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getFinanceOperationsData("organization-1");
+    expect(result.rentGenerationExceptions.map(({ id, expiredTermEndDate }) => [id, expiredTermEndDate])).toEqual([
+      ["expired", "2026-09-30"], ["covered", undefined], ["termless", undefined],
+    ]);
+  });
+
   it("bounds owner account activity and loads only referenced expense details", async () => {
     const harness = createFinanceReadHarness({
       properties: { data: [{ id: "property-1", code: "P", name: "Property", archived_at: null }] },
