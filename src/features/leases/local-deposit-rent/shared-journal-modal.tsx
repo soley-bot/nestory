@@ -1,9 +1,10 @@
 "use client";
-import {useEffect,useRef,useState} from "react";
+import {useEffect,useMemo,useRef,useState} from "react";
 import {Button} from "@/components/ui/button";
 import {DatePickerField} from "@/components/ui/date-picker-field";
 import {Input} from "@/components/ui/input";
 import {Modal} from "@/components/ui/modal";
+import {useOverlayCloseRequest,useOverlayDraftGuard,type OverlayDraftGuard} from "@/components/ui/overlay-dismissal-context";
 import {SelectControl} from "@/components/ui/select-control";
 import type {DepositRentDraft,DepositRentPreview,DepositRentRecovery} from "./contracts";
 import {listDormantDepositRent,previewDormantDepositRent,confirmDormantDepositRent} from "./shared-journal-product-actions";
@@ -16,6 +17,7 @@ function SharedDepositRentModalContent({leaseId,actions,onClose,onSuccess}:{leas
   const [date,setDate]=useState(""),[amount,setAmount]=useState(""),[reason,setReason]=useState("");
   const [preview,setPreview]=useState<DepositRentPreview|null>(null),[recovery,setRecovery]=useState<DepositRentRecovery|null>(null);
   const [message,setMessage]=useState<string|null>(null),[pending,setPending]=useState(false);
+  const [dirty,setDirty]=useState(false);
   const revision=useRef(0),busy=useRef(false),alive=useRef(true);
   useEffect(()=>{alive.current=true;return()=>{alive.current=false;revision.current+=1;};},[]);
   useEffect(()=>{let active=true;revision.current+=1;
@@ -24,7 +26,7 @@ function SharedDepositRentModalContent({leaseId,actions,onClose,onSuccess}:{leas
     }).catch(()=>{if(active)setMessage("Deposit rent details could not be loaded. Reload the lease.");});
     return()=>{active=false;revision.current+=1;};
   },[actions,leaseId]);
-  function invalidate(){if(recovery)return;revision.current+=1;setPreview(null);setMessage(null);}
+  function invalidate(){if(recovery)return;setDirty(true);revision.current+=1;setPreview(null);setMessage(null);}
   async function review(){
     if(busy.current||recovery)return;busy.current=true;setPending(true);setMessage(null);setPreview(null);const current=revision.current;
     const draft:DepositRentDraft=operation==="apply"?{operation,leaseId,depositId,invoiceId,date,reason,lineId:selection,amount}:{operation,leaseId,date,reason,applicationId:selection};
@@ -36,7 +38,7 @@ function SharedDepositRentModalContent({leaseId,actions,onClose,onSuccess}:{leas
     const original=recovery??(preview?{...preview,reason}:null);if(!original||busy.current)return;
     busy.current=true;setPending(true);setMessage(null);setRecovery(original);setPreview(null);const current=revision.current;
     try{const result=await actions.confirm({leaseId,token:original.token,idempotencyKey:original.idempotencyKey});if(!alive.current||current!==revision.current)return;
-      if(result.status==="success"){setRecovery(null);setView(null);setMessage(result.value.message);onSuccess(result.value.message);}else {let nextMessage=result.message;if(result.recoveryState==="unused"){const refreshed=await actions.list(leaseId);if(!alive.current||current!==revision.current)return;if(refreshed.status==="success"){setView(refreshed.value);setRecovery(refreshed.value.recovery??null);setPreview(null);nextMessage=refreshed.value.lastRejectedMessage??refreshed.value.lastResolvedMessage??result.message;}}setMessage(nextMessage);}
+      if(result.status==="success"){setDirty(false);setRecovery(null);setView(null);setMessage(result.value.message);onSuccess(result.value.message);}else {let nextMessage=result.message;if(result.recoveryState==="unused"){const refreshed=await actions.list(leaseId);if(!alive.current||current!==revision.current)return;if(refreshed.status==="success"){setView(refreshed.value);setRecovery(refreshed.value.recovery??null);setPreview(null);nextMessage=refreshed.value.lastRejectedMessage??refreshed.value.lastResolvedMessage??result.message;}}setMessage(nextMessage);}
     }catch{if(alive.current&&current===revision.current)setMessage("The original action is unconfirmed. Reopen this lease and retry it before making another change.");}
     finally{busy.current=false;if(alive.current)setPending(false);}
   }
@@ -77,9 +79,14 @@ function SharedDepositRentModalContent({leaseId,actions,onClose,onSuccess}:{leas
           <Button type="button" disabled={pending} onClick={()=>void confirm()}>{operation==="apply"?"Confirm deposit application":"Confirm full reversal"}</Button>
         </div>:null}
       </form>:!message?<p role="status">Loading deposit rent details.</p>:null}
-      {message?<p role="status">{message}</p>:null}<Button type="button" variant="ghost" disabled={pending} onClick={onClose}>Close</Button>
+      {message?<p role="status">{message}</p>:null}<JournalDismissalGuard pending={pending} dirty={dirty||Boolean(preview)||Boolean(recovery)} onClose={onClose}/>
     </div>
   </Modal>;
+}
+function JournalDismissalGuard({pending,dirty,onClose}:{pending:boolean;dirty:boolean;onClose:()=>void}){
+  useOverlayDraftGuard(useMemo<OverlayDraftGuard>(()=>({status:pending?"saving":dirty?"dirty":"clean"}),[pending,dirty]));
+  const requestClose=useOverlayCloseRequest(onClose);
+  return <Button type="button" variant="ghost" disabled={pending} onClick={requestClose}>Close</Button>;
 }
 export function SharedJournalDepositRentModal(props:Parameters<typeof SharedDepositRentModalContent>[0]){
   if(!props.enabledForLocalTests)return <p role="status">Deposit rent workflow is disabled.</p>;

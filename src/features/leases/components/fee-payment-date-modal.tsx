@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useOverlayCloseRequest, useOverlayDraftGuard } from "@/components/ui/overlay-dismissal-context";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
@@ -27,7 +28,11 @@ function blockerMessage(blocker: string) {
   return "This settlement could not be verified for correction. Reload the lease and preview again.";
 }
 
-export function FeePaymentDateModal({ leaseId, onClose, onSuccess }: {
+export function FeePaymentDateModal(props: Parameters<typeof FeePaymentDateContent>[0]) {
+  return <Modal open title="Correct fee payment date" onClose={props.onClose}><FeePaymentDateContent {...props} /></Modal>;
+}
+
+function FeePaymentDateContent({ leaseId, onClose, onSuccess }: {
   leaseId: string; onClose: () => void; onSuccess: (message: string) => void;
 }) {
   const router = useRouter();
@@ -38,6 +43,9 @@ export function FeePaymentDateModal({ leaseId, onClose, onSuccess }: {
   const [preview, setPreview] = useState<FeePaymentDatePreview | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const requestClose = useOverlayCloseRequest(onClose);
+  useOverlayDraftGuard(useMemo(() => ({ status: pending ? "saving" as const : dirty && message ? "error" as const : dirty ? "dirty" as const : "clean" as const, onDiscard: onClose }), [pending, dirty, message, onClose]));
   const [reload, setReload] = useState(0);
   const revision = useRef(0);
   const idempotencyKey = useRef<string | null>(null);
@@ -59,6 +67,7 @@ export function FeePaymentDateModal({ leaseId, onClose, onSuccess }: {
   }, [leaseId, reload]);
 
   function invalidatePreview() {
+    setDirty(true);
     revision.current += 1;
     setPreview(null);
     setMessage(null);
@@ -90,6 +99,7 @@ export function FeePaymentDateModal({ leaseId, onClose, onSuccess }: {
     try {
       const result = await correctFeePaymentDateAction({ allocationId, paymentDate, reason, previewHash: preview.previewHash, idempotencyKey: idempotencyKey.current });
       if (result.status === "success") {
+        setDirty(false);
         onSuccess(result.message ?? "Fee payment date corrected.");
         router.refresh();
       } else setMessage(result.message ?? "The correction could not be applied. Preview again.");
@@ -101,8 +111,7 @@ export function FeePaymentDateModal({ leaseId, onClose, onSuccess }: {
   }
 
   return (
-    <Modal open title="Correct fee payment date" onClose={() => { if (!pending) onClose(); }}>
-      <div className="space-y-4 p-4">
+      <div className="space-y-4 p-4" onChangeCapture={() => setDirty(true)}>
         <p className="text-sm text-muted-foreground">Correct a management fee payment date. The original record stays in history.</p>
         {candidates === null ? (
           <div role="status" className="text-sm">{message ?? "Loading fee payments…"}{message ? <Button className="ml-2" variant="outline" onClick={() => { setMessage(null); setReload((value) => value + 1); }}>Try again</Button> : null}</div>
@@ -137,8 +146,7 @@ export function FeePaymentDateModal({ leaseId, onClose, onSuccess }: {
             </div> : null}
           </form>
         )}
-        <div className="flex justify-end"><Button type="button" variant="ghost" disabled={pending} onClick={onClose}>Cancel</Button></div>
+        <div className="flex justify-end"><Button type="button" variant="ghost" disabled={pending} onClick={requestClose}>Cancel</Button></div>
       </div>
-    </Modal>
   );
 }

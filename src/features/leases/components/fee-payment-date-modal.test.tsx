@@ -70,3 +70,38 @@ describe("fee payment date modal", () => {
     expect(screen.queryByText(code)).toBeNull();
   });
 });
+
+
+describe("fee correction dismissal", () => {
+  afterEach(cleanup);
+  it("guards dirty cancellation and retains uncertain retry identity while pending and after failure", async () => {
+    mocks.list.mockResolvedValue({ candidates: [candidate] });
+    mocks.preview.mockResolvedValue({ status: "preview", preview });
+    let reject!: (error: Error) => void;
+    mocks.correct.mockReset().mockImplementation(() => new Promise((_, fail) => { reject = fail; }));
+    const close = vi.fn();
+    render(<FeePaymentDateModal leaseId="lease" onClose={close} onSuccess={vi.fn()} />);
+    await prepare();
+    fireEvent.click(screen.getByRole("button", {name:"Cancel"}));
+    expect(screen.getByRole("alertdialog", {name:"Discard unsaved changes?"})).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", {name:"Keep editing"}));
+    fireEvent.click(screen.getByRole("button", {name:"Confirm payment date correction"}));
+    await waitFor(() => expect(mocks.correct).toHaveBeenCalledOnce());
+    expect((screen.getByRole("button", {name:"Cancel"}) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(screen.getByRole("dialog"), {key:"Escape"});
+    expect(close).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole("button", {name:"Continue waiting"}));
+    reject(new Error("network"));
+    await screen.findByText(/Retry with the same details/);
+    fireEvent.click(screen.getByRole("button", {name:"Close modal"}));
+    expect(screen.getByRole("alertdialog", {name:"Discard unsaved changes?"})).toBeTruthy();
+    expect((screen.getByLabelText("Reason") as HTMLInputElement).value).toBe("Actual bank transfer date");
+    fireEvent.click(screen.getByRole("button", {name:"Discard changes"}));
+    expect(close).toHaveBeenCalledOnce();
+  });
+  it("allows closing an initial loading error", async () => {
+    mocks.list.mockResolvedValue({message:"Unavailable"});
+    const close=vi.fn();render(<FeePaymentDateModal leaseId="lease" onClose={close} onSuccess={vi.fn()}/>);
+    await screen.findByText("Unavailable");fireEvent.click(screen.getByRole("button",{name:"Cancel"}));expect(close).toHaveBeenCalledOnce();
+  });
+});
