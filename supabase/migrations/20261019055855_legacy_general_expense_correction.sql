@@ -162,3 +162,7 @@ GRANT EXECUTE ON FUNCTION public.get_legacy_expense_history(uuid,uuid) TO authen
 
 
 
+-- New organization-owned records inherit the existing privileged step-up boundary.
+CREATE TRIGGER privileged_email_step_up_enforcement
+BEFORE INSERT OR UPDATE OR DELETE ON public.expense_legacy_replacements
+FOR EACH ROW EXECUTE FUNCTION app_private.enforce_privileged_email_step_up_on_organization_mutation();
