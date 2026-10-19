@@ -4,6 +4,7 @@ import { reportReturnHref } from "@/features/reports/report-return";
 const workflowPath = /^\/(?:finance|rent-income|bills-expenses|leases|properties|units)(?:\/[a-zA-Z0-9_-]+)*$/;
 const contextKeys = new Set(["view", "section", "page", "q", "due", "overdueDays", "status", "sort", "property", "expenseMonth", "month", "propertyId", "unitId", "ownerPersonId", "archiveState", "tenantPersonId", "leaseId"]);
 const setupContextKeys = new Set(["step", "ownerId", "tenantId"]);
+const propertyRegisterContextKeys = new Set(["query", "ownerStatus", "leaseStatus", "netStatus", "review", "pageSize"]);
 
 export function workflowReturnHref(value: unknown): string | undefined {
   if (typeof value !== "string" || value.length > 2000) return;
@@ -14,7 +15,7 @@ export function workflowReturnHref(value: unknown): string | undefined {
   const url = new URL(safe, "https://nestory.invalid");
   const reportOrigin = reportReturnHref(url.searchParams.get("returnTo"));
   for (const key of [...url.searchParams.keys()]) {
-    if (!contextKeys.has(key) && !(url.pathname === "/properties/setup" && setupContextKeys.has(key))) {
+    if (!contextKeys.has(key) && !(url.pathname === "/properties/setup" && setupContextKeys.has(key)) && !(url.pathname === "/properties" && propertyRegisterContextKeys.has(key))) {
       url.searchParams.delete(key);
     }
   }

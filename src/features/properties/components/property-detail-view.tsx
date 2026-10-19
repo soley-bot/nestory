@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { workflowReturnHref } from "@/features/leases/workflow-return";
 import { useActionState, useState } from "react";
 import type { ReactNode } from "react";
 import {
@@ -73,6 +74,7 @@ const propertyNextActionToneClass: Record<PropertyBadgeTone, string> = {
 };
 
 export function PropertyDetailView({
+  returnTo,
   canArchiveFiles = false,
   initialSection = "overview",
   onAddDocument,
@@ -81,6 +83,7 @@ export function PropertyDetailView({
   onCreateLease,
   property,
 }: {
+  returnTo?: string;
   canArchiveFiles?: boolean;
   initialSection?: PropertyLocalSection;
   onAddDocument?: () => void;
@@ -98,6 +101,7 @@ export function PropertyDetailView({
       data-slot="property-record-workspace"
     >
       <PropertyRecordNavigation
+        returnTo={returnTo}
         activeSection={activeSection}
         accountHref={property.hrefs.account}
         openMaintenanceCount={property.counts.openMaintenanceCases}
@@ -925,12 +929,14 @@ function PropertyRentalStructureSetup({ propertyId }: { propertyId: string }) {
 }
 
 export function PropertyRecordNavigation({
+  returnTo,
   accountHref,
   activeSection,
   openMaintenanceCount = 0,
   onSectionChange,
   propertyId,
 }: {
+  returnTo?: string;
   accountHref?: string;
   activeSection: PropertyRecordSection;
   openMaintenanceCount?: number;
@@ -944,12 +950,16 @@ export function PropertyRecordNavigation({
     >
       <div className="flex min-w-max items-center gap-1" role="tablist">
         {propertyRecordSections.map((item) => {
-          const href =
+          const baseHref =
             item.id === "account"
               ? accountHref ?? `/properties/${propertyId}/account`
               : item.id === "overview"
                 ? `/properties/${propertyId}`
                 : `/properties/${propertyId}?section=${item.id}`;
+          const originHref = workflowReturnHref(returnTo);
+          const href = originHref
+            ? `${baseHref}${baseHref.includes("?") ? "&" : "?"}${new URLSearchParams({ returnTo: originHref })}`
+            : baseHref;
           const className = cn(
             "inline-flex h-9 items-center gap-1.5 border-b-2 border-transparent px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
             activeSection === item.id && "border-primary text-foreground",

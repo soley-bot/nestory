@@ -14508,6 +14508,8 @@ export type Database = {
         | "maintenance.create_assign"
         | "maintenance.complete"
         | "maintenance.review"
+        | "finance.post_expenses"
+        | "finance.correct_expenses"
       owner_balance_component:
         | "ips_held_owner_cash"
         | "owner_due_to_ips"
@@ -14677,6 +14679,8 @@ export const Constants = {
         "maintenance.create_assign",
         "maintenance.complete",
         "maintenance.review",
+        "finance.post_expenses",
+        "finance.correct_expenses",
       ],
       owner_balance_component: [
         "ips_held_owner_cash",

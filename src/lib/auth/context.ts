@@ -9,7 +9,7 @@ import {
   type WorkspaceCapabilities,
   type WorkspaceRoleKind,
 } from "@/lib/auth/capabilities";
-import { type PermissionKey } from "@/lib/auth/permission-catalog";
+import { PERMISSION_KEYS, type PermissionKey } from "@/lib/auth/permission-catalog";
 import {
   buildWorkspacePermissionContext,
   hasPermission,
@@ -233,7 +233,7 @@ export async function getWorkspaceMembershipForUser(
         .select("permission_key")
         .eq("organization_id", organizationId)
         .eq("role_id", roleId)
-        .limit(24),
+        .limit(PERMISSION_KEYS.length),
     ]);
     if (branchResult.error || roleResult.error || permissionResult.error) {
       return null;
@@ -385,6 +385,14 @@ export const requireFinanceReviewContext = cache(async () =>
 
 export const requireFinanceReversalContext = cache(async () =>
   requireCapability("canReverseExpense"),
+);
+
+export async function requireFinancePostingContext(responsibility: "owner" | "tenant") {
+  return requireCapability(responsibility === "tenant" ? "canPostTenantExpense" : "canPostExpense");
+}
+
+export const requireExpenseCorrectionContext = cache(async () =>
+  requireCapability("canCorrectExpense"),
 );
 
 export const requireFinanceOperationContext = cache(async () =>

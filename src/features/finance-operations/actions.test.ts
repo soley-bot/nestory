@@ -17,6 +17,8 @@ const {
   requireFinanceOperationContext,
   requireSuperAdminContext,
   requireFinanceReviewContext,
+  requireFinancePostingContext,
+  requireExpenseCorrectionContext,
   requireFinanceReversalContext,
   requireFinanceSubmissionContext,
   requireHistoricalRentRecoveryContext,
@@ -39,6 +41,8 @@ const {
   requireFinanceOperationContext: vi.fn(),
   requireSuperAdminContext: vi.fn(),
   requireFinanceReviewContext: vi.fn(),
+  requireFinancePostingContext: vi.fn(),
+  requireExpenseCorrectionContext: vi.fn(),
   requireFinanceReversalContext: vi.fn(),
   requireFinanceSubmissionContext: vi.fn(),
   requireHistoricalRentRecoveryContext: vi.fn(),
@@ -62,6 +66,8 @@ vi.mock("@/lib/auth/context", () => ({
   requireFinanceOperationContext,
   requireSuperAdminContext,
   requireFinanceReviewContext,
+  requireFinancePostingContext,
+  requireExpenseCorrectionContext,
   requireFinanceReversalContext,
   requireFinanceSubmissionContext,
   requireHistoricalRentRecoveryContext,
@@ -133,6 +139,8 @@ describe("rent generation recovery action", () => {
     requireFinanceOperationContext.mockReset();
     requireSuperAdminContext.mockReset();
     requireFinanceReviewContext.mockReset();
+    requireFinancePostingContext.mockReset();
+    requireExpenseCorrectionContext.mockReset();
     requireFinanceReversalContext.mockReset();
     requireFinanceSubmissionContext.mockReset();
     requireHistoricalRentRecoveryContext.mockReset();
@@ -941,6 +949,8 @@ describe("expense approval actions", () => {
     adminRpc.mockReset();
     adminUpload.mockReset();
     requireFinanceReviewContext.mockReset();
+    requireFinancePostingContext.mockReset();
+    requireExpenseCorrectionContext.mockReset();
     requireFinanceReversalContext.mockReset();
     requireFinanceSubmissionContext.mockReset();
     revalidatePath.mockReset();
@@ -1076,7 +1086,7 @@ describe("expense approval actions", () => {
     Object.entries({ expenseDate: "2026-08-08", idempotencyKey: "expense-replacement-1", payeeMode: "external", payeePersonId: "", externalPayeeLabel: "Cleaner", payFromAccountId: sourceId, reference: "", responsibility: "owner", replacementTransactionId: submissionId, expectedStatus: "approved", replacementReason: "Correct wrong amount", reversalDate: "2026-09-10" }).forEach(([key,value]) => form.set(key,value));
     form.set("lines", JSON.stringify([{ amount: "30", categoryAccountId: sourceId, description: "Cleaning", ownerCashAmount: null, propertyId, unitId: null }]));
     expect(await submitExpenseAction({}, form)).toMatchObject({ status: "success" });
-    expect(requireFinanceReversalContext).toHaveBeenCalledOnce();
+    expect(requireExpenseCorrectionContext).toHaveBeenCalledOnce();
     expect(rpc).toHaveBeenCalledTimes(1);
     expect(rpc).toHaveBeenCalledWith("replace_expense_transaction", expect.objectContaining({ p_transaction_id: submissionId, p_expected_status: "approved", p_reason: "Correct wrong amount", p_reversal_date: "2026-09-10", p_supporting_document_id: null }));
   });
@@ -1087,7 +1097,7 @@ describe("expense approval actions", () => {
     Object.entries({ expenseDate: "2026-08-08", idempotencyKey: "expense-replacement-1", payeeMode: "external", payeePersonId: "", externalPayeeLabel: "Cleaner", payFromAccountId: sourceId, reference: "", responsibility: "owner", replacementSubmissionId: submissionId, expectedStatus: "approved", replacementReason: "Correct wrong amount", reversalDate: "2026-09-10" }).forEach(([key,value]) => form.set(key,value));
     form.set("lines", JSON.stringify([{ amount: "30", categoryAccountId: sourceId, description: "Cleaning", ownerCashAmount: null, propertyId, unitId: null }]));
     expect(await submitExpenseAction({}, form)).toMatchObject({ status: "success" });
-    expect(requireFinanceReversalContext).toHaveBeenCalledOnce();
+    expect(requireExpenseCorrectionContext).toHaveBeenCalledOnce();
     expect(rpc).toHaveBeenCalledTimes(1);
     expect(rpc).toHaveBeenCalledWith("replace_legacy_expense_submission", expect.objectContaining({ p_submission_id: submissionId, p_reason: "Correct wrong amount", p_reversal_date: "2026-09-10", p_supporting_document_id: null }));
   });
@@ -1131,12 +1141,12 @@ describe("expense approval actions", () => {
     return form;
   }
 
-  it("posts through one atomic RPC after checking existing submission, review and self-approval authority", async () => {
+  it("posts through one atomic RPC after checking submission and responsibility-specific posting authority", async () => {
     rpc.mockResolvedValue({ data: { transaction_id: submissionId }, error: null });
     await expect(submitExpenseAction({}, directExpenseForm())).resolves.toEqual({ status: "success", message: "Expense posted. Reports and balances are updated." });
     expect(requireFinanceSubmissionContext).toHaveBeenCalledOnce();
-    expect(requireFinanceReviewContext).toHaveBeenCalledOnce();
-    expect(requireFinanceReversalContext).toHaveBeenCalledOnce();
+    expect(requireFinancePostingContext).toHaveBeenCalledWith("owner");
+    expect(requireFinanceReversalContext).not.toHaveBeenCalled();
     expect(rpc).toHaveBeenCalledExactlyOnceWith("post_expense_transaction", expect.objectContaining({ p_organization_id: organizationId, p_pay_from_account_id: sourceId, p_responsibility: "owner" }));
   });
 
@@ -1148,21 +1158,41 @@ describe("expense approval actions", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it.each(["submission", "review", "self-approval"])("rejects direct posting without %s authority before any RPC", async (missing) => {
-    const guard = missing === "submission" ? requireFinanceSubmissionContext : missing === "review" ? requireFinanceReviewContext : requireFinanceReversalContext;
+  it.each(["submission", "posting"])("rejects direct posting without %s authority before any RPC", async (missing) => {
+    const guard = missing === "submission" ? requireFinanceSubmissionContext : requireFinancePostingContext;
     guard.mockRejectedValueOnce(redirectInterrupt);
     await expect(submitExpenseAction({}, directExpenseForm())).rejects.toBe(redirectInterrupt);
     expect(rpc).not.toHaveBeenCalled();
     expect(adminUpload).not.toHaveBeenCalled();
   });
 
-  it.each(["tenant", "replacement", "legacy"])("does not extend direct posting to %s expenses", async (kind) => {
+  it.each(["replacement", "legacy"])("does not extend direct posting to %s expenses", async (kind) => {
     const form = directExpenseForm();
-    if (kind === "tenant") form.set("responsibility", "tenant");
     if (kind === "replacement") form.set("replacementTransactionId", submissionId);
     if (kind === "legacy") form.delete("lines");
     expect(await submitExpenseAction({}, form)).toMatchObject({ status: "error" });
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("requires explicit tenant posting context and retains tenant attribution", async () => {
+    rpc.mockResolvedValue({ data: { transaction_id: submissionId }, error: null });
+    const form = directExpenseForm(); form.set("responsibility", "tenant");
+    form.set("lines", JSON.stringify([{ amount: "30", internalMarkupAmount: "5", categoryAccountId: sourceId, description: "Repair", ownerCashAmount: null, propertyId, unitId: null, tenantInvoiceId: submissionId }]));
+    expect(await submitExpenseAction({}, form)).toMatchObject({ status: "success" });
+    expect(requireFinancePostingContext).toHaveBeenCalledWith("tenant");
+    expect(requireFinanceReviewContext).not.toHaveBeenCalled();
+    expect(requireFinanceReversalContext).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith("post_expense_transaction", expect.objectContaining({ p_responsibility: "tenant", p_lines: [expect.objectContaining({ tenant_invoice_id: submissionId, internal_markup_amount: "5.00", owner_cash_amount: null })] }));
+  });
+
+  it("does not use legacy review authority when explicit tenant posting is denied", async () => {
+    requireFinancePostingContext.mockRejectedValueOnce(redirectInterrupt);
+    const form = directExpenseForm(); form.set("responsibility", "tenant");
+    form.set("lines", JSON.stringify([{ amount: "30", categoryAccountId: sourceId, description: "Repair", ownerCashAmount: null, propertyId, unitId: null, tenantInvoiceId: submissionId }]));
+    await expect(submitExpenseAction({}, form)).rejects.toBe(redirectInterrupt);
+    expect(requireFinancePostingContext).toHaveBeenCalledWith("tenant");
+    expect(rpc).not.toHaveBeenCalled();
+    expect(adminUpload).not.toHaveBeenCalled();
   });
 
   it("does not report a failed atomic posting as success", async () => {

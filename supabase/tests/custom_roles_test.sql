@@ -19,8 +19,8 @@ SELECT is(
     WHERE schema_record.nspname = 'public'
       AND type_record.typname = 'organization_permission_key'
   ),
-  'properties.view,properties.write,properties.archive,people.view,people.write,people.archive,leases.view,leases.prepare,leases.activate,leases.change_terms,leases.close,leases.archive,finance.view,finance.record_payments,finance.submit_expenses,finance.approve_expenses,finance.correct_records,finance.close_periods,finance.publish,maintenance.view,maintenance.create_assign,maintenance.complete,maintenance.review',
-  'permission enum has exactly the approved 23 values in catalogue order'
+  'properties.view,properties.write,properties.archive,people.view,people.write,people.archive,leases.view,leases.prepare,leases.activate,leases.change_terms,leases.close,leases.archive,finance.view,finance.record_payments,finance.submit_expenses,finance.approve_expenses,finance.correct_records,finance.close_periods,finance.publish,maintenance.view,maintenance.create_assign,maintenance.complete,maintenance.review,finance.post_expenses,finance.correct_expenses',
+  'permission enum has exactly the approved 25 values in catalogue order'
 );
 
 SELECT has_table('public', 'organization_roles', 'custom roles are stored per organization');

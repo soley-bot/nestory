@@ -127,6 +127,35 @@ SELECT throws_ok(format('SELECT public.replace_expense_transaction(%L,%L,%L,%L,%
 UPDATE tenant_protected_case SET corrected_id=(public.replace_expense_transaction(org,transaction_id,'approved','Correct utility in open period',(month+interval '1 month')::date,NULL,'Protected vendor',(month+interval '1 month')::date,'USD',account_id,NULL,NULL,'tenant',jsonb_set(payload,'{0,amount}','"30.00"'),'tenant-next-period-correction')->>'transaction_id')::uuid FROM receipt_case CROSS JOIN tenant_protected_lines;
 SELECT is((SELECT status FROM public.expense_transactions WHERE id=(SELECT corrected_id FROM tenant_protected_case)),'approved','open later period allows audited tenant correction after deposit reversal');
 SELECT is(public.get_owner_statement_publication(org,publication_id),publication,'later tenant correction preserves exact frozen publication and hash') FROM receipt_case CROSS JOIN tenant_protected_case;
+-- The later correction changes vendor cash and tenant charges, not owner costs.
+SELECT is((SELECT sum(a.signed_amount) FROM public.finance_payment_allocations a
+ JOIN public.expense_submissions s ON a.id IN(s.approved_payment_allocation_id,s.reversal_payment_allocation_id)
+ JOIN public.expense_transaction_lines l ON l.submission_id=s.id
+ WHERE l.transaction_id IN(SELECT transaction_id FROM tenant_protected_case UNION SELECT corrected_id FROM tenant_protected_case)
+ AND a.paid_date=(SELECT (month+interval '1 month')::date FROM receipt_case)), -10::numeric,
+ 'later-period payment allocation details reconcile to the additional ten dollars vendor cost');
+SELECT is((SELECT sum(CASE WHEN e.direction='income' THEN e.amount ELSE -e.amount END)
+ FROM public.ledger_entries e JOIN public.expense_submissions s ON e.id IN(s.approved_ledger_entry_id,s.reversal_ledger_entry_id)
+ JOIN public.expense_transaction_lines l ON l.submission_id=s.id
+ WHERE (l.transaction_id=(SELECT transaction_id FROM tenant_protected_case) AND e.id=s.reversal_ledger_entry_id)
+ OR l.transaction_id=(SELECT corrected_id FROM tenant_protected_case)), -10::numeric,
+ 'ledger reversal and replacement details agree with later-period cash allocation delta');
+SELECT is((SELECT sum(s.customer_total_amount) FROM public.expense_submissions s JOIN public.expense_transaction_lines l ON l.submission_id=s.id WHERE l.transaction_id=(SELECT corrected_id FROM tenant_protected_case))
+ +(SELECT sum(a.amount) FROM public.expense_customer_adjustments a JOIN public.expense_transaction_lines l ON l.submission_id=a.submission_id WHERE l.transaction_id=(SELECT transaction_id FROM tenant_protected_case)),10::numeric,
+ 'tenant charge detail nets the same ten-dollar correction while retaining five-dollar markup');
+SELECT public.generate_owner_balance_period(org,property_id,owner_id,'USD',(month+interval '1 month')::date,'tenant-next-publication-period') FROM receipt_case;
+SELECT public.set_financial_month_lock(org,(month+interval '1 month')::date,true,'Publish next synthetic tenant period') FROM receipt_case;
+CREATE TEMP TABLE tenant_next_publication AS SELECT
+ (public.close_owner_month(org,property_id,owner_id,'USD',(month+interval '1 month')::date,'Close corrected tenant period','tenant-next-publication-close')->>'revision_id')::uuid revision_id,
+ NULL::uuid publication_id FROM receipt_case;
+UPDATE tenant_next_publication n SET publication_id=(public.publish_owner_statement(org,n.revision_id,'tenant-next-publication-publish')->>'publication_id')::uuid FROM receipt_case;
+SELECT results_eq($$SELECT component,signed_amount FROM public.owner_close_lines WHERE owner_close_revision_id=(SELECT revision_id FROM tenant_next_publication) AND line_kind='closing' ORDER BY component$$,
+ $$SELECT component,signed_amount FROM public.owner_close_lines WHERE owner_close_revision_id=(SELECT revision_id FROM tenant_protected_case) AND line_kind='closing' ORDER BY component$$,
+ 'new owner statement carries prior closing components unchanged for tenant-responsible correction');
+SELECT is((SELECT coalesce(sum(signed_amount),0) FROM public.owner_close_lines WHERE owner_close_revision_id=(SELECT revision_id FROM tenant_next_publication) AND line_kind='movement'),0::numeric,
+ 'tenant correction does not introduce an owner cash or charge movement');
+SELECT ok(public.get_owner_statement_publication(org,n.publication_id) IS NOT NULL,'new corrected-period owner publication is readable') FROM receipt_case CROSS JOIN tenant_next_publication n;
+SELECT is(public.get_owner_statement_publication(org,publication_id),publication,'publishing corrected later period leaves prior publication byte-for-byte unchanged') FROM receipt_case CROSS JOIN tenant_protected_case;
 RESET ROLE;
 SELECT * FROM finish();
 ROLLBACK;

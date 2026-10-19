@@ -35,6 +35,18 @@ const allocationSetId = "00000000-0000-4000-8000-000000000006";
 const movementId = "00000000-0000-4000-8000-000000000007";
 
 describe("OwnerBalanceLedger", () => {
+  it.each(["/properties?query=River&page=2&ownerStatus=missing", "https://evil.test", undefined])("preserves only safe property register origins on account navigation: %s", returnTo => {
+    const { container } = render(<OwnerBalanceLedger canAllocate={false} canCorrect={false} canTransfer={false} canViewPropertyRecords
+      data={data()} organizationName="IPS" selectedMonth="2026-08" selectedPropertyId={propertyId}
+      selectedOwnerPersonId={ownerId} propertyAccount={{ activityFilter: "all", page: 1, propertyLabel: "Riverside", returnTo }} />);
+    const safeOrigin = returnTo?.startsWith("/properties") ? returnTo : undefined;
+    expect(screen.getByRole("link", { name: "Properties" }).getAttribute("href")).toBe(safeOrigin ?? "/properties");
+    const propertyHref = `/properties/${propertyId}${safeOrigin ? `?${new URLSearchParams({ returnTo: safeOrigin })}` : ""}`;
+    expect(screen.getByRole("link", { name: "Riverside" }).getAttribute("href")).toBe(propertyHref);
+    expect(screen.getByRole("tab", { name: "Overview" }).getAttribute("href")).toBe(propertyHref);
+    const field = container.querySelector<HTMLInputElement>('form[method="get"] input[name="returnTo"]');
+    expect(field?.value).toBe(safeOrigin);
+  });
   it.each([false, true])("shows contribution units in both account activity layouts (%s)", propertyLayout => {
     const input = data();
     input.sources[0] = { ...input.sources[0], sourceType: "owner_contribution", unitId: "unit-archived", unitLabel: "8F-D2" };

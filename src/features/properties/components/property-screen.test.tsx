@@ -629,6 +629,16 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.queryByText(/double-click/i)).toBeNull();
   });
 
+  it("preserves register filters in row navigation and native record links without action payloads", () => {
+    navigation.searchParams = new URLSearchParams("query=River&ownerStatus=missing&leaseStatus=current&netStatus=negative&review=missing_photos&page=2&pageSize=25&sort=name_asc&action=ignored");
+    renderProperties();
+    const origin = "/properties?query=River&ownerStatus=missing&leaseStatus=current&netStatus=negative&review=missing_photos&page=2&pageSize=25&sort=name_asc";
+    const href = `/properties/property-2?${new URLSearchParams({ returnTo: origin })}`;
+    expect(screen.getByRole("link", { name: "Riverside House" }).getAttribute("href")).toBe(href);
+    fireEvent.click(within(screen.getByRole("table")).getAllByRole("row")[2]!);
+    expect(navigation.push).toHaveBeenCalledWith(href);
+  });
+
   it("keeps the selected property facts readable in the register", () => {
     const property = makeProperty("property-compact", "CTR", "Central Residence");
     property.address = "Street 360, Boeung Keng Kang 1, Phnom Penh";

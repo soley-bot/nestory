@@ -10,6 +10,8 @@ import {
   requireFinanceCorrectionContext,
   requireFinanceOperationContext,
   requireFinanceReviewContext,
+  requireFinancePostingContext,
+  requireExpenseCorrectionContext,
   requireFinanceReversalContext,
   requireFinanceSubmissionContext,
   requireHistoricalRentRecoveryContext,
@@ -783,8 +785,8 @@ export async function submitExpenseAction(
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
   const posting = formData.get("expenseIntent") === "post";
-  if (posting && (!formData.has("lines") || (formData.has("replacementTransactionId") || formData.has("replacementSubmissionId")) || formData.get("responsibility") !== "owner")) {
-    return actionError("Direct posting is available for new owner expenses only.");
+  if (posting && (!formData.has("lines") || (formData.has("replacementTransactionId") || formData.has("replacementSubmissionId")) || !["owner", "tenant"].includes(String(formData.get("responsibility"))))) {
+    return actionError("Direct posting is available for new expenses only.");
   }
   if (posting && formData.get("confirmedPayFromAccountId") !== formData.get("payFromAccountId")) {
     return actionError("Confirm the paid-from account before posting the expense.");
@@ -815,10 +817,9 @@ export async function submitExpenseAction(
 
     const context = await requireFinanceSubmissionContext();
     if (posting) {
-      await requireFinanceReviewContext();
-      await requireFinanceReversalContext();
+      await requireFinancePostingContext(parsed.data.responsibility);
     }
-    if (replacement?.success && replacement.data.expectedStatus === "approved") await requireFinanceReversalContext();
+    if (replacement?.success && replacement.data.expectedStatus === "approved") await requireExpenseCorrectionContext();
     const supabase = await createSupabaseServerClient();
     let evidenceDocumentId: string | null = null;
     try {

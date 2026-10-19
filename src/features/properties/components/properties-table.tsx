@@ -12,6 +12,7 @@ import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 type PropertiesTableProps = {
+  getPropertyHref?: (id: string) => string;
   onNetSortChange: () => void;
   onOpenProperty: (id: string) => void;
   onSortChange: (sort: PropertySortKey) => void;
@@ -20,6 +21,7 @@ type PropertiesTableProps = {
 };
 
 export function PropertiesTable({
+  getPropertyHref = (id) => `/properties/${id}`,
   onNetSortChange,
   onOpenProperty,
   onSortChange,
@@ -118,7 +120,7 @@ export function PropertiesTable({
                       <div className="min-w-0 flex-1">
                         <RecordLink
                           className="items-start py-0 [&>span]:min-w-0 [&>span]:overflow-visible [&>span]:whitespace-normal [&>span]:[overflow-wrap:anywhere]"
-                          href={`/properties/${property.id}`}
+                          href={getPropertyHref(property.id)}
                           onClick={(event) => {
                             if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
                               event.preventDefault();

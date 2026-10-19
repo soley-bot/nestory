@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { financeReturnHref } from "@/features/finance-operations/finance-tab-route";
 import { ReportReturnNavigation } from "@/features/reports/components/report-return-navigation";
 import { reportReturnHref } from "@/features/reports/report-return";
 import { createSupabaseServerClient } from "@/lib/db/server";
@@ -14,6 +15,10 @@ export default async function RentIncomePage({
 }) {
   const context = await requireFinanceContext();
   const query = await searchParams;
+  const returnHref = financeReturnHref(query.returnTo);
+  const leaseReturn = returnHref?.startsWith("/leases/") ? <nav aria-label="Lease navigation" className="workspace-gutter-x border-b border-border py-3 text-sm">
+    <Link className="font-medium underline underline-offset-4" href={returnHref}>Back to lease</Link>
+  </nav> : null;
   const selectedInvoice = typeof query.invoiceId === "string" && /^[0-9a-f-]{36}$/i.test(query.invoiceId)
     ? await (await createSupabaseServerClient()).from("tenant_invoices").select("id,property_id").eq("organization_id", context.organizationId).eq("id", query.invoiceId).maybeSingle()
     : null;
@@ -33,6 +38,7 @@ export default async function RentIncomePage({
       for (const item of Array.isArray(value) ? value : [value]) remaining.append(key, item);
     }
     return <>
+      {leaseReturn}
       <ReportReturnNavigation returnTo={reportReturnHref(query.returnTo)} />
       <section className="workspace-gutter-x space-y-3 py-6">
         <h1 className="text-xl font-semibold">Rent income</h1>
@@ -45,6 +51,7 @@ export default async function RentIncomePage({
     query.action === "billing" ? query.leaseId : undefined;
   return (
     <>
+    {leaseReturn}
     <ReportReturnNavigation returnTo={reportReturnHref(query.returnTo)} />
     {query.invoiceId && !selectedInvoice?.data ? <p role="alert" className="workspace-gutter-x py-3">This report invoice is unavailable or outside your access.</p> : null}
     <FinanceOperationsScreen
@@ -53,6 +60,9 @@ export default async function RentIncomePage({
       isSuperAdmin={context.isSuperAdmin}
       currentUserId={context.userId}
       canApproveOwnExpense={context.capabilities.canReverseExpense}
+      canPostExpense={context.capabilities.canPostExpense}
+      canPostTenantExpense={context.capabilities.canPostTenantExpense}
+      canCorrectExpense={context.capabilities.canCorrectExpense}
       {...data}
       canConfigureRent={context.permissionKeys.has("leases.change_terms")}
       canCorrectFinance={context.capabilities.canCorrectFinance}

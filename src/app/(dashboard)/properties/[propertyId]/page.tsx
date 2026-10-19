@@ -39,6 +39,7 @@ export default async function PropertyPage({
     <>
     <ReportReturnNavigation returnTo={returnTo} />
     <PropertyDetailScreen
+      returnTo={returnTo}
       canArchive={context.permissionKeys.has("properties.archive")}
       billingFormConfig={billingFormConfig}
       canCreateLease={context.permissionKeys.has("leases.prepare")}

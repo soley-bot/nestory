@@ -47,6 +47,8 @@ const EXPECTED_PERMISSION_GROUPS = [
       { key: "finance.record_payments", label: "Record payments" },
       { key: "finance.submit_expenses", label: "Submit expenses" },
       { key: "finance.approve_expenses", label: "Approve expenses" },
+      { key: "finance.post_expenses", label: "Post expenses directly" },
+      { key: "finance.correct_expenses", label: "Edit posted expenses" },
       { key: "finance.correct_records", label: "Correct records" },
       { key: "finance.close_periods", label: "Lock month" },
       { key: "finance.publish", label: "Publish" },
@@ -103,6 +105,16 @@ const EXPECTED_PERMISSION_CATALOG = [
   },
   {
     group: "Finance",
+    key: "finance.post_expenses",
+    label: "Post expenses directly",
+  },
+  {
+    group: "Finance",
+    key: "finance.correct_expenses",
+    label: "Edit posted expenses",
+  },
+  {
+    group: "Finance",
     key: "finance.correct_records",
     label: "Correct records",
   },
@@ -130,13 +142,13 @@ describe("permission catalogue", () => {
     expect(groups.map(({ key }) => key)).toEqual(EXPECTED_GROUP_KEYS);
   });
 
-  it("publishes the exact 23 stable keys in product order", () => {
+  it("publishes the exact 25 stable keys in product order", () => {
     expect(PERMISSION_CATALOG).toEqual(EXPECTED_PERMISSION_CATALOG);
   });
 
   it("accepts catalogue keys and rejects unknown values", () => {
     expect(PERMISSION_CATALOG.map(({ key }) => isPermissionKey(key))).toEqual(
-      Array.from({ length: 23 }, () => true),
+      Array.from({ length: 25 }, () => true),
     );
     expect(
       ["properties.delete", "finance.reopen_periods", "", null, 23].map(

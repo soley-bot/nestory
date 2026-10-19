@@ -32,6 +32,7 @@ import type { PropertyRecordSection } from "@/features/properties/components/pro
 import type { PropertyDetail } from "@/features/properties/data/property-detail";
 import type { PropertyOwnerOption } from "@/features/properties/property.types";
 import { UnitForm } from "@/features/units/components/unit-form";
+import { workflowReturnHref } from "@/features/leases/workflow-return";
 
 type DrawerState =
   | { mode: "edit"; property: PropertyDetail }
@@ -45,6 +46,7 @@ type ConfirmationState = {
 };
 
 type PropertyDetailScreenProps = {
+  returnTo?: string;
   billingFormConfig?: LeaseBillingFormConfig;
   canArchive?: boolean;
   canCreateLease?: boolean;
@@ -57,6 +59,7 @@ type PropertyDetailScreenProps = {
 };
 
 export function PropertyDetailScreen({
+  returnTo,
   billingFormConfig,
   canArchive = true,
   canCreateLease = true,
@@ -67,6 +70,7 @@ export function PropertyDetailScreen({
   property,
   tenantOptions,
 }: PropertyDetailScreenProps) {
+  const originHref = workflowReturnHref(returnTo);
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
   const [ownerAssignmentOpen, setOwnerAssignmentOpen] = useState(false);
@@ -147,7 +151,7 @@ export function PropertyDetailScreen({
         breadcrumb={
           <PageBreadcrumb
             current={property.name}
-            items={[{ href: "/properties", label: "Properties" }]}
+            items={[{ href: originHref ?? "/properties", label: "Properties" }]}
           />
         }
         context={
@@ -172,6 +176,7 @@ export function PropertyDetailScreen({
       ) : null}
 
       <PropertyDetailView
+        returnTo={originHref}
         canArchiveFiles={canArchive}
         initialSection={initialSection}
         key={`${property.id}:${initialSection}`}

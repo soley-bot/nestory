@@ -20,6 +20,7 @@ import {
   OwnerAccountScopeForm,
 } from "@/features/owner-balances/components/owner-account-controls";
 import { PropertyRecordNavigation } from "@/features/properties/components/property-detail-view";
+import { workflowReturnHref } from "@/features/leases/workflow-return";
 import {
   recordOwnerCashEventAction,
   recordOwnerDistributionAction,
@@ -53,6 +54,7 @@ type OwnerBalanceLedgerProps = {
   organizationName: string;
   originReportHref?: string;
   propertyAccount?: {
+    returnTo?: string;
     activityFilter: PropertyAccountActivityFilter;
     focusAllocationSetId?: string;
     page: number;
@@ -88,6 +90,7 @@ export function OwnerBalanceLedger({
   if (propertyAccount && selectedPropertyId) {
     return (
       <PropertyAccountLedger
+        returnTo={propertyAccount.returnTo}
         canRecordOwnerCash={canRecordOwnerCash}
         canCorrect={canCorrect}
         canViewPropertyRecords={canViewPropertyRecords}
@@ -802,6 +805,7 @@ function registerNextAction(
 }
 
 function PropertyAccountLedger({
+  returnTo,
   canRecordOwnerCash,
   canCorrect,
   activityFilter,
@@ -815,6 +819,7 @@ function PropertyAccountLedger({
   selectedMonth,
   selectedOwnerPersonId,
 }: {
+  returnTo?: string;
   canRecordOwnerCash: boolean;
   canCorrect: boolean;
   activityFilter: PropertyAccountActivityFilter;
@@ -828,6 +833,8 @@ function PropertyAccountLedger({
   selectedMonth: string;
   selectedOwnerPersonId?: string;
 }) {
+  const originHref = workflowReturnHref(returnTo);
+  const propertyHref = `/properties/${propertyId}${originHref ? `?${new URLSearchParams({ returnTo: originHref })}` : ""}`;
   const hasExactScope = Boolean(selectedOwnerPersonId);
   const selectedPeriod = data.periods.find(
     (period) => period.monthStart === `${selectedMonth}-01`,
@@ -883,6 +890,7 @@ function PropertyAccountLedger({
     activity: activityFilter,
     month: selectedMonth,
   });
+  if (originHref) activityParams.set("returnTo", originHref);
   if (selectedOwnerPersonId) {
     activityParams.set("ownerPersonId", selectedOwnerPersonId);
   }
@@ -910,8 +918,8 @@ function PropertyAccountLedger({
             items={
               canViewPropertyRecords
                 ? [
-                    { href: "/properties", label: "Properties" },
-                    { href: `/properties/${propertyId}`, label: propertyLabel },
+                    { href: originHref ?? "/properties", label: "Properties" },
+                    { href: propertyHref, label: propertyLabel },
                   ]
                 : [{ href: "/finance", label: "Finance" }]
             }
@@ -928,6 +936,7 @@ function PropertyAccountLedger({
       >
         {canViewPropertyRecords ? (
           <PropertyRecordNavigation
+            returnTo={originHref}
             activeSection="account"
             accountHref={`/properties/${propertyId}/account`}
             propertyId={propertyId}
@@ -938,6 +947,7 @@ function PropertyAccountLedger({
           className="flex flex-col gap-3 border-b border-border pb-3 sm:flex-row sm:items-end"
           method="get"
         >
+          {originHref ? <input name="returnTo" type="hidden" value={originHref} /> : null}
           <label className="grid min-w-0 flex-1 gap-1 text-sm font-medium sm:max-w-sm">
             Owner
             <SelectControl

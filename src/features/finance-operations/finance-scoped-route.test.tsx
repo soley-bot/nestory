@@ -11,7 +11,7 @@ import UnitFinancePage from "@/app/(dashboard)/units/[unitId]/finance/page";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.context.mockResolvedValue({ organizationId: "organization-1", organizationName: "Synthetic", capabilities: {}, permissionKeys: new Set(), userId: "user-1", isSuperAdmin: false });
+  mocks.context.mockResolvedValue({ organizationId: "organization-1", organizationName: "Synthetic", capabilities: {}, permissionKeys: new Set(["finance.view", "properties.view"]), userId: "user-1", isSuperAdmin: false });
   mocks.data.mockResolvedValue({ propertyOptions: [{ id: "property-1", label: "Property 1" }] });
   mocks.scope.mockReturnValue({});
   mocks.unit.mockResolvedValue({ id: "unit-1", propertyId: "property-1", unitLabel: "Unit 1" });

@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
+import { financeReturnHref } from "@/features/finance-operations/finance-tab-route";
 import {
   FinanceOperationsScreen,
   type FinanceOperationsView,
@@ -16,13 +18,22 @@ export default async function UnitFinancePage({
   searchParams = Promise.resolve({}),
 }: {
   params: Promise<{ unitId: string }>;
-  searchParams?: Promise<RentInvoiceSearchParams & { view?: string; expenseMonth?: string | string[] }>;
+  searchParams?: Promise<RentInvoiceSearchParams & { view?: string; expenseMonth?: string | string[]; returnTo?: string | string[] }>;
 }) {
   const [{ unitId }, query, context] = await Promise.all([
     params,
     searchParams,
     requireFinanceContext(),
   ]);
+  if (!context.permissionKeys.has("properties.view")) {
+    const returnHref = financeReturnHref(query.returnTo);
+    return <section className="workspace-gutter-x space-y-3 py-6">
+      <h1 className="text-xl font-semibold">Unit finance</h1>
+      <p role="alert">Your current access does not include property records required for this view. You can view authorized records in Finance.</p>
+      {returnHref ? <Link className="block text-sm underline" href={returnHref}>Back to previous page</Link> : null}
+      <Link className="block text-sm underline" href={query.view === "rent" ? "/rent-income" : query.view === "expenses" ? "/bills-expenses" : "/finance"}>Open Finance</Link>
+    </section>;
+  }
   const unit = await getUnitDetail(context.organizationId, unitId);
   if (!unit) notFound();
   const expenseMonth = typeof query.expenseMonth === "string" && /^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(query.expenseMonth) ? query.expenseMonth : "";
@@ -41,6 +52,9 @@ export default async function UnitFinancePage({
       isSuperAdmin={context.isSuperAdmin}
       currentUserId={context.userId}
       canApproveOwnExpense={context.capabilities.canReverseExpense}
+      canPostExpense={context.capabilities.canPostExpense}
+      canPostTenantExpense={context.capabilities.canPostTenantExpense}
+      canCorrectExpense={context.capabilities.canCorrectExpense}
       {...data}
       canConfigureRent={context.permissionKeys.has("leases.change_terms")}
       canCorrectFinance={context.capabilities.canCorrectFinance}

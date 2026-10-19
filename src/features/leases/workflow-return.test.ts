@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { workflowReturnHref } from "./workflow-return";
+import { parsePropertySearchParams } from "@/features/properties/property.filters";
 
 describe("workflow return context", () => {
+  it("preserves property register context only on the register, stripping actions", () => {
+    const query = "query=River&ownerStatus=missing&leaseStatus=current&netStatus=negative&review=missing_photos&pageSize=25";
+    expect(workflowReturnHref(`/properties?${query}&action=create&email=private`)).toBe(`/properties?${query}`);
+    expect(workflowReturnHref(`/leases?${query}`)).toBe("/leases");
+  });
+  it("leaves invalid filter values subject to the existing destination parser defaults", () => {
+    const href = workflowReturnHref("/properties?ownerStatus=invalid&leaseStatus=invalid&netStatus=invalid&review=invalid&pageSize=-5");
+    const params = Object.fromEntries(new URL(href!, "https://nestory.invalid").searchParams);
+    expect(parsePropertySearchParams(params)).toMatchObject({ ownerStatus: "all", leaseStatus: "all", netStatus: "all", review: "all", pageSize: 10 });
+  });
   it.each(["/\\", "/\\["])("rejects malformed direct and nested origins without throwing: %s", value => {
     expect(workflowReturnHref(value)).toBeUndefined();
     expect(workflowReturnHref(`/rent-income?${new URLSearchParams({ returnTo: value })}`)).toBe("/rent-income");

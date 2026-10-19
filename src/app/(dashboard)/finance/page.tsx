@@ -16,6 +16,9 @@ export default async function FinancePage(_props: {
       isSuperAdmin={context.isSuperAdmin}
       currentUserId={context.userId}
       canApproveOwnExpense={context.capabilities.canReverseExpense}
+      canPostExpense={context.capabilities.canPostExpense}
+      canPostTenantExpense={context.capabilities.canPostTenantExpense}
+      canCorrectExpense={context.capabilities.canCorrectExpense}
       {...data}
       canConfigureRent={context.permissionKeys.has("leases.change_terms")}
       canManageFinanceCategories={context.isSuperAdmin}

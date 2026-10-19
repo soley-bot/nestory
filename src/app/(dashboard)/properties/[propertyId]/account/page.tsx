@@ -6,6 +6,7 @@ import {
 import { getOwnerBalanceData } from "@/features/owner-balances/data/owner-balances";
 import { requireFinanceContext } from "@/lib/auth/context";
 import { getBusinessMonthValue } from "@/lib/dates/business-date";
+import { workflowReturnHref } from "@/features/leases/workflow-return";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -61,6 +62,7 @@ export default async function PropertyAccountPage({
       data={data}
       organizationName={context.organizationName}
       propertyAccount={{
+        returnTo: workflowReturnHref(first(query.returnTo)),
         activityFilter,
         focusAllocationSetId,
         page: activityPage,

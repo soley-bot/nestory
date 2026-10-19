@@ -163,6 +163,9 @@ type FinanceOperationsScreenProps = FinanceOperationsData & {
   expenseMonth?: string;
   currentUserId?: string;
   canApproveOwnExpense?: boolean;
+  canPostExpense?: boolean;
+  canPostTenantExpense?: boolean;
+  canCorrectExpense?: boolean;
   canCreateVendor?: boolean;
   canConfigureRent: boolean;
   canManageFinanceCategories?: boolean;
@@ -444,7 +447,8 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
             />
           ) : visibleDrawer.mode === "expense" ? (
             <ExpenseForm
-              canPostExpense={Boolean(props.canSubmitExpense && props.canReviewExpense && props.canApproveOwnExpense)}
+              canPostExpense={props.canPostExpense ?? Boolean(props.canSubmitExpense && props.canReviewExpense && props.canApproveOwnExpense)}
+              canPostTenantExpense={props.canPostTenantExpense}
               expenseAccounts={props.expenseAccounts}
               replacement={visibleDrawer.replacement}
               fixedScope={visibleDrawer.fixedScope ?? props.scope}
@@ -483,6 +487,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
         >
           {visibleDetailDrawer.mode === "invoice-details" ? (
             <InvoiceDetails
+              canViewPropertyRecords={props.canViewPropertyRecords ?? true}
               businessDate={
                 props.rentBusinessDate ??
                 getCalendarDateInTimeZone(
@@ -870,7 +875,7 @@ function getScreen(
       context: `${props.tenantInvoicePage?.pagination.totalCount ?? invoices.length} ${(props.tenantInvoicePage?.pagination.totalCount ?? invoices.length) === 1 ? "invoice" : "invoices"}`,
       contextHref: "/rent-income",
       title: focusedLease
-        ? `First rent charge · ${focusedLease.tenantLabel}`
+        ? `Rent and charges · ${focusedLease.tenantLabel}`
         : "Rent & collections",
       toolbar: undefined,
     };
@@ -2291,6 +2296,7 @@ function InvoiceDetails({
   canCorrectFinance,
   canRecordPayments,
   canViewLeases,
+  canViewPropertyRecords,
   invoice,
   onCorrect,
   onPublicationClose,
@@ -2307,6 +2313,7 @@ function InvoiceDetails({
   canCorrectFinance: boolean;
   canRecordPayments: boolean;
   canViewLeases: boolean;
+  canViewPropertyRecords: boolean;
   invoice: TenantInvoiceSummary;
   onCorrect: () => void;
   onPublicationClose: () => void;
@@ -2387,13 +2394,13 @@ function InvoiceDetails({
           [
             "Records",
             <span className="flex flex-wrap gap-x-3 gap-y-1" key="records">
-              <Link
+              {canViewPropertyRecords ? <Link
                 className="text-primary underline-offset-2 hover:underline"
                 href={`/properties/${invoice.propertyId}/finance?view=rent`}
               >
                 Open Property finance
-              </Link>
-              {invoice.unitId ? (
+              </Link> : <span>Property and unit details require property access.</span>}
+              {canViewPropertyRecords && invoice.unitId ? (
                 <Link
                   className="text-primary underline-offset-2 hover:underline"
                   href={`/units/${invoice.unitId}/finance?view=rent`}
@@ -3331,6 +3338,7 @@ function PaymentChooser({
 }
 
 type ExpenseFormProps = {
+  canPostTenantExpense?: boolean;
   canPostExpense?: boolean;
   lockScope?: boolean;
   replacement?: ExpenseSubmissionSummary;
@@ -3355,6 +3363,7 @@ function ExpenseForm(props: ExpenseFormProps) {
   }
   return (
     <SingleLineExpenseForm
+      canPostExpense={props.canPostTenantExpense}
       expenseAccounts={props.expenseAccounts}
       fixedScope={props.fixedScope}
       initialInvoiceId={props.initialInvoiceId}
@@ -3777,6 +3786,7 @@ function OwnerExpenseTransactionForm({
 }
 
 function SingleLineExpenseForm({
+  canPostExpense = false,
   expenseAccounts,
   fixedScope,
   initialInvoiceId,
@@ -3788,6 +3798,7 @@ function SingleLineExpenseForm({
   payFromAccounts,
   unitOptions,
 }: {
+  canPostExpense?: boolean;
   expenseAccounts: FinanceOperationsData["expenseAccounts"];
   fixedScope?: FinanceOperationsScreenProps["scope"];
   initialInvoiceId?: string;
@@ -3802,6 +3813,7 @@ function SingleLineExpenseForm({
   const { getBusinessDateValue } = useBusinessDate();
   const idempotencyKey = useStableActionId("expense");
   const effectiveResponsibility = initialResponsibility ?? "owner";
+  const posting = canPostExpense && effectiveResponsibility === "tenant";
   const initialInvoice = invoices.find(
     (invoice) => invoice.id === initialInvoiceId,
   );
@@ -3889,11 +3901,17 @@ function SingleLineExpenseForm({
       saveLabel={
         effectiveResponsibility === "tenant" && !tenantInvoiceId
           ? "Choose invoice first"
-          : "Submit for review"
+          : posting ? "Post expense" : "Submit for review"
       }
-      savingLabel="Submitting expense"
+      savingLabel={posting ? "Posting expense" : "Submitting expense"}
       state={state}
     >
+      <input name="expenseIntent" type="hidden" value={posting ? "post" : "review"} />
+      {posting ? <>
+        <input name="payeeMode" type="hidden" value="external" />
+        <input name="externalPayeeLabel" type="hidden" value={vendor} />
+        <input name="lines" type="hidden" value={JSON.stringify([{ amount: cost, internalMarkupAmount: effectiveMarkup, categoryAccountId, description: reference.trim().length >= 2 ? reference.trim() : vendor.trim(), propertyId, unitId: unitId || null, tenantInvoiceId, ownerCashAmount: null }])} />
+      </> : null}
       <input name="propertyId" type="hidden" value={propertyId} />
       <input name="unitId" type="hidden" value={unitId} />
       <input name="categoryAccountId" type="hidden" value={categoryAccountId} />
@@ -4168,6 +4186,10 @@ function SingleLineExpenseForm({
           </div>
         </div>
       </FormSection>
+      {posting ? <label className="flex items-start gap-2 text-sm">
+        <input key={payFromAccountId} type="checkbox" name="confirmedPayFromAccountId" value={payFromAccountId} required disabled={!selectedPayFromAccount} />
+        I confirm this expense was paid from {selectedPayFromAccount?.displayName ?? "the selected account"}.
+      </label> : null}
       <ActionMessage state={state} />
     </RecordForm>
   );
@@ -4993,11 +5015,11 @@ function getDrawerTitle(drawer: DrawerState) {
     : "Record property expense";
 }
 
-function canReplaceExpense(submission: ExpenseSubmissionSummary, capabilities: Pick<FinanceOperationsScreenProps, "canSubmitExpense" | "canReverseExpense" | "canApproveOwnExpense" | "currentUserId">) {
+function canReplaceExpense(submission: ExpenseSubmissionSummary, capabilities: Pick<FinanceOperationsScreenProps, "canSubmitExpense" | "canReverseExpense" | "canCorrectExpense" | "canApproveOwnExpense" | "currentUserId">) {
   if (!capabilities.canSubmitExpense || submission.transactionReviewBlocked || !submission.lines?.length) return false;
   if (!submission.transactionId && (submission.status !== "approved" || submission.sourceType !== "general" || submission.adjustsSubmissionId || submission.replacementTransactionId)) return false;
   if (submission.responsibility === "tenant" && !submission.lines.every((line) => line.tenantInvoiceId)) return false;
-  if (submission.status === "approved") return capabilities.canReverseExpense;
+  if (submission.status === "approved") return capabilities.canCorrectExpense ?? capabilities.canReverseExpense;
   return submission.status === "submitted" && Boolean(capabilities.canApproveOwnExpense || capabilities.currentUserId === submission.submittedByUserId);
 }
 

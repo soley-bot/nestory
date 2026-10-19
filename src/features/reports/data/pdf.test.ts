@@ -21,6 +21,30 @@ describe("trusted report PDF export", () => {
     expect(pdf).toContain("columns 11-11");
     expect(pdf).toContain("value10");
   });
+  it("separates wrapped metadata, purpose, metrics and source trace on every page", () => {
+    const report = monthlyOwnerActivityReport();
+    report.periodLabel = "01 October 2026 through 31 October 2026 (business date, inclusive)";
+    report.description = "Purpose text " + "explaining charges and receipts for the selected reporting period. ".repeat(4);
+    report.totalsTraceLabel = "Trace evidence " + "links each total to the scoped invoice and receipt records. ".repeat(4);
+    report.summary = [{ label: "Total charges", value: "USD 850.00", detail: "Charges", sourceCount: 1 }];
+    report.rows[0]!.sourceLinks = [{ id: "invoice-1", label: "Invoice 1", recordType: "income-obligation", href: "/rent-income?invoiceId=invoice-1" }];
+    const pdf = Buffer.from(buildTrustedReportPdf({ organizationName: "Nestory", report })).toString("latin1");
+    const texts = [...pdf.matchAll(/BT \/F[12] ([\d.]+) Tf 1 0 0 1 ([\d.]+) ([\d.]+) Tm \((.*)\) Tj ET/g)]
+      .map((match) => ({ size: Number(match[1]), x: Number(match[2]), y: Number(match[3]), text: match[4]! }));
+    const purpose = texts.filter((text) => text.size === 8.6);
+    expect(purpose.length).toBeGreaterThanOrEqual(4);
+    expect(Math.min(...purpose.map((text) => text.y))).toBeGreaterThan(438);
+    const trace = texts.filter((text) => text.size === 8 && text.y > 350 && text.y < 396);
+    expect(trace.length).toBeGreaterThanOrEqual(4);
+    const heading = texts.find((text) => text.text === "SOURCE TRACE")!;
+    expect(heading.y + heading.size).toBeLessThan(Math.min(...trace.map((text) => text.y)));
+    const period = texts.filter((text) => text.size === 8.5 && text.x === 306);
+    expect(period.length).toBe(4);
+    expect(period.every((text) => text.y >= 491 && text.y <= 501)).toBe(true);
+    expect(pdf).toContain("/Count 2");
+    expect(pdf).toContain("USD 850.00");
+    expect(isContainedPdf(Buffer.from(pdf, "latin1"))).toBe(true);
+  });
   it("renders Owner activity metadata and rows", () => {
     const bytes = buildTrustedReportPdf({
       organizationName: "Sokha Property Services",

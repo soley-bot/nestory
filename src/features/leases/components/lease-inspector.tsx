@@ -18,7 +18,7 @@ export function LeaseInspector({ getLeaseHref, lease }: LeaseInspectorProps) {
 
   return (
     <div className="flex min-h-full flex-col bg-card">
-      <div className="border-b border-border p-4">
+      <div className="border-b border-border p-4 pr-14">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
