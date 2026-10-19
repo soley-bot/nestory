@@ -1,3 +1,4 @@
+import { expiredRentTermEndDate } from "../expired-rent-term";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
 import { loadRentInvoicePage } from "./rent-invoice-page";
@@ -794,6 +795,10 @@ export async function getFinanceOperationsData(
       },
     ).map(
       (exception) => ({
+        expiredTermEndDate: expiredRentTermEndDate(
+          exception.error_code, exception.billing_period_start,
+          leaseTermsByLeaseId.get(exception.lease_id) ?? [],
+        ),
         attemptCount: exception.attempt_count,
         billingPeriodStart: exception.billing_period_start,
         code: exception.error_code,

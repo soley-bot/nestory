@@ -133,6 +133,7 @@ export type TenantInvoiceSummary = {
 };
 
 export type RentGenerationException = {
+  expiredTermEndDate?: string;
   attemptCount: number;
   billingPeriodStart: string;
   code: string;
