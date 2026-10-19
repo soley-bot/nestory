@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import {cleanup,render,screen,waitFor} from "@testing-library/react";
+import {cleanup,fireEvent,render,screen,waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {afterEach,beforeAll,beforeEach,describe,expect,it,vi} from "vitest";
 import {SharedJournalDepositRentModal,DormantSharedJournalDepositRentModal} from "./shared-journal-modal";
@@ -24,6 +24,32 @@ async function prepare(user:ReturnType<typeof userEvent.setup>){
   return await screen.findByRole("button",{name:"Confirm deposit application"});
 }
 describe("actual product controls bound to dormant shared-journal workflow",()=>{
+ it("guards edited drafts on Escape and footer Close without discarding their values",async()=>{
+  const f=sharedModalFixture(),user=userEvent.setup(),close=vi.fn();render(<SharedJournalDepositRentModal enabledForLocalTests leaseId={ids.lease} actions={f.actions} onClose={close} onSuccess={vi.fn()}/>);
+  const reason=await screen.findByRole("textbox",{name:"Reason"});fireEvent.change(reason,{target:{value:"Preserve reason"}});
+  await user.keyboard("{Escape}");expect(screen.getByRole("alertdialog",{name:"Discard unsaved changes?"})).toBeTruthy();expect(close).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button",{name:"Keep editing"}));expect(reason).toHaveProperty("value","Preserve reason");
+  await user.click(screen.getByRole("button",{name:/^Close$/}));expect(screen.getByRole("alertdialog",{name:"Discard unsaved changes?"})).toBeTruthy();
+  await user.click(screen.getByRole("button",{name:"Discard changes"}));expect(close).toHaveBeenCalledOnce();expect(f.port.prepare).not.toHaveBeenCalled();
+ });
+ it("preserves preview identity on canceled dismissal, blocks pending close, and closes cleanly after success",async()=>{
+  const f=sharedModalFixture(),user=userEvent.setup(),close=vi.fn(),success=vi.fn();let release!:()=>void;
+  const gate=new Promise<void>(resolve=>{release=resolve;});
+  const actions={...f.actions,confirm:async(...args:Parameters<typeof f.actions.confirm>)=>{await gate;return f.actions.confirm(...args);}};
+  render(<SharedJournalDepositRentModal enabledForLocalTests leaseId={ids.lease} actions={actions} onClose={close} onSuccess={success}/>);
+  await prepare(user);const original=f.current()!;
+  await user.click(screen.getByRole("button",{name:/^Close$/}));await user.click(screen.getByRole("button",{name:"Keep editing"}));
+  expect(f.current()!.token).toBe(original.token);expect(f.current()!.idempotencyKey).toBe(original.idempotencyKey);
+  await user.click(screen.getByRole("button",{name:"Confirm deposit application"}));await user.keyboard("{Escape}");
+  expect(screen.getByRole("alertdialog",{name:"Saving is still in progress"})).toBeTruthy();expect(screen.queryByRole("button",{name:"Discard changes"})).toBeNull();expect(close).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button",{name:"Continue waiting"}));release();await waitFor(()=>expect(success).toHaveBeenCalledOnce());
+  await user.click(screen.getByRole("button",{name:/^Close$/}));expect(close).toHaveBeenCalledOnce();expect(screen.queryByRole("alertdialog")).toBeNull();
+ });
+ it("allows an initial loading error to close without a discard prompt",async()=>{
+  const f=sharedModalFixture(),user=userEvent.setup(),close=vi.fn();f.control.outage=true;
+  render(<SharedJournalDepositRentModal enabledForLocalTests leaseId={ids.lease} actions={f.actions} onClose={close} onSuccess={vi.fn()}/>);
+  await screen.findByText(/action could not be confirmed/i);await user.click(screen.getByRole("button",{name:/^Close$/}));expect(close).toHaveBeenCalledOnce();expect(screen.queryByRole("alertdialog")).toBeNull();
+ });
  it("reopens controls after a proved rejection and prepares a new identity without reporting success",async()=>{
   const f=sharedModalFixture(),user=userEvent.setup(),success=vi.fn();render(<SharedJournalDepositRentModal enabledForLocalTests leaseId={ids.lease} actions={f.actions} onClose={vi.fn()} onSuccess={success}/>);
   const button=await prepare(user),original=f.current()!;f.control.definitiveRejection=true;await user.click(button);
@@ -60,6 +86,7 @@ describe("actual product controls bound to dormant shared-journal workflow",()=>
  it("keeps attempted unknown work immutable and recovers its original key after service restoration",async()=>{
   const f=sharedModalFixture(),user=userEvent.setup(),success=vi.fn();render(<SharedJournalDepositRentModal enabledForLocalTests leaseId={ids.lease} actions={f.actions} onClose={vi.fn()} onSuccess={success}/>);
   const button=await prepare(user),key=f.current()!.idempotencyKey;f.control.lostBeforeExecute=true;await user.click(button);await screen.findByText(/action could not be confirmed/i);
+  await user.keyboard("{Escape}");expect(screen.getByRole("alertdialog",{name:"Discard unsaved changes?"})).toBeTruthy();await user.click(screen.getByRole("button",{name:"Keep editing"}));expect(f.current()!.idempotencyKey).toBe(key);
   expect(f.current()!.state).toBe("attempted");expect(screen.queryByRole("textbox",{name:"Reason"})).toBeNull();expect(f.h.getState().held).toBe("500.00");
   const blocked=await f.actions.preview({operation:"apply",leaseId:ids.lease,depositId:ids.deposit,invoiceId:ids.invoice,lineId:ids.line,amount:"100.00",date:"2026-10-05",reason:"Different action"});expect(blocked.status).toBe("error");expect(f.current()!.idempotencyKey).toBe(key);
   f.control.lostBeforeExecute=false;await user.click(screen.getByRole("button",{name:"Retry original action"}));await waitFor(()=>expect(success).toHaveBeenCalledTimes(1));expect(f.current()!.idempotencyKey).toBe(key);expect(f.h.getState().held).toBe("200.00");
