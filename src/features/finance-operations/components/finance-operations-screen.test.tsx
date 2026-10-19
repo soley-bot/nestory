@@ -277,6 +277,49 @@ describe("FinanceOperationsScreen", () => {
     expect(within(dialog).getByRole("textbox", { name: /^Reason for change/ }).hasAttribute("required")).toBe(true);
   });
 
+  it("retains the tenant invoice and attribution when editing a grouped charge", async () => {
+    const user = userEvent.setup(); const input = data();
+    const expense = editableExpense("approved");
+    expense.responsibility = "tenant";
+    expense.lines = expense.lines!.map((line) => ({ ...line, tenantInvoiceId: "original-invoice" }));
+    input.expenseSubmissions = [expense];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canSubmitExpense: true, canReverseExpense: true })} organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("tab", { name: "Approved (1)" }));
+    await user.click(screen.getByRole("button", { name: "View Sokha Repairs" }));
+    await user.click(screen.getByRole("button", { name: "Edit expense" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit expense" });
+    const form = within(dialog).getByRole("form");
+    expect(valueOfNamedInput(form, "responsibility")).toBe("tenant");
+    expect(JSON.parse(valueOfNamedInput(form, "lines")!)[0]).toMatchObject({ tenantInvoiceId: "original-invoice", propertyId: "property-1", unitId: "unit-1", ownerCashAmount: null });
+    expect(within(dialog).getByRole("combobox", { name: "Property" }).hasAttribute("disabled")).toBe(true);
+    expect(within(dialog).getByRole("button", { name: "Add line" }).hasAttribute("disabled")).toBe(true);
+    expect(within(dialog).queryByLabelText("Use owner funds held by management")).toBeNull();
+    expect(within(dialog).getByText(/original tenant invoice, property and unit/)).toBeTruthy();
+    const preview = within(dialog).getByRole("region", { name: "Financial preview" });
+    expect(within(preview).getByText("Charge on tenant invoice")).toBeTruthy();
+    expect(preview.textContent).toContain("220");
+    expect(within(dialog).queryByText("Cost charged to owner")).toBeNull();
+    expect(within(dialog).queryByText("How owner cash is applied")).toBeNull();
+    expect(within(dialog).queryByText(/remainder is due from the owner/)).toBeNull();
+  });
+
+  it.each(["owner", "tenant"] as const)("offers a linked correction for an approved general legacy %s expense", async (responsibility) => {
+    const user = userEvent.setup(); const input = data();
+    const expense: FinanceOperationsData["expenseSubmissions"][number] = { ...editableExpense("approved"), transactionId: null, responsibility };
+    expense.lines = expense.lines!.map((line) => ({ ...line, categoryAccountId: undefined, tenantInvoiceId: responsibility === "tenant" ? "invoice-original" : null }));
+    input.expenseSubmissions = [expense];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canSubmitExpense: true, canReverseExpense: true })} organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("tab", { name: "Approved (1)" }));
+    await user.click(screen.getByRole("button", { name: "View Sokha Repairs" }));
+    await user.click(screen.getByRole("button", { name: "Edit expense" }));
+    const form = within(screen.getByRole("dialog", { name: "Edit expense" })).getByRole("form");
+    expect(valueOfNamedInput(form, "replacementSubmissionId")).toBe(expense.id);
+    expect(form.querySelector('[name="replacementTransactionId"]')).toBeNull();
+    expect(valueOfNamedInput(form, "responsibility")).toBe(responsibility);
+    expect(JSON.parse(valueOfNamedInput(form, "lines")!)[0]).toMatchObject({ categoryAccountId: "", tenantInvoiceId: responsibility === "tenant" ? "invoice-original" : null });
+    expect(valueOfNamedInput(form, "payFromAccountId")).toBe("");
+  });
+
   it("hides edit and cancellation from someone other than the submitter", async () => {
     const user = userEvent.setup(); const input = data();
     input.expenseSubmissions = [editableExpense("submitted")];

@@ -34,6 +34,15 @@ function lines(children: readonly ExpenseSubmissionSummary[]): ExpenseTransactio
 }
 
 describe("expense transaction read model", () => {
+  it("retains invoice attribution for grouped and legacy tenant corrections", () => {
+    const children = [{ ...submission("tenant"), responsibility: "tenant" as const, tenantInvoiceId: "invoice-original" }];
+    const grouped = groupExpenseTransactionSummaries(children, [parent], lines(children));
+    const legacy = groupExpenseTransactionSummaries(children, [], []);
+    for (const result of [grouped[0], legacy[0]]) {
+      expect(result.lines?.[0].tenantInvoiceId).toBe("invoice-original");
+      expect(result.responsibility).toBe("tenant");
+    }
+  });
   it("rejects a parent without canonical lines", () => {
     expect(() => groupExpenseTransactionSummaries([], [parent], [])).toThrow(
       "Expense transaction children are incomplete. Reload before reviewing.",

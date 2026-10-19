@@ -826,6 +826,54 @@ export type Database = {
           },
         ]
       }
+      expense_legacy_replacements: {
+        Row: {
+          created_at: string
+          created_by: string
+          idempotency_key: string
+          organization_id: string
+          payload_hash: string
+          reason: string
+          submission_id: string
+          transaction_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          idempotency_key: string
+          organization_id: string
+          payload_hash: string
+          reason: string
+          submission_id: string
+          transaction_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          idempotency_key?: string
+          organization_id?: string
+          payload_hash?: string
+          reason?: string
+          submission_id?: string
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_legacy_replacements_organization_id_submission_id_fkey"
+            columns: ["organization_id", "submission_id"]
+            isOneToOne: true
+            referencedRelation: "expense_submissions"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_legacy_replacements_organization_id_transaction_id_fkey"
+            columns: ["organization_id", "transaction_id"]
+            isOneToOne: true
+            referencedRelation: "expense_transactions"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       expense_submissions: {
         Row: {
           adjusts_submission_id: string | null
@@ -12307,6 +12355,10 @@ export type Database = {
           unit_id: string
         }[]
       }
+      get_legacy_expense_history: {
+        Args: { p_organization_id: string; p_submission_id: string }
+        Returns: Json
+      }
       get_local_deposit_rent_candidates: {
         Args: { p_lease_id: string; p_organization_id: string }
         Returns: Json
@@ -13353,6 +13405,25 @@ export type Database = {
           p_reversal_date: string
           p_supporting_document_id: string
           p_transaction_id: string
+        }
+        Returns: Json
+      }
+      replace_legacy_expense_submission: {
+        Args: {
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_expense_date: string
+          p_external_payee_label: string
+          p_idempotency_key: string
+          p_lines: Json
+          p_organization_id: string
+          p_pay_from_account_id: string
+          p_payee_person_id: string
+          p_reason: string
+          p_reference: string
+          p_responsibility: string
+          p_reversal_date: string
+          p_submission_id: string
+          p_supporting_document_id: string
         }
         Returns: Json
       }

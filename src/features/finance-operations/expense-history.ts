@@ -5,11 +5,14 @@ import { createSupabaseServerClient } from "@/lib/db/server";
 import { z } from "zod";
 
 const entry = z.object({ id: z.string(), actor_id: z.string().nullable(), action: z.string(), created_at: z.string(), previous_values: z.unknown(), new_values: z.unknown() });
-export async function getExpenseHistory(transactionId: string) {
+export async function getExpenseHistory(transactionId: string, legacySubmissionId?: string) {
   if (!/^[0-9a-f-]{36}$/i.test(transactionId)) throw new Error("Invalid transaction.");
+  if (legacySubmissionId !== undefined && !/^[0-9a-f-]{36}$/i.test(legacySubmissionId)) throw new Error("Invalid expense.");
   const context = await requireFinanceContext();
   const db = await createSupabaseServerClient();
-  const result = await db.rpc("get_expense_transaction_history", { p_organization_id: context.organizationId, p_transaction_id: transactionId });
+  const result = legacySubmissionId
+    ? await db.rpc("get_legacy_expense_history", { p_organization_id: context.organizationId, p_submission_id: legacySubmissionId })
+    : await db.rpc("get_expense_transaction_history", { p_organization_id: context.organizationId, p_transaction_id: transactionId });
   if (result.error) throw new Error("Could not load change history.");
   const entries = z.array(entry).parse(result.data);
   const actorIds = [...new Set(entries.flatMap(item => item.actor_id ? [item.actor_id] : []))];
