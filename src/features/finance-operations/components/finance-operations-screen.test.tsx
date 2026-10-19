@@ -294,7 +294,13 @@ describe("FinanceOperationsScreen", () => {
     expect(within(dialog).getByRole("combobox", { name: "Property" }).hasAttribute("disabled")).toBe(true);
     expect(within(dialog).getByRole("button", { name: "Add line" }).hasAttribute("disabled")).toBe(true);
     expect(within(dialog).queryByLabelText("Use owner funds held by management")).toBeNull();
-    expect(within(dialog).getByText(/original tenant invoice/)).toBeTruthy();
+    expect(within(dialog).getByText(/original tenant invoice, property and unit/)).toBeTruthy();
+    const preview = within(dialog).getByRole("region", { name: "Financial preview" });
+    expect(within(preview).getByText("Charge on tenant invoice")).toBeTruthy();
+    expect(preview.textContent).toContain("220");
+    expect(within(dialog).queryByText("Cost charged to owner")).toBeNull();
+    expect(within(dialog).queryByText("How owner cash is applied")).toBeNull();
+    expect(within(dialog).queryByText(/remainder is due from the owner/)).toBeNull();
   });
 
   it.each(["owner", "tenant"] as const)("offers a linked correction for an approved general legacy %s expense", async (responsibility) => {

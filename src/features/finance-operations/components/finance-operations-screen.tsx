@@ -3763,13 +3763,13 @@ function OwnerExpenseTransactionForm({
             <dt>Total paid</dt><dd className="text-xl font-semibold tabular-nums">{formatMoneyDisplay(total).primary}</dd>
           </div>
           <div className="flex justify-between gap-4 text-muted-foreground">
-            <dt>Cost charged to owner</dt><dd className="font-medium tabular-nums">{formatMoneyDisplay(chargedTotal).primary}</dd>
+            <dt>{tenantCorrection ? "Charge on tenant invoice" : "Cost charged to owner"}</dt><dd className="font-medium tabular-nums">{formatMoneyDisplay(chargedTotal).primary}</dd>
           </div>
         </dl>
-        <details className="text-xs text-muted-foreground">
+        {tenantCorrection ? <p className="text-xs text-muted-foreground">The corrected cost and markup remain charged to the original tenant invoice. Existing settlements must be reconciled before correction.</p> : <details className="text-xs text-muted-foreground">
           <summary className="cursor-pointer py-1 focus-visible:outline-2 focus-visible:outline-ring">How owner cash is applied</summary>
           <p className="mt-1">Available owner cash is applied; the remainder is due from the owner.</p>
-        </details>
+        </details>}
       </section>
       <ActionMessage state={state} />
     </RecordForm>
