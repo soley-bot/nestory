@@ -21,6 +21,8 @@ These new permissions do not authorize reviewing someone else's pending expense,
 
 An expense edit retains the original, reversal and replacement history. Locked periods, frozen statements, deposit/invoice attribution, receipt validation and idempotency checks still apply. Ordinary pending review and standalone reversal retain their existing authorization.
 
+A tenant expense draft cannot reuse its retry key across review submission and direct posting. If permissions change while a submission result is uncertain, refresh and check the existing expense before trying another action; conflicting submission paths fail without adding a second expense.
+
 No existing role receives the new keys automatically. Existing owner direct-post and correction authority is preserved. Tenant direct posting requires an explicit new posting grant on an active custom role; the existing Super Admin permission shortcut alone does not turn it on.
 
 ## Before assigning staff

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { getWorkspaceMembershipForUser } from "@/lib/auth/context";
+import { PERMISSION_KEYS } from "@/lib/auth/permission-catalog";
 
 type QueryResult = { data: unknown; error: unknown };
 
@@ -16,6 +17,7 @@ function createClient(results: Record<string, QueryResult>) {
 }
 
 function createQuery(result: QueryResult) {
+  let rowLimit = Infinity;
   const query = {
     eq: vi.fn(),
     limit: vi.fn(),
@@ -23,11 +25,15 @@ function createQuery(result: QueryResult) {
     order: vi.fn(),
     select: vi.fn(),
     then: (resolve: (value: QueryResult) => unknown) =>
-      Promise.resolve(result).then(resolve),
+      Promise.resolve({ ...result, data: Array.isArray(result.data) ? result.data.slice(0, rowLimit) : result.data }).then(resolve),
   };
   for (const method of ["eq", "limit", "order", "select"] as const) {
     query[method].mockReturnValue(query);
   }
+  query.limit.mockImplementation((count: number) => {
+    rowLimit = count;
+    return query;
+  });
   return query;
 }
 
@@ -128,6 +134,20 @@ describe("database-backed workspace permission membership", () => {
       "maintenance.view",
       "maintenance.complete",
     ]);
+  });
+
+  it("loads every granted permission for a full-catalog custom role", async () => {
+    const { client } = createClient({
+      organization_authorization_states: { data: { ordinary_access_enabled: true }, error: null },
+      organization_branches: { data: { archived_at: null, id: "branch-1", status: "active" }, error: null },
+      organization_roles: { data: { archived_at: null, id: "role-1", name: "Full custom role", status: "active" }, error: null },
+      organization_members: { data: { branch_id: "branch-1", custom_role_id: "role-1", organization_id: "org-1", organizations: organization, person_id: null, role: "custom" }, error: null },
+      organization_role_permissions: { data: PERMISSION_KEYS.map((permission_key) => ({ permission_key })), error: null },
+    });
+    const membership = await getWorkspaceMembershipForUser("user-1", client as never, { organizationSlug: "nestory-test" });
+    expect(membership?.permissionKeys).toEqual(new Set(PERMISSION_KEYS));
+    expect(membership?.capabilities.canPostTenantExpense).toBe(true);
+    expect(membership?.capabilities.canCorrectExpense).toBe(true);
   });
 
   it.each([

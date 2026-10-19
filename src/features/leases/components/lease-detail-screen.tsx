@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   useActionState,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -27,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
-import { SideDrawer } from "@/components/ui/side-drawer";
+import { SideDrawer, useDrawerDraftGuard, useDrawerCloseRequest } from "@/components/ui/side-drawer";
 import { DocumentForm } from "@/features/documents/components/document-screen";
 import {
   ArchiveLeasePanel,
@@ -595,6 +596,8 @@ function LeaseDepositPanel({
   const { getBusinessDateValue } = useBusinessDate();
   const router = useRouter();
   const [idempotencyKey] = useState(() => `deposit:${crypto.randomUUID()}`);
+  const [depositDirty, setDepositDirty] = useState(false);
+  const requestClose = useDrawerCloseRequest(onClose);
   const [depositState, recordDepositEvent, depositPending] = useActionState(
     recordLeaseDepositEventAction,
     initialActionState,
@@ -603,6 +606,14 @@ function LeaseDepositPanel({
     reverseLeaseDepositEventAction,
     initialActionState,
   );
+  const pending = depositPending || reversalPending;
+  const depositDraftActive = depositDirty || depositState.status === "error" || reversalState.status === "error";
+  useDrawerDraftGuard(useMemo(() => ({
+    status: pending ? "saving" as const
+      : depositState.status === "error" || reversalState.status === "error" ? "error" as const
+      : depositDirty ? "dirty" as const : "clean" as const,
+    onDiscard: () => { if (!pending) onClose(); },
+  }), [pending, depositDirty, depositState.status, reversalState.status, onClose]));
 
   useEffect(() => {
     const successState =
@@ -682,7 +693,7 @@ function LeaseDepositPanel({
                             value={getBusinessDateValue()}
                           />
                           <Button
-                            disabled={reversalPending}
+                            disabled={pending}
                             size="sm"
                             type="submit"
                             variant="outline"
@@ -707,6 +718,7 @@ function LeaseDepositPanel({
                 action={recordDepositEvent}
                 className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2"
                 ref={preserveDepositSubmission}
+                onChangeCapture={() => setDepositDirty(true)}
               >
                 <input
                   name="leaseDepositId"
@@ -719,6 +731,7 @@ function LeaseDepositPanel({
                     ariaLabel="Deposit activity"
                     defaultValue={activityOptions[0]?.value}
                     name="eventType"
+                    onValueChange={() => setDepositDirty(true)}
                     options={activityOptions}
                   />
                 </DepositField>
@@ -733,6 +746,7 @@ function LeaseDepositPanel({
                       ) ?? leaseDepositAccounts[0]?.id
                     }
                     name="liabilityAccountId"
+                    onValueChange={() => setDepositDirty(true)}
                     options={leaseDepositAccounts.map((account) => ({
                       label: account.displayName,
                       value: account.id,
@@ -745,6 +759,7 @@ function LeaseDepositPanel({
                     ariaLabel="Deposit activity date"
                     defaultValue={getBusinessDateValue()}
                     name="eventDate"
+                    onValueChange={() => setDepositDirty(true)}
                   />
                 </DepositField>
                 <DepositField label="Amount">
@@ -754,7 +769,7 @@ function LeaseDepositPanel({
                   <Input name="reference" />
                 </DepositField>
                 <div className="flex justify-end sm:col-span-2">
-                  <Button disabled={depositPending} type="submit">
+                  <Button disabled={pending} type="submit">
                     {depositPending ? "Saving..." : "Save deposit activity"}
                   </Button>
                 </div>
@@ -767,14 +782,20 @@ function LeaseDepositPanel({
       {canUseForRent || canConfirmCustody ? <section aria-label="Deposit rent settlement" className="space-y-3 border-t border-border pt-4">
         <p className="text-sm text-muted-foreground">Use confirmed deposit money to settle issued rent. The deposit balance and rent due change together; no new bank payment is recorded.</p>
         <div className="flex flex-wrap gap-2">
-          {canUseForRent ? <Button type="button" onClick={onUseForRent}>Use deposit for rent</Button> : null}
-          {canConfirmCustody ? <Button type="button" variant="outline" onClick={onConfirmCustody}>Confirm deposit custody</Button> : null}
+          {canUseForRent ? <Button disabled={pending || depositDraftActive} type="button" onClick={onUseForRent}>Use deposit for rent</Button> : null}
+          {canConfirmCustody ? <Button disabled={pending || depositDraftActive} type="button" variant="outline" onClick={onConfirmCustody}>Confirm deposit custody</Button> : null}
         </div>
+        {depositDraftActive ? <p className="text-sm text-muted-foreground">Save this deposit activity or cancel the draft before opening another deposit action.</p> : null}
       </section> : null}
 
       <DepositActionMessage state={depositState} />
-      {canReadSettlements ? <Link className="text-sm font-medium underline underline-offset-4" href={`/reports/deposit-rent?propertyId=${lease.propertyId}&month=${getBusinessDateValue().slice(0, 7)}`}>Deposit settlement report</Link> : null}
+      {canReadSettlements ? pending || depositDraftActive
+        ? <span aria-disabled="true" className="text-sm text-muted-foreground">Deposit settlement report — save or cancel this draft first.</span>
+        : <Link className="text-sm font-medium underline underline-offset-4" href={`/reports/deposit-rent?propertyId=${lease.propertyId}&month=${getBusinessDateValue().slice(0, 7)}`}>Deposit settlement report</Link> : null}
       <DepositActionMessage state={reversalState} />
+      <div className="flex justify-end">
+        <Button onClick={requestClose} type="button" variant="ghost">Cancel</Button>
+      </div>
     </div>
   );
 }

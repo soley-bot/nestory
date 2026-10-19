@@ -406,6 +406,21 @@ SELECT set_config('request.jwt.claim.sub',maker::text,true) FROM tenant_tx_state
 SELECT is(public.replace_legacy_expense_submission(org,id,'Correct legacy expense','2026-08-13',NULL,'Granular legacy vendor','2026-08-12','USD',pay_from,NULL,NULL,'tenant',payload,'granular-legacy-correction')->>'status','approved','explicit correction key supports audited legacy replacement without broad rights') FROM tenant_tx_state CROSS JOIN tenant_tx_lines CROSS JOIN granular_legacy;
 RESET ROLE;
 SELECT is((SELECT count(*) FROM app_private.expense_operation_authority),0::bigint,'legacy replacement clears operation capability');
+-- Idempotency cannot retain authority after the grant or membership is revoked.
+SAVEPOINT revoked_post_grant;
+DELETE FROM public.organization_role_permissions WHERE role_id=(SELECT id FROM granular_role) AND permission_key='finance.post_expenses';
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(format('SELECT public.post_expense_transaction(%L,NULL,%L,%L,%L,%L,NULL,NULL,%L,%L::jsonb,%L)',org,'Granular vendor','2026-08-12','USD',pay_from,'tenant',payload,'granular-post-key'),'42501','Not authorized','successful post key cannot replay after explicit post grant is revoked') FROM tenant_tx_state CROSS JOIN tenant_tx_lines;
+RESET ROLE;
+SELECT is((SELECT count(*) FROM app_private.expense_operation_authority),0::bigint,'revoked-grant replay leaves no operation capability');
+ROLLBACK TO revoked_post_grant;
+SAVEPOINT revoked_membership;
+DELETE FROM public.organization_members WHERE organization_id=(SELECT org FROM tenant_tx_state) AND user_id=(SELECT maker FROM tenant_tx_state);
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(format('SELECT public.post_expense_transaction(%L,NULL,%L,%L,%L,%L,NULL,NULL,%L,%L::jsonb,%L)',org,'Granular vendor','2026-08-12','USD',pay_from,'tenant',payload,'granular-post-key'),'42501','Not authorized','successful post key cannot replay after company membership is revoked') FROM tenant_tx_state CROSS JOIN tenant_tx_lines;
+RESET ROLE;
+SELECT is((SELECT count(*) FROM app_private.expense_operation_authority),0::bigint,'revoked-membership replay leaves no operation capability');
+ROLLBACK TO revoked_membership;
 INSERT INTO app_private.privileged_email_step_up_policies(organization_id,enforcement_enabled,enabled_at,enabled_by) SELECT org,true,now(),admin FROM tenant_tx_state;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.role','authenticated',true);
@@ -415,5 +430,3 @@ SELECT is((SELECT count(*) FROM app_private.expense_operation_authority),0::bigi
 SELECT is((SELECT count(*) FROM public.expense_transactions WHERE idempotency_key='granular-stepup-denied'),0::bigint,'step-up failure leaves no submitted expense');
 SELECT * FROM finish();
 ROLLBACK;
-
-

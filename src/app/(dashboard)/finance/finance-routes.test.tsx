@@ -157,7 +157,7 @@ describe("finance routes", () => {
   });
 
   it.each([false, true])("uses operator cash capability on unit finance and skips expense reads for rent (%s)", async canOperateFinance => {
-    requireFinanceContext.mockResolvedValue({ capabilities: { canOperateFinance }, organizationId: "organization-1", organizationName: "IPS", permissionKeys: new Set(["finance.view"]) });
+    requireFinanceContext.mockResolvedValue({ capabilities: { canOperateFinance }, organizationId: "organization-1", organizationName: "IPS", permissionKeys: new Set(["finance.view", "properties.view"]) });
     getFinanceOperationsData.mockResolvedValue({ propertyOptions: [{ id: "00000000-0000-4000-8000-000000000030", label: "Riverside" }] });
     getUnitDetail.mockResolvedValue({ propertyId: "00000000-0000-4000-8000-000000000030", propertyName: "Riverside", unitNumber: "2A" });
     renderToStaticMarkup(await UnitFinancePage({ params: Promise.resolve({ unitId: "unit-1" }), searchParams: Promise.resolve({ view: "rent" }) }));
@@ -175,9 +175,16 @@ describe("finance routes", () => {
     getFinanceOperationsData.mockResolvedValue({ propertyOptions: [{ id: "property-1", label: "Riverside" }], tenantInvoices: [], rentGenerationExceptions: [] });
     getUnitDetail.mockResolvedValue({ propertyId: "property-1", propertyName: "Riverside", unitNumber: "2A" });
     renderToStaticMarkup(await PropertyFinancePage({ params: Promise.resolve({ propertyId: "property-1" }) }));
-    renderToStaticMarkup(await UnitFinancePage({ params: Promise.resolve({ unitId: "unit-1" }) }));
-    expect(screenSpy).toHaveBeenCalledTimes(2);
+    getUnitDetail.mockClear();
+    getFinanceOperationsData.mockClear();
+    const unitHtml = renderToStaticMarkup(await UnitFinancePage({ params: Promise.resolve({ unitId: "unit-1" }) }));
+    expect(screenSpy).toHaveBeenCalledTimes(canViewPropertyRecords ? 2 : 1);
     for (const [props] of screenSpy.mock.calls) expect(props).toMatchObject({ canViewPropertyRecords });
+    if (!canViewPropertyRecords) {
+      expect(unitHtml).toContain("Your current access does not include property records");
+      expect(getUnitDetail).not.toHaveBeenCalled();
+      expect(getFinanceOperationsData).not.toHaveBeenCalled();
+    }
   });
 
   it.each([

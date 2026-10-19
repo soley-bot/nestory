@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { removeSearchParams } from "@/lib/url/href";
+import { workflowReturnHref } from "@/features/leases/workflow-return";
 import {
   ArchivePropertyPanel,
   RestorePropertyPanel,
@@ -83,9 +84,15 @@ export function PropertyScreen({
     setStatusMessage(null);
     setDrawer(nextDrawer);
   };
+  const getPropertyHref = (propertyId: string) => {
+    const returnTo = workflowReturnHref(`${pathname}?${searchParams.toString()}`);
+    return returnTo && returnTo !== "/properties"
+      ? `/properties/${propertyId}?${new URLSearchParams({ returnTo })}`
+      : `/properties/${propertyId}`;
+  };
   const openPropertyRecord = (propertyId: string) => {
     navigation.cancelPending();
-    router.push(`/properties/${propertyId}`);
+    router.push(getPropertyHref(propertyId));
   };
   const changeSort = (sort: PropertySortKey) => {
     navigation.replaceParam("sort", sort, DEFAULT_PROPERTY_SORT);
@@ -190,6 +197,7 @@ export function PropertyScreen({
         <>
           <div className="min-h-0 flex-1">
             <PropertiesTable
+              getPropertyHref={getPropertyHref}
               onNetSortChange={() => navigation.replaceParam(
                 "sort",
                 (sort) => sort === "net_desc" ? "net_asc" : "net_desc",

@@ -134,6 +134,7 @@ const rowFontSize = 8.2;
 const rowLineHeight = 10.4;
 const cellPaddingX = 5;
 const tableTopY = 382;
+const trustedTableTopY = 350;
 const statementTableTopY = 438;
 const tableBottomY = 45;
 const headerRowHeight = 24;
@@ -233,10 +234,10 @@ export function buildTrustedReportPdf({
     const sections = Array.from({ length: Math.ceil(report.columns.length / 5) }, (_, index) => {
       const panel = { ...report, title: `${report.title} - columns ${index * 5 + 1}-${Math.min(report.columns.length, index * 5 + 5)}`, columns: report.columns.slice(index * 5, index * 5 + 5) };
       const columns = buildTrustedReportPdfColumns(panel);
-      return paginateRows(buildTrustedReportPdfRows(panel, columns)).map((page) => ({ page, columns, panel }));
+      return paginateRows(buildTrustedReportPdfRows(panel, columns), trustedTableTopY).map((page) => ({ page, columns, panel }));
     }).flat();
     const sourceRows = buildTrustedReportSourceTraceRows(report);
-    const sourcePages = sourceRows.length ? paginateRows(sourceRows) : [];
+    const sourcePages = sourceRows.length ? paginateRows(sourceRows, trustedTableTopY) : [];
     const totalPages = sections.length + sourcePages.length;
     return createPdfDocument([
       ...sections.map(({ page, columns, panel }, pageIndex) => renderTrustedReportPage({ organizationName, page, pageIndex, report: panel, reportColumns: columns, totalPages })),
@@ -245,10 +246,10 @@ export function buildTrustedReportPdf({
   }
   const reportColumns = buildTrustedReportPdfColumns(report);
   const rows = buildTrustedReportPdfRows(report, reportColumns);
-  const pages = paginateRows(rows);
+  const pages = paginateRows(rows, trustedTableTopY);
   const sourceTraceRows = buildTrustedReportSourceTraceRows(report);
   const sourceTracePages =
-    sourceTraceRows.length > 0 ? paginateRows(sourceTraceRows) : [];
+    sourceTraceRows.length > 0 ? paginateRows(sourceTraceRows, trustedTableTopY) : [];
   const totalPages = pages.length + sourceTracePages.length;
   const pageCommands = pages.map((page, pageIndex) =>
     renderTrustedReportPage({
@@ -618,15 +619,15 @@ function renderTrustedReportSourceTracePage({
   const commands: string[] = [];
 
   drawTrustedReportHeader(commands, organizationName, report);
-  drawText(commands, "SOURCE TRACE", marginX, 400, {
+  drawText(commands, "SOURCE TRACE", marginX, 363, {
     bold: true,
     color: colors.muted,
     fontSize: 7,
     width: tableWidth,
   });
-  drawTableHeader(commands, tableTopY, sourceTraceColumns);
+  drawTableHeader(commands, trustedTableTopY, sourceTraceColumns);
 
-  let y = tableTopY - headerRowHeight;
+  let y = trustedTableTopY - headerRowHeight;
   for (const row of page.rows) {
     y -= row.height;
     drawTableRow(commands, row, y, sourceTraceColumns);
@@ -878,9 +879,9 @@ function renderTrustedReportPage({
   const pageNumber = pageIndex + 1;
 
   drawTrustedReportHeader(commands, organizationName, report);
-  drawTableHeader(commands, tableTopY, reportColumns);
+  drawTableHeader(commands, trustedTableTopY, reportColumns);
 
-  let y = tableTopY - headerRowHeight;
+  let y = trustedTableTopY - headerRowHeight;
 
   for (const row of page.rows) {
     y -= row.height;
@@ -1900,25 +1901,36 @@ function drawTrustedReportHeader(
     },
   );
 
-  drawRect(commands, marginX, 492, tableWidth, 30, {
+  drawRect(commands, marginX, 484, tableWidth, 40, {
     fill: colors.soft,
     stroke: colors.border,
   });
-  drawRect(commands, marginX, 492, 4, 30, { fill: colors.accent });
-  drawMeta(commands, "Scope", report.scopeLabel, marginX + 16, 501, 230);
-  drawMeta(commands, "Period", report.periodLabel, marginX + 275, 501, 170);
-  drawMeta(commands, "Rows", String(rowCount), marginX + 482, 501, 90);
-  drawMeta(commands, "Source rows", String(sourceCount), marginX + 610, 501, 120);
+  drawRect(commands, marginX, 484, 4, 40, { fill: colors.accent });
+  const metadata = [
+    { label: "Scope", value: report.scopeLabel, offset: 16, width: 230 },
+    { label: "Period", value: report.periodLabel, offset: 270, width: 270 },
+    { label: "Rows", value: String(rowCount), offset: 566, width: 65 },
+    { label: "Source rows", value: String(sourceCount), offset: 652, width: 100 },
+  ];
+  for (const field of metadata) {
+    drawText(commands, field.label.toUpperCase(), marginX + field.offset, 513, {
+      bold: true, color: colors.muted, fontSize: 6.8, width: field.width,
+    });
+    wrapText(field.value, field.width - 12, 8.5, 2).forEach((line, index) => {
+      drawText(commands, line, marginX + field.offset, 501 - index * 10, {
+        color: colors.ink, fontSize: 8.5, width: field.width,
+      });
+    });
+  }
 
-  drawReportDescription(commands, report.description, 470);
+  drawReportDescription(commands, report.description, 461);
   drawSummaryCards(commands, report);
-  drawText(commands, `Trace: ${report.totalsTraceLabel}`, marginX, 395, {
-    color: colors.muted,
-    fontSize: 8,
-    width: tableWidth,
+  wrapText(`Trace: ${report.totalsTraceLabel}`, tableWidth, 8, 2).forEach((line, index) => {
+    drawText(commands, line, marginX, 381 - index * 10, {
+      color: colors.muted, fontSize: 8, width: tableWidth,
+    });
   });
 }
-
 function drawReportDescription(
   commands: string[],
   description: string,
@@ -1947,7 +1959,7 @@ function drawSummaryCards(commands: string[], report: TrustedReport) {
   const cardGap = 8;
   const cardWidth = (tableWidth - cardGap * 3) / 4;
   const cardHeight = 42;
-  const y = 418;
+  const y = 396;
 
   metrics.forEach((metric, index) => {
     const x = marginX + index * (cardWidth + cardGap);

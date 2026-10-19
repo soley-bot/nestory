@@ -1382,6 +1382,16 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.queryByText(/journal|month close|uuid/i)).toBeNull();
   });
 
+  it.each([true, false])("gates invoice property drilldowns by property access (%s)", async (canViewPropertyRecords) => {
+    const user = userEvent.setup(); const input = data();
+    input.tenantInvoices = [tenantInvoice()];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordPayments: true })} canViewPropertyRecords={canViewPropertyRecords} organizationName="IPS" view="rent" />);
+    await user.click(screen.getByRole("button", { name: "View invoice INV-202608-001" }));
+    const dialog = screen.getByRole("dialog", { name: "Invoice details" });
+    expect(Boolean(within(dialog).queryByRole("link", { name: "Open Property finance" }))).toBe(canViewPropertyRecords);
+    expect(Boolean(within(dialog).queryByRole("link", { name: "Open Unit finance" }))).toBe(canViewPropertyRecords);
+  });
+
   it("keeps record links in invoice context and removes the duplicate Close action", async () => {
     const user = userEvent.setup();
     const input = data();
@@ -1443,7 +1453,7 @@ describe("FinanceOperationsScreen", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "First rent charge · Dara Tenant",
+        name: "Rent and charges · Dara Tenant",
       }),
     ).not.toBeNull();
     expect(
@@ -2656,6 +2666,7 @@ describe("FinanceOperationsScreen", () => {
       expect(valueOfNamedInput(form, "idempotencyKey")).toBe(key);
       fireEvent.change(within(form).getByLabelText("Paid to"), { target: { value: "Tenant repair vendor" } });
       fireEvent.change(within(form).getByLabelText("Amount paid"), { target: { value: "30" } });
+      fireEvent.change(within(form).getByLabelText("Reference (optional)"), { target: { value: "7" } });
       fireEvent.change(within(form).getByLabelText("Service fee (optional)"), { target: { value: "5" } });
       await user.click(within(form).getByRole("checkbox", { name: /I confirm this expense was paid from/ }));
       financeActionMocks.submitExpenseAction.mockImplementationOnce(async () => {
@@ -2673,7 +2684,7 @@ describe("FinanceOperationsScreen", () => {
       await waitFor(() => expect(financeActionMocks.submitExpenseAction).toHaveBeenCalledTimes(2));
       const retried = financeActionMocks.submitExpenseAction.mock.calls[1][1] as FormData;
       expect(retried.get("idempotencyKey")).toBe(key);
-      expect(JSON.parse(String(retried.get("lines")))[0]).toMatchObject({ amount: "30", internalMarkupAmount: "5", tenantInvoiceId: "invoice-1", ownerCashAmount: null });
+      expect(JSON.parse(String(retried.get("lines")))[0]).toMatchObject({ amount: "30", internalMarkupAmount: "5", description: "Tenant repair vendor", tenantInvoiceId: "invoice-1", ownerCashAmount: null });
 
     } else {
       expect(form.querySelector('[name="lines"]')).toBeNull();

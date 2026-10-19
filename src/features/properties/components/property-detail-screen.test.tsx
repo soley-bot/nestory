@@ -25,6 +25,18 @@ afterEach(() => {
 });
 
 describe("PropertyDetailScreen task-first detail contract", () => {
+  it("returns to the filtered register and preserves it when changing record sections", () => {
+    const returnTo = "/properties?query=River&page=2&ownerStatus=missing";
+    renderPropertyDetail({ returnTo });
+    expect(screen.getByRole("link", { name: "Properties" }).getAttribute("href")).toBe(returnTo);
+    fireEvent.click(screen.getByRole("tab", { name: "Files" }));
+    expect(new URLSearchParams(window.location.search).get("returnTo")).toBe(returnTo);
+  });
+
+  it.each(["https://evil.test", "//evil.test", "/login"])("rejects unsafe property breadcrumb origin %s", returnTo => {
+    renderPropertyDetail({ returnTo });
+    expect(screen.getByRole("link", { name: "Properties" }).getAttribute("href")).toBe("/properties");
+  });
   it("keeps a view-only property record free of write and archive controls", () => {
     renderPropertyDetail({
       canArchive: false,
@@ -532,12 +544,14 @@ describe("PropertyDetailScreen task-first detail contract", () => {
 });
 
 function renderPropertyDetail({
+  returnTo,
   canArchive,
   canCreateLease,
   canWrite,
   initialSection,
   propertyOverride = property,
 }: {
+  returnTo?: string;
   canArchive?: boolean;
   canCreateLease?: boolean;
   canWrite?: boolean;
@@ -546,6 +560,7 @@ function renderPropertyDetail({
 } = {}) {
   return render(
     <PropertyDetailScreen
+      returnTo={returnTo}
       canArchive={canArchive}
       canCreateLease={canCreateLease}
       canWrite={canWrite}

@@ -487,6 +487,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
         >
           {visibleDetailDrawer.mode === "invoice-details" ? (
             <InvoiceDetails
+              canViewPropertyRecords={props.canViewPropertyRecords ?? true}
               businessDate={
                 props.rentBusinessDate ??
                 getCalendarDateInTimeZone(
@@ -874,7 +875,7 @@ function getScreen(
       context: `${props.tenantInvoicePage?.pagination.totalCount ?? invoices.length} ${(props.tenantInvoicePage?.pagination.totalCount ?? invoices.length) === 1 ? "invoice" : "invoices"}`,
       contextHref: "/rent-income",
       title: focusedLease
-        ? `First rent charge · ${focusedLease.tenantLabel}`
+        ? `Rent and charges · ${focusedLease.tenantLabel}`
         : "Rent & collections",
       toolbar: undefined,
     };
@@ -2295,6 +2296,7 @@ function InvoiceDetails({
   canCorrectFinance,
   canRecordPayments,
   canViewLeases,
+  canViewPropertyRecords,
   invoice,
   onCorrect,
   onPublicationClose,
@@ -2311,6 +2313,7 @@ function InvoiceDetails({
   canCorrectFinance: boolean;
   canRecordPayments: boolean;
   canViewLeases: boolean;
+  canViewPropertyRecords: boolean;
   invoice: TenantInvoiceSummary;
   onCorrect: () => void;
   onPublicationClose: () => void;
@@ -2391,13 +2394,13 @@ function InvoiceDetails({
           [
             "Records",
             <span className="flex flex-wrap gap-x-3 gap-y-1" key="records">
-              <Link
+              {canViewPropertyRecords ? <Link
                 className="text-primary underline-offset-2 hover:underline"
                 href={`/properties/${invoice.propertyId}/finance?view=rent`}
               >
                 Open Property finance
-              </Link>
-              {invoice.unitId ? (
+              </Link> : <span>Property and unit details require property access.</span>}
+              {canViewPropertyRecords && invoice.unitId ? (
                 <Link
                   className="text-primary underline-offset-2 hover:underline"
                   href={`/units/${invoice.unitId}/finance?view=rent`}
@@ -3907,7 +3910,7 @@ function SingleLineExpenseForm({
       {posting ? <>
         <input name="payeeMode" type="hidden" value="external" />
         <input name="externalPayeeLabel" type="hidden" value={vendor} />
-        <input name="lines" type="hidden" value={JSON.stringify([{ amount: cost, internalMarkupAmount: effectiveMarkup, categoryAccountId, description: reference.trim() || vendor.trim(), propertyId, unitId: unitId || null, tenantInvoiceId, ownerCashAmount: null }])} />
+        <input name="lines" type="hidden" value={JSON.stringify([{ amount: cost, internalMarkupAmount: effectiveMarkup, categoryAccountId, description: reference.trim().length >= 2 ? reference.trim() : vendor.trim(), propertyId, unitId: unitId || null, tenantInvoiceId, ownerCashAmount: null }])} />
       </> : null}
       <input name="propertyId" type="hidden" value={propertyId} />
       <input name="unitId" type="hidden" value={unitId} />

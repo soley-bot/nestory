@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -1054,6 +1055,52 @@ describe("LeaseDetailScreen", () => {
     expect(screen.queryByText(/received \/ /)).toBeNull();
   });
 
+  it.each(["Escape", "Cancel", "Close", "Outside"])("guards dirty deposit dismissal through %s", async (method) => {
+    const user = userEvent.setup();
+    renderDetail("rent");
+    await user.click(screen.getByRole("button", { name: "Manage deposit" }));
+    const drawer = screen.getByRole("dialog", { name: "Manage security deposit" });
+    await user.type(within(drawer).getByLabelText("Amount"), "5");
+    await user.type(within(drawer).getByLabelText("Receipt or note"), "Draft receipt");
+    expect(within(drawer).queryByRole("link", { name: "Deposit settlement report" })).toBeNull();
+    if (method === "Escape") await user.keyboard("{Escape}");
+    else if (method === "Outside") await user.click(document.querySelector('[data-slot="sheet-overlay"]')!);
+    else await user.click(within(drawer).getByRole("button", { name: method === "Close" ? "Close drawer" : "Cancel" }));
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect((within(drawer).getByLabelText("Amount") as HTMLInputElement).value).toBe("5");
+    expect((within(drawer).getByLabelText("Receipt or note") as HTMLInputElement).value).toBe("Draft receipt");
+    await user.click(within(drawer).getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(screen.queryByRole("dialog", { name: "Manage security deposit" })).toBeNull();
+    expect(depositActionMocks.record).not.toHaveBeenCalled();
+  });
+
+  it("prevents pending deposit dismissal and opens a clean drawer after successful save", async () => {
+    let finish!: (result: { status: string; message: string }) => void;
+    depositActionMocks.record.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    const user = userEvent.setup();
+    renderDetail("rent");
+    await user.click(screen.getByRole("button", { name: "Manage deposit" }));
+    const drawer = screen.getByRole("dialog", { name: "Manage security deposit" });
+    await user.type(within(drawer).getByLabelText("Amount"), "5");
+    await user.click(within(drawer).getByRole("button", { name: "Save deposit activity" }));
+    await waitFor(() => expect(depositActionMocks.record).toHaveBeenCalledOnce());
+    expect(within(drawer).queryByRole("link", { name: "Deposit settlement report" })).toBeNull();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("alertdialog", { name: "Saving is still in progress" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Discard changes" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Continue waiting" }));
+    await user.click(within(drawer).getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("alertdialog", { name: "Saving is still in progress" })).not.toBeNull();
+    await act(async () => finish({ status: "success", message: "Deposit saved." }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Manage security deposit" })).toBeNull());
+    await user.click(screen.getByRole("button", { name: "Manage deposit" }));
+    expect((screen.getByLabelText("Amount") as HTMLInputElement).value).toBe("");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Manage security deposit" })).toBeNull();
+  });
+
   it("keeps the deposit retry key stable while editing the submission", async () => {
     const user = userEvent.setup();
     renderDetail("rent");
@@ -1104,6 +1151,9 @@ describe("LeaseDetailScreen", () => {
     await user.click(save);
     await waitFor(() => expect(submissions).toHaveLength(1));
     expect(await within(drawer).findByText("Deposit response unavailable. Retry the same entry.")).not.toBeNull();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
     expect((within(drawer).getByLabelText("Amount") as HTMLInputElement).value).toBe("50.25");
     expect((within(drawer).getByLabelText("Receipt or note") as HTMLInputElement).value).toBe("Refund 1001");
     await user.click(save);
