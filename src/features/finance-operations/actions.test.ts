@@ -1098,6 +1098,54 @@ describe("expense approval actions", () => {
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
+  function directExpenseForm() {
+    const form = new FormData();
+    Object.entries({ reference: "", expenseDate: "2026-08-08", idempotencyKey: "direct-expense-1", payeeMode: "external", externalPayeeLabel: "Repair vendor", payFromAccountId: sourceId, confirmedPayFromAccountId: sourceId, responsibility: "owner", expenseIntent: "post" }).forEach(([key, value]) => form.set(key, value));
+    form.set("lines", JSON.stringify([{ amount: "25", categoryAccountId: sourceId, description: "Repair", propertyId, unitId: null, ownerCashAmount: null }]));
+    return form;
+  }
+
+  it("posts through one atomic RPC after checking existing submission, review and self-approval authority", async () => {
+    rpc.mockResolvedValue({ data: { transaction_id: submissionId }, error: null });
+    await expect(submitExpenseAction({}, directExpenseForm())).resolves.toEqual({ status: "success", message: "Expense posted. Reports and balances are updated." });
+    expect(requireFinanceSubmissionContext).toHaveBeenCalledOnce();
+    expect(requireFinanceReviewContext).toHaveBeenCalledOnce();
+    expect(requireFinanceReversalContext).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("post_expense_transaction", expect.objectContaining({ p_organization_id: organizationId, p_pay_from_account_id: sourceId, p_responsibility: "owner" }));
+  });
+
+  it.each([undefined, "another-account"])("rejects missing or stale paid-from confirmation (%s)", async (confirmation) => {
+    const form = directExpenseForm();
+    form.delete("confirmedPayFromAccountId");
+    if (confirmation) form.set("confirmedPayFromAccountId", confirmation);
+    expect(await submitExpenseAction({}, form)).toMatchObject({ status: "error", message: "Confirm the paid-from account before posting the expense." });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it.each(["submission", "review", "self-approval"])("rejects direct posting without %s authority before any RPC", async (missing) => {
+    const guard = missing === "submission" ? requireFinanceSubmissionContext : missing === "review" ? requireFinanceReviewContext : requireFinanceReversalContext;
+    guard.mockRejectedValueOnce(redirectInterrupt);
+    await expect(submitExpenseAction({}, directExpenseForm())).rejects.toBe(redirectInterrupt);
+    expect(rpc).not.toHaveBeenCalled();
+    expect(adminUpload).not.toHaveBeenCalled();
+  });
+
+  it.each(["tenant", "replacement", "legacy"])("does not extend direct posting to %s expenses", async (kind) => {
+    const form = directExpenseForm();
+    if (kind === "tenant") form.set("responsibility", "tenant");
+    if (kind === "replacement") form.set("replacementTransactionId", submissionId);
+    if (kind === "legacy") form.delete("lines");
+    expect(await submitExpenseAction({}, form)).toMatchObject({ status: "error" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("does not report a failed atomic posting as success", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: "Financial month is locked" } });
+    expect(await submitExpenseAction({}, directExpenseForm())).toMatchObject({ status: "error" });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
   it.each(["receipt", "empty-input", "multipart-empty-input", "omitted"])("submits ordered property expense lines with optional evidence (%s)", async (evidenceKind) => {
     const withEvidence = evidenceKind === "receipt";
     rpc.mockResolvedValue({

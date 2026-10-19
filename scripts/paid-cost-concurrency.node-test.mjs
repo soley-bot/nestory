@@ -689,3 +689,36 @@ function localRuntime() {
   assert.match(new URL(apiUrl).hostname, /^(127\.0\.0\.1|localhost)$/);
   return { anonKey, apiUrl, serviceRoleKey };
 }
+
+test("simultaneous direct expense posts return one parent and one payment per line", async () => {
+  const scope = transactionRaceScope();
+  const lines = [scope.propertyA, scope.propertyB].map((propertyId) => ({
+    property_id: propertyId, unit_id: null, category_account_id: scope.category,
+    description: "Direct posting duplicate race", amount: "12.00",
+    internal_markup_amount: "0.00", owner_cash_amount: "0.00",
+  }));
+  const post = `SELECT public.post_expense_transaction(
+    '${organizationId}', NULL, 'Direct posting race vendor', current_date, 'USD',
+    '${scope.payFrom}', 'DIRECT-POST-RACE', NULL, 'owner',
+    '${JSON.stringify(lines)}'::jsonb, 'direct-post-race-${runNonce}');`;
+  const first = spawnSession(actorSql(superAdminId, post, "review_update"));
+  await waitForMarker(first, "paid_cost_review_update_ready");
+  const second = spawnSession(actorSql(superAdminId, post));
+  const [firstResult, secondResult] = await Promise.all([first.done, second.done]);
+  assert.equal(firstResult.status, 0, firstResult.stderr);
+  assert.equal(secondResult.status, 0, secondResult.stderr);
+  const result = (session) => JSON.parse(session.stdout.split(/\r?\n/).findLast((line) => line.startsWith("{")));
+  assert.equal(result(firstResult).transaction_id, result(secondResult).transaction_id);
+  assert.equal(result(firstResult).status, "approved");
+  assert.equal(result(secondResult).status, "approved");
+  const id = result(firstResult).transaction_id;
+  assert.equal(run(`SELECT count(*) FROM public.expense_transactions
+    WHERE organization_id='${organizationId}' AND idempotency_key='direct-post-race-${runNonce}';`), "1");
+  assert.equal(run(`SELECT count(*)::text || '|' ||
+      count(DISTINCT submission.approved_payment_id)::text || '|' ||
+      count(DISTINCT submission.approved_payment_allocation_id)::text || '|' ||
+      bool_and(submission.status='approved')::text
+    FROM public.expense_transaction_lines line
+    JOIN public.expense_submissions submission ON submission.id=line.submission_id
+    WHERE line.transaction_id='${id}';`), "2|2|2|true");
+});

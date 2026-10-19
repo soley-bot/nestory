@@ -444,6 +444,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
             />
           ) : visibleDrawer.mode === "expense" ? (
             <ExpenseForm
+              canPostExpense={Boolean(props.canSubmitExpense && props.canReviewExpense && props.canApproveOwnExpense)}
               expenseAccounts={props.expenseAccounts}
               replacement={visibleDrawer.replacement}
               fixedScope={visibleDrawer.fixedScope ?? props.scope}
@@ -3329,6 +3330,7 @@ function PaymentChooser({
 }
 
 type ExpenseFormProps = {
+  canPostExpense?: boolean;
   lockScope?: boolean;
   replacement?: ExpenseSubmissionSummary;
   expenseAccounts: FinanceOperationsData["expenseAccounts"];
@@ -3378,6 +3380,7 @@ type OwnerExpenseDraftLine = {
 };
 
 function OwnerExpenseTransactionForm({
+  canPostExpense = false,
   lockScope = false,
   replacement,
   canCreateVendor = false,
@@ -3391,6 +3394,7 @@ function OwnerExpenseTransactionForm({
   payFromAccounts,
   unitOptions,
 }: ExpenseFormProps) {
+  const posting = canPostExpense && !replacement;
   const { getBusinessDateValue } = useBusinessDate();
   const activeCategories = expenseAccounts;
   const defaultPropertyId = fixedScope?.propertyId ?? "";
@@ -3488,10 +3492,11 @@ function OwnerExpenseTransactionForm({
       ariaLabel="Record property expense form"
       onCancel={onClose}
       pending={pending}
-      saveLabel={replacement ? "Save changes" : "Submit for review"}
-      savingLabel={replacement ? "Saving expense" : "Submitting expense"}
+      saveLabel={replacement ? "Save changes" : posting ? "Post expense" : "Submit for review"}
+      savingLabel={replacement ? "Saving expense" : posting ? "Posting expense" : "Submitting expense"}
       state={state}
     >
+      <input name="expenseIntent" type="hidden" value={posting ? "post" : "review"} />
       <input name="expenseDate" type="hidden" value={expenseDate} />
       <input name="externalPayeeLabel" type="hidden" value={externalPayeeLabel} />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
@@ -3726,6 +3731,12 @@ function OwnerExpenseTransactionForm({
               value={effectivePayFromAccountId}
             />
           </Field>
+          {posting ? (
+            <label className="flex items-start gap-2 text-sm sm:col-span-2">
+              <input key={effectivePayFromAccountId} type="checkbox" name="confirmedPayFromAccountId" value={effectivePayFromAccountId} required disabled={!effectivePayFromAccountId} />
+              I confirm this expense was paid from {eligibleSources.find((source) => source.id === effectivePayFromAccountId)?.displayName ?? "the selected account"}.
+            </label>
+          ) : null}
           {replacement && !effectivePayFromAccountId ? <p className="text-sm text-warning sm:col-span-2">Choose a paid-from account. The original account is unavailable for these properties.</p> : null}
           <Field label="Reference (optional)">
             <Input

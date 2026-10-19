@@ -12870,6 +12870,22 @@ export type Database = {
         }
         Returns: string
       }
+      post_expense_transaction: {
+        Args: {
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_expense_date: string
+          p_external_payee_label: string
+          p_idempotency_key: string
+          p_lines: Json
+          p_organization_id: string
+          p_pay_from_account_id: string
+          p_payee_person_id: string
+          p_reference: string
+          p_responsibility: string
+          p_supporting_document_id: string
+        }
+        Returns: Json
+      }
       post_petty_cash_entry: {
         Args: { p_entry_id: string; p_organization_id: string }
         Returns: string

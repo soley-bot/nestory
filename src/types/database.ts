@@ -847,6 +847,15 @@ type RpcFunctionOverrides = {
     }
   >;
   update_unit: UpdateUnitRpc;
+  post_expense_transaction: WithArgs<
+    "post_expense_transaction",
+    Omit<GeneratedFunctions["post_expense_transaction"]["Args"], "p_external_payee_label" | "p_payee_person_id" | "p_reference" | "p_supporting_document_id"> & {
+      p_external_payee_label: string | null;
+      p_payee_person_id: string | null;
+      p_reference: string | null;
+      p_supporting_document_id: string | null;
+    }
+  >;
   submit_expense_transaction: WithArgs<
     "submit_expense_transaction",
     Omit<GeneratedFunctions["submit_expense_transaction"]["Args"], "p_external_payee_label" | "p_payee_person_id" | "p_reference" | "p_supporting_document_id"> & {
