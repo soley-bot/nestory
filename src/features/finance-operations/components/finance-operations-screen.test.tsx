@@ -26,6 +26,9 @@ const financeActionMocks = vi.hoisted(() => ({
   retryTenantReceiptPdfAction: vi.fn(),
   submitExpenseAction: vi.fn(),
   recordWithdrawalAction: vi.fn(),
+  reverseExpenseAction: vi.fn(),
+  cancelExpenseAction: vi.fn(),
+  reviewExpenseAction: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -44,6 +47,9 @@ vi.mock("../actions", async (importOriginal) => {
     retryTenantReceiptPdfAction: financeActionMocks.retryTenantReceiptPdfAction,
     submitExpenseAction: financeActionMocks.submitExpenseAction,
     recordWithdrawalAction: financeActionMocks.recordWithdrawalAction,
+    reverseExpenseAction: financeActionMocks.reverseExpenseAction,
+    cancelExpenseAction: financeActionMocks.cancelExpenseAction,
+    reviewExpenseAction: financeActionMocks.reviewExpenseAction,
   };
 });
 
@@ -86,6 +92,9 @@ afterEach(() => {
   financeActionMocks.retryTenantReceiptPdfAction.mockReset();
   financeActionMocks.submitExpenseAction.mockReset();
   financeActionMocks.recordWithdrawalAction.mockReset();
+  financeActionMocks.reverseExpenseAction.mockReset();
+  financeActionMocks.cancelExpenseAction.mockReset();
+  financeActionMocks.reviewExpenseAction.mockReset();
 });
 
 class ResizeObserverStub {
@@ -765,6 +774,23 @@ describe("FinanceOperationsScreen", () => {
     expect(hrefs).toContain("/properties");
     expect(hrefs).toContain("/properties/property-1");
     if (kind === "unit") expect(hrefs).toContain("/units/unit-1");
+  });
+
+  it.each(["transactions", "account"] as const)("keeps the filtered property register through %s breadcrumbs and activity", (view) => {
+    const origin = "/properties?query=Central&page=2&status=active";
+    navigation.searchParams = new URLSearchParams({ returnTo: `${origin}&action=delete` });
+    render(<FinanceOperationsScreen {...data()} {...financeCapabilities({})} canViewPropertyRecords
+      organizationName="IPS" selectedPropertyId="property-1" accountActivityIsRecent view={view}
+      scope={{ id: "property-1", kind: "property", label: "Riverside", propertyId: "property-1", propertyLabel: "Riverside" }}
+    />);
+    const breadcrumb = within(screen.getByRole("navigation", { name: "Breadcrumb" }));
+    expect(breadcrumb.getByRole("link", { name: "Properties" }).getAttribute("href")).toBe(origin);
+    const propertyHref = breadcrumb.getByRole("link", { name: "Riverside" }).getAttribute("href")!;
+    expect(new URL(propertyHref, "https://nestory.invalid").searchParams.get("returnTo")).toBe(origin);
+    if (view === "account") {
+      const href = screen.getByRole("link", { name: "Open Transactions for earlier activity" }).getAttribute("href")!;
+      expect(new URL(href, "https://nestory.invalid").searchParams.get("returnTo")).toBe(origin);
+    }
   });
 
   it("shows a renamed archived tenant-recharge category in the queue and review detail", async () => {
@@ -3699,6 +3725,47 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.queryByRole("dialog", { name: "Record payment" })).toBeNull();
     expect(financeActionMocks.recordTenantInvoicePaymentAction).toHaveBeenCalledOnce();
     expect(financeActionMocks.retryTenantReceiptPdfAction).not.toHaveBeenCalled();
+  });
+
+  it.each(["payment", "approve", "reject", "cancel", "reverse"] as const)("guards dirty and pending %s dialogs and preserves failed retries", async (kind) => {
+    const user = userEvent.setup();
+    const input = data();
+    const invoice = { ...tenantInvoice(), collectionRoute: "through_ips" as const };
+    const expense = editableExpense(kind === "reverse" ? "approved" : "submitted");
+    input.tenantInvoices = [invoice]; input.expenseSubmissions = [expense];
+    const mock = kind === "payment" ? financeActionMocks.recordTenantInvoicePaymentAction : kind === "cancel" ? financeActionMocks.cancelExpenseAction : kind === "reverse" ? financeActionMocks.reverseExpenseAction : financeActionMocks.reviewExpenseAction;
+    let finish!: (value: { status: "error"; message: string }) => void;
+    mock.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })).mockResolvedValueOnce({ status: "success", message: "Saved safely." });
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordPayments: true, canSubmitExpense: true, canReviewExpense: true, canReverseExpense: true })} canApproveOwnExpense currentUserId={kind === "cancel" ? "finance-member-user-1" : "reviewer"} initialInvoiceId={kind === "payment" ? invoice.id : undefined} initialExpenseId={kind === "payment" ? undefined : expense.id} organizationName="Fixture" view={kind === "payment" ? "rent" : "expenses"} />);
+    const openLabel = kind === "payment" ? "Record payment" : kind === "approve" ? "Approve Sokha Repairs" : kind === "reject" ? "Reject Sokha Repairs" : kind === "cancel" ? "Cancel expense" : "Reverse expense for Sokha Repairs";
+    await user.click(screen.getByRole("button", { name: openLabel }));
+    const title = kind === "payment" ? "Record payment" : kind === "approve" ? "Approve paid cost" : kind === "reject" ? "Reject paid cost" : kind === "cancel" ? "Cancel expense" : "Reverse expense";
+    const dialog = screen.getByRole("dialog", { name: title });
+    const field = within(dialog).getByLabelText(kind === "payment" ? "Reference (optional)" : kind === "approve" ? "Review note" : kind === "reject" ? "Rejection reason" : "Reason");
+    fireEvent.change(field, { target: { value: "Keep this draft" } });
+    if (kind === "approve") await user.click(within(dialog).getByRole("checkbox"));
+    const form = field.closest("form")!;
+    const key = valueOfNamedInput(form, "idempotencyKey");
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(field).toHaveProperty("value", "Keep this draft");
+    fireEvent.submit(form);
+    await waitFor(() => expect(mock).toHaveBeenCalledTimes(1));
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("alertdialog", { name: "Saving is still in progress" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Discard changes" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Continue waiting" }));
+    finish({ status: "error", message: "Try safely again." });
+    await screen.findByText("Try safely again.");
+    expect(field).toHaveProperty("value", "Keep this draft");
+    expect(valueOfNamedInput(form, "idempotencyKey")).toBe(key);
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    fireEvent.submit(form);
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: title })).toBeNull());
+    expect(mock).toHaveBeenCalledTimes(2);
+    expect((mock.mock.calls[1][1] as FormData).get("idempotencyKey")).toBe(key);
   });
 
   it("daily workflow opens the exact invoice then records payment from its details and exposes the receipt", async () => {

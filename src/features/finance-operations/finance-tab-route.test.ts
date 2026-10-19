@@ -1,7 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { financeReturnHref, financeTabHref } from "./finance-tab-route";
+import { financeReturnHref, financeTabHref, propertyFinanceReturnLinks } from "./finance-tab-route";
 
 describe("finance tab route", () => {
+  it("preserves allowed property register filters without propagating actions", () => {
+    const links = propertyFinanceReturnLinks("property-1", "/properties?query=Central&page=2&status=active&action=delete&email=private");
+    const origin = "/properties?query=Central&page=2&status=active";
+    expect(links.propertiesHref).toBe(origin);
+    expect(new URL(links.propertyHref, "https://nestory.invalid").searchParams.get("returnTo")).toBe(origin);
+    expect(new URL(links.transactionsHref, "https://nestory.invalid").searchParams.get("returnTo")).toBe(origin);
+  });
+
+  it.each([undefined, "https://evil.test", "//evil.test", "/\\evil.test"])("drops unsafe property return context %s", (origin) => {
+    expect(propertyFinanceReturnLinks("property-1", origin)).toEqual({
+      propertiesHref: "/properties", propertyHref: "/properties/property-1", transactionsHref: "/properties/property-1/finance",
+    });
+  });
+
+  it("does not relabel a report or lease origin as the property register", () => {
+    for (const origin of ["/reports/rent-collections?month=2026-10", "/leases/lease-1?section=rent"]) {
+      const links = propertyFinanceReturnLinks("property-1", origin);
+      expect(links.propertiesHref).toBe("/properties");
+      expect(new URL(links.transactionsHref, "https://nestory.invalid").searchParams.get("returnTo")).toBe(origin);
+    }
+  });
   it("keeps one safe upstream lease origin and strips nested action payloads", () => {
     const origin = "/units/unit-1?section=lease&action=delete&email=private";
     const href = financeReturnHref(`/leases/lease-1?${new URLSearchParams({ section: "rent", returnTo: origin, action: "activate" })}`)!;

@@ -43,6 +43,46 @@ afterEach(() => {
 });
 
 describe("TenantInvoicePaymentForm", () => {
+  it("confirms dirty invoice switching and retains values and key when keeping edits", async () => {
+    const user = userEvent.setup(); const onChooseAnother = vi.fn();
+    const { container, rerender } = render(<TenantInvoicePaymentForm invoice={invoice()} onChooseAnother={onChooseAnother} onReceiptResult={vi.fn()} onSuccess={vi.fn()} ownerLabel="Owner" payFromAccounts={[account()]} />);
+    const key = valueOfNamedInput(container, "idempotencyKey");
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "40" } });
+    fireEvent.change(screen.getByLabelText("Reference (optional)"), { target: { value: "Keep reference" } });
+    await user.click(screen.getByRole("button", { name: "Choose another" }));
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).toBeTruthy();
+    expect(onChooseAnother).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(valueOfNamedInput(container, "amount")).toBe("40");
+    expect(valueOfNamedInput(container, "reference")).toBe("Keep reference");
+    expect(valueOfNamedInput(container, "idempotencyKey")).toBe(key);
+    await user.click(screen.getByRole("button", { name: "Choose another" }));
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(onChooseAnother).toHaveBeenCalledOnce();
+    expect(actionMocks.recordTenantInvoicePaymentAction).not.toHaveBeenCalled();
+    rerender(<TenantInvoicePaymentForm invoice={invoice({ id: "invoice-2", balanceDue: 80 })} onChooseAnother={onChooseAnother} onReceiptResult={vi.fn()} onSuccess={vi.fn()} ownerLabel="Owner" payFromAccounts={[account()]} />);
+    expect(valueOfNamedInput(container, "idempotencyKey")).not.toBe(key);
+    expect(valueOfNamedInput(container, "amount")).toBe("80");
+    expect(valueOfNamedInput(container, "reference")).toBe("");
+  });
+
+  it("allows clean invoice switching and blocks switching while saving", async () => {
+    const user = userEvent.setup(); const onChooseAnother = vi.fn();
+    const result = deferredActionResult();
+    actionMocks.recordTenantInvoicePaymentAction.mockReturnValueOnce(result.promise);
+    const { container } = render(<TenantInvoicePaymentForm invoice={invoice()} onChooseAnother={onChooseAnother} onReceiptResult={vi.fn()} onSuccess={vi.fn()} ownerLabel="Owner" payFromAccounts={[account()]} />);
+    await user.click(screen.getByRole("button", { name: "Choose another" }));
+    expect(onChooseAnother).toHaveBeenCalledOnce(); onChooseAnother.mockClear();
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Choose another" })).toHaveProperty("disabled", true));
+    await user.click(screen.getByRole("button", { name: "Choose another" }));
+    expect(onChooseAnother).not.toHaveBeenCalled();
+    await act(async () => result.resolve({ status: "error", message: "Payment failed" }));
+    await user.click(screen.getByRole("button", { name: "Choose another" }));
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).toBeTruthy();
+    expect(onChooseAnother).not.toHaveBeenCalled();
+  });
+
   it("submits an IPS payment with the authoritative field names", () => {
     const { container } = renderForm({
       invoice: invoice({ collectionRoute: "through_ips" }),
