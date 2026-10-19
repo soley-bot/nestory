@@ -27,7 +27,7 @@ describe("trusted report PDF export", () => {
     report.description = "Purpose text " + "explaining charges and receipts for the selected reporting period. ".repeat(4);
     report.totalsTraceLabel = "Trace evidence " + "links each total to the scoped invoice and receipt records. ".repeat(4);
     report.summary = [{ label: "Total charges", value: "USD 850.00", detail: "Charges", sourceCount: 1 }];
-    report.rows[0]!.sourceLinks = [{ id: "invoice-1", label: "Invoice 1", recordType: "invoice", href: "/invoices/invoice-1" }];
+    report.rows[0]!.sourceLinks = [{ id: "invoice-1", label: "Invoice 1", recordType: "income-obligation", href: "/rent-income?invoiceId=invoice-1" }];
     const pdf = Buffer.from(buildTrustedReportPdf({ organizationName: "Nestory", report })).toString("latin1");
     const texts = [...pdf.matchAll(/BT \/F[12] ([\d.]+) Tf 1 0 0 1 ([\d.]+) ([\d.]+) Tm \((.*)\) Tj ET/g)]
       .map((match) => ({ size: Number(match[1]), x: Number(match[2]), y: Number(match[3]), text: match[4]! }));
