@@ -23,7 +23,7 @@ function queryLocalDatabase(sql) {
   return result.stdout.split(/\r?\n/).map((row) => row.trim()).filter(Boolean);
 }
 
-export function prepareOwnerBalanceBlockedSourceFixture() {
+function prepareOwnerBalanceBlockedSourceFixture() {
   const feeRows = queryLocalDatabase(String.raw`
 SELECT json_build_object(
   'feeId', fee.id,
@@ -72,7 +72,7 @@ ORDER BY fee.id;`);
   assert.match(fee.feeDate, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(fee.feeDate, fee.invoiceIssueDate, "management fee date must match invoice issuance");
 
-  const ownershipRows = queryLocalDatabase(String.raw`
+  const sql = String.raw`
 UPDATE public.property_owners
 SET started_on = '${fee.feeDate}'::date,
     ended_on = ('${fee.feeDate}'::date + 1)
@@ -88,7 +88,11 @@ RETURNING json_build_object(
   'startedOn', started_on,
   'endedOn', ended_on,
   'intervalDays', ended_on - started_on
-)::text;`);
+)::text;`;
+  return { fee, sql };
+}
+
+function validateBlockedOwnership(ownershipRows, fee) {
   assert.equal(ownershipRows.length, 1, "fixture must update only the deliberate extra ownership row");
   const ownership = JSON.parse(ownershipRows[0]);
   assert.equal(ownership.ownershipId, "90000000-0000-0000-0000-000000000005");
@@ -118,7 +122,12 @@ export function validateOwnerBalanceFixture(report, manifest) {
 }
 
 export function queryOwnerBalanceFixture() {
+  const prepared = prepareOwnerBalanceBlockedSourceFixture();
+  // Keep the remediation vector visible only to this report. ROLLBACK restores
+  // the exact row and trigger effects; psql disconnect also rolls back on SQL errors.
   const sql = String.raw`
+BEGIN;
+${prepared.sql}
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', false);
 WITH expected_periods(property_id, owner_person_id, month_start, period_key) AS (
   VALUES
@@ -235,7 +244,8 @@ SELECT json_build_object(
     'depositReceipts', to_char((SELECT receipts FROM fixture_deposits), 'FM999999999990.00'),
     'depositRefunds', to_char((SELECT refunds FROM fixture_deposits), 'FM999999999990.00')
   )
-)::text;`;
+)::text;
+ROLLBACK;`;
   const result = spawnSync(
     "docker",
     ["exec", localDatabaseContainer(), "psql", "-U", "postgres", "-d", "postgres", "-qAt", "-v", "ON_ERROR_STOP=1", "-c", sql],
@@ -243,12 +253,12 @@ SELECT json_build_object(
   );
   if (result.status !== 0) throw new Error(result.stderr.trim() || "Owner-balance fixture query failed");
   const rows = result.stdout.split(/\r?\n/).map((row) => row.trim()).filter(Boolean);
+  validateBlockedOwnership(rows.slice(0, -2), prepared.fee);
   return JSON.parse(rows.at(-1));
 }
 
 export async function main() {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  prepareOwnerBalanceBlockedSourceFixture();
   const report = queryOwnerBalanceFixture();
   validateOwnerBalanceFixture(report, manifest);
   process.stdout.write("Owner-balance lifecycle fixture reconciled: 16 component rows, 12 source types, 2 properties, 2 months\n");

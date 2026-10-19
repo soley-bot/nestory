@@ -541,6 +541,37 @@ describe("LeaseDetailScreen", () => {
     expect(within(dialog).getByText(/including the current or a past month/)).not.toBeNull();
   });
 
+  it("lets Today replace the default effective month without changing the term end", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-15T12:00:00Z"));
+    try {
+      const user = userEvent.setup();
+      renderDetail("rent", makeLease(), allLeasePermissions, {
+        billingFormConfig: {
+          companyOptions: [],
+          organizationName: "Pilot",
+          operationalTimezone: "UTC",
+          rentBusinessDate: "2026-08-15",
+        },
+      });
+      await user.click(screen.getByRole("button", { name: "Manage lease" }));
+      await user.click(screen.getByRole("menuitem", { name: "Change rent" }));
+      const dialog = screen.getByRole("dialog", { name: "Change rent" });
+      const form = dialog.querySelector("form")!;
+      const originalEndDate = new FormData(form).get("endDate");
+      expect(new FormData(form).get("startDate")).toBe("2026-08-01");
+
+      await user.click(within(dialog).getByRole("button", { name: "Effective date" }));
+      await user.click(screen.getByRole("button", { name: "Today" }));
+
+      expect(new FormData(form).get("startDate")).toBe("2026-08-15");
+      expect(new FormData(form).get("endDate")).toBe(originalEndDate);
+      expect(within(dialog).getByText(/Choose the first day of the month/)).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps historical correction distinct from future Change rent for Super Admin", async () => {
     const user = userEvent.setup();
     renderDetail(

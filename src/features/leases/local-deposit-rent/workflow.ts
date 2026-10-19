@@ -70,7 +70,7 @@ export function createLocalDepositRentWorkflow(deps:LocalDepositRentDependencies
       const line=invoice.rentLines.find(row=>row.id===d.lineId);
       if(!eligible(deposit)||!invoice.issued||!line||cents(d.amount)<=BigInt(0)||cents(d.amount)>cents(line.outstanding)||cents(d.amount)>cents(invoice.outstanding)||cents(d.amount)>cents(deposit.held))fail("Choose an amount within both the available deposit and outstanding rent.");amount=d.amount;
     }else{
-      if(!original||!original.active||original.consumed||original.reversalOf!==null||d.date<original.date||cents(deposit.held)+cents(original.amount)>cents(deposit.obligation))fail("This application cannot be reversed. Review its date and any later owner payments.");amount=original.amount;
+      if(!original||!original.active||original.consumed||original.reversalOf!==null||d.date<original.date||cents(deposit.held)+cents(original.amount)>cents(deposit.obligation))fail("This application cannot be reversed. Review its date and any later owner distributions.");amount=original.amount;
     }
     const signed=cents(amount)*(d.operation==="apply"?BigInt(1):BigInt(-1));
     return {operation:d.operation,date:d.date,amount,heldAfter:decimal(cents(deposit.held)-signed),outstandingAfter:decimal(cents(invoice.outstanding)-signed),custodyChange:decimal(-signed),ownerCashChange:deposit.custodian==="ips"?decimal(signed):"0.00",custodian:deposit.custodian};
