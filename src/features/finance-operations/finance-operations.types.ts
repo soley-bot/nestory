@@ -160,6 +160,8 @@ export type OwnerInvoiceSummary = {
 };
 
 export type ExpenseSubmissionSummary = {
+  tenantInvoiceId?: string | null;
+  replacesSubmissionId?: string | null;
   cancelledAt?: string | null;
   replacesTransactionId?: string | null;
   replacementTransactionId?: string | null;
@@ -189,6 +191,7 @@ export type ExpenseSubmissionSummary = {
   scopedSubtotal?: number;
   fullTransactionTotal?: number;
   lines?: Array<{
+    tenantInvoiceId?: string | null;
     categoryAccountId?: string;
     amount: number;
     customerTotal: number;

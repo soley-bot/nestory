@@ -85,6 +85,7 @@ export function groupExpenseTransactionSummaries(
       ) / 100,
       lines: lines.map(({ line, submission }) => ({
         categoryAccountId: line.categoryAccountId,
+        tenantInvoiceId: submission.tenantInvoiceId,
         amount: submission.internalCost,
         customerTotal: submission.customerTotal,
         internalMarkup: submission.internalMarkup,
@@ -117,6 +118,7 @@ export function groupExpenseTransactionSummaries(
     grouped.push({
       ...submission,
       lines: [{
+        tenantInvoiceId: submission.tenantInvoiceId,
         amount: submission.internalCost,
         customerTotal: submission.customerTotal,
         internalMarkup: submission.internalMarkup,

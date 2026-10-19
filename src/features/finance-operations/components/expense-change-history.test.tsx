@@ -108,3 +108,14 @@ describe("expense history recovery", () => {
     await waitFor(() => expect(screen.getByRole("status").textContent).toMatch(/^Loading history/));
   });
 });
+
+it("ignores stale legacy history when only the original submission changes", async () => {
+  let finish!: (value: Awaited<ReturnType<typeof getExpenseHistory>>) => void;
+  vi.mocked(getExpenseHistory).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })).mockResolvedValueOnce([]);
+  const { rerender } = render(<ExpenseChangeHistory transactionId="replacement" legacySubmissionId="original-one" />);
+  rerender(<ExpenseChangeHistory transactionId="replacement" legacySubmissionId="original-two" />);
+  await screen.findByText("No saved changes.");
+  await act(async () => finish([{id:"stale",action:"updated",actor:"Stale member",actor_id:null,created_at:"2026-10-01T00:00:00Z",previous_values:{},new_values:{}}]));
+  expect(screen.queryByText("Stale member")).toBeNull();
+  expect(getExpenseHistory).toHaveBeenLastCalledWith("replacement","original-two");
+});

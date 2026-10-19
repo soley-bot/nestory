@@ -1081,6 +1081,32 @@ describe("expense approval actions", () => {
     expect(rpc).toHaveBeenCalledWith("replace_expense_transaction", expect.objectContaining({ p_transaction_id: submissionId, p_expected_status: "approved", p_reason: "Correct wrong amount", p_reversal_date: "2026-09-10", p_supporting_document_id: null }));
   });
 
+  it("routes an approved legacy correction through its atomic RPC", async () => {
+    rpc.mockResolvedValue({ data: { transaction_id: submissionId }, error: null });
+    const form = new FormData();
+    Object.entries({ expenseDate: "2026-08-08", idempotencyKey: "expense-replacement-1", payeeMode: "external", payeePersonId: "", externalPayeeLabel: "Cleaner", payFromAccountId: sourceId, reference: "", responsibility: "owner", replacementSubmissionId: submissionId, expectedStatus: "approved", replacementReason: "Correct wrong amount", reversalDate: "2026-09-10" }).forEach(([key,value]) => form.set(key,value));
+    form.set("lines", JSON.stringify([{ amount: "30", categoryAccountId: sourceId, description: "Cleaning", ownerCashAmount: null, propertyId, unitId: null }]));
+    expect(await submitExpenseAction({}, form)).toMatchObject({ status: "success" });
+    expect(requireFinanceReversalContext).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith("replace_legacy_expense_submission", expect.objectContaining({ p_submission_id: submissionId, p_reason: "Correct wrong amount", p_reversal_date: "2026-09-10", p_supporting_document_id: null }));
+  });
+
+  it.each([
+    ["Tenant invoice has an active receipt", "allocations are preserved"],
+    ["Expense appears in a frozen statement", "published statements remain unchanged"],
+    ["Financial period is locked", "statement history"],
+    ["Financial month is locked", "statement history"],
+    ["FINANCIAL MONTH IS LOCKED", "statement history"],
+  ])("explains correction integrity rejection: %s", async (backendMessage, guidance) => {
+    rpc.mockResolvedValue({ error: { message: backendMessage } });
+    const form = new FormData();
+    Object.entries({ expenseDate: "2026-08-08", idempotencyKey: "expense-replacement-1", payeeMode: "external", payeePersonId: "", externalPayeeLabel: "Cleaner", payFromAccountId: sourceId, reference: "", responsibility: "owner", replacementTransactionId: submissionId, expectedStatus: "approved", replacementReason: "Correct wrong amount", reversalDate: "2026-09-10" }).forEach(([key,value]) => form.set(key,value));
+    form.set("lines", JSON.stringify([{ amount: "30", categoryAccountId: sourceId, description: "Cleaning", ownerCashAmount: null, propertyId, unitId: null }]));
+    expect(await submitExpenseAction({}, form)).toMatchObject({ status: "error", message: expect.stringContaining(guidance) });
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects a replacement without a reason before uploading or writing", async () => {
     const form = new FormData();
     Object.entries({ expenseDate: "2026-08-08", idempotencyKey: "expense-replacement-1", payeeMode: "external", payeePersonId: "", externalPayeeLabel: "Cleaner", payFromAccountId: sourceId, reference: "", responsibility: "owner", replacementTransactionId: submissionId, expectedStatus: "approved", replacementReason: "", reversalDate: "2026-09-10" }).forEach(([key,value]) => form.set(key,value));

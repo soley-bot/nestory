@@ -13,9 +13,10 @@ function object(value: unknown): Record<string, unknown> {
 const fields = { expense_date: "Paid date", payee_label: "Paid to", reference: "Reference", pay_from_account_id: "Paid-from account", status: "Status" };
 function readable(value: unknown): string { return value == null || value === "" ? "—" : String(value); }
 
-export function ExpenseChangeHistory({ headingRef, transactionId, payFromAccounts = [] }: {
+export function ExpenseChangeHistory({ headingRef, transactionId, legacySubmissionId, payFromAccounts = [] }: {
   headingRef?: Ref<HTMLHeadingElement>;
   transactionId: string;
+  legacySubmissionId?: string;
   payFromAccounts?: readonly Pick<FinanceAccountOption, "id" | "displayName">[];
 }) {
   function displayValue(key: string, value: unknown): string {
@@ -27,19 +28,20 @@ export function ExpenseChangeHistory({ headingRef, transactionId, payFromAccount
   const [response, setResponse] = useState<{
     attempt: number;
     transactionId: string;
+    legacySubmissionId?: string;
     entries?: Entry[];
     failed?: boolean;
   } | null>(null);
-  const currentResponse = response?.transactionId === transactionId && response.attempt === attempt ? response : null;
+  const currentResponse = response?.transactionId === transactionId && response.legacySubmissionId === legacySubmissionId && response.attempt === attempt ? response : null;
   const entries = currentResponse?.entries;
   const failed = currentResponse?.failed;
   useEffect(() => {
     let active = true;
-    getExpenseHistory(transactionId)
-      .then(entries => { if (active) setResponse({ attempt, transactionId, entries }); })
-      .catch(() => { if (active) setResponse({ attempt, transactionId, failed: true }); });
+    (legacySubmissionId ? getExpenseHistory(transactionId, legacySubmissionId) : getExpenseHistory(transactionId))
+      .then(entries => { if (active) setResponse({ attempt, transactionId, legacySubmissionId, entries }); })
+      .catch(() => { if (active) setResponse({ attempt, transactionId, legacySubmissionId, failed: true }); });
     return () => { active = false; };
-  }, [attempt, transactionId]);
+  }, [attempt, transactionId, legacySubmissionId]);
   return <section aria-label="Change history" className="border-t border-border pt-4">
     <h3 className="text-sm font-semibold focus-visible:outline-2 focus-visible:outline-ring" ref={headingRef} tabIndex={-1}>Change history</h3>
     {failed ? <p role="alert" className="text-sm">Could not load change history.</p> : !entries ? <p role="status" className="text-sm text-muted-foreground">Loading history…</p> : entries.length === 0 ? <p className="text-sm text-muted-foreground">No saved changes.</p> : <ol className="divide-y divide-border">{entries.map(item => {

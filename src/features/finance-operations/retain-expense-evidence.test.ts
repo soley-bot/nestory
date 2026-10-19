@@ -18,6 +18,11 @@ describe("receipt retention during expense correction", () => {
     expect(submitted.file.name).toBe("receipt.pdf");
     expect(await submitted.file.text()).toBe("%PDF-1.4 receipt");
   });
+  it("accepts a scoped legacy submission without dropping its receipt", async () => {
+    single.mockResolvedValueOnce({ data: { supporting_document_id: null } });
+    expect(await retainExpenseEvidence({ ...input, legacySubmission: true })).toBeNull();
+    expect(eq).toHaveBeenCalledWith("id", "original");
+  });
   it("keeps an expense without a receipt optional", async () => {
     single.mockResolvedValueOnce({ data: { supporting_document_id: null } });
     expect(await retainExpenseEvidence(input)).toBeNull(); expect(download).not.toHaveBeenCalled();

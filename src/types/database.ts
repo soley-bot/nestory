@@ -865,6 +865,15 @@ type RpcFunctionOverrides = {
       p_supporting_document_id: string | null;
     }
   >;
+  replace_legacy_expense_submission: WithArgs<
+    "replace_legacy_expense_submission",
+    Omit<GeneratedFunctions["replace_legacy_expense_submission"]["Args"], "p_external_payee_label" | "p_payee_person_id" | "p_reference" | "p_supporting_document_id"> & {
+      p_external_payee_label: string | null;
+      p_payee_person_id: string | null;
+      p_reference: string | null;
+      p_supporting_document_id: string | null;
+    }
+  >;
   replace_expense_transaction: WithArgs<
     "replace_expense_transaction",
     Omit<GeneratedFunctions["replace_expense_transaction"]["Args"], "p_external_payee_label" | "p_payee_person_id" | "p_reference" | "p_supporting_document_id"> & {

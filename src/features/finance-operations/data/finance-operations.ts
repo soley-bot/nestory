@@ -40,6 +40,7 @@ import { sortPropertyAccountEntriesNewestFirst } from "@/features/finance-operat
 import { hydrateAccountEntrySources } from "./account-entry-sources";
 import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import { groupExpenseTransactionSummaries } from "../expense-transaction-read-model";
+import { attachLegacyExpenseLinks, loadLegacyExpenseLinks } from "../legacy-expense-links";
 
 export { groupExpenseTransactionSummaries } from "../expense-transaction-read-model";
 export type {
@@ -242,6 +243,7 @@ export function toExpenseSubmissionSummary(
   );
 
   return {
+    tenantInvoiceId: submission.tenant_invoice_id,
     adjustsSubmissionId: submission.adjusts_submission_id,
     category: submission.customer_category,
     categoryLabel: financeCategory?.displayLabel ?? null,
@@ -444,6 +446,7 @@ export async function getFinanceOperationsData(
     supabase, organizationId, expenseSubmissionsResult.data ?? [], Boolean(propertyId || options.expenseMonth),
   );
   expenseSubmissionsResult.data = expenseTransactions.submissions;
+  const legacyExpenseLinks = await loadLegacyExpenseLinks(supabase, organizationId, expenseTransactions.submissions.map(item => item.id), expenseTransactions.transactions.map(item => item.id));
 
   const leasesResult = { data: readContext.leases.filter((lease) =>
     lease.archived_at === null && ["active", "notice_given", "ended", "terminated"].includes(lease.status),
@@ -701,7 +704,7 @@ export async function getFinanceOperationsData(
       return { ...entry, unitLabel: unit && property ? unitLabel(unit, property) : undefined };
     }),
     expenseAccounts: getExpenseAccountOptions(financeAccounts),
-    expenseSubmissions: groupExpenseTransactionSummaries((expenseSubmissionsResult.data ?? []).map(
+    expenseSubmissions: attachLegacyExpenseLinks(groupExpenseTransactionSummaries((expenseSubmissionsResult.data ?? []).map(
       (submission) =>
         toExpenseSubmissionSummary(
           submission,
@@ -714,7 +717,7 @@ export async function getFinanceOperationsData(
           financeCategories,
         ),
     ), expenseTransactions.transactions, expenseTransactions.lines, expenseTransactions.childLinks,
-    new Map(financeAccounts.map((account) => [account.id, account.displayName]))),
+    new Map(financeAccounts.map((account) => [account.id, account.displayName]))), legacyExpenseLinks),
     financeCategories,
     leaseChargeAccounts: getLeaseChargeAccountOptions(financeAccounts),
     leaseDepositAccounts: getLeaseDepositAccountOptions(financeAccounts),

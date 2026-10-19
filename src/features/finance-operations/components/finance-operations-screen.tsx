@@ -526,7 +526,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
             <ExpenseDetails
               payFromAccounts={props.payFromAccounts}
               reportReturnHref={props.reportReturnHref}
-              originalExpense={visibleDetailDrawer.submission.replacesTransactionId ? props.expenseSubmissions.find((item) => item.transactionId === visibleDetailDrawer.submission.replacesTransactionId) : undefined}
+              originalExpense={visibleDetailDrawer.submission.replacesSubmissionId ? props.expenseSubmissions.find((item) => item.id === visibleDetailDrawer.submission.replacesSubmissionId) : visibleDetailDrawer.submission.replacesTransactionId ? props.expenseSubmissions.find((item) => item.transactionId === visibleDetailDrawer.submission.replacesTransactionId) : undefined}
               replacementExpense={visibleDetailDrawer.submission.replacementTransactionId ? props.expenseSubmissions.find((item) => item.transactionId === visibleDetailDrawer.submission.replacementTransactionId) : undefined}
               onViewRelated={(submission) => setModal({ mode: "expense-details", submission })}
               canEdit={canReplaceExpense(visibleDetailDrawer.submission, props)}
@@ -2747,7 +2747,7 @@ function ExpenseDetails({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {submission.transactionId ? (
+          {submission.transactionId || submission.replacementTransactionId ? (
             <Button
               onClick={() => {
                 historyHeadingRef.current?.focus();
@@ -2801,7 +2801,7 @@ function ExpenseDetails({
         </p>
       ) : null}
       <ExpenseLines submission={submission} />
-      {submission.transactionId ? <ExpenseChangeHistory headingRef={historyHeadingRef} key={submission.transactionId} payFromAccounts={payFromAccounts} transactionId={submission.transactionId} /> : null}
+      {submission.transactionId || submission.replacementTransactionId ? <ExpenseChangeHistory headingRef={historyHeadingRef} key={submission.transactionId ?? submission.id} payFromAccounts={payFromAccounts} transactionId={submission.transactionId ?? submission.replacementTransactionId!} legacySubmissionId={submission.replacesSubmissionId ?? (!submission.transactionId ? submission.id : undefined)} /> : null}
       {submission.replacesTransactionId ? <p className="text-sm text-muted-foreground">Replacement for a previous expense. The original remains in history.</p> : null}
       {originalExpense ? <Button variant="outline" onClick={() => onViewRelated(originalExpense)}>View original expense</Button> : null}
       {replacementExpense ? <Button variant="outline" onClick={() => onViewRelated(replacementExpense)}>View replacement expense</Button> : null}
@@ -2809,6 +2809,7 @@ function ExpenseDetails({
         <Button onClick={onEdit} variant="outline">Edit expense</Button>
         {submission.status === "submitted" ? <Button onClick={onCancelExpense} variant="ghost">Cancel expense</Button> : null}
       </div> : null}
+      {!canEdit ? <p className="text-sm text-muted-foreground">{submission.transactionReviewBlocked ? "Open the complete expense before requesting a correction." : submission.sourceType === "maintenance_task" ? "Maintenance costs retain their task history. Ask Finance to review the linked maintenance record." : ["reversed", "rejected"].includes(submission.status) ? "This historical version cannot be edited. Review its replacement or correction history." : !submission.transactionId && submission.status === "submitted" ? "This legacy submission must complete its existing review before a linked correction is available." : "Editing is unavailable for this record or your current access. Ask Finance to review its history."}</p> : null}
       {submission.scopedSubtotal !== undefined ? <p className="text-sm">
         Total shown: {formatMoneyDisplay(submission.scopedSubtotal).primary}
         {submission.fullTransactionTotal !== undefined ? <> · Whole expense: {formatMoneyDisplay(submission.fullTransactionTotal).primary}</> : null}
@@ -3349,7 +3350,7 @@ type ExpenseFormProps = {
 };
 
 function ExpenseForm(props: ExpenseFormProps) {
-  if ((props.initialResponsibility ?? "owner") === "owner") {
+  if (props.replacement || (props.initialResponsibility ?? "owner") === "owner") {
     return <OwnerExpenseTransactionForm {...props} />;
   }
   return (
@@ -3369,6 +3370,7 @@ function ExpenseForm(props: ExpenseFormProps) {
 }
 
 type OwnerExpenseDraftLine = {
+  tenantInvoiceId?: string | null;
   internalMarkup?: string;
   amount: string;
   categoryAccountId: string;
@@ -3394,9 +3396,11 @@ function OwnerExpenseTransactionForm({
   payFromAccounts,
   unitOptions,
 }: ExpenseFormProps) {
+  const tenantCorrection = replacement?.responsibility === "tenant";
+  const lockedAttribution = Boolean(replacement && (tenantCorrection || !replacement.transactionId));
   const posting = canPostExpense && !replacement;
   const { getBusinessDateValue } = useBusinessDate();
-  const activeCategories = expenseAccounts;
+  const activeCategories = expenseAccounts.filter((account) => !tenantCorrection || account.useForLeaseCredits === true);
   const defaultPropertyId = fixedScope?.propertyId ?? "";
   const defaultUnitId = fixedScope?.kind === "unit" ? fixedScope.id : "";
   const nextLineKey = useRef((replacement?.lines?.length ?? 1) + 1);
@@ -3417,10 +3421,11 @@ function OwnerExpenseTransactionForm({
     }
   }, [pending, state]);
   const [expenseDate, setExpenseDate] = useState(replacement?.date ?? getBusinessDateValue());
-  const [externalPayeeLabel, setExternalPayeeLabel] = useState(replacement?.externalPayeeLabel ?? "");
+  const [externalPayeeLabel, setExternalPayeeLabel] = useState(replacement?.externalPayeeLabel ?? replacement?.vendorLabel ?? "");
   const [payeeValue, setPayeeValue] = useState(replacement ? replacement.payeePersonId ? `person:${replacement.payeePersonId}` : "external" : "");
   const [reference, setReference] = useState(replacement?.reference ?? "");
   const [lines, setLines] = useState<OwnerExpenseDraftLine[]>(replacement?.lines?.map((line, index) => ({
+    tenantInvoiceId: line.tenantInvoiceId,
     amount: String(line.amount), internalMarkup: String(line.internalMarkup), categoryAccountId: line.categoryAccountId ?? "",
     description: line.description, key: index + 1,
     ownerCashAmount: line.ownerCashAmount === null ? "" : String(line.ownerCashAmount),
@@ -3477,9 +3482,9 @@ function OwnerExpenseTransactionForm({
     categoryAccountId: line.categoryAccountId,
     description: line.description,
     internalMarkupAmount: line.internalMarkup ?? "0",
-    ownerCashAmount: line.ownerCashAmount || null,
+    ownerCashAmount: tenantCorrection ? null : line.ownerCashAmount || null,
     propertyId: line.propertyId,
-    tenantInvoiceId: null,
+    tenantInvoiceId: line.tenantInvoiceId ?? null,
     unitId: line.unitId || null,
   }));
   const total = lines.reduce((sum, line) => sum + Number(line.amount || 0), 0);
@@ -3509,9 +3514,9 @@ function OwnerExpenseTransactionForm({
         value={effectivePayFromAccountId}
       />
       <input name="reference" type="hidden" value={reference} />
-      <input name="responsibility" type="hidden" value="owner" />
+      <input name="responsibility" type="hidden" value={replacement?.responsibility ?? "owner"} />
       {replacement ? <>
-        <input name="replacementTransactionId" type="hidden" value={replacement.transactionId ?? ""} />
+        <input name={replacement.transactionId ? "replacementTransactionId" : "replacementSubmissionId"} type="hidden" value={replacement.transactionId ?? replacement.id} />
         <input name="expectedStatus" type="hidden" value={replacement.status} />
         <p className="text-sm text-muted-foreground">{replacement.status === "approved"
           ? "Save updates the expense and its financial effects together. The original, correction reason, and replacement remain in history."
@@ -3577,7 +3582,7 @@ function OwnerExpenseTransactionForm({
             )?.cashHeldByIps;
             return (
               <div className={lines.length > 1 ? "border-t border-border/70 pt-4" : ""} key={line.key}>
-                {lines.length > 1 ? (
+                {lines.length > 1 && !lockedAttribution ? (
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <p className="text-sm font-medium">Expense line {index + 1}</p>
                     <Button
@@ -3595,7 +3600,7 @@ function OwnerExpenseTransactionForm({
                   <Field label="Property">
                       <SelectControl
                         ariaLabel={index === 0 ? "Property" : `Expense line ${index + 1} property`}
-                        disabled={lockScope}
+                        disabled={lockScope || lockedAttribution}
                         placeholder="Choose property"
                         required
                         onValueChange={(propertyId) => updateLine(line.key, { propertyId, unitId: "", categoryAccountId: activeCategories.find((account) => account.propertyId === null || account.propertyId === propertyId)?.id ?? "" })}
@@ -3606,7 +3611,7 @@ function OwnerExpenseTransactionForm({
                   <Field label="Unit">
                       <SelectControl
                         ariaLabel={`Expense line ${index + 1} unit`}
-                        disabled={lockScope && fixedScope?.kind === "unit"}
+                        disabled={lockedAttribution || (lockScope && fixedScope?.kind === "unit")}
                         onValueChange={(unitId) => updateLine(line.key, { unitId })}
                         options={[
                           { label: "No unit", value: "" },
@@ -3648,7 +3653,7 @@ function OwnerExpenseTransactionForm({
                       value={line.amount}
                     />
                   </Field>
-                  <details
+                  {!tenantCorrection ? <details
                     className="sm:col-span-2"
                     ref={(element) => {
                       if (element) allocationDetails.current.set(line.key, element);
@@ -3678,13 +3683,14 @@ function OwnerExpenseTransactionForm({
                         </p>
                       </Field>
                     </div>
-                  </details>
+                  </details> : <p className="text-sm text-muted-foreground sm:col-span-2">The original tenant invoice, property and unit are retained. Settled charges cannot be replaced; payment allocations must remain intact.</p>}
+                  {replacement ? <Field label="Markup"><NumberInput aria-label="Line markup" value={line.internalMarkup ?? "0"} onChange={(event) => updateLine(line.key, { internalMarkup: event.target.value })} min="0" /></Field> : null}
                 </div>
               </div>
             );
           })}
           <Button
-            disabled={lines.length >= 20}
+            disabled={lockedAttribution || lines.length >= 20}
             onClick={() => {
               const key = nextLineKey.current;
               nextLineKey.current += 1;
@@ -4988,7 +4994,9 @@ function getDrawerTitle(drawer: DrawerState) {
 }
 
 function canReplaceExpense(submission: ExpenseSubmissionSummary, capabilities: Pick<FinanceOperationsScreenProps, "canSubmitExpense" | "canReverseExpense" | "canApproveOwnExpense" | "currentUserId">) {
-  if (!capabilities.canSubmitExpense || !submission.transactionId || submission.transactionReviewBlocked || submission.responsibility !== "owner" || !submission.lines?.length) return false;
+  if (!capabilities.canSubmitExpense || submission.transactionReviewBlocked || !submission.lines?.length) return false;
+  if (!submission.transactionId && (submission.status !== "approved" || submission.sourceType !== "general" || submission.adjustsSubmissionId || submission.replacementTransactionId)) return false;
+  if (submission.responsibility === "tenant" && !submission.lines.every((line) => line.tenantInvoiceId)) return false;
   if (submission.status === "approved") return capabilities.canReverseExpense;
   return submission.status === "submitted" && Boolean(capabilities.canApproveOwnExpense || capabilities.currentUserId === submission.submittedByUserId);
 }

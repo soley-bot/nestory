@@ -783,7 +783,7 @@ export async function submitExpenseAction(
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
   const posting = formData.get("expenseIntent") === "post";
-  if (posting && (!formData.has("lines") || formData.has("replacementTransactionId") || formData.get("responsibility") !== "owner")) {
+  if (posting && (!formData.has("lines") || (formData.has("replacementTransactionId") || formData.has("replacementSubmissionId")) || formData.get("responsibility") !== "owner")) {
     return actionError("Direct posting is available for new owner expenses only.");
   }
   if (posting && formData.get("confirmedPayFromAccountId") !== formData.get("payFromAccountId")) {
@@ -802,13 +802,16 @@ export async function submitExpenseAction(
   if (formData.has("lines")) {
     const parsed = expenseTransactionSchema.safeParse(Object.fromEntries(formData));
     if (!parsed.success) return validationError(parsed.error);
-    const replacement = formData.has("replacementTransactionId") ? z.object({
+    const legacyReplacement = formData.has("replacementSubmissionId");
+    if (legacyReplacement && formData.has("replacementTransactionId")) return actionError("Choose one original expense to correct.");
+    const replacement = (legacyReplacement || formData.has("replacementTransactionId")) ? z.object({
       replacementTransactionId: uuid,
       expectedStatus: z.enum(["submitted", "approved"]),
       replacementReason: z.string().trim().min(3).max(500),
       reversalDate: date,
-    }).safeParse(Object.fromEntries(formData)) : null;
+    }).safeParse({ ...Object.fromEntries(formData), replacementTransactionId: formData.get(legacyReplacement ? "replacementSubmissionId" : "replacementTransactionId") }) : null;
     if (replacement && !replacement.success) return validationError(replacement.error);
+    if (legacyReplacement && replacement?.success && replacement.data.expectedStatus !== "approved") return actionError("Only posted legacy expenses support linked correction.");
 
     const context = await requireFinanceSubmissionContext();
     if (posting) {
@@ -833,6 +836,7 @@ export async function submitExpenseAction(
         evidenceDocumentId = await retainExpenseEvidence({
           organizationId: context.organizationId, actorId: context.userId,
           transactionId: replacement.data.replacementTransactionId,
+          legacySubmission: legacyReplacement,
           propertyId: parsed.data.lines[0].propertyId, idempotencyKey: parsed.data.idempotencyKey,
         });
       }
@@ -867,8 +871,14 @@ export async function submitExpenseAction(
       p_responsibility: parsed.data.responsibility,
       p_supporting_document_id: evidenceDocumentId,
     };
-    const { error } = replacement?.success
-      ? await supabase.rpc("replace_expense_transaction", {
+    const { error } = replacement?.success && legacyReplacement
+      ? await supabase.rpc("replace_legacy_expense_submission", {
+          ...expensePayload,
+          p_submission_id: replacement.data.replacementTransactionId,
+          p_reason: replacement.data.replacementReason,
+          p_reversal_date: replacement.data.reversalDate,
+        })
+      : replacement?.success ? await supabase.rpc("replace_expense_transaction", {
           ...expensePayload,
           p_transaction_id: replacement.data.replacementTransactionId,
           p_expected_status: replacement.data.expectedStatus,
@@ -1187,16 +1197,18 @@ function expenseWorkflowError(message: string) {
       "You submitted this expense. Ask another authorized reviewer to approve or reject it.",
     );
   }
-  if (message.includes("period is locked")) {
+  if (/\b(?:financial\s+)?(?:month|period)\s+is\s+locked\b/i.test(message)) {
     return actionError(
-      "This paid-cost month is locked. Super Admin must unlock it before approval.",
+      "This financial period is locked. Ask Finance to review the correction date and statement history before retrying.",
     );
   }
-  if (message.includes("already settled this charge")) {
+  if (/settled|payment allocation|deposit application|active receipt/i.test(message)) {
     return actionError(
-      "This customer charge has already been settled. Use a separate correction.",
+      "This charge has payments, receipts or deposit allocations. Ask Finance to reconcile the settlement before correcting it; existing allocations are preserved.",
     );
   }
+  if (/frozen|published statement/i.test(message)) return actionError("This expense is included in a published statement. Ask Finance to review an appropriate correction period; published statements remain unchanged.");
+  if (/legacy|attribution|original invoice|original property|original unit/i.test(message)) return actionError("This record cannot be corrected with these details. Retain its original property, unit and responsibility, and ask Finance to review its history.");
   return backendActionError();
 }
 
