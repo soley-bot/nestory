@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import "@testing-library/jest-dom/vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DashboardError from "./error";
 
@@ -22,7 +22,10 @@ describe("DashboardError", () => {
     isUnrecognizedActionError.mockReturnValue(false);
   });
 
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
 
   it("reports the failure and preserves the retry action", async () => {
     const error = Object.assign(new Error("dashboard exploded"), {
@@ -32,6 +35,10 @@ describe("DashboardError", () => {
 
     render(<DashboardError error={error} reset={reset} />);
 
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "If you were saving, check the record before submitting again.",
+    );
+    expect(screen.getByRole("alert")).not.toHaveTextContent("Your records were not changed");
     expect(captureException).toHaveBeenCalledWith(error, {
       tags: {
         boundary: "dashboard",
@@ -53,6 +60,10 @@ describe("DashboardError", () => {
 
     render(<DashboardError error={error} reset={reset} />);
 
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Reload the current version. If you were saving, check the record before submitting again.",
+    );
+    expect(screen.getByRole("alert")).not.toHaveTextContent("Your records were not changed");
     expect(captureException).not.toHaveBeenCalled();
     expect(historyGo).not.toHaveBeenCalled();
 

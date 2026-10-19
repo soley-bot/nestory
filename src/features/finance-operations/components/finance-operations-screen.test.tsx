@@ -320,6 +320,16 @@ describe("FinanceOperationsScreen", () => {
     expect(valueOfNamedInput(form, "payFromAccountId")).toBe("");
   });
 
+  it("allows correction-only authority to edit without reversal or pending review", async () => {
+    const user = userEvent.setup(); const input = data();
+    input.expenseSubmissions = [editableExpense("approved")];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canSubmitExpense: true, canReverseExpense: false, canReviewExpense: false })} canCorrectExpense organizationName="IPS" view="expenses" />);
+    await user.click(screen.getByRole("tab", { name: "Approved (1)" }));
+    await user.click(screen.getByRole("button", { name: "View Sokha Repairs" }));
+    expect(screen.getByRole("button", { name: "Edit expense" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Reverse|Delete expense|Approve expense/ })).toBeNull();
+  });
+
   it("hides edit and cancellation from someone other than the submitter", async () => {
     const user = userEvent.setup(); const input = data();
     input.expenseSubmissions = [editableExpense("submitted")];
@@ -2577,9 +2587,10 @@ describe("FinanceOperationsScreen", () => {
     expect(within(drawer).queryByText("Tenant or company")).toBeNull();
   });
 
-  it("requires an open invoice target before offering recoverable-cost submission", async () => {
+  it.each([false, true])("requires an invoice and preserves tenant posting authority (%s)", async (canPost) => {
     const user = userEvent.setup();
     const input = data();
+    input.expenseAccounts = input.expenseAccounts.map(account => ({ ...account, useForLeaseCredits: true }));
     input.tenantInvoices = [
       { ...tenantInvoice(), collectionRoute: "through_ips" },
     ];
@@ -2587,7 +2598,8 @@ describe("FinanceOperationsScreen", () => {
     render(
       <FinanceOperationsScreen
         {...input}
-        {...financeCapabilities({ canSubmitExpense: true })}
+        {...financeCapabilities({ canSubmitExpense: true, canReviewExpense: false })}
+        canPostTenantExpense={canPost}
         organizationName="Sokha Property Services"
         view="expenses"
       />,
@@ -2623,8 +2635,50 @@ describe("FinanceOperationsScreen", () => {
       }),
     );
     expect(
-      within(form).getByRole("button", { name: "Submit for review" }),
+      within(form).getByRole("button", { name: canPost ? "Post expense" : "Submit for review" }),
     ).not.toBeNull();
+    const key = valueOfNamedInput(form, "idempotencyKey");
+
+    if (canPost) {
+      const lines = JSON.parse(valueOfNamedInput(form, "lines")!);
+      expect(lines[0]).toMatchObject({ tenantInvoiceId: "invoice-1", propertyId: "property-1", ownerCashAmount: null });
+      expect(valueOfNamedInput(form, "expenseIntent")).toBe("post");
+      await user.click(within(form).getByLabelText("Pay from"));
+      await user.click(screen.getByRole("option", { name: "Company-collected funds" }));
+      const account = valueOfNamedInput(form, "payFromAccountId");
+      const confirmation = within(form).getByRole("checkbox", { name: /I confirm this expense was paid from/ });
+      expect(confirmation).toHaveProperty("checked", false);
+      await user.click(confirmation);
+      expect(new FormData(form as HTMLFormElement).get("confirmedPayFromAccountId")).toBe(account);
+      await user.click(within(form).getByLabelText("Pay from"));
+      await user.click(screen.getByRole("option", { name: "Company card" }));
+      expect(within(form).getByRole("checkbox", { name: /I confirm this expense was paid from/ })).toHaveProperty("checked", false);
+      expect(valueOfNamedInput(form, "idempotencyKey")).toBe(key);
+      fireEvent.change(within(form).getByLabelText("Paid to"), { target: { value: "Tenant repair vendor" } });
+      fireEvent.change(within(form).getByLabelText("Amount paid"), { target: { value: "30" } });
+      fireEvent.change(within(form).getByLabelText("Service fee (optional)"), { target: { value: "5" } });
+      await user.click(within(form).getByRole("checkbox", { name: /I confirm this expense was paid from/ }));
+      financeActionMocks.submitExpenseAction.mockImplementationOnce(async () => {
+        await new Promise(resolve => setTimeout(resolve, 25));
+        return { status: "error", message: "Posting failed. Please retry." };
+      }).mockResolvedValueOnce({ status: "success", message: "Expense posted. Reports and balances are updated." });
+      expect(Array.from(form.querySelectorAll(":invalid")).map((element) => ({ name: element.getAttribute("name"), label: element.getAttribute("aria-label"), value: (element as HTMLInputElement).value }))).toEqual([]);
+      fireEvent.submit(form); fireEvent.submit(form);
+      expect(valueOfNamedInput(form, "tenantInvoiceId")).toBe("invoice-1");
+      await waitFor(() => expect(financeActionMocks.submitExpenseAction).toHaveBeenCalledTimes(1));
+      expect((await screen.findAllByText("Posting failed. Please retry.")).length).toBeGreaterThan(0);
+      expect(financeActionMocks.submitExpenseAction).toHaveBeenCalledTimes(1);
+      expect(valueOfNamedInput(form, "idempotencyKey")).toBe(key);
+      fireEvent.submit(form);
+      await waitFor(() => expect(financeActionMocks.submitExpenseAction).toHaveBeenCalledTimes(2));
+      const retried = financeActionMocks.submitExpenseAction.mock.calls[1][1] as FormData;
+      expect(retried.get("idempotencyKey")).toBe(key);
+      expect(JSON.parse(String(retried.get("lines")))[0]).toMatchObject({ amount: "30", internalMarkupAmount: "5", tenantInvoiceId: "invoice-1", ownerCashAmount: null });
+
+    } else {
+      expect(form.querySelector('[name="lines"]')).toBeNull();
+      expect(within(form).queryByRole("checkbox", { name: /I confirm this expense was paid from/ })).toBeNull();
+    }
   });
 
   it("keeps a property-scoped paid cost inside the finance flow without dirtying an untouched draft", async () => {

@@ -17,6 +17,9 @@ export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 export type WorkspaceCapabilities = {
   canConfigureLeases: boolean;
   canCorrectFinance: boolean;
+  canPostExpense: boolean;
+  canPostTenantExpense: boolean;
+  canCorrectExpense: boolean;
   canExecuteOperations: boolean;
   canLockFinancialMonth: boolean;
   canManageAccess: boolean;
@@ -52,6 +55,9 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
   super_admin: {
     canConfigureLeases: true,
     canCorrectFinance: true,
+    canPostExpense: true,
+    canPostTenantExpense: false,
+    canCorrectExpense: true,
     canExecuteOperations: true,
     canLockFinancialMonth: true,
     canManageAccess: true,
@@ -80,6 +86,9 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
   finance_manager: {
     canConfigureLeases: true,
     canCorrectFinance: true,
+    canPostExpense: true,
+    canPostTenantExpense: false,
+    canCorrectExpense: true,
     canExecuteOperations: false,
     canLockFinancialMonth: true,
     canManageAccess: false,
@@ -108,6 +117,9 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
   finance_member: {
     canConfigureLeases: false,
     canCorrectFinance: false,
+    canPostExpense: false,
+    canPostTenantExpense: false,
+    canCorrectExpense: false,
     canExecuteOperations: false,
     canLockFinancialMonth: false,
     canManageAccess: false,
@@ -136,6 +148,9 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
   operations_manager: {
     canConfigureLeases: false,
     canCorrectFinance: false,
+    canPostExpense: false,
+    canPostTenantExpense: false,
+    canCorrectExpense: false,
     canExecuteOperations: true,
     canLockFinancialMonth: false,
     canManageAccess: false,
@@ -164,6 +179,9 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
   operations_member: {
     canConfigureLeases: false,
     canCorrectFinance: false,
+    canPostExpense: false,
+    canPostTenantExpense: false,
+    canCorrectExpense: false,
     canExecuteOperations: true,
     canLockFinancialMonth: false,
     canManageAccess: false,
@@ -217,6 +235,9 @@ export function getWorkspaceCapabilitiesFromPermissions(
     canConfigureLeases:
       has("leases.prepare") && has("leases.change_terms"),
     canCorrectFinance: has("finance.correct_records"),
+    canPostExpense: has("finance.submit_expenses") && (has("finance.post_expenses") || (has("finance.correct_records") && has("finance.approve_expenses"))),
+    canPostTenantExpense: has("finance.submit_expenses") && has("finance.post_expenses"),
+    canCorrectExpense: has("finance.submit_expenses") && (has("finance.correct_expenses") || (has("finance.correct_records") && has("finance.approve_expenses"))),
     canExecuteOperations: has("maintenance.complete"),
     canLockFinancialMonth: has("finance.close_periods"),
     canManageAccess: false,

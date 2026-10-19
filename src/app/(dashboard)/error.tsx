@@ -34,8 +34,8 @@ export default function DashboardError({
         className="w-full max-w-xl rounded-md border border-border bg-card"
         message={
           isDeploymentSkew
-            ? "This browser tab is using an older version of Nestory. Reload the current version, then try the action again. Your records were not changed."
-            : "This workspace view could not be loaded. Your records were not changed."
+            ? "This browser tab is using an older version of Nestory. Reload the current version. If you were saving, check the record before submitting again."
+            : "This workspace view could not be loaded. Try loading it again. If you were saving, check the record before submitting again."
         }
         onRetry={
           isDeploymentSkew ? () => window.history.go(0) : reset

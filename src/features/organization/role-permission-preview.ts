@@ -9,6 +9,8 @@ import {
 export const ROLE_PERMISSION_EFFECTS = {
   "leases.change_terms": "Change terms also controls deposit events and reversals.",
   "finance.publish": "Publish also controls report access and PDF/Excel exports.",
+  "finance.post_expenses": "Post new expenses without a separate approval. Submit expenses is also required. This does not approve other pending expenses.",
+  "finance.correct_expenses": "Edit posted expenses through an audited replacement. Submit expenses is also required. This does not grant standalone deletion or other financial corrections.",
 } satisfies Partial<Record<PermissionKey, string>>;
 
 export function buildRolePermissionPreview(
@@ -34,6 +36,9 @@ export function buildRolePermissionPreview(
       .map(({ label }) => label),
   }));
   const effects: string[] = [];
+  for (const permission of ["finance.post_expenses", "finance.correct_expenses"] as const) {
+    if (permissions.includes(permission)) effects.push(ROLE_PERMISSION_EFFECTS[permission]);
+  }
   if (permissions.includes("leases.change_terms")) {
     effects.push(ROLE_PERMISSION_EFFECTS["leases.change_terms"]);
   }

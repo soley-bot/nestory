@@ -387,6 +387,14 @@ export const requireFinanceReversalContext = cache(async () =>
   requireCapability("canReverseExpense"),
 );
 
+export async function requireFinancePostingContext(responsibility: "owner" | "tenant") {
+  return requireCapability(responsibility === "tenant" ? "canPostTenantExpense" : "canPostExpense");
+}
+
+export const requireExpenseCorrectionContext = cache(async () =>
+  requireCapability("canCorrectExpense"),
+);
+
 export const requireFinanceOperationContext = cache(async () =>
   requireCapability("canOperateFinance"),
 );

@@ -37,6 +37,8 @@ export const PERMISSION_GROUPS = [
       { key: "finance.record_payments", label: "Record payments" },
       { key: "finance.submit_expenses", label: "Submit expenses" },
       { key: "finance.approve_expenses", label: "Approve expenses" },
+      { key: "finance.post_expenses", label: "Post expenses directly" },
+      { key: "finance.correct_expenses", label: "Edit posted expenses" },
       { key: "finance.correct_records", label: "Correct records" },
       { key: "finance.close_periods", label: "Lock month" },
       { key: "finance.publish", label: "Publish" },

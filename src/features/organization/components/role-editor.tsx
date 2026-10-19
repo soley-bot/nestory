@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { SideDrawer, useDrawerDraftGuard } from "@/components/ui/side-drawer";
 import { ROLE_PERMISSION_EFFECTS } from "../role-permission-preview";
 import { RolePermissionPreview } from "./role-permission-preview";
+import { PROPERTY_MANAGER_TEMPLATE } from "@/lib/auth/role-templates";
 import {
   normalizePermissionSelection,
   PERMISSION_GROUPS,
@@ -309,6 +310,21 @@ function RoleEditorDraft({
         </section>
 
         <section className="px-5 py-4" aria-labelledby="role-permissions-title">
+          {!role ? (
+            <div className="mb-4 space-y-2">
+              <Button type="button" variant="outline" disabled={submitting || dirty}
+                onClick={() => {
+                  setName(PROPERTY_MANAGER_TEMPLATE.name);
+                  setPermissions(normalizePermissionSelection(PROPERTY_MANAGER_TEMPLATE.permissions));
+                }}>
+                Use Property Manager template
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                Prepare a role for properties, people, leases, maintenance, payments and audited expense edits.
+                Access follows each member’s assigned branch. Saving does not assign anyone.
+              </p>
+            </div>
+          ) : null}
           <h3 className="text-sm font-semibold" id="role-permissions-title">
             Permissions
           </h3>

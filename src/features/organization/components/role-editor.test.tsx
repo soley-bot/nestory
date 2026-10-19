@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RoleEditor, type EditableRole } from "./role-editor";
+import { PROPERTY_MANAGER_TEMPLATE } from "@/lib/auth/role-templates";
 
 const existingRole: EditableRole = {
   assignedUserCount: 0,
@@ -23,6 +24,17 @@ beforeEach(() => {
     scrollIntoView: { configurable: true, value: () => undefined },
     setPointerCapture: { configurable: true, value: () => undefined },
   });
+});
+
+it("prepares the Property Manager template without saving or assigning access", async () => {
+  const onSave = vi.fn();
+  renderEditor({ onSave });
+  await userEvent.click(screen.getByRole("button", { name: "Use Property Manager template" }));
+  expect(onSave).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+    id: null, name: "Property Manager", permissions: PROPERTY_MANAGER_TEMPLATE.permissions,
+  }));
 });
 
 afterEach(cleanup);
@@ -63,7 +75,7 @@ describe("RoleEditor", () => {
         .getAllByRole("group")
         .map((group) => group.getAttribute("aria-label")),
     ).toEqual(["Properties", "People", "Leases", "Finance", "Maintenance"]);
-    expect(screen.getAllByRole("checkbox")).toHaveLength(23);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(25);
     expect(
       (screen.getByRole("button", { name: "Save" }) as HTMLButtonElement)
         .disabled,
