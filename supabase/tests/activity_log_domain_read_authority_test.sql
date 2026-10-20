@@ -53,6 +53,8 @@ INSERT INTO public.people(id,organization_id,display_name)
 SELECT person,org,'Synthetic activity tenant' FROM activity_scope;
 INSERT INTO public.person_branch_relationships(organization_id,person_id,branch_id)
 SELECT org,person,branch FROM activity_scope;
+INSERT INTO public.person_roles(organization_id,person_id,role,status)
+SELECT org,person,'tenant','active' FROM activity_scope;
 INSERT INTO public.leases(id,organization_id,property_id,primary_tenant_person_id,status)
 SELECT lease,org,property,person,'draft' FROM activity_scope;
 
