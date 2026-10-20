@@ -13882,6 +13882,17 @@ export type Database = {
         }
         Returns: string
       }
+      stage_client_workspace: {
+        Args: { p_admin_email: string; p_name: string; p_slug: string }
+        Returns: {
+          invitation_id: string
+          invitation_status: string
+          invited_email: string
+          organization_id: string
+          organization_name: string
+          workspace_slug: string
+        }[]
+      }
       stage_import_run_v1: {
         Args: {
           p_headers: Json
