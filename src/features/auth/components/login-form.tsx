@@ -16,7 +16,7 @@ function FieldError({ errors, id }: { errors?: string[]; id: string }) {
 }
 
 export function LoginForm({ nextPath }: { nextPath?: string }) {
-  const { state, action, pending, formRef, onSubmit } = useAuthForm(loginAction);
+  const { state, action, pending, submissionBlocked, formRef, onSubmit } = useAuthForm(loginAction);
   const emailErrorId = useId();
   const passwordErrorId = useId();
 
@@ -76,7 +76,7 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
 
       <Button
         className="box-border h-11 w-full border-primary bg-primary text-xs font-semibold uppercase tracking-[0.14em] text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:opacity-70"
-        disabled={pending}
+        disabled={pending || submissionBlocked}
         type="submit"
         variant="default"
       >

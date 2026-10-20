@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactElement } from "react";
+import { Component, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthActionState } from "@/features/auth/actions";
 
@@ -54,6 +54,55 @@ function fill(fields: Record<string, string>) {
 
 beforeEach(() => Object.values(actions).forEach((action) => action.mockReset()));
 afterEach(cleanup);
+
+class ActionErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() {
+    return this.state.failed ? <p>Unhandled action rejection</p> : this.props.children;
+  }
+}
+
+it.each(cases)("keeps $name locked after an unknown result until a fresh page load", async (example) => {
+  example.action.mockRejectedValue(new TypeError("Failed to fetch"));
+  const { container } = render(
+    <ActionErrorBoundary>
+      {example.render()}
+    </ActionErrorBoundary>,
+    { onCaughtError: vi.fn() },
+  );
+  fireEvent.submit(container.querySelector("form")!);
+  const alert = await screen.findByRole("alert");
+  expect(alert.textContent).toContain("We could not confirm the request.");
+  expect(alert.textContent).toContain("Refresh this page before trying again.");
+  await waitFor(() => expect(document.activeElement).toBe(alert));
+  expect(screen.queryByText("Unhandled action rejection")).toBeNull();
+  expect(container.querySelector("form")?.getAttribute("aria-busy")).toBe("false");
+  expect((screen.getByRole("button", { name: example.submit }) as HTMLButtonElement).disabled).toBe(true);
+  await act(async () => {
+    fireEvent.submit(container.querySelector("form")!);
+    fireEvent.submit(container.querySelector("form")!);
+  });
+  expect(example.action).toHaveBeenCalledOnce();
+});
+
+it("passes a successful server redirect through to Next instead of displaying a request error", async () => {
+  const redirect = Object.assign(new Error("NEXT_REDIRECT"), {
+    digest: "NEXT_REDIRECT;replace;/workspace;303;",
+  });
+  const caught = vi.fn();
+  actions.acceptInvitationAction.mockRejectedValueOnce(redirect);
+  const { container } = render(
+    <ActionErrorBoundary>
+      <AcceptInvitationForm invitationId="fixture-invitation" passwordRequired={false} />
+    </ActionErrorBoundary>,
+    { onCaughtError: caught },
+  );
+  fireEvent.submit(container.querySelector("form")!);
+  await screen.findByText("Unhandled action rejection");
+  expect(caught.mock.calls[0][0]).toBe(redirect);
+  expect(screen.queryByRole("alert")).toBeNull();
+});
 
 describe.each(cases)("$name retry", (example) => {
   it("keeps submitted values and focuses the first invalid field", async () => {

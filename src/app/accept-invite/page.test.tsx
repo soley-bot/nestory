@@ -102,4 +102,28 @@ describe("AcceptInvitePage", () => {
     expect(html).toContain('data-variant="outline"');
     expect(html).not.toContain(">Use another account<");
   });
+
+  it("explains expiration to the signed-in invitee without offering an acceptance write", async () => {
+    getInvitationAcceptance.mockResolvedValue({
+      accountEmail: "manager@example.com",
+      expiresAt: "2026-07-23T12:00:00.000Z",
+      invitationId: "11111111-1111-4111-8111-111111111111",
+      organizationName: "Riverside Operations",
+      passwordRequired: false,
+      role: "super_admin",
+      scopeName: "All branches",
+      staffName: null,
+      state: "expired",
+    });
+    const html = renderToStaticMarkup(
+      await AcceptInvitePage({
+        searchParams: Promise.resolve({ invitation: "11111111-1111-4111-8111-111111111111" }),
+      }),
+    );
+    expect(html).toContain("Invitation expired");
+    expect(html).toContain("Ask a workspace administrator to renew this invitation.");
+    expect(html).toContain("manager@example.com");
+    expect(html).not.toContain("<form");
+    expect(html).not.toContain("Accept invitation");
+  });
 });

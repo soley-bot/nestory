@@ -11,23 +11,28 @@ type ImplicitSessionCompletionProps = {
   nextPath: string;
 };
 
+type CompletionResult = "verified" | "invalid" | "unconfirmed";
+const VERIFICATION_TIMEOUT_MS = 20_000;
+
 export function ImplicitSessionCompletion({
   failed = false,
   nextPath,
 }: ImplicitSessionCompletionProps) {
-  const [error, setError] = useState(failed);
-  const completion = useRef<Promise<boolean> | null>(null);
+  const [error, setError] = useState<Exclude<CompletionResult, "verified"> | null>(failed ? "invalid" : null);
+  const completion = useRef<Promise<CompletionResult> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function completeSession() {
-      const result = parseImplicitAuthFragment(window.location.hash);
-      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
-      if (failed || "error" in result) return false;
-
+    async function completeSession(): Promise<CompletionResult> {
+      let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
-        const response = await fetch("/auth/session", {
+        const result = parseImplicitAuthFragment(window.location.hash);
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+        if (failed || "error" in result) return "invalid";
+
+        const controller = new AbortController();
+        const request = fetch("/auth/session", {
           body: JSON.stringify({
             access_token: result.accessToken,
             refresh_token: result.refreshToken,
@@ -35,18 +40,32 @@ export function ImplicitSessionCompletion({
           }),
           headers: { "content-type": "application/json" },
           method: "POST",
+          signal: controller.signal,
         });
-        return response.ok;
+        const deadline = new Promise<null>((resolve) => {
+          timeout = setTimeout(() => {
+            // The server may already have established a session. Do not repeat
+            // the request or allow a late response to navigate unexpectedly.
+            resolve(null);
+            controller.abort();
+          }, VERIFICATION_TIMEOUT_MS);
+        });
+        const response = await Promise.race([request, deadline]);
+        return response?.ok ? "verified" : response ? "invalid" : "unconfirmed";
       } catch {
-        return false;
+        return "unconfirmed";
+      } finally {
+        clearTimeout(timeout);
       }
     }
 
     completion.current ??= completeSession();
     void completion.current.then((completed) => {
       if (cancelled) return;
-      if (completed) window.location.replace(nextPath);
-      else setError(true);
+      if (completed === "verified") window.location.replace(nextPath);
+      else setError(completed);
+    }).catch(() => {
+      if (!cancelled) setError("unconfirmed");
     });
 
     return () => {
@@ -57,7 +76,9 @@ export function ImplicitSessionCompletion({
   if (error) {
     return (
       <AuthPageShell
-        description={nextPath.startsWith("/accept-invite?")
+        description={error === "unconfirmed"
+          ? "We could not confirm sign-in. Return to sign in with your existing account."
+          : nextPath.startsWith("/accept-invite?")
           ? "Ask a workspace administrator to send a new invitation, or sign in with your existing account."
           : "This email link is invalid or has expired. Request a fresh email and try again."}
         title="We could not verify this link"

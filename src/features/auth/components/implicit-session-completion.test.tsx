@@ -29,7 +29,7 @@ describe("email link completion", () => {
       },
     }));
   });
-  afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+  afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
   it("replaces the loading shell for missing or malformed tokens", async () => {
     render(<ImplicitSessionCompletion nextPath="/update-password" />);
@@ -67,6 +67,31 @@ describe("email link completion", () => {
     render(<ImplicitSessionCompletion nextPath="/workspace" />);
     await screen.findByRole("heading", { name: "We could not verify this link" });
     expect(screen.queryByText("Verifying your secure link.")).toBeNull();
+  });
+
+  it("shows an actionable unknown result when verification stalls and ignores a late response", async () => {
+    vi.useFakeTimers();
+    const invitation = "/accept-invite?invitation=11111111-1111-4111-8111-111111111111";
+    window.location.hash = "access_token=fixture&refresh_token=fixture&type=invite";
+    let complete!: (value: { ok: boolean }) => void;
+    fetchMock.mockReturnValue(new Promise((resolve) => { complete = resolve; }));
+    render(<StrictMode><ImplicitSessionCompletion nextPath={invitation} /></StrictMode>);
+    expect(screen.getByRole("heading", { name: "Signing you in" })).toBeTruthy();
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(screen.getByRole("heading", { name: "We could not verify this link" })).toBeTruthy();
+    expect(screen.getByText(/We could not confirm sign-in/)).toBeTruthy();
+    expect(screen.queryByText("Verifying your secure link.")).toBeNull();
+    const href = screen.getByRole("link", { name: "Return to sign in" }).getAttribute("href")!;
+    expect(new URL(href, "https://example.test").searchParams.get("next")).toBe(invitation);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(true);
+    expect(window.location.hash).toBe("");
+
+    await act(async () => complete({ ok: true }));
+    expect(replace).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(screen.queryByText("Signing you in")).toBeNull();
   });
 
   it("navigates once after successful completion under StrictMode", async () => {
