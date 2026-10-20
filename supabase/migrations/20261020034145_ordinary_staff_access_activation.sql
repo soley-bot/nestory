@@ -321,8 +321,10 @@ BEGIN
   END IF;
   IF (v_before ->> 'authorization_version')::bigint <> p_expected_version
     OR v_before ->> 'impact_fingerprint' IS DISTINCT FROM p_expected_impact_fingerprint THEN
+    -- A changed consent snapshot requires a new review. Use an HTTP conflict
+    -- so PostgREST does not retry it as a serialization failure.
     RAISE EXCEPTION 'Ordinary access readiness changed. Reload and review it again.'
-      USING ERRCODE = '40001', DETAIL = 'ordinary_access_stale_preview';
+      USING ERRCODE = 'PT409', DETAIL = 'ordinary_access_stale_preview';
   END IF;
   IF NOT (v_before ->> 'activation_ready')::boolean THEN
     RAISE EXCEPTION 'Ordinary access is not ready to enable.'

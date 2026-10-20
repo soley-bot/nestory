@@ -283,18 +283,25 @@ SELECT throws_ok(
   $$SELECT public.activate_organization_ordinary_access(organization_id,
       (preview->>'authorization_version')::bigint + 1, preview->>'impact_fingerprint', true)
     FROM activation_case WHERE label = 'bootstrap'$$,
-  '40001', NULL, 'a stale authorization version cannot activate access');
+  'PT409', NULL, 'a stale authorization version cannot activate access');
 SELECT throws_ok(
   $$SELECT public.activate_organization_ordinary_access(organization_id,
       (preview->>'authorization_version')::bigint, repeat('0', 64), true)
     FROM activation_case WHERE label = 'bootstrap'$$,
-  '40001', NULL, 'a different well-formed impact fingerprint cannot activate access');
+  'PT409', NULL, 'a different well-formed impact fingerprint cannot activate access');
 
 -- Equal counts do not mean equal authority. These fixtures remain valid while
 -- individual permission, member, invitation, and branch scopes change.
 RESET ROLE;
-UPDATE public.organization_role_permissions SET permission_key = 'maintenance.view'
-WHERE role_id = (SELECT role_id FROM activation_case WHERE label = 'staged');
+-- Preserve the assigned role's nonempty guard throughout the replacement,
+-- using the same add-before-remove order as the checked role-save mutation.
+INSERT INTO public.organization_role_permissions(organization_id, role_id, permission_key)
+SELECT organization_id, role_id, 'maintenance.view'
+FROM activation_case WHERE label = 'staged';
+DELETE FROM public.organization_role_permissions
+WHERE organization_id = (SELECT organization_id FROM activation_case WHERE label = 'staged')
+  AND role_id = (SELECT role_id FROM activation_case WHERE label = 'staged')
+  AND permission_key = 'properties.view';
 SET LOCAL ROLE authenticated;
 SELECT ok(
   (SELECT (pg_temp.activation_preview(label)->>'authorization_version')::bigint
@@ -312,7 +319,7 @@ SELECT ok(
    FROM activation_case WHERE label = 'staged'),
   'same-count permission replacement changes the fingerprint and both displayed permission sets');
 SELECT throws_ok($$SELECT pg_temp.activate_case('staged')$$,
-  '40001', NULL, 'reviewed permission content must still match at activation');
+  'PT409', NULL, 'reviewed permission content must still match at activation');
 UPDATE activation_case SET preview = pg_temp.activation_preview(label) WHERE label = 'staged';
 RESET ROLE;
 UPDATE public.organization_members SET user_id = (SELECT replacement_id FROM activation_actor)
@@ -329,7 +336,7 @@ SELECT ok(
    FROM activation_case CROSS JOIN activation_actor a WHERE label = 'staged'),
   'replaced member identity appears in a refreshed consent snapshot with a new fingerprint');
 SELECT throws_ok($$SELECT pg_temp.activate_case('staged')$$,
-  '40001', NULL, 'same-count replacement of the ordinary member invalidates approval');
+  'PT409', NULL, 'same-count replacement of the ordinary member invalidates approval');
 UPDATE activation_case SET preview = pg_temp.activation_preview(label) WHERE label = 'staged';
 RESET ROLE;
 UPDATE public.organization_invitations SET email = 'different@activation.example.test'
@@ -344,7 +351,7 @@ SELECT ok(
    FROM activation_case WHERE label = 'staged'),
   'changed invitation recipient appears in refreshed consent despite unchanged counts');
 SELECT throws_ok($$SELECT pg_temp.activate_case('staged')$$,
-  '40001', NULL, 'same-count replacement of the invitation recipient invalidates approval');
+  'PT409', NULL, 'same-count replacement of the invitation recipient invalidates approval');
 UPDATE activation_case SET preview = pg_temp.activation_preview(label) WHERE label = 'staged';
 RESET ROLE;
 UPDATE public.organization_members SET branch_id =
@@ -359,7 +366,7 @@ SELECT ok(
    FROM activation_case WHERE label = 'staged'),
   'changed membership branch appears in refreshed consent with a new fingerprint');
 SELECT throws_ok($$SELECT pg_temp.activate_case('staged')$$,
-  '40001', NULL, 'same-count membership branch reassignment invalidates approval');
+  'PT409', NULL, 'same-count membership branch reassignment invalidates approval');
 
 -- A checked revocation after preview must remove activation authority.
 SELECT pg_temp.activation_claims((SELECT revoked_admin_id FROM activation_actor));

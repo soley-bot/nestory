@@ -278,7 +278,7 @@ test("ordinary-access activation rechecks authority and readiness after competin
         firstSql: `SELECT public.archive_organization_branch('${fixture.org}','${fixture.branch}');`,
         secondSql: activate(fixture, reviewed),
       });
-      denied(second, "40001", "ordinary_access_stale_preview");
+      denied(second, "PT409", "ordinary_access_stale_preview");
       const state = storedState(fixture);
       assert.equal(state.active_branches, 0, "Branch archive did not commit");
       assert.equal(state.enabled, false, "Activation used stale branch readiness");

@@ -94,9 +94,30 @@ describe("ordinary staff access actions", () => {
     expect(rpc).toHaveBeenCalledOnce();
   });
 
-  it("returns a stale-preview result without retrying or invalidating", async () => {
-    rpc.mockResolvedValue({ data: null, error: { code: "40001", message: "Ordinary access readiness changed." } });
-    expect((await activateOrdinaryAccessAction(request)).kind).toBe("stale");
+  it.each([
+    { code: "PT409", details: "ordinary_access_stale_preview" },
+    { code: "40001" },
+  ])("returns a stale-preview result without retrying or invalidating for $code", async (error) => {
+    rpc.mockResolvedValue({ data: null, error });
+    await expect(activateOrdinaryAccessAction(request)).resolves.toEqual({
+      kind: "stale", message: "Staff access changed. Review refreshed readiness before activating.",
+    });
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { code: "PT409" },
+    { code: "PT409", details: null },
+    { code: "PT409", details: "unrelated_conflict" },
+    { code: "PT409", details: "ordinary_access_stale_preview_extra" },
+    { code: "P0001", details: "ordinary_access_stale_preview" },
+  ])("does not classify an unrelated conflict as a stale preview: %j", async (error) => {
+    rpc.mockResolvedValue({ data: null, error: { ...error, message: "private implementation detail" } });
+    await expect(activateOrdinaryAccessAction(request)).resolves.toEqual({
+      kind: "error",
+      message: "Staff access could not be activated. Refresh readiness and review any remaining requirements.",
+    });
     expect(rpc).toHaveBeenCalledOnce();
     expect(revalidatePath).not.toHaveBeenCalled();
   });

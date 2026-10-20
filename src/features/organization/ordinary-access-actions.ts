@@ -42,7 +42,10 @@ export async function activateOrdinaryAccessAction(
       if (isPrivilegedStepUpRequiredError(error)) {
         return { kind: "error", message: privilegedStepUpRequiredActionMessage };
       }
-      if (error.code === "40001") {
+      if (
+        error.code === "40001" ||
+        (error.code === "PT409" && error.details === "ordinary_access_stale_preview")
+      ) {
         return { kind: "stale", message: "Staff access changed. Review refreshed readiness before activating." };
       }
       if (error.code === "42501") {
