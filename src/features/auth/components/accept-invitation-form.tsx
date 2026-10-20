@@ -17,7 +17,7 @@ export function AcceptInvitationForm({
   invitationId: string;
   passwordRequired: boolean;
 }) {
-  const { state, action, pending, formRef, onSubmit } = useAuthForm(acceptInvitationAction);
+  const { state, action, pending, submissionBlocked, formRef, onSubmit } = useAuthForm(acceptInvitationAction);
   const passwordErrorId = useId();
   const confirmErrorId = useId();
   const passwordRequirementId = useId();
@@ -62,7 +62,7 @@ export function AcceptInvitationForm({
         </>
       ) : null}
 
-      <Button className="h-11 w-full" disabled={pending} type="submit" variant="default">
+      <Button className="h-11 w-full" disabled={pending || submissionBlocked} type="submit" variant="default">
         {pending ? "Accepting..." : "Accept invitation"}
       </Button>
     </form>

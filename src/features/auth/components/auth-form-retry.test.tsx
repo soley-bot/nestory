@@ -63,11 +63,11 @@ class ActionErrorBoundary extends Component<{ children: ReactNode }, { failed: b
   }
 }
 
-it("shows focused feedback after a rejected invitation request without automatically resubmitting", async () => {
-  actions.acceptInvitationAction.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+it.each(cases)("keeps $name locked after an unknown result until a fresh page load", async (example) => {
+  example.action.mockRejectedValue(new TypeError("Failed to fetch"));
   const { container } = render(
     <ActionErrorBoundary>
-      <AcceptInvitationForm invitationId="fixture-invitation" passwordRequired={false} />
+      {example.render()}
     </ActionErrorBoundary>,
     { onCaughtError: vi.fn() },
   );
@@ -78,8 +78,12 @@ it("shows focused feedback after a rejected invitation request without automatic
   await waitFor(() => expect(document.activeElement).toBe(alert));
   expect(screen.queryByText("Unhandled action rejection")).toBeNull();
   expect(container.querySelector("form")?.getAttribute("aria-busy")).toBe("false");
-  expect((screen.getByRole("button", { name: "Accept invitation" }) as HTMLButtonElement).disabled).toBe(false);
-  expect(actions.acceptInvitationAction).toHaveBeenCalledOnce();
+  expect((screen.getByRole("button", { name: example.submit }) as HTMLButtonElement).disabled).toBe(true);
+  await act(async () => {
+    fireEvent.submit(container.querySelector("form")!);
+    fireEvent.submit(container.querySelector("form")!);
+  });
+  expect(example.action).toHaveBeenCalledOnce();
 });
 
 it("passes a successful server redirect through to Next instead of displaying a request error", async () => {

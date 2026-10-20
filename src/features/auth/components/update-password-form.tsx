@@ -11,7 +11,7 @@ import {
 } from "@/lib/auth/password-policy";
 
 export function UpdatePasswordForm() {
-  const { state, action, pending, formRef, onSubmit } = useAuthForm(updatePasswordAction);
+  const { state, action, pending, submissionBlocked, formRef, onSubmit } = useAuthForm(updatePasswordAction);
   const passwordErrorId = useId();
   const confirmErrorId = useId();
   const passwordRequirementId = useId();
@@ -52,7 +52,7 @@ export function UpdatePasswordForm() {
         pending={pending}
       />
 
-      <Button className="h-11 w-full" disabled={pending} type="submit" variant="default">
+      <Button className="h-11 w-full" disabled={pending || submissionBlocked} type="submit" variant="default">
         {pending ? "Updating..." : "Update password"}
       </Button>
     </form>

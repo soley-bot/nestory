@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export function ForgotPasswordForm() {
-  const { state, action, pending, formRef, onSubmit } = useAuthForm(requestPasswordRecoveryAction);
+  const { state, action, pending, submissionBlocked, formRef, onSubmit } = useAuthForm(requestPasswordRecoveryAction);
   const emailErrorId = useId();
 
   return (
@@ -45,7 +45,7 @@ export function ForgotPasswordForm() {
         ) : null}
       </label>
 
-      <Button className="h-11 w-full" disabled={pending} type="submit" variant="default">
+      <Button className="h-11 w-full" disabled={pending || submissionBlocked} type="submit" variant="default">
         {pending ? "Sending..." : "Send reset link"}
       </Button>
     </form>
