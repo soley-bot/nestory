@@ -105,6 +105,8 @@ describe("Timeline event history completeness", () => {
     ["property", "/property-timeline", ["properties.view"]],
     ["maintenance", "/maintenance-timeline", ["maintenance.view"]],
     ["financial", "/financial-timeline", ["finance.view"]],
+    ["maintenance", "/maintenance-timeline", ["properties.view", "maintenance.view"]],
+    ["financial", "/financial-timeline", ["properties.view", "finance.view"]],
   ] as const)("keeps %s event links and activity targets on the authorized scoped route", async (scope, pathname, permissions) => {
     tables.timeline_events = [{ ...event(ids.quiet), event_type: "Maintenance", cost_amount: 10, cost_currency: "USD", title: "Repair & review? /timeline" }];
     const data = await getTimelineScreenData("org-1", parseTimelineSearchParams({ eventId: ids.quiet, historyPage: "1" }), {

@@ -419,13 +419,12 @@ export async function getTimelineScreenData(
     supabase: supabase as unknown as ActivityTargetQueryClient,
     timelineScopes: scope === "global"
       ? ["global"]
-      : options.permissionKeys?.has("properties.view")
-        ? ["property"]
-        : [
-            scope,
-            ...(options.permissionKeys?.has("maintenance.view") ? ["maintenance" as const] : []),
-            ...(options.permissionKeys?.has("finance.view") ? ["financial" as const] : []),
-          ],
+      : [
+          scope,
+          ...(options.permissionKeys?.has("properties.view") ? ["property" as const] : []),
+          ...(options.permissionKeys?.has("maintenance.view") ? ["maintenance" as const] : []),
+          ...(options.permissionKeys?.has("finance.view") ? ["financial" as const] : []),
+        ],
   });
   const resolvedActivityById = new Map(
     resolvedActivity.map((change) => [change.id, change]),
