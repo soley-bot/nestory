@@ -27,6 +27,23 @@ class ResizeObserverStub {
 }
 
 describe("Reports screen", () => {
+  it("keeps all six collection totals, scope and exports visible in the denser layout", async () => {
+    const report = ownerActivityReport();
+    report.kind = "rent-collections";
+    report.summary = ["Charges", "Received", "Deposit applied", "Outstanding", "Credit", "Invoices"].map((label, index) => ({ label, value: String(index + 1), detail: "Fixture total", sourceCount: 1 }));
+    renderReport({ report, viewQuery: query({ report: "rent-collections", propertyId: "property-1", dateFrom: "2026-07-01", dateTo: "2026-07-31" }) });
+    const totals = screen.getByRole("region", { name: "Report totals" });
+    for (const metric of report.summary) {
+      expect(within(totals).getByText(metric.label)).toBeTruthy();
+      expect(within(totals).getByText(metric.value)).toBeTruthy();
+    }
+    expect(screen.getByText(/All properties.*01 Jul 2026/)).toBeTruthy();
+    expect(screen.getByText("Rent invoices issued in this period, with payments and balances as of now.")).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Report filters" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Export" }));
+    expect(screen.getByRole("menuitem", { name: "PDF report" }).getAttribute("href")).toContain("propertyId=property-1");
+  });
+
   it("opens directly in the reference account table with compact controls", async () => {
     const user = userEvent.setup();
     const report = unitProfitLossReport();

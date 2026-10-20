@@ -92,7 +92,7 @@ export function ReportBuilderScreen({
         />
         </div>
 
-        <div className="workspace-gutter-x flex-1 space-y-4 py-4">
+        <div className="workspace-gutter-x flex-1 space-y-2 py-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground">{trustedReport.scopeLabel} · {trustedReport.periodLabel}</p>
             <div className="flex items-center gap-1">
@@ -141,12 +141,14 @@ export function ReportBuilderScreen({
                   "grid divide-y divide-border sm:divide-x sm:divide-y-0",
                   visibleSummary.length === 3
                     ? "sm:grid-cols-3"
-                    : "sm:grid-cols-2 xl:grid-cols-4",
+                    : visibleSummary.length > 4
+                      ? "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+                      : "sm:grid-cols-2 xl:grid-cols-4",
                 )}
               >
                 {visibleSummary.map((metric) => (
                   <div
-                    className="min-w-0 py-3 sm:px-4 sm:first:pl-0"
+                    className="min-w-0 py-2 sm:px-3 sm:first:pl-0"
                     key={metric.label}
                   >
                     <dt className="whitespace-normal [overflow-wrap:anywhere] text-xs font-medium text-muted-foreground">

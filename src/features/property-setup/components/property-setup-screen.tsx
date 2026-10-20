@@ -62,12 +62,18 @@ const steps: Array<{
 export function PropertySetupScreen({
   billingFormConfig,
   canRecordDepositReceipt = false,
+  canCreatePeople = false,
+  canCreateProperties = false,
+  canPrepareLease = false,
   creationBranchOptions,
   data,
   step,
 }: {
   billingFormConfig?: LeaseBillingFormConfig;
   canRecordDepositReceipt?: boolean;
+  canCreatePeople?: boolean;
+  canCreateProperties?: boolean;
+  canPrepareLease?: boolean;
   creationBranchOptions?: PropertyBranchOption[];
   data: PropertySetupData;
   step: PropertySetupStep;
@@ -76,6 +82,8 @@ export function PropertySetupScreen({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [createModal, setCreateModal] = useState<CreateModal>(null);
+  const canCreateRecord = (kind: CreateModal) => kind === "owner" || kind === "tenant"
+    ? canCreatePeople : kind === "property" || kind === "unit" ? canCreateProperties : kind === "lease" && canPrepareLease;
   const { selection } = data;
   const requiresUnit = propertySetupRequiresUnit(data.properties, selection);
   const setupReady = data.readiness?.ready !== false;
@@ -178,7 +186,7 @@ export function PropertySetupScreen({
             <div aria-busy={pending} className="space-y-5 p-4 sm:p-5">
               {step === 1 ? (
                 <OwnerStep
-                  onCreate={() => setCreateModal("owner")}
+                  onCreate={canCreateRecord("owner") ? () => setCreateModal("owner") : undefined}
                   onSelect={(id) => changeSelection("ownerId", id || null)}
                   options={data.owners}
                   value={selection.ownerId ?? ""}
@@ -190,7 +198,7 @@ export function PropertySetupScreen({
                     createLabel="Create new property"
                     emptyCopy="No active properties are linked to this owner yet."
                     label="Property"
-                    onCreate={() => setCreateModal("property")}
+                    onCreate={canCreateRecord("property") ? () => setCreateModal("property") : undefined}
                     onSelect={(id) => changeSelection("propertyId", id || null)}
                     options={propertyOptions.map((option) => ({
                       label: option.label,
@@ -205,7 +213,7 @@ export function PropertySetupScreen({
                         createLabel="Add unit"
                         emptyCopy="This property has no units yet."
                         label="Unit"
-                        onCreate={() => setCreateModal("unit")}
+                        onCreate={canCreateRecord("unit") ? () => setCreateModal("unit") : undefined}
                         onSelect={(id) => changeSelection("unitId", id || null)}
                         options={unitOptions.map((option) => ({
                           label: `${option.label} · ${getSetupUnitStatusLabel(option.id, option.statusLabel, data.leases)}`,
@@ -223,8 +231,8 @@ export function PropertySetupScreen({
               {step === 3 ? (
                 <TenantLeaseStep
                   matchingLeases={matchingLeases}
-                  onCreateLease={() => setCreateModal("lease")}
-                  onCreateTenant={() => setCreateModal("tenant")}
+                  onCreateLease={canCreateRecord("lease") ? () => setCreateModal("lease") : undefined}
+                  onCreateTenant={canCreateRecord("tenant") ? () => setCreateModal("tenant") : undefined}
                   onLeaseSelect={(id) => changeSelection("leaseId", id || null)}
                   onTenantSelect={(id) =>
                     changeSelection("tenantId", id || null)
@@ -301,7 +309,7 @@ export function PropertySetupScreen({
         canRecordDepositReceipt={canRecordDepositReceipt}
         creationBranchOptions={creationBranchOptions}
         data={data}
-        modal={createModal}
+        modal={canCreateRecord(createModal) ? createModal : null}
         onClose={() => setCreateModal(null)}
         onLeaseCreated={(id) => completeCreation("leaseId", id, 4)}
         onOwnerCreated={(id) => completeCreation("ownerId", id, 2)}
@@ -379,7 +387,7 @@ function OwnerStep({
   options,
   value,
 }: {
-  onCreate: () => void;
+  onCreate?: () => void;
   onSelect: (value: string) => void;
   options: PropertySetupData["owners"];
   value: string;
@@ -417,7 +425,7 @@ function SelectRecordStep({
   createLabel: string;
   emptyCopy: string;
   label: string;
-  onCreate: () => void;
+  onCreate?: () => void;
   onSelect: (value: string) => void;
   options: Array<{ label: string; value: string }>;
   placeholder: string;
@@ -468,8 +476,8 @@ function TenantLeaseStep({
   tenantOptions,
 }: {
   matchingLeases: PropertySetupData["leases"];
-  onCreateLease: () => void;
-  onCreateTenant: () => void;
+  onCreateLease?: () => void;
+  onCreateTenant?: () => void;
   onLeaseSelect: (value: string) => void;
   onTenantSelect: (value: string) => void;
   onUseExistingLease: () => void;
@@ -509,7 +517,7 @@ function TenantLeaseStep({
           />
         ) : (
           <p className="text-sm text-muted-foreground">
-            Choose or create the tenant first.
+            {onCreateTenant ? "Choose or create the tenant first." : "Choose an existing tenant first."}
           </p>
         )}
         {openLeaseForUnit ? (
@@ -724,10 +732,11 @@ function OrCreateButton({
 }: {
   disabled?: boolean;
   label: string;
-  onClick: () => void;
+  onClick?: () => void;
 }) {
+  if (!onClick) return <p className="text-sm text-muted-foreground">Choose an existing record, or ask a team member with permission to create one.</p>;
   return (
-    <Button disabled={disabled} onClick={onClick} variant="secondary">
+    <Button type="button" disabled={disabled} onClick={onClick} variant="secondary">
       <Plus size={14} />
       {label}
     </Button>

@@ -40,12 +40,44 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("PropertySetupScreen", () => {
+  it.each([1, 2, 3] as const)("keeps existing selection available without creation rights at step %s", (step) => {
+    render(<PropertySetupScreen data={data} step={step} />);
+    expect(screen.queryByRole("button", { name: /Create new|Add unit/ })).toBeNull();
+    expect(screen.getAllByText("Choose an existing record, or ask a team member with permission to create one.").length).toBeGreaterThan(0);
+    if (step === 3) {
+      fireEvent.click(screen.getByRole("button", { name: "Use existing lease" }));
+      expect(navigation.replace.mock.calls[0][0]).toContain("leaseId=lease-1");
+    } else {
+      expect(screen.getAllByRole("combobox").some(control => !control.hasAttribute("disabled"))).toBe(true);
+    }
+    expect(navigation.createLease).not.toHaveBeenCalled();
+  });
+
+  it("keeps tenant and lease creation rights independent and hides a revoked creation dialog", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<PropertySetupScreen canPrepareLease data={creationData} step={3} />);
+    expect(screen.queryByRole("button", { name: "Create new tenant" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Create new lease" }));
+    expect(screen.getByRole("dialog", { name: "Create lease" })).toBeTruthy();
+    rerender(<PropertySetupScreen canCreatePeople data={creationData} step={3} />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Create new lease" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Create new tenant" })).toBeTruthy();
+    expect(navigation.createLease).not.toHaveBeenCalled();
+  });
+
+  it("does not permit lease creation before tenant selection even with prepare rights", () => {
+    render(<PropertySetupScreen canPrepareLease data={{ ...creationData, selection: { ...creationData.selection, tenantId: null } }} step={3} />);
+    expect(screen.getByRole("button", { name: "Create new lease" })).toHaveProperty("disabled", true);
+    expect(screen.getByText("Choose an existing tenant first.")).toBeTruthy();
+  });
+
   // This full wizard journey includes several real dialogs and user interactions;
   // keep the same bounded allowance as the full lease-form journeys on serial runners.
   it("daily workflow submits the moved-in setup lease and exact billing values through visible controls", async () => {
     const user = userEvent.setup();
     navigation.createLease.mockResolvedValue({ status: "success", message: "Lease saved.", leaseId: "lease-1" });
-    render(<PropertySetupScreen data={creationData} step={3} />);
+    render(<PropertySetupScreen canCreatePeople canCreateProperties canPrepareLease data={creationData} step={3} />);
     await user.click(screen.getByRole("button", { name: "Create new lease" }));
     const form = screen.getByRole("form", { name: "Add lease form" }) as HTMLFormElement;
     await user.click(within(form).getByRole("button", { name: "Next" }));
@@ -83,7 +115,7 @@ describe("PropertySetupScreen", () => {
     const user = userEvent.setup();
     let resolveSave!: (value: object) => void;
     navigation.createLease.mockReturnValueOnce(new Promise((resolve) => { resolveSave = resolve; }));
-    const journey = render(<PropertySetupScreen data={creationData} step={3} />);
+    const journey = render(<PropertySetupScreen canCreatePeople canCreateProperties canPrepareLease data={creationData} step={3} />);
     await user.click(screen.getByRole("button", { name: "Create new lease" }));
     const form = await fillSetupLease(user);
     await act(async () => {
@@ -105,19 +137,19 @@ describe("PropertySetupScreen", () => {
     for (const key of ["ownerId", "propertyId", "unitId", "tenantId", "leaseId"] as const) {
       expect(destination.searchParams.get(key)).toBe(savedData.selection[key]);
     }
-    journey.rerender(<PropertySetupScreen data={savedData} step={4} />);
+    journey.rerender(<PropertySetupScreen canCreatePeople canCreateProperties canPrepareLease data={savedData} step={4} />);
     expectReviewLinks(destination.pathname + destination.search);
     expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(true);
     expect(navigation.activateLease).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(new URL(navigation.replace.mock.calls[1]![0], "https://nestory.invalid").searchParams.get("step")).toBe("3");
-    journey.rerender(<PropertySetupScreen data={savedData} step={3} />);
+    journey.rerender(<PropertySetupScreen canCreatePeople canCreateProperties canPrepareLease data={savedData} step={3} />);
     expect((screen.getByRole("button", { name: "Create new lease" }) as HTMLButtonElement).disabled).toBe(true);
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    journey.rerender(<PropertySetupScreen data={savedData} step={4} />);
+    journey.rerender(<PropertySetupScreen canCreatePeople canCreateProperties canPrepareLease data={savedData} step={4} />);
     expectReviewLinks(destination.pathname + destination.search);
     journey.unmount();
-    render(<PropertySetupScreen data={savedData} step={4} />);
+    render(<PropertySetupScreen canCreatePeople canCreateProperties canPrepareLease data={savedData} step={4} />);
     expectReviewLinks(destination.pathname + destination.search);
     expect(navigation.createLease).toHaveBeenCalledTimes(1);
     expect(navigation.activateLease).not.toHaveBeenCalled();
@@ -128,7 +160,7 @@ describe("PropertySetupScreen", () => {
     navigation.createLease
       .mockResolvedValueOnce({ status: "error", message: "This unit is already reserved for those dates." })
       .mockResolvedValueOnce({ status: "success", message: "Lease saved.", leaseId: "lease-1" });
-    const journey = render(<PropertySetupScreen data={creationData} step={3} />);
+    const journey = render(<PropertySetupScreen canCreatePeople canCreateProperties canPrepareLease data={creationData} step={3} />);
     await user.click(screen.getByRole("button", { name: "Create new lease" }));
     await fillSetupLease(user);
     await user.click(screen.getByRole("button", { name: "Save tenant and lease" }));
@@ -140,14 +172,14 @@ describe("PropertySetupScreen", () => {
     for (const key of ["propertyId", "unitId", "tenantPersonId", "idempotencyKey"]) {
       expect(navigation.createLease.mock.calls[1]![1].get(key)).toBe(navigation.createLease.mock.calls[0]![1].get(key));
     }
-    journey.rerender(<PropertySetupScreen data={savedData} step={4} />);
+    journey.rerender(<PropertySetupScreen canCreatePeople canCreateProperties canPrepareLease data={savedData} step={4} />);
     expect(screen.getByRole("link", { name: "View rent and deposit" })).toBeTruthy();
     expect(navigation.activateLease).not.toHaveBeenCalled();
   });
 
   it("cancels creation without navigation or writes and keeps the selected placement on reopen", async () => {
     const user = userEvent.setup();
-    render(<PropertySetupScreen data={creationData} step={3} />);
+    render(<PropertySetupScreen canCreatePeople canCreateProperties canPrepareLease data={creationData} step={3} />);
     await user.click(screen.getByRole("button", { name: "Create new lease" }));
     await screen.findByRole("form", { name: "Add lease form" });
     await user.click(screen.getByRole("button", { name: "Cancel" }));
@@ -169,14 +201,14 @@ describe("PropertySetupScreen", () => {
   });
 
   it("keeps review links on completed setup without changing first-rent navigation", () => {
-    render(<PropertySetupScreen data={{ ...savedData, readiness: { ...savedData.readiness!, ready: true, items: [] } }} step={5} />);
+    render(<PropertySetupScreen canCreatePeople canCreateProperties canPrepareLease data={{ ...savedData, readiness: { ...savedData.readiness!, ready: true, items: [] } }} step={5} />);
     expectReviewLinks(`/properties/setup?${new URLSearchParams({ step: "5", ...savedData.selection as Record<string, string> })}`);
     expect(screen.getByRole("link", { name: "Review first rent charge" }).getAttribute("href")).toBe("/rent-income?leaseId=lease-1");
     expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
     expect(navigation.activateLease).not.toHaveBeenCalled();
   });
   it("steers an occupied unit to its open lease and blocks new lease creation", () => {
-    render(<PropertySetupScreen data={data} step={3} />);
+    render(<PropertySetupScreen canCreatePeople canCreateProperties canPrepareLease data={data} step={3} />);
 
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(
@@ -216,7 +248,7 @@ describe("PropertySetupScreen", () => {
 
   it("keeps setup open and links the exact authority that blocks rent readiness", () => {
     render(
-      <PropertySetupScreen
+      <PropertySetupScreen canCreatePeople canCreateProperties canPrepareLease
         data={{
           ...data,
           readiness: {
@@ -271,7 +303,7 @@ describe("PropertySetupScreen", () => {
 
   it("renders the final review for a whole-property lease without requiring a unit", () => {
     render(
-      <PropertySetupScreen
+      <PropertySetupScreen canCreatePeople canCreateProperties canPrepareLease
         data={{
           ...data,
           leases: [

@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "@/components/layout/app-shell";
+import type { PermissionKey } from "@/lib/auth/permission-catalog";
 
 const navigation = vi.hoisted(() => ({ pathname: "/finance" }));
 
@@ -21,6 +22,37 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("permission-first AppShell navigation", () => {
+  it.each([
+    { permissions: ["properties.view"], paths: ["/property-timeline", "/documents"] },
+    { permissions: ["maintenance.view"], paths: ["/maintenance-timeline"] },
+    { permissions: ["finance.view"], paths: ["/financial-timeline"] },
+    { permissions: ["properties.view", "maintenance.view", "finance.view"], paths: ["/property-timeline", "/maintenance-timeline", "/financial-timeline", "/documents"] },
+  ])("makes only permitted Records destinations discoverable for $permissions", ({ permissions, paths }) => {
+    render(<AppShell permissionKeys={permissions as PermissionKey[]} roleKind="custom" roleName="Scoped reader"><div>Content</div></AppShell>);
+    const nav = screen.getByRole("navigation", { name: "Global navigation" });
+    expect(within(nav).getByRole("link", { name: "Records" }).getAttribute("href")).toBe(paths[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Expand Records navigation" }));
+    const recordPaths = ["/timeline", "/property-timeline", "/maintenance-timeline", "/financial-timeline", "/documents", "/import"];
+    for (const path of recordPaths) {
+      expect(nav.querySelector(`a[href="${path}"]`) !== null).toBe(paths.includes(path));
+    }
+  });
+
+  it.each([{ permissions: [] }, { permissions: ["people.view"] }, { permissions: ["leases.view"] }])("omits Records without a matching read permission: $permissions", ({ permissions }) => {
+    render(<AppShell permissionKeys={permissions as PermissionKey[]} roleKind="custom" roleName="Other reader"><div>Content</div></AppShell>);
+    expect(screen.queryByRole("link", { name: "Records" })).toBeNull();
+  });
+
+  it("retains all Records destinations for Super Admin", () => {
+    navigation.pathname = "/documents";
+    render(<AppShell roleKind="super_admin"><div>Content</div></AppShell>);
+    const nav = screen.getByRole("navigation", { name: "Global navigation" });
+    expect(within(nav).getByRole("link", { name: "Records" }).getAttribute("href")).toBe("/timeline");
+    for (const path of ["/timeline", "/property-timeline", "/maintenance-timeline", "/financial-timeline", "/documents", "/import"]) {
+      expect(nav.querySelector(`a[href="${path}"]`)).not.toBeNull();
+    }
+  });
+
   it.each(["Finance Manager", "Finance Member"])("keeps %s lease navigation out of the denied property register", (roleName) => {
     render(
       <AppShell permissionKeys={["leases.view", "finance.view"]} roleKind="custom" roleName={roleName}>

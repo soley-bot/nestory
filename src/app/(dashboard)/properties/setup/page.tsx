@@ -46,6 +46,9 @@ export default async function PropertySetupPage({ searchParams }: PropertySetupP
   return (
     <PropertySetupScreen
       billingFormConfig={billingFormConfig}
+      canCreatePeople={context.permissionKeys.has("people.write")}
+      canCreateProperties={context.permissionKeys.has("properties.write")}
+      canPrepareLease={context.permissionKeys.has("leases.prepare")}
       canRecordDepositReceipt={context.permissionKeys.has("leases.change_terms")}
       creationBranchOptions={creationBranchOptions}
       data={data}

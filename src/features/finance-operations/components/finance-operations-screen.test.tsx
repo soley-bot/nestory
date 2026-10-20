@@ -3920,6 +3920,21 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.queryByRole("button", { name: "Create receipt again" })).toBeNull();
   });
 
+  it("omits correction and routine action groups when a voided invoice has no reversible settlement", async () => {
+    const input = data();
+    const invoice = tenantInvoice();
+    invoice.paymentStatus = "voided";
+    invoice.balanceDue = 0;
+    invoice.settlements = [];
+    input.tenantInvoices = [invoice];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canCorrectFinance: true })} organizationName="Sokha Property Services" view="rent" />);
+    await userEvent.click(screen.getByRole("button", { name: "View invoice INV-202608-001" }));
+    const dialog = screen.getByRole("dialog", { name: "Invoice details" });
+    expect(within(dialog).queryByRole("region", { name: "Invoice corrections" })).toBeNull();
+    expect(within(dialog).queryByRole("group", { name: "Invoice payment and documents" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: /Void invoice|Reverse payment record/ })).toBeNull();
+  });
+
   it("keeps append-only settlement correction separate from ordinary payment authority", async () => {
     const user = userEvent.setup();
     const input = data();
@@ -3979,12 +3994,14 @@ describe("FinanceOperationsScreen", () => {
     await user.click(
       screen.getByRole("button", { name: "View invoice INV-202608-001" }),
     );
-    await user.click(
-      within(screen.getByRole("dialog", { name: "Invoice details" })).getByRole(
-        "button",
-        { name: "Reverse payment record" },
-      ),
-    );
+    const invoiceDialog = screen.getByRole("dialog", { name: "Invoice details" });
+    expect(within(invoiceDialog).queryByRole("group", { name: "Invoice payment and documents" })).toBeNull();
+    const corrections = within(invoiceDialog).getByRole("region", { name: "Invoice corrections" });
+    expect(within(corrections).getByText("Corrections retain the original records in history.")).toBeTruthy();
+    const reverseButton = within(corrections).getByRole("button", { name: "Reverse payment record" });
+    expect(reverseButton.getAttribute("type")).toBe("button");
+    reverseButton.focus();
+    await user.keyboard("{Enter}");
 
     const dialog = screen.getByRole("dialog", { name: "Reverse payment record" });
     expect(
