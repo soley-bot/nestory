@@ -49,6 +49,17 @@ FROM activation_actor CROSS JOIN LATERAL unnest(
   ARRAY[admin_id, other_admin_id, ordinary_id, replacement_id, revoked_admin_id]
 ) AS actor(user_id);
 
+-- Model the bootstrap administrator's completed password login. A populated
+-- hash alone does not satisfy the invitation's credential-proof requirement.
+DO $$
+BEGIN
+  PERFORM app_private.record_auth_password_credential_proof(
+    (SELECT admin_id FROM activation_actor),
+    'password_login'
+  );
+END;
+$$;
+
 INSERT INTO public.organizations(id, name, slug)
 SELECT organization_id, 'Activation ' || label,
   'activation-' || left(organization_id::text, 8) FROM activation_case;
