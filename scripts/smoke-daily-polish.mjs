@@ -317,8 +317,24 @@ try {
       await expect(inspection).toHaveCount(includesInspection ? 1 : 0);
       await cost.click();
       await expect(page).toHaveURL(url => url.pathname === route && url.searchParams.get("eventId") === f.costEvent);
-      await expect(page.getByRole("heading", { name: f.costTitle, exact: true })).toBeVisible();
-      return { activeScope: route, eventId: f.costEvent, maintenanceOnlyVisible: includesInspection, noGlobalFallback: true };
+      await expect(page.getByText(/Opened from activity history/)).toBeVisible();
+      const focusedTable = page.getByRole("region", { name: "Timeline table", exact: true });
+      await expect(focusedTable.locator("tbody > tr")).toHaveCount(1);
+      await expect(focusedTable.getByRole("link", { name: f.costTitle, exact: true })).toBeVisible();
+      await expect(inspection).toHaveCount(0);
+      // Canonical event links focus the register; Preview deliberately opens the
+      // quick view. Only explicit history navigation auto-opens that dialog.
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await focusedTable.getByRole("button", { name: `Preview ${f.costTitle}`, exact: true }).click();
+      const preview = page.getByRole("dialog", { name: `${f.costTitle} timeline quick view`, exact: true });
+      await expect(preview).toBeVisible();
+      await expect(preview.getByRole("heading", { name: f.costTitle, exact: true })).toBeVisible();
+      for (const action of ["Edit timeline record", "Archive timeline record", "Restore timeline record", "Attach document"]) {
+        await expect(preview.getByRole("button", { name: action, exact: true })).toHaveCount(0);
+      }
+      await expect(page).toHaveURL(url => url.pathname === route && url.searchParams.get("eventId") === f.costEvent);
+      return { activeScope: route, eventId: f.costEvent, maintenanceOnlyVisible: includesInspection,
+        focusedRows: 1, explicitPreview: true, readOnlyPreview: true, noGlobalFallback: true };
     });
   }
   await page.context().close();
