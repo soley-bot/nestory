@@ -3,17 +3,25 @@ const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/;
 const RESERVED_SLUGS = new Set(["api", "app", "www"]);
 
 export function parseProvisionArgs(args) {
-  const values = new Map(
-    args.flatMap((argument) => {
-      const match = argument.match(/^--([a-z]+)=(.*)$/);
-      return match ? [[match[1], match[2]]] : [];
-    }),
-  );
+  const values = new Map();
+  let deferEmail = false;
+  for (const argument of args) {
+    if (argument === "--defer-email" && !deferEmail) {
+      deferEmail = true;
+      continue;
+    }
+    const match = argument.match(/^--(admin|name|slug)=(.*)$/);
+    if (!match || values.has(match[1])) {
+      throw new Error("Use --name=..., --slug=..., --admin=... and optional --defer-email (without a value); each option may appear once.");
+    }
+    values.set(match[1], match[2]);
+  }
 
   return {
     adminEmail: values.get("admin") ?? "",
     name: values.get("name") ?? "",
     slug: values.get("slug") ?? "",
+    deferEmail,
   };
 }
 
@@ -42,7 +50,10 @@ export function validateProvisionInput(input) {
   return normalized;
 }
 
-export async function provisionWorkspace({ client, input, siteUrl }) {
+export async function provisionWorkspace({ client, input, siteUrl, deferEmail = false }) {
+  if (typeof deferEmail !== "boolean") {
+    throw new Error("deferEmail must be a boolean.");
+  }
   const values = validateProvisionInput(input);
   const appUrl = validateSiteUrl(siteUrl);
   const { data, error } = await client.rpc("provision_client_workspace", {
@@ -58,6 +69,18 @@ export async function provisionWorkspace({ client, input, siteUrl }) {
   }
 
   const provisioned = data[0];
+  if (deferEmail) {
+    // This stages real records, not active membership or a dry run. The existing
+    // provisioning RPC creates a pending invitation with a one-hour expiry.
+    return {
+      deliveryMethod: "deferred",
+      invitationState: "pending",
+      invitedEmail: provisioned.invited_email,
+      organization: provisioned.organization_name,
+      slug: provisioned.workspace_slug,
+      message: "Organization staged; invitation pending and not delivered (one-hour expiry). Membership is not active and the workspace is not ready for staff. This is not a dry run.",
+    };
+  }
   const redirectTo = acceptanceCompleteUrl(appUrl, provisioned.invitation_id);
   let authUserId = null;
   let deliveryMethod = "invite";
