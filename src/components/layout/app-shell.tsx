@@ -304,6 +304,28 @@ function getGlobalDestinations({
     });
   }
 
+  const recordsChildren = RECORDS_CHILDREN.filter((child) => {
+    switch (child.href) {
+      case "/property-timeline":
+      case "/documents":
+        return has("properties.view");
+      case "/maintenance-timeline":
+        return has("maintenance.view");
+      case "/financial-timeline":
+        return has("finance.view");
+      default:
+        return false; // Global timeline and imports remain Super Admin only.
+    }
+  });
+  if (recordsChildren.length > 0) {
+    destinations.push({
+      ...ADMIN_GLOBAL_DESTINATIONS[5],
+      href: recordsChildren[0].href,
+      children: recordsChildren,
+      routes: recordsChildren.flatMap((child) => child.routes),
+    });
+  }
+
   if (has("finance.publish")) {
     destinations.push(ADMIN_GLOBAL_DESTINATIONS[6]);
   }

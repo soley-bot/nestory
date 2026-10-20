@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getTimelineScreenData } from "@/features/timeline/data/timeline";
 import { parseTimelineSearchParams } from "@/features/timeline/timeline.filters";
 import type { Database } from "@/types/database";
+import type { PermissionKey } from "@/lib/auth/permission-catalog";
 
 const server = vi.hoisted(() => ({ create: vi.fn() }));
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: server.create }));
@@ -60,6 +61,10 @@ beforeEach(() => {
       for (const [column, filter] of url.searchParams) {
         if (["select", "order", "offset", "limit"].includes(column)) continue;
         if (column === "or") {
+          if (filter === "(ledger_entry_id.not.is.null,cost_amount.not.is.null)") {
+            rows = rows.filter(row => row.ledger_entry_id != null || row.cost_amount != null);
+            continue;
+          }
           const match = filter.match(/^\(created_at\.lt\.(.+),and\(created_at\.eq\.(.+),id\.lt\.([^()]+)\)\)$/);
           if (!match || match[1] !== match[2]) throw new Error(`Unexpected cursor filter: ${filter}`);
           const timestamp = Date.parse(match[1]);
@@ -95,6 +100,42 @@ beforeEach(() => {
 });
 
 describe("Timeline event history completeness", () => {
+  it.each([
+    ["global", "/timeline", []],
+    ["property", "/property-timeline", ["properties.view"]],
+    ["maintenance", "/maintenance-timeline", ["maintenance.view"]],
+    ["financial", "/financial-timeline", ["finance.view"]],
+    ["maintenance", "/maintenance-timeline", ["properties.view", "maintenance.view"]],
+    ["financial", "/financial-timeline", ["properties.view", "finance.view"]],
+  ] as const)("keeps %s event links and activity targets on the authorized scoped route", async (scope, pathname, permissions) => {
+    tables.timeline_events = [{ ...event(ids.quiet), event_type: "Maintenance", cost_amount: 10, cost_currency: "USD", title: "Repair & review? /timeline" }];
+    const data = await getTimelineScreenData("org-1", parseTimelineSearchParams({ eventId: ids.quiet, historyPage: "1" }), {
+      scope,
+      permissionKeys: new Set<PermissionKey>(permissions),
+    });
+    const row = data.events[0];
+    const href = new URL(row.hrefs.timeline, "https://synthetic.invalid");
+    expect(href.pathname).toBe(pathname);
+    expect(href.searchParams.get("archiveState")).toBe("all");
+    expect(href.searchParams.get("eventId")).toBe(ids.quiet);
+    expect(href.searchParams.get("query")).toBe("Repair & review? /timeline");
+    expect(row.activity[0].href).toBe(`${pathname}?archiveState=all&eventId=${ids.quiet}`);
+    expect(row.activity[0].target?.href).toBe(row.activity[0].href);
+  });
+
+  it("uses the permitted property timeline for recent general events outside the maintenance scope", async () => {
+    const data = await getTimelineScreenData("org-1", parseTimelineSearchParams({}), {
+      scope: "maintenance",
+      permissionKeys: new Set<PermissionKey>(["properties.view", "maintenance.view"]),
+    });
+    expect(data.events).toEqual([]);
+    expect(data.recentChanges.length).toBeGreaterThan(0);
+    for (const change of data.recentChanges) {
+      expect(change.target?.href).toMatch(/^\/property-timeline\?archiveState=all&eventId=/);
+      expect(change.href).toBe(change.target?.href);
+    }
+  });
+
   it("reproduces the shared preview cap crowding out a quiet event", async () => {
     const data = await getTimelineScreenData("org-1");
     expect(data.events.find(row => row.id === ids.busy)!.activity).toHaveLength(120);

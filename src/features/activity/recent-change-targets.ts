@@ -3,6 +3,8 @@ import {
   type ActivityLogSnapshot,
 } from "@/features/activity/recent-changes";
 import type { RecentChange } from "@/features/activity/activity.types";
+import { buildTimelineEventHref, timelineScopeIncludesEvent } from "@/features/timeline/timeline-navigation";
+import type { TimelineScope } from "@/features/timeline/timeline.types";
 
 type ExactActivityEntityType =
   | "timeline_event"
@@ -11,6 +13,7 @@ type ExactActivityEntityType =
   | "finance_expense_item"
   | "petty_cash_entry"
   | "task"
+  | "tenant_request"
   | "document"
   | "lease"
   | "property"
@@ -24,14 +27,22 @@ type ExactActivityTable =
   | "finance_expense_items"
   | "petty_cash_entries"
   | "tasks"
+  | "tenant_requests"
   | "documents"
   | "leases"
   | "properties"
   | "units"
   | "people";
 
+type ActivityTargetRow = {
+  id: string;
+  event_type?: string;
+  cost_amount?: number | null;
+  ledger_entry_id?: string | null;
+};
+
 type ActivityTargetQueryResult = {
-  data: Array<{ id: string }> | null;
+  data: ActivityTargetRow[] | null;
   error: unknown;
 };
 
@@ -56,6 +67,7 @@ const exactEntityTables: Record<ExactActivityEntityType, ExactActivityTable> = {
   finance_expense_item: "finance_expense_items",
   petty_cash_entry: "petty_cash_entries",
   task: "tasks",
+  tenant_request: "tenant_requests",
   document: "documents",
   lease: "leases",
   property: "properties",
@@ -63,29 +75,16 @@ const exactEntityTables: Record<ExactActivityEntityType, ExactActivityTable> = {
   person: "people",
 };
 
-const identitySnapshotFields = new Set([
-  "category",
-  "display_name",
-  "entry_kind",
-  "expense_type",
-  "file_name",
-  "income_type",
-  "name",
-  "payer_label",
-  "tenant_name",
-  "title",
-  "unit_number",
-  "vendor_label",
-]);
-
 export async function resolveRecentChangeTargets({
   logs,
   organizationId,
   supabase,
+  timelineScopes = ["global"],
 }: {
   logs: ActivityLogSnapshot[];
   organizationId: string;
   supabase: ActivityTargetQueryClient;
+  timelineScopes?: readonly TimelineScope[];
 }): Promise<RecentChange[]> {
   if (logs.length === 0) {
     return [];
@@ -107,7 +106,9 @@ export async function resolveRecentChangeTargets({
     [...idsByType].map(async ([entityType, ids]) => {
       const result = await supabase
         .from(exactEntityTables[entityType])
-        .select("id")
+        .select(entityType === "timeline_event"
+          ? "id, event_type, cost_amount, ledger_entry_id"
+          : "id")
         .eq("organization_id", organizationId)
         .in("id", [...new Set(ids)]);
 
@@ -117,7 +118,7 @@ export async function resolveRecentChangeTargets({
 
       return [
         entityType,
-        new Set((result.data ?? []).map((row) => row.id)),
+        new Map((result.data ?? []).map((row) => [row.id, row])),
       ] as const;
     }),
   );
@@ -128,8 +129,16 @@ export async function resolveRecentChangeTargets({
       return toRecentChange(log);
     }
 
-    if (availableIds.get(log.entity_type)?.has(log.entity_id)) {
-      return toRecentChange(log);
+    const source = availableIds.get(log.entity_type)?.get(log.entity_id);
+    if (source) {
+      const change = toRecentChange(log);
+      if (log.entity_type === "timeline_event" && change.target?.focusMode === "exact") {
+        const timelineScope = timelineScopes.find((scope) => timelineScopeIncludesEvent(scope, source));
+        if (!timelineScope) return toUnavailableRecentChange(change);
+        const href = buildTimelineEventHref(timelineScope, log.entity_id);
+        return { ...change, href, target: { ...change.target, href } };
+      }
+      return change;
     }
 
     return toUnavailableRecentChange(
@@ -143,21 +152,10 @@ function sanitizeUnavailableActivityLog(
 ): ActivityLogSnapshot {
   return {
     ...log,
-    new_values: sanitizeIdentitySnapshotFields(log.new_values),
-    previous_values: sanitizeIdentitySnapshotFields(log.previous_values),
+    // A hidden source can contain sensitive amounts and free text as well as labels.
+    new_values: null,
+    previous_values: null,
   };
-}
-
-function sanitizeIdentitySnapshotFields(
-  snapshot: ActivityLogSnapshot["new_values"],
-): ActivityLogSnapshot["new_values"] {
-  if (!snapshot || Array.isArray(snapshot) || typeof snapshot !== "object") {
-    return snapshot;
-  }
-
-  return Object.fromEntries(
-    Object.entries(snapshot).filter(([key]) => !identitySnapshotFields.has(key)),
-  );
 }
 
 function toUnavailableRecentChange(change: RecentChange): RecentChange {

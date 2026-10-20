@@ -66,6 +66,19 @@ describe("PropertySetupPage authority", () => {
     expect(mocks.requireSuperAdminContext).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { isSuperAdmin: false, keys: [], expected: [false, false, false] },
+    { isSuperAdmin: false, keys: ["people.write"], expected: [true, false, false] },
+    { isSuperAdmin: false, keys: ["properties.write", "leases.prepare"], expected: [false, true, true] },
+    { isSuperAdmin: true, keys: ["people.write", "properties.write", "leases.prepare"], expected: [true, true, true] },
+  ])("passes exact creation capabilities for $keys (admin=$isSuperAdmin)", async ({ isSuperAdmin, keys, expected }) => {
+    mocks.requirePermission.mockResolvedValue({ isSuperAdmin, organizationId: "organization-1", permissionKeys: new Set(["properties.view", "leases.activate", ...keys]) });
+    const result = await PropertySetupPage({ searchParams: Promise.resolve({ step: "999", ownerId: "invalid" }) });
+    expect([result.props.canCreatePeople, result.props.canCreateProperties, result.props.canPrepareLease]).toEqual(expected);
+    expect(result.props.step).toBe(1);
+    expect(mocks.getPropertySetupData.mock.calls[0][0].requestedSelection.ownerId).toBeNull();
+  });
+
   it("keeps an ordinary operator on their implicit branch", async () => {
     mocks.requirePermission.mockResolvedValue({
       branchId: "branch-1",

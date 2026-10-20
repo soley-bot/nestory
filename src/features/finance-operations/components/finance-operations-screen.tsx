@@ -2440,32 +2440,9 @@ function InvoiceDetails({
           ]}
         />
       ) : null}
-      <FormFooter>
-        <span />
-        <div className="flex flex-wrap justify-end gap-2">
-          {canEditCurrentRent ? (
-            <Button asChild variant="outline">
-              <Link
-                href={buildLeaseCurrentRentEditHref({
-                  invoiceId: invoice.id,
-                  leaseId: invoice.leaseId,
-                  returnTo: workflowReturnHref(`${pathname}?${searchParams}`),
-                })}
-              >
-                Edit this month&apos;s rent
-              </Link>
-            </Button>
-          ) : null}
-          <TenantInvoiceVoidControl
-            canCorrectFinance={canCorrectFinance}
-            invoice={invoice}
-            onSuccess={onVoidSuccess}
-          />
-          {canCorrect ? (
-            <Button onClick={onCorrect} variant="outline">
-              Reverse payment record
-            </Button>
-          ) : null}
+      <div className="space-y-3 border-t border-border pt-3">
+        {pdfHref || canPublishPdf || (canRecordPayments && invoice.balanceDue > 0) ? (
+        <div aria-label="Invoice payment and documents" role="group" className="flex flex-wrap justify-end gap-2">
           {pdfHref || canPublishPdf ? (
             <Button asChild variant="outline">
               <a
@@ -2490,14 +2467,32 @@ function InvoiceDetails({
             </Button>
           ) : null}
           {canRecordPayments && invoice.balanceDue > 0 ? (
-            <Button onClick={onRecordPayment}>
+            <Button type="button" onClick={onRecordPayment}>
               {invoice.collectionRoute === "through_ips"
                 ? "Record payment"
                 : "Confirm collected"}
             </Button>
           ) : null}
         </div>
-      </FormFooter>
+        ) : null}
+        {canEditCurrentRent || canCorrect || (canCorrectFinance && invoice.paymentStatus !== "voided") ? (
+          <section aria-label="Invoice corrections" className="border-t border-border pt-3">
+            <p className="mb-2 text-xs text-muted-foreground">Corrections retain the original records in history.</p>
+            <div className="flex flex-wrap justify-end gap-2">
+              {canEditCurrentRent ? (
+                <Button asChild variant="outline">
+                  <Link href={buildLeaseCurrentRentEditHref({ invoiceId: invoice.id, leaseId: invoice.leaseId,
+                    returnTo: workflowReturnHref(`${pathname}?${searchParams}`) })}>
+                    Edit this month&apos;s rent
+                  </Link>
+                </Button>
+              ) : null}
+              <TenantInvoiceVoidControl canCorrectFinance={canCorrectFinance} invoice={invoice} onSuccess={onVoidSuccess} />
+              {canCorrect ? <Button type="button" onClick={onCorrect} variant="outline">Reverse payment record</Button> : null}
+            </div>
+          </section>
+        ) : null}
+      </div>
       </div>
       {canPublishPdf ? (
         <InvoicePdfPublicationForm

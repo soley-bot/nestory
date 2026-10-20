@@ -30,6 +30,8 @@ import type {
   TimelineViewQuery,
 } from "@/features/timeline/timeline.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import type { PermissionKey } from "@/lib/auth/permission-catalog";
+import { filterTimelineActivityEntityTypes } from "@/features/timeline/data/timeline-activity-permissions";
 import {
   formatPropertyOptionLabel,
   formatUnitOptionLabel,
@@ -37,6 +39,9 @@ import {
 import type { CurrencyCode } from "@/lib/money/format";
 import { buildHref } from "@/lib/url/href";
 import { documentDownloadUrl } from "@/lib/uploads/document-download";
+import { buildTimelineEventHref, MAINTENANCE_TIMELINE_EVENT_TYPES } from "@/features/timeline/timeline-navigation";
+
+export { MAINTENANCE_TIMELINE_EVENT_TYPES } from "@/features/timeline/timeline-navigation";
 
 const DEFAULT_TIMELINE_VIEW_QUERY: TimelineViewQuery = {
   archiveState: "active",
@@ -51,13 +56,6 @@ const DEFAULT_TIMELINE_VIEW_QUERY: TimelineViewQuery = {
   sort: DEFAULT_TIMELINE_SORT,
   unitId: "all",
 };
-
-export const MAINTENANCE_TIMELINE_EVENT_TYPES = [
-  "Maintenance",
-  "Repair",
-  "Renovation",
-  "Inspection",
-] as const satisfies readonly TimelineEventType[];
 
 export const FINANCIAL_TIMELINE_SCOPE_FILTER =
   "ledger_entry_id.not.is.null,cost_amount.not.is.null";
@@ -193,10 +191,14 @@ type SortableQuery<TQuery> = {
 export async function getTimelineScreenData(
   organizationId: string,
   viewQuery: TimelineViewQuery = DEFAULT_TIMELINE_VIEW_QUERY,
-  options: { scope?: TimelineScope } = {},
+  options: { scope?: TimelineScope; permissionKeys?: ReadonlySet<PermissionKey> } = {},
 ) {
   const supabase = await createSupabaseServerClient();
   const scope = options.scope ?? "global";
+  const recentActivityEntityTypes = filterTimelineActivityEntityTypes(
+    getRecentActivityEntityTypes(scope),
+    options.permissionKeys ?? new Set<PermissionKey>(),
+  );
   const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
   const searchMatches = await getTimelineSearchMatches({
     organizationId,
@@ -251,15 +253,15 @@ export async function getTimelineScreenData(
       .eq("is_locked", true)
       .order("month_start", { ascending: false })
       .limit(24),
-    supabase
+    recentActivityEntityTypes.length > 0 ? supabase
       .from("activity_logs")
       .select(
         "id, entity_type, entity_id, action, previous_values, new_values, created_at",
       )
       .eq("organization_id", organizationId)
-      .in("entity_type", getRecentActivityEntityTypes(scope))
+      .in("entity_type", recentActivityEntityTypes)
       .order("created_at", { ascending: false })
-      .limit(6),
+      .limit(6) : Promise.resolve({ data: [], error: null }),
   ]);
 
   if (firstEventsResult.error) {
@@ -408,11 +410,21 @@ export async function getTimelineScreenData(
     }),
   ]);
   const activityRows = activityResult.rows;
-  const recentActivityRows = recentActivityResult.data ?? [];
+  const recentActivityRows = (recentActivityResult.data ?? []).filter((row) =>
+    recentActivityEntityTypes.includes(row.entity_type),
+  );
   const resolvedActivity = await resolveRecentChangeTargets({
     logs: [...recentActivityRows, ...activityRows],
     organizationId,
     supabase: supabase as unknown as ActivityTargetQueryClient,
+    timelineScopes: scope === "global"
+      ? ["global"]
+      : [
+          scope,
+          ...(options.permissionKeys?.has("properties.view") ? ["property" as const] : []),
+          ...(options.permissionKeys?.has("maintenance.view") ? ["maintenance" as const] : []),
+          ...(options.permissionKeys?.has("finance.view") ? ["financial" as const] : []),
+        ],
   });
   const resolvedActivityById = new Map(
     resolvedActivity.map((change) => [change.id, change]),
@@ -434,6 +446,7 @@ export async function getTimelineScreenData(
         : undefined,
       lease: event.lease_id ? leasesById.get(event.lease_id) : undefined,
       property: propertiesById.get(event.property_id),
+      scope,
       sources: sourcesByEventId.get(event.id) ?? [],
       unit: event.unit_id ? unitsById.get(event.unit_id) : undefined,
     }),
@@ -481,6 +494,7 @@ function toTimelineEvent({
   ledgerEntry,
   lease,
   property,
+  scope,
   sources,
   unit,
 }: {
@@ -493,10 +507,11 @@ function toTimelineEvent({
   ledgerEntry?: LedgerEntryRow;
   lease?: LeaseRow;
   property?: PropertyRow;
+  scope: TimelineScope;
   sources: TimelineEvent["sources"];
   unit?: UnitRow;
 }): TimelineEvent {
-  const hrefs = buildTimelineDetailHrefs(event, ledgerEntry, lease);
+  const hrefs = buildTimelineDetailHrefs(event, scope, ledgerEntry, lease);
   const recordCounts: TimelineRecordCounts = {
     activity: activityPagination?.totalCount ?? activity.length,
     documents: documents.length,
@@ -896,6 +911,7 @@ function addInClause(clauses: string[], column: string, values: string[]) {
 
 function buildTimelineDetailHrefs(
   event: TimelineEventRow,
+  scope: TimelineScope,
   ledgerEntry?: LedgerEntryRow,
   lease?: LeaseRow,
 ) {
@@ -918,11 +934,7 @@ function buildTimelineDetailHrefs(
         })
       : undefined,
     property: `/properties/${event.property_id}`,
-    timeline: buildHref("/timeline", {
-      archiveState: "all",
-      eventId: event.id,
-      query: event.title,
-    }),
+    timeline: buildTimelineEventHref(scope, event.id, event.title),
     unit: event.unit_id ? `/units/${event.unit_id}` : undefined,
   };
 }

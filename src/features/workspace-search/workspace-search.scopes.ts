@@ -115,6 +115,20 @@ export function getWorkspaceSearchActions({
       }),
     );
   }
+  // Page shortcuts mirror existing route gates; entity-search scopes stay unchanged.
+  actions.push(...ADMIN_ACTIONS.filter(({ href }) => {
+    switch (href) {
+      case "/property-timeline":
+      case "/documents":
+        return permissionKeys.has("properties.view");
+      case "/maintenance-timeline":
+        return permissionKeys.has("maintenance.view");
+      case "/financial-timeline":
+        return permissionKeys.has("finance.view");
+      default:
+        return false;
+    }
+  }));
   return actions;
 }
 

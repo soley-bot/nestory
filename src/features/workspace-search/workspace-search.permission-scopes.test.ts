@@ -19,24 +19,45 @@ describe("permission-first workspace search visibility", () => {
     expect(actions("maintenance.view", "maintenance.complete")).toEqual([
       "/maintenance",
       "/tasks",
+      "/maintenance-timeline",
     ]);
     expect(actions("maintenance.view", "maintenance.review")).toEqual([
       "/maintenance",
       "/work-orders",
       "/inspections",
       "/recurring-tasks",
+      "/maintenance-timeline",
     ]);
     expect(actions("finance.view", "finance.submit_expenses")).toEqual([
       "/finance",
       "/bills-expenses",
       "/balances",
+      "/financial-timeline",
     ]);
     expect(actions("finance.view", "finance.publish")).toEqual([
       "/finance",
       "/balances",
       "/reports",
+      "/financial-timeline",
     ]);
     expect(actions("properties.view")).not.toContain("/settings/access");
+  });
+
+  it("matches Records route gates without widening entity-search scopes", () => {
+    expect(actions("properties.view")).toEqual(["/properties", "/units", "/property-timeline", "/documents"]);
+    expect(actions("maintenance.view")).toEqual(["/maintenance", "/maintenance-timeline"]);
+    expect(actions("finance.view")).toEqual(["/finance", "/balances", "/financial-timeline"]);
+    const combined = actions("properties.view", "maintenance.view", "finance.view");
+    expect(combined.filter(path => path.includes("timeline") || path === "/documents")).toEqual([
+      "/property-timeline", "/maintenance-timeline", "/financial-timeline", "/documents",
+    ]);
+    expect(combined).not.toContain("/timeline");
+    expect(combined).not.toContain("/import");
+    expect(scopes("properties.view")).not.toContain("documents");
+    expect(actions()).toEqual([]);
+    for (const path of ["/property-timeline", "/maintenance-timeline", "/financial-timeline", "/documents"]) {
+      expect(actions("people.view", "leases.view")).not.toContain(path);
+    }
   });
 
   it("keeps Super Admin organization-wide scopes and actions", () => {

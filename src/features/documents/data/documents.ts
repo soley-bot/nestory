@@ -15,6 +15,7 @@ import type {
 } from "@/features/documents/document.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { documentDownloadUrl } from "@/lib/uploads/document-download";
+import { buildTimelineEventHref } from "@/features/timeline/timeline-navigation";
 import {
   formatPropertyOptionLabel,
   formatUnitOptionLabel,
@@ -258,8 +259,8 @@ function toDocumentSummary({
       ? `/maintenance?archiveState=all&taskId=${document.task_id}`
       : undefined,
     property: document.property_id ? `/properties/${document.property_id}` : undefined,
-    timeline: document.timeline_event_id
-      ? `/timeline?archiveState=all&eventId=${document.timeline_event_id}`
+    timeline: timelineEvent && document.timeline_event_id
+      ? buildTimelineEventHref("property", document.timeline_event_id)
       : undefined,
     unit: document.unit_id ? `/units/${document.unit_id}` : undefined,
   };
@@ -408,7 +409,7 @@ function buildLinkedRecords({
       : null,
     timelineEvent && document.timeline_event_id
       ? {
-          href: `/timeline?archiveState=all&eventId=${document.timeline_event_id}`,
+          href: buildTimelineEventHref("property", document.timeline_event_id),
           label: timelineEvent.title,
           type: "Timeline",
         }
