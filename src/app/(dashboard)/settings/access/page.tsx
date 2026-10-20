@@ -1,7 +1,9 @@
 import { SettingsShell } from "@/components/layout/settings-shell";
 import { buildAccessByPersonId } from "@/features/organization/access-status";
 import { AccessSettingsScreen } from "@/features/organization/components/access-settings-screen";
+import { OrdinaryAccessSettings } from "@/features/organization/components/ordinary-access-settings";
 import { getAccessSettingsData } from "@/features/organization/data";
+import { getOrdinaryAccessReadiness } from "@/features/organization/ordinary-access-data";
 import { requireSuperAdminContext } from "@/lib/auth/context";
 
 type AccessSettingsPageProps = {
@@ -13,7 +15,10 @@ export default async function AccessSettingsPage({
 }: AccessSettingsPageProps) {
   const context = await requireSuperAdminContext();
   const params = await searchParams;
-  const data = await getAccessSettingsData(context.organizationId);
+  const [data, ordinaryAccess] = await Promise.all([
+    getAccessSettingsData(context.organizationId),
+    getOrdinaryAccessReadiness(context.organizationId),
+  ]);
   const requestedPersonId = readUuidParam(params.personId);
   const requestedMemberId = readUuidParam(params.memberId);
   const requestedInvitationId = readUuidParam(params.invitationId);
@@ -51,23 +56,30 @@ export default async function AccessSettingsPage({
 
   return (
     <SettingsShell activeHref="/settings/access" role={context.role}>
-      <AccessSettingsScreen
-        branches={data.branches}
-        currentUserId={context.userId}
-        embedded
-        focusedInvitationId={focusedInvitationId}
-        focusedMemberId={focusedMemberId}
-        inviteDefaults={inviteDefaults}
-        invitations={data.invitations}
-        members={data.members}
-        people={data.linkedPeople ?? data.staff}
-        role={context.role}
-        roles={data.roles.filter(
-          (role) => role.status === "active" && role.permissions.length > 0,
-        )}
-        requestedStaffId={selectedStaff?.id}
-        staff={data.staff}
-      />
+      <div className="mx-auto grid w-full max-w-6xl min-w-0 gap-3">
+        <OrdinaryAccessSettings
+          initialReadiness={ordinaryAccess}
+          organizationId={context.organizationId}
+          organizationName={context.organizationName}
+        />
+        <AccessSettingsScreen
+          branches={data.branches}
+          currentUserId={context.userId}
+          embedded
+          focusedInvitationId={focusedInvitationId}
+          focusedMemberId={focusedMemberId}
+          inviteDefaults={inviteDefaults}
+          invitations={data.invitations}
+          members={data.members}
+          people={data.linkedPeople ?? data.staff}
+          role={context.role}
+          roles={data.roles.filter(
+            (role) => role.status === "active" && role.permissions.length > 0,
+          )}
+          requestedStaffId={selectedStaff?.id}
+          staff={data.staff}
+        />
+      </div>
     </SettingsShell>
   );
 }

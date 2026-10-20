@@ -414,6 +414,9 @@ jobs:
       - name: Test property edit concurrency and retry safety
         run: npm run properties:test-concurrency
 
+      - name: Test ordinary access activation authorization and concurrency
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/ordinary-access-activation-concurrency.node-test.mjs
+
       - name: Test photo and logo Storage concurrency
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/photo-logo-storage-concurrency.node-test.mjs
 

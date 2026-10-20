@@ -156,6 +156,7 @@ async function main() {
   try {
     await waitFor(async () => { const response = await fetch(`${dailyOrigins.app}/api/local-smoke-target`, { signal: AbortSignal.timeout(2000) }); if (!response.ok) return false; assertDailyOrigin((await response.json()).supabaseOrigin, dailyOrigins.api); return true; });
     await command("browser", ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "scripts/smoke-daily-workflow.mjs"], env, 7 * 60000);
+    await command("polish-browser", ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "scripts/smoke-daily-polish.mjs"], env, 5 * 60000);
     save("runner.json", { status: "passed", sha: config.sha, project: config.project, buildId, migrations: actualMigrations, apiOrigin: dailyOrigins.api, resources: resource() });
   } finally {
     try { process.kill(-app.pid, "SIGTERM"); } catch { /* exited */ }
