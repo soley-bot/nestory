@@ -28,6 +28,7 @@ export async function renderTimelineRoute({
   const params = await searchParams;
   const viewQuery = parseTimelineSearchParams(params);
   const data = await getTimelineScreenData(context.organizationId, viewQuery, {
+    permissionKeys: context.permissionKeys,
     scope,
   });
 

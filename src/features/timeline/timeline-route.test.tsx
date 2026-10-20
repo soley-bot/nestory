@@ -41,6 +41,11 @@ describe("timeline route scope authority", () => {
     const result = await renderTimelineRoute({ scope, searchParams: Promise.resolve({}), title: "History" });
     expect(mocks.requirePermission).toHaveBeenCalledWith(permission);
     expect(mocks.requireSuperAdminContext).not.toHaveBeenCalled();
+    expect(mocks.getTimelineScreenData).toHaveBeenCalledWith(
+      "org-1",
+      expect.any(Object),
+      { scope, permissionKeys: new Set(["properties.write"]) },
+    );
     expect(result.props.canWrite).toBe(true);
   });
 
