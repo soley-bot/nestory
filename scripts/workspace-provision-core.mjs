@@ -56,7 +56,9 @@ export async function provisionWorkspace({ client, input, siteUrl, deferEmail = 
   }
   const values = validateProvisionInput(input);
   const appUrl = validateSiteUrl(siteUrl);
-  const { data, error } = await client.rpc("provision_client_workspace", {
+  // Deferred staging must never refresh an existing/delivered invitation.
+  const rpcName = deferEmail ? "stage_client_workspace" : "provision_client_workspace";
+  const { data, error } = await client.rpc(rpcName, {
     p_admin_email: values.adminEmail,
     p_name: values.name,
     p_slug: values.slug,
@@ -71,7 +73,7 @@ export async function provisionWorkspace({ client, input, siteUrl, deferEmail = 
   const provisioned = data[0];
   if (deferEmail) {
     // This stages real records, not active membership or a dry run. The existing
-    // provisioning RPC creates a pending invitation with a one-hour expiry.
+    // create-only RPC creates a pending invitation with a one-hour expiry.
     return {
       deliveryMethod: "deferred",
       invitationState: "pending",

@@ -37,7 +37,7 @@ describe("deferred provisioning delivery", () => {
     const rpc = vi.fn().mockResolvedValue({ data: [provisioned], error: null });
     const client = { rpc, get auth() { throw new Error("Auth must not be accessed"); } };
     const result = await provisionWorkspace({ ...options, client });
-    expect(rpc).toHaveBeenCalledExactlyOnceWith("provision_client_workspace", {
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("stage_client_workspace", {
       p_admin_email: input.adminEmail, p_name: input.name, p_slug: input.slug,
     });
     expect(result).toMatchObject({ deliveryMethod: "deferred", invitationState: "pending", invitedEmail: input.adminEmail });
@@ -65,6 +65,24 @@ describe("deferred provisioning delivery", () => {
     expect(client.rpc).toHaveBeenCalledTimes(1);
     client.rpc.mockRejectedValueOnce(new Error("RPC unavailable"));
     await expect(provisionWorkspace({ ...options, client })).rejects.toThrow("RPC unavailable");
+  });
+
+  it("fails existing-workspace staging without falling back to resume or delivery", async () => {
+    const inviteUserByEmail = vi.fn();
+    const signInWithOtp = vi.fn();
+    const rpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: "Workspace already exists; staging is create-only" },
+    });
+    await expect(provisionWorkspace({
+      ...options,
+      client: { rpc, auth: { admin: { inviteUserByEmail }, signInWithOtp } },
+    })).rejects.toThrow("Workspace already exists; staging is create-only");
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("stage_client_workspace", {
+      p_admin_email: input.adminEmail, p_name: input.name, p_slug: input.slug,
+    });
+    expect(inviteUserByEmail).not.toHaveBeenCalled();
+    expect(signInWithOtp).not.toHaveBeenCalled();
   });
 });
 
