@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RoleEditor, type EditableRole } from "./role-editor";
-import { PROPERTY_MANAGER_TEMPLATE } from "@/lib/auth/role-templates";
+import { PROPERTY_FINANCE_TEMPLATE, OPERATIONS_TEMPLATE } from "@/lib/auth/role-templates";
 
 const existingRole: EditableRole = {
   assignedUserCount: 0,
@@ -26,15 +26,44 @@ beforeEach(() => {
   });
 });
 
-it("prepares the Property Manager template without saving or assigning access", async () => {
-  const onSave = vi.fn();
-  renderEditor({ onSave });
-  await userEvent.click(screen.getByRole("button", { name: "Use Property Manager template" }));
+it.each([PROPERTY_FINANCE_TEMPLATE, OPERATIONS_TEMPLATE])("prepares $name only as an unsaved new role", async (template) => {
+  const user = userEvent.setup(); const onSave = vi.fn(); const onClose = vi.fn();
+  renderEditor({ onSave, onClose });
+  await user.click(screen.getByRole("button", { name: `Use ${template.name} template` }));
+  expect(screen.getByRole("textbox", { name: "Role name" })).toHaveProperty("value", template.name);
   expect(onSave).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByRole("button", { name: "Save" }));
-  expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
-    id: null, name: "Property Manager", permissions: PROPERTY_MANAGER_TEMPLATE.permissions,
-  }));
+  expect(screen.getByText("Available after saving")).toBeTruthy();
+  for (const item of [PROPERTY_FINANCE_TEMPLATE, OPERATIONS_TEMPLATE]) {
+    expect(screen.getByRole("button", { name: `Use ${item.name} template` })).toHaveProperty("disabled", true);
+  }
+  await user.keyboard("{Escape}");
+  expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Keep editing" }));
+  expect(onClose).not.toHaveBeenCalled(); expect(onSave).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  expect(onSave).toHaveBeenCalledOnce();
+  expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ id: null, name: template.name, permissions: template.permissions }));
+});
+
+it.each(["Operations", "Regional custom role"])("leaves existing %s roles unchanged without template conversion", (name) => {
+  const onSave = vi.fn(); renderEditor({ onSave, role: { ...existingRole, name } });
+  expect(screen.queryByRole("button", { name: /Use .* template/ })).toBeNull();
+  expect(screen.getByRole("textbox", { name: "Role name" })).toHaveProperty("value", name);
+  expect(screen.getByRole("button", { name: "Save" })).toHaveProperty("disabled", true);
+  const finance = screen.getByRole("group", { name: "Finance" });
+  expect(within(finance).getByRole("checkbox", { name: "Record payments" }).getAttribute("data-state")).toBe("checked");
+  expect(screen.getAllByRole("checkbox").filter(box => box.getAttribute("data-state") === "checked")).toHaveLength(2);
+  expect(onSave).not.toHaveBeenCalled();
+});
+
+it("disables both template choices while submitting", async () => {
+  const onSave = vi.fn(); renderEditor({ onSave, submitting: true });
+  for (const template of [PROPERTY_FINANCE_TEMPLATE, OPERATIONS_TEMPLATE]) {
+    const button = screen.getByRole("button", { name: `Use ${template.name} template` });
+    expect(button).toHaveProperty("disabled", true); await userEvent.click(button);
+  }
+  expect(screen.getByRole("textbox", { name: "Role name" })).toHaveProperty("value", "");
+  expect(onSave).not.toHaveBeenCalled();
 });
 
 afterEach(cleanup);

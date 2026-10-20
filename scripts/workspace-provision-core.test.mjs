@@ -5,6 +5,69 @@ import {
   validateProvisionInput,
 } from "./workspace-provision-core.mjs";
 
+describe("deferred provisioning delivery", () => {
+  const input = { adminEmail: "admin@example.com", name: "Example PM", slug: "example-pm" };
+  const provisioned = {
+    invitation_id: "11111111-1111-4111-8111-111111111111",
+    invited_email: input.adminEmail,
+    organization_name: input.name,
+    workspace_slug: input.slug,
+  };
+  const options = { input, siteUrl: "http://localhost:3000", deferEmail: true };
+
+  it("accepts only the explicit bare defer flag", () => {
+    expect(parseProvisionArgs(["--defer-email"]).deferEmail).toBe(true);
+  });
+
+  it.each([
+    ["--defer-email=true"], ["--defer-email=false"], ["--defer-email=1"],
+    ["--defer-email="], ["--defer-email", "false"],
+    ["--defer-email", "--defer-email"], ["--deferEmail"],
+  ])("rejects malformed flag arguments %j", (...args) => {
+    expect(() => parseProvisionArgs(args)).toThrow("optional --defer-email");
+  });
+
+  it.each(["true", "false", 1, null])("rejects nonboolean deferEmail %j before any RPC", async (deferEmail) => {
+    const rpc = vi.fn();
+    await expect(provisionWorkspace({ ...options, client: { rpc }, deferEmail })).rejects.toThrow("must be a boolean");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("stages pending records without even reading client.auth or marking sent", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [provisioned], error: null });
+    const client = { rpc, get auth() { throw new Error("Auth must not be accessed"); } };
+    const result = await provisionWorkspace({ ...options, client });
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("provision_client_workspace", {
+      p_admin_email: input.adminEmail, p_name: input.name, p_slug: input.slug,
+    });
+    expect(result).toMatchObject({ deliveryMethod: "deferred", invitationState: "pending", invitedEmail: input.adminEmail });
+    expect(result.message).toContain("not delivered (one-hour expiry)");
+    expect(result.message).toContain("not active");
+    expect(result.message).toContain("not a dry run");
+  });
+
+  it("does not attempt invite or OTP delivery for an existing Auth user", async () => {
+    const inviteUserByEmail = vi.fn().mockResolvedValue({ error: { code: "user_already_exists" } });
+    const signInWithOtp = vi.fn();
+    const rpc = vi.fn().mockResolvedValue({ data: [provisioned], error: null });
+    await provisionWorkspace({ ...options, client: { rpc, auth: { admin: { inviteUserByEmail }, signInWithOtp } } });
+    expect(inviteUserByEmail).not.toHaveBeenCalled();
+    expect(signInWithOtp).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates provisioning errors without accessing Auth", async () => {
+    const client = {
+      rpc: vi.fn().mockResolvedValue({ data: null, error: { message: "Workspace conflict" } }),
+      get auth() { throw new Error("Auth must not be accessed"); },
+    };
+    await expect(provisionWorkspace({ ...options, client })).rejects.toThrow("Workspace provisioning failed: Workspace conflict");
+    expect(client.rpc).toHaveBeenCalledTimes(1);
+    client.rpc.mockRejectedValueOnce(new Error("RPC unavailable"));
+    await expect(provisionWorkspace({ ...options, client })).rejects.toThrow("RPC unavailable");
+  });
+});
+
 describe("workspace provisioning core", () => {
   it("parses the documented named arguments", () => {
     expect(
@@ -17,6 +80,7 @@ describe("workspace provisioning core", () => {
       adminEmail: "Admin@Example.com",
       name: "Example PM",
       slug: "example-pm",
+      deferEmail: false,
     });
   });
 

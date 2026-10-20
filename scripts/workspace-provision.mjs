@@ -5,6 +5,7 @@ import {
 } from "./workspace-provision-core.mjs";
 
 async function main() {
+  const { deferEmail, ...input } = parseProvisionArgs(process.argv.slice(2));
   const supabaseUrl =
     process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const secretKey =
@@ -26,7 +27,8 @@ async function main() {
   });
   const result = await provisionWorkspace({
     client,
-    input: parseProvisionArgs(process.argv.slice(2)),
+    input,
+    deferEmail,
     siteUrl,
   });
 
@@ -37,6 +39,9 @@ async function main() {
         invitedEmail: result.invitedEmail,
         organization: result.organization,
         slug: result.slug,
+        ...(result.deliveryMethod === "deferred"
+          ? { delivery: "deferred", message: result.message }
+          : {}),
       },
       null,
       2,
