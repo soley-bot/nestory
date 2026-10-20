@@ -112,6 +112,12 @@ export async function acceptInvitationAction(
     { p_invitation_id: parsedInvitationId.data },
   );
   const invitation = (data?.[0] ?? null) as InvitationRow | null;
+  if (!lookupError && invitation?.invitation_status === "expired") {
+    return {
+      message: "This invitation has expired. Ask a workspace administrator to renew it.",
+      status: "error",
+    };
+  }
   if (lookupError || !invitation || invitation.invitation_status !== "pending") {
     return { message: "This invitation is not available for this account.", status: "error" };
   }

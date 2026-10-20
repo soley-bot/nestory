@@ -13605,6 +13605,22 @@ export type Database = {
         Args: { p_organization_id: string; p_unit_id: string }
         Returns: string
       }
+      resume_client_workspace_invitation_exact: {
+        Args: {
+          p_expected_authorization_version: number
+          p_expected_email: string
+          p_expected_expires_at: string
+          p_expected_name: string
+          p_expected_slug: string
+          p_invitation_id: string
+          p_organization_id: string
+        }
+        Returns: {
+          expires_at: string
+          invitation_id: string
+          organization_id: string
+        }[]
+      }
       resume_owner_statement_publication: {
         Args: {
           p_idempotency_key: string

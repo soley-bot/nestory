@@ -71,7 +71,9 @@ export default async function AcceptInvitePage({
       {invitation.state === "expired" || invitation.state === "revoked" || invitation.state === "send_failed" ? (
         <div className="space-y-4 text-sm leading-6 text-muted-foreground">
           <InvitationSummary invitation={invitation} />
-          <p>Ask a workspace administrator to send a new invitation.</p>
+          <p>{invitation.state === "expired"
+            ? "Ask a workspace administrator to renew this invitation."
+            : "Ask a workspace administrator to send a new invitation."}</p>
         </div>
       ) : null}
     </AuthPageShell>
@@ -113,6 +115,7 @@ function titleFor(state: Awaited<ReturnType<typeof getInvitationAcceptance>>["st
   if (state === "pending") return "Accept invitation";
   if (state === "accepted") return "Invitation accepted";
   if (state === "signed_out") return "Verify your invitation";
+  if (state === "expired") return "Invitation expired";
   return "Invitation unavailable";
 }
 

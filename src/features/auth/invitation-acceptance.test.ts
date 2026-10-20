@@ -69,6 +69,26 @@ describe("invitation acceptance", () => {
     });
   });
 
+  it("explains an expired invitation to the matching signed-in account without attempting acceptance", async () => {
+    rpc.mockResolvedValue({
+      data: [{ ...invitation, invitation_status: "expired" }],
+      error: null,
+    });
+    const formData = new FormData();
+    formData.set("invitationId", invitationId);
+
+    await expect(acceptInvitationAction({}, formData)).resolves.toEqual({
+      message: "This invitation has expired. Ask a workspace administrator to renew it.",
+      status: "error",
+    });
+    expect(rpc).toHaveBeenCalledExactlyOnceWith(
+      "get_organization_invitation_for_acceptance",
+      { p_invitation_id: invitationId },
+    );
+    expect(updateUser).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
   it.each(["super_admin", "operations_manager", "operations_member"])(
     "uses the same password requirement for %s invitations",
     async (role) => {
