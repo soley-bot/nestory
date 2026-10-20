@@ -10,6 +10,7 @@ import type {
   TimelineScope,
   TimelineViewQuery,
 } from "@/features/timeline/timeline.types";
+import type { PermissionKey } from "@/lib/auth/permission-catalog";
 
 const navigation = vi.hoisted(() => ({
   pathname: "/timeline",
@@ -301,6 +302,46 @@ describe("TimelineScreen workspace contract", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it.each([
+    ["financial", "/financial-timeline", "Financial Timeline"],
+    ["maintenance", "/maintenance-timeline", "Maintenance Timeline"],
+  ] as const)(
+    "keeps a focused %s record read-only until its explicit Preview is opened",
+    async (scope, pathname, title) => {
+      installMatchMedia(1366);
+      navigation.pathname = pathname;
+      navigation.searchParams = new URLSearchParams("archiveState=all&eventId=event-1&query=Roof+repair");
+      const user = userEvent.setup();
+      const event = {
+        ...events[0],
+        hrefs: { ...events[0].hrefs, timeline: `${pathname}?${navigation.searchParams}` },
+      };
+      renderTimeline([event], {
+        archiveState: "all", eventId: "event-1", query: "Roof repair",
+      }, {
+        initialEventId: "event-1", scope, title, canArchive: false, canWrite: false,
+        permissionKeys: ["finance.view", "maintenance.view"],
+      });
+
+      const table = screen.getByRole("region", { name: "Timeline table" });
+      expect(within(table).getAllByRole("row")).toHaveLength(2);
+      expect(within(table).getByRole("link", { name: "Roof repair" })).not.toBeNull();
+      expect(screen.queryByRole("dialog")).toBeNull();
+      await user.click(within(table).getByRole("button", { name: "Preview Roof repair" }));
+
+      const inspector = screen.getByRole("dialog", { name: "Roof repair timeline quick view" });
+      expect(within(inspector).getByRole("heading", { name: "Roof repair" })).not.toBeNull();
+      for (const action of ["Edit timeline record", "Archive timeline record", "Restore timeline record", "Attach document"]) {
+        expect(within(inspector).queryByRole("button", { name: action })).toBeNull();
+      }
+      const history = new URL(within(inspector).getByRole("link", { name: "Open event history" }).getAttribute("href")!, "https://synthetic.invalid");
+      expect(history.pathname).toBe(pathname);
+      expect(Object.fromEntries(history.searchParams)).toEqual({
+        archiveState: "all", eventId: "event-1", query: "Roof repair", historyPage: "1",
+      });
+    },
+  );
+
   it("keeps ledger-controlled and locked event actions permission-correct", () => {
     renderTimeline([makeEvent("event-locked", "Locked charge", { isLocked: true, ledger: true })]);
 
@@ -405,10 +446,19 @@ const historyChange: RecentChange = {
 function renderTimeline(
   nextEvents: TimelineEvent[] = events,
   query: Partial<TimelineViewQuery> = {},
-  route: { initialEventId?: string; scope?: TimelineScope; title?: string } = {},
+  route: {
+    initialEventId?: string;
+    scope?: TimelineScope;
+    title?: string;
+    canArchive?: boolean;
+    canWrite?: boolean;
+    permissionKeys?: PermissionKey[];
+  } = {},
 ) {
   return render(
     <TimelineScreen
+      canArchive={route.canArchive}
+      canWrite={route.canWrite}
       eventTypes={["Maintenance", "Repair", "Lease Started"]}
       events={nextEvents}
       initialEventId={route.initialEventId}
@@ -420,6 +470,7 @@ function renderTimeline(
         totalCount: nextEvents.length,
         totalPages: nextEvents.length ? 1 : 0,
       }}
+      permissionKeys={route.permissionKeys}
       propertyOptions={[{ id: "property-1", label: "HOME / Home" }]}
       recentChanges={[]}
       scope={route.scope ?? "global"}

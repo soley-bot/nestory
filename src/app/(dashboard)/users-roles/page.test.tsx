@@ -2,14 +2,23 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getAccessSettingsData, requireSuperAdminContext, screenSpy } = vi.hoisted(() => ({
+const { getAccessSettingsData, getOrdinaryAccessReadiness, activationSpy, requireSuperAdminContext, screenSpy } = vi.hoisted(() => ({
   getAccessSettingsData: vi.fn(),
+  getOrdinaryAccessReadiness: vi.fn(),
+  activationSpy: vi.fn(),
   requireSuperAdminContext: vi.fn(),
   screenSpy: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/context", () => ({ requireSuperAdminContext }));
 vi.mock("@/features/organization/data", () => ({ getAccessSettingsData }));
+vi.mock("@/features/organization/ordinary-access-data", () => ({ getOrdinaryAccessReadiness }));
+vi.mock("@/features/organization/components/ordinary-access-settings", () => ({
+  OrdinaryAccessSettings: (props: Record<string, unknown>) => {
+    activationSpy(props);
+    return <div>Staff activation readiness</div>;
+  },
+}));
 vi.mock("@/features/organization/components/access-settings-screen", () => ({
   AccessSettingsScreen: (props: Record<string, unknown> & { header?: ReactNode }) => {
     screenSpy(props);
@@ -38,14 +47,20 @@ import AccessSettingsPage from "@/app/(dashboard)/settings/access/page";
 describe("AccessSettingsPage", () => {
   beforeEach(() => {
     getAccessSettingsData.mockReset();
+    getOrdinaryAccessReadiness.mockReset();
+    activationSpy.mockReset();
     requireSuperAdminContext.mockReset();
     screenSpy.mockReset();
     requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
+      organizationName: "Trusted company",
       role: "super_admin",
       userId: "user-1",
     });
     getAccessSettingsData.mockResolvedValue({ branches: [], invitations: [], members: [], roles: [], staff: [] });
+    getOrdinaryAccessReadiness.mockResolvedValue({
+      kind: "unavailable", message: "Readiness unavailable",
+    });
   });
 
   it("loads access data only after admin authorization and identifies the current user", async () => {
@@ -57,6 +72,11 @@ describe("AccessSettingsPage", () => {
     expect(html).toContain("Access");
     expect(requireSuperAdminContext).toHaveBeenCalledOnce();
     expect(getAccessSettingsData).toHaveBeenCalledWith("organization-1");
+    expect(getOrdinaryAccessReadiness).toHaveBeenCalledWith("organization-1");
+    expect(activationSpy).toHaveBeenCalledWith(expect.objectContaining({
+      organizationName: "Trusted company",
+      initialReadiness: { kind: "unavailable", message: "Readiness unavailable" },
+    }));
     expect(screenSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         currentUserId: "user-1",
@@ -66,6 +86,15 @@ describe("AccessSettingsPage", () => {
         embedded: true,
       }),
     );
+  });
+
+  it("does not load access or activation readiness before admin authorization succeeds", async () => {
+    requireSuperAdminContext.mockRejectedValue(new Error("No access"));
+    await expect(AccessSettingsPage({ searchParams: Promise.resolve({
+      organizationId: "untrusted-company",
+    }) })).rejects.toThrow("No access");
+    expect(getAccessSettingsData).not.toHaveBeenCalled();
+    expect(getOrdinaryAccessReadiness).not.toHaveBeenCalled();
   });
 
   it("renders one Settings heading with access navigation in the same header", async () => {

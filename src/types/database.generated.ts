@@ -11213,6 +11213,15 @@ export type Database = {
         Args: { p_invitation_id: string }
         Returns: string
       }
+      activate_organization_ordinary_access: {
+        Args: {
+          p_confirm: boolean
+          p_expected_impact_fingerprint: string
+          p_expected_version: number
+          p_organization_id: string
+        }
+        Returns: Json
+      }
       allocate_owner_event: {
         Args: {
           p_idempotency_key: string
@@ -12465,6 +12474,10 @@ export type Database = {
           scope_name: string
           staff_name: string
         }[]
+      }
+      get_organization_ordinary_access_activation: {
+        Args: { p_organization_id: string }
+        Returns: Json
       }
       get_organization_roles: {
         Args: { p_organization_id: string }

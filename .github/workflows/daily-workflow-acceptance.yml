@@ -7,6 +7,16 @@ on:
       - 'scripts/daily-workflow-*'
       - 'scripts/run-daily-workflow-ci.mjs'
       - 'scripts/smoke-daily-workflow.mjs'
+      - 'scripts/smoke-daily-polish.mjs'
+      - 'src/features/organization/**'
+      - 'src/features/timeline/**'
+      - 'src/features/activity/recent-change-targets*'
+      - 'src/features/reports/**'
+      - 'src/features/finance-operations/**'
+      - 'src/components/layout/app-shell*'
+      - 'src/components/ui/**'
+      - 'src/app/(dashboard)/settings/**'
+      - 'supabase/migrations/*ordinary_staff_access_activation.sql'
 
 permissions: {}
 
@@ -43,7 +53,7 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=2048
         run: npm exec -- tsc --noEmit --incremental false
       - name: Check acceptance boundaries
-        run: node --test scripts/daily-workflow-policy.node-test.mjs
+        run: node --test scripts/daily-workflow-policy.node-test.mjs scripts/daily-workflow-polish-contract.node-test.mjs
       - name: Check fixture actors and journey assumptions
         env:
           NODE_OPTIONS: --max-old-space-size=512
@@ -70,6 +80,7 @@ jobs:
             ci-reports/daily-workflow/result.json
             ci-reports/daily-workflow/runner.json
             ci-reports/daily-workflow/preflight.json
+            ci-reports/daily-workflow/polish-result.json
             ci-reports/daily-workflow/*.log
             ci-reports/daily-workflow/*.png
           retention-days: 3
