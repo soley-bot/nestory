@@ -3927,8 +3927,7 @@ describe("FinanceOperationsScreen", () => {
     invoice.balanceDue = 0;
     invoice.settlements = [];
     input.tenantInvoices = [invoice];
-    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canCorrectFinance: true })} organizationName="Sokha Property Services" view="rent" />);
-    await userEvent.click(screen.getByRole("button", { name: "View invoice INV-202608-001" }));
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canCorrectFinance: true })} initialInvoiceId={invoice.id} selectedTenantInvoice={invoice} organizationName="Sokha Property Services" view="rent" />);
     const dialog = screen.getByRole("dialog", { name: "Invoice details" });
     expect(within(dialog).queryByRole("region", { name: "Invoice corrections" })).toBeNull();
     expect(within(dialog).queryByRole("group", { name: "Invoice payment and documents" })).toBeNull();
