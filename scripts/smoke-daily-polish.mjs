@@ -8,7 +8,7 @@ import { assertDailyContainer, assertDailyOrigin, dailyOrigins, resolveDailyRun 
 import { dailyActors, dailyInvoiceHref } from "./daily-workflow-contract.mjs";
 import {
   assertPolishCompletion, assertPolishReadiness, assertPolishTarget, dailyPolishFixture,
-  dailyPolishSeedSql, polishCases, polishDeliverySnapshotSql, polishDockerHost,
+  dailyPolishSeedSql, polishActionDiagnostics, polishCases, polishDeliverySnapshotSql, polishDockerHost,
   polishOtherAuthoritySql, polishPassword, polishReadinessSql, polishViewports,
   redactPolishEvidence,
 } from "./daily-workflow-polish-contract.mjs";
@@ -40,6 +40,7 @@ for (const key of Object.keys(process.env)) {
   if (/^RESEND|^SMTP_|^SENDGRID|^MAILGUN/.test(key)) assert.ok(!process.env[key], "Email provider configuration is forbidden");
 }
 const base = assertDailyOrigin(process.env.NESTORY_BASE_URL, dailyOrigins.app);
+const actionDiagnostics = polishActionDiagnostics(base);
 const attestation = await fetch(`${base}/api/local-smoke-target`, { signal: AbortSignal.timeout(10000) });
 assert.equal(attestation.status, 200);
 assertDailyOrigin((await attestation.json()).supabaseOrigin, dailyOrigins.api);
@@ -70,6 +71,7 @@ const activationState = () => json(`SELECT jsonb_build_object(
 )::text;`);
 const save = extra => fs.writeFileSync(path.join(reports, "polish-result.json"), JSON.stringify({
   sha: run.sha, project: run.project, buildId, fixture: f, cases,
+  actionDiagnostics: actionDiagnostics.evidence,
   complete: false, viewports: polishViewports,
   limits: [
     "Compact is responsive viewport coverage, not native 200% browser zoom.",
@@ -106,6 +108,10 @@ async function login(email, password) {
     return [dailyOrigins.app, dailyOrigins.api].includes(origin) ? route.continue() : route.abort();
   });
   page = await context.newPage();
+  page.on("request", actionDiagnostics.request);
+  page.on("response", actionDiagnostics.response);
+  page.on("requestfinished", actionDiagnostics.finished);
+  page.on("requestfailed", actionDiagnostics.failed);
   page.setDefaultTimeout(15000);
   page.setDefaultNavigationTimeout(30000);
   await page.goto(`${base}/login`, { waitUntil: "domcontentloaded" });
@@ -256,7 +262,7 @@ try {
       assertPolishReadiness(changed, f, { branches: 2 });
       assert.notEqual(changed.impact_fingerprint, reviewed.impact_fingerprint);
       await dialog.getByRole("button", { name: "Confirm enable staff access", exact: true }).click();
-      await expect(page.getByRole("alert").filter({ hasText: "Staff access changed. Review refreshed readiness before activating." })).toBeVisible();
+      await expect(page.getByRole("alert").filter({ hasText: "Staff access changed. Review refreshed readiness before activating." })).toBeVisible({ timeout: 30000 });
       await expect(dialog).toBeHidden();
       assert.deepEqual(activationState(), { enabled: false, audits: 0, members: 2, auditActor: null });
       await expect(page.getByRole("button", { name: "Review staff access", exact: true })).toBeEnabled();
@@ -334,7 +340,9 @@ try {
 } catch (error) {
   const item = cases.find(item => item.name === stage);
   if (item) item.status = "failed";
-  save({ failedStage: stage, message: redactPolishEvidence(error.message).slice(0, 1000) });
+  let activationStateAtFailure = null;
+  try { activationStateAtFailure = activationState(); } catch { /* unavailable; never retain raw query errors */ }
+  save({ failedStage: stage, activationStateAtFailure, message: redactPolishEvidence(error.message).slice(0, 1000) });
   await screenshot("failure").catch(() => {});
   throw new Error(`Synthetic polish failed at ${stage}; see sanitized polish evidence.`);
 } finally {

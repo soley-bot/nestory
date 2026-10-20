@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { dailyPhases } from "./daily-workflow-policy.mjs";
 import {
   assertPolishCompletion, assertPolishReadiness, assertPolishTarget, dailyPolishFixture,
-  dailyPolishSeedSql, polishCases, polishDeliverySnapshotSql, polishOtherAuthoritySql,
+  dailyPolishSeedSql, polishActionDiagnostics, polishCases, polishDeliverySnapshotSql, polishOtherAuthoritySql,
   polishPassword, polishReadinessSql, polishViewports, redactPolishEvidence,
 } from "./daily-workflow-polish-contract.mjs";
 
@@ -126,6 +126,50 @@ test("evidence redacts credentials without losing fictional failure context", ()
   for (const secret of [polishPassword, "eyJabc.abc.def", "sb_secret_secret", database.username, database.password]) assert.ok(!text.includes(secret));
   assert.ok(text.includes("stale review"));
 });
+test("action diagnostics retain only bounded fixed-target POST timings and status", () => {
+  let time = 1000;
+  const diagnostics = polishActionDiagnostics(env.NESTORY_BASE_URL, () => time);
+  const request = (url, method = "POST") => ({
+    url: () => url, method: () => method,
+    headers: () => { throw new Error("Headers must never be read"); },
+    postData: () => { throw new Error("Bodies must never be read"); },
+    failure: () => { throw new Error("Raw failures must never be read"); },
+  });
+  for (const ignored of [
+    request("https://example.test/settings/access"),
+    request(`${env.NESTORY_BASE_URL}/settings/branches`),
+    request(`${env.NESTORY_BASE_URL}/settings/access`, "GET"),
+  ]) {
+    diagnostics.request(ignored);
+    diagnostics.response({ request: () => ignored, status: () => 200 });
+    diagnostics.failed(ignored);
+  }
+  assert.equal(diagnostics.evidence.requests.length, 0);
+  const completed = request(`${env.NESTORY_BASE_URL}/settings/access?fictional=do-not-retain`);
+  time = 1010;
+  diagnostics.request(completed);
+  time = 1050;
+  diagnostics.response({ request: () => completed, status: () => 200 });
+  time = 1080;
+  diagnostics.finished(completed);
+  const failed = request(`${env.NESTORY_BASE_URL}/settings/access`);
+  time = 1100;
+  diagnostics.request(failed);
+  time = 1150;
+  diagnostics.failed(failed);
+  const pending = request(`${env.NESTORY_BASE_URL}/settings/access`);
+  diagnostics.request(pending);
+  assert.deepEqual(diagnostics.evidence.requests, [
+    { sequence: 1, startedMs: 10, responseMs: 50, settledMs: 80, durationMs: 70, status: 200, completed: true, failed: false },
+    { sequence: 2, startedMs: 100, responseMs: null, settledMs: 150, durationMs: 50, status: null, completed: false, failed: true },
+    { sequence: 3, startedMs: 150, responseMs: null, settledMs: null, durationMs: null, status: null, completed: false, failed: false },
+  ]);
+  assert.ok(!JSON.stringify(diagnostics.evidence).includes("do-not-retain"));
+  for (let index = 0; index < 40; index++) diagnostics.request(request(`${env.NESTORY_BASE_URL}/settings/access`));
+  assert.equal(diagnostics.evidence.requests.length, 32);
+  assert.equal(diagnostics.evidence.truncated, true);
+  assert.throws(() => polishActionDiagnostics("https://example.test"));
+});
 test("runner invokes polish only after existing journey with bounded budget and retained evidence", () => {
   const runner = readFileSync(new URL("./run-daily-workflow-ci.mjs", import.meta.url), "utf8");
   const daily = runner.indexOf('await command("browser"');
@@ -141,6 +185,8 @@ test("runner invokes polish only after existing journey with bounded budget and 
   assert.ok(smoke.indexOf("assertPolishTarget({") < smoke.indexOf("sql(dailyPolishSeedSql"));
   assert.match(smoke, /assertDailyOrigin\(\(await attestation\.json\(\)\)\.supabaseOrigin/);
   assert.match(smoke, /context\.route\("\*\*\/\*"/);
+  assert.match(smoke, /hasText: "Staff access changed\. Review refreshed readiness before activating\." \}\)\)\.toBeVisible\(\{ timeout: 30000 \}\)/);
+  assert.match(smoke, /activationStateAtFailure = activationState\(\)/);
   assert.doesNotMatch(smoke, /pageScaleFactor|deviceScaleFactor|browser\.newContext\([^)]*storageState|inviteUserByEmail|generateLink|\.send\(/);
   assert.match(smoke, /Compact is responsive viewport coverage, not native 200% browser zoom/);
   assert.doesNotMatch(smoke, /docker\(\["(?:rm|stop|restart|volume|network)"/);

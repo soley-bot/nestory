@@ -75,6 +75,41 @@ export function redactPolishEvidence(value) {
     .replace(/postgres(?:ql)?:\/\/\S+/gi, "[database URL redacted]");
 }
 
+export function polishActionDiagnostics(origin, now = Date.now) {
+  assert.equal(origin, dailyOrigins.app, "Action diagnostics require the isolated application origin");
+  const started = now();
+  const requests = new WeakMap();
+  const evidence = { requests: [], truncated: false };
+  const settle = (request, failed) => {
+    const item = requests.get(request);
+    if (!item) return;
+    item.settledMs = now() - started;
+    item.durationMs = item.settledMs - item.startedMs;
+    item.completed = !failed;
+    item.failed = failed;
+  };
+  return {
+    evidence,
+    request(request) {
+      const url = new URL(request.url());
+      if (request.method() !== "POST" || url.origin !== origin || url.pathname !== "/settings/access") return;
+      if (evidence.requests.length === 32) { evidence.truncated = true; return; }
+      const item = { sequence: evidence.requests.length + 1, startedMs: now() - started,
+        responseMs: null, settledMs: null, durationMs: null, status: null, completed: false, failed: false };
+      requests.set(request, item);
+      evidence.requests.push(item);
+    },
+    response(response) {
+      const item = requests.get(response.request());
+      if (!item) return;
+      item.status = response.status();
+      item.responseMs = now() - started;
+    },
+    finished: request => settle(request, false),
+    failed: request => settle(request, true),
+  };
+}
+
 // This helper produces SQL only. The smoke caller first attests the completed
 // daily run, new project, exact container ID, network, loopback ports and build.
 // No baseline IDs, updates, resets, trigger overrides or email APIs are used.
