@@ -73,6 +73,9 @@ describe("property ownership authority inputs", () => {
       p_idempotency_key: "property-create-0001",
       p_name: "Riverside House",
       p_organization_id: organizationId,
+      p_owner_ownership_percent: null,
+      p_owner_person_id: null,
+      p_owner_started_on: null,
       p_property_type: "House",
       p_registered_date: "2026-08-17",
     });
@@ -133,7 +136,7 @@ describe("property ownership authority inputs", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("creates the property and its owner link in one call when guided setup supplies ownership", async () => {
+  it.each(["60.000", "100.000"])("preserves the supplied ownership share %s when guided setup creates the property", async (ownershipPercent) => {
     const formData = new FormData();
     formData.set("address", "10 Riverside Road");
     formData.set("code", "");
@@ -142,7 +145,7 @@ describe("property ownership authority inputs", () => {
     formData.set("name", "Riverside House");
     formData.set("ownerPersonId", ownerPersonId);
     formData.set("ownerStartedOn", "2026-08-01");
-    formData.set("ownershipPercent", "100.000");
+    formData.set("ownershipPercent", ownershipPercent);
     formData.set("propertyType", "House");
     formData.set("registeredDate", "2026-08-17");
 
@@ -157,12 +160,27 @@ describe("property ownership authority inputs", () => {
       p_idempotency_key: "property-create-0002",
       p_name: "Riverside House",
       p_organization_id: organizationId,
-      p_owner_ownership_percent: "100.000",
+      p_owner_ownership_percent: ownershipPercent,
       p_owner_person_id: ownerPersonId,
       p_owner_started_on: "2026-08-01",
       p_property_type: "House",
       p_registered_date: "2026-08-17",
     });
+  });
+
+  it("rejects a zero ownership share without replacing it with a default", async () => {
+    const formData = propertyCreateForm();
+    formData.set("ownerPersonId", ownerPersonId);
+    formData.set("ownerStartedOn", "2026-08-01");
+    formData.set("ownershipPercent", "0");
+
+    await expect(createPropertyAction({}, formData)).resolves.toMatchObject({
+      fieldErrors: {
+        ownershipPercent: ["Enter a share greater than 0 and no more than 100 with up to 3 decimals."],
+      },
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("rejects a creation owner selection without an explicit effective start and share", async () => {

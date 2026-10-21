@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
@@ -41,8 +41,20 @@ export function UnitForm({
   unit,
 }: UnitFormProps) {
   const isEditMode = mode === "edit";
+  const [creationKey] = useState(() => crypto.randomUUID());
   const [state, action, pending] = useActionState(
-    isEditMode ? updateUnitAction : createUnitAction,
+    isEditMode ? updateUnitAction : async (previous: UnitActionState, formData: FormData): Promise<UnitActionState> => {
+      try {
+        return await createUnitAction(previous, formData);
+      } catch {
+        // A lost response may follow a committed transaction. Keep this draft
+        // and its original key mounted so retry reaches the same receipt.
+        return {
+          message: "We could not confirm the save. Keep this form open and retry the same details to check or complete it safely.",
+          status: "error",
+        };
+      }
+    },
     initialState,
   );
   const defaults = getUnitDefaults(unit, initialValues);
@@ -82,6 +94,9 @@ export function UnitForm({
     >
       {isEditMode && unit ? (
         <input name="unitId" type="hidden" value={unit.id} />
+      ) : null}
+      {!isEditMode ? (
+        <input name="idempotencyKey" type="hidden" value={creationKey} />
       ) : null}
 
       <FormSection title="Placement">
