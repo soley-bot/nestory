@@ -12087,6 +12087,20 @@ export type Database = {
           }
         | {
             Args: {
+              p_bathroom_count: number
+              p_bedroom_count: number
+              p_floor: string
+              p_idempotency_key: string
+              p_organization_id: string
+              p_property_id: string
+              p_size_sqm: number
+              p_status: string
+              p_unit_number: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
               p_floor: string
               p_organization_id: string
               p_property_id: string

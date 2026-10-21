@@ -291,16 +291,12 @@ export async function createPropertyAction(
     p_idempotency_key: parsed.data.idempotencyKey,
     p_name: parsed.data.name,
     p_organization_id: context.organizationId,
+    // The branch-aware RPC requires these keys even when no owner is supplied.
+    p_owner_ownership_percent: nullableString(parsed.data.ownershipPercent),
+    p_owner_person_id: nullableString(parsed.data.ownerPersonId),
+    p_owner_started_on: nullableString(parsed.data.ownerStartedOn),
     p_property_type: parsed.data.propertyType,
     p_registered_date: nullableString(parsed.data.registeredDate),
-    // Ownership travels only when a guided surface collected it.
-    ...(parsed.data.ownerPersonId
-      ? {
-          p_owner_ownership_percent: parsed.data.ownershipPercent,
-          p_owner_person_id: parsed.data.ownerPersonId,
-          p_owner_started_on: parsed.data.ownerStartedOn,
-        }
-      : {}),
   };
   const { data: propertyId, error } = await supabase.rpc(
     "create_property_minimal",

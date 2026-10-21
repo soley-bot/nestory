@@ -144,6 +144,12 @@ export async function createUnitAction(
     return invalidFormState(parsed.error);
   }
 
+  const creationKey = z.string().trim().min(8).max(200)
+    .safeParse(readString(formData, "idempotencyKey"));
+  if (!creationKey.success) {
+    return { message: "Reopen the unit form before saving.", status: "error" };
+  }
+
   const documentError = await validateInlineDocumentFile(formData);
 
   if (documentError) {
@@ -153,11 +159,20 @@ export async function createUnitAction(
     };
   }
 
+  const document = formData.get("document");
+  if (document instanceof File && document.size > 0) {
+    return {
+      message: "Save the unit first, then attach documents.",
+      status: "error",
+    };
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data: unitId, error } = await supabase.rpc("create_unit", {
     p_bathroom_count: nullableNumber(parsed.data.bathroomCount),
     p_bedroom_count: nullableNumber(parsed.data.bedroomCount),
     p_floor: nullableString(parsed.data.floor),
+    p_idempotency_key: creationKey.data,
     p_organization_id: context.organizationId,
     p_property_id: parsed.data.propertyId,
     p_size_sqm: nullableNumber(parsed.data.sizeSqm),
@@ -172,25 +187,10 @@ export async function createUnitAction(
     };
   }
 
-  const documentState = await uploadInlineUnitDocument({
-    formData,
-    propertyId: parsed.data.propertyId,
-    unitId,
-  });
-
-  if (documentState?.status === "error") {
-    return {
-      message: "Unit added, but the file was not uploaded.",
-      propertyId: parsed.data.propertyId,
-      status: "success",
-      unitId,
-    };
-  }
-
   revalidateUnitPaths([parsed.data.propertyId], unitId);
 
   return {
-    message: documentState ? "Unit added and file uploaded." : "Unit added.",
+    message: "Unit added.",
     propertyId: parsed.data.propertyId,
     status: "success",
     unitId,
@@ -461,6 +461,10 @@ function revalidateUnitPaths(
 }
 
 function unitActionErrorMessage(message: string) {
+  if (message.includes("Conflicting unit creation request")
+    || message.includes("Created unit changed")) {
+    return "This unit request has already been used. Review the existing unit before starting a new request.";
+  }
   if (message.includes("duplicate key")) {
     return "A unit with this number already exists for that property.";
   }

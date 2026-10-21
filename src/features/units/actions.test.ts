@@ -40,7 +40,7 @@ import {
   restoreUnitAction,
   updateUnitAction,
 } from "@/features/units/actions";
-import { invalidPdfFile } from "@/test-utils/upload-content";
+import { invalidPdfFile, validPdfFile } from "@/test-utils/upload-content";
 
 const organizationId = "00000000-0000-4000-8000-000000000001";
 const propertyId = "00000000-0000-4000-8000-000000000002";
@@ -125,6 +125,7 @@ describe("unit rent authority", () => {
       p_bathroom_count: 1,
       p_bedroom_count: 2,
       p_floor: "1",
+      p_idempotency_key: "unit-create-request-1",
       p_organization_id: organizationId,
       p_property_id: propertyId,
       p_size_sqm: 48,
@@ -132,6 +133,43 @@ describe("unit rent authority", () => {
       p_unit_number: "1A",
     });
     expect(requirePermission).toHaveBeenCalledWith("properties.write");
+  });
+
+  it.each(["", "short", "x".repeat(201)])("rejects an invalid creation key before any RPC: %s", async (key) => {
+    const formData = unitForm();
+    formData.set("idempotencyKey", key);
+    await expect(createUnitAction({}, formData)).resolves.toMatchObject({ status: "error" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("reuses the exact original key and physical payload after a transport exception", async () => {
+    const formData = unitForm();
+    rpc.mockRejectedValueOnce(new Error("synthetic response loss"));
+    await expect(createUnitAction({}, formData)).rejects.toThrow("synthetic response loss");
+    await expect(createUnitAction({}, formData)).resolves.toMatchObject({ status: "success", unitId });
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc.mock.calls[1]).toEqual(rpc.mock.calls[0]);
+    expect(rpc.mock.calls[0][1].p_idempotency_key).toBe("unit-create-request-1");
+  });
+
+  it("rejects create-time document side effects before the keyed unit request", async () => {
+    const formData = unitForm();
+    formData.set("document", validPdfFile());
+    await expect(createUnitAction({}, formData)).resolves.toEqual({
+      status: "error", message: "Save the unit first, then attach documents.",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+    expect(createDocumentAction).not.toHaveBeenCalled();
+  });
+
+  it("keeps a conflicting keyed request explicit instead of falling back to unkeyed creation", async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "Conflicting unit creation request" } });
+    await expect(createUnitAction({}, unitForm())).resolves.toEqual({
+      status: "error",
+      message: "This unit request has already been used. Review the existing unit before starting a new request.",
+    });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc.mock.calls[0][1].p_idempotency_key).toBe("unit-create-request-1");
   });
 
   it("rejects a spoofed inline document before creating the Unit", async () => {
@@ -169,6 +207,37 @@ describe("unit rent authority", () => {
       p_unit_number: "1A",
     });
     expect(requirePermission).toHaveBeenCalledWith("properties.write");
+  });
+
+  it("still attaches a document when editing an existing unit without a creation key", async () => {
+    const formData = unitForm();
+    const document = validPdfFile("unit-record.pdf");
+    formData.delete("idempotencyKey");
+    formData.set("unitId", unitId);
+    formData.set("document", document);
+    formData.set("documentCategory", "Unit record");
+
+    await expect(updateUnitAction({}, formData)).resolves.toEqual({
+      message: "Unit updated and file uploaded.",
+      propertyId,
+      status: "success",
+      unitId,
+    });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith("update_unit", expect.objectContaining({
+      p_property_id: propertyId,
+      p_unit_id: unitId,
+    }));
+    expect(rpc.mock.calls[0][1]).not.toHaveProperty("p_idempotency_key");
+    expect(createDocumentAction).toHaveBeenCalledTimes(1);
+    expect(Object.fromEntries(createDocumentAction.mock.calls[0][1] as FormData)).toEqual({
+      category: "Unit record",
+      document,
+      leaseId: "",
+      propertyId,
+      taskId: "",
+      unitId,
+    });
   });
 
   it("preserves zero and blank room counts through the checked create RPC", async () => {
@@ -292,6 +361,7 @@ describe("unit rent authority", () => {
 
 function unitForm(selectedPropertyId = propertyId) {
   const formData = new FormData();
+  formData.set("idempotencyKey", "unit-create-request-1");
   formData.set("bathroomCount", "1");
   formData.set("bedroomCount", "2");
   formData.set("floor", "1");

@@ -423,6 +423,9 @@ jobs:
       - name: Test exact invitation renewal concurrency and stale replay
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/exact-invitation-renewal-concurrency.node-test.mjs
 
+      - name: Test unit creation over HTTP with lost responses and retries
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/unit-create-http-recovery.node-test.mjs
+
       - name: Test photo and logo Storage concurrency
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/photo-logo-storage-concurrency.node-test.mjs
 

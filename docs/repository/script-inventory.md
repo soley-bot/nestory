@@ -9,13 +9,14 @@ Generated from package commands, GitHub workflows, script imports, source refere
 - reusable-support: 43
 - specialist-command: 66
 - unreferenced: 3
-- workflow-gate: 10
+- workflow-gate: 13
 
 ## Inventory
 
 | Script | Classification | Reference evidence |
 | --- | --- | --- |
 | `scripts/audit-dependencies.mjs` | specialist-command | `package:security:audit`, `scripts/security-guardrails.node-test.mjs` |
+| `scripts/auth-form-progressive.node-test.mjs` | workflow-gate | `.github/workflows/ci.yml` |
 | `scripts/business-date-access.node-test.mjs` | default-gate | `package:test:contracts` |
 | `scripts/capture-feature-layout.mjs` | documented-operator | `docs/design/feature-long-text-coverage-20261004.md` |
 | `scripts/chart-of-accounts-fixture-contract.node-test.mjs` | specialist-command | `package:test:chart-fixture-contract` |
@@ -42,6 +43,7 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/document-evidence-storage.node-test.mjs` | specialist-command | `package:documents:test-evidence-storage`, `scripts/document-evidence-storage-cleanup.node-test.mjs` |
 | `scripts/document-replacement-concurrency.node-test.mjs` | specialist-command | `package:documents:test-evidence-storage` |
 | `scripts/document-storage-lifecycle-concurrency.node-test.mjs` | specialist-command | `package:documents:test-evidence-storage` |
+| `scripts/exact-invitation-renewal-concurrency.node-test.mjs` | workflow-gate | `.github/workflows/ci.yml` |
 | `scripts/generate-enterprise-frontend-evidence.mjs` | documented-operator | `docs/superpowers/plans/2026-08-14-repository-health-and-test-architecture.md` |
 | `scripts/generate-script-inventory.mjs` | specialist-command | `docs/superpowers/plans/2026-08-14-repository-health-and-test-architecture.md`, `docs/superpowers/plans/2026-08-24-legacy-test-compatibility-cleanup.md`, `package:repo:script-inventory` |
 | `scripts/generate-unit-profit-loss-comparison.mjs` | specialist-command | `package:report:unit-profit-loss:compare`, `scripts/unit-profit-loss-comparison.node-test.mjs` |
@@ -78,7 +80,7 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/load-test-fixture.mjs` | specialist-command | `docs/superpowers/plans/2026-08-10-owner-statement-publication.md`, `package:db:test:fixture`, `scripts/document-evidence-storage.node-test.mjs`, `scripts/document-replacement-concurrency.node-test.mjs`, `scripts/document-storage-lifecycle-concurrency.node-test.mjs`, `scripts/historical-rent-correction-concurrency.node-test.mjs`, `scripts/ips-cutover-concurrency.node-test.mjs`, `scripts/ips-rent-scenario-concurrency.node-test.mjs`, `scripts/lease-deposit-lifecycle-concurrency.node-test.mjs`, `scripts/legacy-deposit-default-concurrency.node-test.mjs`, `scripts/load-test-fixture.node-test.mjs`, `scripts/owner-balance-lifecycle-concurrency.node-test.mjs`, `scripts/owner-balance-lifecycle-correction-concurrency.node-test.mjs`, `scripts/owner-balance-lifecycle-loaded-fixture.node-test.mjs`, `scripts/owner-close-concurrency.node-test.mjs`, `scripts/owner-opening-balance-schema-concurrency.node-test.mjs`, `scripts/owner-opening-balance-workflow-concurrency.node-test.mjs`, `scripts/owner-roster-readiness-concurrency.node-test.mjs`, `scripts/owner-statement-artifact-storage.node-test.mjs`, `scripts/owner-statement-publication-concurrency.node-test.mjs`, `scripts/paid-cost-concurrency.node-test.mjs`, `scripts/photo-logo-storage-concurrency.node-test.mjs`, `scripts/report-owner-roster-preflight.mjs`, `scripts/run-daily-workflow-ci.mjs`, `scripts/smoke-daily-workflow.mjs`, `scripts/smoke-fixture-finance-manager-day.mjs`, `scripts/smoke-fixture-owner-balance-lifecycle.mjs`, `scripts/smoke-fixture-owner-close.mjs`, `scripts/smoke-ips-cutover-browser-acceptance.mjs`, `scripts/smoke-ips-cutover-rehearsal.mjs`, `scripts/smoke-ips-golden-setup.mjs`, `scripts/smoke-ips-paid-cost-browser-acceptance.mjs`, `scripts/smoke-ips-paid-cost-scenarios.mjs`, `scripts/smoke-ips-rent-browser-acceptance.mjs`, `scripts/smoke-ips-rent-scenarios.mjs`, `scripts/smoke-owner-balance-browser-acceptance.mjs`, `scripts/smoke-owner-close-browser-acceptance.mjs`, `scripts/smoke-owner-opening-browser-acceptance.mjs`, `scripts/smoke-owner-statement-browser-acceptance.mjs` |
 | `scripts/load-test-fixture.node-test.mjs` | default-gate | `docs/repository/legacy-test-compatibility-inventory.md`, `docs/superpowers/plans/2026-08-24-legacy-test-compatibility-cleanup.md`, `package:test:contracts` |
 | `scripts/local-fixture-credentials.ts` | unreferenced | None found |
-| `scripts/local-recovery-docker.mjs` | reusable-support | `docs/runbooks/ips-recovery-and-rollback.md`, `scripts/deposit-candidate-target.node-test.mjs`, `scripts/ips-integrated-readiness-fixture.mjs`, `scripts/ips-readiness-recovery.mjs`, `scripts/maintenance-automation-runs-target.mjs`, `scripts/property-concurrency-target.mjs`, `scripts/rehearse-synthetic-recovery.mjs`, `scripts/rent-readiness-target.mjs`, `scripts/rent-readiness-target.node-test.mjs`, `scripts/smoke-ips-owner-statement-readiness.mjs`, `scripts/synthetic-recovery.node-test.mjs`, `scripts/test-deposit-candidate-local.mjs`, `scripts/test-deposit-statement-reader-local.mjs` |
+| `scripts/local-recovery-docker.mjs` | reusable-support | `docs/runbooks/ips-recovery-and-rollback.md`, `scripts/deposit-candidate-target.node-test.mjs`, `scripts/ips-integrated-readiness-fixture.mjs`, `scripts/ips-readiness-recovery.mjs`, `scripts/maintenance-automation-runs-target.mjs`, `scripts/property-concurrency-target.mjs`, `scripts/rehearse-synthetic-recovery.mjs`, `scripts/rent-readiness-target.mjs`, `scripts/rent-readiness-target.node-test.mjs`, `scripts/smoke-ips-owner-statement-readiness.mjs`, `scripts/synthetic-recovery.node-test.mjs`, `scripts/test-deposit-candidate-local.mjs`, `scripts/test-deposit-statement-reader-local.mjs`, `scripts/unit-create-http-recovery.node-test.mjs` |
 | `scripts/maintenance-automation-runner.node-test.mjs` | default-gate | `docs/runbooks/background-jobs-and-recovery.md`, `docs/superpowers/plans/2026-08-26-second-wave-security-remediation.md`, `package:maintenance:test-runner`, `package:test:contracts` |
 | `scripts/maintenance-automation-runs-target.mjs` | reusable-support | `scripts/maintenance-automation-runs-target.node-test.mjs`, `scripts/maintenance-automation-runs.integration.mjs` |
 | `scripts/maintenance-automation-runs-target.node-test.mjs` | default-gate | `package:test:contracts` |
@@ -112,7 +114,7 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/photo-logo-storage-concurrency.node-test.mjs` | workflow-gate | `.github/workflows/ci.yml` |
 | `scripts/playwright-form-controls.mjs` | reusable-support | `scripts/rent-readiness-target.mjs`, `scripts/smoke-daily-workflow.mjs`, `scripts/smoke-ips-cutover-browser-acceptance.mjs`, `scripts/smoke-ips-rent-browser-acceptance.mjs`, `scripts/smoke-ips-rent-readiness.mjs`, `scripts/smoke-owner-balance-browser-acceptance.mjs`, `scripts/smoke-owner-close-browser-acceptance.mjs`, `scripts/smoke-owner-opening-browser-acceptance.mjs`, `scripts/smoke-owner-statement-browser-acceptance.mjs` |
 | `scripts/property-checked-update-concurrency.node-test.mjs` | specialist-command | `package:properties:test-concurrency` |
-| `scripts/property-concurrency-target.mjs` | reusable-support | `scripts/deposit-candidate-target.node-test.mjs`, `scripts/ordinary-access-activation-concurrency.node-test.mjs`, `scripts/property-checked-update-concurrency.node-test.mjs` |
+| `scripts/property-concurrency-target.mjs` | reusable-support | `scripts/deposit-candidate-target.node-test.mjs`, `scripts/exact-invitation-renewal-concurrency.node-test.mjs`, `scripts/ordinary-access-activation-concurrency.node-test.mjs`, `scripts/property-checked-update-concurrency.node-test.mjs`, `scripts/unit-create-http-recovery.node-test.mjs` |
 | `scripts/rehearse-synthetic-recovery.mjs` | specialist-command | `package:recovery:rehearse-synthetic` |
 | `scripts/rent-readiness-target.mjs` | reusable-support | `scripts/rent-readiness-target.node-test.mjs`, `scripts/smoke-ips-rent-readiness.mjs` |
 | `scripts/rent-readiness-target.node-test.mjs` | default-gate | `package:test:contracts` |
@@ -178,6 +180,7 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/test-deposit-candidate-local.mjs` | workflow-gate | `.github/workflows/ci.yml`, `docs/design/deposit-rent-candidate/README.md`, `docs/runbooks/deposit-release-validation.md`, `docs/verification/ips-security-advisor-review-2026-10-14.md` |
 | `scripts/test-deposit-custody-concurrency.mjs` | reusable-support | `scripts/deposit-candidate-target.node-test.mjs`, `scripts/test-deposit-candidate-local.mjs` |
 | `scripts/test-deposit-statement-reader-local.mjs` | documented-operator | `docs/runbooks/deposit-statement-reader-acceptance.md` |
+| `scripts/unit-create-http-recovery.node-test.mjs` | workflow-gate | `.github/workflows/ci.yml`, `docs/runbooks/unit-creation-recovery.md` |
 | `scripts/unit-profit-loss-comparison-core.mjs` | reusable-support | `scripts/generate-unit-profit-loss-comparison.mjs`, `scripts/unit-profit-loss-comparison.node-test.mjs` |
 | `scripts/unit-profit-loss-comparison.node-test.mjs` | default-gate | `package:test:contracts` |
 | `scripts/verify-authenticated-route-discoverability.mjs` | specialist-command | `docs/superpowers/plans/2026-08-14-repository-health-and-test-architecture.md`, `package:test:route-discoverability`, `scripts/verify-authenticated-route-discoverability.node-test.mjs` |
