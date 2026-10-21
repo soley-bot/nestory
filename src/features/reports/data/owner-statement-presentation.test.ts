@@ -137,4 +137,26 @@ describe("owner statement presentation with finance-scoped reads", () => {
     await expect(loadOwnerStatementPresentation(fakeClient(model, finance, { sourceError: true }).client, model))
       .rejects.toThrow("Statement transaction details could not be loaded");
   });
+
+  it("preserves a transparent logo's full canvas and flattens its margins to white", async () => {
+    const model = mapOwnerStatementPublicationPayload(structuredClone(ownerStatementPublicationPayload));
+    const source = await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="240"><rect x="150" y="60" width="300" height="120" fill="#163d48"/></svg>')).png().toBuffer();
+    const client = fakeClient({ logo: source, organization: { name: "Company", logo_storage_path: "fixture/logo.png" }, owner: { display_name: "Owner" }, property: { code: "P1", name: "Property" } });
+    const presentation = await loadOwnerStatementPresentation(client as unknown as SupabaseClient<Database>, model);
+    expect(presentation.logo).toMatchObject({ width: 600, height: 240 });
+    const { data, info } = await sharp(presentation.logo!.bytes).raw().toBuffer({ resolveWithObject: true });
+    expect(info.channels).toBe(3);
+    expect([...data.subarray(0, 3)]).toEqual([255, 255, 255]);
+    const center = (120 * info.width + 300) * info.channels;
+    expect(data[center]).toBeLessThan(40);
+    expect(data[center + 1]).toBeLessThan(80);
+  });
+
+  it("keeps a company without a logo free of image assets", async () => {
+    const model = mapOwnerStatementPublicationPayload(structuredClone(ownerStatementPublicationPayload));
+    const client = fakeClient({ logo: new Uint8Array(), organization: { name: "Company", logo_storage_path: null }, owner: { display_name: "Owner" }, property: { code: "P1", name: "Property" } });
+    const presentation = await loadOwnerStatementPresentation(client as unknown as SupabaseClient<Database>, model);
+    expect(presentation.logo).toBeUndefined();
+    expect(presentation.organizationName).toBe("Company");
+  });
 });

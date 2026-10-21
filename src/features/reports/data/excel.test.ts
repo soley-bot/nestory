@@ -1,4 +1,5 @@
 import { strFromU8, unzipSync } from "fflate";
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 
@@ -161,6 +162,61 @@ describe("trusted report Excel export", () => {
 });
 
 describe("official owner statement workbook", () => {
+  it.each([
+    { name: "wide", width: 600, height: 100 },
+    { name: "square", width: 240, height: 240 },
+    { name: "tall", width: 80, height: 240 },
+    { name: "transparent canvas", width: 600, height: 240 },
+  ])("centers a $name logo in the same bounded header region without distorting or cropping", async ({ width, height }) => {
+    const model = mapOwnerStatementPublicationPayload(structuredClone(ownerStatementPublicationPayload));
+    const bytes = await sharp({ create: { width, height, channels: 3, background: "#163d48" } }).jpeg().toBuffer();
+    const presentation = { organizationName: "Fixture Company", ownerName: "Fixture Owner", propertyLabel: "Fixture Property", logo: { bytes, width, height } };
+    const files = unzipSync(buildOwnerStatementXlsx(model, presentation));
+    const drawing = strFromU8(files["xl/drawings/drawing1.xml"]);
+    const [, cx, cy] = drawing.match(/<xdr:ext cx="(\d+)" cy="(\d+)"\/>/)!;
+    const imageWidth = Number(cx) / 9525;
+    const imageHeight = Number(cy) / 9525;
+    const left = Number(drawing.match(/<xdr:colOff>(\d+)<\/xdr:colOff>/)![1]) / 9525;
+    const top = Number(drawing.match(/<xdr:rowOff>(\d+)<\/xdr:rowOff>/)![1]) / 9525;
+    expect(imageWidth / imageHeight).toBeCloseTo(width / height, 4);
+    expect(imageWidth).toBeLessThanOrEqual(300);
+    expect(imageHeight).toBeLessThanOrEqual(112);
+    expect(left + imageWidth / 2).toBeCloseTo(150, 4);
+    expect(left).toBeLessThanOrEqual(150);
+    expect(top + imageHeight / 2).toBeCloseTo(64, 4);
+    expect(top).toBeGreaterThanOrEqual(8);
+    expect(drawing).toContain("<xdr:col>7</xdr:col>");
+    expect(drawing).toContain('noChangeAspect="1"');
+    expect(drawing).not.toContain("srcRect");
+    expect(files["xl/media/company-logo.jpg"]).toEqual(new Uint8Array(bytes));
+    const sheet = strFromU8(files["xl/worksheets/sheet1.xml"]);
+    expect(sheet).toContain('<mergeCell ref="A3:G3"/>');
+    expect(sheet).toContain("Fixture Company");
+    expect(sheet).toContain('<mergeCell ref="A6:D6"/>');
+    expect(sheet).toContain('<mergeCell ref="E6:I6"/>');
+    const legacy = strFromU8(unzipSync(buildOwnerStatementXlsx(model, presentation, { headerLayout: "legacy" }))["xl/worksheets/sheet1.xml"]);
+    expect(sheet.match(/<c [^>]+><v>[^<]+<\/v><\/c>/g)).toEqual(legacy.match(/<c [^>]+><v>[^<]+<\/v><\/c>/g));
+  });
+
+  it("keeps the header complete without a logo and without dangling drawing references", () => {
+    const model = mapOwnerStatementPublicationPayload(structuredClone(ownerStatementPublicationPayload));
+    const files = unzipSync(buildOwnerStatementXlsx(model, { organizationName: "Fixture Company", ownerName: "Fixture Owner", propertyLabel: "Fixture Property" }));
+    const sheet = strFromU8(files["xl/worksheets/sheet1.xml"]);
+    expect(sheet).toContain('<mergeCell ref="A2:I2"/>');
+    expect(sheet).toContain("Fixture Company");
+    expect(sheet).not.toContain("<drawing");
+    expect(Object.keys(files).some(path => /drawing|media/.test(path))).toBe(false);
+  });
+
+  it.each([
+    { includeDepositSummary: false, expected: "bf137d7f7bf00a9f9b0c389d6f0284887d3241b52b176c9f3ea0e62490db77e5" },
+    { includeDepositSummary: true, expected: "600d7862eb90236bb55b8b4a1934d88e5aa5318ddec6413cde82c9e241d9ab8a" },
+  ])("preserves the prior renderer's exact bytes (deposit summary: $includeDepositSummary)", ({ includeDepositSummary, expected }) => {
+    const model = mapOwnerStatementPublicationPayload(structuredClone(ownerStatementPublicationPayload));
+    const bytes = buildOwnerStatementXlsx(model, undefined, { headerLayout: "legacy", includeDepositSummary });
+    expect(createHash("sha256").update(bytes).digest("hex")).toBe(expected);
+  });
+
   it("is byte-stable with one owner-facing sheet and typed money", () => {
     const model = mapOwnerStatementPublicationPayload(
       structuredClone(ownerStatementPublicationPayload),
