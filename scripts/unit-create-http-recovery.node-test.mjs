@@ -157,6 +157,9 @@ async function setupRest() {
   roleCreated = true;
   run(`BEGIN; CREATE ROLE ${role} NOINHERIT LOGIN PASSWORD ${q(password)};
     GRANT anon, authenticated TO ${role}; COMMIT;`);
+  const databaseUrl = new URL(`postgresql://${database.container}:5432/postgres`);
+  databaseUrl.username = role;
+  databaseUrl.password = password;
   restName = `nestory-unit-http-${randomUUID()}`;
   try {
     const createdId = docker(["create", "--pull", "never", "--name", restName,
@@ -164,7 +167,7 @@ async function setupRest() {
       "--publish", "127.0.0.1::3000", "--memory", "128m", "--memory-swap", "128m",
       "--cpus", "0.5", "--pids-limit", "64", "--restart", "no",
       "--security-opt", "no-new-privileges:true",
-      "--env", `PGRST_DB_URI=postgresql://${role}:${password}@${database.container}:5432/postgres`,
+      "--env", `PGRST_DB_URI=${databaseUrl.href}`,
       "--env", "PGRST_DB_SCHEMAS=public", "--env", "PGRST_DB_ANON_ROLE=anon",
       "--env", `PGRST_JWT_SECRET=${jwtSecret}`, "--env", "PGRST_DB_POOL=4",
       "--env", "PGRST_LOG_LEVEL=error", "--env", "PGRST_SERVER_PORT=3000", image]).trim();

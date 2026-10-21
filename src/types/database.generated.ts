@@ -12077,7 +12077,6 @@ export type Database = {
               p_bathroom_count: number
               p_bedroom_count: number
               p_floor: string
-              p_idempotency_key: string
               p_organization_id: string
               p_property_id: string
               p_size_sqm: number
@@ -12091,6 +12090,7 @@ export type Database = {
               p_bathroom_count: number
               p_bedroom_count: number
               p_floor: string
+              p_idempotency_key: string
               p_organization_id: string
               p_property_id: string
               p_size_sqm: number

@@ -17,6 +17,17 @@ type ExpectedCreateUnitArgs =
       p_bathroom_count: number | null;
       p_bedroom_count: number | null;
       p_floor: string | null;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_property_id: string;
+      p_size_sqm: number | null;
+      p_status: string;
+      p_unit_number: string;
+    }
+  | {
+      p_bathroom_count: number | null;
+      p_bedroom_count: number | null;
+      p_floor: string | null;
       p_organization_id: string;
       p_property_id: string;
       p_size_sqm: number | null;
@@ -54,7 +65,7 @@ type ExpectedUpdateUnitArgs =
       p_unit_number: string;
     };
 
-type CreateUnitPreservesBothSqlOverloads = Expect<
+type CreateUnitPreservesAllSqlOverloads = Expect<
   Equal<CreateUnitArgs, ExpectedCreateUnitArgs>
 >;
 type UpdateUnitPreservesBothSqlOverloads = Expect<
@@ -62,5 +73,5 @@ type UpdateUnitPreservesBothSqlOverloads = Expect<
 >;
 
 export type UnitRpcTypeContract =
-  | CreateUnitPreservesBothSqlOverloads
+  | CreateUnitPreservesAllSqlOverloads
   | UpdateUnitPreservesBothSqlOverloads;
