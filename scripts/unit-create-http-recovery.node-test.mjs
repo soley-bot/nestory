@@ -226,6 +226,14 @@ async function denied(payload, jwt = actorToken) {
   assert.ok(response.data.code && response.data.code !== "PGRST202", "Function signature must resolve.");
   return response;
 }
+async function resultChanged(payload) {
+  const response = await rpc(payload);
+  // PostgREST maps SQLSTATE class 55 to HTTP 500. Require this exact domain
+  // rejection, so a deadlock, timeout or unrelated server error cannot pass.
+  assert.deepEqual({ status: response.status, code: response.data.code, details: response.data.details }, {
+    status: 500, code: "55000", details: "unit_creation_result_changed",
+  });
+}
 function inventory(unitId) {
   return JSON.parse(run(`SELECT jsonb_build_object(
     'units',(SELECT count(*) FROM public.units WHERE organization_id='${ids.org}' AND id='${unitId}'),
@@ -354,8 +362,7 @@ test("actual HTTP unit creation survives lost committed responses and rejects un
       assert.equal(released.status, 0, safe(released.stderr));
       assert.equal(run(`SELECT floor FROM public.units WHERE id='${id}';`), "Edited during replay");
       assert.deepEqual(inventory(id), { units: 1, audits: 1, receipts: 1 });
-      const rejected = await denied(request);
-      assert.equal(rejected.data.details, "unit_creation_result_changed");
+      await resultChanged(request);
     });
     await t.test("same key rejects changed physical payload, parent, actor and company", async () => {
       const request = body("Bound request");
@@ -381,11 +388,11 @@ test("actual HTTP unit creation survives lost committed responses and rejects un
       const archived = body("Archived");
       const id = await created(archived);
       run(`UPDATE public.units SET archived_at=now(),archived_by='${ids.actor}' WHERE id='${id}';`);
-      await denied(archived);
+      await resultChanged(archived);
       const drifted = body("Drifted");
       const otherId = await created(drifted);
       run(`UPDATE public.units SET floor='Changed' WHERE id='${otherId}';`);
-      await denied(drifted);
+      await resultChanged(drifted);
       assert.deepEqual(inventory(id), { units: 1, audits: 1, receipts: 1 });
       assert.deepEqual(inventory(otherId), { units: 1, audits: 1, receipts: 1 });
     });
