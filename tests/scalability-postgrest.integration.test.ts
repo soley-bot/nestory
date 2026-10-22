@@ -92,9 +92,15 @@ async function makeHarness() {
   assert.ok(gateway.ports?.some(port => port.HostPort === "54321"));
   const rest = inspect("supabase_rest_nestory", "3000");
   verify(rest, "supabase_rest_nestory");
+  let statusJson: string;
+  try {
+    statusJson = execute(process.execPath, [path.join(cwd, "node_modules/supabase/dist/supabase.js"), "status", "-o", "json"]);
+  } catch {
+    throw new Error("Local CLI status command could not complete; no command output is included in diagnostics.");
+  }
   let status: Record<string, string>;
   try {
-    status = JSON.parse(execute(path.join(cwd, "node_modules/supabase/bin/supabase"), ["status", "-o", "json"])) as Record<string, string>;
+    status = JSON.parse(statusJson) as Record<string, string>;
   } catch {
     throw new Error("Could not parse local CLI status; no status payload is included in diagnostics.");
   }
