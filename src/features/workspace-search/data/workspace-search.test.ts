@@ -24,6 +24,7 @@ type RecordedOrder = {
 };
 
 type RecordedQuery = {
+  count?: "exact";
   filters: RecordedFilter[];
   limit?: number;
   range?: [number, number];
@@ -51,6 +52,7 @@ function createSearchClient(
 
         const builder = {
           range(from: number, to: number) { query.range = [from, to]; return builder; },
+          returns: () => builder,
           or(value: string) { query.filters.push({ column: "or", operator: "in", value }); return builder; },
           filter(column: string, _operator: string, value: string) {
             return builder.eq(column, value);
@@ -82,15 +84,17 @@ function createSearchClient(
             });
             return builder;
           },
-          select(columns: string) {
+          select(columns: string, options?: { count?: "exact" }) {
+            query.count = options?.count;
             query.selectedColumns = columns
               .split(",")
               .map((column) => column.trim());
             return builder;
           },
-          then<TResult1 = { data: Record<string, unknown>[]; error: null }>(
+          then<TResult1 = { count: number | null; data: Record<string, unknown>[]; error: null }>(
             onfulfilled?:
               | ((value: {
+                  count: number | null;
                   data: Record<string, unknown>[];
                   error: null;
                 }) => TResult1)
@@ -121,6 +125,7 @@ function createSearchClient(
                 compareRecordedRows(first, second, query.orders),
               );
             const value = {
+              count: query.count === "exact" ? filteredRows.length : null,
               data: filteredRows
                 .slice(query.range?.[0] ?? 0, query.range ? query.range[1] + 1 : query.limit)
                 .map((row) =>

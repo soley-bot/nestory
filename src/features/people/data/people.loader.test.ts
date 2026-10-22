@@ -299,6 +299,8 @@ function createQueryBuilder(result: {
   data: unknown;
   error: { message: string } | null;
 }) {
+  let range: [number, number] | undefined;
+  let exactCount = false;
   const builder = {
     eq: () => builder,
     in: () => builder,
@@ -306,12 +308,27 @@ function createQueryBuilder(result: {
     limit: () => builder,
     order: () => builder,
     or: () => builder,
-    range: () => builder,
-    select: () => builder,
+    range(from: number, to: number) {
+      range = [from, to];
+      return builder;
+    },
+    returns: () => builder,
+    select(_columns: string, options?: { count?: string }) {
+      exactCount = options?.count === "exact";
+      return builder;
+    },
     then: (
       resolve: (value: typeof result) => unknown,
       reject?: (reason: unknown) => unknown,
-    ) => Promise.resolve(result).then(resolve, reject),
+    ) => Promise.resolve({
+      ...result,
+      count: exactCount
+        ? result.count ?? (Array.isArray(result.data) ? result.data.length : null)
+        : null,
+      data: range && Array.isArray(result.data)
+        ? result.data.slice(range[0], range[1] + 1)
+        : result.data,
+    }).then(resolve, reject),
   };
 
   return builder;
