@@ -7,6 +7,7 @@ import {
   selectCurrentLease,
 } from "@/features/units/data/unit-summary";
 import { getTrustedReport } from "@/features/reports/data/trusted-report";
+import { readReportSourceById, readReportSourceBatches } from "./report-source-completeness";
 import {
   loadScopedFinanceContext,
   type ScopedFinanceContext,
@@ -224,41 +225,25 @@ async function getReportBaseData(
   organizationId: string,
 ): Promise<ReportBaseData> {
   const supabase = await createSupabaseServerClient();
-  const propertiesResult = await supabase
+  const properties = (await readReportSourceById("report properties", (from, to) => supabase
     .from("properties")
-    .select(propertySelect)
+    .select(propertySelect, { count: "exact" })
     .eq("organization_id", organizationId)
     .is("archived_at", null)
-    .order("name", { ascending: true });
-
-  if (propertiesResult.error) {
-    throw new Error(
-      `Could not load report properties: ${propertiesResult.error.message}`,
-    );
-  }
-
-  const properties = propertiesResult.data ?? [];
+    .order("id").range(from, to))).sort((first, second) => first.name.localeCompare(second.name));
   const propertyOptions = toPropertyOptions(properties);
   const propertiesById = indexById(properties);
   const propertyIds = properties.map(({ id }) => id);
-  const unitsResult =
-    propertyIds.length === 0
-      ? { data: [], error: null }
-      : await supabase
+  const units = await readReportSourceBatches("report unit options", propertyIds, ids =>
+    readReportSourceById("report unit options", (from, to) => supabase
           .from("units")
-          .select("id, property_id, unit_number")
+          .select("id, property_id, unit_number", { count: "exact" })
           .eq("organization_id", organizationId)
-          .in("property_id", propertyIds)
+          .in("property_id", ids)
           .is("archived_at", null)
-          .order("unit_number", { ascending: true });
+          .order("id").range(from, to)), row => row.id);
 
-  if (unitsResult.error) {
-    throw new Error(
-      `Could not load report unit options: ${unitsResult.error.message}`,
-    );
-  }
-
-  const unitOptions = (unitsResult.data ?? []).map((unit) => {
+  const unitOptions = units.sort((first, second) => first.unit_number.localeCompare(second.unit_number)).map((unit) => {
     const property = propertiesById.get(unit.property_id);
     return {
       id: unit.id,
@@ -281,44 +266,20 @@ async function getOccupancyReport({
   supabase: SupabaseServerClient;
   viewQuery: ReportsViewQuery;
 }): Promise<OccupancyReport> {
-  let unitsQuery = supabase
-    .from("units")
-    .select(occupancyUnitSelect)
-    .eq("organization_id", organizationId)
-    .is("archived_at", null);
-
-  let leasesQuery = supabase
-    .from("current_leases")
-    .select(occupancyLeaseSelect)
-    .eq("organization_id", organizationId)
-    .is("archived_at", null)
-    .not("unit_id", "is", null)
-    .order("lease_start_date", { ascending: false });
-
-  if (viewQuery.propertyId !== "all") {
-    unitsQuery = unitsQuery.eq("property_id", viewQuery.propertyId);
-    leasesQuery = leasesQuery.eq("property_id", viewQuery.propertyId);
-  }
-
-  const [unitsResult, leasesResult] = await Promise.all([
-    unitsQuery,
-    leasesQuery,
+  const propertyIds = [...propertiesById.keys()].filter(id => viewQuery.propertyId === "all" || id === viewQuery.propertyId);
+  const [units, leases] = await Promise.all([
+    readReportSourceBatches("occupancy report units", propertyIds, ids =>
+      readReportSourceById("occupancy report units", (from, to) => supabase.from("units")
+        .select(occupancyUnitSelect, { count: "exact" }).eq("organization_id", organizationId)
+        .in("property_id", ids).is("archived_at", null).order("id").range(from, to)), row => row.id),
+    readReportSourceBatches("occupancy report leases", propertyIds, ids =>
+      readReportSourceById("occupancy report leases", (from, to) => supabase.from("current_leases")
+        .select(occupancyLeaseSelect, { count: "exact" }).eq("organization_id", organizationId)
+        .in("property_id", ids).is("archived_at", null).not("unit_id", "is", null)
+        .order("id").range(from, to)), row => row.id),
   ]);
-
-  if (unitsResult.error) {
-    throw new Error(
-      `Could not load report units: ${unitsResult.error.message}`,
-    );
-  }
-
-  if (leasesResult.error) {
-    throw new Error(
-      `Could not load report leases: ${leasesResult.error.message}`,
-    );
-  }
-
-  const leasesByUnitId = groupByUnitId(leasesResult.data ?? []);
-  const allRows = (unitsResult.data ?? [])
+  const leasesByUnitId = groupByUnitId(leases);
+  const allRows = units
     .map((unit) =>
       toOccupancyReportRow({
         activeLease: selectCurrentLease(leasesByUnitId.get(unit.id) ?? []),

@@ -409,6 +409,11 @@ jobs:
       - name: Test database
         run: npm run test:database
 
+      - name: Test complete reads and isolation through local PostgREST
+        env:
+          NESTORY_SCALE_DATABASE_CI: "1"
+        run: node node_modules/vitest/vitest.mjs run tests/scalability-postgrest.integration.test.ts --maxWorkers=1 --reporter=default --reporter=json --outputFile=ci-reports/scalability-postgrest.json
+
       - name: Test deposit rent settlement with isolated synthetic data
         run: |
           node --test scripts/deposit-candidate-target.node-test.mjs
@@ -443,6 +448,15 @@ jobs:
 
       - name: Test historical rent correction concurrency
         run: npm run rent:test-correction-concurrency
+
+      - name: Upload scalability database report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: scalability-database-${{ github.run_attempt }}
+          path: ci-reports/scalability-postgrest.json
+          retention-days: 7
+          if-no-files-found: warn
 
       - name: Stop local Supabase
         if: always()

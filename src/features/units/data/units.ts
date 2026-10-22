@@ -3,6 +3,7 @@ import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { matchesSearchText } from "@/lib/search/text";
 import { normalizeSearchText } from "@/lib/search/text";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { DEFAULT_COMPLETE_READ_MAX_ROWS, readCompleteRows } from "@/lib/db/complete-read";
 import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
 import {
@@ -20,6 +21,7 @@ import {
   selectNewestDraftLease,
   type UnitDocumentRecord,
   type UnitLeaseRecord,
+  type UnitLedgerRecord,
   type UnitMaintenanceRecord,
   type UnitPersonRecord,
   type UnitPropertyRecord,
@@ -57,7 +59,6 @@ const documentSelect =
 const maintenanceSelect =
   "id, title, category, priority, status, due_date, due_time, actual_cost_amount, actual_cost_currency";
 const unitImageMimeTypes = ["image/jpeg", "image/png", "image/webp"] as const;
-const listTimelineContextLimit = 1000;
 const detailRecordLimit = 12;
 const unitRelationshipBatchSize = 75;
 
@@ -82,10 +83,12 @@ type PagedUnitRowsResult = {
   units: UnitRecord[];
 };
 type UnitImageRow = {
+  id: string;
   storage_path: string;
   unit_id: string | null;
 };
 type UnitPrimaryOwnerRow = {
+  id: string;
   person:
     | { display_name: string }
     | Array<{ display_name: string }>
@@ -118,20 +121,19 @@ export async function getUnitPropertyOptions(
   organizationId: string,
 ): Promise<UnitPropertyOption[]> {
   const supabase = await createSupabaseServerClient();
-  const propertiesResult = await supabase
+  const properties = await readCompleteRows<UnitPropertyRecord>({
+    context: "Could not load unit property options",
+    getRowId: row => row.id,
+    readPage: (from, to) => supabase
     .from("properties")
-    .select(propertySelect)
+    .select(propertySelect, { count: "exact" })
     .eq("organization_id", organizationId)
     .is("archived_at", null)
-    .order("code", { ascending: true });
+    .order("code", { ascending: true })
+    .order("id", { ascending: true }).range(from, to),
+  });
 
-  if (propertiesResult.error) {
-    throw new Error(
-      `Could not load unit property options: ${propertiesResult.error.message}`,
-    );
-  }
-
-  return (propertiesResult.data ?? []).map((property) => ({
+  return properties.map((property) => ({
     id: property.id,
     label: formatPropertyOptionLabel(property),
   }));
@@ -171,6 +173,7 @@ async function getPagedUnitsScreenData({
   });
 
   if (pagination.page !== viewQuery.page && rowsResult.totalCount > 0) {
+    const previousCount = rowsResult.totalCount;
     rowsResult = await getPagedUnitRows({
       organizationId,
       page: pagination.page,
@@ -178,6 +181,9 @@ async function getPagedUnitsScreenData({
       supabase,
       viewQuery,
     });
+    if (rowsResult.totalCount !== previousCount) {
+      throw new Error("Could not load units: The row count changed while loading. Reload and try again.");
+    }
     pagination = buildUnitPagination({
       page: pagination.page,
       pageSize: viewQuery.pageSize,
@@ -215,19 +221,25 @@ async function getPagedUnitRows({
   unitsQuery = applyUnitBaseFilters(unitsQuery, viewQuery);
   unitsQuery = applyUnitBaseSort(unitsQuery, viewQuery);
 
-  const unitsResult = await unitsQuery.range(range.from, range.to);
+  const unitsResult = await unitsQuery.order("id", { ascending: true }).range(range.from, range.to);
 
   if (unitsResult.error) {
     throw new Error(`Could not load units: ${unitsResult.error.message}`);
   }
 
-  const rows = (unitsResult.data ?? []) as UnitRowWithProperty[];
+  if (!Array.isArray(unitsResult.data)) {
+    throw new Error("Could not load units: The query returned no row data.");
+  }
+  const rows = unitsResult.data as UnitRowWithProperty[];
+  if (typeof unitsResult.count !== "number" || !Number.isSafeInteger(unitsResult.count) || unitsResult.count < 0 ||
+    rows.length !== Math.min(pageSize, Math.max(0, unitsResult.count - range.from))) {
+    throw new Error("Could not load units: The page is incomplete or its exact count is unavailable. Reload and try again.");
+  }
   const { propertiesById, units } = splitUnitRowsAndProperties(rows);
 
   return {
     propertiesById,
-    totalCount:
-      typeof unitsResult.count === "number" ? unitsResult.count : units.length,
+    totalCount: unitsResult.count,
     units,
   };
 }
@@ -313,34 +325,14 @@ async function getCompleteUnitsScreenData({
   supabase: SupabaseServerClient;
   viewQuery: UnitViewQuery;
 }) {
-  let unitsQuery = supabase
-    .from("units")
-    .select(unitSelect)
-    .eq("organization_id", organizationId)
-    .order("property_id", { ascending: true })
-    .order("unit_number", { ascending: true });
-
-  if (viewQuery.archiveState === "active") {
-    unitsQuery = unitsQuery.is("archived_at", null);
-  } else if (viewQuery.archiveState === "archived") {
-    unitsQuery = unitsQuery.not("archived_at", "is", null);
-  }
-
-  if (viewQuery.propertyId !== "all") {
-    unitsQuery = unitsQuery.eq("property_id", viewQuery.propertyId);
-  }
-
-  if (viewQuery.status !== "all") {
-    unitsQuery = unitsQuery.eq("status", viewQuery.status);
-  }
-
-  const unitsResult = await unitsQuery;
-
-  if (unitsResult.error) {
-    throw new Error(`Could not load units: ${unitsResult.error.message}`);
-  }
-
-  const unitRows = unitsResult.data ?? [];
+  const rows = await readCompleteRows<UnitRowWithProperty>({
+    context: "Could not load units",
+    getRowId: row => row.id,
+    compareRows: (previous, current) => previous.id.localeCompare(current.id),
+    readPage: (from, to) => applyUnitBaseFilters(buildUnitBaseQuery(supabase, organizationId), viewQuery)
+      .order("id", { ascending: true }).range(from, to),
+  });
+  const { units: unitRows, propertiesById } = splitUnitRowsAndProperties(rows as UnitRowWithProperty[]);
 
   if (unitRows.length === 0) {
     return {
@@ -356,6 +348,7 @@ async function getCompleteUnitsScreenData({
   const units = (
     await loadUnitSummariesForRows({
       organizationId,
+      propertiesById,
       supabase,
       unitRows,
     })
@@ -382,7 +375,7 @@ async function loadUnitSummariesForRows({
   unitRows,
 }: {
   organizationId: string;
-  propertiesById?: Map<string, UnitPropertyRecord>;
+  propertiesById: Map<string, UnitPropertyRecord>;
   supabase: SupabaseServerClient;
   unitRows: UnitRecord[];
 }) {
@@ -393,24 +386,6 @@ async function loadUnitSummariesForRows({
   }
 
   const propertyIds = new Set(unitRows.map((unit) => unit.property_id));
-  let unitPropertiesById = propertiesById;
-
-  if (!unitPropertiesById) {
-    const propertiesResult = await supabase
-      .from("properties")
-      .select(propertySelect)
-      .eq("organization_id", organizationId)
-      .in("id", [...propertyIds])
-      .is("archived_at", null);
-
-    if (propertiesResult.error) {
-      throw new Error(
-        `Could not load unit properties: ${propertiesResult.error.message}`,
-      );
-    }
-
-    unitPropertiesById = indexById(propertiesResult.data ?? []);
-  }
 
   const [
     leaseRows,
@@ -452,7 +427,7 @@ async function loadUnitSummariesForRows({
       draftLease: selectNewestDraftLease(unitLeaseRows),
       latestTimelineEvent: latestTimelineByUnitId.get(unit.id),
       ledgerEntries: ledgerByUnitId.get(unit.id) ?? [],
-      property: unitPropertiesById.get(unit.property_id),
+      property: propertiesById.get(unit.property_id),
       propertyOwnerName:
         ownerNamesByPropertyId.get(unit.property_id) ?? "No owner",
       thumbnailUrl: photoThumbnailUrls.get(unit.id) ?? thumbnailUrls.get(unit.id),
@@ -466,26 +441,23 @@ async function getPrimaryOwnerNamesForProperties(
   organizationId: string,
   propertyIds: string[],
 ) {
-  const rows = await queryUnitIdBatches(propertyIds, async (batch) => {
-    const result = await supabase
+  const rows = await queryUnitIdBatches(propertyIds, (batch, remainingRows) => readCompleteRows({
+    maxRows: remainingRows,
+    context: "Could not load unit property owners",
+    getRowId: row => row.id,
+    readPage: (from, to) => supabase
       .from("property_owners")
       .select(
-        "property_id, person:people!property_owners_person_fk(display_name)",
+        "id, property_id, person:people!property_owners_person_fk(display_name)",
+        { count: "exact" },
       )
       .eq("organization_id", organizationId)
       .eq("is_primary", true)
       .in("property_id", batch)
       .is("archived_at", null)
-      .is("ended_on", null);
-
-    if (result.error) {
-      throw new Error(
-        `Could not load unit property owners: ${result.error.message}`,
-      );
-    }
-
-    return (result.data ?? []) as UnitPrimaryOwnerRow[];
-  });
+      .is("ended_on", null)
+      .order("id", { ascending: true }).range(from, to),
+  })) as UnitPrimaryOwnerRow[];
 
   return new Map(
     rows.flatMap((row) => {
@@ -521,7 +493,7 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
     leasesResult,
     timelineResult,
     ledgerResult,
-    ledgerTotalsResult,
+    ledgerTotalRows,
     documentsResult,
     photos,
     maintenanceResult,
@@ -558,12 +530,17 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
       .order("transaction_date", { ascending: false })
       .order("id", { ascending: false })
       .limit(detailRecordLimit),
-    supabase
+    readCompleteRows<UnitLedgerRecord & { id: string }>({
+      context: "Could not load unit ledger totals",
+      getRowId: row => row.id,
+      readPage: (from, to) => supabase
       .from("ledger_entries")
-      .select(ledgerTotalsSelect)
+      .select(ledgerTotalsSelect, { count: "exact" })
       .eq("organization_id", organizationId)
       .eq("unit_id", unit.id)
-      .is("archived_at", null),
+      .is("archived_at", null)
+      .order("id", { ascending: true }).range(from, to),
+    }),
     supabase
       .from("documents")
       .select(documentSelect, { count: "exact" })
@@ -617,10 +594,6 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
     throw new Error(`Could not load unit ledger entries: ${ledgerResult.error.message}`);
   }
 
-  if (ledgerTotalsResult.error) {
-    throw new Error(`Could not load unit ledger totals: ${ledgerTotalsResult.error.message}`);
-  }
-
   if (documentsResult.error) {
     throw new Error(`Could not load unit documents: ${documentsResult.error.message}`);
   }
@@ -663,7 +636,7 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
     },
     documents,
     draftLease,
-    ledgerEntries: ledgerTotalsResult.data ?? [],
+    ledgerEntries: ledgerTotalRows,
     maintenanceCases: maintenanceRows,
     people,
     photos,
@@ -739,10 +712,6 @@ function addDocumentDownloadUrls(rows: UnitDocumentRecord[]): UnitDocumentRecord
   }));
 }
 
-function indexById<T extends { id: string }>(rows: T[]) {
-  return new Map(rows.map((row) => [row.id, row]));
-}
-
 function groupByUnitId<T extends { unit_id: string | null }>(rows: T[]) {
   const grouped = new Map<string, T[]>();
 
@@ -788,7 +757,7 @@ function compareUnitSummaries(
     first.unitNumber.localeCompare(second.unitNumber, undefined, {
       numeric: true,
       sensitivity: "base",
-    })
+    }) || first.id.localeCompare(second.id)
   );
 }
 
@@ -856,7 +825,7 @@ function sortUnitSummaries(
     if (sort === "unit_asc") {
       return (
         compareStrings(first.unitNumber, second.unitNumber) ||
-        compareStrings(first.propertyCode, second.propertyCode)
+        compareStrings(first.propertyCode, second.propertyCode) || first.id.localeCompare(second.id)
       );
     }
 
@@ -864,7 +833,7 @@ function sortUnitSummaries(
       return (
         compareStrings(first.occupancyLabel, second.occupancyLabel) ||
         compareStrings(first.propertyCode, second.propertyCode) ||
-        compareStrings(first.unitNumber, second.unitNumber)
+        compareStrings(first.unitNumber, second.unitNumber) || first.id.localeCompare(second.id)
       );
     }
 
@@ -872,7 +841,7 @@ function sortUnitSummaries(
       return (
         second.rentUsd - first.rentUsd ||
         compareStrings(first.propertyCode, second.propertyCode) ||
-        compareStrings(first.unitNumber, second.unitNumber)
+        compareStrings(first.unitNumber, second.unitNumber) || first.id.localeCompare(second.id)
       );
     }
 
@@ -880,7 +849,7 @@ function sortUnitSummaries(
       return (
         second.ledgerNetUsd - first.ledgerNetUsd ||
         compareStrings(first.propertyCode, second.propertyCode) ||
-        compareStrings(first.unitNumber, second.unitNumber)
+        compareStrings(first.unitNumber, second.unitNumber) || first.id.localeCompare(second.id)
       );
     }
 
@@ -932,21 +901,19 @@ async function getLeaseRowsForUnits(
   organizationId: string,
   unitIds: string[],
 ) {
-  const rows = await queryUnitIdBatches(unitIds, async (batch) => {
-    const result = await supabase
+  const rows = await queryUnitIdBatches(unitIds, (batch, remainingRows) => readCompleteRows<UnitLeaseRecord>({
+    maxRows: remainingRows,
+    context: "Could not load unit leases",
+    getRowId: row => row.id ?? "",
+    readPage: (from, to) => supabase
       .from("current_leases")
-      .select(leaseSelect)
+      .select(leaseSelect, { count: "exact" })
       .eq("organization_id", organizationId)
       .in("unit_id", batch)
       .is("archived_at", null)
-      .order("lease_start_date", { ascending: false });
-
-    if (result.error) {
-      throw new Error(`Could not load unit leases: ${result.error.message}`);
-    }
-
-    return result.data ?? [];
-  });
+      .order("lease_start_date", { ascending: false })
+      .order("id", { ascending: true }).range(from, to),
+  }));
 
   return rows;
 }
@@ -956,25 +923,19 @@ async function getTimelineContextRowsForUnits(
   organizationId: string,
   unitIds: string[],
 ) {
-  const rows = await queryUnitIdBatches(unitIds, async (batch) => {
-    const result = await supabase
+  const rows = await queryUnitIdBatches(unitIds, (batch, remainingRows) => readCompleteRows<UnitTimelineRecord>({
+    maxRows: remainingRows,
+    context: "Could not load unit timeline context",
+    getRowId: row => row.id,
+    readPage: (from, to) => supabase
       .from("timeline_events")
-      .select(timelineContextSelect)
+      .select(timelineContextSelect, { count: "exact" })
       .eq("organization_id", organizationId)
       .in("unit_id", batch)
       .is("archived_at", null)
       .order("event_date", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(listTimelineContextLimit);
-
-    if (result.error) {
-      throw new Error(
-        `Could not load unit timeline context: ${result.error.message}`,
-      );
-    }
-
-    return result.data ?? [];
-  });
+      .order("id", { ascending: false }).range(from, to),
+  }));
 
   return rows;
 }
@@ -984,20 +945,18 @@ async function getLedgerTotalRowsForUnits(
   organizationId: string,
   unitIds: string[],
 ) {
-  const rows = await queryUnitIdBatches(unitIds, async (batch) => {
-    const result = await supabase
+  const rows = await queryUnitIdBatches(unitIds, (batch, remainingRows) => readCompleteRows<UnitLedgerRecord & { id: string }>({
+    maxRows: remainingRows,
+    context: "Could not load unit ledger context",
+    getRowId: row => row.id,
+    readPage: (from, to) => supabase
       .from("ledger_entries")
-      .select(ledgerTotalsSelect)
+      .select(ledgerTotalsSelect, { count: "exact" })
       .eq("organization_id", organizationId)
       .in("unit_id", batch)
-      .is("archived_at", null);
-
-    if (result.error) {
-      throw new Error(`Could not load unit ledger context: ${result.error.message}`);
-    }
-
-    return result.data ?? [];
-  });
+      .is("archived_at", null)
+      .order("id", { ascending: true }).range(from, to),
+  }));
 
   return rows;
 }
@@ -1007,22 +966,20 @@ async function getImageRowsForUnits(
   organizationId: string,
   unitIds: string[],
 ) {
-  return queryUnitIdBatches(unitIds, async (batch) => {
-    const result = await supabase
+  return queryUnitIdBatches(unitIds, (batch, remainingRows) => readCompleteRows<UnitImageRow>({
+    maxRows: remainingRows,
+    context: "Could not load unit images",
+    getRowId: row => row.id,
+    readPage: (from, to) => supabase
       .from("documents")
-      .select("unit_id, storage_path")
+      .select("id, unit_id, storage_path", { count: "exact" })
       .eq("organization_id", organizationId)
       .in("unit_id", batch)
       .is("archived_at", null)
       .in("mime_type", [...unitImageMimeTypes])
-      .order("uploaded_at", { ascending: false });
-
-    if (result.error) {
-      throw new Error(`Could not load unit images: ${result.error.message}`);
-    }
-
-    return (result.data ?? []) as UnitImageRow[];
-  });
+      .order("uploaded_at", { ascending: false })
+      .order("id", { ascending: true }).range(from, to),
+  }));
 }
 
 async function getUnitThumbnailUrls({
@@ -1068,12 +1025,12 @@ async function getUnitThumbnailUrls({
 
 async function queryUnitIdBatches<T>(
   unitIds: string[],
-  queryBatch: (batch: string[]) => Promise<T[]>,
+  queryBatch: (batch: string[], remainingRows: number) => Promise<T[]>,
 ) {
   const rows: T[] = [];
 
   for (const batch of chunkValues(unitIds, unitRelationshipBatchSize)) {
-    rows.push(...(await queryBatch(batch)));
+    rows.push(...(await queryBatch(batch, DEFAULT_COMPLETE_READ_MAX_ROWS - rows.length)));
   }
 
   return rows;

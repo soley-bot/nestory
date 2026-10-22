@@ -2,47 +2,41 @@ import type { createSupabaseServerClient } from "@/lib/db/server";
 import type { ScopedFinanceContext } from "@/features/finance-operations/data/scoped-finance-context";
 import type { ReportsViewQuery } from "../reports.types";
 import { buildProfitLossFunding, type FundingCashRow, type FundingActivityRow } from "./profit-loss-funding";
+import { assertReportSourceWithinLimit, compareReportKeys, readReportSource, readReportSourceById } from "./report-source-completeness";
 
 type ReportClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
-// Bound per-request history work; never return a silently truncated unit total.
-const MAX_UNIT_OPENING_ROWS = 10000;
-
 async function loadUnitOpeningActivity(supabase: ReportClient, organizationId: string, propertyId: string, monthStart: string) {
-  const activity: FundingActivityRow[] = [];
-  let expected: number | undefined;
-  do {
-    const result = await supabase.from("property_account_entries")
+  const activity = await readReportSource("complete unit opening activity", (from, to) =>
+    supabase.from("property_account_entries")
       .select("property_id, unit_id, event_date, category, balance_effect, source_type, source_id", { count: "exact" })
       .eq("organization_id", organizationId).eq("property_id", propertyId).lt("event_date", monthStart)
-      .order("event_date").order("created_at").order("source_type").order("source_id")
-      .range(activity.length, activity.length + 499);
-    if (result.error || result.count == null || (expected !== undefined && expected !== result.count)) {
-      throw new Error("Unable to load complete unit opening activity.");
-    }
-    expected = result.count;
-    if (expected > MAX_UNIT_OPENING_ROWS) throw new Error("Unit opening activity exceeds the 10,000-row report limit. Select all units to use the property balance.");
-    const rows = (result.data ?? []) as FundingActivityRow[];
-    // The account view predates contribution unit attribution. Resolve each
-    // contribution from its authoritative source, including signed reversals.
-    const contributionIds = rows.filter(row => row.source_type === "owner_contribution").map(row => row.source_id);
-    for (let offset = 0; offset < contributionIds.length; offset += 100) {
-      const batch = contributionIds.slice(offset, offset + 100);
-      const sources = await supabase.from("owner_cash_events").select("id, unit_id, reversal_of_id")
+      .order("source_type").order("source_id").range(from, to),
+    row => {
+      if (row.property_id !== propertyId || !row.event_date || row.event_date >= monthStart || !row.source_type || !row.source_id) {
+        throw new Error("Unit opening activity source escaped its scope or has no identity.");
+      }
+      return `${row.source_type}:${row.source_id}`;
+    }, (previous, current) => compareReportKeys(`${previous.source_type}:${previous.source_id}`, `${current.source_type}:${current.source_id}`)) as FundingActivityRow[];
+  // The account view predates contribution unit attribution. Resolve each
+  // contribution from its authoritative source, including signed reversals.
+  const contributions = activity.filter(row => row.source_type === "owner_contribution");
+  for (let offset = 0; offset < contributions.length; offset += 100) {
+    const batchRows = contributions.slice(offset, offset + 100);
+    const batch = batchRows.map(row => row.source_id);
+    const sources = await readReportSourceById("resolve unit contribution activity", (from, to) =>
+      supabase.from("owner_cash_events").select("id, unit_id, reversal_of_id", { count: "exact" })
         .eq("organization_id", organizationId).eq("property_id", propertyId).eq("currency", "USD")
-        .eq("event_type", "owner_contribution").in("id", batch);
-      if (sources.error || sources.data?.length !== batch.length) throw new Error("Unable to resolve unit contribution activity.");
-      const sourcesById = new Map(sources.data.map(source => [source.id, source]));
-      for (const row of rows) if (row.source_type === "owner_contribution" && batch.includes(row.source_id)) {
+        .eq("event_type", "owner_contribution").in("id", batch).order("id").range(from, to));
+    if (sources.length !== batch.length || sources.some(source => !batch.includes(source.id))) throw new Error("Unable to resolve unit contribution activity.");
+    const sourcesById = new Map(sources.map(source => [source.id, source]));
+    for (const row of batchRows) {
         const source = sourcesById.get(row.source_id);
         if (!source) throw new Error("Unable to resolve unit contribution activity.");
         row.unit_id = source.unit_id;
         row.reversal_of_id = source.reversal_of_id;
-      }
     }
-    activity.push(...rows);
-    if (activity.length === expected) return activity;
-    if (!rows.length || activity.length > expected) throw new Error("Incomplete unit opening activity.");
-  } while (true);
+  }
+  return activity;
 }
 
 export async function loadProfitLossFunding({ supabase, organizationId, financeContext, propertyIds, viewQuery, period }: {
@@ -56,24 +50,14 @@ export async function loadProfitLossFunding({ supabase, organizationId, financeC
   const activity: FundingActivityRow[] = [];
   for (let offset = 0; offset < ids.length; offset += 4) {
     const results = await Promise.all(ids.slice(offset, offset + 4).map(async propertyId => {
-      const contributions: FundingCashRow[] = [];
-      let loaded = 0;
-      let expected: number | undefined;
-      do {
-        const result = await supabase.from("owner_cash_events").select("id, property_id, unit_id, event_date, amount, reversal_of_id", { count: "exact" })
+      const contributions = await readReportSource("complete P&L owner contributions", (from, to) =>
+        supabase.from("owner_cash_events").select("id, property_id, unit_id, event_date, amount, reversal_of_id", { count: "exact" })
           .eq("organization_id", organizationId).eq("property_id", propertyId).eq("currency", "USD")
           .eq("event_type", "owner_contribution").gte("event_date", period.start).lte("event_date", period.end)
-          .order("id").range(loaded, loaded + 499);
-        if (result.error || result.count == null || result.count > 5000 || (expected !== undefined && expected !== result.count)) {
-          throw new Error("Unable to load complete P&L owner contributions. Narrow the property scope and try again.");
-        }
-        expected = result.count;
-        const rows = result.data ?? [];
-        contributions.push(...rows);
-        loaded += rows.length;
-        if (loaded === expected) break;
-        if (!rows.length || loaded > expected) throw new Error("Incomplete P&L owner contributions.");
-      } while (true);
+          .order("id").range(from, to), row => {
+            if (row.property_id !== propertyId || row.event_date < period.start || row.event_date > period.end) throw new Error("Owner contribution escaped report scope.");
+            return row.id;
+          }, (previous, current) => compareReportKeys(previous.id, current.id));
       if (needsUnitActivity) return { contributions, opening: await loadUnitOpeningActivity(supabase, organizationId, propertyId, period.start) };
       // The view owns the cumulative balance. Read its last row before the month
       // in the exact reverse of its window order, not a truncated history sum.
@@ -82,10 +66,12 @@ export async function loadProfitLossFunding({ supabase, organizationId, financeC
         .eq("organization_id", organizationId).eq("property_id", propertyId).lt("event_date", period.start)
         .order("event_date", { ascending: false }).order("created_at", { ascending: false })
         .order("source_type", { ascending: false }).order("source_id", { ascending: false }).range(0, 0);
-      if (opening.error || (opening.data?.length ?? 0) > 1) throw new Error("Unable to load P&L remaining balance.");
+      if (opening.error || !opening.data || opening.data.length > 1) throw new Error("Unable to load P&L remaining balance.");
       return { contributions, opening: (opening.data ?? []) as FundingActivityRow[] };
     }));
     for (const result of results) {
+      assertReportSourceWithinLimit("P&L owner contributions", cash.length + result.contributions.length);
+      assertReportSourceWithinLimit("P&L opening activity", activity.length + result.opening.length);
       cash.push(...result.contributions);
       activity.push(...result.opening);
     }

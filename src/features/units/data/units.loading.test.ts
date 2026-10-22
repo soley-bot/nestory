@@ -32,7 +32,7 @@ function fixture({ empty = false, error = false, properties = false, wait = Prom
       in(key: string, values: string[]) { if (key === "unit_id") read.ids = values; return query; },
       range(from: number, to: number) { read.range = [from, to]; return query; },
       async then(resolve: (value: unknown) => unknown) {
-        if (table !== (properties ? "properties" : "units")) return resolve({ data: [], error: null });
+        if (table !== (properties ? "properties" : "units")) return resolve({ data: [], count: 0, error: null });
         await wait;
         let data = properties ? rows.map(row => ({ ...row, id: row.id.replace("unit", "property"), name: "Synthetic property", code: row.unit_number, property_type: "Apartment", owner: null, address: null, registered_date: null, rental_structure: "units", acquisition_date: null, notes: null })) : rows;
         const status = read.filters.find(([key]) => key === "status")?.[1];

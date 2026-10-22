@@ -1,7 +1,9 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { formatDate } from "@/lib/dates/format";
 import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
-import { formatMoney } from "@/lib/money/format";
+import { parseExactMoneyToCents } from "@/features/finance/data/property-cash-events.money";
+import { formatProfitLossAmount } from "./profit-loss-funding";
+import { compareReportKeys, readReportSource, readReportSourceBatches } from "./report-source-completeness";
 import { getReportMonthRange } from "@/features/reports/reports.filters";
 import {
   loadScopedFinanceContext,
@@ -73,21 +75,21 @@ export async function getMonthlyOwnerActivityReport({
     });
   }
 
-  const entriesResult = await supabase
-    .from("property_account_entries")
-    .select(
-      "property_id, event_date, category, label, amount, balance_effect, source_type, source_id",
-    )
-    .eq("organization_id", organizationId)
-    .in("property_id", propertyIds)
-    .gte("event_date", period.start)
-    .lte("event_date", period.end);
-
-  if (entriesResult.error) {
-    throw new Error(
-      `Could not load owner activity entries: ${entriesResult.error.message}`,
-    );
-  }
+  const entries = await readReportSourceBatches("owner activity entries", propertyIds,
+    ids => readReportSource("owner activity entries", (from, to) => supabase
+      .from("property_account_entries")
+      .select("organization_id, property_id, event_date, category, label, amount, balance_effect, source_type, source_id", { count: "exact" })
+      .eq("organization_id", organizationId).in("property_id", ids)
+      .gte("event_date", period.start).lte("event_date", period.end)
+      .order("property_id").order("source_type").order("source_id").range(from, to),
+    row => {
+      if (row.organization_id !== organizationId || !row.property_id || !ids.includes(row.property_id)
+        || !row.event_date || row.event_date < period.start || row.event_date > period.end) {
+        throw new Error("Owner activity source escaped the requested scope.");
+      }
+      return accountEntryIdentity(row);
+    }, (previous, current) => compareReportKeys(accountEntryIdentity(previous), accountEntryIdentity(current))),
+    accountEntryIdentity);
   const peopleById = new Map(
     financeContext.people
       .filter((person) => person.archived_at === null)
@@ -113,7 +115,7 @@ export async function getMonthlyOwnerActivityReport({
   );
 
   return buildMonthlyOwnerActivityReport({
-    entries: (entriesResult.data ?? []) as AccountEntry[],
+    entries,
     ownerAssignments,
     period,
     properties,
@@ -193,13 +195,13 @@ export function buildMonthlyOwnerActivityReport({
     return [
       {
         cells: {
-          managementFees: formatMoney(fees, "USD"),
-          netChange: formatMoney(netChange, "USD"),
+          managementFees: formatProfitLossAmount(fees),
+          netChange: formatProfitLossAmount(netChange),
           owner: owner?.name ?? "Owner needed",
           property: propertyLabel,
-          propertyCosts: formatMoney(costs, "USD"),
-          rent: formatMoney(rent, "USD"),
-          withdrawals: formatMoney(withdrawals, "USD"),
+          propertyCosts: formatProfitLossAmount(costs),
+          rent: formatProfitLossAmount(rent),
+          withdrawals: formatProfitLossAmount(withdrawals),
         },
         href: buildPropertyAccountHref({
           activity: "all",
@@ -290,15 +292,15 @@ function categoryTotal(
   return entries.reduce(
     (sum, entry) =>
       entry.category && categories.has(entry.category)
-        ? sum + Number(entry.amount ?? 0)
+        ? sum + parseExactMoneyToCents(entry.amount ?? 0)
         : sum,
-    0,
+    BigInt(0),
   );
 }
 
 function metric(
   label: string,
-  value: number,
+  value: bigint,
   entries: AccountEntry[],
   category: string | readonly string[],
 ): TraceableReportMetric {
@@ -312,7 +314,7 @@ function metric(
     detail: `${sourceCount} recorded ${sourceCount === 1 ? "entry" : "entries"}`,
     label,
     sourceCount,
-    value: formatMoney(value, "USD"),
+    value: formatProfitLossAmount(value),
   };
 }
 
@@ -357,13 +359,18 @@ function compareAccountEntries(left: AccountEntry, right: AccountEntry) {
 }
 
 function sourceDetail(entry: AccountEntry) {
-  const effect = Number(entry.balance_effect ?? 0);
+  const effect = parseExactMoneyToCents(entry.balance_effect ?? 0);
   const direction =
     effect < 0 ? "decrease" : effect > 0 ? "increase" : "no change";
   const date = entry.event_date
     ? formatDate(entry.event_date)
     : "Date unavailable";
-  return `${date} · ${formatMoney(Math.abs(effect), "USD")} ${direction}`;
+  return `${date} · ${formatProfitLossAmount(effect < BigInt(0) ? -effect : effect)} ${direction}`;
+}
+
+function accountEntryIdentity(entry: Pick<AccountEntry, "property_id" | "source_type" | "source_id">) {
+  if (!entry.property_id || !entry.source_type || !entry.source_id) throw new Error("Owner activity source identity is missing.");
+  return `${entry.property_id}:${entry.source_type}:${entry.source_id}`;
 }
 
 function getScopeLabel({

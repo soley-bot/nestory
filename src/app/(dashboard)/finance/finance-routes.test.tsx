@@ -149,6 +149,24 @@ describe("finance routes", () => {
     },
   );
 
+  it("propagates a finance load failure instead of rendering an empty work queue", async () => {
+    requireFinanceContext.mockResolvedValue({
+      capabilities: {},
+      organizationId: "organization-1",
+      organizationName: "Nestory",
+      permissionKeys: new Set(["finance.view"]),
+    });
+    getFinanceOperationsData.mockRejectedValueOnce(
+      new Error("Could not load finance operations: statement timeout"),
+    );
+
+    await expect(FinancePage({})).rejects.toThrow(
+      "Could not load finance operations: statement timeout",
+    );
+
+    expect(screenSpy).not.toHaveBeenCalled();
+  });
+
   it("uses bounded referenced activity on the owner account route", async () => {
     requireFinanceContext.mockResolvedValue({ capabilities: {}, organizationId: "organization-1", organizationName: "IPS", permissionKeys: new Set(["finance.view"]) });
     getFinanceOperationsData.mockResolvedValue({ propertyOptions: [{ id: "property-1", label: "Riverside" }] });

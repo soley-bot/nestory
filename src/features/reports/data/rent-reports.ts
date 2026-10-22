@@ -10,7 +10,7 @@ import {
 } from "@/features/finance/data/property-cash-events.money";
 import { getEffectiveRentPolicyCalendarDate } from "@/features/leases/data/leases";
 import { getReportDateRange } from "@/features/reports/reports.filters";
-import { maxReportSourceRows } from "@/features/reports/data/report-source-completeness";
+import { compareReportKeys, maxReportSourceRows, readReportSource, readReportSourceBatches } from "@/features/reports/data/report-source-completeness";
 import type {
   ReportsViewQuery,
   TrustedReport,
@@ -62,8 +62,6 @@ const policySchema = z.object({
   rent_calculation_timezone: z.string(),
   version_number: z.number(),
 });
-const pageSize = 500;
-const batchSize = 100;
 
 function appendToIndex<T>(index: Map<string, T[]>, key: string, value: T) {
   const values = index.get(key);
@@ -80,45 +78,18 @@ async function readAll<T>(
   source: string,
   schema: z.ZodType<T>,
   fetchPage: (from: number, to: number) => Page,
+  identity: {
+    getRowId: (row: T) => string;
+    compareRows: (previous: T, current: T) => number;
+  } = {
+    getRowId: row => (row as { id: string }).id,
+    compareRows: (previous, current) => compareReportKeys((previous as { id: string }).id, (current as { id: string }).id),
+  },
 ): Promise<T[]> {
-  const rows: T[] = [];
-  let expected: number | undefined;
-  const identities = new Set<string>();
-  do {
-    const result = await fetchPage(rows.length, rows.length + pageSize - 1);
-    if (result.error)
-      throw new Error(`Could not load ${source}: ${result.error.message}`);
-    if (
-      result.count === null ||
-      !Number.isSafeInteger(result.count) ||
-      result.count < 0 ||
-      result.data === null
-    ) {
-      throw new Error(`Could not verify complete ${source}.`);
-    }
-    if (result.count > maxReportSourceRows)
-      throw new Error(
-        `${source} exceeds the ${maxReportSourceRows} row report limit. Narrow the scope.`,
-      );
-    if (expected !== undefined && result.count !== expected)
-      throw new Error(`${source} changed while loading. Run the report again.`);
-    expected = result.count;
-    if (result.data.length === 0 && rows.length < expected)
-      throw new Error(`Incomplete ${source}.`);
-    for (const raw of result.data) {
-      const row = schema.parse(raw);
-      if (typeof row === "object" && row !== null && "id" in row) {
-        const id = String(row.id);
-        if (identities.has(id))
-          throw new Error(`Duplicate source row in ${source}.`);
-        identities.add(id);
-      }
-      rows.push(row);
-    }
-    if (rows.length > expected)
-      throw new Error(`Inconsistent count for ${source}.`);
-  } while (rows.length < expected);
-  return rows;
+  return readReportSource(source, async (from, to) => {
+    const result = await fetchPage(from, to);
+    return { ...result, data: result.data?.map(row => schema.parse(row)) ?? null };
+  }, identity.getRowId, identity.compareRows);
 }
 
 async function readBatches<T>(
@@ -127,20 +98,9 @@ async function readBatches<T>(
   schema: z.ZodType<T>,
   fetchPage: (ids: string[], from: number, to: number) => Page,
 ) {
-  const rows: T[] = [];
-  const uniqueIds = [...new Set(ids)];
-  for (let start = 0; start < uniqueIds.length; start += batchSize) {
-    rows.push(
-      ...(await readAll(source, schema, (from, to) =>
-        fetchPage(uniqueIds.slice(start, start + batchSize), from, to),
-      )),
-    );
-    if (rows.length > maxReportSourceRows)
-      throw new Error(
-        `${source} exceeds the ${maxReportSourceRows} row report limit. Narrow the scope.`,
-      );
-  }
-  return rows;
+  return readReportSourceBatches(source, ids,
+    batch => readAll(source, schema, (from, to) => fetchPage(batch, from, to)),
+    row => (row as { id: string }).id);
 }
 
 export async function getRentReport({
@@ -215,6 +175,11 @@ export async function getRentReport({
         .order("effective_from")
         .order("version_number")
         .range(from, to),
+    {
+      getRowId: row => `${row.effective_from}:${row.version_number}`,
+      compareRows: (previous, current) => compareReportKeys(previous.effective_from, current.effective_from)
+        || previous.version_number - current.version_number,
+    },
   );
   const today = getEffectiveRentPolicyCalendarDate(policies, now);
   if (!["all", "occupied", "vacant"].includes(viewQuery.status))

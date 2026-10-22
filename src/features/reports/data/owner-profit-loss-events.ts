@@ -1,4 +1,5 @@
 import { parseExactMoneyToCents } from "@/features/finance/data/property-cash-events.money";
+import { maxReportSourceRows } from "./report-source-completeness";
 import {
   ownerProfitLossEconomicClasses,
   ownerProfitLossSourceTypes,
@@ -12,7 +13,7 @@ import {
 const DEFAULT_PAGE_SIZE = 500;
 const MAX_PAGE_SIZE = 1_000;
 const MAX_PERIOD_DAYS = 366;
-const MAX_TRACKED_EVENT_KEYS = 10_000;
+const MAX_TRACKED_EVENT_KEYS = maxReportSourceRows;
 
 export async function loadOwnerProfitLossEventPage(
   client: OwnerProfitLossEventsRpcClient,
@@ -40,7 +41,8 @@ export async function loadOwnerProfitLossEventPage(
     throw new Error(`Unable to load owner profit and loss events: ${error.message}`);
   }
 
-  const rows = data ?? [];
+  if (!Array.isArray(data)) throw new Error("Owner P&L RPC returned no verifiable event data.");
+  const rows = data;
   if (rows.length > validated.pageSize) {
     throw new Error("Owner P&L RPC returned more than the bounded page size.");
   }
@@ -101,7 +103,10 @@ export async function* iterateOwnerProfitLossEvents(
       }
     }
 
-    if (page.rows.length < page.pageSize) return;
+    // A short page can be the Data API cap, not the end of the SQL function.
+    // Read past the last actual cursor until an explicit empty page arrives.
+    // This is a live keyset traversal, not a consistent multi-request snapshot.
+    if (page.rows.length === 0) return;
   }
 }
 

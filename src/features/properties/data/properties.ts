@@ -3,6 +3,7 @@ import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { matchesSearchText } from "@/lib/search/text";
 import { normalizeSearchText } from "@/lib/search/text";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { DEFAULT_COMPLETE_READ_MAX_ROWS, readCompleteRows } from "@/lib/db/complete-read";
 import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import {
   resolveRecentChangeTargets,
@@ -58,18 +59,15 @@ type ActiveOwnerLink = {
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 type PropertyFilterQuery = ReturnType<typeof buildPropertyBaseQuery>;
 type ActiveOwnerRow = {
-  ownership_percent: number;
+  id: string;
+  ownership_percent: number | null;
   person_id: string;
   property_id: string;
-  started_on: string;
+  started_on: string | null;
 };
-type PropertyPersonRow = {
-  display_name: string;
-  id: string;
-};
-type PropertyUnitSummaryRow = PropertyUnitRecord & { property_id: string };
-type PropertyLedgerSummaryRow = PropertyLedgerRecord & { property_id: string };
+type PropertyLedgerSummaryRow = PropertyLedgerRecord & { id: string; property_id: string | null };
 type PropertyCurrentLeaseSummaryRow = {
+  id: string;
   property_id: string;
   unit_id: string | null;
 };
@@ -90,7 +88,8 @@ function buildPropertyBaseQuery(
 }
 
 type PropertyImageRow = {
-  property_id: string;
+  id: string;
+  property_id: string | null;
   storage_path: string;
 };
 
@@ -118,44 +117,24 @@ export async function getPropertySummaries(
   const archiveState =
     options.archiveState ?? (options.includeArchived ? "all" : "active");
 
-  let propertiesQuery = supabase
-    .from("properties")
-    .select(propertySelect)
-    .eq("organization_id", organizationId)
-    .order("code", { ascending: true });
-
-  if (archiveState === "active") {
-    propertiesQuery = propertiesQuery.is("archived_at", null);
-  } else if (archiveState === "archived") {
-    propertiesQuery = propertiesQuery.not("archived_at", "is", null);
-  }
-
-  if (options.status && options.status !== "all") {
-    propertiesQuery = propertiesQuery.in(
-      "status",
-      getStoredPropertyStatusValues(options.status),
-    );
-  }
-
-  if (
-    activeOwnerLinks &&
-    activeOwnerLinks.size > 0 &&
-    canApplyPropertyOwnerExclusionInUrl(activeOwnerLinks)
-  ) {
-    propertiesQuery = propertiesQuery.not(
-      "id",
-      "in",
-      formatPostgrestInFilter(new Set(activeOwnerLinks.keys())),
-    );
-  }
-
-  const propertiesResult = await propertiesQuery;
-
-  if (propertiesResult.error) {
-    throw new Error(`Could not load properties: ${propertiesResult.error.message}`);
-  }
-
-  const propertyRows = propertiesResult.data ?? [];
+  const propertyRows = await readCompleteRows<PropertyRecord>({
+    context: "Could not load properties",
+    getRowId: (row) => row.id,
+    readPage: (from, to) => {
+      let query = buildPropertyBaseQuery(supabase, organizationId)
+        .order("code", { ascending: true })
+        .order("id", { ascending: true });
+      if (archiveState === "active") query = query.is("archived_at", null);
+      else if (archiveState === "archived") query = query.not("archived_at", "is", null);
+      if (options.status && options.status !== "all") {
+        query = query.in("status", getStoredPropertyStatusValues(options.status));
+      }
+      if (activeOwnerLinks?.size && canApplyPropertyOwnerExclusionInUrl(activeOwnerLinks)) {
+        query = query.not("id", "in", formatPostgrestInFilter(new Set(activeOwnerLinks.keys())));
+      }
+      return query.range(from, to);
+    },
+  });
   const summaries = await loadPropertySummariesForRows({
     organizationId,
     properties: propertyRows,
@@ -198,67 +177,57 @@ async function loadPropertySummariesForRows({
     imageRows,
     photoThumbnailUrls,
   ] = await Promise.all([
-    queryValueBatches(propertyIdList, async (batch) => {
-      const result = await supabase
+    queryValueBatches(propertyIdList, (batch, remainingRows) => readCompleteRows<PropertyUnitRecord & { id: string; property_id: string }>({
+      maxRows: remainingRows,
+      context: "Could not load property units",
+      getRowId: (row) => row.id,
+      readPage: (from, to) => supabase
         .from("units")
-        .select("property_id, status")
+        .select("id, property_id, status", { count: "exact" })
         .eq("organization_id", organizationId)
         .in("property_id", batch)
-        .is("archived_at", null);
-
-      if (result.error) {
-        throw new Error(`Could not load property units: ${result.error.message}`);
-      }
-
-      return (result.data ?? []) as PropertyUnitSummaryRow[];
-    }),
-    queryValueBatches(propertyIdList, async (batch) => {
-      const result = await supabase
+        .is("archived_at", null)
+        .order("id", { ascending: true }).range(from, to),
+    })),
+    queryValueBatches(propertyIdList, (batch, remainingRows) => readCompleteRows({
+      maxRows: remainingRows,
+      context: "Could not load current property leases",
+      getRowId: (row) => row.id ?? "",
+      readPage: (from, to) => supabase
         .from("current_leases")
-        .select("property_id, unit_id")
+        .select("id, property_id, unit_id", { count: "exact" })
         .eq("organization_id", organizationId)
         .in("property_id", batch)
         .in("status", [...ACTIVE_UNIT_LEASE_STATUSES])
-        .is("archived_at", null);
-
-      if (result.error) {
-        throw new Error(
-          `Could not load current property leases: ${result.error.message}`,
-        );
-      }
-
-      return (result.data ?? []) as PropertyCurrentLeaseSummaryRow[];
-    }),
-    queryValueBatches(propertyIdList, async (batch) => {
-      const result = await supabase
+        .is("archived_at", null)
+        .order("id", { ascending: true }).range(from, to),
+    })) as Promise<PropertyCurrentLeaseSummaryRow[]>,
+    queryValueBatches(propertyIdList, (batch, remainingRows) => readCompleteRows({
+      maxRows: remainingRows,
+      context: "Could not load ledger totals",
+      getRowId: (row) => row.id,
+      readPage: (from, to) => supabase
         .from("ledger_entries")
-        .select("property_id, direction, amount, currency")
+        .select("id, property_id, direction, amount, currency", { count: "exact" })
         .eq("organization_id", organizationId)
         .in("property_id", batch)
-        .is("archived_at", null);
-
-      if (result.error) {
-        throw new Error(`Could not load ledger totals: ${result.error.message}`);
-      }
-
-      return (result.data ?? []) as PropertyLedgerSummaryRow[];
-    }),
-    queryValueBatches(propertyIdList, async (batch) => {
-      const result = await supabase
+        .is("archived_at", null)
+        .order("id", { ascending: true }).range(from, to),
+    })) as Promise<PropertyLedgerSummaryRow[]>,
+    queryValueBatches(propertyIdList, (batch, remainingRows) => readCompleteRows({
+      maxRows: remainingRows,
+      context: "Could not load property images",
+      getRowId: (row) => row.id,
+      readPage: (from, to) => supabase
         .from("documents")
-        .select("property_id, storage_path")
+        .select("id, property_id, storage_path", { count: "exact" })
         .eq("organization_id", organizationId)
         .in("property_id", batch)
         .is("archived_at", null)
         .in("mime_type", [...propertyImageMimeTypes])
-        .order("uploaded_at", { ascending: false });
-
-      if (result.error) {
-        throw new Error(`Could not load property images: ${result.error.message}`);
-      }
-
-      return (result.data ?? []) as PropertyImageRow[];
-    }),
+        .order("uploaded_at", { ascending: false })
+        .order("id", { ascending: true }).range(from, to),
+    })) as Promise<PropertyImageRow[]>,
     getPropertyPhotoThumbnailUrls({
       organizationId,
       propertyIds: propertyIdList,
@@ -308,7 +277,7 @@ async function getPropertyThumbnailUrls({
   const firstImageByProperty = new Map<string, string>();
 
   for (const row of imageRows) {
-    if (!firstImageByProperty.has(row.property_id)) {
+    if (row.property_id && !firstImageByProperty.has(row.property_id)) {
       firstImageByProperty.set(row.property_id, row.storage_path);
     }
   }
@@ -412,6 +381,7 @@ async function getPagedPropertiesScreenData({
   });
 
   if (pagination.page !== viewQuery.page && rowsResult.totalCount > 0) {
+    const previousCount = rowsResult.totalCount;
     rowsResult = await getPagedPropertyRows({
       activeOwnerLinks,
       organizationId,
@@ -420,6 +390,9 @@ async function getPagedPropertiesScreenData({
       supabase,
       viewQuery,
     });
+    if (rowsResult.totalCount !== previousCount) {
+      throw new Error("Could not load properties: The row count changed while loading. Reload and try again.");
+    }
     pagination = buildPropertyPagination({
       page: pagination.page,
       pageSize: viewQuery.pageSize,
@@ -460,19 +433,25 @@ async function getPagedPropertyRows({
       activeOwnerLinks,
     ),
     viewQuery.sort,
-  ).range(range.from, range.to);
+  ).order("id", { ascending: true }).range(range.from, range.to);
   const rowsResult = await result;
 
   if (rowsResult.error) {
     throw new Error(`Could not load properties: ${rowsResult.error.message}`);
   }
 
-  const properties = rowsResult.data ?? [];
+  if (!Array.isArray(rowsResult.data)) {
+    throw new Error("Could not load properties: The query returned no row data.");
+  }
+  const properties = rowsResult.data;
+  if (typeof rowsResult.count !== "number" || !Number.isSafeInteger(rowsResult.count) || rowsResult.count < 0 ||
+    properties.length !== Math.min(pageSize, Math.max(0, rowsResult.count - range.from))) {
+    throw new Error("Could not load properties: The page is incomplete or its exact count is unavailable. Reload and try again.");
+  }
 
   return {
     properties,
-    totalCount:
-      typeof rowsResult.count === "number" ? rowsResult.count : properties.length,
+    totalCount: rowsResult.count,
   };
 }
 
@@ -570,8 +549,13 @@ export async function getPropertySummary(
   organizationId: string,
   propertyId: string,
 ) {
-  const properties = await getPropertySummaries(organizationId);
-  return properties.find((property) => property.id === propertyId) ?? null;
+  const supabase = await createSupabaseServerClient();
+  const result = await buildPropertyBaseQuery(supabase, organizationId)
+    .eq("id", propertyId).is("archived_at", null).maybeSingle();
+  if (result.error) throw new Error(`Could not load property: ${result.error.message}`);
+  if (!result.data) return null;
+  const [property] = await loadPropertySummariesForRows({ organizationId, properties: [result.data], supabase });
+  return property;
 }
 
 export async function getPropertyDetail(
@@ -602,7 +586,7 @@ export async function getPropertyDetail(
     activeLeasesResult,
     propertyDraftLeaseResult,
     timelineResult,
-    ledgerResult,
+    ledgerRows,
     documentsResult,
     expenseEvidenceResult,
     photos,
@@ -661,7 +645,10 @@ export async function getPropertyDetail(
       .order("event_date", { ascending: false })
       .order("id", { ascending: false })
       .limit(detailRecordLimit),
-    supabase
+    readCompleteRows<PropertyDetailLedgerRecord>({
+      context: "Could not load property ledger",
+      getRowId: row => row.id,
+      readPage: (from, to) => supabase
       .from("ledger_entries")
       .select(
         "id, unit_id, transaction_date, direction, category, amount, currency, description",
@@ -671,7 +658,8 @@ export async function getPropertyDetail(
       .eq("property_id", propertyId)
       .is("archived_at", null)
       .order("transaction_date", { ascending: false })
-      .order("id", { ascending: false }),
+      .order("id", { ascending: false }).range(from, to),
+    }),
     supabase
       .from("documents")
       .select(
@@ -750,10 +738,6 @@ export async function getPropertyDetail(
     );
   }
 
-  if (ledgerResult.error) {
-    throw new Error(`Could not load property ledger: ${ledgerResult.error.message}`);
-  }
-
   if (documentsResult.error) {
     throw new Error(
       `Could not load property documents: ${documentsResult.error.message}`,
@@ -793,7 +777,7 @@ export async function getPropertyDetail(
     (owner) => owner.is_primary && !owner.archived_at && !owner.ended_on,
   );
   const documents = addPropertyDocumentDownloadUrls(documentsResult.data ?? []);
-  const ledgerEntries = (ledgerResult.data ?? []) as PropertyDetailLedgerRecord[];
+  const ledgerEntries = ledgerRows;
   const maintenanceCases =
     (maintenanceResult.data ?? []) as PropertyDetailMaintenanceRecord[];
   const activity = await resolveRecentChangeTargets({
@@ -827,7 +811,7 @@ export async function getPropertyDetail(
     recordCounts: {
       activeLeases: activeLeasesResult.count ?? activeLeasesResult.data?.length ?? 0,
       documents: documentsResult.count ?? documents.length,
-      ledgerEntries: ledgerResult.count ?? ledgerEntries.length,
+      ledgerEntries: ledgerEntries.length,
       maintenanceCases: maintenanceResult.count ?? maintenanceCases.length,
       openMaintenanceCases: maintenanceCases.filter(isOpenMaintenanceTask).length,
       overdueMaintenanceCases:
@@ -848,10 +832,11 @@ function addPropertyDocumentDownloadUrls(
   }));
 }
 
-function groupByProperty<T extends { property_id: string }>(rows: T[]) {
+function groupByProperty<T extends { property_id: string | null }>(rows: T[]) {
   const grouped = new Map<string, T[]>();
 
   for (const row of rows) {
+    if (!row.property_id) continue;
     const group = grouped.get(row.property_id) ?? [];
     group.push(row);
     grouped.set(row.property_id, group);
@@ -971,31 +956,31 @@ function sortPropertySummaries(
 ) {
   return [...properties].sort((first, second) => {
     if (sort === "name_asc") {
-      return compareStrings(first.name, second.name);
+      return compareStrings(first.name, second.name) || compareStrings(first.code, second.code) || first.id.localeCompare(second.id);
     }
 
     if (sort === "status_asc") {
       return (
         compareStrings(first.status, second.status) ||
-        compareStrings(first.code, second.code)
+        compareStrings(first.code, second.code) || first.id.localeCompare(second.id)
       );
     }
 
     if (sort === "net_desc") {
       return (
         second.netIncomeUsd - first.netIncomeUsd ||
-        compareStrings(first.code, second.code)
+        compareStrings(first.code, second.code) || first.id.localeCompare(second.id)
       );
     }
 
     if (sort === "net_asc") {
       return (
         first.netIncomeUsd - second.netIncomeUsd ||
-        compareStrings(first.code, second.code)
+        compareStrings(first.code, second.code) || first.id.localeCompare(second.id)
       );
     }
 
-    return compareStrings(first.code, second.code);
+    return compareStrings(first.code, second.code) || first.id.localeCompare(second.id);
   });
 }
 
@@ -1063,9 +1048,9 @@ async function getActiveOwnerLinks(
   for (const owner of ownerRows) {
     links.set(owner.property_id, {
       label: labelsByPerson.get(owner.person_id) ?? "Linked owner",
-      ownershipPercent: owner.ownership_percent.toFixed(3),
+      ownershipPercent: owner.ownership_percent?.toFixed(3) ?? "",
       personId: owner.person_id,
-      startedOn: owner.started_on,
+      startedOn: owner.started_on ?? "",
     });
   }
 
@@ -1076,19 +1061,18 @@ async function getActiveOwnerRows(
   supabase: SupabaseServerClient,
   organizationId: string,
 ): Promise<ActiveOwnerRow[]> {
-  const result = await supabase
+  return readCompleteRows({
+    context: "Could not load property owner links",
+    getRowId: (row) => row.id,
+    readPage: (from, to) => supabase
     .from("property_owners")
-    .select("ownership_percent, person_id, property_id, started_on")
+    .select("id, ownership_percent, person_id, property_id, started_on", { count: "exact" })
     .eq("organization_id", organizationId)
     .eq("is_primary", true)
     .is("archived_at", null)
-    .is("ended_on", null);
-
-  if (result.error) {
-    throw new Error(`Could not load property owner links: ${result.error.message}`);
-  }
-
-  return (result.data ?? []) as ActiveOwnerRow[];
+    .is("ended_on", null)
+    .order("id", { ascending: true }).range(from, to),
+  });
 }
 
 async function getActiveOwnerRowsForProperties(
@@ -1100,22 +1084,20 @@ async function getActiveOwnerRowsForProperties(
     return [];
   }
 
-  return queryValueBatches([...propertyIds], async (batch) => {
-    const result = await supabase
+  return queryValueBatches([...propertyIds], (batch, remainingRows) => readCompleteRows({
+    maxRows: remainingRows,
+    context: "Could not load property owner links",
+    getRowId: (row) => row.id,
+    readPage: (from, to) => supabase
       .from("property_owners")
-      .select("ownership_percent, person_id, property_id, started_on")
+      .select("id, ownership_percent, person_id, property_id, started_on", { count: "exact" })
       .eq("organization_id", organizationId)
       .eq("is_primary", true)
       .in("property_id", batch)
       .is("archived_at", null)
-      .is("ended_on", null);
-
-    if (result.error) {
-      throw new Error(`Could not load property owner links: ${result.error.message}`);
-    }
-
-    return (result.data ?? []) as ActiveOwnerRow[];
-  });
+      .is("ended_on", null)
+      .order("id", { ascending: true }).range(from, to),
+  }));
 }
 
 async function getPeopleDisplayNames(
@@ -1127,19 +1109,17 @@ async function getPeopleDisplayNames(
   }
 
   const supabase = await createSupabaseServerClient();
-  const people = await queryValueBatches([...personIds], async (batch) => {
-    const result = await supabase
+  const people = await queryValueBatches([...personIds], (batch, remainingRows) => readCompleteRows<{ id: string; display_name: string }>({
+    maxRows: remainingRows,
+    context: "Could not load owner names",
+    getRowId: (row) => row.id,
+    readPage: (from, to) => supabase
       .from("people")
-      .select("id, display_name")
+      .select("id, display_name", { count: "exact" })
       .eq("organization_id", organizationId)
-      .in("id", batch);
-
-    if (result.error) {
-      throw new Error(`Could not load owner names: ${result.error.message}`);
-    }
-
-    return (result.data ?? []) as PropertyPersonRow[];
-  });
+      .in("id", batch)
+      .order("id", { ascending: true }).range(from, to),
+  }));
 
   return new Map(people.map((person) => [person.id, person.display_name]));
 }
@@ -1170,7 +1150,7 @@ function formatPostgrestInFilter(values: ReadonlySet<string>) {
 
 async function queryValueBatches<T>(
   values: string[],
-  queryBatch: (batch: string[]) => Promise<T[]>,
+  queryBatch: (batch: string[], remainingRows: number) => Promise<T[]>,
 ): Promise<T[]> {
   const rows: T[] = [];
 
@@ -1182,6 +1162,7 @@ async function queryValueBatches<T>(
     rows.push(
       ...(await queryBatch(
         values.slice(index, index + propertyRelationshipBatchSize),
+        DEFAULT_COMPLETE_READ_MAX_ROWS - rows.length,
       )),
     );
   }

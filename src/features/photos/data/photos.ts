@@ -1,5 +1,6 @@
 import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { DEFAULT_COMPLETE_READ_MAX_ROWS, readCompleteRows } from "@/lib/db/complete-read";
 import type { Tables } from "@/types/database";
 import type { AssetPhoto } from "@/features/photos/photo.types";
 
@@ -74,27 +75,11 @@ export async function getPropertyPhotoThumbnailUrls({
     return new Map<string, string>();
   }
 
-  const result = await supabase
-    .from("asset_photos")
-    .select("property_id, storage_path, is_cover, uploaded_at")
-    .eq("organization_id", organizationId)
-    .in("property_id", propertyIds)
-    .is("unit_id", null)
-    .is("archived_at", null)
-    .order("is_cover", { ascending: false })
-    .order("uploaded_at", { ascending: false });
-
-  if (result.error) {
-    if (isMissingSchemaObjectMessage(result.error.message, ["asset_photos"])) {
-      return new Map<string, string>();
-    }
-
-    throw new Error(`Could not load property photos: ${result.error.message}`);
-  }
+  const rows = await getCompleteThumbnailRows(supabase, organizationId, "property_id", propertyIds);
 
   return getThumbnailUrls({
     getScopeId: (row) => row.property_id,
-    rows: result.data ?? [],
+    rows,
     supabase,
   });
 }
@@ -112,28 +97,44 @@ export async function getUnitPhotoThumbnailUrls({
     return new Map<string, string>();
   }
 
-  const result = await supabase
-    .from("asset_photos")
-    .select("unit_id, storage_path, is_cover, uploaded_at")
-    .eq("organization_id", organizationId)
-    .in("unit_id", unitIds)
-    .is("archived_at", null)
-    .order("is_cover", { ascending: false })
-    .order("uploaded_at", { ascending: false });
-
-  if (result.error) {
-    if (isMissingSchemaObjectMessage(result.error.message, ["asset_photos"])) {
-      return new Map<string, string>();
-    }
-
-    throw new Error(`Could not load unit photos: ${result.error.message}`);
-  }
+  const rows = await getCompleteThumbnailRows(supabase, organizationId, "unit_id", unitIds);
 
   return getThumbnailUrls({
     getScopeId: (row) => row.unit_id,
-    rows: result.data ?? [],
+    rows,
     supabase,
   });
+}
+
+async function getCompleteThumbnailRows(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  column: "property_id" | "unit_id",
+  scopeIds: string[],
+) {
+  const rows: Pick<AssetPhotoRow, "id" | "property_id" | "unit_id" | "storage_path">[] = [];
+  const ids = [...new Set(scopeIds)];
+  for (let index = 0; index < ids.length; index += 75) {
+    const batch = ids.slice(index, index + 75);
+    const pageRows = await readCompleteRows<Pick<AssetPhotoRow, "id" | "property_id" | "unit_id" | "storage_path">>({
+      maxRows: DEFAULT_COMPLETE_READ_MAX_ROWS - rows.length,
+      context: `Could not load ${column === "property_id" ? "property" : "unit"} photos`,
+      getRowId: row => row.id,
+      readPage: (from, to) => {
+        let query = supabase.from("asset_photos")
+          .select("id, property_id, unit_id, storage_path, is_cover, uploaded_at", { count: "exact" })
+          .eq("organization_id", organizationId)
+          .in(column, batch)
+          .is("archived_at", null);
+        if (column === "property_id") query = query.is("unit_id", null);
+        return query.order("is_cover", { ascending: false })
+          .order("uploaded_at", { ascending: false })
+          .order("id", { ascending: true }).range(from, to);
+      },
+    });
+    rows.push(...pageRows);
+  }
+  return rows;
 }
 
 async function addSignedPhotoUrls(

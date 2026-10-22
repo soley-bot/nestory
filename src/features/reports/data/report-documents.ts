@@ -1,5 +1,6 @@
 import {
   assertCompleteReportSource,
+  maxReportDocumentRows,
   reportDocumentSelect,
 } from "@/features/reports/data/report-source-completeness";
 
@@ -40,7 +41,7 @@ export async function loadReportDocuments(
   assertCompleteReportSource("report documents", {
     count: snapshot.count,
     data: snapshot.documents,
-  });
+  }, maxReportDocumentRows);
 
   if (
     snapshot.documents.some(
