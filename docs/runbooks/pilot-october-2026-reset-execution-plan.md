@@ -319,7 +319,8 @@ fresh capture. Scheduled launching must already be off locally.
 
 The manifest enumerates every public/private table, including empty tables; records
 ordered primary keys and original row hashes; checks outgoing and incoming
-cross-organization foreign keys; and explicitly classifies unconstrained UUID,
+cross-organization foreign keys and all registered incoming static/polymorphic
+references; and explicitly classifies unconstrained UUID,
 polymorphic, JSON and Storage references. Storage resolution includes its expected
 bucket, object identity/path and metadata version. It records bytes as unverified.
 Unknown tables, UUID columns, JSON columns, source kinds, ambiguous targets and
@@ -351,6 +352,23 @@ cron/net infrastructure from cloning to prevent side effects. Its result explici
 separates database clone proof from physical Storage recovery, Auth service routing,
 hosted PITR and actual reset recovery; all of the latter remain unproved.
 
+The offline `pilot-finance-reset-plan.mjs` reads this inventory and produces a
+row-level child-before-parent removal plan. It captures foreign-key delete actions
+and nullable columns, rejects unreviewed cascades or SET NULL changes to retained
+records, and requires exact row/hash-bound declarations for nullable cycle breaks.
+It also rejects missing cross-organization logical-reference census coverage.
+For example, retained documents can reference ledger entries with ON DELETE SET
+NULL; preserving the document requires an explicit reviewed link normalization
+and archive-reference plan before deleting that ledger entry.
+
+Run `npm run db:pilot-finance-reset-plan -- --manifest <accepted-local-manifest>`.
+Optional review declarations must be ignored local JSON bound to that exact
+manifest. Outputs stay under ignored `.codex-artifacts/pilot-finance-reset-plan`.
+The planner never connects to a database or emits executable removal SQL. A
+declared after-image hash is a review target, not proof of an archived or restored
+row. It continues to report `executionSupported: false` even if dependencies are
+fully resolved.
+
 The concrete next executor work remains private operation/archive tables; exact
 before/after row dispositions; graph/cycle ordering; narrow frozen capability;
 atomic archive/removal/zero authority; generation-aware restoration; frozen lease
@@ -359,14 +377,15 @@ Neither the manifest nor a successful clone is authorization to enroll target or
 remove its records, reopen the organization or release production migrations.
 
 
-Local evidence on 2026-10-23: inventory tests passed 17/17 and recovery guard tests
-passed 7/7; accepted capture
-`dcb0dd1f-f18e-4f82-bc43-a7b0ef153ec1` classified 153 tables and 1,085 scoped rows
-with zero unresolved inventory issues. Its SHA-256 is
-`79a768c7652daadcb912ffd21206c6fb07fe4f12e51190f0f632c59bea963b48`.
-The matching clone run `f13bdd35-4162-47a0-9ce5-4e80d06df6fb` completed with
-187 tables and 7,222 schema objects matching, source hashes unchanged, and owned
-clone/dump cleanup verified. Evidence remains
-in the temporary manifest directory and ignored `.codex-artifacts` directory.
-These are local synthetic proofs against the then-current candidate source hashes;
-after committing or changing code, capture and rehearse again for the new binding.
+Local evidence on 2026-10-23: all 42 inventory, recovery and dependency-planner
+guard tests passed. The updated synthetic inventory classified 153 tables and
+1,276 scoped rows with zero unresolved inventory issues, including 372 incoming
+logical-reference census descriptors. Its dependency plan intentionally remained
+blocked on missing normalization after-images, retirement semantics, retained
+references, cycles and rows blocked behind those cycles. Actual removal and recovery were
+not executed.
+
+Keep current operation IDs, digests, candidate HEAD and matching clone results in
+the ignored local handoff and generated reports. After a commit or bound source
+change, capture and rehearse again; an earlier successful clone does not prove a
+new candidate or a reset operation.

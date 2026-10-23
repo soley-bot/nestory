@@ -1,4 +1,5 @@
-// Run only against the root runner's already-created disposable local database.
+// Run only against CI's repository-configured database or the root runner's
+// already-created dedicated disposable local database.
 // This script never starts, resets, reloads, or deletes a database/fixture.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
@@ -10,11 +11,18 @@ import { localRecoveryDocker } from "./local-recovery-docker.mjs";
 import { selectDepositContainer } from "./deposit-candidate-target.mjs";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
-const database = process.env.DEPOSIT_CHRONOLOGY_TEST_DATABASE;
+const isGithubActions = process.env.GITHUB_ACTIONS === "true";
+const database = process.env.DEPOSIT_CHRONOLOGY_TEST_DATABASE ?? (isGithubActions ? "postgres" : undefined);
 assert.match(database ?? "", /^(postgres|pilot_reset_[a-z0-9_]+)$/,
   "DEPOSIT_CHRONOLOGY_TEST_DATABASE must name the dedicated local database");
-const localProject = process.env.DEPOSIT_CHRONOLOGY_LOCAL_PROJECT_DIR;
+const localProject = isGithubActions ? repoRoot : process.env.DEPOSIT_CHRONOLOGY_LOCAL_PROJECT_DIR;
 assert.ok(localProject, "DEPOSIT_CHRONOLOGY_LOCAL_PROJECT_DIR must identify the dedicated local Supabase project");
+if (isGithubActions) {
+  assert.equal(database, "postgres", "CI chronology tests require the repository fixture database");
+  assert.ok(!process.env.DEPOSIT_CHRONOLOGY_LOCAL_PROJECT_DIR ||
+    path.resolve(process.env.DEPOSIT_CHRONOLOGY_LOCAL_PROJECT_DIR) === repoRoot,
+  "CI chronology tests cannot override the repository Supabase project");
+}
 function execute(command, args, input, options = {}) {
   const result = spawnSync(command, args, {
     input, encoding: "utf8", shell: false, windowsHide: true,
@@ -28,8 +36,10 @@ const config = readFileSync(path.join(localProject, "supabase/config.toml"), "ut
 const container = selectDepositContainer(config,
   docker(["ps", "--filter", "name=^/supabase_db_", "--format", "{{.Names}}"])
     .split(/\r?\n/).filter(Boolean), process.env.SUPABASE_DB_CONTAINER);
-assert.match(container, /^supabase_db_nestory-pilot-reset-[0-9]{8}$/,
-  "Chronology concurrency tests require the dedicated Nestory Pilot reset test container");
+if (!isGithubActions) {
+  assert.match(container, /^supabase_db_nestory-pilot-reset-[0-9]{8}$/,
+    "Chronology concurrency tests require the dedicated Nestory Pilot reset test container");
+}
 const psqlArgs = ["exec", "-i", container, "psql", "-X", "-qAt", "-U", "postgres",
   "-d", database, "-v", "ON_ERROR_STOP=1"];
 const sql = (body) => docker(psqlArgs, body).trim();
@@ -131,7 +141,175 @@ test(`${isolation}: concurrent backdated refunds cannot overdraw an earlier depo
 });
 }
 
+test("direct concurrent event backdates serialize before historical balance validation", async () => {
+  const deposit = randomUUID();
+  const account = sql(`SELECT account_id FROM public.finance_account_roles
+    WHERE organization_id='${organization}' AND role_code='security_deposits';`);
+  const key = `chronology-edit-${deposit}`;
+  const command = (type, amount, offset, reference) => `SELECT public.record_lease_deposit_event_idempotent(
+    '${organization}','${deposit}','${account}','${type}',current_date-${offset},${amount},'${reference}','${reference}');`;
+  sql(`BEGIN;
+    SELECT set_config('request.jwt.claim.sub','${actor}',true);
+    INSERT INTO public.lease_deposits(id,organization_id,lease_id,amount,currency,status,created_by,updated_by)
+      SELECT '${deposit}','${organization}',id,500,'USD','pending','${actor}','${actor}'
+      FROM public.current_leases WHERE organization_id='${organization}'
+        AND primary_tenant_person_id='80000000-0000-0000-0000-000000000001';
+    SET LOCAL ROLE authenticated;
+    ${command("received", 100, 15, key + "-early")}
+    ${command("received", 100, 2, key + "-late")}
+    ${command("refunded", 60, 0, key + "-first")}
+    ${command("refunded", 60, 0, key + "-second")}
+    COMMIT;`);
+  const move = (suffix) => `UPDATE public.lease_deposit_events SET event_date=current_date-10
+    WHERE lease_deposit_id='${deposit}' AND reference='${key}-${suffix}';`;
+  const first = session(move("first"), `chronology-edit-first-${deposit}`, true, "READ COMMITTED", "postgres");
+  let second;
+  try {
+    await waitUntil(() => first.stdout.includes("CHRONOLOGY_READY"), "first event-date edit", first);
+    second = session(move("second"), `chronology-edit-second-${deposit}`, false, "READ COMMITTED", "postgres");
+    await waitUntil(() => sql(`SELECT EXISTS (SELECT 1 FROM pg_stat_activity AS waiting JOIN pg_stat_activity AS holding
+      ON holding.pid=ANY(pg_blocking_pids(waiting.pid)) WHERE waiting.application_name='${second.applicationName}'
+      AND holding.application_name='${first.applicationName}');`) === "t", "second event-date edit waiting on deposit", second);
+    first.child.stdin.end("COMMIT;\n");
+    const [accepted, rejected] = await Promise.all([first.done, second.done]);
+    assert.equal(accepted.status, 0, accepted.stderr);
+    assert.notEqual(rejected.status, 0);
+    assert.match(rejected.stderr, /Deposit event would make historical held balance negative/);
+    assert.doesNotMatch(accepted.stderr + rejected.stderr, /deadlock detected|40P01/);
+    assert.equal(sql(`SELECT event_date=current_date-10 FROM public.lease_deposit_events
+      WHERE lease_deposit_id='${deposit}' AND reference='${key}-first';`), "t");
+    assert.equal(sql(`SELECT event_date=current_date FROM public.lease_deposit_events
+      WHERE lease_deposit_id='${deposit}' AND reference='${key}-second';`), "t");
+    assert.equal(sql(`SELECT sum(CASE WHEN event_type='received' THEN amount ELSE -amount END)
+      FROM public.lease_deposit_events WHERE lease_deposit_id='${deposit}';`), "80.00");
+  } finally {
+    for (const worker of [first, second].filter(Boolean)) {
+      if (!worker.closed && !worker.child.stdin.writableEnded) worker.child.stdin.end("ROLLBACK;\n");
+    }
+    await Promise.all([first.done, ...(second ? [second.done] : [])]);
+  }
+});
+
+function createLifecycleFixture() {
+  const nonce = randomUUID();
+  const code = `LFC-${nonce.slice(0, 8)}`.toUpperCase();
+  sql(`BEGIN; SELECT set_config('request.jwt.claim.sub','${actor}',true); SET LOCAL ROLE authenticated;
+    DO $$ DECLARE p uuid; tenant uuid; created jsonb; BEGIN
+      p := public.create_property_minimal('${organization}',
+        (SELECT branch_id FROM public.properties WHERE id='10000000-0000-0000-0000-000000000001'),
+        'Chronology lifecycle fixture','${code}','house',NULL,current_date,'${nonce}-property',NULL,NULL,NULL);
+      PERFORM public.set_property_rental_structure('${organization}',p,'single_space');
+      tenant := public.create_person('${organization}','Chronology lifecycle tenant',NULL,
+        'individual',NULL,NULL,NULL,NULL,ARRAY['tenant'],(SELECT branch_id FROM public.properties WHERE id=p));
+      created := public.create_property_lease('${organization}',p,tenant,current_date-30,current_date+335,
+        1100,'USD',1,'monthly','draft',500,'USD','draft','${nonce}-create');
+      PERFORM public.transition_lease_lifecycle('${organization}',(created->>'leaseId')::uuid,
+        'draft',(created->>'occupancyId')::uuid,'activate',current_date,NULL,
+        'Confirmed chronology fixture move-in','${nonce}-activate');
+    END $$; COMMIT;`);
+  const [deposit, lease] = sql(`SELECT deposit.id::text || '|' || lease.id::text
+    FROM public.lease_deposits deposit JOIN public.leases lease ON lease.id=deposit.lease_id
+    JOIN public.properties property ON property.id=lease.property_id
+    WHERE property.organization_id='${organization}' AND property.code='${code}';`).split("|");
+  const occupancy = sql(`SELECT id FROM public.lease_occupancies
+    WHERE lease_id='${lease}' AND archived_at IS NULL AND evidence_state='accepted';`);
+  const account = sql(`SELECT account_id FROM public.finance_account_roles
+    WHERE organization_id='${organization}' AND role_code='security_deposits';`);
+  for (const id of [deposit, lease, occupancy, account]) assert.match(id, /^[0-9a-f-]{36}$/);
+  return {
+    nonce, deposit, lease,
+    end: `SELECT public.transition_lease_lifecycle('${organization}','${lease}','active','${occupancy}',
+      'end',current_date,NULL,'Confirmed chronology fixture move-out','${nonce}-end');`,
+    command: (type, amount, suffix) => `SELECT public.record_lease_deposit_event_idempotent(
+      '${organization}','${deposit}','${account}','${type}',current_date,${amount},'${nonce}-${suffix}','${nonce}-${suffix}');`,
+  };
+}
+
+test("dedicated database: receipt overlapping archive remains recoverable and later receipts are rejected", async () => {
+  const fixture = createLifecycleFixture();
+  const ended = await session(fixture.end, `chronology-end-${fixture.nonce}`).done;
+  assert.equal(ended.status, 0, ended.stderr);
+  const archive = session(`SELECT public.archive_lease('${organization}','${fixture.lease}');`,
+    `chronology-archive-${fixture.nonce}`, true);
+  try {
+    await waitUntil(() => archive.stdout.includes("CHRONOLOGY_READY"), "archive holding lease", archive);
+    const receipt = await session(fixture.command("received", 50, "overlap"), `chronology-overlap-${fixture.nonce}`).done;
+    assert.equal(receipt.status, 0, receipt.stderr);
+    archive.child.stdin.end("COMMIT;\n");
+    const archived = await archive.done;
+    assert.equal(archived.status, 0, archived.stderr);
+    const rejected = await session(fixture.command("received", 1, "post-archive"), `chronology-after-${fixture.nonce}`).done;
+    assert.notEqual(rejected.status, 0);
+    assert.match(rejected.stderr, /Lease deposit not found|Lease not found|Not authorized/);
+    const refunded = await session(fixture.command("refunded", 50, "refund"), `chronology-refund-${fixture.nonce}`).done;
+    assert.equal(refunded.status, 0, refunded.stderr);
+    assert.equal(sql(`SELECT sum(CASE WHEN event_type='received' THEN amount ELSE -amount END)
+      FROM public.lease_deposit_events WHERE lease_deposit_id='${fixture.deposit}';`), "0.00");
+  } finally {
+    if (!archive.closed && !archive.child.stdin.writableEnded) archive.child.stdin.end("ROLLBACK;\n");
+    await archive.done;
+  }
+});
+
+test("dedicated database: deposit receipt completes while lifecycle holds lease before financial month", async () => {
+  const fixture = createLifecycleFixture();
+  const lifecycle = session(`RESET ROLE; SELECT id FROM public.leases WHERE id='${fixture.lease}' FOR UPDATE;
+    SET LOCAL ROLE authenticated;`, `chronology-lease-lock-${fixture.nonce}`, true);
+  try {
+    await waitUntil(() => lifecycle.stdout.includes("CHRONOLOGY_READY"), "lifecycle lease lock", lifecycle);
+    const receipt = await session(fixture.command("received", 50, "lifecycle-receipt"),
+      `chronology-lease-receipt-${fixture.nonce}`).done;
+    assert.equal(receipt.status, 0, receipt.stderr);
+    lifecycle.child.stdin.end(fixture.end + "\nCOMMIT;\n");
+    const ended = await lifecycle.done;
+    assert.equal(ended.status, 0, ended.stderr);
+    assert.doesNotMatch(ended.stderr + receipt.stderr, /deadlock detected|40P01/);
+    assert.equal(sql(`SELECT status FROM public.leases WHERE id='${fixture.lease}';`), "ended");
+    assert.equal(sql(`SELECT count(*) FROM public.lease_deposit_events
+      WHERE reference='${fixture.nonce}-lifecycle-receipt';`), "1");
+  } finally {
+    if (!lifecycle.closed && !lifecycle.child.stdin.writableEnded) lifecycle.child.stdin.end("ROLLBACK;\n");
+    await lifecycle.done;
+  }
+});
+
 if (lifecycleInstalled) {
+  for (const isolation of ["REPEATABLE READ", "SERIALIZABLE"]) {
+    test(`${isolation}: direct deposit event writer rejects a stale fixed snapshot`, async () => {
+      const deposit = randomUUID();
+      const key = `chronology-snapshot-${deposit}`;
+      const account = sql(`SELECT account_id FROM public.finance_account_roles
+        WHERE organization_id='${organization}' AND role_code='security_deposits';`);
+      const receipt = (reference) => `SELECT public.record_lease_deposit_event_idempotent(
+        '${organization}','${deposit}','${account}','received',current_date,50,'${reference}','${reference}');`;
+      sql(`BEGIN;
+        SELECT set_config('request.jwt.claim.sub','${actor}',true);
+        INSERT INTO public.lease_deposits(id,organization_id,lease_id,amount,currency,status,created_by,updated_by)
+          SELECT '${deposit}','${organization}',id,500,'USD','pending','${actor}','${actor}'
+          FROM public.current_leases WHERE organization_id='${organization}'
+            AND primary_tenant_person_id='80000000-0000-0000-0000-000000000001';
+        SET LOCAL ROLE authenticated;
+        ${receipt(key)}
+        COMMIT;`);
+      const writer = session(`SELECT count(*) FROM public.lease_deposit_events WHERE lease_deposit_id='${deposit}';`,
+        `chronology-fixed-${deposit}`, true, isolation, "postgres");
+      try {
+        await waitUntil(() => writer.stdout.includes("CHRONOLOGY_READY"), "fixed deposit snapshot", writer);
+        sql(`BEGIN; SELECT set_config('request.jwt.claim.sub','${actor}',true);
+          SET LOCAL ROLE authenticated; ${receipt(key + "-later")} COMMIT;`);
+        writer.child.stdin.end(`UPDATE public.lease_deposit_events SET event_date=current_date-1
+          WHERE lease_deposit_id='${deposit}' AND reference='${key}'; COMMIT;\n`);
+        const result = await writer.done;
+        assert.notEqual(result.status, 0);
+        assert.match(result.stderr, /financial_write_requires_read_committed/);
+        assert.equal(sql(`SELECT count(*) FROM public.lease_deposit_events
+          WHERE lease_deposit_id='${deposit}' AND event_date=current_date;`), "2");
+      } finally {
+        if (!writer.closed && !writer.child.stdin.writableEnded) writer.child.stdin.end("ROLLBACK;\n");
+        await writer.done;
+      }
+    });
+  }
   for (const enroll of [false, true]) {
     test(`fixed-snapshot writer fails closed with ${enroll ? "newly enrolled" : "unenrolled"} controls`, async () => {
       const org = randomUUID();

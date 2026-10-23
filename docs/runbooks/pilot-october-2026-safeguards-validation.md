@@ -53,15 +53,16 @@ the ordinary synthetic baseline, paid-cost fixture and publication fixture.
 
 | Check | Result |
 | --- | --- |
-| Full pgTAP suite | 161 files, 5,369 assertions passed |
-| Concurrent chronology, freeze, isolation and report-revision checks | 5/5 passed |
+| Full pgTAP suite | 161 files, 5,381 assertions passed after a clean replay |
+| Concurrent chronology, freeze, isolation and report-revision checks | 15/15 passed |
 | Database lint | No errors in `public` or `app_private` |
 | Generated public types | Regenerated from the candidate schema; 45 additions |
-| Migration discipline against `origin/main` | 227 immutable base migrations and 6 forward migrations passed |
+| Migration discipline against `origin/main` | 227 immutable base migrations and 9 forward migrations passed |
 
 The deterministic full-suite log is
-`%TEMP%\nestory-pilot-reset-db-20261022\full-pgtap-deterministic-final.log`;
-concurrency evidence is `concurrency-deterministic-final.log` in the same folder.
+`%TEMP%\nestory-pilot-reset-db-20261022\pgtap-nine-migrations-clean.log`;
+concurrency evidence is `chronology-nine-migrations.log` and
+`revision-nine-migrations.log` in the same folder.
 The dedicated database has `cron.launch_active_jobs=off` so hourly jobs cannot
 change fixtures during validation. Schedule definitions and their active flags
 are preserved. This local setting is not a production change.
@@ -71,6 +72,18 @@ It requires `DEPOSIT_CHRONOLOGY_LOCAL_PROJECT_DIR` to point to the dedicated loc
 project and `DEPOSIT_CHRONOLOGY_TEST_DATABASE=postgres`. It checks the project and
 container identity; it never starts or resets a database. It adds synthetic
 financial test records, so run it before taking a stable manifest snapshot.
+
+Report revision entries are append-once per organization and transaction. Summing
+committed weights preserves a change stamp even when transactions commit out of
+ID order, without locking one shared counter. The private ledger has no additional
+organization foreign-key lock; a checked catalog assertion proves all 97 public
+sources retain immediate organization lifetime constraints, and deletion cleans
+up revision entries after source writers finish. Deposit chronology serializes
+on the deposit row without creating a redundant row version. Regression tests
+cover archive/receipt overlap, lifecycle lock order, account/organization lock
+order, source UPDATE/DELETE versus organization deletion, rollback and stale
+fixed snapshots. Entries accumulate; any future compaction must preserve the
+committed stamp under a reviewed exclusive fence.
 
 ## Application evidence
 
@@ -114,9 +127,17 @@ password credential proof and timed out. The user subsequently approved the
 isolated credentialed launch for local browser tests on port 3105 against the
 dedicated API on port 60321. Automatic approval review rejected that exact local
 launch again with only "blocked by policy", despite the user's approval; no
-specific reason was returned. Authenticated production-mode browser verification
+specific reason was returned. Local authenticated production-mode browser verification
 therefore remains unavailable. Security policy and login checks have not been
 weakened to suppress either result.
+
+The existing isolated GitHub browser workflow passed on `10ac38b0`: five ordinary
+daily-workflow phases, 13 additional browser cases, and 23 document-transport
+cases. It exercised ordinary sign-in, move-in, payment, monthly correction,
+immutable receipts and owner statements against synthetic Supabase. This proves
+that candidate's CI runtime behavior, not hosted Pilot operation. Run
+`39897247336` retains the screenshots and results. Database concurrency findings
+from the separate CI job were then addressed by the forward fixes described above.
 
 The separate isolated document-transport browser contract uses synthetic Auth and
 Storage boundaries with the real proxy, receipt and owner PDF/XLS routes, lifecycle
@@ -131,17 +152,20 @@ fixed without changing the application or weakening its checks.
 
 ## Local inventory and recovery evidence
 
-The manifest classifies all 153 public/private tables and 1,085 scoped synthetic
+The manifest classifies all 153 public/private tables and 1,276 scoped synthetic
 rows, with zero unresolved inventory issues. Its registry explicitly preserves
 master records and requires reviewed normalization of deposit cash status, task
 cost projections and timeline amounts. Saved transaction-result seals and old
 import/journal intents are retired, not made replayable after the reset.
 
-The matching local database clone compared 187 tables and 7,222 schema objects,
-verified unchanged source hashes, and removed its owned clone and dump. The 24
-inventory/recovery guard tests passed. See the execution plan for artifact IDs
-and digest bindings. A commit or bound tool/migration change requires a fresh
-capture and rehearsal; this is preparation evidence, not a reset execution test.
+All 42 inventory/recovery/dependency guard tests pass. The inventory includes
+372 incoming logical-reference descriptors so cross-organization references
+cannot be omitted from the removal review. The offline plan detects unresolved
+retained references, normalizations, retired intent handling and cycles; it emits
+no executable SQL. Current exact-head inventory and clone bindings belong in the
+ignored local handoff and generated reports. A commit or bound tool/migration
+change requires a fresh capture and rehearsal; this is preparation evidence,
+not a reset execution test.
 
 The commands `npm run test:pilot-finance-reset`,
 `npm run db:pilot-finance-reset-manifest`, and

@@ -441,6 +441,11 @@ jobs:
       - name: Test deposit lifecycle and idempotency concurrency
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/lease-deposit-lifecycle-concurrency.node-test.mjs
 
+      - name: Test deposit chronology and independent report source writers
+        run: |
+          node --test --test-concurrency=1 scripts/lease-deposit-chronology-concurrency.node-test.mjs
+          node --test --test-concurrency=1 scripts/financial-report-revision-concurrency.node-test.mjs
+
       - name: Test historical rent correction concurrency
         run: npm run rent:test-correction-concurrency
 

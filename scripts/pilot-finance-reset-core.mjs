@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import path from 'node:path';
 import { RESET_REGISTRY, POLYMORPHIC_REFERENCES, STORAGE_REFERENCES, STATIC_REFERENCES, RETAINED_IDENTITY_FIELDS, REBUILD_REQUIREMENTS } from './pilot-finance-reset-registry.mjs';
 
 export const TARGET = Object.freeze({ project: 'nestory-pilot-reset-20261022', container: 'supabase_db_nestory-pilot-reset-20261022',
@@ -6,6 +7,39 @@ export const TARGET = Object.freeze({ project: 'nestory-pilot-reset-20261022', c
   baseSha: '4129597c75f948a83deab46546a58e70a613b6c5', fixtureSha256: 'daed5195b76bdbc23bc000fe4f28d0d1672d9370759e84c5a88aa29dd4a15587' });
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const digest = /^[a-f0-9]{64}$/;
+export const VALIDATION_SOURCE_ARTIFACTS = Object.freeze([
+  ...[
+    '20261022110831_financial_write_lifecycle_fence.sql',
+    '20261022110849_enforce_lease_deposit_event_chronology.sql',
+    '20261023012248_owner_close_monthly_rent_completeness.sql',
+    '20261023012530_checked_month_to_month_continuation.sql',
+    '20261023012815_financial_artifact_generation_retirement.sql',
+    '20261023090000_financial_report_source_revisions.sql',
+    '20261023091000_financial_report_revision_transaction_entries.sql',
+    '20261023092000_preserve_deposit_chronology_lock_order.sql',
+    '20261023093000_financial_report_revision_parent_lock_removal.sql',
+  ].map(name => ({ name, root: 'project', directory: 'supabase/migrations' })),
+  { name: 'baseline.sql', root: 'project', directory: 'supabase/test-fixtures' },
+  { name: 'load-paid-cost-scenarios-fixture.ts', root: 'project', directory: 'scripts' },
+  { name: 'load-owner-statement-publication-fixture.ts', root: 'project', directory: 'scripts' },
+  { name: 'lease-deposit-chronology-concurrency.node-test.mjs', root: 'workspace', directory: 'scripts' },
+  { name: 'financial-report-revision-concurrency.node-test.mjs', root: 'workspace', directory: 'scripts' },
+].map(Object.freeze));
+
+export function assertValidationSourceEvidence(evidence, { workspaceRoot, projectRoot }) {
+  if (!Array.isArray(evidence)) throw Error('Final synthetic validation source evidence is missing.');
+  const expected = new Map(VALIDATION_SOURCE_ARTIFACTS.map(artifact => [artifact.name,
+    path.resolve(artifact.root === 'project' ? projectRoot : workspaceRoot, artifact.directory, artifact.name)]));
+  const seen = new Map();
+  for (const item of evidence) {
+    if (!item || typeof item.path !== 'string' || !path.isAbsolute(item.path) || !digest.test(item.sha256 ?? '')) throw Error('Invalid validation source artifact.');
+    const name = path.basename(item.path);
+    if (!expected.has(name) || path.resolve(item.path) !== expected.get(name) || seen.has(name)) throw Error('Unexpected or duplicate validation source artifact.');
+    seen.set(name, { name, path: expected.get(name), sha256: item.sha256 });
+  }
+  if (seen.size !== expected.size || [...expected.keys()].some(name => !seen.has(name))) throw Error('Final synthetic validation source evidence is incomplete.');
+  return [...expected.keys()].map(name => seen.get(name));
+}
 // Both adapters and their local helpers are part of the reviewed operation.
 // Capturing only the entry points would miss a changed census or Docker guard.
 export const RESET_TOOL_SOURCE_FILES = Object.freeze([
@@ -54,7 +88,46 @@ export function assertLocalSource(input) {
   }
 }
 
-export function buildManifest({ operationId, binding, tables, rows, schema, storageObjects, inbound = [], registry = RESET_REGISTRY }) {
+// Incoming unconstrained references are scanned by the same closed vocabulary as
+// selected rows. Counts expose no other organization's row IDs or payloads.
+export function logicalInboundDescriptors(tables, registry = RESET_REGISTRY) {
+  const existing = new Map(tables.map(table => [table.table, table]));
+  const removable = target => existing.has(target) && registry[target]?.scope && registry[target].disposition === 'archive-remove';
+  const descriptors = [];
+  for (const ref of STATIC_REFERENCES) {
+    const source = existing.get(ref.table);
+    if (!source || !removable(ref.target) || (ref.optionalColumn && !source.columns.includes(ref.column))) continue;
+    descriptors.push({ referenceKind: 'static', table: ref.table, column: ref.column, target: ref.target });
+  }
+  for (const ref of POLYMORPHIC_REFERENCES) {
+    if (!existing.has(ref.table)) continue;
+    let hasRemovableTarget = false;
+    for (const [type, targets] of Object.entries(ref.targets)) for (const target of [targets].flat()) {
+      if (!removable(target)) continue;
+      hasRemovableTarget = true;
+      descriptors.push({ referenceKind: 'polymorphic', table: ref.table, column: ref.idColumn, typeColumn: ref.typeColumn, type, target });
+    }
+    if (hasRemovableTarget) descriptors.push({ referenceKind: 'unknown-polymorphic', table: ref.table, column: ref.idColumn,
+      typeColumn: ref.typeColumn, knownTypes: Object.keys(ref.targets).sort() });
+  }
+  return sorted([...new Map(descriptors.map(item => [json(item), item])).values()]);
+}
+
+export function logicalInboundIssues(tables, evidence, registry = RESET_REGISTRY) {
+  const expected = new Map(logicalInboundDescriptors(tables, registry).map(item => [json(item), item])), seen = new Set(), issues = [];
+  if (!Array.isArray(evidence)) return [{ code: 'logical_inbound_census_required' }];
+  for (const item of evidence) {
+    if (!item || !Number.isSafeInteger(item.rows) || item.rows < 0) { issues.push({ code: 'invalid_logical_inbound_census' }); continue; }
+    const { rows, ...descriptor } = item, descriptorKey = json(descriptor);
+    if (!expected.has(descriptorKey) || seen.has(descriptorKey)) { issues.push({ code: 'unexpected_or_duplicate_logical_inbound_census' }); continue; }
+    seen.add(descriptorKey);
+    if (rows > 0) issues.push({ code: descriptor.referenceKind === 'unknown-polymorphic' ? 'unknown_cross_scope_logical_association' : 'cross_scope_logical_inbound_dependency', ...item });
+  }
+  for (const [descriptorKey, descriptor] of expected) if (!seen.has(descriptorKey)) issues.push({ code: 'logical_inbound_census_missing', ...descriptor });
+  return issues;
+}
+
+export function buildManifest({ operationId, binding, tables, rows, schema, storageObjects, inbound = [], logicalInbound = [], registry = RESET_REGISTRY }) {
   if (!uuid.test(operationId ?? '')) throw Error('Operation ID must be an explicit UUID.');
   if (binding.baseSha !== TARGET.baseSha || binding.fixtureSha256 !== TARGET.fixtureSha256 || binding.organization !== TARGET.organization || binding.cutoff !== TARGET.cutoff || !digest.test(binding.migrationsSha256 ?? '') || !digest.test(binding.containerId ?? '')) throw Error('Manifest source binding is invalid.');
   const issues = [];
@@ -106,6 +179,7 @@ export function buildManifest({ operationId, binding, tables, rows, schema, stor
     }
   }
   for (const edge of inbound) if (edge.rows > 0) issues.push({ code: 'cross_scope_inbound_dependency', ...edge });
+  issues.push(...logicalInboundIssues(tables, logicalInbound, registry));
   const staticReferences = [];
   for (const ref of STATIC_REFERENCES) for (const row of byTable.get(ref.table) ?? []) {
     if (ref.optionalColumn && !tableMap.get(ref.table).columns.includes(ref.column)) continue;
@@ -135,10 +209,10 @@ export function buildManifest({ operationId, binding, tables, rows, schema, stor
     if (!resolved) issues.push({ code: 'storage_metadata_missing_or_ambiguous', table: ref.table, pk: row.pk });
   }
   const inventory = tables.map(table => ({ ...table, policy: registry[table.table] ?? null,
-    selectedRows: sorted((byTable.get(table.table) ?? []).map(row => ({ pk: row.pk, sha256: row.sha256 }))) }));
+    selectedRows: sorted((byTable.get(table.table) ?? []).map(row => ({ pk: row.pk, sha256: row.sha256, references: row.references }))) }));
   const manifest = { format: 'nestory-local-finance-reset-inventory-v1', operationId, syntheticOnly: true, inventoryAccepted: issues.length === 0,
     executionSupported: false, productionRecoveryProven: false, binding: { ...binding, registrySha256: registrySha256(), schemaSha256: sha256(json(sorted(schema))) },
-    tables: sorted(inventory), foreignKeys: sorted(fkEdges), inbound: sorted(inbound), staticReferences: sorted(staticReferences), retainedIdentityFields: RETAINED_IDENTITY_FIELDS, polymorphic: sorted(polymorphic), storage: sorted(storage), schema: sorted(schema),
+    tables: sorted(inventory), foreignKeys: sorted(fkEdges), inbound: sorted(inbound), logicalInbound: sorted(logicalInbound), staticReferences: sorted(staticReferences), retainedIdentityFields: RETAINED_IDENTITY_FIELDS, polymorphic: sorted(polymorphic), storage: sorted(storage), schema: sorted(schema),
     rebuildRequirements: REBUILD_REQUIREMENTS, issues: sorted(issues),
     missingExecutorPhases: ['private archive and exact-row copy verification', 'reviewed normalization after-values', 'row dependency/cycle execution order', 'narrow frozen operation capability', 'atomic removal and known-zero evidence', 'frozen continuation and October billing', 'restoration with generation authority and Storage bytes'] };
   return { ...manifest, manifestSha256: sha256(json(manifest)) };
@@ -147,10 +221,11 @@ export function buildManifest({ operationId, binding, tables, rows, schema, stor
 export const identitySql = `SELECT jsonb_build_object('organizations',(SELECT jsonb_agg(jsonb_build_object('id',id,'slug',slug) ORDER BY id) FROM public.organizations),'authUsers',(SELECT jsonb_agg(id ORDER BY id) FROM auth.users),'cronLaunch',current_setting('cron.launch_active_jobs'));`;
 export const catalogSql = `SELECT jsonb_build_object('table',n.nspname||'.'||c.relname,
  'columns',(SELECT jsonb_agg(a.attname ORDER BY a.attnum) FROM pg_attribute a WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped),
+ 'nullableColumns',coalesce((SELECT jsonb_agg(a.attname ORDER BY a.attname) FROM pg_attribute a WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped AND NOT a.attnotnull),'[]'::jsonb),
  'jsonColumns',coalesce((SELECT jsonb_agg(a.attname ORDER BY a.attname) FROM pg_attribute a WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped AND a.atttypid IN('json'::regtype,'jsonb'::regtype)),'[]'::jsonb),
  'unconstrainedUuidColumns',coalesce((SELECT jsonb_agg(a.attname ORDER BY a.attname) FROM pg_attribute a WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped AND a.atttypid='uuid'::regtype AND a.attname NOT IN('id','organization_id') AND NOT EXISTS(SELECT 1 FROM pg_constraint f WHERE f.conrelid=c.oid AND f.contype IN('p','f') AND a.attnum=ANY(f.conkey))),'[]'::jsonb),
  'pk',coalesce((SELECT jsonb_agg(a.attname ORDER BY k.ord) FROM pg_index i CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY k(attnum,ord) JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum=k.attnum WHERE i.indrelid=c.oid AND i.indisprimary),'[]'::jsonb),
- 'foreignKeys',coalesce((SELECT jsonb_agg(jsonb_build_object('name',f.conname,'target',rn.nspname||'.'||rc.relname,'columns',(SELECT jsonb_agg(a.attname ORDER BY k.ord) FROM unnest(f.conkey) WITH ORDINALITY k(attnum,ord) JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum=k.attnum),'targetColumns',(SELECT jsonb_agg(a.attname ORDER BY k.ord) FROM unnest(f.confkey) WITH ORDINALITY k(attnum,ord) JOIN pg_attribute a ON a.attrelid=rc.oid AND a.attnum=k.attnum),'definition',pg_get_constraintdef(f.oid)) ORDER BY f.conname) FROM pg_constraint f JOIN pg_class rc ON rc.oid=f.confrelid JOIN pg_namespace rn ON rn.oid=rc.relnamespace WHERE f.contype='f' AND f.conrelid=c.oid),'[]'::jsonb))
+ 'foreignKeys',coalesce((SELECT jsonb_agg(jsonb_build_object('name',f.conname,'target',rn.nspname||'.'||rc.relname,'columns',(SELECT jsonb_agg(a.attname ORDER BY k.ord) FROM unnest(f.conkey) WITH ORDINALITY k(attnum,ord) JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum=k.attnum),'targetColumns',(SELECT jsonb_agg(a.attname ORDER BY k.ord) FROM unnest(f.confkey) WITH ORDINALITY k(attnum,ord) JOIN pg_attribute a ON a.attrelid=rc.oid AND a.attnum=k.attnum),'onDelete',f.confdeltype,'matchType',f.confmatchtype,'deleteColumns',(SELECT jsonb_agg(a.attname ORDER BY k.ord) FROM unnest(coalesce(f.confdelsetcols,f.conkey)) WITH ORDINALITY k(attnum,ord) JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum=k.attnum),'definition',pg_get_constraintdef(f.oid)) ORDER BY f.conname) FROM pg_constraint f JOIN pg_class rc ON rc.oid=f.confrelid JOIN pg_namespace rn ON rn.oid=rc.relnamespace WHERE f.contype='f' AND f.conrelid=c.oid),'[]'::jsonb))
 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN('public','app_private') AND c.relkind IN('r','p') ORDER BY n.nspname,c.relname;`;
 const quote = value => '"' + value.replaceAll('"', '""') + '"';
 const literal = value => "'" + value.replaceAll("'", "''") + "'";
@@ -181,6 +256,19 @@ export function rowInventorySql(tables) {
     const parent = fk.target.split('.').map(quote).join('.'), relation = child.table.split('.').map(quote).join('.');
     const outside = childPolicy.scope ? `c.${quote(childPolicy.scope)} IS DISTINCT FROM ${literal(TARGET.organization)}::uuid` : 'true';
     statements.push(`SELECT jsonb_build_object('kind','inbound','table',${literal(child.table)},'target',${literal(fk.target)},'constraint',${literal(fk.name)},'rows',count(*)) FROM ${relation} c JOIN ${parent} p ON ${fk.columns.map((col,i) => `c.${quote(col)}=p.${quote(fk.targetColumns[i])}`).join(' AND ')} WHERE p.${quote(parentPolicy.scope)}=${literal(TARGET.organization)}::uuid AND ${outside};`);
+  }
+  for (const descriptor of logicalInboundDescriptors(tables)) {
+    const childPolicy = RESET_REGISTRY[descriptor.table];
+    const relation = descriptor.table.split('.').map(quote).join('.');
+    const outside = childPolicy.scope ? `c.${quote(childPolicy.scope)} IS DISTINCT FROM ${literal(TARGET.organization)}::uuid` : 'true';
+    const output = `${literal(json(descriptor))}::jsonb || jsonb_build_object('kind','logical-inbound','rows',count(*))`;
+    if (descriptor.referenceKind === 'unknown-polymorphic') {
+      statements.push(`SELECT ${output} FROM ${relation} c WHERE ${outside} AND c.${quote(descriptor.column)} IS NOT NULL AND (c.${quote(descriptor.typeColumn)} IS NULL OR c.${quote(descriptor.typeColumn)} NOT IN (${descriptor.knownTypes.map(literal).join(',')}));`);
+    } else {
+      const parent = descriptor.target.split('.').map(quote).join('.'), parentPolicy = RESET_REGISTRY[descriptor.target];
+      const typeFilter = descriptor.referenceKind === 'polymorphic' ? ` AND c.${quote(descriptor.typeColumn)}=${literal(descriptor.type)}` : '';
+      statements.push(`SELECT ${output} FROM ${relation} c JOIN ${parent} p ON c.${quote(descriptor.column)}=p."id" WHERE p.${quote(parentPolicy.scope)}=${literal(TARGET.organization)}::uuid AND ${outside}${typeFilter};`);
+    }
   }
   return `BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY; SET LOCAL statement_timeout='30s'; SET LOCAL timezone='UTC';\n${statements.join('\n')}\nCOMMIT;`;
 }

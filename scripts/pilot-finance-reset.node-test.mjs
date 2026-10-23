@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TARGET, json, sha256, normalizedSource, assertLocalContainer, assertLocalSource, buildManifest, catalogSql, rowInventorySql } from './pilot-finance-reset-core.mjs';
+import path from 'node:path';
+import { TARGET, VALIDATION_SOURCE_ARTIFACTS, json, sha256, normalizedSource, assertLocalContainer, assertLocalSource, assertValidationSourceEvidence, buildManifest, catalogSql, rowInventorySql, logicalInboundDescriptors } from './pilot-finance-reset-core.mjs';
 const hash = 'a'.repeat(64), id = '11111111-1111-4111-8111-111111111111';
 const binding = { ...TARGET, baseSha:TARGET.baseSha, fixtureSha256:TARGET.fixtureSha256, migrationsSha256:hash, containerId:hash, authUsers:[] };
 const table = (name='public.example') => ({table:name, columns:['id','organization_id'], pk:['id'], jsonColumns:[], unconstrainedUuidColumns:[],foreignKeys:[]});
@@ -9,6 +10,46 @@ const row = (name='public.example',pk=id) => ({table:name,scope:TARGET.organizat
 const input = () => ({operationId:id,binding,tables:[table()],rows:[row()],schema:[],storageObjects:[],registry:{'public.example':rule}});
 const issue = (m,code) => m.issues.some(i=>i.code===code);
 const source = () => ({config:`project_id = "${TARGET.project}"\n[api]\nport = 60321\n[db]\nport = 60322\n[other]\nport = 1\n`,inspect:{name:`/${TARGET.container}`,project:TARGET.project,id:hash,image:`sha256:${hash}`,running:true},baseSha:TARGET.baseSha,fixtureSha256:TARGET.fixtureSha256,identities:{cronLaunch:'off',organizations:[{id:TARGET.organization,slug:TARGET.slug}],authUsers:[101,501,601,701,801].map(n=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`)}});
+const evidenceRoots = { workspaceRoot: path.resolve('synthetic-workspace'), projectRoot: path.resolve('synthetic-project') };
+const validationEvidence = () => VALIDATION_SOURCE_ARTIFACTS.map(artifact => ({
+  path: path.join(artifact.root === 'project' ? evidenceRoots.projectRoot : evidenceRoots.workspaceRoot, artifact.directory, artifact.name),
+  sha256: hash,
+}));
+
+test('validation binding requires the exact nine migrations and five fixture/runner artifacts', () => {
+  const evidence = validationEvidence();
+  const validated = assertValidationSourceEvidence(evidence, evidenceRoots);
+  assert.equal(validated.length, 14);
+  assert.equal(validated.filter(item => item.name.endsWith('.sql')).length, 10);
+  assert.ok(validated.some(item => item.name === 'financial-report-revision-concurrency.node-test.mjs'));
+  assert.deepEqual(assertValidationSourceEvidence([...evidence].reverse(), evidenceRoots), validated);
+});
+
+test('validation evidence rejects every missing artifact and same-count substitutions', () => {
+  for (let index = 0; index < VALIDATION_SOURCE_ARTIFACTS.length; index++) {
+    const missing = validationEvidence(); missing.splice(index, 1);
+    assert.throws(() => assertValidationSourceEvidence(missing, evidenceRoots), /incomplete/);
+    const duplicate = validationEvidence(); duplicate[index] = duplicate[(index + 1) % duplicate.length];
+    assert.throws(() => assertValidationSourceEvidence(duplicate, evidenceRoots), /duplicate/);
+  }
+  const unknownMigration = validationEvidence();
+  unknownMigration[0].path = path.join(evidenceRoots.projectRoot, 'supabase/migrations/20261023093000_unreviewed.sql');
+  assert.throws(() => assertValidationSourceEvidence(unknownMigration, evidenceRoots), /Unexpected/);
+});
+
+test('validation evidence rejects changed roots, relative paths and malformed hashes', () => {
+  for (const mutate of [
+    evidence => { evidence[0].path = path.join(evidenceRoots.workspaceRoot, 'supabase/migrations', path.basename(evidence[0].path)); },
+    evidence => { const item = evidence.at(-1); item.path = path.join(evidenceRoots.projectRoot, 'scripts', path.basename(item.path)); },
+    evidence => { evidence[0].path = path.relative(process.cwd(), evidence[0].path); },
+    evidence => { evidence[0].sha256 = 'not-a-digest'; },
+    evidence => { evidence[0] = null; },
+  ]) {
+    const evidence = validationEvidence(); mutate(evidence);
+    assert.throws(() => assertValidationSourceEvidence(evidence, evidenceRoots), /artifact/);
+  }
+  assert.throws(() => assertValidationSourceEvidence(null, evidenceRoots), /missing/);
+});
 test('canonical hashes sort object keys but preserve array order',()=>{assert.equal(json({b:1,a:2}),json({a:2,b:1}));assert.notEqual(sha256(json([1,2])),sha256(json([2,1])));assert.equal(normalizedSource('\uFEFFa\r\nb'),'a\nb');});
 test('fixed project and container accepted before querying identities',()=>assert.doesNotThrow(()=>assertLocalContainer(source())));
 test('wrong TOML sections, container, base and fixture fail closed',()=>{for(const mutate of [s=>s.config=s.config.replace('[api]','[wrong]'),s=>s.config=s.config.replace('[db]','[wrong]'),s=>s.inspect.project='other',s=>s.inspect.running=false,s=>s.baseSha='0'.repeat(40),s=>s.fixtureSha256=hash]) {const s=source();mutate(s);assert.throws(()=>assertLocalContainer(s));}});
@@ -35,11 +76,13 @@ test('legacy ledger payment/withdrawal target needs reverse linkage',()=>{
   const i=input();i.tables=[{...table('public.ledger_entries'),columns:['id','organization_id','source_type','source_id']},{...table('public.property_withdrawals'),columns:['id','organization_id','ledger_entry_id']}];
   i.registry=Object.fromEntries(i.tables.map(t=>[t.table,rule]));
   i.rows=[{...row('public.ledger_entries'),references:{source_type:'owner_cash_event',source_id:id}},{...row('public.property_withdrawals'),references:{ledger_entry_id:'other'}}];
+  i.logicalInbound=logicalInboundDescriptors(i.tables,i.registry).map(descriptor=>({...descriptor,rows:0}));
   assert.ok(issue(buildManifest(i),'unresolved_polymorphic_reference'));i.rows[1].references.ledger_entry_id=id;assert.equal(buildManifest(i).inventoryAccepted,true);
 });
 test('rebuilt period IDs are explicitly historical, never claimed resolved',()=>{
   const i=input(), close='public.owner_close_line_sources', periods='public.owner_balance_periods';
   i.tables=[{...table(close),columns:['id','organization_id','source_type','source_id','source_line_id','owner_balance_period_component_id']},{...table(periods),columns:['id','organization_id','closed_revision_id']}];
   i.registry={[close]:rule,[periods]:rule};i.rows=[{...row(close),references:{source_type:'period_component',source_id:id,source_line_id:'old-component',owner_balance_period_component_id:'old-component'}},{...row(periods),references:{closed_revision_id:null}}];
+  i.logicalInbound=logicalInboundDescriptors(i.tables,i.registry).map(descriptor=>({...descriptor,rows:0}));
   const m=buildManifest(i);assert.equal(m.inventoryAccepted,true);assert.ok(m.polymorphic.some(r=>r.historicalSnapshot&&!r.resolved));assert.ok(m.staticReferences.some(r=>r.historicalSnapshot&&!r.resolved));assert.equal(m.executionSupported,false);
 });

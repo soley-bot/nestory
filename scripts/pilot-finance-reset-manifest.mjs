@@ -8,7 +8,7 @@ import path from 'node:path';
 import { localRecoveryDocker } from './local-recovery-docker.mjs';
 import { schemaCensusSql, compareEvidence, parseJsonLines } from './ips-readiness-recovery-core.mjs';
 import { reconstructLocalMigrationDescriptors } from './hosted-migration-parity-core.mjs';
-import { TARGET, RESET_TOOL_SOURCE_FILES, sha256, json, assertLocalSource, assertLocalContainer, normalizedSource, buildManifest, identitySql, catalogSql, rowInventorySql } from './pilot-finance-reset-core.mjs';
+import { TARGET, RESET_TOOL_SOURCE_FILES, sha256, json, assertLocalSource, assertLocalContainer, assertValidationSourceEvidence, normalizedSource, buildManifest, identitySql, catalogSql, rowInventorySql } from './pilot-finance-reset-core.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const projectRoot = path.join(os.tmpdir(), 'nestory-pilot-reset-db-20261022');
@@ -48,20 +48,12 @@ try {
   assertLocalSource({ config, inspect: container, baseSha, fixtureSha256: sha256(fixtureBody), identities });
   phase = 'candidate and fixture binding';
   const sourceEvidence = JSON.parse(normalized(await readFile(path.join(projectRoot, 'validation-source-hashes.json'), 'utf8')));
-  if (!Array.isArray(sourceEvidence) || sourceEvidence.length !== 10) throw Error('Final synthetic validation source evidence is missing.');
+  const validatedSources = assertValidationSourceEvidence(sourceEvidence, { workspaceRoot: root, projectRoot });
   const evidence = [];
-  const seen = new Set();
-  for (const item of sourceEvidence) {
-    const name = path.basename(item.path);
-    const expected = name === 'lease-deposit-chronology-concurrency.node-test.mjs' ? path.join(root, 'scripts', name)
-      : name === 'baseline.sql' ? path.join(projectRoot, 'supabase/test-fixtures', name)
-      : /^2026\d{10}_[a-z0-9_]+\.sql$/.test(name) ? path.join(projectRoot, 'supabase/migrations', name)
-      : ['load-paid-cost-scenarios-fixture.ts', 'load-owner-statement-publication-fixture.ts'].includes(name) ? path.join(projectRoot, 'scripts', name) : null;
-    if (!expected || path.resolve(item.path) !== expected || seen.has(name)) throw Error('Unexpected validation source artifact.');
-    seen.add(name);
-    const actual = sha256(await readFile(expected));
+  for (const item of validatedSources) {
+    const actual = sha256(await readFile(item.path));
     if (actual !== item.sha256) throw Error('Validated synthetic source artifact changed.');
-    evidence.push({ name, sha256: actual });
+    evidence.push({ name: item.name, sha256: actual });
   }
   const names = (await readdir(path.join(root, 'supabase/migrations'))).filter(name => /^\d{14}_[a-z0-9_]+\.sql$/.test(name)).sort();
   const ledger = await read(`SELECT jsonb_build_object('version',m.version,'name',m.name,'statements',coalesce((SELECT jsonb_agg(jsonb_build_object('byteLength',octet_length(replace(s.statement,E'\\r\\n',E'\\n')),'sha256',encode(extensions.digest(replace(s.statement,E'\\r\\n',E'\\n'),'sha256'),'hex')) ORDER BY s.ordinality) FROM unnest(m.statements) WITH ORDINALITY s(statement,ordinality)),'[]'::jsonb)) FROM supabase_migrations.schema_migrations m ORDER BY m.version;`);
@@ -97,7 +89,8 @@ try {
     authUsers: identities.authUsers, cronLaunch: identities.cronLaunch, migrationsSha256: sha256(json(migrations.map(({name,sha256}) => ({name,sha256})))),
     migrations, fixtureArtifacts: evidence, globalCensusSha256: sha256(json(census)), globalCensus: census,
     capturedGeneration: null, expectedNextGeneration: null, generationSelectionRequiresFrozenCheckpoint: true },
-    inbound: before.filter(row => row.kind === 'inbound').map(withoutKind), tables, rows: before.filter(row => row.kind === 'row'), schema: schemaBefore, storageObjects });
+    inbound: before.filter(row => row.kind === 'inbound').map(withoutKind), logicalInbound: before.filter(row => row.kind === 'logical-inbound').map(withoutKind),
+    tables, rows: before.filter(row => row.kind === 'row'), schema: schemaBefore, storageObjects });
   phase = 'controlled local artifact';
   const output = path.join(projectRoot, 'pilot-finance-reset-manifests');
   await mkdir(output, { recursive: true });
