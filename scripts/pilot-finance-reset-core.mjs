@@ -18,12 +18,16 @@ export const VALIDATION_SOURCE_ARTIFACTS = Object.freeze([
     '20261023091000_financial_report_revision_transaction_entries.sql',
     '20261023092000_preserve_deposit_chronology_lock_order.sql',
     '20261023093000_financial_report_revision_parent_lock_removal.sql',
+    '20261023094000_timeline_financial_lifecycle_coverage.sql',
+    '20261023095000_financial_document_lifecycle_coverage.sql',
+    '20261023100000_checked_operational_command_authority.sql',
   ].map(name => ({ name, root: 'project', directory: 'supabase/migrations' })),
   { name: 'baseline.sql', root: 'project', directory: 'supabase/test-fixtures' },
   { name: 'load-paid-cost-scenarios-fixture.ts', root: 'project', directory: 'scripts' },
   { name: 'load-owner-statement-publication-fixture.ts', root: 'project', directory: 'scripts' },
   { name: 'lease-deposit-chronology-concurrency.node-test.mjs', root: 'workspace', directory: 'scripts' },
   { name: 'financial-report-revision-concurrency.node-test.mjs', root: 'workspace', directory: 'scripts' },
+  { name: 'checked-operational-command-concurrency.node-test.mjs', root: 'workspace', directory: 'scripts' },
 ].map(Object.freeze));
 
 export function assertValidationSourceEvidence(evidence, { workspaceRoot, projectRoot }) {

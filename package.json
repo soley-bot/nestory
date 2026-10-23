@@ -44,6 +44,7 @@
     "leases:test-history-integrity": "node scripts/lease-history-integrity-concurrency.mjs",
     "leases:test-deposit-default": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/legacy-deposit-default-concurrency.node-test.mjs",
     "leases:test-deposit-chronology": "node --test --test-concurrency=1 scripts/lease-deposit-chronology-concurrency.node-test.mjs",
+    "operations:test-command-concurrency": "node --test --test-concurrency=1 scripts/checked-operational-command-concurrency.node-test.mjs",
     "leases:test-relationships": "node scripts/lease-relationship-concurrency.mjs",
     "properties:test-concurrency": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/property-checked-update-concurrency.node-test.mjs",
     "owners:test-readiness": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/report-owner-roster-preflight.node-test.mjs scripts/owner-roster-readiness-concurrency.node-test.mjs",

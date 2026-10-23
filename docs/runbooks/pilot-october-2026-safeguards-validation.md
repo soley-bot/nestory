@@ -39,6 +39,13 @@ Once October rent is billed, tenant receivables will no longer be zero.
 - Financial screens carry their verified generation. Stale payloads and invalid
   sessions hide amounts and disable financial actions. Dashboard cash history
   starts at the financial cutoff rather than displaying earlier empty months.
+- Timeline and document metadata writers participate in the freeze and report
+  source revision. Historical notes and document upload dates remain supported;
+  timeline costs and ledger links also enforce generation, cutoff and month locks.
+- Six timeline and maintenance archive/restore commands use the checked command
+  authority required by their existing read-only table policies. Actor, property,
+  unit and audit checks remain enforced. Commands recheck source permissions after
+  acquiring the row lock; timeline updates also recheck the destination permission.
 
 These safeguards do not themselves archive or remove financial history. See the
 [execution and recovery plan](pilot-october-2026-reset-execution-plan.md) and
@@ -53,16 +60,17 @@ the ordinary synthetic baseline, paid-cost fixture and publication fixture.
 
 | Check | Result |
 | --- | --- |
-| Full pgTAP suite | 161 files, 5,381 assertions passed after a clean replay |
-| Concurrent chronology, freeze, isolation and report-revision checks | 15/15 passed |
+| Full pgTAP suite | 164 files, 5,499 assertions passed after a clean replay |
+| Concurrent chronology, freeze, isolation, report-revision and command-scope checks | 18/18 passed |
 | Database lint | No errors in `public` or `app_private` |
 | Generated public types | Regenerated from the candidate schema; 45 additions |
-| Migration discipline against `origin/main` | 227 immutable base migrations and 9 forward migrations passed |
+| Migration discipline against `origin/main` | 227 immutable base migrations and 12 forward migrations passed |
 
 The deterministic full-suite log is
-`%TEMP%\nestory-pilot-reset-db-20261022\pgtap-nine-migrations-clean.log`;
-concurrency evidence is `chronology-nine-migrations.log` and
-`revision-nine-migrations.log` in the same folder.
+`%TEMP%\nestory-pilot-reset-db-20261022\pgtap-twelve-migrations-clean.log`;
+concurrency evidence is `chronology-twelve-migrations.log`,
+`revision-twelve-migrations.log` and `operational-concurrency-twelve.log`
+in the same folder.
 The dedicated database has `cron.launch_active_jobs=off` so hourly jobs cannot
 change fixtures during validation. Schedule definitions and their active flags
 are preserved. This local setting is not a production change.
@@ -76,7 +84,7 @@ financial test records, so run it before taking a stable manifest snapshot.
 Report revision entries are append-once per organization and transaction. Summing
 committed weights preserves a change stamp even when transactions commit out of
 ID order, without locking one shared counter. The private ledger has no additional
-organization foreign-key lock; a checked catalog assertion proves all 97 public
+organization foreign-key lock; a checked catalog assertion proves all 99 public
 sources retain immediate organization lifetime constraints, and deletion cleans
 up revision entries after source writers finish. Deposit chronology serializes
 on the deposit row without creating a redundant row version. Regression tests
@@ -85,28 +93,24 @@ order, source UPDATE/DELETE versus organization deletion, rollback and stale
 fixed snapshots. Entries accumulate; any future compaction must preserve the
 committed stamp under a reviewed exclusive fence.
 
+The operational command tests use an ordinary actor restricted to one branch.
+An authorized actor's pending cross-branch move holds the event row while a
+second actor waits to update, archive or restore it. After the move commits,
+all three commands reject the now-inaccessible source without changing its
+contents, publishing a revision or recording a successful audit action. Each
+test first proves that the ordinary command succeeds on an accessible control
+event. Run these with `npm run operations:test-command-concurrency`; local runs
+require `OPERATIONAL_COMMAND_LOCAL_PROJECT_DIR` and
+`OPERATIONAL_COMMAND_TEST_DATABASE=postgres` for the dedicated project.
+
 ## Application evidence
 
-Focused checks passed for reports, downloads and statements (457 tests, one
-existing skip), export builders (37), petty cash and overview (81), maintenance,
-timeline, export authority and admin intent transport (247), property/unit
-snapshots and screens (146), and readonly financial actions/sessions (152).
-These groups overlap and must not be added into a unique test total. The complete
-contract gate passed 367 tests. The final unit run passed 3,553 tests with one
-existing skip (329 files passed, one skipped). The full UI run passed 136 files
-and exposed six files needing review: lifecycle mocks and an original-FormData
-expectation were repaired, while delayed React responses passed unchanged in
-isolated runs. All six files then passed serially with default timeouts: 289 tests,
-including two new layout integration checks. Together these runs cover all 142
-UI files and 1,700 tests; they are not a single all-green whole-suite invocation.
-The whole-suite runs used two workers and a 15-second per-test allowance under
-Windows load, retaining every assertion and skip classification. No product
-behavior was changed to suppress timing failures.
-
-GitHub CI subsequently passed the complete UI suite in one invocation: all 142
-files and 1,700 tests, using the ordinary repository timeouts. Its unit suite also
-passed 3,553 tests with one existing skip. The build, lint, type, dependency,
-secret and contract checks passed on candidate `ee15c9ac`.
+GitHub CI on `c689ee73` passed 3,553 unit tests with one existing skip, all 1,700
+UI tests in 142 files using ordinary repository timeouts, 385 Node contracts,
+build, lint, types, dependency and secret checks. Its database job also passed
+the complete pgTAP and concurrency chain, including the original deposit
+lifecycle regressions. Later operational coverage changes require passing checks
+on their own exact commit before release; this earlier result is not a substitute.
 
 The final dependency gate found pre-existing Next.js and Sentry vulnerabilities
 in the unchanged baseline lock. Next.js and its ESLint configuration were updated

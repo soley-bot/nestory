@@ -446,6 +446,9 @@ jobs:
           node --test --test-concurrency=1 scripts/lease-deposit-chronology-concurrency.node-test.mjs
           node --test --test-concurrency=1 scripts/financial-report-revision-concurrency.node-test.mjs
 
+      - name: Test checked operational command scope after concurrent moves
+        run: node --test --test-concurrency=1 scripts/checked-operational-command-concurrency.node-test.mjs
+
       - name: Test historical rent correction concurrency
         run: npm run rent:test-correction-concurrency
 

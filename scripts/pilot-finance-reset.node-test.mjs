@@ -16,11 +16,11 @@ const validationEvidence = () => VALIDATION_SOURCE_ARTIFACTS.map(artifact => ({
   sha256: hash,
 }));
 
-test('validation binding requires the exact nine migrations and five fixture/runner artifacts', () => {
+test('validation binding requires the exact twelve migrations and six fixture/runner artifacts', () => {
   const evidence = validationEvidence();
   const validated = assertValidationSourceEvidence(evidence, evidenceRoots);
-  assert.equal(validated.length, 14);
-  assert.equal(validated.filter(item => item.name.endsWith('.sql')).length, 10);
+  assert.equal(validated.length, 18);
+  assert.equal(validated.filter(item => item.name.endsWith('.sql')).length, 13);
   assert.ok(validated.some(item => item.name === 'financial-report-revision-concurrency.node-test.mjs'));
   assert.deepEqual(assertValidationSourceEvidence([...evidence].reverse(), evidenceRoots), validated);
 });
