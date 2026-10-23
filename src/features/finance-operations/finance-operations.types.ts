@@ -269,6 +269,7 @@ export type PropertyAccountEntry = {
 };
 
 export type FinanceOperationsData = {
+  financialGeneration?: number;
   tenantInvoicePage?: import("./data/rent-invoice-page").RentInvoicePage;
   selectedTenantInvoice?: TenantInvoiceSummary;
   accountActivityIsRecent?: boolean;
@@ -296,6 +297,7 @@ export type FinanceOperationsData = {
 };
 
 export type LeasePaymentResolutionData = {
+  financialGeneration?: number;
   invoice: TenantInvoiceSummary;
   nextInvoiceDueDate: string | null;
   ownerLabel: string;

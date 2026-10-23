@@ -117,6 +117,7 @@ export type OwnerStatementPublicationSummary = {
 };
 
 export type OwnerCloseData = {
+  financialGeneration?: number;
   corrections: OwnerCloseCorrection[];
   publicationReadiness: OwnerStatementPublicationReadiness | null;
   publications: OwnerStatementPublicationSummary[];

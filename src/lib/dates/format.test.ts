@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { formatAuditTimestamp, formatCalendarDate, formatDate } from "@/lib/dates/format";
 
 describe("formatCalendarDate", () => {
+  it("displays an open-ended lease without constructing an invalid date", () => {
+    expect(formatDate("infinity")).toBe("Month to month");
+    expect(formatCalendarDate("infinity")).toBe("Month to month");
+  });
   it("preserves a date-only value as a local calendar date", () => {
     expect(formatCalendarDate("2031-04-30")).toBe("30 Apr 2031");
   });

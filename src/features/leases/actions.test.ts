@@ -75,6 +75,21 @@ describe("Lease occupancy evidence input", () => {
     rpc.mockResolvedValue({ data: { leaseId }, error: null });
   });
 
+  it("sends confirmed unchanged month-to-month continuation to its checked command", async () => {
+    const form = futureRentTermForm();
+    Object.entries({ monthToMonth: "on", confirmedContinuation: "on", billingRuleId: "70000000-0000-4000-8000-000000000001",
+      expectedRent: "600", expectedFeeMode: "percentage", expectedFeeValue: "10" }).forEach(([key,value])=>form.set(key,value));
+    form.delete("endDate");
+    rpc.mockResolvedValueOnce({ data: "new-term", error: null });
+    expect(await scheduleFutureRentTermAction({}, form)).toMatchObject({ status: "success" });
+    expect(rpc).toHaveBeenCalledWith("continue_lease_month_to_month", expect.objectContaining({ p_expected_rent_amount: 600, p_expected_fee_value: 10 }));
+    expect(rpc.mock.calls[0][1]).not.toHaveProperty("p_end_date");
+  });
+  it("requires explicit continuous-stay confirmation", async () => {
+    const form = futureRentTermForm(); form.set("monthToMonth", "on");
+    expect(await scheduleFutureRentTermAction({}, form)).toMatchObject({ status: "error" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
   it("sends a past effective month to the audited rent command", async () => {
     const form = new FormData();
     Object.entries({ leaseId, startDate: "2026-09-01", endDate: "2027-08-31",

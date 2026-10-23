@@ -90,7 +90,7 @@ export async function setLedgerPeriodLockAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("set_financial_month_lock", {
     p_locked: parsed.data.lockState === "locked",
     p_month_start: `${parsed.data.periodStart}-01`,
@@ -167,7 +167,7 @@ export async function attachLedgerReceiptAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { data: entry, error: entryError } = await supabase
     .from("ledger_entries")
     .select("id, property_id, unit_id")

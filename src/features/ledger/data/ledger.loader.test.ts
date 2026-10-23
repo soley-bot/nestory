@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createSupabaseServerClient } = vi.hoisted(() => ({ createSupabaseServerClient: vi.fn() }));
+const { createSupabaseServerClient, readBoundary } = vi.hoisted(() => ({ createSupabaseServerClient: vi.fn(), readBoundary: vi.fn() }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialReadContext: readBoundary }));
+import { DEFAULT_LEDGER_VIEW_QUERY } from "../ledger.filters";
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient }));
 import { getLedgerScreenData } from "@/features/ledger/data/ledger";
 
@@ -9,7 +11,27 @@ const entryId = "entry";
 type Row = Record<string, unknown>;
 
 describe("ledger supporting read completeness", () => {
-  beforeEach(() => createSupabaseServerClient.mockReset());
+  it("rejects frozen context before querying ledger sources", async () => {
+    readBoundary.mockRejectedValueOnce(new Error("Financial reporting is paused"));
+    await expect(getLedgerScreenData(organizationId)).rejects.toThrow("paused");
+    expect(createSupabaseServerClient).not.toHaveBeenCalled();
+  });
+  it("guards explicit date windows and discards an assembled stale ledger", async () => {
+    createSupabaseServerClient.mockResolvedValue(fixture().client);
+    readBoundary.mockImplementationOnce(async (_organizationId, read) => {
+      await read({ generation: 2, financial_start_date: null });
+      throw new Error("Financial data changed while loading");
+    });
+    await expect(getLedgerScreenData(organizationId, { ...DEFAULT_LEDGER_VIEW_QUERY, dateFrom: "2026-08-01" })).rejects.toThrow("changed while");
+    expect(readBoundary).toHaveBeenCalledWith(organizationId, expect.any(Function), "2026-08-01");
+  });
+  it.each([null, entryId])("does not read pre-cutoff transactions through all-time or direct-entry scope (%s)", focused => {
+    createSupabaseServerClient.mockResolvedValue(fixture().client);
+    readBoundary.mockImplementation(async (_organizationId, read) => read({ generation: 2, financial_start_date: "2026-10-01" }));
+    return expect(getLedgerScreenData(organizationId, { ...DEFAULT_LEDGER_VIEW_QUERY, entryId: focused })).resolves.toMatchObject({ entries: [], financialGeneration: 2 });
+  });
+
+  beforeEach(() => { createSupabaseServerClient.mockReset(); readBoundary.mockReset(); readBoundary.mockImplementation(async (_organizationId, read) => read({ generation: 2, financial_start_date: null })); });
 
   it("loads all related records and selectors beyond 1000 with equal dates and keeps old locks", async () => {
     const { client } = fixture();
@@ -56,6 +78,7 @@ function fixture(state = { fail: false }) {
     let from = 0, to = 999, limit = 1000;
     const builder = {
       select: () => builder,
+      gte: (field: string, value: string) => { filters.push(row => String(row[field]) >= value); return builder; },
       eq: (field: string, value: unknown) => { filters.push(row => row[field] === value); return builder; },
       is: (field: string, value: unknown) => { filters.push(row => row[field] === value); return builder; },
       in: (field: string, values: unknown[]) => { filters.push(row => values.includes(row[field])); return builder; },

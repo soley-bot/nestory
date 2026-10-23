@@ -8,6 +8,9 @@ import { createPortfolioSearch } from "@/lib/search/portfolio";
 import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
 
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: vi.fn() }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({
+  withFinancialReadContext: vi.fn(async (_organizationId, read) => read({ generation: 0 })),
+}));
 vi.mock("@/lib/search/portfolio.server", () => ({ loadPortfolioSearch: vi.fn() }));
 
 const propertyId = "10000000-0000-4000-8000-000000000001";

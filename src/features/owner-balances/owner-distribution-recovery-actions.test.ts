@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+const { readBoundary } = vi.hoisted(() => ({ readBoundary: vi.fn() }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialIntentReadContext: readBoundary }));
+beforeEach(() => { readBoundary.mockReset(); readBoundary.mockImplementation(async (_org, _intent, read) => read()); });
 const mocks = vi.hoisted(() => ({ context: vi.fn(), rpc: vi.fn(), from: vi.fn(), revalidate: vi.fn(), reads: [] as unknown[] }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
 vi.mock("@/lib/auth/context", () => ({ requireFinanceCorrectionContext: mocks.context }));
@@ -15,6 +18,14 @@ const allocations = [{ id: allocationId, owner_invoice_line_id: "line", allocati
 function form(overrides: Record<string, string | undefined> = {}) { const data = new FormData(); Object.entries({ ...values, ...overrides }).forEach(([key, value]) => { if (value !== undefined) data.set(key, value); }); return data; }
 function goodReads() { mocks.reads = [{ data: { id: withdrawalId, property_id: propertyId, reversal_of_id: null } }, { data: lines }, { data: allocations }, { data: [] }]; }
 describe("owner distribution recovery actions", () => {
+  it("rejects stale preview intent before source reads and checks both correction dates", async () => {
+    readBoundary.mockRejectedValueOnce(new Error("The financial session changed"));
+    const intent = form(); intent.set("__financialGeneration", "1");
+    expect(await preview({ status: "idle" }, intent)).toMatchObject({ status: "error" });
+    expect(readBoundary).toHaveBeenCalledWith("org", intent, expect.any(Function), values.distributionDate);
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks(); mocks.context.mockResolvedValue({ organizationId: "org" }); goodReads(); mocks.rpc.mockResolvedValue({ data: receipt });
     mocks.from.mockImplementation(() => {

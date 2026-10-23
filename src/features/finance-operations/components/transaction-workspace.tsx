@@ -1,4 +1,6 @@
 "use client";
+import { FinancialReportLink } from "@/lib/finance/financial-write-provider";
+
 
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
@@ -54,7 +56,7 @@ export function TransactionWorkspace({ data, scope, actions, canReadReports, onO
       {canReadReports ? <details><summary className="cursor-pointer font-medium">Reports</summary><div className="flex flex-wrap items-center gap-4 py-3">
         <Link href={links.ownerStatement}>Owner statement (property)</Link>
         <Link href={links.profitLoss}>Profit &amp; loss</Link>
-        <a href={links.pdf}>P&amp;L PDF</a><a href={links.excel}>P&amp;L XLSX</a>
+        <FinancialReportLink href={links.pdf}>P&amp;L PDF</FinancialReportLink><FinancialReportLink href={links.excel}>P&amp;L XLSX</FinancialReportLink>
         <span className="text-xs text-muted-foreground">Owner statements cover property-wide cash; open a published revision for PDF or XLSX.</span>
       </div></details> : null}
     </div>

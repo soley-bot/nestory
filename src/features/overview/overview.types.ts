@@ -140,6 +140,7 @@ export type OverviewWorkspaceSetup = {
 };
 
 export type OverviewScreenData = {
+  financialGeneration?: number;
   attentionItems: OverviewAttentionItem[];
   attentionTotal: number;
   dashboardSummary: OverviewDashboardSummary;

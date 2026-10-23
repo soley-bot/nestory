@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import {
   forwardRef,
   useCallback,
@@ -166,7 +168,7 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
           onDiscard={draft.discard}
           status={draft.status}
         />
-        <form
+        <FinancialForm
           className="flex min-h-full min-w-0 flex-col"
           onSubmit={(event) => {
             event.preventDefault();
@@ -242,7 +244,7 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
               statusMessage={serverError ?? draft.statusMessage}
             />
           </div>
-        </form>
+        </FinancialForm>
       </SideDrawer>
       {managedBranch ? (
         <BranchManageDrawer

@@ -11,6 +11,8 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PettyCashScreen } from "@/features/petty-cash/components/petty-cash-screen";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
+import type { FinancialWriteContext } from "@/lib/finance/financial-write-context";
 import type {
   PettyCashAccount,
   PettyCashEntry,
@@ -37,6 +39,15 @@ afterEach(() => {
 });
 
 describe("PettyCashScreen finance workspace contract", () => {
+  it.each(["frozen", "open"] as const)("hides cash totals and dialogs for a %s mismatched financial session", (status) => {
+    const context = { generation: 2, status, financial_start_date: "2026-10-01", enforced: true };
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ organizationId: "org-1", context }) })));
+    renderPettyCash({ financialGeneration: 1, context });
+    expect(screen.getByRole("heading", { name: "Petty cash" })).toBeTruthy();
+    expect(screen.getByText(/Cash amounts are unavailable/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add cash row" })).toBeNull();
+    expect(screen.queryByText(summary.balance.primary)).toBeNull();
+  });
   it.each(["", "   ", "00000000-0000-4000-8000-000000000001"])("shows the category once when the supplier is unavailable: %s", (supplier) => {
     const description = "Replacement cleaning supplies for the property's shared areas. ".repeat(4);
     renderPettyCash({ entries: [{ ...makeEntry("cash-1", "Cleaning", "cleared", 90, 410), supplier, description }] });
@@ -577,6 +588,8 @@ const entries: PettyCashEntry[] = [
 ];
 
 function renderPettyCash({
+  financialGeneration,
+  context,
   accounts = [account],
   canAdministerAccounts = true,
   canApproveExpenses = true,
@@ -590,6 +603,8 @@ function renderPettyCash({
   focusedEntryId,
   focusState = focusedEntryId ? "available" : "none",
 }: {
+  financialGeneration?: number;
+  context?: FinancialWriteContext;
   accounts?: PettyCashAccount[];
   canAdministerAccounts?: boolean;
   canApproveExpenses?: boolean;
@@ -605,6 +620,7 @@ function renderPettyCash({
 } = {}) {
   return render(
     <PettyCashScreen
+      financialGeneration={financialGeneration}
       accounts={accounts}
       canAdministerAccounts={canAdministerAccounts}
       canApproveExpenses={canApproveExpenses}
@@ -622,6 +638,7 @@ function renderPettyCash({
       staffOptions={[]}
       unitOptions={[]}
     />,
+    { wrapper: context ? ({ children }) => <FinancialWriteProvider organizationId="org-1" context={context}>{children}</FinancialWriteProvider> : undefined },
   );
 }
 

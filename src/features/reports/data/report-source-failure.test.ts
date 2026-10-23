@@ -29,3 +29,5 @@ describe("report source failure boundary", () => {
     expect(loaders.rent).not.toHaveBeenCalled();
   });
 });
+
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialReadContext: async (_org: string, read: (context: unknown) => Promise<unknown>) => read({ generation: 0, status: "open", financial_start_date: null, enforced: false }) }));

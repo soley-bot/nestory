@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+const { readBoundary } = vi.hoisted(() => ({ readBoundary: vi.fn() }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialIntentReadContext: readBoundary }));
+beforeEach(() => { readBoundary.mockReset(); readBoundary.mockImplementation(async (_org, _intent, read) => read({ generation: 2, status: "open", enforced: true, financial_start_date: "2026-08-01" })); });
 
 const { rpc, requireHistoricalRentRecoveryContext, revalidatePath } = vi.hoisted(() => ({ rpc: vi.fn(), requireHistoricalRentRecoveryContext: vi.fn(), revalidatePath: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath }));
@@ -14,6 +17,18 @@ const correction = { ...input, previewHash: preview.previewHash, reason: "Actual
 
 describe("fee payment date actions", () => {
   beforeEach(() => { vi.clearAllMocks(); requireHistoricalRentRecoveryContext.mockResolvedValue({ organizationId }); });
+  it("rejects stale candidate and preview requests before reading settlements", async () => {
+    readBoundary.mockRejectedValue(new Error("The financial session changed"));
+    await expect(listFeePaymentDateCandidatesAction(allocationId)).rejects.toThrow("session changed");
+    await expect(previewFeePaymentDateCorrectionAction(input)).rejects.toThrow("session changed");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+  it("passes the original generation and corrected date through the full preview read guard", async () => {
+    const intent = new FormData(); intent.set("__financialGeneration", "1");
+    rpc.mockResolvedValue({ data: preview, error: null });
+    await previewFeePaymentDateCorrectionAction(input, intent);
+    expect(readBoundary).toHaveBeenCalledWith(organizationId, intent, expect.any(Function), input.paymentDate);
+  });
 
   it("loads candidates through the recovery permission boundary and organization", async () => {
     rpc.mockResolvedValue({ data: [{ allocationId, invoiceNumber: "INV-1", amount: 48.33, paymentDate: "2026-09-01", feeDate: "2026-09-01" }], error: null });

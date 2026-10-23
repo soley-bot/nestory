@@ -1,5 +1,6 @@
 "use client";
 
+import { useFinancialFormData } from "@/lib/finance/financial-write-provider";
 import { useEffect, useState, type Ref } from "react";
 import { Button } from "@/components/ui/button";
 import type { FinanceAccountOption } from "@/features/finance-accounts/finance-accounts.types";
@@ -24,6 +25,7 @@ export function ExpenseChangeHistory({ headingRef, transactionId, legacySubmissi
     if (value == null || value === "") return "None";
     return recordDisplayLabel(payFromAccounts.find(account => account.id === value)?.displayName, "Account unavailable");
   }
+  const createFinancialFormData = useFinancialFormData();
   const [attempt, setAttempt] = useState(0);
   const [response, setResponse] = useState<{
     attempt: number;
@@ -37,11 +39,11 @@ export function ExpenseChangeHistory({ headingRef, transactionId, legacySubmissi
   const failed = currentResponse?.failed;
   useEffect(() => {
     let active = true;
-    (legacySubmissionId ? getExpenseHistory(transactionId, legacySubmissionId) : getExpenseHistory(transactionId))
+    getExpenseHistory(transactionId, legacySubmissionId, createFinancialFormData())
       .then(entries => { if (active) setResponse({ attempt, transactionId, legacySubmissionId, entries }); })
       .catch(() => { if (active) setResponse({ attempt, transactionId, legacySubmissionId, failed: true }); });
     return () => { active = false; };
-  }, [attempt, transactionId, legacySubmissionId]);
+  }, [attempt, transactionId, legacySubmissionId, createFinancialFormData]);
   return <section aria-label="Change history" className="border-t border-border pt-4">
     <h3 className="text-sm font-semibold focus-visible:outline-2 focus-visible:outline-ring" ref={headingRef} tabIndex={-1}>Change history</h3>
     {failed ? <p role="alert" className="text-sm">Could not load change history.</p> : !entries ? <p role="status" className="text-sm text-muted-foreground">Loading history…</p> : entries.length === 0 ? <p className="text-sm text-muted-foreground">No saved changes.</p> : <ol className="divide-y divide-border">{entries.map(item => {

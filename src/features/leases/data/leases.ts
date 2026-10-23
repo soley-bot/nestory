@@ -2,6 +2,7 @@ import { needsBoundedSearch, readBoundedSearch } from "@/lib/search/bounded-regi
 import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
 import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
 import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
 import { toRecentChange } from "@/features/activity/recent-changes";
@@ -79,6 +80,14 @@ export async function getLeasesScreenData(
   organizationId: string,
   viewQuery: LeaseViewQuery = parseLeaseSearchParams({}),
 ) {
+  return withFinancialReadContext(organizationId, async (financialContext) => {
+    const result = await loadLeasesScreenData(organizationId, viewQuery);
+    return { ...result, financialGeneration: financialContext.generation,
+      leases: result.leases.map(lease => ({ ...lease, financialGeneration: financialContext.generation })) };
+  });
+}
+
+async function loadLeasesScreenData(organizationId: string, viewQuery: LeaseViewQuery) {
   const supabase = await createSupabaseServerClient();
   const [
     readContext,
@@ -303,6 +312,16 @@ export async function getHistoricalRentCorrectionCandidates(
     rentBusinessDate?: string;
   } = {},
 ): Promise<HistoricalRentCorrectionCandidate[]> {
+  return withFinancialReadContext(organizationId, (context) =>
+    loadHistoricalRentCorrectionCandidates(organizationId, leaseId, options, context.financial_start_date));
+}
+
+async function loadHistoricalRentCorrectionCandidates(
+  organizationId: string,
+  leaseId: string,
+  options: { currentPeriodOnly?: boolean; rentBusinessDate?: string },
+  financialStartDate: string | null,
+): Promise<HistoricalRentCorrectionCandidate[]> {
   const supabase = await createSupabaseServerClient();
   const currentDate =
     options.rentBusinessDate ?? new Date().toISOString().slice(0, 10);
@@ -316,6 +335,7 @@ export async function getHistoricalRentCorrectionCandidates(
     .eq("lease_id", leaseId)
     .eq("lifecycle", "issued")
     .lte("billing_period_start", currentDate);
+    if (financialStartDate) invoiceQuery = invoiceQuery.gte("billing_period_start", financialStartDate);
     if (options.currentPeriodOnly) {
       invoiceQuery = invoiceQuery.gte("billing_period_end", currentDate);
     }

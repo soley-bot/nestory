@@ -1,5 +1,6 @@
 "use client";
 
+import { FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -33,6 +34,7 @@ const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 type LeaseScreenProps = {
+  financialGeneration?: number;
   canPrepare?: boolean;
   initialLeaseId?: string;
   leases: LeaseSummary[];
@@ -44,6 +46,7 @@ type LeaseScreenProps = {
 };
 
 export function LeaseScreen({
+  financialGeneration,
   initialLeaseId,
   leases,
   pagination,
@@ -206,6 +209,11 @@ export function LeaseScreen({
         />
       </div>
 
+      <FinancialReportBoundary expectedGeneration={financialGeneration} fallback={
+        <nav aria-label="Lease records" className="workspace-gutter-x grid gap-2 py-4">
+          {leases.map(lease => <Link className="text-primary underline" key={lease.id} href={getLeaseRecordHref(lease.id)}>{lease.tenantName} / {lease.unitLabel}</Link>)}
+        </nav>
+      }>
       {reviewContext ? (
         <LeaseReviewStrip
           context={reviewContext}
@@ -227,6 +235,7 @@ export function LeaseScreen({
             <WorkspaceSplitView list={leaseList} />
           )}
         </div>
+      </FinancialReportBoundary>
       </div>
 
     </WorkspacePage>

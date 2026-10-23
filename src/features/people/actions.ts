@@ -173,7 +173,7 @@ export async function createPersonAction(
     return invalidFormState(parsed.error);
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const payload = {
     ...peopleRpcPayload(context, parsed.data),
     ...(!context.isSuperAdmin && context.branchId
@@ -224,7 +224,7 @@ export async function updatePersonAction(
     return invalidFormState(parsed.error);
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("update_person", {
     ...peopleRpcPayload(context, parsed.data),
     p_person_id: parsedPersonId.data,
@@ -272,7 +272,7 @@ export async function archiveTenantAction(
     return invalidFormState(parsed.error);
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { data: partyRows, error: partyError } = await supabase
     .from("lease_parties")
     .select("lease_id")
@@ -350,7 +350,7 @@ async function updatePersonArchiveState({
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const payload = {
     p_organization_id: context.organizationId,
     p_person_id: parsedPersonId.data,

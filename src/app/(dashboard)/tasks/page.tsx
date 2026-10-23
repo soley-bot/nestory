@@ -38,6 +38,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
 
   return (
     <MaintenanceScreen
+      financialGeneration={data.financialGeneration}
       actor={actor}
       baseReview="all"
       branchOptions={data.branchOptions}

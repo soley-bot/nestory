@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+const { readBoundary } = vi.hoisted(() => ({ readBoundary: vi.fn() }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialIntentReadContext: readBoundary }));
+beforeEach(() => { readBoundary.mockReset(); readBoundary.mockImplementation(async (_org, _intent, read) => read()); });
 import { getCurrentUser, getWorkspaceMembershipForUser } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { readLocalDepositRentSnapshot } from "./candidate-reader";
@@ -28,6 +31,20 @@ beforeEach(() => {
   rpc.mockResolvedValue({ data: id(7), error: null });
 });
 describe("custody product action authority", () => {
+  it("rejects stale custody reads before reading deposit or owner amounts", async () => {
+    readBoundary.mockRejectedValueOnce(new Error("The financial session changed"));
+    const intent = new FormData(); intent.set("__financialGeneration", "1");
+    expect(await getDepositCustodyOptions(input.leaseId, intent)).toMatchObject({ status: "error" });
+    expect(readBoundary).toHaveBeenCalledWith(id(5), intent, expect.any(Function));
+    expect(readLocalDepositRentSnapshot).not.toHaveBeenCalled();
+    expect(loadScopedFinanceContext).not.toHaveBeenCalled();
+  });
+  it("discards verified custody details if sources change after assembly", async () => {
+    vi.mocked(loadScopedFinanceContext).mockResolvedValue({ owner_assignments: [], people: [] } as unknown as Awaited<ReturnType<typeof loadScopedFinanceContext>>);
+    readBoundary.mockImplementationOnce(async (_org, _intent, read) => { await read(); throw new Error("Financial data changed"); });
+    expect(await getDepositCustodyOptions(input.leaseId)).toMatchObject({ status: "error" });
+    expect(loadScopedFinanceContext).toHaveBeenCalledOnce();
+  });
   it("rejects a date after the checked company business date before calling the command", async () => {
     expect((await confirmDepositCustody({ ...input, date: "2026-10-10" })).status).toBe("error");
     expect(rpc).not.toHaveBeenCalled();

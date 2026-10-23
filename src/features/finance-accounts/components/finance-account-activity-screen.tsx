@@ -1,3 +1,4 @@
+import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import Link from "next/link";
 import { Table } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +18,7 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
       title={activity.account.displayName}
       actions={<Badge variant={activity.account.archivedAt ? "secondary" : "outline"}>{activity.account.archivedAt ? "Inactive" : "Active"}</Badge>}
       toolbar={(
-        <form className="min-w-0 max-w-full flex flex-wrap items-end gap-2" method="get">
+        <FinancialForm className="min-w-0 max-w-full flex flex-wrap items-end gap-2" method="get">
           <label className="grid min-w-0 max-w-full gap-1 text-xs text-muted-foreground">From
             <input className="h-8 min-w-0 max-w-full rounded-md border bg-background px-2 text-sm text-foreground" name="from" type="date" defaultValue={activity.filters.periodStart} />
           </label>
@@ -31,9 +32,10 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
             </select>
           </label>
           <button className="h-8 rounded-md border bg-background px-3 text-sm font-medium" type="submit">Apply</button>
-        </form>
+        </FinancialForm>
       )}
     >
+      <FinancialReportBoundary expectedGeneration={activity.financialGeneration}>
       <div className="workspace-gutter-x space-y-4 py-4">
         <div className="min-w-0 text-sm text-muted-foreground [overflow-wrap:anywhere]">
           <p>{accountIdentity(activity.account.accountClass, activity.account.accountSubtype)}</p>
@@ -94,6 +96,7 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
           </Table>
         </div>
       </div>
+      </FinancialReportBoundary>
     </WorkspacePage>
   );
 }

@@ -3,6 +3,7 @@ import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { matchesSearchText } from "@/lib/search/text";
 import { normalizeSearchText } from "@/lib/search/text";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
 import {
@@ -97,6 +98,17 @@ export async function getUnitsScreenData(
   organizationId: string,
   viewQuery: UnitViewQuery = parseUnitSearchParams({}),
 ) {
+  return withFinancialReadContext(organizationId, async (context) => {
+    const result = await readUnitsScreenData(organizationId, viewQuery);
+    return {
+      ...result,
+      financialGeneration: context.generation,
+      units: result.units.map((unit) => ({ ...unit, financialGeneration: context.generation })),
+    };
+  });
+}
+
+async function readUnitsScreenData(organizationId: string, viewQuery: UnitViewQuery) {
   const supabase = await createSupabaseServerClient();
 
   if (canUsePagedUnitBaseQuery(viewQuery)) {
@@ -498,6 +510,13 @@ async function getPrimaryOwnerNamesForProperties(
 }
 
 export async function getUnitDetail(organizationId: string, unitId: string) {
+  return withFinancialReadContext(organizationId, async (context) => {
+    const unit = await readUnitDetail(organizationId, unitId);
+    return unit ? { ...unit, financialGeneration: context.generation } : null;
+  });
+}
+
+async function readUnitDetail(organizationId: string, unitId: string) {
   const supabase = await createSupabaseServerClient();
 
   const unitResult = await supabase

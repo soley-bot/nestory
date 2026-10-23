@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm, useFinancialFormData } from "@/lib/finance/financial-write-provider";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useOverlayCloseRequest, useOverlayDraftGuard } from "@/components/ui/overlay-dismissal-context";
 import { Button } from "@/components/ui/button";
@@ -18,6 +20,7 @@ function DepositCustodyContent({ leaseId, accounts, onClose, onSuccess }: {
   leaseId: string; accounts: { id: string; displayName: string }[];
   onClose(): void; onSuccess(message: string): void;
 }) {
+  const createFinancialFormData = useFinancialFormData();
   const [options, setOptions] = useState<Awaited<ReturnType<typeof getDepositCustodyOptions>> | null>(null);
   const [depositId, setDepositId] = useState("");
   const [custodian, setCustodian] = useState("");
@@ -31,15 +34,15 @@ function DepositCustodyContent({ leaseId, accounts, onClose, onSuccess }: {
   useOverlayDraftGuard(useMemo(() => ({ status: pending ? "saving" as const : original && message ? "error" as const : dirty || original ? "dirty" as const : "clean" as const, onDiscard: () => { if (!busy.current) onClose(); } }), [pending, original, message, dirty, onClose]));
   useEffect(() => {
     let active = true;
-    getDepositCustodyOptions(leaseId).then(value => { if (active) setOptions(value); })
+    getDepositCustodyOptions(leaseId, createFinancialFormData()).then(value => { if (active) setOptions(value); })
       .catch(() => { if (active) setMessage("Custody details could not be loaded. Close and try again."); });
     return () => { active = false; };
-  }, [leaseId]);
+  }, [leaseId, createFinancialFormData]);
   async function save(value: Submission) {
     if (busy.current) return;
     busy.current = true; setPending(true); setOriginal(value); setMessage("");
     try {
-      const result = await confirmDepositCustody(value);
+      const result = await confirmDepositCustody(value, createFinancialFormData());
       if (result.status === "success") { setDirty(false); setOriginal(null); onSuccess(result.message); }
       else setMessage(result.message);
     } catch { setMessage("The result is unconfirmed. Retry the original custody details."); }
@@ -48,7 +51,7 @@ function DepositCustodyContent({ leaseId, accounts, onClose, onSuccess }: {
   return <div className="space-y-4 p-4" onChangeCapture={() => setDirty(true)}>
       <p className="text-sm text-muted-foreground">This records custody evidence. It does not receive, transfer or pay out money. Confirm the full deposit held and the liability account from your records. Later deposit activity needs renewed evidence using the original custodian, owner and liability account.</p>
       {options?.status === "error" ? <p role="alert">{options.message}</p> : null}
-      {options?.status === "success" && !original ? options.deposits.length ? <form className="space-y-4" onSubmit={event => {
+      {options?.status === "success" && !original ? options.deposits.length ? <FinancialForm className="space-y-4" onSubmit={event => {
         event.preventDefault(); const data = new FormData(event.currentTarget);
         void save({ leaseId, depositId, custodian: custodian as "ips" | "owner",
           ownerId: custodian === "owner" ? String(data.get("ownerId")) : null,
@@ -63,7 +66,7 @@ function DepositCustodyContent({ leaseId, accounts, onClose, onSuccess }: {
         <label className="grid gap-1.5 text-sm font-medium">Full amount held (USD)<Input name="held" aria-label="Verified deposit held" inputMode="decimal" required pattern="[0-9]{1,12}\.[0-9]{2}" placeholder="0.00"/></label>
         <label className="grid gap-1.5 text-sm font-medium">Evidence reference<Input name="evidence" aria-label="Custody evidence reference" required minLength={8} maxLength={200}/></label>
         <Button type="submit" disabled={pending || !date || !custodian || !depositId}>Confirm existing deposit custody</Button>
-      </form> : <p>All available deposits already have confirmed custody.</p> : null}
+      </FinancialForm> : <p>All available deposits already have confirmed custody.</p> : null}
       {original ? <div className="space-y-3 text-sm"><p>Original confirmation: USD {original.held}, {original.custodian === "ips" ? "held by IPS" : "held by the selected owner"}, verified on {original.date}. Evidence: {original.evidence}.</p>
         <Button type="button" disabled={pending} onClick={() => void save(original)}>{pending ? "Confirming…" : "Retry original custody confirmation"}</Button></div> : null}
       {message ? <p role="status">{message}</p> : null}

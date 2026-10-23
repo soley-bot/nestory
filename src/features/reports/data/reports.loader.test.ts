@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getReportsScreenData } from "@/features/reports/data/reports";
 import type { ReportsViewQuery } from "@/features/reports/reports.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(),
@@ -11,6 +12,18 @@ vi.mock("@/lib/db/server", () => ({
 describe("live Finance report reads", () => {
   beforeEach(() => {
     vi.mocked(createSupabaseServerClient).mockReset();
+    vi.mocked(withFinancialReadContext).mockReset().mockImplementation(async (_org, read) => read({ generation: 0, status: "open", financial_start_date: null, enforced: false }));
+  });
+
+  it("discards the screen when sources change during selector and report loading", async () => {
+    const harness = createReportReadHarness({});
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    vi.mocked(withFinancialReadContext).mockImplementationOnce(async (_org, read) => {
+      await read({ generation: 0, status: "open", financial_start_date: null, enforced: false });
+      throw new Error("Financial data changed while this report was loading.");
+    });
+    await expect(getReportsScreenData(ORGANIZATION_ID, reportQuery()))
+      .rejects.toThrow("Financial data changed");
   });
 
   it("populates selectors and owner activity from the scoped Finance context", async () => {
@@ -344,3 +357,5 @@ function createReportReadHarness({
     },
   };
 }
+
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialReadContext: vi.fn() }));

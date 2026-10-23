@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm, FinancialReportBoundary, useFinancialFormData } from "@/lib/finance/financial-write-provider";
+
 import Link from "next/link";
 import { recordDisplayLabel } from "@/lib/presentation/record-label";
 import { useRouter } from "next/navigation";
@@ -134,6 +136,7 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
         </h2>
       </div>
 
+      <FinancialReportBoundary expectedGeneration={props.data.financialGeneration}>
       <div
         aria-atomic="true"
         aria-live="polite"
@@ -312,6 +315,7 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
           onSuccess={handleSuccess}
         />
       ) : null}
+      </FinancialReportBoundary>
     </section>
   );
 }
@@ -383,6 +387,7 @@ function OwnerAccountSetupModal({
   onClose: () => void;
   onSuccess: (message: string) => void;
 }) {
+  const createFinancialFormData = useFinancialFormData();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -404,7 +409,7 @@ function OwnerAccountSetupModal({
       open
       title={isZero ? "Start owner account at zero" : "Enter existing balances"}
     >
-      <form
+      <FinancialForm
         className="space-y-5 p-4 sm:p-6"
         onSubmit={(event) => {
           event.preventDefault();
@@ -417,7 +422,7 @@ function OwnerAccountSetupModal({
               new TextEncoder().encode(evidenceReference),
             );
             for (const component of OWNER_BALANCE_COMPONENTS) {
-              const formData = new FormData();
+              const formData = createFinancialFormData();
               formData.set("amount", isZero ? "0.00" : amounts[component]);
               formData.set("component", component);
               formData.set("currency", intent.group.currency);
@@ -526,7 +531,7 @@ function OwnerAccountSetupModal({
                 : "Submit starting balances"}
           </Button>
         </div>
-      </form>
+      </FinancialForm>
     </Modal>
   );
 }
@@ -929,7 +934,7 @@ function OpeningFormModal({
       }
     >
       <div className="space-y-5 p-4 sm:p-6">
-        <form
+        <FinancialForm
           action={(formData) => {
             if (isSuperAdmin && evidenceFile)
               formData.set("evidenceFile", evidenceFile);
@@ -1087,7 +1092,7 @@ function OpeningFormModal({
               {pending ? "Submitting…" : "Submit for review"}
             </Button>
           </div>
-        </form>
+        </FinancialForm>
       </div>
     </Modal>
   );
@@ -1130,7 +1135,7 @@ function ReviewFormModal({
           : "Reject opening balance"
       }
     >
-      <form action={action} className="space-y-4 p-4 sm:p-6">
+      <FinancialForm action={action} className="space-y-4 p-4 sm:p-6">
         <Hidden name="decision" value={intent.decision} />
         <Hidden name="idempotencyKey" value={idempotencyKey} />
         <Hidden name="requestId" value={intent.request.id} />
@@ -1163,7 +1168,7 @@ function ReviewFormModal({
                 : "Reject"}
           </Button>
         </div>
-      </form>
+      </FinancialForm>
     </Modal>
   );
 }

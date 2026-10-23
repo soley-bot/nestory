@@ -1,3 +1,4 @@
+import { FinancialReportBoundary, FinancialReportLink } from "@/lib/finance/financial-write-provider";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { calculateReportMonthAction } from "@/features/reports/remediation-actions";
@@ -80,6 +81,7 @@ export function OwnerCloseScreen({
         ) : null}
       </header>
 
+      <FinancialReportBoundary expectedGeneration={data.financialGeneration}>
       {!hasExactScope || !data.readiness ? (
         <div className="rounded-2xl border border-dashed border-border p-5 text-sm text-muted-foreground">
           Select an exact property and owner assignment to inspect close readiness.
@@ -180,6 +182,7 @@ export function OwnerCloseScreen({
           </StatementDisclosure>
         </>
       )}
+      </FinancialReportBoundary>
     </section>
   );
 }
@@ -266,13 +269,13 @@ function PublicationAuthority({
               ) : null}
               <div className="mt-3 flex flex-wrap gap-2">
                 {publication.artifacts.map((artifact) => (
-                  <a
+                  <FinancialReportLink
                     className="rounded-lg border border-border px-3 py-2 text-sm font-semibold"
                     href={`/api/reports/${artifact.format === "pdf" ? "pdf" : "excel"}?artifactId=${artifact.id}`}
                     key={artifact.id}
                   >
                     Download {artifact.format === "pdf" ? "PDF" : "Excel"}
-                  </a>
+                  </FinancialReportLink>
                 ))}
               </div>
             </article>

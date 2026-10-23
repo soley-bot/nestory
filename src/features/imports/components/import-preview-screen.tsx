@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import Link from "next/link";
 import { useActionState, useMemo, useRef, useState } from "react";
 import {
@@ -486,7 +488,7 @@ export function ImportPreviewScreen({
                   </p>
                 ) : null}
               </div>
-              <form action={importAction} className="shrink-0">
+              <FinancialForm action={importAction} className="shrink-0">
                 <input name="payload" type="hidden" value={payload} />
                 <Button
                   disabled={
@@ -505,7 +507,7 @@ export function ImportPreviewScreen({
                   )}
                   {importing ? "Importing ready rows..." : currentAction.label}
                 </Button>
-              </form>
+              </FinancialForm>
             </div>
           </section>
         ) : null}
@@ -802,7 +804,7 @@ function PastImports({
                     Fix references, then re-upload to create a fresh run.
                   </span>
                 ) : run.status === "staged" || run.status === "committing" ? (
-                  <form action={action}>
+                  <FinancialForm action={action}>
                     <input name="runId" type="hidden" value={run.id} />
                     <Button
                       aria-label={`${
@@ -815,7 +817,7 @@ function PastImports({
                       <RotateCcw aria-hidden="true" size={13} />
                       {run.status === "staged" ? "Resume" : "Reconcile"}
                     </Button>
-                  </form>
+                  </FinancialForm>
                 ) : null}
               </div>
               <p className="mt-2 text-xs text-muted-foreground">

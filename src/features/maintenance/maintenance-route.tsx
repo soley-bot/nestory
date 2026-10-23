@@ -63,6 +63,7 @@ export async function renderMaintenanceRoute({
 
   return (
     <MaintenanceScreen
+      financialGeneration={data.financialGeneration}
       actor={actor}
       baseReview={baseReview}
       branchOptions={data.branchOptions}

@@ -1,4 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
+const { readBoundary } = vi.hoisted(() => ({ readBoundary: vi.fn() }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialIntentReadContext: readBoundary }));
+beforeEach(() => { readBoundary.mockReset(); readBoundary.mockImplementation(async (_org, _intent, read) => read()); });
 import { requirePermission } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { loadManualChargeInvoiceContext } from "./manual-charge-invoice-context";
@@ -15,6 +18,13 @@ function client(data: unknown, error: unknown = null) {
   vi.mocked(createSupabaseServerClient).mockResolvedValue({ from: vi.fn().mockReturnValue(query) } as never);
   return query;
 }
+it("rejects obsolete intent before looking up an invoice and checks the requested period", async () => {
+  readBoundary.mockRejectedValueOnce(new Error("The financial session changed"));
+  const intent = new FormData(); intent.set("__financialGeneration", "1");
+  await expect(loadManualChargeInvoiceContext({ leaseId, billingPeriod: "2026-08" }, intent)).rejects.toThrow("session changed");
+  expect(readBoundary).toHaveBeenCalledWith("org", intent, expect.any(Function), "2026-08-01");
+  expect(createSupabaseServerClient).not.toHaveBeenCalled();
+});
 it("finds a paid off-page invoice independently of register filters and inherits its due date", async () => {
   const query = client(row);
   await expect(loadManualChargeInvoiceContext({ leaseId, billingPeriod: "2026-08" })).resolves.toEqual({ id: invoiceId, invoiceNumber: "OLD-PAID-INVOICE", dueDate: "2026-08-25" });

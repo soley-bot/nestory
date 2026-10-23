@@ -29,7 +29,7 @@ const requiredRentDueDaySchema = z.preprocess(
 
 const futureRentTermSchema = z
   .object({
-    endDate: dateSchema,
+    endDate: z.union([dateSchema, z.literal("infinity")]),
     leaseId: postgresUuid("Choose a lease."),
     paymentFrequency: paymentFrequencySchema,
     rentAmount: requiredRentAmountSchema,

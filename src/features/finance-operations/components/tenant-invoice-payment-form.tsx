@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import {
   useActionState,
   useEffect,
@@ -143,7 +145,7 @@ function TenantInvoicePaymentFormStateful({
   }, [invoice.collectionRoute, onReceiptResult, onSuccess, state]);
 
   return (
-    <form
+    <FinancialForm
       action={formAction}
       onChangeCapture={() => setDirty(true)}
       onInputCapture={() => setDirty(true)}
@@ -290,7 +292,7 @@ function TenantInvoicePaymentFormStateful({
         open={confirmInvoiceSwitch}
         title="Discard unsaved changes?"
       />
-    </form>
+    </FinancialForm>
   );
 }
 

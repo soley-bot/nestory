@@ -1,5 +1,7 @@
 "use server";
 
+import { copyFinancialGeneration } from "@/lib/finance/financial-write-context";
+
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAssetPhotoAction } from "@/features/photos/actions";
@@ -283,7 +285,7 @@ export async function createPropertyAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const createPayload = {
     p_address: nullableString(parsed.data.address),
     p_code: nullableString(parsed.data.code),
@@ -378,7 +380,7 @@ export async function updatePropertyAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { data, error } = await Promise.resolve(supabase.rpc("update_property_details_checked", {
     p_acquisition_date: nullableString(parsed.data.acquisitionDate),
     p_address: nullableString(parsed.data.address),
@@ -459,7 +461,7 @@ export async function setPropertyRentalStructureAction(
   }
 
   const context = await requirePermission("properties.write");
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("set_property_rental_structure", {
     p_organization_id: context.organizationId,
     p_property_id: parsedPropertyId.data,
@@ -500,7 +502,7 @@ export async function archivePropertyAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("archive_property", {
     p_organization_id: context.organizationId,
     p_property_id: parsedPropertyId.data,
@@ -537,7 +539,7 @@ export async function restorePropertyAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("restore_property", {
     p_organization_id: context.organizationId,
     p_property_id: parsedPropertyId.data,
@@ -589,7 +591,7 @@ async function uploadInlinePropertyPhoto({
     return null;
   }
 
-  const photoFormData = new FormData();
+  const photoFormData = copyFinancialGeneration(formData, new FormData());
   photoFormData.set("caption", "");
   photoFormData.set("isCover", String(isCover));
   photoFormData.set("photo", file);

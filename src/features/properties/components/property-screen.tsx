@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Building2, CheckCircle2, Circle, CircleAlert, ListChecks, Plus } from "lucide-react";
@@ -45,6 +46,7 @@ type DrawerState =
   | { mode: "restore"; property: PropertySummary };
 
 type PropertyScreenProps = {
+  financialGeneration?: number;
   canCreate: boolean;
   canSetUp?: boolean;
   creationBranchOptions?: PropertyBranchOption[];
@@ -55,7 +57,22 @@ type PropertyScreenProps = {
   viewQuery: PropertyViewQuery;
 };
 
-export function PropertyScreen({
+export function PropertyScreen(props: PropertyScreenProps) {
+  return (
+    <FinancialReportBoundary expectedGeneration={props.financialGeneration} fallback={
+      <WorkspacePage title="Properties" context="Property records" contextHref="/properties">
+        <p className="px-4 py-3 text-sm">Financial amounts and filters need a refresh before they can be used.</p>
+        <nav aria-label="Property records" className="flex flex-col gap-2 px-4 pb-4">
+          {props.properties.map((property) => <Link key={property.id} href={`/properties/${property.id}`}>{property.code} / {property.name}</Link>)}
+        </nav>
+      </WorkspacePage>
+    }>
+      <PropertyScreenContent {...props} />
+    </FinancialReportBoundary>
+  );
+}
+
+function PropertyScreenContent({
   canCreate,
   canSetUp = false,
   creationBranchOptions,

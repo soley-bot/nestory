@@ -169,6 +169,7 @@ export type UnitProfitLossLine = {
 };
 
 export type TrustedReport = {
+  financialGeneration?: number;
   availableColumns?: TrustedReportColumn[];
   filterOptions?: {
     types?: { id: string; label: string }[];

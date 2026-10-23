@@ -1,5 +1,6 @@
 /* @vitest-environment jsdom */
 
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -10,7 +11,7 @@ vi.mock("@/features/reports/remediation-actions", () => ({
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/owner-balances", useRouter: () => ({ refresh: vi.fn() }) }));
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 vi.mock("@/features/owner-balances/lifecycle-actions", () => ({
   allocateOwnerEventAction: vi.fn(),
@@ -35,6 +36,47 @@ const allocationSetId = "00000000-0000-4000-8000-000000000006";
 const movementId = "00000000-0000-4000-8000-000000000007";
 
 describe("OwnerBalanceLedger", () => {
+  it.each([false, true])("hides cached account activity while retaining navigation (%s)", propertyLayout => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
+    const context = { generation: 1, status: "open" as const, financial_start_date: "2026-08-01", enforced: true };
+    const input = data();
+    input.sources[0] = { ...input.sources[0], sourceType: "owner_contribution", unitId: "unit-archived", unitLabel: "8F-D2" };
+    const view = (generation: number) => <FinancialWriteProvider organizationId="org" context={{ ...context, generation }}>
+      <OwnerBalanceLedger canAllocate={false} canCorrect={false} canTransfer={false} canViewPropertyRecords
+        data={input} organizationName="IPS" selectedMonth="2026-08" selectedPropertyId={propertyId} selectedOwnerPersonId={ownerId}
+        selectedView="activity" propertyAccount={propertyLayout ? { activityFilter: "all", page: 1, propertyLabel: "Riverside" } : undefined} />
+    </FinancialWriteProvider>;
+    const { rerender } = render(view(1));
+    expect(screen.getByText("8F-D2")).toBeTruthy();
+    rerender(view(2));
+    expect(screen.queryByText("8F-D2")).toBeNull();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Owner" })).toBeTruthy();
+    expect(propertyLayout ? screen.getByRole("tab", { name: "Overview" }) : screen.getByRole("link", { name: "Summary" })).toBeTruthy();
+    expect(screen.getByText(/Reload the page to verify the financial session/)).toBeTruthy();
+  });
+
+  it("keeps account record links but removes register amounts and financial statuses after invalidation", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
+    const context = { generation: 1, status: "open" as const, financial_start_date: "2026-08-01", enforced: true };
+    const input: OwnerBalanceData = { ...data(), accountTotal: 1, accounts: [{
+      availableAmount: canonicalizeSignedOwnerOpeningAmount("975.00"), issueCodes: [], issueCount: 0,
+      lastActivityDate: "2026-08-28", lastActivityDetail: "sources=1", ownerLabel: "Nora Owner", ownerPersonId: ownerId,
+      periodStatus: "ready", propertyId, propertyLabel: "Riverside", remediationPath: null, withdrawalStatus: "available",
+    }] };
+    const view = (generation: number) => <FinancialWriteProvider organizationId="org" context={{ ...context, generation }}>
+      <OwnerBalanceLedger canAllocate={false} canCorrect={false} canTransfer={false} data={input} organizationName="IPS" selectedMonth="2026-08" />
+    </FinancialWriteProvider>;
+    const { rerender } = render(view(1));
+    expect(screen.getByText("Ready to distribute")).toBeTruthy();
+    rerender(view(2));
+    expect(screen.queryByText("Ready to distribute")).toBeNull();
+    expect(screen.queryByText(/975/)).toBeNull();
+    const record = screen.getByRole("link", { name: "Nora Owner  Riverside" });
+    expect(record.getAttribute("href")).toContain(`ownerPersonId=${ownerId}`);
+    expect(screen.getByRole("navigation", { name: "Owner account views" })).toBeTruthy();
+  });
+
   it.each(["/properties?query=River&page=2&ownerStatus=missing", "https://evil.test", undefined])("preserves only safe property register origins on account navigation: %s", returnTo => {
     const { container } = render(<OwnerBalanceLedger canAllocate={false} canCorrect={false} canTransfer={false} canViewPropertyRecords
       data={data()} organizationName="IPS" selectedMonth="2026-08" selectedPropertyId={propertyId}

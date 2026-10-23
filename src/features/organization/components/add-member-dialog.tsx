@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm, useFinancialFormData } from "@/lib/finance/financial-write-provider";
+
 import {
   useCallback,
   useEffect,
@@ -95,6 +97,7 @@ export function AddMemberDialog({
   roles: AccessRoleOption[];
   returnFocusRef?: RefObject<HTMLButtonElement | null>;
 }) {
+  const createFinancialFormData = useFinancialFormData();
   const initialAccess = useMemo<AccessValues>(
     () => ({
       branchId: branches.length === 1 ? branches[0]!.id : "",
@@ -279,7 +282,7 @@ export function AddMemberDialog({
     let personId = organizationWide ? "" : access.personId;
 
     if (!organizationWide && staffMode === "new" && !createdStaff) {
-      const staffResult = await createPersonAction({}, buildStaffFormData(staff));
+      const staffResult = await createPersonAction({}, buildStaffFormData(staff, createFinancialFormData()));
       if (staffResult.status !== "success" || !staffResult.personId) {
         setStaffErrors(staffResult.fieldErrors);
         setMessage(staffResult.message ?? "Staff could not be saved.");
@@ -303,7 +306,7 @@ export function AddMemberDialog({
     try {
       result = await inviteOrganizationUserAction(
         {},
-        buildInvitationFormData({ ...access, personId }),
+        buildInvitationFormData({ ...access, personId }, createFinancialFormData()),
       );
     } catch {
       result = { message: "Invitation was not created.", status: "error" };
@@ -382,7 +385,7 @@ export function AddMemberDialog({
             </ol>
           </DialogHeader>
 
-          <form
+          <FinancialForm
             className="flex min-h-0 flex-col"
             data-testid="add-member-form"
             onSubmit={(event) => {
@@ -456,7 +459,7 @@ export function AddMemberDialog({
                 {status === "saving" ? "Working" : primaryLabel}
               </Button>
             </DialogFooter>
-          </form>
+          </FinancialForm>
         </DialogContent>
       </Dialog>
       <ConfirmationDialog
@@ -729,8 +732,7 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function buildStaffFormData(staff: StaffValues) {
-  const formData = new FormData();
+function buildStaffFormData(staff: StaffValues, formData: FormData) {
   formData.set("displayName", staff.displayName.trim());
   formData.set("legalName", "");
   formData.set("notes", "");
@@ -742,8 +744,7 @@ function buildStaffFormData(staff: StaffValues) {
   return formData;
 }
 
-function buildInvitationFormData(access: AccessValues) {
-  const formData = new FormData();
+function buildInvitationFormData(access: AccessValues, formData: FormData) {
   formData.set("branchId", access.roleKind === "super_admin" ? "" : access.branchId);
   formData.set(
     "customRoleId",

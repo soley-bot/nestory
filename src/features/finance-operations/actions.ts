@@ -1,4 +1,6 @@
 "use server";
+import { financialFormValues } from "@/lib/finance/financial-write-context";
+import { financialWriteError } from "@/lib/finance/financial-write-context";
 
 import { retainExpenseEvidence } from "./retain-expense-evidence";
 import { revalidatePath } from "next/cache";
@@ -190,11 +192,7 @@ const invoicePublicationSchema = z.object({
 const receiptPublicationRetrySchema = z.object({ paymentId: uuid }).strict();
 
 function formDataWithoutActionMetadata(formData: FormData) {
-  return Object.fromEntries(
-    Array.from(formData.entries()).filter(
-      ([key]) => !key.startsWith("$ACTION_"),
-    ),
-  );
+  return financialFormValues(formData);
 }
 const RECEIPT_PUBLICATION_FAILURE_CATEGORY = "storage_unavailable";
 
@@ -381,7 +379,7 @@ export async function saveLeaseBillingAction(
   if (!parsed.success) return validationError(parsed.error);
 
   const context = await requirePermission("leases.change_terms");
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("save_lease_billing_rules", {
     p_billing_rule: toLeaseBillingRulePayload(parsed.data),
     p_expected_current_billing_rule_id:
@@ -399,10 +397,10 @@ export async function recoverRentGenerationExceptionAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
-  const parsed = recoverRentSchema.safeParse(Object.fromEntries(formData));
+  const parsed = recoverRentSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return validationError(parsed.error);
   const context = await requireCurrentRentRetryContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { data, error } = await supabase.rpc(
     "recover_rent_generation_exception",
     {
@@ -437,12 +435,12 @@ export async function recoverLeaseRentPeriodAction(
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
   const parsed = recoverLeaseRentPeriodSchema.safeParse(
-    Object.fromEntries(formData),
+    financialFormValues(formData),
   );
   if (!parsed.success) return validationError(parsed.error);
 
   const context = await requireHistoricalRentRecoveryContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { data, error } = await supabase.rpc("recover_lease_rent_period", {
     p_billing_period_start: `${parsed.data.billingPeriod}-01`,
     p_lease_id: parsed.data.leaseId,
@@ -469,11 +467,11 @@ export async function createManualTenantChargeAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
-  const parsed = manualTenantChargeSchema.safeParse(Object.fromEntries(formData));
+  const parsed = manualTenantChargeSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return validationError(parsed.error);
 
   const context = await requirePermission("finance.record_payments");
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("create_manual_tenant_charge_with_account", {
     p_amount: parsed.data.amount,
     p_billing_period_start: `${parsed.data.billingPeriod}-01`,
@@ -494,11 +492,11 @@ export async function createFinanceCategoryAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
-  const parsed = createFinanceCategorySchema.safeParse(Object.fromEntries(formData));
+  const parsed = createFinanceCategorySchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return validationError(parsed.error);
 
   const context = await requireSuperAdminContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("create_finance_category", {
     p_display_label: parsed.data.displayLabel,
     p_namespace: parsed.data.namespace,
@@ -520,11 +518,11 @@ export async function updateFinanceCategoryAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
-  const parsed = updateFinanceCategorySchema.safeParse(Object.fromEntries(formData));
+  const parsed = updateFinanceCategorySchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return validationError(parsed.error);
 
   const context = await requireSuperAdminContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("update_finance_category", {
     p_category_id: parsed.data.categoryId,
     p_display_label: parsed.data.displayLabel,
@@ -540,11 +538,11 @@ export async function setFinanceCategoryArchivedAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
-  const parsed = archiveFinanceCategorySchema.safeParse(Object.fromEntries(formData));
+  const parsed = archiveFinanceCategorySchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return validationError(parsed.error);
 
   const context = await requireSuperAdminContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("set_finance_category_archived", {
     p_archived: parsed.data.archived,
     p_category_id: parsed.data.categoryId,
@@ -564,10 +562,10 @@ export async function recordTenantInvoicePaymentAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
-  const parsed = paymentSchema.safeParse(Object.fromEntries(formData));
+  const parsed = paymentSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return validationError(parsed.error);
   const context = await requireFinanceOperationContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const allocations = parseAllocations(formData);
   const { data, error } = await supabase.rpc("record_tenant_invoice_payment_with_account", {
     p_allocations: allocations.length > 0 ? (allocations as Json) : null,
@@ -637,7 +635,7 @@ export async function publishTenantInvoicePdfAction(
   if (!parsed.success) return validationError(parsed.error);
 
   const context = await requireFinanceOperationContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   try {
     const artifact = await publishTenantInvoiceArtifact({
       actorId: context.userId,
@@ -676,7 +674,7 @@ export async function retryTenantReceiptPdfAction(
   if (!parsed.success) return validationError(parsed.error);
 
   const context = await requireFinanceOperationContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   try {
     const artifact = await publishTenantReceiptArtifact({
       actorId: context.userId,
@@ -711,11 +709,11 @@ export async function confirmOwnerCollectionAction(
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
   const parsed = invoiceSettlementSchema.safeParse(
-    Object.fromEntries(formData),
+    financialFormValues(formData),
   );
   if (!parsed.success) return validationError(parsed.error);
   const context = await requireFinanceOperationContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const allocations = parseAllocations(formData);
   const { error } = await supabase.rpc("confirm_owner_collected_rent", {
     p_allocations: allocations.length > 0 ? (allocations as Json) : null,
@@ -736,12 +734,12 @@ export async function reverseTenantInvoicePaymentAction(
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
   const parsed = settlementReversalSchema.safeParse(
-    Object.fromEntries(formData),
+    financialFormValues(formData),
   );
   if (!parsed.success) return validationError(parsed.error);
 
   const context = await requireFinanceCorrectionContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("reverse_tenant_invoice_payment", {
     p_idempotency_key: parsed.data.idempotencyKey,
     p_organization_id: context.organizationId,
@@ -759,12 +757,12 @@ export async function reverseOwnerCollectionConfirmationAction(
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
   const parsed = settlementReversalSchema.safeParse(
-    Object.fromEntries(formData),
+    financialFormValues(formData),
   );
   if (!parsed.success) return validationError(parsed.error);
 
   const context = await requireFinanceCorrectionContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc(
     "reverse_owner_collection_confirmation",
     {
@@ -802,7 +800,7 @@ export async function submitExpenseAction(
   const evidenceError = hasEvidence ? validatePaidCostEvidenceFile(evidenceFile) : null;
   if (evidenceError) return actionError(evidenceError);
   if (formData.has("lines")) {
-    const parsed = expenseTransactionSchema.safeParse(Object.fromEntries(formData));
+    const parsed = expenseTransactionSchema.safeParse(financialFormValues(formData));
     if (!parsed.success) return validationError(parsed.error);
     const legacyReplacement = formData.has("replacementSubmissionId");
     if (legacyReplacement && formData.has("replacementTransactionId")) return actionError("Choose one original expense to correct.");
@@ -811,7 +809,7 @@ export async function submitExpenseAction(
       expectedStatus: z.enum(["submitted", "approved"]),
       replacementReason: z.string().trim().min(3).max(500),
       reversalDate: date,
-    }).safeParse({ ...Object.fromEntries(formData), replacementTransactionId: formData.get(legacyReplacement ? "replacementSubmissionId" : "replacementTransactionId") }) : null;
+    }).safeParse({ ...financialFormValues(formData), replacementTransactionId: formData.get(legacyReplacement ? "replacementSubmissionId" : "replacementTransactionId") }) : null;
     if (replacement && !replacement.success) return validationError(replacement.error);
     if (legacyReplacement && replacement?.success && replacement.data.expectedStatus !== "approved") return actionError("Only posted legacy expenses support linked correction.");
 
@@ -820,7 +818,7 @@ export async function submitExpenseAction(
       await requireFinancePostingContext(parsed.data.responsibility);
     }
     if (replacement?.success && replacement.data.expectedStatus === "approved") await requireExpenseCorrectionContext();
-    const supabase = await createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient(formData);
     let evidenceDocumentId: string | null = null;
     try {
       if (hasEvidence) {
@@ -839,7 +837,7 @@ export async function submitExpenseAction(
           transactionId: replacement.data.replacementTransactionId,
           legacySubmission: legacyReplacement,
           propertyId: parsed.data.lines[0].propertyId, idempotencyKey: parsed.data.idempotencyKey,
-        });
+        }, formData);
       }
     } catch (error) {
       unstable_rethrow(error);
@@ -898,13 +896,13 @@ export async function submitExpenseAction(
     };
   }
 
-  const parsed = legacyExpenseSchema.safeParse(Object.fromEntries(formData));
+  const parsed = legacyExpenseSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return validationError(parsed.error);
   if (parsed.data.responsibility === "tenant" && !parsed.data.tenantInvoiceId) {
     return actionError("Choose the tenant invoice for this charge.");
   }
   const context = await requireFinanceSubmissionContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   let evidenceDocumentId: string | null = null;
   try {
     if (hasEvidence) {
@@ -957,7 +955,7 @@ export async function reviewExpenseAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
-  const parsed = expenseReviewSchema.safeParse(Object.fromEntries(formData));
+  const parsed = expenseReviewSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return validationError(parsed.error);
   if (
     parsed.data.decision === "approve" &&
@@ -970,7 +968,7 @@ export async function reviewExpenseAction(
   }
 
   const context = await requireFinanceReviewContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = parsed.data.transactionId
     ? await supabase.rpc("review_expense_transaction", {
         p_decision: parsed.data.decision,
@@ -1002,10 +1000,10 @@ export async function cancelExpenseAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
-  const parsed = z.object({ transactionId: uuid, reason: z.string().trim().min(3).max(500), idempotencyKey: z.string().min(8).max(160) }).safeParse(Object.fromEntries(formData));
+  const parsed = z.object({ transactionId: uuid, reason: z.string().trim().min(3).max(500), idempotencyKey: z.string().min(8).max(160) }).safeParse(financialFormValues(formData));
   if (!parsed.success) return validationError(parsed.error);
   const context = await requireFinanceSubmissionContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("cancel_expense_transaction", {
     p_organization_id: context.organizationId, p_transaction_id: parsed.data.transactionId,
     p_reason: parsed.data.reason, p_idempotency_key: parsed.data.idempotencyKey,
@@ -1019,11 +1017,11 @@ export async function reverseExpenseAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
-  const parsed = expenseReversalSchema.safeParse(Object.fromEntries(formData));
+  const parsed = expenseReversalSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return validationError(parsed.error);
 
   const context = await requireFinanceReversalContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = parsed.data.transactionId
     ? await supabase.rpc("reverse_expense_transaction", {
         p_idempotency_key: parsed.data.idempotencyKey,
@@ -1048,10 +1046,10 @@ export async function recordOwnerPaymentAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
-  const parsed = ownerPaymentSchema.safeParse(Object.fromEntries(formData));
+  const parsed = ownerPaymentSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return validationError(parsed.error);
   const context = await requireFinanceOperationContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("record_owner_invoice_payment", {
     p_amount: parsed.data.amount,
     p_idempotency_key: parsed.data.idempotencyKey,
@@ -1069,10 +1067,10 @@ export async function recordWithdrawalAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
-  const parsed = withdrawalSchema.safeParse(Object.fromEntries(formData));
+  const parsed = withdrawalSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return validationError(parsed.error);
   const context = await requireFinanceOperationContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("record_owner_distribution", {
     p_amount: parsed.data.amount,
     p_currency: "USD",
@@ -1089,6 +1087,7 @@ export async function recordWithdrawalAction(
 }
 
 function ownerDistributionError(message: string): FinanceOperationsActionState {
+  const lifecycle = financialWriteError(message); if (lifecycle) return actionError(lifecycle);
   const code = message.split(":", 1)[0].trim();
   const messages: Record<string, string> = {
     owner_cash_source_remediation_required:
@@ -1190,6 +1189,7 @@ function revalidateTenantPayment() {
 }
 
 function expenseWorkflowError(message: string) {
+  const lifecycle = financialWriteError(message); if (lifecycle) return actionError(lifecycle);
   if (message.includes("Upload a new receipt for the replacement")) return actionError("Upload the receipt again for this replacement. The original attachment stays in history.");
   if (message.includes("Only the submitter or Super Admin")) return actionError("Only the person who submitted this expense or a Super Admin can edit or cancel it.");
   if (message.includes("status changed") || message.includes("Conflicting expense") || message.includes("Only a pending expense")) return actionError("This expense has changed. Refresh the page before trying again.");

@@ -20,6 +20,7 @@ import {
 } from "@/features/maintenance/maintenance.facts";
 import type { MaintenancePriority } from "@/features/maintenance/maintenance.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
 import type { CurrencyCode } from "@/lib/money/format";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
@@ -109,6 +110,18 @@ export async function getOverviewScreenData(
   organizationId: string,
   query?: OverviewViewQuery,
 ): Promise<OverviewScreenData> {
+  const month = query?.month ?? getBusinessDateString(new Date()).slice(0, 7);
+  return withFinancialReadContext(organizationId, async (context) => ({
+    ...await loadOverviewScreenData(organizationId, query, context.financial_start_date),
+    financialGeneration: context.generation,
+  }), `${month}-01`);
+}
+
+async function loadOverviewScreenData(
+  organizationId: string,
+  query?: OverviewViewQuery,
+  financialStartDate?: string | null,
+): Promise<OverviewScreenData> {
   const supabase = await createSupabaseServerClient();
   const now = new Date();
   const businessToday = getBusinessDateString(now);
@@ -121,10 +134,13 @@ export async function getOverviewScreenData(
   };
   const monthScope = getOverviewMonthScope(effectiveQuery.month);
   const currentMonthStart = startOfMonth(monthScope.from);
-  const ledgerStart = addMonths(currentMonthStart, -5);
+  const originalLedgerStart = addMonths(currentMonthStart, -5);
+  const ledgerStart = financialStartDate && toDateInput(originalLedgerStart) < financialStartDate
+    ? new Date(`${financialStartDate}T00:00:00.000Z`)
+    : originalLedgerStart;
   const ledgerStartInput = toDateInput(ledgerStart);
   const currentMonthEndInput = monthScope.before;
-  const recentExpenseStart = addDaysToDateString(businessToday, -30);
+  const recentExpenseStart = [addDaysToDateString(businessToday, -30), financialStartDate ?? ""].sort().at(-1)!;
 
   const propertyFilter = effectiveQuery.propertyId === "all"
     ? {}
@@ -203,7 +219,8 @@ export async function getOverviewScreenData(
       .select("id", { count: "exact", head: true })
       .eq("organization_id", organizationId)
       .match(propertyFilter)
-      .is("archived_at", null),
+      .is("archived_at", null)
+      .gte("transaction_date", financialStartDate ?? "0001-01-01"),
     // This operating alert follows business today, independently of chart month.
     supabase
       .from("ledger_entries")
@@ -434,6 +451,7 @@ export async function getOverviewScreenData(
     leaseRiskCount: leasesEndingSoon.length,
     ledgerCurrency: "USD",
     ledgerFlow: buildLedgerFlowChart({
+      monthEnd: currentMonthStart,
       ledgerRows,
       monthStart: ledgerStart,
     }),
@@ -1014,15 +1032,18 @@ function countBy(values: string[]) {
 function buildLedgerFlowChart({
   ledgerRows,
   monthStart,
+  monthEnd,
 }: {
   ledgerRows: LedgerWindowRow[];
   monthStart: Date;
+  monthEnd: Date;
 }): OverviewLedgerPoint[] {
   if (ledgerRows.length === 0) {
     return [];
   }
 
-  const months = Array.from({ length: 6 }, (_, index) => addMonths(monthStart, index));
+  const months = Array.from({ length: 6 }, (_, index) => addMonths(monthStart, index))
+    .filter((month) => month <= monthEnd);
   const points = new Map(
     months.map((month) => [
       getMonthKey(month),

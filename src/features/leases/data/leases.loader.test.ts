@@ -2,8 +2,9 @@ import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
 import { createPortfolioSearch } from "@/lib/search/portfolio";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createSupabaseServerClient, getPersonSelectOptions } = vi.hoisted(
+const { createSupabaseServerClient, getPersonSelectOptions, readBoundary } = vi.hoisted(
   () => ({
+    readBoundary: vi.fn(),
     createSupabaseServerClient: vi.fn(),
     getPersonSelectOptions: vi.fn().mockResolvedValue([]),
   }),
@@ -11,6 +12,7 @@ const { createSupabaseServerClient, getPersonSelectOptions } = vi.hoisted(
 
 vi.mock("@/lib/search/portfolio.server", () => ({ loadPortfolioSearch: vi.fn() }));
 
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialReadContext: readBoundary }));
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient }));
 vi.mock("@/features/people/data/person-options", () => ({
   getPersonSelectOptions,
@@ -39,8 +41,30 @@ const propertyId = "20000000-0000-4000-8000-000000000001";
 const tenantId = "30000000-0000-4000-8000-000000000001";
 
 describe("lease screen data readiness", () => {
+  it("rejects frozen lease finance reads before loading master or deposit sources", async () => {
+    readBoundary.mockRejectedValueOnce(new Error("Financial reporting is paused"));
+    await expect(getLeasesScreenData(organizationId)).rejects.toThrow("paused");
+    expect(createSupabaseServerClient).not.toHaveBeenCalled();
+  });
+  it("discards enriched lease balances on final source change", async () => {
+    createSupabaseServerClient.mockResolvedValue(leaseLoaderStub({ rows: leaseRows(1) }).client);
+    readBoundary.mockImplementationOnce(async (_organizationId, read) => {
+      await read({ generation: 2 });
+      throw new Error("Financial data changed while loading");
+    });
+    await expect(getLeasesScreenData(organizationId)).rejects.toThrow("changed while");
+  });
+  it("tags every enriched lease with the verified generation", async () => {
+    createSupabaseServerClient.mockResolvedValue(leaseLoaderStub({ rows: leaseRows(1) }).client);
+    const result = await getLeasesScreenData(organizationId);
+    expect(result.financialGeneration).toBe(2);
+    expect(result.leases[0].financialGeneration).toBe(2);
+  });
+
   beforeEach(() => {
     createSupabaseServerClient.mockReset();
+    readBoundary.mockReset();
+    readBoundary.mockImplementation(async (_organizationId, read) => read({ generation: 2 }));
     getPersonSelectOptions.mockClear();
   });
 

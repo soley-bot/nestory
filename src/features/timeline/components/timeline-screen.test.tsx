@@ -11,6 +11,8 @@ import type {
   TimelineViewQuery,
 } from "@/features/timeline/timeline.types";
 import type { PermissionKey } from "@/lib/auth/permission-catalog";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
+import type { FinancialWriteContext } from "@/lib/finance/financial-write-context";
 
 const navigation = vi.hoisted(() => ({
   pathname: "/timeline",
@@ -38,6 +40,16 @@ afterEach(() => {
 });
 
 describe("TimelineScreen workspace contract", () => {
+  it.each(["frozen", "open"] as const)("hides financial history and actions for a %s mismatched generation", (status) => {
+    const context = { generation: 2, status, financial_start_date: "2026-10-01", enforced: true };
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ organizationId: "org-1", context }) })));
+    renderTimeline(events, {}, { financialGeneration: 1, context });
+    expect(screen.getByRole("heading", { name: "Timeline" })).toBeTruthy();
+    expect(screen.getByText(/Timeline amounts and actions are unavailable/)).toBeTruthy();
+    expect(screen.queryByText(events[0].title)).toBeNull();
+    expect(screen.queryByRole("button", { name: "New event" })).toBeNull();
+  });
+
   it.each([
     ["global", "Timeline", "All history"],
     ["property", "Property Timeline", "Property records"],
@@ -447,6 +459,8 @@ function renderTimeline(
   nextEvents: TimelineEvent[] = events,
   query: Partial<TimelineViewQuery> = {},
   route: {
+    financialGeneration?: number;
+    context?: FinancialWriteContext;
     initialEventId?: string;
     scope?: TimelineScope;
     title?: string;
@@ -457,6 +471,7 @@ function renderTimeline(
 ) {
   return render(
     <TimelineScreen
+      financialGeneration={route.financialGeneration}
       canArchive={route.canArchive}
       canWrite={route.canWrite}
       eventTypes={["Maintenance", "Repair", "Lease Started"]}
@@ -478,6 +493,7 @@ function renderTimeline(
       unitOptions={[{ id: "unit-1", label: "HOME / Unit 1A", propertyId: "property-1" }]}
       viewQuery={{ ...defaultViewQuery, ...query }}
     />,
+    { wrapper: route.context ? ({ children }) => <FinancialWriteProvider organizationId="org-1" context={route.context!}>{children}</FinancialWriteProvider> : undefined },
   );
 }
 

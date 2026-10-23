@@ -1,4 +1,6 @@
 "use server";
+import { financialFormValues } from "@/lib/finance/financial-write-context";
+import { financialWriteError } from "@/lib/finance/financial-write-context";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -152,7 +154,7 @@ export async function submitOwnerOpeningBalanceAction(
   _state: OwnerBalanceActionState | Record<string, never>,
   formData: FormData,
 ): Promise<OwnerBalanceActionState> {
-  const parsed = initialSchema.safeParse(Object.fromEntries(formData));
+  const parsed = initialSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return validationError(parsed.error);
 
   const amount = parseExactAmount(parsed.data.amount);
@@ -163,7 +165,7 @@ export async function submitOwnerOpeningBalanceAction(
     | undefined;
   try {
     const context = await requireOwnerOpeningBalanceSubmissionContext();
-    const supabase = await createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient(formData);
     const prepared = await prepareAtomicEvidence({
       evidenceFile: parsed.data.evidenceFile,
       evidenceSha256: parsed.data.evidenceSha256,
@@ -244,7 +246,7 @@ export async function submitOwnerOpeningBalanceCorrectionAction(
   _state: OwnerBalanceActionState | Record<string, never>,
   formData: FormData,
 ): Promise<OwnerBalanceActionState> {
-  const parsed = correctionSchema.safeParse(Object.fromEntries(formData));
+  const parsed = correctionSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return validationError(parsed.error);
 
   const replacementAmount = parseExactAmount(parsed.data.replacementAmount);
@@ -255,7 +257,7 @@ export async function submitOwnerOpeningBalanceCorrectionAction(
     | undefined;
   try {
     const context = await requireOwnerOpeningBalanceCorrectionContext();
-    const supabase = await createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient(formData);
     const prepared = await prepareAtomicEvidence({
       evidenceFile: parsed.data.evidenceFile,
       evidenceSha256: parsed.data.evidenceSha256,
@@ -334,12 +336,12 @@ export async function reviewOwnerOpeningBalanceAction(
   _state: OwnerBalanceActionState | Record<string, never>,
   formData: FormData,
 ): Promise<OwnerBalanceActionState> {
-  const parsed = reviewSchema.safeParse(Object.fromEntries(formData));
+  const parsed = reviewSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return validationError(parsed.error);
 
   try {
     const context = await requireOwnerOpeningBalanceReviewContext();
-    const supabase = await createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient(formData);
     const { data, error } = await supabase.rpc("review_owner_opening_balance", {
       p_decision: parsed.data.decision,
       p_idempotency_key: parsed.data.idempotencyKey,
@@ -568,6 +570,7 @@ async function deterministicEvidenceDocumentId(
 
 function isExistingObjectError(error: unknown) {
   const details = errorDetails(error);
+  const lifecycle = financialWriteError(details.message); if (lifecycle) return { status: "error", message: lifecycle };
   const statusCode =
     error && typeof error === "object"
       ? String((error as { statusCode?: unknown }).statusCode ?? "")

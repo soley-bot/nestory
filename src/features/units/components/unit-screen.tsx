@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FileText, Plus } from "lucide-react";
@@ -32,6 +33,7 @@ type UnitCreateInitialValues = Partial<Pick<UnitFormValues, "propertyId">>;
 type DrawerState = { initialValues?: UnitCreateInitialValues; mode: "create" };
 
 type UnitScreenProps = {
+  financialGeneration?: number;
   canCreate: boolean;
   pagination: UnitPagination;
   propertyOptions: UnitPropertyOption[];
@@ -39,7 +41,22 @@ type UnitScreenProps = {
   viewQuery: UnitViewQuery;
 };
 
-export function UnitScreen({
+export function UnitScreen(props: UnitScreenProps) {
+  return (
+    <FinancialReportBoundary expectedGeneration={props.financialGeneration} fallback={
+      <WorkspacePage title="Units" context="Unit records" contextHref="/units">
+        <p className="px-4 py-3 text-sm">Financial amounts and filters need a refresh before they can be used.</p>
+        <nav aria-label="Unit records" className="flex flex-col gap-2 px-4 pb-4">
+          {props.units.map((unit) => <Link key={unit.id} href={`/units/${unit.id}`}>{unit.propertyCode} / Unit {unit.unitNumber}</Link>)}
+        </nav>
+      </WorkspacePage>
+    }>
+      <UnitScreenContent {...props} />
+    </FinancialReportBoundary>
+  );
+}
+
+function UnitScreenContent({
   canCreate,
   pagination,
   propertyOptions,

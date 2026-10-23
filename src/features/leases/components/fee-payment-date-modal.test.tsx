@@ -29,7 +29,7 @@ describe("fee payment date modal", () => {
   it("loads settlements on mount and invalidates a reviewed preview when the date or settlement changes", async () => {
     render(<FeePaymentDateModal leaseId="lease" onClose={vi.fn()} onSuccess={vi.fn()} />);
     await prepare();
-    expect(mocks.list).toHaveBeenCalledWith("lease");
+    expect(mocks.list).toHaveBeenCalledWith("lease", expect.any(FormData));
     fireEvent.change(screen.getByLabelText("Actual payment date"), { target: { value: "2026-09-10" } });
     expect(screen.queryByRole("button", { name: "Confirm payment date correction" })).toBeNull();
     fireEvent.change(screen.getByLabelText("Actual payment date"), { target: { value: preview.newDate } });

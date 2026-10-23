@@ -1042,6 +1042,17 @@ SELECT is(
   'a rent invoice can carry owner P&L recognition without a management fee'
 );
 
+-- A property close requires every continuing tenancy to be billed, including
+-- the other seeded unit. Keep this no-fee correction case focused on its own
+-- invoice while supplying real checked rent evidence for the remaining leases.
+SELECT app_private.generate_simple_lease_rent_invoice(state.organization_id,
+ (gap->>'lease_id')::uuid,
+ (date_trunc('month',current_date)+interval '3 months')::date,
+ (date_trunc('month',current_date)+interval '3 months')::date,'manual_recovery',state.admin_id)
+FROM correction_state state CROSS JOIN LATERAL jsonb_array_elements(
+ app_private.owner_month_rent_completeness(state.organization_id,state.property_id,'USD',
+ (date_trunc('month',current_date)+interval '3 months')::date)->'gaps') gap;
+
 SELECT set_config('app.owner_close_write_context', 'checked-owner-close-v1', true);
 INSERT INTO public.owner_close_series (
   id, organization_id, property_id, owner_person_id, currency, month_start,

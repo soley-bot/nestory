@@ -4,10 +4,12 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+  getFinancialWriteContext,
   getPrivilegedEmailStepUpStatus,
   requireWorkspaceContext,
   routerRefresh,
 } = vi.hoisted(() => ({
+    getFinancialWriteContext: vi.fn(),
     getPrivilegedEmailStepUpStatus: vi.fn(),
     requireWorkspaceContext: vi.fn(),
     routerRefresh: vi.fn(),
@@ -20,6 +22,9 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: routerRefresh }),
 }));
 vi.mock("@/lib/auth/context", () => ({ requireWorkspaceContext }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({
+  getFinancialWriteContext,
+}));
 vi.mock("@/features/auth/privileged-step-up", () => ({
   getPrivilegedEmailStepUpStatus,
   requestPrivilegedEmailStepUpAction: vi.fn(async () => ({})),
@@ -36,6 +41,14 @@ vi.mock("@/components/layout/app-shell", () => ({
 }));
 
 import DashboardLayout from "@/app/(dashboard)/layout";
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
+const financialContext = {
+  generation: 3,
+  status: "open",
+  financial_start_date: "2026-10-01",
+  enforced: true,
+} as const;
 
 const unverifiedStatus = {
   canRequestAt: null,
@@ -50,15 +63,25 @@ describe("DashboardLayout privileged email gate", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   beforeEach(() => {
     getPrivilegedEmailStepUpStatus.mockReset();
     requireWorkspaceContext.mockReset();
     routerRefresh.mockReset();
+    getFinancialWriteContext.mockReset();
+    getFinancialWriteContext.mockResolvedValue(financialContext);
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        organizationId: "00000000-0000-0000-0000-000000000041",
+        context: financialContext,
+      }),
+    })));
     requireWorkspaceContext.mockResolvedValue({
       isSuperAdmin: true,
-      organizationId: "752a87b8-bd04-4a45-9cb8-00687af66e73",
+      organizationId: "00000000-0000-0000-0000-000000000041",
       organizationName: "Pilot",
       permissionKeys: new Set<string>(),
       role: "super_admin",
@@ -91,7 +114,7 @@ describe("DashboardLayout privileged email gate", () => {
   it("does not evaluate step-up status for an ordinary dashboard role", async () => {
     requireWorkspaceContext.mockResolvedValue({
       isSuperAdmin: false,
-      organizationId: "752a87b8-bd04-4a45-9cb8-00687af66e73",
+      organizationId: "00000000-0000-0000-0000-000000000041",
       organizationName: "Pilot",
       permissionKeys: new Set<string>(["people.read"]),
       role: "custom",
@@ -112,6 +135,26 @@ describe("DashboardLayout privileged email gate", () => {
     expect(
       screen.queryByRole("heading", { name: "Verify this session" }),
     ).toBeNull();
+  });
+
+  it("binds workspace forms to the financial generation read by the layout", async () => {
+    getPrivilegedEmailStepUpStatus.mockResolvedValue(null);
+    render(await DashboardLayout({
+      children: <FinancialForm aria-label="Transaction"><button type="submit">Save</button></FinancialForm>,
+    }));
+
+    expect(getFinancialWriteContext).toHaveBeenCalledWith("00000000-0000-0000-0000-000000000041");
+    const form = screen.getByRole("form", { name: "Transaction" }) as HTMLFormElement;
+    expect(new FormData(form).get("__financialGeneration")).toBe("3");
+  });
+
+  it("shows the reset pause when the layout reads a frozen financial context", async () => {
+    getPrivilegedEmailStepUpStatus.mockResolvedValue(null);
+    getFinancialWriteContext.mockResolvedValue({ ...financialContext, status: "frozen" });
+    render(await DashboardLayout({ children: <div>Workspace navigation</div> }));
+
+    expect(screen.getByText("Financial changes and reports are paused while this workspace is being reset.")).not.toBeNull();
+    expect(screen.getByText("Workspace navigation")).not.toBeNull();
   });
 
   it.each([

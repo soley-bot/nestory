@@ -2,6 +2,7 @@
 
 import { requireOwnerBalanceReadContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { getFinancialWriteContext, withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { getOwnerCloseData } from "@/features/owner-close/data/owner-close";
 import { loadOwnerStatementPublication } from "@/features/reports/data/owner-statement-report";
 import { ownerStatementCash } from "@/features/reports/data/owner-statement-cash";
@@ -10,7 +11,7 @@ import { isStatementReportEnabled } from "./statement-report-enabled";
 import { OWNER_BALANCE_COMPONENTS } from "./owner-balance.types";
 import type { OwnerStatementLine } from "@/features/reports/data/owner-statement-report";
 
-type StatementScope = { month: string; ownerPersonId: string; propertyId: string };
+type StatementScope = { month: string; ownerPersonId: string; propertyId: string; expectedGeneration?: number };
 type StatementReport = {
   cash: ReturnType<typeof ownerStatementCash>;
   unitLabels?: Record<number, string | undefined>;
@@ -23,15 +24,19 @@ type StatementReport = {
 
 export async function readStatementReports(scopes: StatementScope[]) {
   if (!Array.isArray(scopes) || scopes.length > 12) throw new Error("Select at most twelve owner accounts.");
-  const results: { scope: StatementScope; statement: StatementReport | null; failed: boolean }[] = [];
-  // Bound database concurrency while avoiding one queued Server Action per account.
-  for (let index = 0; index < scopes.length; index += 3) {
-    results.push(...await Promise.all(scopes.slice(index, index + 3).map(async scope => {
-      try { return { scope, statement: await readStatementReport(scope), failed: false }; }
-      catch { return { scope, statement: null, failed: true }; }
-    })));
-  }
-  return results;
+  const context = await requireOwnerBalanceReadContext();
+  return withFinancialReadContext(context.organizationId, async () => {
+    const results: { scope: StatementScope; statement: StatementReport | null; failed: boolean }[] = [];
+    // Bound database concurrency while keeping the whole batch in one checked
+    // reporting generation, including accounts loaded after the first group.
+    for (let index = 0; index < scopes.length; index += 3) {
+      results.push(...await Promise.all(scopes.slice(index, index + 3).map(async scope => {
+        try { return { scope, statement: await readStatementReport(scope), failed: false }; }
+        catch { return { scope, statement: null, failed: true }; }
+      })));
+    }
+    return results;
+  });
 }
 
 export async function readStatementReport(input: StatementScope): Promise<StatementReport | null> {
@@ -39,6 +44,17 @@ export async function readStatementReport(input: StatementScope): Promise<Statem
   if (!isStatementReportEnabled(context)) throw new Error("Statement report is not enabled for this workspace.");
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(input.month) || !uuid.test(input.ownerPersonId) || !uuid.test(input.propertyId)) throw new Error("Invalid statement scope.");
+  return withFinancialReadContext(context.organizationId, async () => {
+    const current = await getFinancialWriteContext(context.organizationId);
+    if (current.enforced || input.expectedGeneration !== undefined) {
+      if (!Number.isSafeInteger(input.expectedGeneration) || input.expectedGeneration === undefined || input.expectedGeneration < 0 || input.expectedGeneration > 2147483647) throw new Error("Invalid financial session. Reload the page before viewing statements.");
+      if (current.generation !== input.expectedGeneration) throw new Error("The financial session changed. Reload the page before viewing statements.");
+    }
+    return readStatementSnapshot(input, context.organizationId);
+  }, `${input.month}-01`);
+}
+
+async function readStatementSnapshot(input: StatementScope, organizationId: string): Promise<StatementReport | null> {
   const data = await getOwnerCloseData({ currency: "USD", monthStart: `${input.month}-01`, ownerPersonId: input.ownerPersonId, propertyId: input.propertyId });
   const publication = data.publications.filter(item => !item.supersededByPublicationId).sort((a, b) => b.revisionNumber - a.revisionNumber)[0];
   if (!publication) {
@@ -62,8 +78,8 @@ export async function readStatementReport(input: StatementScope): Promise<Statem
     return { cash: ownerStatementCash({ components: period.components, lines }), unitLabels, statementNumber: "Draft", artifacts: [], stale: false, published: false };
   }
   const client = await createSupabaseServerClient();
-  const model = await loadOwnerStatementPublication(client, context.organizationId, publication.id);
-  if (model.organizationId !== context.organizationId || model.ownerPersonId !== input.ownerPersonId || model.propertyId !== input.propertyId || model.monthStart !== `${input.month}-01`) throw new Error("Statement scope mismatch.");
+  const model = await loadOwnerStatementPublication(client, organizationId, publication.id);
+  if (model.organizationId !== organizationId || model.ownerPersonId !== input.ownerPersonId || model.propertyId !== input.propertyId || model.monthStart !== `${input.month}-01`) throw new Error("Statement scope mismatch.");
   // The frozen publication contract has no unit label. Do not backfill current
   // roster data into a historical statement; the UI explicitly says Not recorded.
   return { cash: ownerStatementCash(model), statementNumber: model.statementNumber, artifacts: model.artifacts.map(item => ({ id: item.id, format: item.format })), stale: Boolean(data.series && (data.series.state !== "closed" || data.series.currentClosedRevisionId !== publication.revisionId)), published: true };

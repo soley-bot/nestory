@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { RotateCcw, SlidersHorizontal } from "lucide-react";
@@ -36,18 +38,18 @@ export function ReportsFilters({ compact = false, action, ownerOptions, property
   const groupOptions = [{ label: "No grouping", value: "none" }, ...availableColumns.filter((column) => ["property", "unit", "type", "payee", "status"].includes(column.key)).map((column) => ({ label: column.label, value: column.key }))];
 
   if (compact) return <section aria-label="Report filters" className="workspace-gutter-x border-b border-border/70 bg-blue-50/20 py-2" role="region">
-    <form action={action} method="get" className="flex min-w-0 flex-wrap items-center gap-2">
+    <FinancialForm action={action} method="get" className="flex min-w-0 flex-wrap items-center gap-2">
       <MonthPickerField ariaLabel="Report month" className="h-7 min-h-7 w-[180px] whitespace-nowrap rounded-full border-blue-300 bg-blue-50 px-3 text-xs text-blue-700 shadow-none dark:bg-blue-950/30" defaultValue={viewQuery.month} name="month" />
       <SearchableSelectControl ariaLabel="Filter report by property" contentClassName="w-[440px] max-w-[calc(100vw-2rem)]" wrapOptions className="h-auto min-h-8 w-[280px] max-w-full rounded-lg px-3 text-sm font-normal shadow-none py-1.5 [&_.truncate]:overflow-visible [&_.truncate]:whitespace-normal [&_.truncate]:[overflow-wrap:anywhere]" name="propertyId" value={propertyId} onValueChange={(value) => { setPropertyId(value); setUnitId("all"); }} options={[{ label: "All properties", value: "all" }, ...propertyOptions.map(property => ({ label: property.label, value: property.id }))]} />
       <SearchableSelectControl ariaLabel="Filter report by unit" contentClassName="w-[440px] max-w-[calc(100vw-2rem)]" wrapOptions className="h-auto min-h-8 w-[280px] max-w-full rounded-lg px-3 text-sm font-normal shadow-none py-1.5 [&_.truncate]:overflow-visible [&_.truncate]:whitespace-normal [&_.truncate]:[overflow-wrap:anywhere]" name="unitId" value={unitId} onValueChange={setUnitId} options={[{ label: "All units", value: "all" }, ...visibleUnits.map(unit => ({ label: unit.label, value: unit.id }))]} />
       <Button aria-label="Apply filters" className="h-7 rounded-full px-3 text-xs" type="submit">Apply</Button>
       {showReset ? <Button asChild size="sm" variant="ghost" className="h-7 text-xs"><Link aria-label="Reset report filters" href={`/reports/${viewQuery.report}`}>Reset</Link></Button> : null}
       <span className="ml-auto rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] text-blue-700 dark:bg-blue-950/30 dark:text-blue-300" title="Income and expenses count by invoice or cost date, even before payment.">Accrual</span>
-    </form>
+    </FinancialForm>
   </section>;
 
   return <section aria-label="Report filters" className="workspace-gutter-x relative border-b border-border/70 bg-background py-3" role="region">
-    <form action={action} method="get" className="flex min-w-0 flex-wrap items-end gap-2">
+    <FinancialForm action={action} method="get" className="flex min-w-0 flex-wrap items-end gap-2">
       {viewQuery.columns ? <input name="columns" type="hidden" value={viewQuery.columns} /> : null}
       {modern && viewQuery.status !== "all" ? <><input name="status" type="hidden" value={viewQuery.status} /><span className="text-xs text-muted-foreground">Current lease: {viewQuery.status}</span></> : null}
       {showOwner ? <ScopeField label="Owner"><FilterSelect label="owner" name="ownerPersonId" value={viewQuery.ownerPersonId} options={ownerOptions} /></ScopeField> : null}
@@ -71,7 +73,7 @@ export function ReportsFilters({ compact = false, action, ownerOptions, property
       </details> : null}
       <Button aria-label="Apply filters" className="h-8 gap-1.5 px-3 text-sm" type="submit">Apply</Button>
       {showReset ? <Button asChild className="h-8" variant="ghost"><Link aria-label="Reset report filters" href={`/reports/${viewQuery.report}`}><RotateCcw size={14} />Reset</Link></Button> : null}
-    </form>
+    </FinancialForm>
   </section>;
 }
 

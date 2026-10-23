@@ -21,6 +21,7 @@ import type {
 } from "@/features/owner-close/owner-close.types";
 import { requireOwnerCloseReadinessContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 
 const SERIES_STATES = new Set<OwnerCloseSeriesState>([
   "open", "preparing", "closed", "stale",
@@ -41,12 +42,19 @@ export async function getOwnerCloseData(
 ): Promise<OwnerCloseData> {
   const context = await requireOwnerCloseReadinessContext();
   if (!scope.propertyId || !scope.ownerPersonId) return emptyData();
+  return withFinancialReadContext(context.organizationId, async (financialContext) => ({
+    ...await loadOwnerCloseData(scope, context.organizationId),
+    financialGeneration: financialContext.generation,
+  }), scope.monthStart);
+}
 
+async function loadOwnerCloseData(scope: OwnerCloseScope, organizationId: string): Promise<OwnerCloseData> {
+  if (!scope.propertyId || !scope.ownerPersonId) return emptyData();
   const supabase = await createSupabaseServerClient();
   const rpcScope = {
     p_currency: scope.currency,
     p_month_start: scope.monthStart,
-    p_organization_id: context.organizationId,
+    p_organization_id: organizationId,
     p_owner_person_id: scope.ownerPersonId,
     p_property_id: scope.propertyId,
   };
@@ -69,11 +77,11 @@ export async function getOwnerCloseData(
 
     const [publicationReadinessResult, publicationsResult] = await Promise.all([
       supabase.rpc("get_owner_statement_readiness", {
-        p_organization_id: context.organizationId,
+        p_organization_id: organizationId,
         p_owner_close_revision_id: currentRevisionId,
       }),
       supabase.rpc("get_owner_statement_publications_for_series", {
-        p_organization_id: context.organizationId,
+        p_organization_id: organizationId,
         p_owner_close_series_id: history.series.id,
       }),
     ]);

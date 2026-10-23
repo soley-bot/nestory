@@ -149,7 +149,7 @@ describe("maintenance status recovery", () => {
     });
     fireEvent.click(transitionButton);
 
-    expect(maintenanceActions.updateStatus).toHaveBeenCalledWith("task-1", "scheduled");
+    expect(maintenanceActions.updateStatus).toHaveBeenCalledWith("task-1", "scheduled", expect.any(FormData));
     await waitFor(() => {
       const card = document.querySelector<HTMLElement>('[data-task-card="task-1"]');
       expect(card).not.toBeNull();
@@ -187,7 +187,7 @@ describe("maintenance status recovery", () => {
       await screen.findByRole("button", { name: "Move case to scheduled" }),
     );
 
-    expect(maintenanceActions.updateStatus).toHaveBeenCalledWith("task-1", "scheduled");
+    expect(maintenanceActions.updateStatus).toHaveBeenCalledWith("task-1", "scheduled", expect.any(FormData));
     await waitFor(() => {
       const card = document.querySelector<HTMLElement>('[data-task-card="task-1"]');
       expect(within(card!).getByText("Scheduled")).not.toBeNull();
