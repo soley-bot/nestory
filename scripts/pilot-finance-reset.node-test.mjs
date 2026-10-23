@@ -19,8 +19,8 @@ const validationEvidence = () => VALIDATION_SOURCE_ARTIFACTS.map(artifact => ({
 test('validation binding requires every candidate migration and fixture/runner artifact', () => {
   const evidence = validationEvidence();
   const validated = assertValidationSourceEvidence(evidence, evidenceRoots);
-  assert.equal(validated.length, 26);
-  assert.equal(validated.filter(item => item.name.endsWith('.sql')).length, 20);
+  assert.equal(validated.length, 28);
+  assert.equal(validated.filter(item => item.name.endsWith('.sql')).length, 22);
   assert.ok(validated.some(item => item.name === 'financial-report-revision-concurrency.node-test.mjs'));
   assert.deepEqual(assertValidationSourceEvidence([...evidence].reverse(), evidenceRoots), validated);
 });

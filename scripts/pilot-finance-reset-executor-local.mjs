@@ -63,7 +63,7 @@ export function assertActionReadiness(materialized, mode) {
       materialized.blockers[0].code === 'known_zero_authority_unimplemented') {
     if (mode === 'rehearseCheckedReset' && !['20261023104000_financial_reset_known_zero_checked_phase.sql',
       '20261023105000_financial_reset_checked_continuation_billing.sql', '20261023110000_financial_reset_phase_recovery_sources.sql',
-      '20261023111000_financial_reset_contract_recovery_guards.sql'].every(name =>
+      '20261023111000_financial_reset_contract_recovery_guards.sql', '20261023112000_financial_reset_archived_property_known_zero.sql'].every(name =>
       materialized.sourceBinding?.validatedSourceArtifacts?.some(item => item.name === name && hash.test(item.sha256 ?? '')))) throw Error('Checked phase migration authority is absent.');
     return;
   }

@@ -29,7 +29,7 @@ const checkedReview = () => {
     manifestSha256: hash, actionsSha256: hash,
     zero: { makerActorId: '00000000-0000-0000-0000-000000000101', reviewerActorId: '00000000-0000-0000-0000-000000000501',
       effectiveDate: TARGET.cutoff, currencies: ['USD'], scopes: [{ property_id: id, property_owner_id: id, owner_person_id: id,
-        ownership_percent: 100, ownership_roster_hash: hash, currency: 'USD' }] },
+        ownership_percent: 100, ownership_roster_hash: hash, property_row_sha256: hash, property_archived_at: null, currency: 'USD' }] },
     continuation: { version: 1, actor_id: '00000000-0000-0000-0000-000000000101', billing_period_start: TARGET.cutoff,
       issue_date: '2026-10-23', leases: [{ lease_id: id, term_id: id, billing_rule_id: id, continue_month_to_month: true,
         rent_amount: '100.00', management_fee_amount: '0.00', currency: 'USD', recipient_person_id: id,
@@ -56,8 +56,13 @@ test('checked mode needs every phase and recovery migration binding while raw mo
   assert.doesNotThrow(() => assertActionReadiness(materialized, 'rehearseArchiveRestore'));
   materialized.sourceBinding.validatedSourceArtifacts = ['20261023104000_financial_reset_known_zero_checked_phase.sql',
     '20261023105000_financial_reset_checked_continuation_billing.sql', '20261023110000_financial_reset_phase_recovery_sources.sql',
-    '20261023111000_financial_reset_contract_recovery_guards.sql'].map(name => ({ name, sha256: hash }));
+    '20261023111000_financial_reset_contract_recovery_guards.sql', '20261023112000_financial_reset_archived_property_known_zero.sql'].map(name => ({ name, sha256: hash }));
   assert.doesNotThrow(() => assertActionReadiness(materialized, 'rehearseCheckedReset'));
+  for (const omitted of materialized.sourceBinding.validatedSourceArtifacts) {
+    const changed = structuredClone(materialized);
+    changed.sourceBinding.validatedSourceArtifacts = changed.sourceBinding.validatedSourceArtifacts.filter(item => item.name !== omitted.name);
+    assert.throws(() => assertActionReadiness(changed, 'rehearseCheckedReset'), /migration authority/);
+  }
   assert.throws(() => assertActionReadiness(materialized, 'fullReset'));
 });
 

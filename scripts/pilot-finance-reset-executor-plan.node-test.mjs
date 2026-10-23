@@ -196,7 +196,7 @@ function checkedReviewFixture() {
     manifestSha256: hash, actionsSha256: hash,
     zero: { makerActorId: '00000000-0000-0000-0000-000000000101', reviewerActorId: '00000000-0000-0000-0000-000000000501',
       effectiveDate: TARGET.cutoff, currencies: ['USD'], scopes: [{ property_id: id, property_owner_id: id, owner_person_id: id,
-        ownership_percent: 100, ownership_roster_hash: hash, currency: 'USD' }] },
+        ownership_percent: 100, ownership_roster_hash: hash, property_row_sha256: hash, property_archived_at: null, currency: 'USD' }] },
     continuation: { version: 1, actor_id: '00000000-0000-0000-0000-000000000101', billing_period_start: TARGET.cutoff,
       issue_date: '2026-10-23', leases: [{ lease_id: id, term_id: id, billing_rule_id: id, continue_month_to_month: false,
         rent_amount: '9007199254740993.00', management_fee_amount: '0.00', currency: 'USD', recipient_person_id: id,
@@ -240,6 +240,22 @@ test('checked phase review binds exact synthetic actors, USD scopes and string a
     r => { r.continuation.source_sha256 = hash; }, r => { r.actionsSha256 = 'b'.repeat(64); }]) {
     const review = checkedReviewFixture(); mutate(review);
     assert.throws(() => assertCheckedPhaseReview(seal(review, 'reviewSha256'), materialized));
+  }
+});
+
+test('known-zero review requires full property binding for live and archived scopes', () => {
+  const materialized = { actionsSha256: hash, sourceBinding: { manifestSha256: hash } };
+  for (const archivedAt of [null, '2026-10-23T08:30:00.123456+00:00']) {
+    const review = checkedReviewFixture();
+    review.zero.scopes[0].property_archived_at = archivedAt;
+    assert.doesNotThrow(() => assertCheckedPhaseReview(seal(review, 'reviewSha256'), materialized));
+  }
+  for (const mutate of [scope => { delete scope.property_row_sha256; }, scope => { delete scope.property_archived_at; },
+    scope => { scope.property_row_sha256 = 'invalid'; }, scope => { scope.property_archived_at = true; },
+    scope => { scope.property_archived_at = '2026-10-23'; }, scope => { scope.property_archived_at = '2026-99-23T08:30:00Z'; },
+    scope => { scope.allow_archived = true; }]) {
+    const review = checkedReviewFixture(); mutate(review.zero.scopes[0]);
+    assert.throws(() => assertCheckedPhaseReview(seal(review, 'reviewSha256'), materialized), /zero scope/);
   }
 });
 

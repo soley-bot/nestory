@@ -26,9 +26,12 @@ export function assertCheckedPhaseReview(review, materialized) {
       zero.effectiveDate !== TARGET.cutoff || !equal(zero.currencies, ['USD']) || !Array.isArray(zero.scopes) || !zero.scopes.length) throw Error('Known-zero synthetic actor or scope review is invalid.');
   const scopeIds = new Set();
   for (const scope of zero.scopes) {
-    if (!keys(scope, ['property_id', 'property_owner_id', 'owner_person_id', 'ownership_percent', 'ownership_roster_hash', 'currency']) ||
+    if (!keys(scope, ['property_id', 'property_owner_id', 'owner_person_id', 'ownership_percent', 'ownership_roster_hash', 'property_row_sha256', 'property_archived_at', 'currency']) ||
         !['property_id', 'property_owner_id', 'owner_person_id'].every(key => anyUuid.test(scope[key] ?? '')) ||
-        !digest.test(scope.ownership_roster_hash ?? '') || scope.currency !== 'USD' ||
+        !digest.test(scope.ownership_roster_hash ?? '') || !digest.test(scope.property_row_sha256 ?? '') || scope.currency !== 'USD' ||
+        (scope.property_archived_at !== null && (typeof scope.property_archived_at !== 'string' ||
+          !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(scope.property_archived_at) ||
+          !Number.isFinite(Date.parse(scope.property_archived_at)))) ||
         !/^(?:\d{1,3})(?:\.\d+)?$/.test(String(scope.ownership_percent)) || Number(scope.ownership_percent) <= 0 || Number(scope.ownership_percent) > 100 ||
         scopeIds.has(scope.property_owner_id)) throw Error('Invalid or repeated reviewed zero scope.');
     scopeIds.add(scope.property_owner_id);

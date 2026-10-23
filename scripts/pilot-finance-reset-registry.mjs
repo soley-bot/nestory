@@ -40,7 +40,7 @@ add('app_private', 'preserve', 'organization_id', `finance_account_activity_auth
 add('app_private', 'must-be-empty', 'organization_id', `expense_operation_authority lease_checked_mutation_capabilities lease_lifecycle_authority_tokens lease_scope_terminal_recovery_tokens`, 'Transaction capabilities must be absent at a drained checkpoint.');
 add('app_private', 'preserve', 'organization_id', 'financial_reset_operations financial_reset_archive_rows financial_reset_actions financial_reset_zero_plans financial_reset_zero_approvals financial_reset_phase_fences financial_reset_continuation_plans financial_reset_recovery_plans financial_reset_recovery_sources',
  'Preserve immutable reset/recovery evidence. Archived row images are historical references; only a separately bound private recovery operation can restore them.');
-add('app_private', 'must-be-empty', 'organization_id', 'financial_reset_transaction_capabilities',
+add('app_private', 'must-be-empty', 'organization_id', 'financial_reset_transaction_capabilities financial_reset_archived_zero_command_context',
  'Exact reset row authority is transaction-bound and must be absent at every committed checkpoint.');
 add('app_private', 'preserve-global', null, 'financial_reset_relation_rules',
  'Reviewed private reset schema policy; no organization data or executable capability.');
@@ -71,6 +71,7 @@ const opaque = {
  'app_private.financial_reset_archive_rows': ['primary_key', 'row_json'],
  'app_private.financial_reset_actions': ['primary_key', 'before_row', 'after_row'],
  'app_private.financial_reset_zero_plans': ['plan_json', 'result_json'],
+ 'app_private.financial_reset_archived_zero_command_context': ['scope'],
  'app_private.financial_reset_continuation_plans': ['plan_json', 'result_json', 'before_images', 'after_images'],
  'app_private.financial_reset_recovery_plans': ['phase_binding'],
  'app_private.financial_reset_recovery_sources': ['primary_key', 'before_row', 'after_row'],
@@ -138,6 +139,7 @@ export const RETAINED_IDENTITY_FIELDS = Object.freeze({
  'app_private.deposit_rent_journal_intents': ['idempotency_key', 'result_id'],
  'app_private.expense_operation_authority': ['source_id', 'target_id'],
  'app_private.lease_checked_mutation_capabilities': ['lease_id'],
+ 'app_private.financial_reset_archived_zero_command_context': ['request_id'],
  'public.activity_logs': ['entity_id'],
  'public.finance_receipt_allocations': ['unit_id', 'lease_id', 'payer_person_id_snapshot', 'charge_occurrence_id', 'lease_term_id_snapshot', 'invoice_header_id', 'invoice_version_id', 'invoice_line_id'],
  'public.lease_occupancies': ['correction_request_id'], 'public.lease_occupancy_participants': ['correction_request_id'], 'public.lease_parties': ['correction_request_id'],
