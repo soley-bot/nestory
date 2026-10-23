@@ -6,7 +6,7 @@ The dependency audit runs unchanged for production and the complete tree. No adv
 
 The locked shadcn CLI was unused by repository scripts. Its application CSS is retained byte-for-byte from the official npm shadcn@4.19.0 release in `src/app/vendor/shadcn-tailwind.css`, with its MIT license alongside. SHA256: `bc7d83425702955b4cb67cb14ede9d603f9d912376d57a2d81d661094d2a782a`. Checked-in UI components and CSS utilities remain available without the CLI's code-generation dependencies.
 
-The Next ESLint plugin and configuration remain pinned at 16.3.8 with all existing rules. Nestory uses Next's default root, which the plugin returns directly without invoking the directory adapter.
+The Next ESLint plugin and configuration remain pinned at 16.4.2 with all existing rules. Nestory uses Next's default root, which the plugin returns directly without invoking the directory adapter.
 
 ## Explicit directory roots only
 
@@ -22,7 +22,7 @@ Relative paths are resolved against the process working directory, as in the pin
 
 Empty strings, leading negation (`!`) and any glob tokens (`* ? [ ] { } ( ) |`) throw an explicit error directing the developer to plain paths. This also rejects literal configured directory names containing those tokens. Default roots bypass the adapter. All wildcards, braces, character classes and extglobs are deliberately unsupported, including formerly supported forms. This bounded contract prevents silently changed page discovery; future multi-application configuration must list the intended roots explicitly.
 
-The direct local development dependency and version-scoped override `"fast-glob": "$@nestory/next-eslint-glob"` replace only the fast-glob edge under @next/eslint-plugin-next@16.3.8. Other packages' dependencies are unchanged. npm's clean-install dependency-tree validation remains enabled.
+The direct local development dependency and version-scoped override `"fast-glob": "$@nestory/next-eslint-glob"` replace only the fast-glob edge under @next/eslint-plugin-next@16.4.2. Other packages' dependencies are unchanged. npm's clean-install dependency-tree validation remains enabled.
 
 The entry is CommonJS, matching Next's caller without relying on synchronous require(esm). A file-scoped lint style exception permits this necessary import; application lint rules and gates are unchanged.
 
