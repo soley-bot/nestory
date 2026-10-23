@@ -4,7 +4,7 @@ import { RESET_REGISTRY, POLYMORPHIC_REFERENCES, STORAGE_REFERENCES, STATIC_REFE
 
 export const TARGET = Object.freeze({ project: 'nestory-pilot-reset-20261022', container: 'supabase_db_nestory-pilot-reset-20261022',
   organization: '00000000-0000-0000-0000-000000000001', slug: 'nestory-sample-operations', database: 'postgres', cutoff: '2026-10-01',
-  baseSha: '4129597c75f948a83deab46546a58e70a613b6c5', fixtureSha256: 'daed5195b76bdbc23bc000fe4f28d0d1672d9370759e84c5a88aa29dd4a15587' });
+  baseSha: '4129597c75f948a83deab46546a58e70a613b6c5', fixtureSha256: 'f771601086a819691d42dae3c3f978c6cb3959fd09f4aa4db96cad4a9bc56b38' });
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const digest = /^[a-f0-9]{64}$/;
 export const VALIDATION_SOURCE_ARTIFACTS = Object.freeze([
@@ -21,6 +21,13 @@ export const VALIDATION_SOURCE_ARTIFACTS = Object.freeze([
     '20261023094000_timeline_financial_lifecycle_coverage.sql',
     '20261023095000_financial_document_lifecycle_coverage.sql',
     '20261023100000_checked_operational_command_authority.sql',
+    '20261023101000_financial_reset_private_action_foundation.sql',
+    '20261023102000_financial_reset_exact_row_guard_integration.sql',
+    '20261023103000_paid_cost_evidence_generation_retirement.sql',
+    '20261023104000_financial_reset_known_zero_checked_phase.sql',
+    '20261023105000_financial_reset_checked_continuation_billing.sql',
+    '20261023110000_financial_reset_phase_recovery_sources.sql',
+    '20261023111000_financial_reset_contract_recovery_guards.sql',
   ].map(name => ({ name, root: 'project', directory: 'supabase/migrations' })),
   { name: 'baseline.sql', root: 'project', directory: 'supabase/test-fixtures' },
   { name: 'load-paid-cost-scenarios-fixture.ts', root: 'project', directory: 'scripts' },
@@ -28,6 +35,7 @@ export const VALIDATION_SOURCE_ARTIFACTS = Object.freeze([
   { name: 'lease-deposit-chronology-concurrency.node-test.mjs', root: 'workspace', directory: 'scripts' },
   { name: 'financial-report-revision-concurrency.node-test.mjs', root: 'workspace', directory: 'scripts' },
   { name: 'checked-operational-command-concurrency.node-test.mjs', root: 'workspace', directory: 'scripts' },
+  { name: 'financial-reset-phase-concurrency.node-test.mjs', root: 'workspace', directory: 'scripts' },
 ].map(Object.freeze));
 
 export function assertValidationSourceEvidence(evidence, { workspaceRoot, projectRoot }) {

@@ -40,7 +40,10 @@ BEGIN
   WHERE tables.schemaname IN ('app_private', 'public')
     AND NOT (
       tables.schemaname = 'app_private'
-      AND tables.tablename LIKE '%\_capability' ESCAPE '\'
+      AND (
+        tables.tablename LIKE '%\_capability' ESCAPE '\'
+        OR tables.tablename = 'financial_reset_relation_rules'
+      )
     );
 
   IF fixture_tables IS NOT NULL THEN

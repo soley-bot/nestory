@@ -11276,6 +11276,10 @@ export type Database = {
         }
         Returns: string
       }
+      approve_financial_reset_zero_plan: {
+        Args: { p_operation_id: string; p_review_sha256: string }
+        Returns: undefined
+      }
       approve_rent_policy_version: {
         Args: { p_organization_id: string; p_policy_id: string }
         Returns: string

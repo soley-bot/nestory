@@ -38,6 +38,12 @@ add('app_private', 'preserve', 'organization_id', `finance_account_activity_auth
  financial_write_controls privileged_email_step_up_challenges privileged_email_step_up_events privileged_email_step_up_grants privileged_email_step_up_policies
  unit_creation_requests`, 'Preserve configuration, access and lifecycle evidence; secret values are not exported.');
 add('app_private', 'must-be-empty', 'organization_id', `expense_operation_authority lease_checked_mutation_capabilities lease_lifecycle_authority_tokens lease_scope_terminal_recovery_tokens`, 'Transaction capabilities must be absent at a drained checkpoint.');
+add('app_private', 'preserve', 'organization_id', 'financial_reset_operations financial_reset_archive_rows financial_reset_actions financial_reset_zero_plans financial_reset_zero_approvals financial_reset_phase_fences financial_reset_continuation_plans financial_reset_recovery_plans financial_reset_recovery_sources',
+ 'Preserve immutable reset/recovery evidence. Archived row images are historical references; only a separately bound private recovery operation can restore them.');
+add('app_private', 'must-be-empty', 'organization_id', 'financial_reset_transaction_capabilities',
+ 'Exact reset row authority is transaction-bound and must be absent at every committed checkpoint.');
+add('app_private', 'preserve-global', null, 'financial_reset_relation_rules',
+ 'Reviewed private reset schema policy; no organization data or executable capability.');
 add('app_private', 'preserve-global', null, `auth_password_credential_proofs expense_transaction_capability finance_branch_authority_capability finance_settlement_context_capability
  financial_projection_context_capability financial_scheduler_capability invitation_password_challenges maintenance_automation_runs maintenance_branch_authority_capability
  property_branch_assignment_context_capability public_interest_rate_limit_windows tenant_invoice_settlement_context_capability`, 'Global/security infrastructure: count and hash only, no secrets, keys or tokens exported.');
@@ -62,6 +68,12 @@ const opaque = {
  'public.tenant_invoice_lines': ['audit_actors'], 'public.tenant_invoice_payment_allocations': ['audit_actors'], 'public.tenant_invoice_payments': ['audit_actors'],
  'public.tenant_invoices': ['audit_actors'], 'app_private.deposit_rent_journal_intents': ['payload'],
  'app_private.financial_idempotency_requests': ['result_ids'], 'app_private.privileged_email_step_up_events': ['metadata'], 'app_private.unit_creation_requests': ['request_payload'],
+ 'app_private.financial_reset_archive_rows': ['primary_key', 'row_json'],
+ 'app_private.financial_reset_actions': ['primary_key', 'before_row', 'after_row'],
+ 'app_private.financial_reset_zero_plans': ['plan_json', 'result_json'],
+ 'app_private.financial_reset_continuation_plans': ['plan_json', 'result_json', 'before_images', 'after_images'],
+ 'app_private.financial_reset_recovery_plans': ['phase_binding'],
+ 'app_private.financial_reset_recovery_sources': ['primary_key', 'before_row', 'after_row'],
 };
 for (const [table, rule] of Object.entries(registry)) rule.opaqueColumns = opaque[table] ?? [];
 
@@ -109,6 +121,7 @@ export const STORAGE_REFERENCES = Object.freeze([
  { table: 'public.organizations', pathColumn: 'logo_storage_path', bucket: 'organization-assets' },
 ]);
 export const STATIC_REFERENCES = Object.freeze([
+ { table: 'app_private.financial_reset_operations', column: 'audit_actor', target: 'auth.users' },
  ...Object.entries({ lease_id: 'public.leases', property_id: 'public.properties', unit_id: 'public.units', deposit_id: 'public.lease_deposits', invoice_id: 'public.tenant_invoices', actor_id: 'auth.users' }).map(([column, target]) => ({ table: 'app_private.deposit_rent_journal_intents', column, target })),
 
  ...Object.entries({ property_id: 'public.properties', actor_id: 'auth.users' }).map(([column, target]) => ({ table: 'app_private.paid_cost_evidence_registrations', column, target })),
