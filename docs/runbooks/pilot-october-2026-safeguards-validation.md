@@ -90,6 +90,11 @@ The whole-suite runs used two workers and a 15-second per-test allowance under
 Windows load, retaining every assertion and skip classification. No product
 behavior was changed to suppress timing failures.
 
+GitHub CI subsequently passed the complete UI suite in one invocation: all 142
+files and 1,700 tests, using the ordinary repository timeouts. Its unit suite also
+passed 3,553 tests with one existing skip. The build, lint, type, dependency,
+secret and contract checks passed on candidate `ee15c9ac`.
+
 The final dependency gate found pre-existing Next.js and Sentry vulnerabilities
 in the unchanged baseline lock. Next.js and its ESLint configuration were updated
 together to 16.4.2 and Sentry to 10.75.2, preserving the reviewed local glob adapter.
@@ -112,6 +117,17 @@ launch again with only "blocked by policy", despite the user's approval; no
 specific reason was returned. Authenticated production-mode browser verification
 therefore remains unavailable. Security policy and login checks have not been
 weakened to suppress either result.
+
+The separate isolated document-transport browser contract uses synthetic Auth and
+Storage boundaries with the real proxy, receipt and owner PDF/XLS routes, lifecycle
+guards and receipt PDF renderer. All 23 cases pass with pinned Chromium, including
+current-generation downloads, stale/missing-generation rejection before stored
+bytes are read, a valid frozen context, and source changes during retrieval.
+Receipt URLs remain query-free. Owner links carry one validated original generation;
+the helper never substitutes the current value. These tests do not prove full app
+sign-in or hosted operation. The initial GitHub transport run exposed missing
+lifecycle fixture metadata and the old helper's query restriction; those were
+fixed without changing the application or weakening its checks.
 
 ## Local inventory and recovery evidence
 
