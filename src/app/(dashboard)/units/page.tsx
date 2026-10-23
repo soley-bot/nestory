@@ -14,12 +14,13 @@ export default async function UnitsPage({ searchParams }: UnitsPageProps) {
   const context = await requirePermission("properties.view");
   const params = await searchParams;
   const viewQuery = parseUnitSearchParams(params);
-  const [{ pagination, units }, propertyOptions] = await Promise.all([
+  const [{ financialGeneration, pagination, units }, propertyOptions] = await Promise.all([
     getUnitsScreenData(context.organizationId, viewQuery),
     getUnitPropertyOptions(context.organizationId),
   ]);
   return (
     <UnitScreen
+      financialGeneration={financialGeneration}
       canCreate={context.permissionKeys.has("properties.write")}
       pagination={pagination}
       propertyOptions={propertyOptions}

@@ -10,6 +10,8 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
+import type { FinancialWriteContext } from "@/lib/finance/financial-write-context";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
@@ -108,6 +110,16 @@ afterEach(() => {
 });
 
 describe("maintenance workspace redesign contract", () => {
+  it.each(["frozen", "open"] as const)("hides stale costs and actions for a %s mismatched generation", (status) => {
+    const context = { generation: 2, status, financial_start_date: "2026-10-01", enforced: true };
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ organizationId: "org-1", context }) })));
+    renderMaintenance({ financialGeneration: 1, context });
+    expect(screen.getByRole("heading", { name: "Cases" })).toBeTruthy();
+    expect(screen.getByText(/Maintenance costs and actions are unavailable/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "New case" })).toBeNull();
+    expect(screen.queryByText("USD 100.00")).toBeNull();
+  });
+
   it.each(["Cases", "Tasks", "Recurring Work", "Inspections", "Work Orders"])(
     "announces the %s loading state",
     (title) => {
@@ -1098,6 +1110,8 @@ describe("maintenance record cards", () => {
 });
 
 function renderMaintenance({
+  financialGeneration,
+  context,
   actorRole = "super_admin",
   cases = [makeCase()],
   queueCounts = { total: cases.length, open: cases.length, completed: 0, overdue: 0, upcoming: cases.length, readyForReview: 0 },
@@ -1105,6 +1119,8 @@ function renderMaintenance({
   showCaseViewTabs = false,
   viewQuery = defaultViewQuery,
 }: {
+  financialGeneration?: number;
+  context?: FinancialWriteContext;
   actorRole?: "super_admin" | "operations_manager" | "operations_member";
   cases?: MaintenanceCase[];
   queueCounts?: MaintenanceQueueCounts;
@@ -1114,6 +1130,7 @@ function renderMaintenance({
 } = {}) {
   return render(
     <MaintenanceScreen
+      financialGeneration={financialGeneration}
       actor={{
         branchId: "branch-1",
         dataScope:
@@ -1162,6 +1179,7 @@ function renderMaintenance({
       vendorOptions={[]}
       viewQuery={viewQuery}
     />,
+    { wrapper: context ? ({ children }) => <FinancialWriteProvider organizationId="org-1" context={context}>{children}</FinancialWriteProvider> : undefined },
   );
 }
 

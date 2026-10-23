@@ -159,3 +159,5 @@ function membership(...permissionKeys: PermissionKey[]) {
     theme: { accentPreset: "neutral", accentSeed: null, mode: "system" },
   } as never;
 }
+
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialReadContext: async (_org: string, read: () => Promise<unknown>) => read() }));

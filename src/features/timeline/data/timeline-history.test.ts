@@ -4,9 +4,14 @@ import { getTimelineScreenData } from "@/features/timeline/data/timeline";
 import { parseTimelineSearchParams } from "@/features/timeline/timeline.filters";
 import type { Database } from "@/types/database";
 import type { PermissionKey } from "@/lib/auth/permission-catalog";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 
 const server = vi.hoisted(() => ({ create: vi.fn() }));
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: server.create }));
+const lifecycle = vi.hoisted(() => ({ cutoff: null as string | null }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({
+  withFinancialReadContext: vi.fn(async (_organizationId, read) => read({ generation: 2, financial_start_date: lifecycle.cutoff })),
+}));
 
 const ids = {
   busy: "11111111-1111-4111-8111-111111111111",
@@ -31,6 +36,8 @@ function event(id: string): Row {
 }
 
 beforeEach(() => {
+  lifecycle.cutoff = null;
+  vi.mocked(withFinancialReadContext).mockClear();
   requests.length = 0;
   historyError = false;
   omitHistoryCount = false;
@@ -73,6 +80,8 @@ beforeEach(() => {
         }
         if (filter.startsWith("eq.")) rows = rows.filter(row => String(row[column]) === filter.slice(3));
         else if (filter === "is.null") rows = rows.filter(row => row[column] == null);
+        else if (filter.startsWith("gte.")) rows = rows.filter(row => String(row[column]) >= filter.slice(4));
+        else if (filter.startsWith("lte.")) rows = rows.filter(row => String(row[column]) <= filter.slice(4));
         else if (filter.startsWith("in.(")) {
           const values = filter.slice(4, -1).split(",");
           rows = rows.filter(row => values.includes(String(row[column])));
@@ -100,6 +109,34 @@ beforeEach(() => {
 });
 
 describe("Timeline event history completeness", () => {
+  it("rejects an unverifiable generation before reading timeline amounts", async () => {
+    vi.mocked(withFinancialReadContext).mockRejectedValueOnce(new Error("Financial reporting is paused"));
+    await expect(getTimelineScreenData("org-1")).rejects.toThrow("Financial reporting is paused");
+    expect(requests).toHaveLength(0);
+  });
+
+  it.each([null, ids.quiet])("keeps pre-cutoff financial events out of the active timeline, including direct links (%s)", async (eventId) => {
+    lifecycle.cutoff = "2026-10-01";
+    tables.timeline_events = [{ ...event(ids.quiet), cost_amount: 10, cost_currency: "USD" }];
+    const data = await getTimelineScreenData("org-1", parseTimelineSearchParams(eventId ? { eventId } : {}), { scope: "financial" });
+    expect(data.events).toEqual([]);
+    expect(data.financialGeneration).toBe(2);
+    expect(data.viewQuery.dateFrom).toBe("2026-10-01");
+    expect(requests.filter(({ url }) => url.pathname.endsWith("/timeline_events")).every(({ url }) => url.searchParams.getAll("event_date").includes("gte.2026-10-01"))).toBe(true);
+  });
+
+  it("preserves historical event identities in the general timeline", async () => {
+    lifecycle.cutoff = "2026-10-01";
+    const data = await getTimelineScreenData("org-1", parseTimelineSearchParams({ eventId: ids.quiet }), { scope: "global" });
+    expect(data.events.map(row => row.id)).toEqual([ids.quiet]);
+    expect(data.financialGeneration).toBe(2);
+  });
+
+  it("passes an explicitly selected financial period to the cutoff guard", async () => {
+    await getTimelineScreenData("org-1", parseTimelineSearchParams({ dateFrom: "2026-09-01" }), { scope: "financial" });
+    expect(withFinancialReadContext).toHaveBeenCalledWith("org-1", expect.any(Function), "2026-09-01");
+  });
+
   it.each([
     ["global", "/timeline", []],
     ["property", "/property-timeline", ["properties.view"]],

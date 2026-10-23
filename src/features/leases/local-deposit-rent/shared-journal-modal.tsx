@@ -1,4 +1,6 @@
 "use client";
+
+import { FinancialForm, useFinancialFormData } from "@/lib/finance/financial-write-provider";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {Button} from "@/components/ui/button";
 import {DatePickerField} from "@/components/ui/date-picker-field";
@@ -51,7 +53,7 @@ function SharedDepositRentModalContent({leaseId,actions,onClose,onSuccess}:{leas
         <p role="status">An earlier action is unconfirmed. Retry its original details before making another change. Retrying may finish that original action or confirm it already completed.</p>
         <p>{recovery.operation==="apply"?"Apply":"Restore"} USD {recovery.amount} on {recovery.date}. Reason: {recovery.reason}</p>
         <Button type="button" disabled={pending} onClick={()=>void confirm()}>Retry original action</Button>
-      </section>:view?<form className="space-y-4" onSubmit={event=>{event.preventDefault();void review();}}>
+      </section>:view?<FinancialForm className="space-y-4" onSubmit={event=>{event.preventDefault();void review();}}>
         <p>{view.leaseLabel}</p>
         <fieldset disabled={pending} className="space-y-4">
           <label className="grid gap-1.5 text-sm font-medium">Action<SelectControl ariaLabel="Action" name="operation" value={operation} options={[
@@ -78,7 +80,7 @@ function SharedDepositRentModalContent({leaseId,actions,onClose,onSuccess}:{leas
           <p>No new bank payment. {preview.custodian==="owner"?"Owner-held money does not increase money held by IPS.":"Already-held deposit money is reclassified for the owner."}</p>
           <Button type="button" disabled={pending} onClick={()=>void confirm()}>{operation==="apply"?"Confirm deposit application":"Confirm full reversal"}</Button>
         </div>:null}
-      </form>:!message?<p role="status">Loading deposit rent details.</p>:null}
+      </FinancialForm>:!message?<p role="status">Loading deposit rent details.</p>:null}
       {message?<p role="status">{message}</p>:null}<JournalDismissalGuard pending={pending} dirty={dirty||Boolean(preview)||Boolean(recovery)} onClose={onClose}/>
     </div>
   </Modal>;
@@ -95,7 +97,13 @@ export function SharedJournalDepositRentModal(props:Parameters<typeof SharedDepo
 
 export function DormantSharedJournalDepositRentModal(props:Omit<Parameters<typeof SharedDepositRentModalContent>[0],"enabledForLocalTests"|"actions">){return <SharedJournalDepositRentModal {...props} actions={{list:listDormantDepositRent,preview:previewDormantDepositRent,confirm:confirmDormantDepositRent}} enabledForLocalTests={false}/>;}
 
-const productActions = {list:listDepositRent,preview:previewDepositRent,confirm:confirmDepositRent};
+
 export function DepositRentModal(props:Omit<Parameters<typeof SharedDepositRentModalContent>[0],"enabledForLocalTests"|"actions">) {
-  return <SharedDepositRentModalContent {...props} actions={productActions}/>;
+  const createFinancialFormData = useFinancialFormData();
+  const actions = useMemo(() => ({
+    list: (leaseId: string) => listDepositRent(leaseId, createFinancialFormData()),
+    preview: (draft: DepositRentDraft) => previewDepositRent(draft, createFinancialFormData()),
+    confirm: (input: Parameters<typeof confirmDepositRent>[0]) => confirmDepositRent(input, createFinancialFormData()),
+  }), [createFinancialFormData]);
+  return <SharedDepositRentModalContent {...props} actions={actions}/>;
 }

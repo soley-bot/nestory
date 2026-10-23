@@ -23,6 +23,8 @@ vi.mock("@/features/people/actions", () => ({
 }));
 
 import { PropertyScreen } from "@/features/properties/components/property-screen";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
+import type { FinancialWriteContext } from "@/lib/finance/financial-write-context";
 import { PropertyForm } from "@/features/properties/components/property-form";
 import { buildPropertySummary } from "@/features/properties/data/property-summary";
 import type { PropertyViewQuery } from "@/features/properties/property.types";
@@ -898,6 +900,8 @@ describe("PropertyScreen redesign contract", () => {
 });
 
 function renderProperties({
+  context,
+  financialGeneration,
   canCreate = true,
   ownerOptions = [],
   portfolioSummary = {
@@ -908,6 +912,8 @@ function renderProperties({
   properties: nextProperties = properties,
   viewQuery = defaultViewQuery,
 }: {
+  context?: FinancialWriteContext;
+  financialGeneration?: number;
   canCreate?: boolean;
   ownerOptions?: React.ComponentProps<typeof PropertyScreen>["ownerOptions"];
   portfolioSummary?: {
@@ -919,6 +925,7 @@ function renderProperties({
   viewQuery?: PropertyViewQuery;
 } = {}) {
   const props = {
+    financialGeneration,
     canCreate,
     ownerOptions,
     pagination: {
@@ -934,13 +941,27 @@ function renderProperties({
     viewQuery,
   };
 
-  const result = render(<PropertyScreen {...props} />);
+  const result = render(<PropertyScreen {...props} />, {
+    wrapper: context ? ({ children }) => <FinancialWriteProvider organizationId="org" context={context}>{children}</FinancialWriteProvider> : undefined,
+  });
   return {
     ...result,
     rerenderView: (nextViewQuery = viewQuery) =>
       result.rerender(<PropertyScreen {...props} viewQuery={nextViewQuery} />),
   };
 }
+
+describe("property register financial session", () => {
+  it.each(["frozen", "open"] as const)("keeps record links but hides financial totals and controls for a %s stale payload", (status) => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    renderProperties({ financialGeneration: 1, context: { generation: 2, status, enforced: true, financial_start_date: "2026-10-01" } });
+    expect(screen.getByRole("heading", { name: "Properties" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "HOME / Home Residence" }).getAttribute("href")).toBe("/properties/property-1");
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add property" })).toBeNull();
+    expect(screen.queryByText(properties[0].netIncome.primary)).toBeNull();
+  });
+});
 
 function makeProperty(id: string, code: string, name: string) {
   return buildPropertySummary({

@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { forwardRef, startTransition, useActionState, useEffect, useImperativeHandle, useRef, useState } from "react";
@@ -139,7 +141,7 @@ export const CompanyLogoEditor = forwardRef<SettingsEditorHandle, {
           </div>
 
           <div className="min-w-0 flex-1 space-y-2">
-            <form
+            <FinancialForm
               action={uploadAction}
               onSubmit={(event) => {
                 event.preventDefault();
@@ -203,14 +205,14 @@ export const CompanyLogoEditor = forwardRef<SettingsEditorHandle, {
                   </span>
                 ) : null}
               </div>
-            </form>
+            </FinancialForm>
 
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-muted-foreground" id="company-logo-selection" aria-live="polite">
                 {selectedFileName ? "Selected file is not saved. Upload to apply it." : "Choose a file to preview before uploading."}
               </p>
               {hasLogo ? (
-                <form
+                <FinancialForm
                   action={removeAction}
                   onSubmit={(event) => {
                     if (
@@ -228,7 +230,7 @@ export const CompanyLogoEditor = forwardRef<SettingsEditorHandle, {
                   <Button className="min-h-11" disabled={pending} type="submit" variant="ghost">
                     {removing ? "Removing…" : "Remove logo"}
                   </Button>
-                </form>
+                </FinancialForm>
               ) : null}
             </div>
 

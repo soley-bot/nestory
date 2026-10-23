@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { FinanceAccountActivityScreen } from "@/features/finance-accounts/components/finance-account-activity-screen";
 import type { FinanceAccountActivity } from "@/features/finance-accounts/data/finance-account-activity";
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 afterAll(() => {
   // Mounted roots must not outlive the jsdom window during scheduled React work.
@@ -14,6 +15,17 @@ afterAll(() => {
 });
 
 describe("FinanceAccountActivityScreen", () => {
+  it("hides mismatched financial totals while retaining account navigation and date filters", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
+    render(<FinancialWriteProvider organizationId="org" context={{ generation: 1, status: "open", financial_start_date: "2026-08-01", enforced: true }}>
+      <FinanceAccountActivityScreen activity={{ ...fixture(), financialGeneration: 2 }} />
+    </FinancialWriteProvider>);
+    expect(screen.queryByText("USD 700.00")).toBeNull();
+    expect(screen.getByLabelText("From")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Operating account" })).toBeTruthy();
+    expect(screen.getByText(/Reload the page to verify/)).toBeTruthy();
+  });
+
   it("shows identity, status, filters, basis total, and source-linked activity", () => {
     // Break caught: a generic transaction table hides whether the total is a
     // cash projection and removes the authoritative drill-through.

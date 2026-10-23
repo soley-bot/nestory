@@ -9,6 +9,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -107,6 +108,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   delete (HTMLElement.prototype as Partial<HTMLElement>).hasPointerCapture;
   delete (HTMLElement.prototype as Partial<HTMLElement>).releasePointerCapture;
   delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
@@ -114,6 +116,24 @@ afterEach(() => {
 });
 
 describe("LeaseDetailScreen", () => {
+  it("hides mismatched rent and deposit panels while preserving lease section navigation", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
+    render(<FinancialWriteProvider organizationId="org" context={{ generation: 1, status: "open", financial_start_date: "2026-08-01", enforced: true }}>
+      {detailElement("rent", { ...makeLease(), financialGeneration: 2 })}
+    </FinancialWriteProvider>);
+    expect(screen.getByRole("navigation", { name: "Lease record sections" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Lease record details" })).toBeNull();
+    expect(screen.getAllByText(/Reload the page to verify/).length).toBeGreaterThan(0);
+  });
+  it("hides stale payment resolution even when the lease generation matches", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
+    render(<FinancialWriteProvider organizationId="org" context={{ generation: 1, status: "open", financial_start_date: "2026-08-01", enforced: true }}>
+      {detailElement("rent", { ...makeLease(), financialGeneration: 1 }, allLeasePermissions, { paymentResolution: { ...resolutionFixture(), financialGeneration: 2 } })}
+    </FinancialWriteProvider>);
+    expect(screen.queryByRole("heading", { name: "Resolve outstanding rent" })).toBeNull();
+    expect(screen.getByText(/Reload the page to verify/)).toBeTruthy();
+  });
+
   it.each(["unit-1", null])("connects rent details to the fixed finance scope for unit %s", (unitId) => {
     const lease = makeLease();
     lease.formValues.unitId = unitId;
@@ -934,6 +954,18 @@ describe("LeaseDetailScreen", () => {
     );
   });
 
+  it("offers month-to-month continuation without requiring an invented renewal end", async () => {
+    const user = userEvent.setup(); const lease = makeLease();
+    lease.terms[0].endDate = "2026-09-03";
+    lease.billingRules = [billingRule({ id: "prior-rule", effectiveFrom: "2026-01-01", effectiveTo: "2026-09-03", managementFeeValue: 10 })];
+    renderDetail("overview", lease);
+    await user.click(screen.getByRole("button", { name: "Renew lease" }));
+    const dialog = screen.getByRole("dialog", { name: "Renew lease" });
+    await user.click(within(dialog).getByLabelText("Continue month to month with unchanged rent and fees"));
+    expect(dialog.querySelector('input[name="endDate"]')).toBeNull();
+    expect(within(dialog).getByText(/Continues from 04 Sep 2026 with no fixed end date/)).toBeTruthy();
+    expect(dialog.querySelector('input[name="billingRuleId"]')?.getAttribute("value")).toBe("prior-rule");
+  });
   it("starts renewal from the day after the current term", async () => {
     const user = userEvent.setup();
     renderDetail("overview");

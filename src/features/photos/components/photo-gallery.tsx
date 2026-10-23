@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm, useFinancialFormData } from "@/lib/finance/financial-write-provider";
+
 import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { unstable_rethrow } from "next/navigation";
@@ -54,6 +56,7 @@ export function PhotoGallery({
   unitId?: string;
   uploadLabel?: string;
 }) {
+  const createFinancialFormData = useFinancialFormData();
   const [preview, setPreview] = useState<PhotoPreview | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [dropzoneKey, setDropzoneKey] = useState(0);
@@ -74,7 +77,7 @@ export function PhotoGallery({
     setPhotoActionState({});
 
     startTransition(async () => {
-      const formData = new FormData();
+      const formData = createFinancialFormData();
       formData.set("photoId", photoId);
       try {
         const action = intent === "cover"
@@ -234,7 +237,7 @@ export function PhotoGallery({
           open
           title={uploadLabel}
         >
-        <form
+        <FinancialForm
           action={formAction}
           className="space-y-4 p-5"
           ref={formRef}
@@ -302,7 +305,7 @@ export function PhotoGallery({
             <ImageIcon size={14} />
             {pending ? "Uploading..." : "Upload photo"}
           </Button>
-        </form>
+        </FinancialForm>
         </SideDrawer>
       ) : null}
     </section>

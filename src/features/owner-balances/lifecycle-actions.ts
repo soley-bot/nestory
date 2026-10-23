@@ -1,4 +1,6 @@
 "use server";
+import { financialFormValues } from "@/lib/finance/financial-write-context";
+import { financialWriteError } from "@/lib/finance/financial-write-context";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -101,7 +103,7 @@ const transferSchema = z.object({
 export async function allocateOwnerEventAction(formData: FormData): Promise<void> {
   const input = parse(allocateSchema, formData);
   const context = await requireFinanceOperationContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const result = await supabase.rpc("allocate_owner_event", {
     p_idempotency_key: input.idempotencyKey,
     p_organization_id: context.organizationId,
@@ -114,7 +116,7 @@ export async function allocateOwnerEventAction(formData: FormData): Promise<void
 export async function generateOwnerBalancePeriodAction(formData: FormData): Promise<void> {
   const input = parse(periodSchema, formData);
   const context = await requireOwnerCloseContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const result = await supabase.rpc("generate_owner_balance_period", {
     p_currency: input.currency,
     p_idempotency_key: input.idempotencyKey,
@@ -130,7 +132,7 @@ export async function recordOwnerCashEventAction(formData: FormData): Promise<vo
   const input = parse(cashEventSchema, formData);
   const amount = positiveExactAmount(input.amount);
   const context = await requireFinanceOperationContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const result = await supabase.rpc("record_owner_cash_event", {
     p_amount: amount,
     p_currency: input.currency,
@@ -149,7 +151,7 @@ export async function recordOwnerDistributionAction(formData: FormData): Promise
   const input = parse(distributionSchema, formData);
   const amount = positiveExactAmount(input.amount);
   const context = await requireFinanceOperationContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const result = await supabase.rpc("record_owner_distribution", {
     p_amount: amount,
     p_currency: input.currency,
@@ -166,7 +168,7 @@ export async function recordOwnerDistributionAction(formData: FormData): Promise
 export async function reverseOwnerInvoicePaymentAction(formData: FormData): Promise<void> {
   const input = parse(ownerPaymentReversalSchema, formData);
   const context = await requireFinanceCorrectionContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const result = await supabase.rpc("reverse_owner_invoice_payment", {
     p_idempotency_key: input.idempotencyKey,
     p_organization_id: context.organizationId,
@@ -180,7 +182,7 @@ export async function reverseOwnerInvoicePaymentAction(formData: FormData): Prom
 export async function reversePropertyWithdrawalAction(formData: FormData): Promise<void> {
   const input = parse(withdrawalReversalSchema, formData);
   const context = await requireFinanceCorrectionContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const result = await supabase.rpc("reverse_property_withdrawal", {
     p_idempotency_key: input.idempotencyKey,
     p_organization_id: context.organizationId,
@@ -195,7 +197,7 @@ export async function transferOwnerBalanceComponentAction(formData: FormData): P
   const input = parse(transferSchema, formData);
   const amount = positiveExactAmount(input.amount);
   const context = await requireSuperAdminContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const result = await supabase.rpc("transfer_owner_balance_component", {
     p_amount: amount,
     p_component: input.component,
@@ -214,7 +216,7 @@ export async function transferOwnerBalanceComponentAction(formData: FormData): P
 }
 
 function parse<Schema extends z.ZodType>(schema: Schema, formData: FormData): z.output<Schema> {
-  const result = schema.safeParse(Object.fromEntries(formData));
+  const result = schema.safeParse(financialFormValues(formData));
   if (!result.success) throw new ReportCommandValidationError(result.error.issues);
   return result.data;
 }
@@ -226,6 +228,6 @@ function positiveExactAmount(value: string) {
 }
 
 function finish(error: { message?: string } | null) {
-  if (error) throw new Error(error.message ?? "Authoritative owner balance command failed.");
+  if (error) throw new Error(financialWriteError(error.message) ?? error.message ?? "Authoritative owner balance command failed.");
   revalidatePath("/balances");
 }

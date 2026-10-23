@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import Link from "next/link";
 import {
   forwardRef,
@@ -90,7 +92,7 @@ export const OrganizationIdentityEditor = forwardRef<
           <h2 className="text-base font-semibold tracking-tight">Organization</h2>
         </div>
 
-        <form
+        <FinancialForm
           onSubmit={(event) => {
             event.preventDefault();
             void draft.submit(() => formRef.current?.elements.namedItem("name") instanceof HTMLElement
@@ -210,7 +212,7 @@ export const OrganizationIdentityEditor = forwardRef<
             status={draft.status}
             statusMessage={draft.statusMessage}
           />
-        </form>
+        </FinancialForm>
       </CardContent>
     </Card>
   );

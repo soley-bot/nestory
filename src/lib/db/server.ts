@@ -3,12 +3,15 @@ import { createServerClient } from "@supabase/ssr";
 import { getAuthCookieOptions } from "@/lib/auth/tenant";
 import { getSupabaseEnv } from "@/lib/db/env";
 import type { Database } from "@/types/database";
+import { financialGenerationHeaders } from "@/lib/finance/financial-write-context";
+import { captureFinancialIntent } from "@/lib/finance/captured-financial-intent.server";
 
-export async function createSupabaseServerClient() {
+export async function createSupabaseServerClient(financialIntent?: FormData) {
   const { supabaseKey, supabaseUrl } = getSupabaseEnv();
   const cookieStore = await cookies();
 
-  return createServerClient<Database>(supabaseUrl, supabaseKey, {
+  const client = createServerClient<Database>(supabaseUrl, supabaseKey, {
+    global: { headers: financialGenerationHeaders(financialIntent) },
     cookieOptions: getAuthCookieOptions(),
     cookies: {
       getAll() {
@@ -26,4 +29,6 @@ export async function createSupabaseServerClient() {
       },
     },
   });
+  if (financialIntent) captureFinancialIntent(client, financialIntent);
+  return client;
 }

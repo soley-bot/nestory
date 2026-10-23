@@ -290,6 +290,7 @@ export type LeaseDetailHrefs = {
 };
 
 export type LeaseSummary = {
+  financialGeneration?: number;
   activationSchedule?: {
     activationDate: string;
     failureMessage: string | null;

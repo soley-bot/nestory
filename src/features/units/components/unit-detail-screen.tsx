@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import { useRef, useState } from "react";
 import { Archive, History, MoreHorizontal, Pencil, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
@@ -62,7 +63,29 @@ type UnitDetailScreenProps = {
   unit: UnitDetail;
 };
 
-export function UnitDetailScreen({
+export function UnitDetailScreen(props: UnitDetailScreenProps) {
+  const { unit } = props;
+  return (
+    <FinancialReportBoundary expectedGeneration={unit.financialGeneration} fallback={
+      <>
+        <PageHeader title={`Unit ${unit.unitNumber}`} description={`${unit.propertyCode} / ${unit.propertyName}`} breadcrumb={
+          <PageBreadcrumb current={`Unit ${unit.unitNumber}`} items={[
+            { href: "/units", label: "Units" },
+            { href: unit.hrefs.property, label: `${unit.propertyCode} / ${unit.propertyName}` },
+          ]} />
+        } />
+        <nav aria-label="Unit record navigation" className="flex gap-4 px-4 py-3">
+          {unit.hrefs.lease ? <Link href={unit.hrefs.lease}>Lease</Link> : null}
+          <Link href={unit.hrefs.timeline}>View history</Link>
+        </nav>
+      </>
+    }>
+      <UnitDetailScreenContent {...props} />
+    </FinancialReportBoundary>
+  );
+}
+
+function UnitDetailScreenContent({
   activeSection,
   canArchive,
   canRecordDepositReceipt,

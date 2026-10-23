@@ -7,6 +7,11 @@ import type {
   MaintenanceViewQuery,
 } from "@/features/maintenance/maintenance.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
+
+vi.mock("@/lib/finance/financial-write-context.server", () => ({
+  withFinancialReadContext: vi.fn(async (_organizationId, read) => read({ generation: 2 })),
+}));
 
 vi.mock("@/lib/search/portfolio.server", () => ({ loadPortfolioSearch: vi.fn() }));
 
@@ -15,6 +20,20 @@ vi.mock("@/lib/db/server", () => ({
 }));
 
 describe("getMaintenanceScreenData reference loading", () => {
+  it("rejects unverifiable financial data before reading maintenance costs", async () => {
+    vi.mocked(createSupabaseServerClient).mockClear();
+    vi.mocked(withFinancialReadContext).mockRejectedValueOnce(new Error("Financial reporting is paused"));
+    await expect(getMaintenanceScreenData("org-1")).rejects.toThrow("Financial reporting is paused");
+    expect(createSupabaseServerClient).not.toHaveBeenCalled();
+  });
+
+  it("stamps maintenance cost payloads with their verified generation", async () => {
+    const supabase = createMaintenanceSupabaseStub();
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+    const result = await getMaintenanceScreenData("org-1", makeViewQuery());
+    expect(result.financialGeneration).toBe(2);
+  });
+
   it("loads creation options without reading cases, totals, evidence or history", async () => {
     const supabase = createMaintenanceSupabaseStub();
     vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);

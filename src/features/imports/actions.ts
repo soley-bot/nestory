@@ -121,7 +121,7 @@ export async function stageImportRunAction(
   }
 
   const context = await requireSuperAdminContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const importDb = supabase;
   const referenceData = await getImportReferenceData(context.organizationId);
   const rows = buildGenericImportPreviewRows({
@@ -218,7 +218,7 @@ export async function commitStagedImportRunAction(
   }
 
   const context = await requireSuperAdminContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const importDb = supabase;
   const runResult = await importDb
     .from("import_runs")

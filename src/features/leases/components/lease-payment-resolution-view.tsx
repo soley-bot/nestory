@@ -1,5 +1,6 @@
 "use client";
 
+import { FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +57,7 @@ export function LeasePaymentResolutionView({
     );
 
   return (
+    <FinancialReportBoundary expectedGeneration={resolution.financialGeneration}>
     <div className="workspace-gutter-x pb-8">
       <section
         aria-labelledby="lease-resolution-heading"
@@ -212,6 +214,7 @@ export function LeasePaymentResolutionView({
         </section>
       ) : null}
     </div>
+    </FinancialReportBoundary>
   );
 }
 

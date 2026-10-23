@@ -1,5 +1,6 @@
 import { requireOwnerBalanceReadContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
 import { canonicalizeSignedOwnerOpeningAmount } from "@/features/owner-balances/owner-balance.money";
 import {
@@ -79,6 +80,14 @@ export async function getOwnerBalanceData(
   scope: OwnerBalanceScope,
 ): Promise<OwnerBalanceData> {
   const context = await requireOwnerBalanceReadContext();
+  return withFinancialReadContext(context.organizationId, async (financialContext) => ({
+    ...await loadOwnerBalanceData(scope, context.organizationId),
+    financialGeneration: financialContext.generation,
+  }), scope.periodStart);
+}
+
+async function loadOwnerBalanceData(scope: OwnerBalanceScope, organizationId: string): Promise<OwnerBalanceData> {
+  const context = { organizationId };
   const supabase = await createSupabaseServerClient();
 
   // This catalog is already limited to properties the caller may read. Load it

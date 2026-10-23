@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import { useRef, useState } from "react";
 import { Archive, History, MoreHorizontal, Pencil, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
@@ -58,7 +59,26 @@ type PropertyDetailScreenProps = {
   tenantOptions: LeaseTenantOption[];
 };
 
-export function PropertyDetailScreen({
+export function PropertyDetailScreen(props: PropertyDetailScreenProps) {
+  const { property } = props;
+  return (
+    <FinancialReportBoundary expectedGeneration={property.financialGeneration} fallback={
+      <>
+        <PageHeader title={property.name} description={`${property.code} / ${property.type}`} breadcrumb={
+          <PageBreadcrumb current={property.name} items={[{ href: workflowReturnHref(props.returnTo) ?? "/properties", label: "Properties" }]} />
+        } />
+        <nav aria-label="Property record navigation" className="flex gap-4 px-4 py-3">
+          <Link href={property.hrefs.account}>Finance</Link>
+          <Link href={property.hrefs.timeline}>View history</Link>
+        </nav>
+      </>
+    }>
+      <PropertyDetailScreenContent {...props} />
+    </FinancialReportBoundary>
+  );
+}
+
+function PropertyDetailScreenContent({
   returnTo,
   billingFormConfig,
   canArchive = true,

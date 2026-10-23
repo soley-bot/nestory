@@ -57,6 +57,7 @@ import type {
 } from "@/features/maintenance/maintenance.types";
 import type { Json } from "@/types/database";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import {
   formatPropertyOptionLabel,
@@ -189,6 +190,19 @@ export async function getMaintenanceScreenData(
   actor?: MaintenanceActor,
   capabilities: Pick<MaintenanceCapabilities, "canAssignCase"> = { canAssignCase: false },
   { includeQueueCounts = false }: { includeQueueCounts?: boolean } = {},
+): Promise<MaintenanceScreenData> {
+  return withFinancialReadContext(organizationId, async (context) => ({
+    ...await loadMaintenanceScreenData(organizationId, viewQuery, actor, capabilities, { includeQueueCounts }),
+    financialGeneration: context.generation,
+  }));
+}
+
+async function loadMaintenanceScreenData(
+  organizationId: string,
+  viewQuery: MaintenanceViewQuery,
+  actor: MaintenanceActor | undefined,
+  capabilities: Pick<MaintenanceCapabilities, "canAssignCase">,
+  { includeQueueCounts }: { includeQueueCounts: boolean },
 ): Promise<MaintenanceScreenData> {
   const supabase = await createSupabaseServerClient();
   const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;

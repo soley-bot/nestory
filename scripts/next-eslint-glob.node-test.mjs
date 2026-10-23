@@ -48,7 +48,7 @@ async function withDirectory(prefix, run) {
 }
 
 test("the pinned Next plugin resolves only the reviewed explicit-directory API", () => {
-  assert.equal(pluginRequire("./package.json").version, "16.3.8");
+  assert.equal(pluginRequire("./package.json").version, "16.4.2");
   assert.equal(pluginRequire("fast-glob/package.json").name, "@nestory/next-eslint-glob");
   for (const args of [
     ["*", { onlyFiles: true }], ["*", { onlyDirectories: true, deep: 1 }],

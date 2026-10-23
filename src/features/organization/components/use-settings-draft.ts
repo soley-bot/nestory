@@ -1,5 +1,7 @@
 "use client";
 
+import { useFinancialFormData } from "@/lib/finance/financial-write-provider";
+
 import { useEffect, useRef, useState } from "react";
 import type { DraftStatus } from "@/components/ui/draft-action-bar";
 import type { OrganizationActionState } from "@/features/organization/actions";
@@ -32,6 +34,7 @@ export function useSettingsDraft<TValues extends DraftValues>({
   savingMessage,
   validate,
 }: UseSettingsDraftOptions<TValues>) {
+  const createFinancialFormData = useFinancialFormData();
   const [errors, setErrors] = useState<DraftErrors<TValues>>({});
   const [resultMessage, setResultMessage] = useState<string>();
   const [status, setStatus] = useState<DraftStatus>("clean");
@@ -145,7 +148,7 @@ export function useSettingsDraft<TValues extends DraftValues>({
     setStatusMessage(savingMessage);
 
     try {
-      const formData = new FormData();
+      const formData = createFinancialFormData();
       Object.entries(submittedValues).forEach(([key, value]) => formData.set(key, value));
       const result = await action({}, formData);
 

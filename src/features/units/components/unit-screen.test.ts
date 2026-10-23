@@ -10,6 +10,8 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
+import type { FinancialWriteContext } from "@/lib/finance/financial-write-context";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getVacantUnitsReportHref,
@@ -500,15 +502,20 @@ describe("UnitScreen redesign contract", () => {
 });
 
 function renderUnits({
+  context,
+  financialGeneration,
   canCreate = true,
   units: nextUnits = units,
   viewQuery = defaultViewQuery,
 }: {
+  context?: FinancialWriteContext;
+  financialGeneration?: number;
   canCreate?: boolean;
   units?: typeof units;
   viewQuery?: UnitViewQuery;
 } = {}) {
   const props = {
+      financialGeneration,
       canCreate,
       pagination: {
         from: nextUnits.length > 0 ? 1 : 0,
@@ -525,13 +532,30 @@ function renderUnits({
       units: nextUnits,
       viewQuery,
   };
-  const result = render(createElement(UnitScreen, props));
+  const result = render(createElement(UnitScreen, props), {
+    wrapper: context ? ({ children }) => {
+      const providerProps = { organizationId: "org", context, children: undefined };
+      return createElement(FinancialWriteProvider, providerProps, children);
+    } : undefined,
+  });
   return {
     ...result,
     rerenderView: (nextViewQuery = viewQuery) =>
       result.rerender(createElement(UnitScreen, { ...props, viewQuery: nextViewQuery })),
   };
 }
+
+describe("unit register financial session", () => {
+  it.each(["frozen", "open"] as const)("keeps unit links but hides rent and controls for a %s stale payload", (status) => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    renderUnits({ financialGeneration: 1, context: { generation: 2, status, enforced: true, financial_start_date: "2026-10-01" } });
+    expect(screen.getByRole("heading", { name: "Units" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "HOME / Unit 1A" }).getAttribute("href")).toBe("/units/unit-1");
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add unit" })).toBeNull();
+    expect(screen.queryByText(units[0].rentLabel)).toBeNull();
+  });
+});
 
 function makeUnit(
   id: string,

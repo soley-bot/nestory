@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import { ArrowRight, Upload } from "lucide-react";
 import { PageHelp } from "@/components/help/page-help";
 import { OverviewHeader } from "@/features/overview/components/overview-header";
@@ -10,7 +11,17 @@ import type {
   OverviewViewQuery,
 } from "@/features/overview/overview.types";
 
-export function OverviewScreen({
+export function OverviewScreen(props: {
+  attentionQueue?: readonly OverviewAttentionItem[];
+  data: OverviewScreenData;
+  query?: OverviewViewQuery;
+}) {
+  return <FinancialReportBoundary expectedGeneration={props.data.financialGeneration} fallback={<OverviewHeader />}>
+    <OverviewScreenContent {...props} />
+  </FinancialReportBoundary>;
+}
+
+function OverviewScreenContent({
   attentionQueue = [],
   data,
   query,

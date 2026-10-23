@@ -1,13 +1,34 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { getPettyCashScreenData } from "@/features/petty-cash/data/petty-cash";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: vi.fn() }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialReadContext: vi.fn() }));
+beforeEach(() => {
+  vi.mocked(withFinancialReadContext).mockImplementation(async (_organizationId, read) => read({ generation: 0, status: "open", financial_start_date: null, enforced: false }));
+});
 vi.mock("@/features/people/data/person-options", () => ({
   getPersonSelectOptions: vi.fn(async () => []),
 }));
 
 describe("getPettyCashScreenData focus", () => {
+  it("rejects an unverifiable financial session before reading cash", async () => {
+    vi.mocked(createSupabaseServerClient).mockClear();
+    vi.mocked(withFinancialReadContext).mockRejectedValueOnce(new Error("Financial reporting is paused"));
+    await expect(getPettyCashScreenData("org-1")).rejects.toThrow("Financial reporting is paused");
+    expect(createSupabaseServerClient).not.toHaveBeenCalled();
+  });
+
+  it("rejects a selected historical cash period before the reset cutoff", async () => {
+    vi.mocked(withFinancialReadContext).mockImplementationOnce(async (_organizationId, read) => read({ generation: 2, status: "open", financial_start_date: "2026-10-01", enforced: true }));
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(createClient({
+      petty_cash_accounts: [makeAccount("account-old", null)],
+      petty_cash_periods: [{ id: "period-old", account_id: "account-old", organization_id: "org-1", period_start: "2026-09-01", advance_amount: 100, opening_balance_amount: 0, status: "open" }],
+    }, []));
+    await expect(getPettyCashScreenData("org-1")).rejects.toThrow("Financial reporting starts on 2026-10-01");
+  });
+
   it("derives the account and historical period from the organization-scoped entry", async () => {
     const entryId = "11111111-1111-4111-8111-111111111111";
     const queryLog: Array<[string, string, unknown]> = [];
@@ -137,6 +158,7 @@ describe("getPettyCashScreenData focus", () => {
     });
 
     expect(result).toMatchObject({
+      financialGeneration: 0,
       focusState: "available",
       focusedEntryId: entryId,
       period: { id: "period-history" },

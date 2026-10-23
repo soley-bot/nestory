@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import { useState, type ReactNode } from "react";
 import { ExternalLink, FileText, Plus, ScrollText, UserRound } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
@@ -77,6 +78,7 @@ export function UnitDetailView({
       />
 
       <div className="flex-1">
+        <FinancialReportBoundary expectedGeneration={unit.financialGeneration}>
         <UnitRecordPanel
           activeSection={activeSection}
           canArchiveFiles={canArchiveFiles}
@@ -89,6 +91,7 @@ export function UnitDetailView({
           onOpenMaintenanceCase={onOpenMaintenanceCase}
           unit={unit}
         />
+        </FinancialReportBoundary>
       </div>
     </div>
   );

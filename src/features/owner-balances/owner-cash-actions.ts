@@ -1,4 +1,6 @@
 "use server";
+import { financialFormValues } from "@/lib/finance/financial-write-context";
+import { financialWriteError } from "@/lib/finance/financial-write-context";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -17,6 +19,7 @@ const contributionSchema = z.object({ ...shared, ownerPersonId: uuid, currency: 
 const correctionSchema = z.object({ ...shared, withdrawalId: uuid, distributionDate: date, reason: z.string().trim().min(8, "Explain the correction in at least 8 characters.").max(500), idempotencyKey: z.string().trim().min(8).max(120) });
 const correctionResultSchema = z.object({ withdrawalId: uuid, reversalId: uuid, oldDate: date, newDate: date });
 function commandError(message: string | undefined) {
+  const lifecycle = financialWriteError(message); if (lifecycle) return lifecycle;
   const code = (message ?? "").toLowerCase();
   if (/unit_mismatch/.test(code)) return "Choose an active unit belonging to this property.";
   if (/idempotency_key_reused/.test(code)) return "This form was already submitted with different details. Close it and start a new contribution.";
@@ -37,7 +40,7 @@ function refresh(propertyId: string) {
 }
 
 export async function recordOwnerContributionAction(_previous: OwnerCashActionState, formData: FormData): Promise<OwnerCashActionState> {
-  const parsed = contributionSchema.safeParse(Object.fromEntries(formData));
+  const parsed = contributionSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0].message };
   const input = parsed.data;
   let amount: string;
@@ -47,7 +50,7 @@ export async function recordOwnerContributionAction(_previous: OwnerCashActionSt
   } catch { return { status: "error", message: "Enter a positive amount with up to 12 integer digits and 2 decimal places." }; }
   // Authorization stays outside the database error boundary so redirects propagate.
   const context = await requireFinanceOperationContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   try {
     const result = await supabase.rpc("record_owner_contribution", {
       p_amount: amount, p_currency: input.currency, p_event_date: input.eventDate,
@@ -62,11 +65,11 @@ export async function recordOwnerContributionAction(_previous: OwnerCashActionSt
 }
 
 export async function correctOwnerDistributionDateAction(_previous: OwnerCashActionState, formData: FormData): Promise<OwnerCashActionState> {
-  const parsed = correctionSchema.safeParse(Object.fromEntries(formData));
+  const parsed = correctionSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0].message };
   const input = parsed.data;
   const context = await requireFinanceCorrectionContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   try {
     const result = await supabase.rpc("correct_owner_distribution_date", {
       p_organization_id: context.organizationId, p_withdrawal_id: input.withdrawalId,

@@ -1,3 +1,4 @@
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { expiredRentTermEndDate } from "../expired-rent-term";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
@@ -307,16 +308,27 @@ export function toExpenseSubmissionSummary(
   };
 }
 
+type FinanceOperationsReadOptions = { includeAccountSources?: boolean; completeTransactionHistory?: boolean; expenseMonth?: string; includeExpenses?: boolean; accountActivityOnly?: boolean; rentInvoiceQuery?: RentInvoiceQuery };
+
 export async function getFinanceOperationsData(
   organizationId: string,
   propertyId?: string | null,
-  options: { includeAccountSources?: boolean; completeTransactionHistory?: boolean; expenseMonth?: string; includeExpenses?: boolean; accountActivityOnly?: boolean; rentInvoiceQuery?: RentInvoiceQuery } = {},
+  options: FinanceOperationsReadOptions = {},
 ): Promise<FinanceOperationsData> {
   if (options.expenseMonth && !/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(options.expenseMonth)) throw new Error("Choose a valid expense month.");
   if (options.completeTransactionHistory && !propertyId) throw new Error("Choose a property before loading complete transaction history.");
   if (options.accountActivityOnly && (!propertyId || options.completeTransactionHistory)) throw new Error("Recent account activity requires a property and bounded history.");
   if (options.rentInvoiceQuery && (options.accountActivityOnly || options.completeTransactionHistory)) throw new Error("Rent invoice pages require bounded rent history.");
   if (options.rentInvoiceQuery && propertyId) propertyId = propertyId.toLowerCase();
+  return withFinancialReadContext(organizationId, async (financialContext) => ({
+    ...await loadFinanceOperationsData(organizationId, propertyId, options),
+    financialGeneration: financialContext.generation,
+  }), options.expenseMonth ? `${options.expenseMonth}-01` : undefined);
+}
+
+async function loadFinanceOperationsData(
+  organizationId: string, propertyId: string | null | undefined, options: FinanceOperationsReadOptions,
+): Promise<FinanceOperationsData> {
   const supabase = await createSupabaseServerClient();
   let rentInvoiceResult: Awaited<ReturnType<typeof loadRentInvoicePage>> | undefined;
   // Resolve the selected property through the checked finance reader before any
@@ -884,12 +896,17 @@ function toFinanceLeaseBillingPreview(
 export async function getLeasePaymentResolutionData(
   input: LeasePaymentResolutionInput,
 ): Promise<LeasePaymentResolutionData | null> {
-  const accountData = await getFinanceAccountsData(input.organizationId);
-  return loadLeasePaymentResolutionData(
-    await createSupabaseServerClient(),
-    input,
-    getPayFromAccountOptions(accountData.groups.flatMap((group) => group.accounts)),
-  );
+  return withFinancialReadContext(input.organizationId, async (financialContext) => {
+    const accountData = await getFinanceAccountsData(input.organizationId);
+    const resolution = await loadLeasePaymentResolutionData(
+      await createSupabaseServerClient(), input,
+      getPayFromAccountOptions(accountData.groups.flatMap((group) => group.accounts)),
+    );
+    if (resolution && financialContext.financial_start_date && resolution.invoice.billingPeriodStart < financialContext.financial_start_date) {
+      throw new Error(`Financial reporting starts on ${financialContext.financial_start_date}. Choose an invoice in the current accounting period.`);
+    }
+    return resolution ? { ...resolution, financialGeneration: financialContext.generation } : null;
+  });
 }
 
 export async function loadLeasePaymentResolutionData(

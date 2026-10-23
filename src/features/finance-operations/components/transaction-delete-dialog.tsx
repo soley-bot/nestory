@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -71,7 +73,7 @@ function DeleteForm({
     onClose();
     router.refresh();
   }, [copy.successMessage, onClose, onSuccess, router, state]);
-  return <form action={action} className="space-y-4">
+  return <FinancialForm action={action} className="space-y-4">
     {Object.entries({ kind: entry.kind, id: entry.id, propertyId: entry.propertyId, date: entry.date, idempotencyKey: key }).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
     {entry.expectedLines ? <input type="hidden" name="expectedLines" value={JSON.stringify(entry.expectedLines)} /> : null}
     <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
@@ -80,7 +82,7 @@ function DeleteForm({
     <label className="grid gap-1 text-sm">{copy.reasonLabel}<Input name="reason" value={reason} onChange={event => setReason(event.target.value)} required minLength={8} maxLength={500} disabled={pending} /></label>
     {state.status === "error" ? <p role="alert" className="text-sm text-destructive">{state.message}</p> : null}
     <div className="flex justify-end gap-2 border-t pt-3"><Button type="button" variant="outline" disabled={pending} onClick={onClose}>Cancel</Button><Button type="submit" variant="destructive" disabled={pending || reason.trim().length < 8}>{pending ? copy.pendingLabel : copy.submitLabel}</Button></div>
-  </form>;
+  </FinancialForm>;
 }
 
 function transactionDeleteCopy(kind: TransactionDeleteEntry["kind"]): TransactionDeleteCopy {

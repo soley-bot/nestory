@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
+
 import Image from "next/image";
 import Link from "next/link";
 import { workflowReturnHref } from "@/features/leases/workflow-return";
@@ -110,6 +112,7 @@ export function PropertyDetailView({
       />
 
       <div className="flex-1">
+        <FinancialReportBoundary expectedGeneration={property.financialGeneration}>
         <PropertyRecordPanel
           activeSection={activeSection}
           canArchiveFiles={canArchiveFiles}
@@ -119,6 +122,7 @@ export function PropertyDetailView({
           onCreateLease={onCreateLease}
           property={property}
         />
+        </FinancialReportBoundary>
       </div>
     </div>
   );
@@ -888,7 +892,7 @@ function PropertyRentalStructureSetup({ propertyId }: { propertyId: string }) {
   );
 
   return (
-    <form
+    <FinancialForm
       action={action}
       className="mt-5 border-y border-border py-5"
     >
@@ -924,7 +928,7 @@ function PropertyRentalStructureSetup({ propertyId }: { propertyId: string }) {
           {state.message}
         </p>
       ) : null}
-    </form>
+    </FinancialForm>
   );
 }
 

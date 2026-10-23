@@ -37,6 +37,7 @@ export type PropertyLedgerRecord = {
 };
 
 export type PropertySummary = {
+  financialGeneration?: number;
   address: string;
   code: string;
   currentLeaseCount: number;

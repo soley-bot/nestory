@@ -11,6 +11,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LeaseScreen } from "@/features/leases/components/lease-screen";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
 import { buildLeaseSummary } from "@/features/leases/data/lease-summary";
 import type {
   LeaseUnitOption,
@@ -100,6 +101,17 @@ afterEach(() => {
 });
 
 describe("LeaseScreen redesign contract", () => {
+  it("hides stale financial rows while retaining lease navigation and filters", () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    render(<FinancialWriteProvider organizationId="org" context={{ generation: 1, status: "open", enforced: true, financial_start_date: "2026-08-01" }}>
+      <LeaseScreen financialGeneration={2} leases={leases} pagination={{ from: 1, to: 2, page: 1, pageSize: 50, totalCount: 2, totalPages: 1 }} propertyOptions={[]} tenantOptions={[]} unitOptions={[]} viewQuery={defaultViewQuery} />
+    </FinancialWriteProvider>);
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByRole("heading", { name: /^Leases$/ })).toBeTruthy();
+    expect(screen.getByRole("navigation", { name: "Lease records" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Alice Tenant / Unit 2A" })).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toMatch(/verify the financial session/i);
+  });
   it("opens the full record from an ordinary row click without a preview", () => {
     renderLeases();
     const row = screen.getAllByRole("row")[1]!;

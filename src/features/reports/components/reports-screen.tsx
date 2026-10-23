@@ -1,3 +1,4 @@
+import { FinancialReportLink, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import { AlertTriangle, ArrowLeft, ChevronDown, Download } from "lucide-react";
 import Link from "next/link";
 
@@ -54,7 +55,7 @@ export function ReportBuilderScreen({
   const queryKey = buildReportQueryParams(viewQuery).toString();
 
   if (trustedReport.kind === "unit-profit-loss") {
-    return <WorkspacePage className="overflow-x-clip" header={<header className="workspace-gutter-x flex min-h-12 flex-wrap items-center gap-3 border-b border-border/70 py-2">
+    return <FinancialReportBoundary expectedGeneration={trustedReport.financialGeneration}><WorkspacePage className="overflow-x-clip" header={<header className="workspace-gutter-x flex min-h-12 flex-wrap items-center gap-3 border-b border-border/70 py-2">
       <Link href="/reports" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />All reports</Link>
       <h1 className="text-sm font-semibold">Profit &amp; loss detail</h1>
       <span className="text-xs text-muted-foreground">{profitLossBasisLabel}</span>
@@ -65,11 +66,11 @@ export function ReportBuilderScreen({
         {validation ? <div role={trustedReport.scopeValidation ? "alert" : "status"} className="my-3 rounded-md border border-warning/30 bg-warning-soft/35 px-3 py-2 text-sm"><p className="font-semibold">{trustedReport.scopeValidation ? "Report unavailable" : "Export unavailable"}</p><p>{validation.message}</p></div> : null}
         <UnitProfitLossWorkspace returnTo={`/reports/${viewQuery.report}?${queryKey}`} key={queryKey} report={trustedReport} />
       </div>
-    </WorkspacePage>;
+    </WorkspacePage></FinancialReportBoundary>;
   }
 
   return (
-    <WorkspacePage
+    <FinancialReportBoundary expectedGeneration={trustedReport.financialGeneration}><WorkspacePage
       className={viewQuery.report === "unit-profit-loss" ? "overflow-x-clip" : undefined}
       actions={<div className="flex items-center gap-2"><RecheckReport />{validation ? null : <ExportMenu viewQuery={viewQuery} />}</div>}
       breadcrumbItems={[{ href: "/reports", label: "Reports" }]}
@@ -166,7 +167,7 @@ export function ReportBuilderScreen({
           <ReportResultsTable key={queryKey} report={trustedReport} reportRowCount={reportRowCount} viewQuery={viewQuery} />
         </div>
       </div>
-    </WorkspacePage>
+    </WorkspacePage></FinancialReportBoundary>
   );
 }
 
@@ -182,12 +183,12 @@ function ExportMenu({ viewQuery }: { viewQuery: ReportsViewQuery }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-40">
         <DropdownMenuItem asChild>
-          <a href={buildExportHref("/api/reports/pdf", viewQuery)}>PDF report</a>
+          <FinancialReportLink href={buildExportHref("/api/reports/pdf", viewQuery)}>PDF report</FinancialReportLink>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <a href={buildExportHref("/api/reports/excel", viewQuery)}>
+          <FinancialReportLink href={buildExportHref("/api/reports/excel", viewQuery)}>
             Excel workbook
-          </a>
+          </FinancialReportLink>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

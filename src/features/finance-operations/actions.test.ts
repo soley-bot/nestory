@@ -1083,6 +1083,7 @@ describe("expense approval actions", () => {
   it("routes a correction through one atomic RPC with the expected original status", async () => {
     rpc.mockResolvedValue({ data: { transaction_id: submissionId }, error: null });
     const form = new FormData();
+  form.set("__financialGeneration", "1");
     Object.entries({ expenseDate: "2026-08-08", idempotencyKey: "expense-replacement-1", payeeMode: "external", payeePersonId: "", externalPayeeLabel: "Cleaner", payFromAccountId: sourceId, reference: "", responsibility: "owner", replacementTransactionId: submissionId, expectedStatus: "approved", replacementReason: "Correct wrong amount", reversalDate: "2026-09-10" }).forEach(([key,value]) => form.set(key,value));
     form.set("lines", JSON.stringify([{ amount: "30", categoryAccountId: sourceId, description: "Cleaning", ownerCashAmount: null, propertyId, unitId: null }]));
     expect(await submitExpenseAction({}, form)).toMatchObject({ status: "success" });
@@ -1094,6 +1095,7 @@ describe("expense approval actions", () => {
   it("routes an approved legacy correction through its atomic RPC", async () => {
     rpc.mockResolvedValue({ data: { transaction_id: submissionId }, error: null });
     const form = new FormData();
+  form.set("__financialGeneration", "1");
     Object.entries({ expenseDate: "2026-08-08", idempotencyKey: "expense-replacement-1", payeeMode: "external", payeePersonId: "", externalPayeeLabel: "Cleaner", payFromAccountId: sourceId, reference: "", responsibility: "owner", replacementSubmissionId: submissionId, expectedStatus: "approved", replacementReason: "Correct wrong amount", reversalDate: "2026-09-10" }).forEach(([key,value]) => form.set(key,value));
     form.set("lines", JSON.stringify([{ amount: "30", categoryAccountId: sourceId, description: "Cleaning", ownerCashAmount: null, propertyId, unitId: null }]));
     expect(await submitExpenseAction({}, form)).toMatchObject({ status: "success" });
@@ -1111,6 +1113,7 @@ describe("expense approval actions", () => {
   ])("explains correction integrity rejection: %s", async (backendMessage, guidance) => {
     rpc.mockResolvedValue({ error: { message: backendMessage } });
     const form = new FormData();
+  form.set("__financialGeneration", "1");
     Object.entries({ expenseDate: "2026-08-08", idempotencyKey: "expense-replacement-1", payeeMode: "external", payeePersonId: "", externalPayeeLabel: "Cleaner", payFromAccountId: sourceId, reference: "", responsibility: "owner", replacementTransactionId: submissionId, expectedStatus: "approved", replacementReason: "Correct wrong amount", reversalDate: "2026-09-10" }).forEach(([key,value]) => form.set(key,value));
     form.set("lines", JSON.stringify([{ amount: "30", categoryAccountId: sourceId, description: "Cleaning", ownerCashAmount: null, propertyId, unitId: null }]));
     expect(await submitExpenseAction({}, form)).toMatchObject({ status: "error", message: expect.stringContaining(guidance) });
@@ -1119,6 +1122,7 @@ describe("expense approval actions", () => {
 
   it("rejects a replacement without a reason before uploading or writing", async () => {
     const form = new FormData();
+  form.set("__financialGeneration", "1");
     Object.entries({ expenseDate: "2026-08-08", idempotencyKey: "expense-replacement-1", payeeMode: "external", payeePersonId: "", externalPayeeLabel: "Cleaner", payFromAccountId: sourceId, reference: "", responsibility: "owner", replacementTransactionId: submissionId, expectedStatus: "approved", replacementReason: "", reversalDate: "2026-09-10" }).forEach(([key,value]) => form.set(key,value));
     form.set("lines", JSON.stringify([{ amount: "30", categoryAccountId: sourceId, description: "Cleaning", ownerCashAmount: null, propertyId, unitId: null }]));
     expect(await submitExpenseAction({}, form)).toMatchObject({ status: "error" });
@@ -1127,6 +1131,7 @@ describe("expense approval actions", () => {
 
   it("cancels using the authenticated organization and preserves stale-state feedback", async () => {
     const form = new FormData();
+  form.set("__financialGeneration", "1");
     form.set("transactionId", submissionId); form.set("idempotencyKey", "cancel-expense-1"); form.set("reason", "Duplicate expense");
     rpc.mockResolvedValue({ error: { message: "Expense status changed; refresh before replacing it" } });
     expect(await cancelExpenseAction({}, form)).toMatchObject({ status: "error", message: "This expense has changed. Refresh the page before trying again." });
@@ -1136,6 +1141,7 @@ describe("expense approval actions", () => {
 
   function directExpenseForm() {
     const form = new FormData();
+  form.set("__financialGeneration", "1");
     Object.entries({ reference: "", expenseDate: "2026-08-08", idempotencyKey: "direct-expense-1", payeeMode: "external", externalPayeeLabel: "Repair vendor", payFromAccountId: sourceId, confirmedPayFromAccountId: sourceId, responsibility: "owner", expenseIntent: "post" }).forEach(([key, value]) => form.set(key, value));
     form.set("lines", JSON.stringify([{ amount: "25", categoryAccountId: sourceId, description: "Repair", propertyId, unitId: null, ownerCashAmount: null }]));
     return form;

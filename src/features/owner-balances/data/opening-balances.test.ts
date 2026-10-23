@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  readBoundary: vi.fn(),
   from: vi.fn(),
   requireReadContext: vi.fn(),
   rpc: vi.fn(),
 }));
+
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialReadContext: mocks.readBoundary }));
 
 vi.mock("@/lib/auth/context", () => ({
   requireOwnerBalanceReadContext: mocks.requireReadContext,
@@ -34,6 +37,7 @@ const hash = "b".repeat(64);
 describe("opening balance authority loader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.readBoundary.mockImplementation(async (_organizationId, read) => read({ generation: 2 }));
     mocks.requireReadContext.mockResolvedValue({ organizationId });
     mocks.rpc.mockReturnValue(rosterQuery({
       data: [
@@ -60,6 +64,31 @@ describe("opening balance authority loader", () => {
     });
   });
 
+  it("checks permission before financial guards or source reads", async () => {
+    mocks.requireReadContext.mockRejectedValueOnce(new Error("Not authorized"));
+    await expect(getOpeningBalanceAuthorityData({ effectiveDate: "2026-08-01" })).rejects.toThrow("Not authorized");
+    expect(mocks.readBoundary).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("does not query opening authority when the financial guard rejects", async () => {
+    mocks.readBoundary.mockRejectedValueOnce(new Error("Financial reporting is paused"));
+    await expect(getOpeningBalanceAuthorityData({ effectiveDate: "2026-08-01" })).rejects.toThrow("Financial reporting is paused");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("discards assembled authority if the final source revision check fails", async () => {
+    mocks.readBoundary.mockImplementationOnce(async (_organizationId, read) => {
+      await read({ generation: 2 });
+      throw new Error("Financial data changed while this report was loading");
+    });
+    await expect(getOpeningBalanceAuthorityData({ effectiveDate: "2026-08-01" })).rejects.toThrow("changed while");
+    expect(mocks.rpc).toHaveBeenCalled();
+    expect(mocks.from).toHaveBeenCalled();
+  });
+
   it("maps all four components and distinguishes unknown from approved zero", async () => {
     const result = await getOpeningBalanceAuthorityData({
       currency: "USD",
@@ -68,6 +97,8 @@ describe("opening balance authority loader", () => {
       propertyId,
     });
 
+    expect(result.financialGeneration).toBe(2);
+    expect(mocks.readBoundary).toHaveBeenCalledWith(organizationId, expect.any(Function), "2026-08-01");
     expect(result.groups).toHaveLength(1);
     expect(result.groups[0]?.components.map((item) => item.component)).toEqual(
       OWNER_BALANCE_COMPONENTS,

@@ -5,12 +5,14 @@ import { getReportExcel } from "@/features/reports/data/excel";
 import { getReportPdf } from "@/features/reports/data/pdf";
 import { getCurrentUser, getFinanceReportMembershipForUser } from "@/lib/auth/context";
 import { companies, fixture } from "./fixtures";
+import { withFinancialDownloadContext } from "@/lib/finance/financial-write-context.server";
 
 vi.mock("@/lib/auth/context", () => ({ getCurrentUser: vi.fn(), getFinanceReportMembershipForUser: vi.fn(), getOwnerStatementMembershipForUser: vi.fn() }));
 vi.mock("@/features/reports/data/excel", () => ({ getReportExcel: vi.fn() }));
 vi.mock("@/features/reports/data/pdf", () => ({ getReportPdf: vi.fn() }));
 vi.mock("@/features/reports/data/owner-statement-artifacts", () => ({ downloadOwnerStatementArtifact: vi.fn() }));
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: vi.fn() }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialDownloadContext: vi.fn() }));
 vi.mock("@/lib/observability/capture-unexpected-server-error", () => ({ captureUnexpectedServerError: vi.fn() }));
 
 const routes = [{ format: "excel", handler: excel, loader: getReportExcel }, { format: "pdf", handler: pdf, loader: getReportPdf }] as const;
@@ -19,7 +21,10 @@ const cases = companies.flatMap((company) => routes.flatMap((route) =>
 ));
 
 describe("synthetic export authority handoff (28 mock cases)", () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(withFinancialDownloadContext).mockImplementation(async (_organizationId, _request, read) => read());
+  });
 
   it.each(cases)("$company $route.format $scenario", async ({ company, route, scenario }) => {
     const scope = fixture(company, scenario === "allowed-B" ? "B" : "A");
@@ -49,6 +54,7 @@ describe("synthetic export authority handoff (28 mock cases)", () => {
       return;
     }
     expect(getFinanceReportMembershipForUser).toHaveBeenCalledExactlyOnceWith(scope.userId);
+    expect(withFinancialDownloadContext).toHaveBeenCalledWith(scope.organizationId, expect.any(Request), expect.any(Function));
     expect(route.loader).toHaveBeenCalledTimes(1);
     const call = vi.mocked(route.loader).mock.calls[0];
     expect(call[0]).toBe(scope.organizationId);

@@ -215,6 +215,7 @@ export type UnitViewQuery = {
 };
 
 export type UnitSummary = {
+  financialGeneration?: number;
   bathroomCountLabel: string;
   bedroomCountLabel: string;
   draftLease?: UnitLeaseSummary;

@@ -124,7 +124,7 @@ export async function createAssetPhotoAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const unitId = parsed.data.unitId || null;
   const property = await getPropertyBranchContext(
     supabase,
@@ -215,7 +215,7 @@ export async function setAssetPhotoCoverAction(
     return { message: "Choose a photo.", status: "error" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getPhotoPathContext(
     supabase,
     context.organizationId,
@@ -252,7 +252,7 @@ export async function archiveAssetPhotoAction(
     return { message: "Choose a photo.", status: "error" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getPhotoPathContext(
     supabase,
     context.organizationId,

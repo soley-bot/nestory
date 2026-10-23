@@ -36,7 +36,7 @@ describe("expense history recovery", () => {
     expect(container.textContent).toContain("INV-2026-001");
     expect(container.textContent).toContain("INV-2026-002");
     for (const id of [oldAccount, newAccount, actor]) expect(container.textContent).not.toContain(id);
-    expect(getExpenseHistory).toHaveBeenCalledWith("expense-one");
+    expect(getExpenseHistory).toHaveBeenCalledWith("expense-one", undefined, expect.any(FormData));
   });
 
   it("keeps an account change visible when its names are unavailable", async () => {
@@ -76,7 +76,7 @@ describe("expense history recovery", () => {
     await user.dblClick(screen.getByRole("button", { name: "Try again" }));
     expect(screen.getByRole("status").textContent).toMatch(/^Loading history/);
     expect(getExpenseHistory).toHaveBeenCalledTimes(2);
-    expect(getExpenseHistory).toHaveBeenLastCalledWith("expense-one");
+    expect(getExpenseHistory).toHaveBeenLastCalledWith("expense-one", undefined, expect.any(FormData));
     await act(async () => resolve([]));
     expect(screen.getByText("No saved changes.")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
@@ -117,5 +117,5 @@ it("ignores stale legacy history when only the original submission changes", asy
   await screen.findByText("No saved changes.");
   await act(async () => finish([{id:"stale",action:"updated",actor:"Stale member",actor_id:null,created_at:"2026-10-01T00:00:00Z",previous_values:{},new_values:{}}]));
   expect(screen.queryByText("Stale member")).toBeNull();
-  expect(getExpenseHistory).toHaveBeenLastCalledWith("replacement","original-two");
+  expect(getExpenseHistory).toHaveBeenLastCalledWith("replacement", "original-two", expect.any(FormData));
 });

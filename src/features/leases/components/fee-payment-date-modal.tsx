@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm, useFinancialFormData } from "@/lib/finance/financial-write-provider";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useOverlayCloseRequest, useOverlayDraftGuard } from "@/components/ui/overlay-dismissal-context";
 import { useRouter } from "next/navigation";
@@ -35,6 +37,7 @@ export function FeePaymentDateModal(props: Parameters<typeof FeePaymentDateConte
 function FeePaymentDateContent({ leaseId, onClose, onSuccess }: {
   leaseId: string; onClose: () => void; onSuccess: (message: string) => void;
 }) {
+  const createFinancialFormData = useFinancialFormData();
   const router = useRouter();
   const [candidates, setCandidates] = useState<FeePaymentDateCandidate[] | null>(null);
   const [allocationId, setAllocationId] = useState("");
@@ -53,7 +56,7 @@ function FeePaymentDateContent({ leaseId, onClose, onSuccess }: {
 
   useEffect(() => {
     let active = true;
-    listFeePaymentDateCandidatesAction(leaseId).then((result) => {
+    listFeePaymentDateCandidatesAction(leaseId, createFinancialFormData()).then((result) => {
       if (!active) return;
       setCandidates(result.candidates ?? null);
       setMessage(result.message ?? null);
@@ -64,7 +67,7 @@ function FeePaymentDateContent({ leaseId, onClose, onSuccess }: {
       if (active) setMessage("Fee payments could not be loaded. Try again.");
     });
     return () => { active = false; };
-  }, [leaseId, reload]);
+  }, [leaseId, reload, createFinancialFormData]);
 
   function invalidatePreview() {
     setDirty(true);
@@ -80,7 +83,7 @@ function FeePaymentDateContent({ leaseId, onClose, onSuccess }: {
     setPreview(null);
     setMessage(null);
     try {
-      const result = await previewFeePaymentDateCorrectionAction({ allocationId, paymentDate });
+      const result = await previewFeePaymentDateCorrectionAction({ allocationId, paymentDate }, createFinancialFormData());
       if (requestedRevision !== revision.current) return;
       setPreview(result.preview ?? null);
       setMessage(result.message ?? null);
@@ -97,7 +100,7 @@ function FeePaymentDateContent({ leaseId, onClose, onSuccess }: {
     setMessage(null);
     idempotencyKey.current ??= crypto.randomUUID();
     try {
-      const result = await correctFeePaymentDateAction({ allocationId, paymentDate, reason, previewHash: preview.previewHash, idempotencyKey: idempotencyKey.current });
+      const result = await correctFeePaymentDateAction({ allocationId, paymentDate, reason, previewHash: preview.previewHash, idempotencyKey: idempotencyKey.current }, createFinancialFormData());
       if (result.status === "success") {
         setDirty(false);
         onSuccess(result.message ?? "Fee payment date corrected.");
@@ -116,7 +119,7 @@ function FeePaymentDateContent({ leaseId, onClose, onSuccess }: {
         {candidates === null ? (
           <div role="status" className="text-sm">{message ?? "Loading fee payments…"}{message ? <Button className="ml-2" variant="outline" onClick={() => { setMessage(null); setReload((value) => value + 1); }}>Try again</Button> : null}</div>
         ) : candidates.length === 0 ? <p role="status" className="text-sm">No fee payments can be corrected for this lease.</p> : (
-          <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void loadPreview(); }}>
+          <FinancialForm className="space-y-4" onSubmit={(event) => { event.preventDefault(); void loadPreview(); }}>
             <fieldset className="space-y-4" disabled={pending}>
               <label className="grid gap-1.5 text-sm font-medium">Fee payment
                 <SelectControl ariaLabel="Fee payment" name="allocationId" value={allocationId} required options={candidates.map((candidate) => ({ value: candidate.allocationId, label: `${candidate.invoiceNumber} · ${candidate.amount.toFixed(2)} · ${candidate.paymentDate}` }))} onValueChange={(value) => {
@@ -144,7 +147,7 @@ function FeePaymentDateContent({ leaseId, onClose, onSuccess }: {
               {preview.blockers.length ? <ul className="space-y-1 text-destructive" role="alert">{preview.blockers.map((blocker) => <li key={blocker}>{blockerMessage(blocker)}</li>)}</ul> : null}
               <Button type="button" disabled={pending || !preview.canApply || reason.trim().length < 8} onClick={() => void applyCorrection()}>Confirm payment date correction</Button>
             </div> : null}
-          </form>
+          </FinancialForm>
         )}
         <div className="flex justify-end"><Button type="button" variant="ghost" disabled={pending} onClick={requestClose}>Cancel</Button></div>
       </div>

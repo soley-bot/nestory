@@ -3,6 +3,25 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SELECT no_plan();
 
+-- This rollback-only owner correction suite has intentionally unbilled future
+-- months. Give its seeded leases an explicit end this month so those scenarios
+-- model owner-only corrections after tenancy, rather than silently closing
+-- active, uninvoiced rent. Continuing/expired rent is covered separately by
+-- owner_month_rent_completeness_test.sql.
+SET LOCAL session_replication_role = replica;
+UPDATE public.lease_terms AS term
+SET end_date = LEAST(term.end_date,(date_trunc('month',current_date)+interval '1 month'-interval '1 day')::date)
+FROM public.leases AS lease
+WHERE lease.organization_id='00000000-0000-0000-0000-000000000001'
+  AND lease.property_id IN ('10000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000003')
+  AND term.organization_id=lease.organization_id AND term.lease_id=lease.id
+  AND term.start_date<(date_trunc('month',current_date)+interval '1 month')::date;
+UPDATE public.leases SET status='ended'
+WHERE organization_id='00000000-0000-0000-0000-000000000001'
+  AND property_id IN ('10000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000003')
+  AND status IN ('active','notice_given');
+SET LOCAL session_replication_role = origin;
+
 WITH authority_tables(table_name) AS (
   VALUES
     ('owner_close_series'),

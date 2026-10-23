@@ -1,3 +1,4 @@
+import { withFinancialDownloadContext } from "@/lib/finance/financial-write-context.server";
 import { getReportExcel } from "@/features/reports/data/excel";
 import { downloadOwnerStatementArtifact } from "@/features/reports/data/owner-statement-artifacts";
 import { parseReportSearchParams } from "@/features/reports/reports.filters";
@@ -33,11 +34,11 @@ export async function GET(request: Request) {
     }
     try {
       const supabase = await createSupabaseServerClient();
-      const artifact = await downloadOwnerStatementArtifact(
+      const artifact = await withFinancialDownloadContext(membership.organizationId, request, () => downloadOwnerStatementArtifact(
         supabase,
         membership.organizationId,
         artifactId,
-      );
+      ));
       if (artifact.format !== "xlsx") {
         return textResponse("Owner Statement artifact format mismatch.", 409);
       }
@@ -53,19 +54,23 @@ export async function GET(request: Request) {
     return textResponse("Forbidden", 403);
   }
 
-  const searchParams = Object.fromEntries(url.searchParams);
-  const viewQuery = parseReportSearchParams(searchParams, membership.operationalTimezone);
-  const excel = await getReportExcel(membership.organizationId, viewQuery, membership.organizationName);
+  try {
+    const searchParams = Object.fromEntries(url.searchParams);
+    const viewQuery = parseReportSearchParams(searchParams, membership.operationalTimezone);
+    const excel = await withFinancialDownloadContext(membership.organizationId, request, () => getReportExcel(membership.organizationId, viewQuery, membership.organizationName));
 
-  if (excel.validation) {
-    return textValidation(excel.validation);
+    if (excel.validation) {
+      return textValidation(excel.validation);
+    }
+
+    return attachment(
+      excel.body,
+      excel.filename,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+  } catch {
+    return textResponse("Financial data changed or could not be verified. Reload the report before downloading it.", 409);
   }
-
-  return attachment(
-    excel.body,
-    excel.filename,
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  );
 }
 
 function attachment(bodyBytes: Uint8Array, filename: string, contentType: string) {

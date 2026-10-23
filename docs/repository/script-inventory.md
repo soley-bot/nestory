@@ -4,12 +4,12 @@ Generated from package commands, GitHub workflows, script imports, source refere
 
 ## Summary
 
-- default-gate: 52
+- default-gate: 57
 - documented-operator: 9
-- reusable-support: 43
-- specialist-command: 66
+- reusable-support: 49
+- specialist-command: 69
 - unreferenced: 3
-- workflow-gate: 13
+- workflow-gate: 17
 
 ## Inventory
 
@@ -20,6 +20,7 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/business-date-access.node-test.mjs` | default-gate | `package:test:contracts` |
 | `scripts/capture-feature-layout.mjs` | documented-operator | `docs/design/feature-long-text-coverage-20261004.md` |
 | `scripts/chart-of-accounts-fixture-contract.node-test.mjs` | specialist-command | `package:test:chart-fixture-contract` |
+| `scripts/checked-operational-command-concurrency.node-test.mjs` | workflow-gate | `.github/workflows/ci.yml`, `package:operations:test-command-concurrency`, `scripts/pilot-finance-reset-core.mjs` |
 | `scripts/ci-deployment-gate.node-test.mjs` | default-gate | `docs/superpowers/plans/2026-08-21-supabase-migration-history-reconciliation.md`, `package:test:contracts` |
 | `scripts/cleanup-paid-cost-storage-orphans-core.mjs` | reusable-support | `scripts/cleanup-paid-cost-storage-orphans.mjs`, `scripts/cleanup-paid-cost-storage-orphans.node-test.mjs` |
 | `scripts/cleanup-paid-cost-storage-orphans.mjs` | documented-operator | `docs/repository/legacy-test-compatibility-inventory.md` |
@@ -35,7 +36,7 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/daily-workflow-policy.node-test.mjs` | workflow-gate | `.github/workflows/daily-workflow-acceptance.yml` |
 | `scripts/daily-workflow-polish-contract.mjs` | reusable-support | `scripts/daily-workflow-polish-contract.node-test.mjs`, `scripts/smoke-daily-polish.mjs` |
 | `scripts/daily-workflow-polish-contract.node-test.mjs` | workflow-gate | `.github/workflows/daily-workflow-acceptance.yml` |
-| `scripts/deposit-candidate-target.mjs` | reusable-support | `scripts/deposit-candidate-target.node-test.mjs`, `scripts/ips-integrated-readiness-fixture.mjs`, `scripts/maintenance-automation-runs-target.mjs`, `scripts/property-concurrency-target.mjs`, `scripts/rent-readiness-target.mjs`, `scripts/test-deposit-candidate-local.mjs`, `scripts/test-deposit-custody-concurrency.mjs` |
+| `scripts/deposit-candidate-target.mjs` | reusable-support | `scripts/checked-operational-command-concurrency.node-test.mjs`, `scripts/deposit-candidate-target.node-test.mjs`, `scripts/financial-report-revision-concurrency.node-test.mjs`, `scripts/financial-reset-phase-concurrency.node-test.mjs`, `scripts/ips-integrated-readiness-fixture.mjs`, `scripts/lease-deposit-chronology-concurrency.node-test.mjs`, `scripts/maintenance-automation-runs-target.mjs`, `scripts/property-concurrency-target.mjs`, `scripts/rent-readiness-target.mjs`, `scripts/test-deposit-candidate-local.mjs`, `scripts/test-deposit-custody-concurrency.mjs` |
 | `scripts/deposit-candidate-target.node-test.mjs` | default-gate | `.github/workflows/ci.yml`, `package:test:contracts` |
 | `scripts/deposit-rent-approved-command-model.mjs` | documented-operator | `src/features/leases/local-deposit-rent/workflow.test-fixture.ts` |
 | `scripts/deposit-rent-command-model.mjs` | reusable-support | `scripts/deposit-rent-approved-command-model.mjs` |
@@ -44,14 +45,16 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/document-replacement-concurrency.node-test.mjs` | specialist-command | `package:documents:test-evidence-storage` |
 | `scripts/document-storage-lifecycle-concurrency.node-test.mjs` | specialist-command | `package:documents:test-evidence-storage` |
 | `scripts/exact-invitation-renewal-concurrency.node-test.mjs` | workflow-gate | `.github/workflows/ci.yml` |
+| `scripts/financial-report-revision-concurrency.node-test.mjs` | workflow-gate | `.github/workflows/ci.yml`, `scripts/pilot-finance-reset-core.mjs`, `scripts/pilot-finance-reset.node-test.mjs` |
+| `scripts/financial-reset-phase-concurrency.node-test.mjs` | workflow-gate | `.github/workflows/ci.yml`, `package:finance:test-reset-phase-concurrency`, `scripts/pilot-finance-reset-core.mjs` |
 | `scripts/generate-enterprise-frontend-evidence.mjs` | documented-operator | `docs/superpowers/plans/2026-08-14-repository-health-and-test-architecture.md` |
 | `scripts/generate-script-inventory.mjs` | specialist-command | `docs/superpowers/plans/2026-08-14-repository-health-and-test-architecture.md`, `docs/superpowers/plans/2026-08-24-legacy-test-compatibility-cleanup.md`, `package:repo:script-inventory` |
 | `scripts/generate-unit-profit-loss-comparison.mjs` | specialist-command | `package:report:unit-profit-loss:compare`, `scripts/unit-profit-loss-comparison.node-test.mjs` |
 | `scripts/historical-rent-correction-concurrency.node-test.mjs` | specialist-command | `package:rent:test-correction-concurrency` |
-| `scripts/hosted-demo-cutover-plan-core.mjs` | reusable-support | `scripts/hosted-demo-cutover-plan.mjs`, `scripts/hosted-demo-cutover-plan.node-test.mjs` |
+| `scripts/hosted-demo-cutover-plan-core.mjs` | reusable-support | `docs/runbooks/pilot-october-2026-finance-reset-assessment.md`, `scripts/hosted-demo-cutover-plan.mjs`, `scripts/hosted-demo-cutover-plan.node-test.mjs` |
 | `scripts/hosted-demo-cutover-plan.mjs` | specialist-command | `package:demo:cutover:plan` |
 | `scripts/hosted-demo-cutover-plan.node-test.mjs` | default-gate | `package:test:contracts` |
-| `scripts/hosted-migration-parity-core.mjs` | reusable-support | `docs/superpowers/plans/2026-08-21-supabase-migration-history-reconciliation.md`, `scripts/hosted-migration-parity-core.node-test.mjs`, `scripts/rent-readiness-target.mjs`, `scripts/rent-readiness-target.node-test.mjs`, `scripts/verify-hosted-migration-parity.mjs` |
+| `scripts/hosted-migration-parity-core.mjs` | reusable-support | `docs/superpowers/plans/2026-08-21-supabase-migration-history-reconciliation.md`, `scripts/hosted-migration-parity-core.node-test.mjs`, `scripts/pilot-finance-reset-core.mjs`, `scripts/pilot-finance-reset-executor-local.mjs`, `scripts/pilot-finance-reset-manifest.mjs`, `scripts/pilot-finance-reset-recovery.mjs`, `scripts/rent-readiness-target.mjs`, `scripts/rent-readiness-target.node-test.mjs`, `scripts/verify-hosted-migration-parity.mjs` |
 | `scripts/hosted-migration-parity-core.node-test.mjs` | default-gate | `docs/superpowers/plans/2026-08-21-supabase-migration-history-reconciliation.md`, `package:test:contracts` |
 | `scripts/ips-cutover-browser-contract.node-test.mjs` | default-gate | `package:test:contracts` |
 | `scripts/ips-cutover-concurrency.node-test.mjs` | specialist-command | `docs/superpowers/plans/2026-08-11-track-9-ips-cutover.md`, `package:cutover:test-concurrency` |
@@ -62,11 +65,12 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/ips-integrated-readiness.node-test.mjs` | default-gate | `package:test:contracts` |
 | `scripts/ips-paid-cost-browser-contract.node-test.mjs` | default-gate | `docs/superpowers/plans/2026-08-11-track-6-paid-cost.md`, `package:test:contracts` |
 | `scripts/ips-paid-cost-fixture-contract.node-test.mjs` | default-gate | `docs/superpowers/plans/2026-08-11-track-6-paid-cost.md`, `package:paid-cost:test-scenario-contract`, `package:test:contracts` |
-| `scripts/ips-readiness-recovery-core.mjs` | reusable-support | `docs/runbooks/ips-recovery-and-rollback.md`, `scripts/ips-readiness-recovery.mjs`, `scripts/ips-readiness-recovery.node-test.mjs`, `scripts/owner-statement-readiness-core.mjs`, `scripts/owner-statement-readiness.node-test.mjs`, `scripts/rent-readiness-target.mjs`, `scripts/rent-readiness-target.node-test.mjs`, `scripts/smoke-ips-owner-statement-readiness.mjs`, `scripts/smoke-ips-rent-readiness.mjs` |
+| `scripts/ips-readiness-recovery-core.mjs` | reusable-support | `docs/runbooks/ips-recovery-and-rollback.md`, `scripts/ips-readiness-recovery.mjs`, `scripts/ips-readiness-recovery.node-test.mjs`, `scripts/owner-statement-readiness-core.mjs`, `scripts/owner-statement-readiness.node-test.mjs`, `scripts/pilot-finance-reset-core.mjs`, `scripts/pilot-finance-reset-executor-local.mjs`, `scripts/pilot-finance-reset-manifest.mjs`, `scripts/pilot-finance-reset-recovery.mjs`, `scripts/rent-readiness-target.mjs`, `scripts/rent-readiness-target.node-test.mjs`, `scripts/smoke-ips-owner-statement-readiness.mjs`, `scripts/smoke-ips-rent-readiness.mjs` |
 | `scripts/ips-readiness-recovery.mjs` | documented-operator | `docs/runbooks/ips-recovery-and-rollback.md`, `docs/verification/ips-readiness-2026-10-14.md` |
 | `scripts/ips-readiness-recovery.node-test.mjs` | default-gate | `docs/runbooks/ips-recovery-and-rollback.md`, `package:test:contracts` |
 | `scripts/ips-rent-scenario-concurrency.node-test.mjs` | specialist-command | `package:rent:test-concurrency` |
 | `scripts/ips-rent-scenario-contract.node-test.mjs` | default-gate | `package:rent:test-scenario-contract`, `package:test:contracts` |
+| `scripts/lease-deposit-chronology-concurrency.node-test.mjs` | workflow-gate | `.github/workflows/ci.yml`, `package:leases:test-deposit-chronology`, `scripts/pilot-finance-reset-core.mjs` |
 | `scripts/lease-deposit-lifecycle-concurrency.node-test.mjs` | workflow-gate | `.github/workflows/ci.yml` |
 | `scripts/lease-history-integrity-concurrency-contract.test.mjs` | default-gate | None found |
 | `scripts/lease-history-integrity-concurrency.mjs` | specialist-command | `package:leases:test-history-integrity`, `scripts/lease-history-integrity-concurrency-contract.test.mjs` |
@@ -75,12 +79,12 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/lease-term-authority-concurrency-contract.test.mjs` | default-gate | None found |
 | `scripts/lease-term-authority-concurrency.mjs` | specialist-command | `package:leases:test-term-authority`, `scripts/lease-term-authority-concurrency-contract.test.mjs` |
 | `scripts/legacy-deposit-default-concurrency.node-test.mjs` | specialist-command | `package:leases:test-deposit-default` |
-| `scripts/load-owner-statement-publication-fixture.ts` | reusable-support | `scripts/load-test-fixture.mjs`, `scripts/owner-statement-publication-fixture-contract.node-test.mjs` |
-| `scripts/load-paid-cost-scenarios-fixture.ts` | reusable-support | `scripts/load-test-fixture.mjs` |
+| `scripts/load-owner-statement-publication-fixture.ts` | reusable-support | `scripts/load-test-fixture.mjs`, `scripts/owner-statement-publication-fixture-contract.node-test.mjs`, `scripts/pilot-finance-reset-core.mjs` |
+| `scripts/load-paid-cost-scenarios-fixture.ts` | reusable-support | `scripts/load-test-fixture.mjs`, `scripts/pilot-finance-reset-core.mjs` |
 | `scripts/load-test-fixture.mjs` | specialist-command | `docs/superpowers/plans/2026-08-10-owner-statement-publication.md`, `package:db:test:fixture`, `scripts/document-evidence-storage.node-test.mjs`, `scripts/document-replacement-concurrency.node-test.mjs`, `scripts/document-storage-lifecycle-concurrency.node-test.mjs`, `scripts/historical-rent-correction-concurrency.node-test.mjs`, `scripts/ips-cutover-concurrency.node-test.mjs`, `scripts/ips-rent-scenario-concurrency.node-test.mjs`, `scripts/lease-deposit-lifecycle-concurrency.node-test.mjs`, `scripts/legacy-deposit-default-concurrency.node-test.mjs`, `scripts/load-test-fixture.node-test.mjs`, `scripts/owner-balance-lifecycle-concurrency.node-test.mjs`, `scripts/owner-balance-lifecycle-correction-concurrency.node-test.mjs`, `scripts/owner-balance-lifecycle-loaded-fixture.node-test.mjs`, `scripts/owner-close-concurrency.node-test.mjs`, `scripts/owner-opening-balance-schema-concurrency.node-test.mjs`, `scripts/owner-opening-balance-workflow-concurrency.node-test.mjs`, `scripts/owner-roster-readiness-concurrency.node-test.mjs`, `scripts/owner-statement-artifact-storage.node-test.mjs`, `scripts/owner-statement-publication-concurrency.node-test.mjs`, `scripts/paid-cost-concurrency.node-test.mjs`, `scripts/photo-logo-storage-concurrency.node-test.mjs`, `scripts/report-owner-roster-preflight.mjs`, `scripts/run-daily-workflow-ci.mjs`, `scripts/smoke-daily-workflow.mjs`, `scripts/smoke-fixture-finance-manager-day.mjs`, `scripts/smoke-fixture-owner-balance-lifecycle.mjs`, `scripts/smoke-fixture-owner-close.mjs`, `scripts/smoke-ips-cutover-browser-acceptance.mjs`, `scripts/smoke-ips-cutover-rehearsal.mjs`, `scripts/smoke-ips-golden-setup.mjs`, `scripts/smoke-ips-paid-cost-browser-acceptance.mjs`, `scripts/smoke-ips-paid-cost-scenarios.mjs`, `scripts/smoke-ips-rent-browser-acceptance.mjs`, `scripts/smoke-ips-rent-scenarios.mjs`, `scripts/smoke-owner-balance-browser-acceptance.mjs`, `scripts/smoke-owner-close-browser-acceptance.mjs`, `scripts/smoke-owner-opening-browser-acceptance.mjs`, `scripts/smoke-owner-statement-browser-acceptance.mjs` |
 | `scripts/load-test-fixture.node-test.mjs` | default-gate | `docs/repository/legacy-test-compatibility-inventory.md`, `docs/superpowers/plans/2026-08-24-legacy-test-compatibility-cleanup.md`, `package:test:contracts` |
 | `scripts/local-fixture-credentials.ts` | unreferenced | None found |
-| `scripts/local-recovery-docker.mjs` | reusable-support | `docs/runbooks/ips-recovery-and-rollback.md`, `scripts/deposit-candidate-target.node-test.mjs`, `scripts/ips-integrated-readiness-fixture.mjs`, `scripts/ips-readiness-recovery.mjs`, `scripts/maintenance-automation-runs-target.mjs`, `scripts/property-concurrency-target.mjs`, `scripts/rehearse-synthetic-recovery.mjs`, `scripts/rent-readiness-target.mjs`, `scripts/rent-readiness-target.node-test.mjs`, `scripts/smoke-ips-owner-statement-readiness.mjs`, `scripts/synthetic-recovery.node-test.mjs`, `scripts/test-deposit-candidate-local.mjs`, `scripts/test-deposit-statement-reader-local.mjs`, `scripts/unit-create-http-recovery.node-test.mjs` |
+| `scripts/local-recovery-docker.mjs` | reusable-support | `docs/runbooks/ips-recovery-and-rollback.md`, `scripts/checked-operational-command-concurrency.node-test.mjs`, `scripts/deposit-candidate-target.node-test.mjs`, `scripts/financial-report-revision-concurrency.node-test.mjs`, `scripts/financial-reset-phase-concurrency.node-test.mjs`, `scripts/ips-integrated-readiness-fixture.mjs`, `scripts/ips-readiness-recovery.mjs`, `scripts/lease-deposit-chronology-concurrency.node-test.mjs`, `scripts/maintenance-automation-runs-target.mjs`, `scripts/pilot-finance-reset-core.mjs`, `scripts/pilot-finance-reset-executor-local.mjs`, `scripts/pilot-finance-reset-manifest.mjs`, `scripts/pilot-finance-reset-recovery.mjs`, `scripts/property-concurrency-target.mjs`, `scripts/rehearse-synthetic-recovery.mjs`, `scripts/rent-readiness-target.mjs`, `scripts/rent-readiness-target.node-test.mjs`, `scripts/smoke-ips-owner-statement-readiness.mjs`, `scripts/synthetic-recovery.node-test.mjs`, `scripts/test-deposit-candidate-local.mjs`, `scripts/test-deposit-statement-reader-local.mjs`, `scripts/unit-create-http-recovery.node-test.mjs` |
 | `scripts/maintenance-automation-runner.node-test.mjs` | default-gate | `docs/runbooks/background-jobs-and-recovery.md`, `docs/superpowers/plans/2026-08-26-second-wave-security-remediation.md`, `package:maintenance:test-runner`, `package:test:contracts` |
 | `scripts/maintenance-automation-runs-target.mjs` | reusable-support | `scripts/maintenance-automation-runs-target.node-test.mjs`, `scripts/maintenance-automation-runs.integration.mjs` |
 | `scripts/maintenance-automation-runs-target.node-test.mjs` | default-gate | `package:test:contracts` |
@@ -112,6 +116,20 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/paid-cost-fixture-periods.test.ts` | default-gate | None found |
 | `scripts/paid-cost-fixture-periods.ts` | unreferenced | None found |
 | `scripts/photo-logo-storage-concurrency.node-test.mjs` | workflow-gate | `.github/workflows/ci.yml` |
+| `scripts/pilot-finance-reset-core.mjs` | reusable-support | `scripts/pilot-finance-reset-executor-local.mjs`, `scripts/pilot-finance-reset-executor-local.node-test.mjs`, `scripts/pilot-finance-reset-executor-plan.mjs`, `scripts/pilot-finance-reset-executor-plan.node-test.mjs`, `scripts/pilot-finance-reset-manifest.mjs`, `scripts/pilot-finance-reset-plan-core.mjs`, `scripts/pilot-finance-reset-plan.mjs`, `scripts/pilot-finance-reset-plan.node-test.mjs`, `scripts/pilot-finance-reset-recovery-core.mjs`, `scripts/pilot-finance-reset-recovery.mjs`, `scripts/pilot-finance-reset-recovery.node-test.mjs`, `scripts/pilot-finance-reset.node-test.mjs` |
+| `scripts/pilot-finance-reset-executor-local.mjs` | reusable-support | `scripts/pilot-finance-reset-executor-local.node-test.mjs` |
+| `scripts/pilot-finance-reset-executor-local.node-test.mjs` | default-gate | `package:test:contracts`, `package:test:pilot-finance-reset` |
+| `scripts/pilot-finance-reset-executor-plan.mjs` | reusable-support | `scripts/pilot-finance-reset-executor-local.mjs`, `scripts/pilot-finance-reset-executor-plan.node-test.mjs` |
+| `scripts/pilot-finance-reset-executor-plan.node-test.mjs` | default-gate | `package:test:contracts`, `package:test:pilot-finance-reset` |
+| `scripts/pilot-finance-reset-manifest.mjs` | specialist-command | `docs/runbooks/pilot-october-2026-reset-execution-plan.md`, `package:db:pilot-finance-reset-manifest`, `scripts/pilot-finance-reset-core.mjs` |
+| `scripts/pilot-finance-reset-plan-core.mjs` | reusable-support | `scripts/pilot-finance-reset-plan.mjs`, `scripts/pilot-finance-reset-plan.node-test.mjs` |
+| `scripts/pilot-finance-reset-plan.mjs` | specialist-command | `package:db:pilot-finance-reset-plan`, `scripts/pilot-finance-reset-plan.node-test.mjs` |
+| `scripts/pilot-finance-reset-plan.node-test.mjs` | default-gate | `package:test:contracts`, `package:test:pilot-finance-reset` |
+| `scripts/pilot-finance-reset-recovery-core.mjs` | reusable-support | `scripts/pilot-finance-reset-core.mjs`, `scripts/pilot-finance-reset-executor-local.mjs`, `scripts/pilot-finance-reset-plan.mjs`, `scripts/pilot-finance-reset-recovery.mjs`, `scripts/pilot-finance-reset-recovery.node-test.mjs` |
+| `scripts/pilot-finance-reset-recovery.mjs` | specialist-command | `package:db:pilot-finance-reset-recovery`, `scripts/pilot-finance-reset-core.mjs` |
+| `scripts/pilot-finance-reset-recovery.node-test.mjs` | default-gate | `package:test:contracts`, `package:test:pilot-finance-reset` |
+| `scripts/pilot-finance-reset-registry.mjs` | reusable-support | `scripts/pilot-finance-reset-core.mjs`, `scripts/pilot-finance-reset-plan.mjs` |
+| `scripts/pilot-finance-reset.node-test.mjs` | default-gate | `docs/runbooks/pilot-october-2026-reset-execution-plan.md`, `package:test:contracts`, `package:test:pilot-finance-reset` |
 | `scripts/playwright-form-controls.mjs` | reusable-support | `scripts/rent-readiness-target.mjs`, `scripts/smoke-daily-workflow.mjs`, `scripts/smoke-ips-cutover-browser-acceptance.mjs`, `scripts/smoke-ips-rent-browser-acceptance.mjs`, `scripts/smoke-ips-rent-readiness.mjs`, `scripts/smoke-owner-balance-browser-acceptance.mjs`, `scripts/smoke-owner-close-browser-acceptance.mjs`, `scripts/smoke-owner-opening-browser-acceptance.mjs`, `scripts/smoke-owner-statement-browser-acceptance.mjs` |
 | `scripts/property-checked-update-concurrency.node-test.mjs` | specialist-command | `package:properties:test-concurrency` |
 | `scripts/property-concurrency-target.mjs` | reusable-support | `scripts/deposit-candidate-target.node-test.mjs`, `scripts/exact-invitation-renewal-concurrency.node-test.mjs`, `scripts/ordinary-access-activation-concurrency.node-test.mjs`, `scripts/property-checked-update-concurrency.node-test.mjs`, `scripts/unit-create-http-recovery.node-test.mjs` |

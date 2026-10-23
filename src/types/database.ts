@@ -122,6 +122,12 @@ type UpdateUnitRpc =
     };
 
 type RpcFunctionOverrides = {
+  continue_lease_month_to_month: {
+    Args: { p_organization_id: string; p_lease_id: string; p_expected_term_id: string;
+      p_expected_billing_rule_id: string; p_expected_rent_amount: number;
+      p_expected_fee_mode: string; p_expected_fee_value: number; p_idempotency_key: string; };
+    Returns: string;
+  };
   void_tenant_invoice_checked: {
     Args: { p_organization_id: string; p_invoice_id: string; p_expected_issue_date: string; p_expected_lines: Json; p_reason: string; p_idempotency_key: string };
     Returns: Json;

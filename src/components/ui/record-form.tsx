@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import {
   Children,
   cloneElement,
@@ -224,7 +226,7 @@ export function RecordForm({
 
   return (
     <RecordFormEditedFieldsContext.Provider value={editedFieldNames}>
-      <form
+      <FinancialForm
         aria-busy={pending ? "true" : "false"}
         aria-label={ariaLabel}
         className={cn("flex h-full flex-col", className)}
@@ -294,7 +296,7 @@ export function RecordForm({
           status={status}
           statusMessage={pending ? savingLabel : undefined}
         />
-      </form>
+      </FinancialForm>
     </RecordFormEditedFieldsContext.Provider>
   );
 }

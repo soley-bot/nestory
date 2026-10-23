@@ -25,6 +25,7 @@ describe("UnitsPage authority", () => {
     requirePermission.mockReset();
     getUnitPropertyOptions.mockResolvedValue([]);
     getUnitsScreenData.mockResolvedValue({
+      financialGeneration: 2,
       pagination: { totalCount: 0 },
       units: [],
     });
@@ -39,6 +40,7 @@ describe("UnitsPage authority", () => {
     const screen = await UnitsPage({ searchParams: Promise.resolve({}) });
 
     expect(requirePermission).toHaveBeenCalledWith("properties.view");
+    expect(screen.props.financialGeneration).toBe(2);
     expect(screen.props.canCreate).toBe(false);
   });
 

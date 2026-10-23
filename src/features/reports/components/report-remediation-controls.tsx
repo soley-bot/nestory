@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import { useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -42,7 +44,7 @@ export function ReportActionForm({ action, children, className, newCommandLabel,
   const [message, setMessage] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [completed, setCompleted] = useState(false);
-  return <form className={className} onSubmit={(event) => {
+  return <FinancialForm className={className} onSubmit={(event) => {
     event.preventDefault();
     if (inFlight.current || completed) return;
     const data = new FormData(event.currentTarget);
@@ -89,7 +91,7 @@ export function ReportActionForm({ action, children, className, newCommandLabel,
       setCompleted(false);
       setMessage(null);
     }}>{newCommandLabel}</Button> : null}
-  </form>;
+  </FinancialForm>;
 }
 
 export function LockReportMonth({ month }: { month: string }) {

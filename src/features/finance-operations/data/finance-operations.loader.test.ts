@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { getFinanceAccountsData } from "@/features/finance-accounts/data/finance-accounts";
-import { getFinanceOperationsData } from "@/features/finance-operations/data/finance-operations";
+import { getFinanceOperationsData, getLeasePaymentResolutionData } from "@/features/finance-operations/data/finance-operations";
 import { parseRentInvoiceQuery, RentPropertyUnavailableError } from "../rent-invoice-query";
+
+const { readBoundary } = vi.hoisted(() => ({ readBoundary: vi.fn() }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialReadContext: readBoundary }));
+beforeEach(() => { readBoundary.mockReset(); readBoundary.mockImplementation(async (_organizationId, read) => read({ generation: 2, financial_start_date: null })); });
 
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(),
@@ -27,6 +31,34 @@ vi.mock("@/features/finance-accounts/data/finance-accounts", () => ({
 }));
 
 describe("finance operations initial reads", () => {
+  it("rejects stale payment-resolution reads before account or invoice queries", async () => {
+    const harness = createFinanceReadHarness();
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    readBoundary.mockRejectedValueOnce(new Error("The financial session changed"));
+    await expect(getLeasePaymentResolutionData({ organizationId: "organization-1", leaseId: "lease-1", invoiceId: "invoice-1" })).rejects.toThrow("session changed");
+    expect(harness.rpcCalls).toEqual([]);
+    expect(harness.queries).toEqual([]);
+  });
+
+  it("rejects frozen context before any operation sources", async () => {
+    const harness = createFinanceReadHarness();
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    readBoundary.mockRejectedValueOnce(new Error("Financial reporting is paused"));
+    await expect(getFinanceOperationsData("organization-1")).rejects.toThrow("paused");
+    expect(harness.rpcCalls).toEqual([]);
+    expect(harness.queries).toEqual([]);
+  });
+  it("passes the selected expense month and rejects a changed completed read", async () => {
+    const harness = createFinanceReadHarness();
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    readBoundary.mockImplementationOnce(async (_organizationId, read) => {
+      await read({ generation: 2 });
+      throw new Error("Financial data changed while loading");
+    });
+    await expect(getFinanceOperationsData("organization-1", undefined, { expenseMonth: "2026-08" })).rejects.toThrow("changed while");
+    expect(readBoundary).toHaveBeenCalledWith("organization-1", expect.any(Function), "2026-08-01");
+  });
+
   it("turns a property's checked context denial into an unavailable selection", async () => {
     const propertyId = "00000000-0000-4000-8000-000000000030";
     const harness = createFinanceReadHarness({ scoped_context: { data: null, error: { code: "42501", message: "Not authorized" } } });

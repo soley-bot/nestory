@@ -4,8 +4,8 @@ import { preparePaidCostEvidence } from "./paid-cost-evidence";
 export async function retainExpenseEvidence(input: {
   organizationId: string; actorId: string; transactionId: string;
   propertyId: string; idempotencyKey: string; legacySubmission?: boolean;
-}) {
-  const db = await createSupabaseServerClient();
+}, financialIntent?: FormData) {
+  const db = await createSupabaseServerClient(financialIntent);
   const original = await db.from(input.legacySubmission ? "expense_submissions" : "expense_transactions").select("supporting_document_id")
     .eq("organization_id", input.organizationId).eq("id", input.transactionId).single();
   if (original.error || !original.data) throw new Error("Original expense is unavailable.");
