@@ -20,8 +20,11 @@ import type {
 } from "@/features/reports/data/owner-profit-loss-events.types";
 import { getPeopleReadinessReport } from "@/features/people/data/people-readiness";
 import {
-  assertCompleteReportSource,
-  reportSourceRangeEnd,
+  assertReportSourceWithinLimit,
+  compareReportKeys,
+  readReportSource,
+  readReportSourceById,
+  readReportSourceBatches,
 } from "@/features/reports/data/report-source-completeness";
 import {
   loadReportDocuments,
@@ -2114,7 +2117,8 @@ async function loadReportProperties(
   organizationId: string,
   viewQuery: ReportsViewQuery,
 ) {
-  let query = supabase
+  const rows = await readReportSourceById("report properties", (from, to) => {
+    let query = supabase
     .from("properties")
     .select("id, code, name, owner, property_type, status", { count: "exact" })
     .eq("organization_id", organizationId)
@@ -2124,17 +2128,9 @@ async function loadReportProperties(
     query = query.eq("id", viewQuery.propertyId);
   }
 
-  const result = await query
-    .order("code", { ascending: true })
-    .range(0, reportSourceRangeEnd);
-
-  if (result.error) {
-    throw new Error(`Could not load report properties: ${result.error.message}`);
-  }
-
-  assertCompleteReportSource("report properties", result);
-
-  return result.data ?? [];
+    return query.order("id").range(from, to);
+  });
+  return rows.sort((first, second) => first.code.localeCompare(second.code));
 }
 
 async function loadReportUnits(
@@ -2142,24 +2138,17 @@ async function loadReportUnits(
   organizationId: string,
   propertyIds: string[],
 ) {
-  const result = await supabase
+  return readReportSourceBatches("report units", propertyIds, ids =>
+    readReportSourceById("report units", (from, to) => supabase
     .from("units")
     .select(
       "id, property_id, unit_number, floor, size_sqm, status, current_rent_amount, current_rent_currency",
       { count: "exact" },
     )
     .eq("organization_id", organizationId)
-    .in("property_id", propertyIds)
+    .in("property_id", ids)
     .is("archived_at", null)
-    .range(0, reportSourceRangeEnd);
-
-  if (result.error) {
-    throw new Error(`Could not load report units: ${result.error.message}`);
-  }
-
-  assertCompleteReportSource("report units", result);
-
-  return result.data ?? [];
+    .order("id").range(from, to)), row => row.id);
 }
 
 async function loadReportLeases(
@@ -2167,22 +2156,14 @@ async function loadReportLeases(
   organizationId: string,
   propertyIds: string[],
 ) {
-  const result = await supabase
+  return readReportSourceBatches("report leases", propertyIds, ids =>
+    readReportSourceById("report leases", (from, to) => supabase
     .from("current_leases")
     .select(reportLeaseSelect, { count: "exact" })
     .eq("organization_id", organizationId)
-    .in("property_id", propertyIds)
+    .in("property_id", ids)
     .is("archived_at", null)
-    .order("lease_start_date", { ascending: false })
-    .range(0, reportSourceRangeEnd);
-
-  if (result.error) {
-    throw new Error(`Could not load report leases: ${result.error.message}`);
-  }
-
-  assertCompleteReportSource("report leases", result);
-
-  return result.data ?? [];
+    .order("id").range(from, to)), row => row.id);
 }
 
 async function loadReportLeaseTerms(
@@ -2191,29 +2172,20 @@ async function loadReportLeaseTerms(
   leaseIds: string[],
   effectiveDate: string,
 ) {
-  const result = await supabase
+  return readReportSourceBatches("report lease terms", leaseIds, ids =>
+    readReportSourceById("report lease terms", (from, to) => supabase
     .from("lease_terms")
     .select(
       "id, lease_id, term_sequence, start_date, end_date, rent_amount, rent_currency, status, archived_at",
       { count: "exact" },
     )
     .eq("organization_id", organizationId)
-    .in("lease_id", leaseIds)
+    .in("lease_id", ids)
     .in("status", ["active", "upcoming"])
     .is("archived_at", null)
     .lte("start_date", effectiveDate)
     .gte("end_date", effectiveDate)
-    .range(0, reportSourceRangeEnd);
-
-  if (result.error) {
-    throw new Error(
-      `Could not load report lease terms: ${result.error.message}`,
-    );
-  }
-
-  assertCompleteReportSource("report lease terms", result);
-
-  return result.data ?? [];
+    .order("id").range(from, to)), row => row.id);
 }
 
 function projectEffectiveLeaseRent(
@@ -2265,27 +2237,19 @@ async function loadReportLedger(
   propertyIds: string[],
   period: { end: string; start: string },
 ) {
-  const result = await supabase
+  return readReportSourceBatches("report ledger entries", propertyIds, ids =>
+    readReportSourceById("report ledger entries", (from, to) => supabase
     .from("ledger_entries")
     .select(
       "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description",
       { count: "exact" },
     )
     .eq("organization_id", organizationId)
-    .in("property_id", propertyIds)
+    .in("property_id", ids)
     .is("archived_at", null)
     .gte("transaction_date", period.start)
     .lte("transaction_date", period.end)
-    .order("transaction_date", { ascending: true })
-    .range(0, reportSourceRangeEnd);
-
-  if (result.error) {
-    throw new Error(`Could not load report ledger entries: ${result.error.message}`);
-  }
-
-  assertCompleteReportSource("report ledger entries", result);
-
-  return result.data ?? [];
+    .order("id").range(from, to)), row => row.id);
 }
 
 async function loadReportPropertyCashEvents({
@@ -2299,8 +2263,10 @@ async function loadReportPropertyCashEvents({
   propertyIds: string[];
   supabase: SupabaseServerClient;
 }) {
-  const eventLists = await Promise.all(
-    propertyIds.map(async (propertyId) => {
+  const eventLists: PropertyCashEvent[][] = [];
+  let loadedEvents = 0;
+  for (let offset = 0; offset < propertyIds.length; offset += 4) {
+    eventLists.push(...await Promise.all(propertyIds.slice(offset, offset + 4).map(async (propertyId) => {
       const events: PropertyCashEvent[] = [];
 
       for await (const event of iteratePropertyCashEvents(
@@ -2313,12 +2279,13 @@ async function loadReportPropertyCashEvents({
           propertyId,
         },
       )) {
+        assertReportSourceWithinLimit("report property cash events", ++loadedEvents);
         events.push(event);
       }
 
       return events;
-    }),
-  );
+    })));
+  }
 
   return eventLists.flat();
 }
@@ -2334,8 +2301,10 @@ async function loadReportOwnerProfitLossEvents({
   propertyIds: string[];
   supabase: SupabaseServerClient;
 }) {
-  const eventLists = await Promise.all(
-    propertyIds.map(async (propertyId) => {
+  const eventLists: OwnerProfitLossEvent[][] = [];
+  let loadedEvents = 0;
+  for (let offset = 0; offset < propertyIds.length; offset += 4) {
+    eventLists.push(...await Promise.all(propertyIds.slice(offset, offset + 4).map(async (propertyId) => {
       const events: OwnerProfitLossEvent[] = [];
 
       for await (const event of iterateOwnerProfitLossEvents(
@@ -2348,21 +2317,20 @@ async function loadReportOwnerProfitLossEvents({
           propertyId,
         },
       )) {
+        assertReportSourceWithinLimit("report owner profit and loss events", ++loadedEvents);
         events.push(event);
       }
 
       const names = new Map<string, string>();
       for (let offset = 0; offset < events.length; offset += 200) {
         const keys = events.slice(offset, offset + 200).map((event) => event.eventKey);
-        const result = await supabase.rpc("get_owner_profit_loss_names", {
+        const nameRows = await readReportSource("profit and loss transaction names", (from, to) => supabase.rpc("get_owner_profit_loss_names", {
           p_organization_id: organizationId,
           p_property_id: propertyId,
           p_event_keys: keys,
-        });
-        if (result.error) {
-          throw new Error("Could not load profit and loss transaction names.");
-        }
-        for (const row of result.data ?? []) {
+        }, { count: "exact" }).order("event_key").range(from, to), row => row.event_key,
+          (previous, current) => compareReportKeys(previous.event_key, current.event_key));
+        for (const row of nameRows) {
           if (!keys.includes(row.event_key) || names.has(row.event_key)) {
             throw new Error("Profit and loss transaction names are ambiguous.");
           }
@@ -2373,8 +2341,8 @@ async function loadReportOwnerProfitLossEvents({
         ...event,
         partyName: names.get(event.eventKey) ?? "",
       }));
-    }),
-  );
+    })));
+  }
 
   return eventLists.flat();
 }
@@ -2385,27 +2353,19 @@ async function loadReportTimeline(
   propertyIds: string[],
   period: { end: string; start: string },
 ) {
-  const result = await supabase
+  return readReportSourceBatches("report timeline events", propertyIds, ids =>
+    readReportSourceById("report timeline events", (from, to) => supabase
     .from("timeline_events")
     .select(
       "id, property_id, unit_id, lease_id, ledger_entry_id, event_date, event_type, title, description, cost_amount, cost_currency",
       { count: "exact" },
     )
     .eq("organization_id", organizationId)
-    .in("property_id", propertyIds)
+    .in("property_id", ids)
     .is("archived_at", null)
     .gte("event_date", period.start)
     .lte("event_date", period.end)
-    .order("event_date", { ascending: true })
-    .range(0, reportSourceRangeEnd);
-
-  if (result.error) {
-    throw new Error(`Could not load report timeline events: ${result.error.message}`);
-  }
-
-  assertCompleteReportSource("report timeline events", result);
-
-  return result.data ?? [];
+    .order("id").range(from, to)), row => row.id);
 }
 
 async function loadReportMaintenanceTasks(
@@ -2415,31 +2375,22 @@ async function loadReportMaintenanceTasks(
   period: { end: string; start: string },
 ) {
   const periodEndExclusive = addIsoDays(period.end, 1);
-  const result = await supabase
+  const rows = await readReportSourceBatches("report maintenance cases", propertyIds, ids =>
+    readReportSourceById("report maintenance cases", (from, to) => supabase
     .from("tasks")
     .select(
       "id, property_id, unit_id, title, category, priority, status, due_date, due_time, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, recurrence_frequency, timeline_event_id, created_at",
       { count: "exact" },
     )
     .eq("organization_id", organizationId)
-    .in("property_id", propertyIds)
+    .in("property_id", ids)
     .is("archived_at", null)
     .or(
       `and(due_date.gte.${period.start},due_date.lte.${period.end}),and(due_date.is.null,created_at.gte.${period.start}T00:00:00.000Z,created_at.lt.${periodEndExclusive}T00:00:00.000Z)`,
     )
-    .order("due_date", { ascending: true, nullsFirst: false })
-    .order("created_at", { ascending: true })
-    .range(0, reportSourceRangeEnd);
+    .order("id").range(from, to)), row => row.id);
 
-  if (result.error) {
-    throw new Error(
-      `Could not load report maintenance cases: ${result.error.message}`,
-    );
-  }
-
-  assertCompleteReportSource("report maintenance cases", result);
-
-  return ((result.data ?? []) as MaintenanceTaskRow[]).filter((task) =>
+  return (rows as MaintenanceTaskRow[]).filter((task) =>
     taskFallsInPeriod(task, period),
   );
 }
@@ -2449,25 +2400,18 @@ async function loadReportOwners(
   organizationId: string,
   propertyIds: string[],
 ) {
-  const result = await supabase
+  return readReportSourceBatches("report owners", propertyIds, ids =>
+    readReportSourceById("report owners", (from, to) => supabase
     .from("property_owners")
     .select("id, property_id, person_id, ownership_label, ownership_percent", {
       count: "exact",
     })
     .eq("organization_id", organizationId)
-    .in("property_id", propertyIds)
+    .in("property_id", ids)
     .eq("is_primary", true)
     .is("archived_at", null)
     .is("ended_on", null)
-    .range(0, reportSourceRangeEnd);
-
-  if (result.error) {
-    throw new Error(`Could not load report owners: ${result.error.message}`);
-  }
-
-  assertCompleteReportSource("report owners", result);
-
-  return result.data ?? [];
+    .order("id").range(from, to)), row => row.id);
 }
 
 async function loadReportPeople(
@@ -2479,21 +2423,14 @@ async function loadReportPeople(
     return [];
   }
 
-  const result = await supabase
+  return readReportSourceBatches("report owner people", personIds, ids =>
+    readReportSourceById("report owner people", (from, to) => supabase
     .from("people")
     .select("id, display_name", { count: "exact" })
     .eq("organization_id", organizationId)
-    .in("id", [...personIds])
+    .in("id", ids)
     .is("archived_at", null)
-    .range(0, reportSourceRangeEnd);
-
-  if (result.error) {
-    throw new Error(`Could not load report owner people: ${result.error.message}`);
-  }
-
-  assertCompleteReportSource("report owner people", result);
-
-  return result.data ?? [];
+    .order("id").range(from, to)), row => row.id);
 }
 
 function addIsoDays(date: string, days: number) {

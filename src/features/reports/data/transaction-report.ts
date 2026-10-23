@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { getReportDateRange } from "@/features/reports/reports.filters";
+import { maxReportSourceRows, readReportSourceById } from "./report-source-completeness";
 import {
   loadScopedFinanceContext,
   type ScopedFinanceContext,
@@ -28,7 +29,7 @@ import type {
 
 type Client = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 type Database = import("@/types/database.generated").Database;
-const MAX_ROWS = 10_000;
+const MAX_ROWS = maxReportSourceRows;
 const PAGE_SIZE = 500;
 const typeLabels = {
   "rent-charge": "Rent charge",
@@ -68,13 +69,16 @@ type PageResult<T> = {
   count: number | null;
 };
 /** A function's SQL limit can itself be truncated by the Data API row cap. */
-export function assertTransactionRpcPage(result: PageResult<unknown>) {
+export function assertTransactionRpcPage(result: PageResult<unknown>, cursorPageSize?: number) {
   if (result.error)
     throw new Error(`Transaction event source failed: ${result.error.message}`);
   if (
-    result.count === null ||
-    !result.data ||
-    result.count !== result.data.length
+    result.count === null || !Number.isSafeInteger(result.count) || result.count < 0 ||
+    !Array.isArray(result.data) ||
+    (cursorPageSize === undefined
+      ? result.count !== result.data.length
+      : !Number.isSafeInteger(cursorPageSize) || cursorPageSize < 1 || result.count > cursorPageSize
+        || result.count < result.data.length || (result.data.length === 0 && result.count !== 0))
   ) {
     throw new Error(
       "Transaction event source is incomplete; narrow the scope.",
@@ -85,50 +89,7 @@ export function assertTransactionRpcPage(result: PageResult<unknown>) {
 export async function loadTransactionReportPages<T extends { id: string }>(
   fetchPage: (from: number, to: number) => PromiseLike<PageResult<T>>,
 ) {
-  const rows: T[] = [];
-  const seen = new Set<string>();
-  let expected: number | undefined;
-  for (;;) {
-    const result = await fetchPage(rows.length, rows.length + PAGE_SIZE - 1);
-    if (result.error || !result.data)
-      throw new Error(
-        `Could not load complete transaction report source: ${result.error?.message ?? "missing data"}`,
-      );
-    if (
-      result.count === null ||
-      !Number.isSafeInteger(result.count) ||
-      result.count < 0
-    )
-      throw new Error("Transaction source exact count is unavailable.");
-    if (result.count > MAX_ROWS)
-      throw new Error(
-        "Transaction report exceeds 10,000 source rows; narrow the scope.",
-      );
-    if (expected !== undefined && expected !== result.count)
-      throw new Error(
-        "Transaction source count changed while loading; run the report again.",
-      );
-    expected = result.count;
-    if (result.data.length === 0 && rows.length < expected)
-      throw new Error("Transaction source is incomplete.");
-    if (result.data.length > PAGE_SIZE)
-      throw new Error("Transaction report source exceeded page size.");
-    for (const row of result.data) {
-      if (!row.id || seen.has(row.id))
-        throw new Error(
-          "Transaction report source identity repeated or missing.",
-        );
-      seen.add(row.id);
-      rows.push(row);
-      if (rows.length > MAX_ROWS)
-        throw new Error(
-          "Transaction report exceeds 10,000 source rows; narrow the scope.",
-        );
-    }
-    if (rows.length > expected)
-      throw new Error("Transaction source count is inconsistent.");
-    if (rows.length === expected) return rows;
-  }
+  return readReportSourceById("Transaction report source", fetchPage);
 }
 
 export async function getTransactionReport({
@@ -152,7 +113,8 @@ export async function getTransactionReport({
         args as unknown as Database["public"]["Functions"]["get_owner_profit_loss_events_page"]["Args"],
         { count: "exact" },
       );
-      assertTransactionRpcPage(result);
+      // This consumer advances the actual keyset cursor until an empty page.
+      assertTransactionRpcPage(result, args.p_page_size);
       return result as unknown as Awaited<
         ReturnType<OwnerProfitLossEventsRpcClient["rpc"]>
       >;
@@ -165,7 +127,7 @@ export async function getTransactionReport({
         args as unknown as Database["public"]["Functions"]["get_property_cash_events_page"]["Args"],
         { count: "exact" },
       );
-      assertTransactionRpcPage(result);
+      assertTransactionRpcPage(result, args.p_page_size);
       return result as unknown as Awaited<
         ReturnType<PropertyCashEventsRpcClient["rpc"]>
       >;
@@ -203,7 +165,7 @@ export async function getTransactionReport({
     entries.push(entry);
     if (entries.length > MAX_ROWS)
       throw new Error(
-        "Transaction report exceeds 10,000 rows; narrow the scope.",
+        `Transaction report exceeds ${MAX_ROWS.toLocaleString()} rows; narrow the scope.`,
       );
   };
   const selectedType =
@@ -767,10 +729,10 @@ async function* iterateRecognizedTransactionEvents(
         throw new Error("Duplicate recognized transaction source.");
       matched.add(event.eventKey);
       if (matched.size > MAX_ROWS)
-        throw new Error("Recognized transactions exceed 10,000 rows; narrow the scope.");
+        throw new Error(`Recognized transactions exceed ${MAX_ROWS.toLocaleString()} rows; narrow the scope.`);
       yield event;
     }
-    if (page.rows.length < page.pageSize) return;
+    if (page.rows.length === 0) return;
   }
 }
 
@@ -806,9 +768,9 @@ async function* iteratePaidCostEvents(
         throw new Error("Duplicate paid cost source.");
       matched.add(event.eventKey);
       if (matched.size > MAX_ROWS)
-        throw new Error("Paid costs exceed 10,000 rows; narrow the scope.");
+        throw new Error(`Paid costs exceed ${MAX_ROWS.toLocaleString()} rows; narrow the scope.`);
       yield event;
     }
-    if (page.rows.length < page.pageSize) return;
+    if (page.rows.length === 0) return;
   }
 }

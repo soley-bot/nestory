@@ -113,11 +113,11 @@ describe("Finance Manager statement fee attribution through the existing propert
     const model = fixture(type);
     const before = structuredClone(model);
     const records = feeRecords();
-    const rpc = vi.fn().mockResolvedValue({ data: [feeRow(model)], error: null });
+    const rpc = vi.fn().mockResolvedValueOnce({ data: [feeRow(model)], error: null }).mockResolvedValue({ data: [], error: null });
     expect(await loadStatementTransactionDetails(client(model, records, rpc), model, identity, finance(model, records)))
       .toEqual({ 1: { unit: "The PEAK #2807", name: "Company", category: "Management Fees" } });
     expect(model).toEqual(before);
-    expect(rpc).toHaveBeenCalledExactlyOnceWith("get_owner_profit_loss_events_page", {
+    expect(rpc).toHaveBeenNthCalledWith(1, "get_owner_profit_loss_events_page", {
       p_organization_id: model.organizationId, p_property_id: model.propertyId, p_currency: "USD",
       p_period_start: "2026-01-01", p_period_end: "2026-01-31", p_page_size: 500,
       p_after_recognized_on: null, p_after_source_id: null, p_after_source_type: null,
@@ -128,13 +128,13 @@ describe("Finance Manager statement fee attribution through the existing propert
     const model = fixture("owner_invoice_payment");
     model.lines.push({ ...model.lines[0]!, lineNumber: 2 });
     const records = feeRecords();
-    const firstPage = Array.from({ length: 500 }, (_, index) => feeRow(model, String(index).padStart(4, "0")));
-    const rpc = vi.fn().mockResolvedValueOnce({ data: firstPage, error: null }).mockResolvedValueOnce({ data: [feeRow(model)], error: null });
+    const firstPage = Array.from({ length: 137 }, (_, index) => feeRow(model, String(index).padStart(4, "0")));
+    const rpc = vi.fn().mockResolvedValueOnce({ data: firstPage, error: null }).mockResolvedValueOnce({ data: [feeRow(model)], error: null }).mockResolvedValue({ data: [], error: null });
     const result = await loadStatementTransactionDetails(client(model, records, rpc), model, identity, finance(model, records));
     expect(result[1]).toEqual(result[2]);
     expect(result[1]?.unit).toBe("The PEAK #2807");
-    expect(rpc).toHaveBeenCalledTimes(2);
-    expect(rpc.mock.calls[1]![1]).toMatchObject({ p_after_recognized_on: feeDate, p_after_source_type: "management_fee_occurrence", p_after_source_id: "0499" });
+    expect(rpc).toHaveBeenCalledTimes(3);
+    expect(rpc.mock.calls[1]![1]).toMatchObject({ p_after_recognized_on: feeDate, p_after_source_type: "management_fee_occurrence", p_after_source_id: "0136" });
   });
   it("handles migrated monthly invoice dates and preserves reconciled PDF/Excel cash figures", async () => {
     const model = fixture("owner_invoice_payment");
@@ -146,7 +146,7 @@ describe("Finance Manager statement fee attribution through the existing propert
     records.owner_invoice_lines[0]!.recognized_on = "2026-01-01";
     // The original fee was 50; this frozen settlement is only 40. Never copy
     // recognized fee money into the cash statement while enriching its labels.
-    const rpc = vi.fn().mockResolvedValue({ data: [feeRow(model)], error: null });
+    const rpc = vi.fn().mockResolvedValueOnce({ data: [feeRow(model)], error: null }).mockResolvedValue({ data: [], error: null });
     const transactionDetails = await loadStatementTransactionDetails(client(model, records, rpc), model, identity, finance(model, records));
     const presentation = { ...identity, propertyLabel: "Property", transactionDetails };
     const pdfBytes = buildOwnerStatementPdf(model, presentation);
@@ -178,7 +178,7 @@ describe("Finance Manager statement fee attribution through the existing propert
     let offset = 0;
     const rpc = vi.fn(async () => { const data = rows.slice(offset, offset + 500); offset += 500; return { data, error: null }; });
     expect((await loadStatementTransactionDetails(client(model, records, rpc), model, identity, finance(model, records)))[1]?.unit).toBe("The PEAK #2807");
-    expect(rpc).toHaveBeenCalledTimes(21);
+    expect(rpc).toHaveBeenCalledTimes(22);
   });
   it("follows an exact fingerprint reversal to the settled fee", async () => {
     const model = fixture("reversal");
@@ -186,7 +186,7 @@ describe("Finance Manager statement fee attribution through the existing propert
       { id: "reverse", source_line_id: "source", source_type: "reversal", source_fingerprint: model.lines[0]!.sources[0]!.sourceFingerprint, reversal_of_allocation_set_id: "original" },
       { id: "original", source_line_id: "source", source_type: "owner_invoice_payment", source_fingerprint: "original-fingerprint" },
     ] };
-    const rpc = vi.fn().mockResolvedValue({ data: [feeRow(model)], error: null });
+    const rpc = vi.fn().mockResolvedValueOnce({ data: [feeRow(model)], error: null }).mockResolvedValue({ data: [], error: null });
     expect((await loadStatementTransactionDetails(client(model, records, rpc), model, identity, finance(model, records)))[1]?.unit).toBe("The PEAK #2807");
   });
   it.each([

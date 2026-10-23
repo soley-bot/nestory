@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { loadProfitLossFunding } from "./profit-loss-funding-loader";
+import { createCappedReadHarness } from "@/lib/db/complete-read.test-fixture";
 
 function harness({ rows = 501, failure = false } = {}) {
   const calls: unknown[][] = [];
@@ -16,7 +17,7 @@ function harness({ rows = 501, failure = false } = {}) {
       then(resolve: (result: unknown) => unknown) {
         return Promise.resolve(resolve(table === "owner_cash_events" ? {
           count: rows, error: failure ? { message: "failed" } : null,
-          data: Array.from({ length: Math.max(0, Math.min(end + 1, rows) - start) }, (_, i) => ({ id: `c${start + i}`, property_id: "p1", unit_id: "u1", event_date: "2026-09-01", amount: "0.01" })),
+          data: Array.from({ length: Math.max(0, Math.min(end + 1, rows) - start) }, (_, i) => ({ id: `c${String(start + i).padStart(6, "0")}`, property_id: "p1", unit_id: "u1", event_date: "2026-09-01", amount: "0.01" })),
         } : { error: null, data: [{ property_id: "p1", unit_id: null, event_date: "2026-08-01", category: "owner_contribution", balance_effect: "-93.00", source_type: "owner_contribution", source_id: "prior" }] }));
       },
     };
@@ -30,9 +31,30 @@ const options = {
   viewQuery: { unitId: "u1" } as never,
 };
 describe("P&L funding source loader", () => {
+  it("totals 36,000 prior unit entries and 36,000 contributions through a 137-row cap", async () => {
+    const id = (index: number) => String(index).padStart(6, "0");
+    const h = createCappedReadHarness({
+      property_account_entries: Array.from({ length: 36_000 }, (_, index) => ({
+        organization_id: "org", property_id: "p1", unit_id: "u1", event_date: "2026-08-01",
+        category: "owner_expense", balance_effect: "-0.01", source_type: "ips_expense_responsibility", source_id: id(index),
+      })),
+      owner_cash_events: Array.from({ length: 36_000 }, (_, index) => ({
+        id: id(index), organization_id: "org", property_id: "p1", unit_id: "u1", event_date: "2026-09-01",
+        amount: "0.01", currency: "USD", event_type: "owner_contribution", reversal_of_id: null,
+      })),
+    }, { apiRowCap: 137 });
+    const result = await loadProfitLossFunding({ ...options, financeContext: {
+      units: [{ id: "u1", property_id: "p1" }, { id: "u2", property_id: "p1" }],
+    } as never, supabase: h.client as never });
+    expect(result).toMatchObject({ contributionCents: BigInt(36_000), remainingBalanceCents: BigInt(-36_000) });
+    for (const read of h.reads) {
+      expect(read.filters).toContainEqual({ method: "eq", column: "organization_id", value: "org" });
+      expect(read.filters).toContainEqual({ method: "eq", column: "property_id", value: "p1" });
+    }
+  }, 20_000);
   it.each(["complete", "missing source", "over limit", "dense contributions"])("resolves prior contribution units across every activity page (%s)", async scenario => {
     const calls: unknown[][] = [];
-    const history = Array.from({ length: 501 }, (_, i) => ({ property_id: "p1", unit_id: i === 500 ? null : "u1", event_date: "2026-08-01", category: i === 500 ? "owner_contribution" : "owner_expense", balance_effect: i === 500 ? "682.00" : "-1.00", source_type: i === 500 ? "owner_contribution" : "ips_expense_responsibility", source_id: `s${i}` }));
+    const history = Array.from({ length: 501 }, (_, i) => ({ property_id: "p1", unit_id: i === 500 ? null : "u1", event_date: "2026-08-01", category: i === 500 ? "owner_contribution" : "owner_expense", balance_effect: i === 500 ? "682.00" : "-1.00", source_type: i === 500 ? "owner_contribution" : "ips_expense_responsibility", source_id: `s${String(i).padStart(6, "0")}` }));
     if (scenario === "dense contributions") for (const row of history) {
       row.unit_id = null;
       row.source_type = "owner_contribution";
@@ -49,19 +71,19 @@ describe("P&L funding source loader", () => {
         in(...args: unknown[]) { sourceLookup = true; sourceIds = args[1] as string[]; calls.push([table, "in", ...args]); return query; },
         range(from: number, to: number) { start = from; end = to; calls.push([table, "range", from, to]); return query; },
         then(resolve: (result: unknown) => unknown) {
-          return Promise.resolve(resolve(table === "property_account_entries" ? { error: null, count: scenario === "over limit" ? 10001 : history.length, data: history.slice(start, end + 1).map(row => ({ ...row })) } : { error: null, count: 0, data: sourceLookup && scenario !== "missing source" ? sourceIds.map(id => ({ id, unit_id: "u1", reversal_of_id: null })) : [] }));
+          return Promise.resolve(resolve(table === "property_account_entries" ? { error: null, count: scenario === "over limit" ? 100001 : history.length, data: history.slice(start, end + 1).map(row => ({ ...row })) } : { error: null, count: sourceLookup && scenario !== "missing source" ? sourceIds.length : 0, data: sourceLookup && scenario !== "missing source" ? sourceIds.slice(start, end + 1).map(id => ({ id, unit_id: "u1", reversal_of_id: null })) : [] }));
         },
       };
       return query;
     } };
     const result = loadProfitLossFunding({ ...options, financeContext: { units: [{ id: "u1", property_id: "p1" }, { id: "u2", property_id: "p1" }] } as never, supabase: client as never });
-    if (scenario === "over limit") await expect(result).rejects.toThrow(/10,000-row/);
+    if (scenario === "over limit") await expect(result).rejects.toThrow(/100000/);
     else if (scenario === "missing source") await expect(result).rejects.toThrow(/resolve unit contribution/);
     else {
       expect(await result).toMatchObject({ remainingBalanceCents: BigInt(scenario === "dense contributions" ? 50100 : 18200) });
       expect(calls.filter(call => call[1] === "in").every(call => (call[3] as string[]).length <= 100)).toBe(true);
-      expect(calls).toContainEqual(["property_account_entries", "range", 500, 999]);
-      expect(calls).toContainEqual(["owner_cash_events", "in", "id", ["s500"]]);
+      expect(calls).toContainEqual(["property_account_entries", "range", 500, 500]);
+      expect(calls).toContainEqual(["owner_cash_events", "in", "id", ["s000500"]]);
       expect(calls).toContainEqual(["owner_cash_events", "eq", "property_id", "p1"]);
     }
   });
@@ -69,7 +91,7 @@ describe("P&L funding source loader", () => {
     const { calls, client } = harness();
     const result = await loadProfitLossFunding({ ...options, supabase: client as never });
     expect(result).toMatchObject({ contributionCents: BigInt(501), remainingBalanceCents: BigInt(-9300) });
-    expect(calls).toContainEqual(["owner_cash_events", "range", 500, 999]);
+    expect(calls).toContainEqual(["owner_cash_events", "range", 500, 500]);
     expect(calls).toContainEqual(["property_account_entries", "range", 0, 0]);
     expect(calls).toContainEqual(["property_account_entries", "lt", "event_date", "2026-09-01"]);
     expect(calls.filter(call => call[0] === "property_account_entries" && call[1] === "order").map(call => call[2])).toEqual(["event_date", "created_at", "source_type", "source_id"]);

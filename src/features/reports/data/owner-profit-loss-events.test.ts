@@ -73,6 +73,36 @@ const scope = {
 };
 
 describe("owner profit and loss recognized-event adapter", () => {
+  it("continues after server-capped pages and reads 36,000 exact financial events", async () => {
+    const total = 36_000;
+    let calls = 0;
+    const client: OwnerProfitLossEventsRpcClient = {
+      async rpc(_name, args) {
+        calls += 1;
+        const start = args.p_after_source_id ? Number(args.p_after_source_id.slice(-12)) : 0;
+        return {
+          error: null,
+          data: Array.from({ length: Math.min(137, total - start) }, (_, index) =>
+            row(`55555555-5555-4555-8555-${String(start + index + 1).padStart(12, "0")}`, { signed_amount: "0.01" })),
+        };
+      },
+    };
+    let count = 0;
+    let cents = BigInt(0);
+    for await (const event of iterateOwnerProfitLossEvents(client, { ...scope, pageSize: 500 })) {
+      count += 1;
+      cents += event.signedAmountCents;
+    }
+    expect(count).toBe(total);
+    expect(cents).toBe(BigInt(total));
+    expect(calls).toBe(Math.ceil(total / 137) + 1);
+  });
+
+  it("rejects missing event data rather than treating it as an empty final page", async () => {
+    const iterator = iterateOwnerProfitLossEvents({ rpc: async () => ({ data: null, error: null }) }, scope);
+    await expect(iterator.next()).rejects.toThrow();
+  });
+
   it("preserves Finance category identity, current label, and reporting group", () => {
     const sourceId = "55555555-5555-4555-8555-555555555555";
     const databaseRow = Object.assign(row(sourceId), {

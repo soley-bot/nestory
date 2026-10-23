@@ -937,6 +937,96 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.queryByRole("dialog", { name: "Finance categories" })).toBeNull();
   });
 
+  it.each([false, true])(
+    "describes an empty work queue without assuming account or opening readiness (accounts configured: %s)",
+    (accountsConfigured) => {
+      const input = data();
+      input.leases = [];
+      input.positions = [];
+      if (!accountsConfigured) {
+        input.expenseAccounts = [];
+        input.financeCategories = [];
+        input.leaseChargeAccounts = [];
+        input.leaseDepositAccounts = [];
+        input.payFromAccounts = [];
+        input.peopleOptions = [];
+        input.propertyOptions = [];
+        input.reconciliationSources = [];
+        input.unitOptions = [];
+      }
+
+      render(
+        <FinanceOperationsScreen
+          {...input}
+          {...financeCapabilities()}
+          organizationName="Sokha Property Services"
+          view="work"
+        />,
+      );
+
+      const status = screen.getByRole("status");
+      expect(within(status).getByRole("heading", { name: "No finance work" })).not.toBeNull();
+      expect(status.textContent).toContain(
+        "Lease billing setup and unpaid invoices will appear here when there is work to review.",
+      );
+      expect(status.getAttribute("aria-live")).toBe("polite");
+      expect(screen.getByLabelText("Finance work summary").textContent).toContain("0 open items");
+      expect(screen.queryByText("Billing and balances are up to date.")).toBeNull();
+      expect(screen.getByRole("link", { name: "Open Chart of Accounts" }).getAttribute("href")).toBe("/finance/accounts");
+    },
+  );
+
+  it("describes configured billing with settled invoices as an empty work queue", () => {
+    const input = data();
+    input.leases[0].billing = billing();
+    input.tenantInvoices = [{
+      ...tenantInvoice(),
+      balanceDue: 0,
+      collectedByOwner: 640,
+      paymentStatus: "paid",
+    }];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities()}
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
+
+    const status = screen.getByRole("status");
+    expect(within(status).getByRole("heading", { name: "No finance work" })).not.toBeNull();
+    expect(status.textContent).toContain("No billing setup issues or unpaid invoices need review.");
+    expect(screen.getByLabelText("Finance work summary").textContent).toContain("0 open items");
+    expect(screen.queryByText("Billing and balances are up to date.")).toBeNull();
+  });
+
+  it("keeps filtered-out finance work distinct from an empty queue", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.leases[0].billing = billing();
+    input.tenantInvoices = [tenantInvoice()];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities()}
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "Filter work queue" }));
+    await user.click(screen.getByRole("option", { name: "Setup & exceptions" }));
+
+    const status = screen.getByRole("status");
+    expect(within(status).getByRole("heading", { name: "No matching work" })).not.toBeNull();
+    expect(status.textContent).toContain("Choose another work type to continue.");
+    expect(screen.getByLabelText("Finance work summary").textContent).toContain("1 open item");
+    expect(screen.queryByRole("heading", { name: "No finance work" })).toBeNull();
+  });
+
   it("reconciles Finance setup with the grouped portfolio work queue", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-02T05:00:00Z"));

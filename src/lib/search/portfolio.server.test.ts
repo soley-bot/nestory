@@ -1,23 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { loadPortfolioSearch } from "./portfolio.server";
+import { createCappedReadHarness } from "@/lib/db/complete-read.test-fixture";
 
 type Row = Record<string, unknown>;
 function clientFor(tables: Record<string, Row[]>, fail = "") {
-  const reads: {table: string; from: number; to: number; organization: unknown}[] = [];
-  return { reads, client: { from(table: string) {
-    const filters: [string, unknown][] = [];
-    const builder = {
-      select: () => builder,
-      order: () => builder,
-      eq(column: string, value: unknown) { filters.push([column, value]); return builder; },
-      is(column: string, value: unknown) { filters.push([column, value]); return builder; },
-      async range(from: number, to: number) {
-        reads.push({table, from, to, organization: filters.find(([column]) => column === "organization_id")?.[1]});
-        return {data: (tables[table] ?? []).filter(row => filters.every(([column, value]) => row[column] === value)).slice(from, to + 1), error: table === fail ? {message: "unavailable"} : null};
-      },
-    };
-    return builder;
-  } } };
+  return createCappedReadHarness(tables, { transformResult: (read, result) => read.table === fail ? { ...result, error: { message: "unavailable" } } : result });
 }
 describe("portfolio search context", () => {
   it("reads beyond the first response page and keeps owner links within the organization", async () => {
@@ -36,11 +23,26 @@ describe("portfolio search context", () => {
     expect(portfolio.matchesProperty("Former", "p1")).toBe(false);
     expect(portfolio.matchesProperty("Other", "p1")).toBe(false);
     expect(portfolio.ownerIds("Suite 500")).toEqual(["person1"]);
-    expect(reads.every(read => read.organization === "org1")).toBe(true);
-    expect(reads.some(read => read.table === "units" && read.from === 500)).toBe(true);
+    expect(reads.every(read => read.filters.some(filter => filter.column === "organization_id" && filter.value === "org1"))).toBe(true);
+    expect(reads.some(read => read.table === "units" && read.range?.[0] === 500)).toBe(true);
   });
   it("reports unavailable owner context instead of silently claiming there are no matches", async () => {
     const {client} = clientFor({}, "property_owners");
     await expect(loadPortfolioSearch(client as never, "org1")).rejects.toThrow("Could not load");
+  });
+  it("reads more than 10000 units even when the API returns fewer rows than requested", async () => {
+    const common = { organization_id: "org1", archived_at: null };
+    const { client } = createCappedReadHarness({
+      properties: [{ ...common, id: "p1", code: "P1", name: "North", owner: null }],
+      units: Array.from({ length: 10001 }, (_, index) => ({ ...common, id: `unit-${String(index).padStart(6, "0")}`, property_id: "p1", unit_number: `Suite ${index}` })),
+    }, { apiRowCap: 137 });
+    const portfolio = await loadPortfolioSearch(client as never, "org1");
+    expect(portfolio.matchesProperty("Suite 10000", "p1")).toBe(true);
+  });
+  it("rejects a changing count on a later search context page", async () => {
+    const { client } = createCappedReadHarness({ units: Array.from({ length: 501 }, (_, index) => ({ organization_id: "org1", id: `unit-${String(index).padStart(6, "0")}`, property_id: "p1", unit_number: String(index) })) }, {
+      transformResult: (read, result) => read.table === "units" && (read.range?.[0] ?? 0) > 0 ? { ...result, count: 502 } : result,
+    });
+    await expect(loadPortfolioSearch(client as never, "org1")).rejects.toThrow("count changed");
   });
 });

@@ -1132,6 +1132,8 @@ function FinanceWorkView({
     rentGenerationExceptions.length +
     tenantDue.length +
     ownerDue.length;
+  const hasBillingRecords =
+    leases.length > 0 || tenantInvoices.length > 0 || ownerInvoices.length > 0;
   const workItems: FinanceWorkItem[] = [
     ...leasesNeedingSetup.map((lease) => ({
       key: `setup-${lease.id}`,
@@ -1271,7 +1273,9 @@ function FinanceWorkView({
           <EmptyState
             body={
               workCount === 0
-                ? "Billing and balances are up to date."
+                ? hasBillingRecords
+                  ? "No billing setup issues or unpaid invoices need review."
+                  : "Lease billing setup and unpaid invoices will appear here when there is work to review."
                 : "Choose another work type to continue."
             }
             className="flex-1"

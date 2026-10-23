@@ -94,7 +94,7 @@ export async function loadStatementTransactionDetails(
           cursor = { recognizedOn: event.recognizedOn, sourceId: event.sourceId, sourceType: event.sourceType };
           if (event.sourceType === "management_fee_occurrence") fees.set(event.sourceId, event);
         }
-        if (page.rows.length < page.pageSize) break;
+        if (page.rows.length === 0) break;
       }
       return fees;
     })());

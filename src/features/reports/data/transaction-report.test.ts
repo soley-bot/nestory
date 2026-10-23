@@ -15,6 +15,8 @@ const events = vi.hoisted(() => ({
   cash: [] as Record<string, unknown>[],
   calls: [] as unknown[],
   fail: false,
+  pageCap: 500,
+  capAfter: 0,
 }));
 vi.mock("./owner-profit-loss-events", () => ({
   loadOwnerProfitLossEventPage: async (
@@ -25,9 +27,10 @@ vi.mock("./owner-profit-loss-events", () => ({
     events.calls.push(scope);
     if (events.fail) throw new Error("RPC denied");
     const offset = cursor
-      ? events.profit.findIndex((row) => row.sourceId === cursor.sourceId) + 1
+      ? events.profit.findIndex((row, index) => (row.sourceId ?? String(index)) === cursor.sourceId) + 1
       : 0;
-    return { rows: events.profit.slice(offset, offset + 500), pageSize: 500 };
+    const size = offset < events.capAfter ? 500 : events.pageCap;
+    return { rows: events.profit.slice(offset, offset + size).map((row, index) => ({ ...row, sourceId: row.sourceId ?? String(offset + index) })), pageSize: 500 };
   },
 }));
 vi.mock("@/features/finance/data/property-cash-events", () => ({
@@ -38,9 +41,10 @@ vi.mock("@/features/finance/data/property-cash-events", () => ({
   ) => {
     events.calls.push(scope);
     const offset = cursor
-      ? events.cash.findIndex((row) => row.sourceId === cursor.sourceId) + 1
+      ? events.cash.findIndex((row, index) => (row.sourceId ?? String(index)) === cursor.sourceId) + 1
       : 0;
-    return { rows: events.cash.slice(offset, offset + 500), pageSize: 500 };
+    const size = offset < events.capAfter ? 500 : events.pageCap;
+    return { rows: events.cash.slice(offset, offset + size).map((row, index) => ({ ...row, sourceId: row.sourceId ?? String(offset + index) })), pageSize: 500 };
   },
 }));
 const context: ScopedFinanceContext = {
@@ -197,6 +201,15 @@ describe("transaction report financial presentation", () => {
 });
 
 describe("complete bounded source pagination", () => {
+  it("only permits counted capped RPC pages when the cursor consumer exhausts explicitly", () => {
+    expect(() => assertTransactionRpcPage({ data: [{}], count: 500, error: null }, 500)).not.toThrow();
+    for (const result of [
+      { data: [], count: 500, error: null },
+      { data: [{}], count: 501, error: null },
+      { data: [{}], count: 0, error: null },
+      { data: [{}], count: null, error: null },
+    ]) expect(() => assertTransactionRpcPage(result, 500)).toThrow();
+  });
   it("rejects RPC transport truncation and unknown completeness", () => {
     expect(() =>
       assertTransactionRpcPage({ data: [{}], count: 500, error: null }),
@@ -215,7 +228,7 @@ describe("complete bounded source pagination", () => {
         count: null,
         error: null,
       })),
-    ).rejects.toThrow("count is unavailable");
+    ).rejects.toThrow("exact row count");
     await expect(
       loadTransactionReportPages(async (from) => ({
         data: [{ id: String(from) }],
@@ -230,7 +243,7 @@ describe("complete bounded source pagination", () => {
       count: 500,
       data:
         from < 500
-          ? Array.from({ length: 250 }, (_, i) => ({ id: String(from + i) }))
+          ? Array.from({ length: 250 }, (_, i) => ({ id: String(from + i).padStart(6, "0") }))
           : [],
     }));
     expect(await loadTransactionReportPages(fetch)).toHaveLength(500);
@@ -243,7 +256,7 @@ describe("complete bounded source pagination", () => {
           ? {
               error: null,
               count: 501,
-              data: Array.from({ length: 500 }, (_, i) => ({ id: String(i) })),
+              data: Array.from({ length: 500 }, (_, i) => ({ id: String(i).padStart(6, "0") })),
             }
           : { error: { message: "denied" }, data: null, count: null },
       ),
@@ -261,9 +274,9 @@ describe("complete bounded source pagination", () => {
       loadTransactionReportPages(async (from) => ({
         error: null,
         data: Array.from({ length: 500 }, (_, i) => ({ id: String(from + i) })),
-        count: 10001,
+        count: 100001,
       })),
-    ).rejects.toThrow("10,000");
+    ).rejects.toThrow("100000");
   });
 });
 
@@ -320,7 +333,7 @@ function client(tables: Record<string, RecordRow[]> = {}) {
                 ? expected.includes(row[key])
                 : row[key] === expected;
             });
-          });
+          }).sort((left, right) => String(left.id) < String(right.id) ? -1 : String(left.id) > String(right.id) ? 1 : 0);
           return {
             data: matches.slice(from, to + 1),
             count: matches.length,
@@ -343,6 +356,8 @@ beforeEach(() => {
   events.cash = [];
   events.calls = [];
   events.fail = false;
+  events.pageCap = 500;
+  events.capAfter = 0;
 });
 describe("transaction loader source authority", () => {
   it("reports a backdated receipt in its effective month across the year boundary", async () => {
@@ -686,10 +701,12 @@ describe("transaction loader source authority", () => {
     expect(report.summary[0].value).toBe("$1.00");
     expect(report.rows).toHaveLength(2);
     expect(report.rows.map(row => row.sourceLinks[0].href)).toEqual(["/rent-income?invoiceId=invoice", "/rent-income?invoiceId=invoice"]);
-    expect(events.calls).toHaveLength(21);
+    expect(events.calls).toHaveLength(22);
     expect(calls).toEqual([]);
   });
-  it("continues past 10,000 unrelated P&L events without losing a later rent charge", async () => {
+  it.each([0, 500])("continues past unrelated P&L events when pages become capped after %i rows", async capAfter => {
+    events.pageCap = 137;
+    events.capAfter = capAfter;
     events.profit = [
       ...Array.from({ length: 10001 }, (_, i) => ({
         sourceType: "owner_invoice_line",
@@ -721,9 +738,11 @@ describe("transaction loader source authority", () => {
     });
     expect(report.rows).toHaveLength(1);
     expect(report.summary[0].value).toBe("$1.25");
-    expect(events.calls).toHaveLength(21);
+    expect(events.calls).toHaveLength((capAfter ? 1 : 0) + Math.ceil((10002 - capAfter) / 137) + 1);
   });
-  it("continues past 10,000 unrelated cash events without losing a later paid cost", async () => {
+  it.each([0, 500])("continues past unrelated cash events when pages become capped after %i rows", async capAfter => {
+    events.pageCap = 137;
+    events.capAfter = capAfter;
     events.cash = [
       ...Array.from({ length: 10001 }, (_, i) => ({
         sourceType: "receipt_allocation",
@@ -760,7 +779,7 @@ describe("transaction loader source authority", () => {
     expect(
       report.summary.find((metric) => metric.label === "Paid cost")?.value,
     ).toBe("$1.25");
-    expect(events.calls).toHaveLength(21);
+    expect(events.calls).toHaveLength((capAfter ? 1 : 0) + Math.ceil((10002 - capAfter) / 137) + 1);
   });
   it("preserves cash reversal effects and rejects unresolved paid costs", async () => {
     const { api } = client();

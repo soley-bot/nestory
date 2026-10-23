@@ -33,6 +33,7 @@ describe("live Finance report reads", () => {
       }),
       propertyAccountEntries: [
         {
+          organization_id: ORGANIZATION_ID,
           amount: "850.00",
           balance_effect: "850.00",
           category: "rent_income",
@@ -295,6 +296,8 @@ function createReportReadHarness({
   propertyAccountEntries?: unknown[];
 } = {}) {
   class Query implements PromiseLike<QueryResult> {
+    private from = 0;
+    private to = Number.MAX_SAFE_INTEGER;
     constructor(private readonly result: QueryResult) {}
 
     eq() { return this; }
@@ -305,14 +308,17 @@ function createReportReadHarness({
     lt() { return this; }
     or() { return this; }
     order() { return this; }
-    range() { return this; }
+    range(from: number, to: number) { this.from = from; this.to = to; return this; }
     select() { return this; }
 
     then<TResult1 = QueryResult, TResult2 = never>(
       onfulfilled?: ((value: QueryResult) => TResult1 | PromiseLike<TResult1>) | null,
       onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
     ): Promise<TResult1 | TResult2> {
-      return Promise.resolve(this.result).then(onfulfilled, onrejected);
+      const result = Array.isArray(this.result.data)
+        ? { ...this.result, data: this.result.data.slice(this.from, this.to + 1) }
+        : this.result;
+      return Promise.resolve(result).then(onfulfilled, onrejected);
     }
   }
 
@@ -327,17 +333,17 @@ function createReportReadHarness({
           error: null,
           count: table === "property_account_entries" ? propertyAccountEntries.length : 0,
         }),
-      rpc: (name: string) => {
+      rpc: (name: string, args: Record<string, unknown>) => {
         if (name === "get_finance_read_context") {
           return Promise.resolve(
             contextResponse ?? { data: context, error: null },
           );
         }
         if (name === "get_owner_profit_loss_names") {
-          return Promise.resolve({ data: ownerProfitLossNames, error: null });
+          return new Query({ data: ownerProfitLossNames, count: ownerProfitLossNames.length, error: null });
         }
         if (name === "get_owner_profit_loss_events_page") {
-          return Promise.resolve({ data: ownerProfitLossEvents, error: null });
+          return Promise.resolve({ data: args.p_after_source_id ? [] : ownerProfitLossEvents, error: null });
         }
         throw new Error(`Unexpected report RPC: ${name}`);
       },

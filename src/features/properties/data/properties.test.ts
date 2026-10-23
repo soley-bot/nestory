@@ -20,11 +20,16 @@ const owner = {
 };
 
 function query(result: Promise<unknown>) {
+  const countedResult = result.then(value => {
+    const response = value as { data: unknown };
+    return { ...response, count: Array.isArray(response.data) ? response.data.length : 0 };
+  });
   const chain = {
     select: vi.fn(() => chain), eq: vi.fn(() => chain), is: vi.fn(() => chain),
     in: vi.fn(() => chain), not: vi.fn(() => chain), order: vi.fn(() => chain), limit: vi.fn(() => chain),
+    range: vi.fn(() => chain),
     maybeSingle: () => result,
-    then: result.then.bind(result),
+    then: countedResult.then.bind(countedResult),
   };
   return chain;
 }
