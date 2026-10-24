@@ -65,6 +65,24 @@ describe("UnitPage authority", () => {
     getPropertySummaries.mockResolvedValue([]);
   });
 
+  it.each([
+    [[], false, false, false],
+    [["leases.prepare"], false, true, false],
+    [["maintenance.view"], false, false, false],
+    [["maintenance.create_assign"], true, false, false],
+    [["maintenance.view", "maintenance.create_assign"], true, false, true],
+  ])("matches form endpoint capabilities for %j", async (permissions, canCreateCase, canCreateLease, canCreateMaintenanceCase) => {
+    requirePermission.mockResolvedValue({
+      branchId: "branch-a", isSuperAdmin: false, organizationId: "organization-1",
+      permissionKeys: new Set(["properties.view", ...permissions]), personId: "person-a",
+    });
+    getMaintenanceCapabilities.mockReturnValue({ canCreateCase });
+    getUnitDetail.mockResolvedValue({ id: "unit-a", propertyId: "property-a" });
+    const screen = await UnitPage({ params: Promise.resolve({ unitId: "unit-a" }), searchParams: Promise.resolve({}) });
+    expect(screen.props.canCreateLease).toBe(canCreateLease);
+    expect(screen.props.canCreateMaintenanceCase).toBe(canCreateMaintenanceCase);
+  });
+
   it("uses properties.view and keeps an ordinary Unit actor in its exact branch", async () => {
     const permissionKeys = new Set([
       "properties.view",
@@ -75,6 +93,7 @@ describe("UnitPage authority", () => {
       branchId: "branch-a",
       isSuperAdmin: false,
       organizationId: "organization-1",
+      operationalTimezone: "Asia/Phnom_Penh",
       permissionKeys,
       personId: "person-a",
     });
@@ -86,7 +105,7 @@ describe("UnitPage authority", () => {
     });
 
     expect(requirePermission).toHaveBeenCalledWith("properties.view");
-    expect(getUnitDetail).toHaveBeenCalledWith("organization-1", "unit-a");
+    expect(getUnitDetail).toHaveBeenCalledWith("organization-1", "unit-a", { operationalTimezone: "Asia/Phnom_Penh" });
     expect(screen.props.canArchive).toBe(true);
     expect(screen.props.canWrite).toBe(true);
     expect(screen.props.maintenanceFormOptions).toBeUndefined();
@@ -104,6 +123,7 @@ describe("UnitPage authority", () => {
       branchId: "branch-a",
       isSuperAdmin: false,
       organizationId: "organization-1",
+      operationalTimezone: "Asia/Phnom_Penh",
       permissionKeys: new Set(["properties.view"]),
     });
     getUnitDetail.mockResolvedValue(null);

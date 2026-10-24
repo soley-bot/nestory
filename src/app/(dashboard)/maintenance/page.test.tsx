@@ -28,7 +28,7 @@ describe("MaintenancePage", () => {
     requireOperationsManagementContext.mockReset();
     requirePermission.mockReset();
     requirePermission.mockResolvedValue({
-      branchId: "branch-1", isSuperAdmin: false, organizationId: "organization-1",
+      branchId: "branch-1", isSuperAdmin: false, organizationId: "organization-1", operationalTimezone: "Asia/Phnom_Penh",
       permissionKeys: new Set(["maintenance.view"]), personId: "person-1", role: "custom",
     });
     getMaintenanceScreenData.mockResolvedValue({
@@ -42,7 +42,7 @@ describe("MaintenancePage", () => {
       await MaintenancePage({ searchParams: Promise.resolve({ view, review }) });
       expect(getMaintenanceScreenData).toHaveBeenLastCalledWith(
         "organization-1", expect.objectContaining({ view, review }), expect.any(Object),
-        expect.any(Object), { includeQueueCounts: true },
+        expect.any(Object), { includeQueueCounts: true, operationalTimezone: "Asia/Phnom_Penh" },
       );
     }
   });
@@ -54,7 +54,7 @@ describe("MaintenancePage", () => {
     await MaintenancePage({ searchParams: Promise.resolve({ view }) });
     expect(getMaintenanceScreenData).toHaveBeenLastCalledWith(
       "organization-1", expect.objectContaining({ view, review, pageSize }), expect.any(Object),
-      expect.any(Object), { includeQueueCounts: true },
+      expect.any(Object), { includeQueueCounts: true, operationalTimezone: "Asia/Phnom_Penh" },
     );
   });
 
@@ -62,7 +62,7 @@ describe("MaintenancePage", () => {
     await MaintenancePage({ searchParams: Promise.resolve({ status: "completed" }) });
     expect(getMaintenanceScreenData).toHaveBeenCalledWith(
       "organization-1", expect.objectContaining({ review: "all", status: "completed", view: "list" }),
-      expect.any(Object), expect.any(Object), { includeQueueCounts: true },
+      expect.any(Object), expect.any(Object), { includeQueueCounts: true, operationalTimezone: "Asia/Phnom_Penh" },
     );
   });
 
@@ -70,7 +70,7 @@ describe("MaintenancePage", () => {
     await MaintenancePage({ searchParams: Promise.resolve({ view: "board", review }) });
     expect(getMaintenanceScreenData).toHaveBeenCalledWith(
       "organization-1", expect.objectContaining({ review: "work_orders" }), expect.any(Object),
-      expect.any(Object), { includeQueueCounts: true },
+      expect.any(Object), { includeQueueCounts: true, operationalTimezone: "Asia/Phnom_Penh" },
     );
   });
 
@@ -78,7 +78,7 @@ describe("MaintenancePage", () => {
     requirePermission.mockResolvedValue({
       branchId: "branch-1",
       isSuperAdmin: false,
-      organizationId: "organization-1",
+      organizationId: "organization-1", operationalTimezone: "Asia/Phnom_Penh",
       organizationName: "Nestory Test",
       permissionKeys: new Set([
         "maintenance.view",
@@ -110,7 +110,7 @@ describe("MaintenancePage", () => {
       expect.any(Object),
       expect.objectContaining({ dataScope: "branch", workflowMode: "coordinator" }),
       expect.objectContaining({ canAssignCase: false }),
-      { includeQueueCounts: true },
+      { includeQueueCounts: true, operationalTimezone: "Asia/Phnom_Penh" },
     );
   });
 });

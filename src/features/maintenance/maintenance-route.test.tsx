@@ -28,7 +28,7 @@ describe("manager maintenance routes", () => {
     mocks.requirePermission.mockResolvedValue({
       branchId: "branch-1",
       isSuperAdmin: false,
-      organizationId: "organization-1",
+      organizationId: "organization-1", operationalTimezone: "Asia/Phnom_Penh",
       permissionKeys: new Set([
         "maintenance.view",
       ]),
@@ -52,7 +52,7 @@ describe("manager maintenance routes", () => {
     mocks.requirePermission.mockResolvedValue({
       branchId: "branch-1",
       isSuperAdmin: false,
-      organizationId: "organization-1",
+      organizationId: "organization-1", operationalTimezone: "Asia/Phnom_Penh",
       permissionKeys: new Set([
         "maintenance.view",
         ...(canAssignCase ? ["maintenance.create_assign"] : []),
@@ -77,6 +77,7 @@ describe("manager maintenance routes", () => {
       expect.any(Object),
       expect.objectContaining({ dataScope: "branch", workflowMode: "coordinator" }),
       expect.objectContaining({ canAssignCase }),
+      { operationalTimezone: "Asia/Phnom_Penh" },
     );
   });
 });

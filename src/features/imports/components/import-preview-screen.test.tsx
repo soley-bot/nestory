@@ -32,6 +32,66 @@ beforeAll(() => {
 });
 
 describe("ImportPreviewScreen", () => {
+  it("discards the old payload after a rejected replacement, before and after clearing", async () => {
+    const user = userEvent.setup();
+    const { container } = renderImport();
+    uploadCsv(container, "old.csv", Promise.resolve("Property Code,Property Name\nOLD,Old Home"));
+    await screen.findByRole("button", { name: "Import 1 ready row" });
+    fireEvent.change(container.querySelector('input[type="file"]')!, {
+      target: { files: [new File(["invalid"], "replacement.txt", { type: "text/plain" })] },
+    });
+    await screen.findByText("Choose one file in an accepted format.");
+    expect(container.querySelector('input[name="payload"]')).toBeNull();
+    expect(screen.queryByRole("button", { name: "Import 1 ready row" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "old.csv" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Clear file selection" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(container.querySelector('input[name="payload"]')).toBeNull();
+    expect(screen.queryByRole("button", { name: "Import 1 ready row" })).toBeNull();
+    expect(actions.importReadyRowsAction).not.toHaveBeenCalled();
+    uploadCsv(container, "new.csv", Promise.resolve("Property Code,Property Name\nNEW,New Home"));
+    expect(await screen.findByRole("button", { name: "Import 1 ready row" })).toHaveProperty("disabled", false);
+    expect(JSON.parse(container.querySelector<HTMLInputElement>('input[name="payload"]')!.value).fileName).toBe("new.csv");
+  });
+
+  it.each([false, true])("does not restore a pending read after a rejected replacement (clear: %s)", async (clear) => {
+    const pending = deferred<string>();
+    const { container } = renderImport();
+    uploadCsv(container, "pending.csv", pending.promise);
+    fireEvent.change(container.querySelector('input[type="file"]')!, {
+      target: { files: [new File(["invalid"], "replacement.txt", { type: "text/plain" })] },
+    });
+    await screen.findByText("Choose one file in an accepted format.");
+    if (clear) fireEvent.click(screen.getByRole("button", { name: "Clear file selection" }));
+    await act(async () => pending.resolve("Property Code,Property Name\nOLD,Old Home"));
+    expect(screen.queryByRole("heading", { name: "pending.csv" })).toBeNull();
+    expect(container.querySelector('input[name="payload"]')).toBeNull();
+    expect(screen.queryByRole("button", { name: "Import 1 ready row" })).toBeNull();
+    expect(actions.importReadyRowsAction).not.toHaveBeenCalled();
+  });
+
+  it("blocks a locally valid CSV whose UTF-8 JSON payload exceeds the request budget", async () => {
+    const { container } = renderImport();
+    const extraHeaders = Array.from({ length: 98 }, (_, index) => `Unused ${index}`);
+    const padding = extraHeaders.map(() => "界".repeat(10_000));
+    const csv = [
+      ["Property Code", "Property Name", ...extraHeaders].join(","),
+      ["FIRST", "First Home", ...padding].join(","),
+      ["SECOND", "Second Home", ...padding].join(","),
+    ].join("\n");
+    uploadCsv(container, "large.csv", Promise.resolve(csv));
+    const button = await screen.findByRole("button", { name: "Import 2 ready rows" });
+    expect(screen.getByRole("alert").textContent).toContain("Split the CSV into smaller files");
+    expect(button).toHaveProperty("disabled", true);
+    expect(container.querySelector<HTMLInputElement>('input[name="payload"]')?.value).toBe("");
+    await act(async () => fireEvent.submit(button.closest("form")!));
+    expect(actions.importReadyRowsAction).not.toHaveBeenCalled();
+
+    uploadCsv(container, "small.csv", Promise.resolve("Property Code,Property Name\nNEW,New Home"));
+    expect(await screen.findByRole("button", { name: "Import 1 ready row" })).toHaveProperty("disabled", false);
+    expect(screen.queryByText(/Split the CSV into smaller files/)).toBeNull();
+  });
+
   it("removes the previous import action while a replacement CSV is being read", async () => {
     const pending = deferred<string>();
     const { container } = renderImport();

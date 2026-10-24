@@ -254,15 +254,22 @@ export async function getRentReport({
   };
 
   if (viewQuery.report === "rent-roll") {
+    if (properties.some(property => !property.rental_structure)) {
+      throw new Error("Rental structure is unavailable in the report scope.");
+    }
     const rentalSpaces = [
       ...filteredUnits.map((unit) => ({
         ...unit,
         unitId: unit.id as string | null,
       })),
-      ...(viewQuery.unitId === "all" && viewQuery.status !== "vacant"
+      ...(viewQuery.unitId === "all"
         ? properties
             .filter(
-              (property) => activeLeasesForUnit(null, property.id).length > 0,
+              (property) => {
+                const occupied = activeLeasesForUnit(null, property.id).length > 0;
+                return (property.rental_structure === "single_space" || occupied)
+                  && (viewQuery.status === "all" || (occupied ? "occupied" : "vacant") === viewQuery.status);
+              },
             )
             .map((property) => ({
               id: `property:${property.id}`,
@@ -332,7 +339,7 @@ export async function getRentReport({
           sourceCount: sourceLinks.length,
           sourceSummary: lease
             ? "Current rental space and effective lease term"
-            : "Current unit; no effective lease",
+            : "Current rental space; no effective lease",
           tone: lease ? "neutral" : "warning",
         };
       })
@@ -348,7 +355,7 @@ export async function getRentReport({
       ...base,
       title: "Rent roll",
       description:
-        "Current snapshot of units and property-level leases with effective lease rent. Units without a current lease carry no contracted rent; date-range filters do not reconstruct historical occupancy.",
+        "Current snapshot of units and single-space properties with effective lease rent. Rental spaces without a current lease carry no contracted rent; date-range filters do not reconstruct historical occupancy.",
       periodLabel: `Current snapshot · ${today}`,
       emptyTitle: "No rental spaces match",
       emptyDescription: "Adjust the property, unit, status or search filters.",

@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -8,7 +9,6 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { act } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -50,6 +50,40 @@ beforeEach(() => {
 });
 
 describe("UnitDetailScreen focused operating record", () => {
+  it("restores the section and tab focus with browser Back and Forward", async () => {
+    window.history.replaceState({}, "", "/units/unit-1");
+    renderUnitDetail();
+    fireEvent.click(screen.getByRole("tab", { name: "Lease" }));
+    expect(screen.getByRole("tabpanel", { name: "Lease" })).toBeTruthy();
+    await traverseHistory("back");
+    expect(window.location.search).toBe("");
+    expect(screen.getByRole("tabpanel", { name: "Overview" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Overview" }).getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Overview" }));
+    await traverseHistory("forward");
+    expect(window.location.search).toBe("?section=lease");
+    expect(screen.getByRole("tabpanel", { name: "Lease" })).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Lease" }));
+  });
+
+  it("restores an initial Files deep link after visiting another unit section", async () => {
+    window.history.replaceState({}, "", "/units/unit-1?section=files");
+    renderUnitDetail({ initialSection: "files" });
+    fireEvent.click(screen.getByRole("tab", { name: "Overview" }));
+    await traverseHistory("back");
+    expect(screen.getByRole("tabpanel", { name: "Files" })).toBeTruthy();
+  });
+
+  it("hides unavailable lease and maintenance actions without requesting form options", () => {
+    renderUnitDetail({ canCreateLease: false, canCreateMaintenanceCase: false, unit: availableUnitDetail });
+    expect(screen.queryByRole("button", { name: "Create draft lease" })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Lease" }));
+    expect(screen.queryByRole("button", { name: "Create draft lease" })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Maintenance" }));
+    expect(screen.queryByRole("button", { name: "New case" })).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("does not load form options while viewing, editing or uploading a unit document", () => {
     renderUnitDetail();
     expect(fetch).not.toHaveBeenCalled();
@@ -367,25 +401,33 @@ describe("UnitDetailScreen focused operating record", () => {
 
 function renderUnitDetail({
   canArchive = true,
+  canCreateLease = true,
+  canCreateMaintenanceCase = true,
   canWrite = true,
   initialSection = "overview",
   unit = unitDetail,
 }: {
   canArchive?: boolean;
+  canCreateLease?: boolean;
+  canCreateMaintenanceCase?: boolean;
   canWrite?: boolean;
   initialSection?: "overview" | "lease" | "finance" | "maintenance" | "files";
   unit?: typeof unitDetail;
 } = {}) {
-  return render(buildUnitDetailElement({ initialSection, unit, canArchive, canWrite }));
+  return render(buildUnitDetailElement({ initialSection, unit, canArchive, canCreateLease, canCreateMaintenanceCase, canWrite }));
 }
 
 function buildUnitDetailElement({
   canArchive = true,
+  canCreateLease = true,
+  canCreateMaintenanceCase = true,
   canWrite = true,
   initialSection = "overview",
   unit = unitDetail,
 }: {
   canArchive?: boolean;
+  canCreateLease?: boolean;
+  canCreateMaintenanceCase?: boolean;
   canWrite?: boolean;
   initialSection?: "overview" | "lease" | "finance" | "maintenance" | "files";
   unit?: typeof unitDetail;
@@ -394,6 +436,8 @@ function buildUnitDetailElement({
     <UnitDetailScreen
       activeSection={initialSection}
       canArchive={canArchive}
+      canCreateLease={canCreateLease}
+      canCreateMaintenanceCase={canCreateMaintenanceCase}
       canRecordDepositReceipt
       canWrite={canWrite}
       unit={unit}
@@ -608,4 +652,13 @@ class ResizeObserverStub {
   disconnect() {}
   observe() {}
   unobserve() {}
+}
+
+async function traverseHistory(direction: "back" | "forward") {
+  await act(async () => {
+    await new Promise<void>((resolve) => {
+      window.addEventListener("popstate", () => resolve(), { once: true });
+      window.history[direction]();
+    });
+  });
 }

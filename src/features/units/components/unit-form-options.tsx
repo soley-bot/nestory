@@ -44,7 +44,7 @@ export function UnitFormOptions<M extends UnitFormOptionsMode>({
         if (!response.ok) {
           if (response.status === 401 || response.status === 403) {
             failureMessage =
-              "Your access to this form has changed. Refresh the page to check your access.";
+              "This form is unavailable with your current access. Refresh the page to check your access.";
           } else if (response.status === 404 || response.status === 409) {
             failureMessage =
               "This unit is no longer available for this form. Refresh the page.";

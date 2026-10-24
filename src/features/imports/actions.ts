@@ -8,6 +8,7 @@ import type {
   StageImportRunState,
 } from "@/features/imports/action-states";
 import { buildGenericImportPreviewRows } from "@/features/imports/import-config";
+import { getImportPayloadError } from "@/features/imports/import-payload-limit";
 import {
   runImportReadyRowsFlow,
   type ImportRunStatus,
@@ -596,6 +597,11 @@ function readJsonFormValue(formData: FormData, key: string) {
       message: "The import payload is missing.",
       ok: false as const,
     };
+  }
+
+  const sizeError = getImportPayloadError(value);
+  if (sizeError) {
+    return { message: sizeError, ok: false as const };
   }
 
   try {

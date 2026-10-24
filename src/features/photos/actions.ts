@@ -1,5 +1,6 @@
 "use server";
 
+import { MAX_SERVER_UPLOAD_BYTES } from "@/lib/uploads/upload-limits";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/context";
@@ -330,8 +331,8 @@ function getPhotoStoragePath({
 }
 
 function validatePhotoFile(file: File) {
-  if (file.size > 10 * 1024 * 1024) {
-    return "Photos must be 10 MB or smaller.";
+  if (file.size > MAX_SERVER_UPLOAD_BYTES) {
+    return "Photos must be 4 MB or smaller.";
   }
 
   if (!photoMimeTypes.has(file.type)) {

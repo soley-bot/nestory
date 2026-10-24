@@ -29,6 +29,44 @@ afterEach(() => vi.useRealTimers());
 
 describe("Maintenance filtering and queue destinations", () => {
   it.each([
+    ["Asia/Phnom_Penh", "2026-10-23T17:30:00Z", "2026-10-23", true],
+    ["UTC", "2026-10-23T17:30:00Z", "2026-10-23", false],
+    ["America/New_York", "2026-10-24T03:30:00Z", "2026-10-23", false],
+  ])("uses the %s date for overdue predicates, counts and case status", async (timeZone, clock, dueDate, overdue) => {
+    vi.setSystemTime(new Date(clock));
+    installFixture([task("boundary", "pending", dueDate, { title: "Boundary task" })]);
+    const all = await load({ query: "boundary", review: "all" }, true, actor, timeZone);
+    expect(all.cases).toHaveLength(1);
+    expect(all.cases[0].isOverdue).toBe(overdue);
+    expect(all.cases[0].progressState).toBe(overdue ? "overdue" : "due_today");
+    expect(all.queueCounts?.overdue).toBe(overdue ? 1 : 0);
+    const filtered = await load({ query: "boundary", review: "overdue" }, false, actor, timeZone);
+    expect(filtered.pagination.totalCount).toBe(overdue ? 1 : 0);
+    expect(filtered.summary.total).toBe(overdue ? 1 : 0);
+  });
+
+  it.each([
+    ["Asia/Phnom_Penh", "2026-10-24T03:00:00Z", "2026-10-24", "09:00", true],
+    ["Asia/Phnom_Penh", "2026-10-24T03:00:00Z", "2026-10-24", "11:00", false],
+    ["UTC", "2026-10-24T03:00:00Z", "2026-10-24", "09:00", false],
+    ["Asia/Phnom_Penh", "2026-10-23T17:30:00Z", "2026-10-24", "00:15", true],
+    ["America/New_York", "2026-11-01T05:30:00Z", "2026-11-01", "01:00", true],
+    ["America/New_York", "2026-11-01T06:30:00Z", "2026-11-01", "01:00", true],
+    ["America/New_York", "2026-11-01T06:30:00Z", "2026-11-01", "02:00", false],
+  ])("uses %s local reminder time at %s for %s %s", async (timeZone, clock, reminderDate, reminderTime, due) => {
+    vi.setSystemTime(new Date(clock));
+    installFixture([task("boundary", "pending", null, {
+      title: "Boundary task", reminder_date: reminderDate, reminder_time: reminderTime,
+    })]);
+    const all = await load({ query: "boundary", review: "all" }, false, actor, timeZone);
+    expect(all.cases[0].isReminderDue).toBe(due);
+    const filtered = await load({ query: "boundary", review: "reminders" }, false, actor, timeZone);
+    expect(filtered.pagination.totalCount).toBe(due ? 1 : 0);
+    expect(filtered.summary.total).toBe(due ? 1 : 0);
+    expect(filtered.cases.every(row => row.isReminderDue)).toBe(true);
+  });
+
+  it.each([
     ["all", 43, 5, 3],
     ["open", 29, 3, 9],
     ["completed", 11, 2, 1],
@@ -196,9 +234,10 @@ describe("Maintenance filtering and queue destinations", () => {
 
 async function load(
   params: Record<string, string | undefined>, includeQueueCounts = false, reader: MaintenanceActor = actor,
+  operationalTimezone = "UTC",
 ) {
   return getMaintenanceScreenData("org-1", parseMaintenanceSearchParams({ ...scopedParams, ...params }),
-    reader, { canAssignCase: false }, { includeQueueCounts });
+    reader, { canAssignCase: false }, { includeQueueCounts, operationalTimezone });
 }
 
 function task(id: string, status: string, dueDate: string | null, overrides: Record<string, unknown> = {}) {
@@ -268,6 +307,14 @@ function fixtureQuery(table: string, rows: FixtureRow[], reads: FixtureRead[]) {
     lte: (column: string, value: string) => { predicates.push(row => row[column] != null && String(row[column]) <= value); return query; },
     gte: (column: string, value: string) => { predicates.push(row => row[column] != null && String(row[column]) >= value); return query; },
     or: (expression: string) => {
+      const reminder = /^reminder_date\.lt\.([\d-]+),and\(reminder_date\.eq\.([\d-]+),or\(reminder_time\.is\.null,reminder_time\.lte\.([\d:]+)\)\)$/.exec(expression);
+      if (reminder) {
+        predicates.push(row => row.reminder_date != null && (
+          String(row.reminder_date) < reminder[1] ||
+          (row.reminder_date === reminder[2] && (row.reminder_time == null || String(row.reminder_time) <= reminder[3]))
+        ));
+        return query;
+      }
       const alternatives = expression.split(/,(?=[a-z_]+\.)/).map(condition => {
         const match = /^([a-z_]+)\.ilike\.(.+)$/.exec(condition);
         if (!match) throw new Error("Unsupported fixture expression " + condition);

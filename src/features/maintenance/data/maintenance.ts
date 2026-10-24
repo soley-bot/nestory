@@ -188,13 +188,15 @@ export async function getMaintenanceScreenData(
   viewQuery: MaintenanceViewQuery = parseMaintenanceSearchParams({}),
   actor?: MaintenanceActor,
   capabilities: Pick<MaintenanceCapabilities, "canAssignCase"> = { canAssignCase: false },
-  { includeQueueCounts = false }: { includeQueueCounts?: boolean } = {},
+  {
+    includeQueueCounts = false,
+    operationalTimezone = "Asia/Phnom_Penh",
+  }: { includeQueueCounts?: boolean; operationalTimezone?: string } = {},
 ): Promise<MaintenanceScreenData> {
   const supabase = await createSupabaseServerClient();
   const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
   const now = new Date();
-  const today = toIsoDate(now);
-  const currentTime = toIsoTime(now);
+  const { today, currentTime } = getOperationalClock(now, operationalTimezone);
   const queueViewQuery: MaintenanceViewQuery = {
     ...viewQuery, page: 1, review: "all", status: "all", taskId: "all",
   };
@@ -1749,12 +1751,21 @@ function normalizeValue(value: string) {
   return value.trim().toLowerCase().replace(/[\s-]+/g, "_");
 }
 
-function toIsoDate(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function toIsoTime(date: Date) {
-  return date.toISOString().slice(11, 16);
+function getOperationalClock(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return {
+    today: `${values.year}-${values.month}-${values.day}`,
+    currentTime: `${values.hour}:${values.minute}`,
+  };
 }
 
 function toPropertyOptions(properties: PropertyRow[]): MaintenancePropertyOption[] {

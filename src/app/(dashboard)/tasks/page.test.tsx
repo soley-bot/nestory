@@ -37,7 +37,7 @@ describe("TasksPage", () => {
     requireOperationsExecutionContext.mockResolvedValue({
       branchId: "branch-1",
       isSuperAdmin: false,
-      organizationId: "organization-1",
+      organizationId: "organization-1", operationalTimezone: "Asia/Phnom_Penh",
       organizationName: "Nestory Test",
       permissionKeys: new Set(["maintenance.complete"]),
       role: "operations_member",
@@ -57,7 +57,7 @@ describe("TasksPage", () => {
     requireOperationsExecutionContext.mockResolvedValue({
       branchId: "branch-1",
       isSuperAdmin: false,
-      organizationId: "organization-1",
+      organizationId: "organization-1", operationalTimezone: "Asia/Phnom_Penh",
       organizationName: "Nestory Test",
       personId: "person-1",
       permissionKeys: new Set(["maintenance.complete"]),
@@ -90,6 +90,7 @@ describe("TasksPage", () => {
         workflowMode: "assigned",
       },
       expect.objectContaining({ canAssignCase: false }),
+      { operationalTimezone: "Asia/Phnom_Penh" },
     );
   });
 });

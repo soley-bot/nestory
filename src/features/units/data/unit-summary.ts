@@ -1,3 +1,4 @@
+import { getBusinessDateValue } from "@/lib/dates/business-date";
 import type { TimelineEventType } from "@/features/timeline/timeline.types";
 import type { AssetPhoto } from "@/features/photos/photo.types";
 import { formatDate } from "@/lib/dates/format";
@@ -209,6 +210,7 @@ export function buildUnitDetail({
   activity = [],
   counts,
   currentDate,
+  businessDate = getBusinessDateValue(currentDate),
   documents,
   ledgerEntries,
   maintenanceCases = [],
@@ -224,6 +226,7 @@ export function buildUnitDetail({
   activity?: UnitDetail["activity"];
   counts: UnitRecordCounts;
   currentDate?: Date;
+  businessDate?: string;
   documents: UnitDocumentRecord[];
   ledgerEntries: UnitLedgerRecord[];
   maintenanceCases?: UnitMaintenanceRecord[];
@@ -251,6 +254,7 @@ export function buildUnitDetail({
   });
   const financialSummary = buildUnitFinancialSummary({ currentDate, ledgerEntries });
   const repairAction = buildUnitRepairAction({
+    businessDate,
     counts,
     financialSummary,
     hrefs,
@@ -704,6 +708,7 @@ function buildUnitHealthIndicators({
 }
 
 function buildUnitRepairAction({
+  businessDate,
   counts,
   financialSummary,
   hrefs,
@@ -716,6 +721,7 @@ function buildUnitRepairAction({
   unitId,
   unitNumber,
 }: {
+  businessDate: string;
   counts: UnitRecordCounts;
   financialSummary: UnitFinancialSummary;
   hrefs: UnitDetailHrefs;
@@ -784,7 +790,7 @@ function buildUnitRepairAction({
   }
 
   const overdueCase = maintenanceCases.find((maintenanceCase) =>
-    isOverdueMaintenanceCase(maintenanceCase),
+    isOverdueMaintenanceCase(maintenanceCase, businessDate),
   );
 
   if (overdueCase) {
@@ -1064,11 +1070,11 @@ function isOpenMaintenanceStatus(status: string) {
   return normalized !== "completed" && normalized !== "cancelled";
 }
 
-function isOverdueMaintenanceCase(maintenanceCase: UnitMaintenanceRecord) {
+function isOverdueMaintenanceCase(maintenanceCase: UnitMaintenanceRecord, businessDate: string) {
   return (
     isOpenMaintenanceStatus(maintenanceCase.status) &&
     Boolean(maintenanceCase.due_date) &&
-    maintenanceCase.due_date! < toIsoDate(new Date())
+    maintenanceCase.due_date! < businessDate
   );
 }
 
@@ -1090,10 +1096,6 @@ function getTrailingTwelveMonthStart(currentDate: Date) {
   );
 
   return start.toISOString().slice(0, 10);
-}
-
-function toIsoDate(date: Date) {
-  return date.toISOString().slice(0, 10);
 }
 
 function formatPercent(value: number) {

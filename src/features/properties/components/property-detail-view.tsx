@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { workflowReturnHref } from "@/features/leases/workflow-return";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
   AlertTriangle,
@@ -94,6 +94,20 @@ export function PropertyDetailView({
 }) {
   const [activeSection, setActiveSection] =
     useState<PropertyLocalSection>(initialSection);
+
+  useEffect(() => {
+    function restoreSection() {
+      if (window.location.pathname !== `/properties/${property.id}`) return;
+      const section = new URLSearchParams(window.location.search).get("section");
+      const nextSection = section === "units" || section === "maintenance" || section === "files"
+        ? section
+        : "overview";
+      setActiveSection(nextSection);
+      document.getElementById(`property-tab-${nextSection}`)?.focus();
+    }
+    window.addEventListener("popstate", restoreSection);
+    return () => window.removeEventListener("popstate", restoreSection);
+  }, [property.id]);
 
   return (
     <div
@@ -393,10 +407,10 @@ function PropertyOverviewWorkspace({
   property: PropertyDetail;
 }) {
   const activeLeaseLabel =
-    property.activeLeases.length === 1
-      ? property.activeLeases[0]!.tenantName
-      : property.activeLeases.length > 1
-        ? `${property.activeLeases.length} active`
+    property.counts.activeLeases === 1
+      ? property.activeLeases[0]?.tenantName ?? "1 active"
+      : property.counts.activeLeases > 1
+        ? `${property.counts.activeLeases} active`
         : "No active lease";
 
   return (

@@ -81,7 +81,7 @@ beforeEach(() => {
           }
           const count = rows.length;
           const offset = Number(url.searchParams.get("offset") ?? 0);
-          const limit = Number(url.searchParams.get("limit") ?? count);
+          const limit = Math.min(Number(url.searchParams.get("limit") ?? count), 1000);
           return new Response(JSON.stringify(rows.slice(offset, offset + limit)), {
             status: 200,
             headers: {
@@ -105,6 +105,42 @@ function expectScopedReads() {
 }
 
 describe("Document timeline navigation", () => {
+  it("keeps every authorized property and unit option beyond the server row cap", async () => {
+    tables.properties = Array.from({ length: 1001 }, (_, index) => ({
+      id: `property-${index}`, organization_id: "org-1", code: `P${index}`,
+      name: `Property ${index}`, archived_at: null,
+    }));
+    tables.units = tables.properties.map((property, index) => ({
+      id: `unit-${index}`, organization_id: "org-1", property_id: property.id,
+      unit_number: String(index), archived_at: null,
+    }));
+    tables.documents[0].property_id = "property-1000";
+    tables.documents[0].unit_id = "unit-1000";
+    const data = await getDocumentsScreenData("org-1");
+    expect(data.propertyOptions).toHaveLength(1001);
+    expect(data.unitOptions).toHaveLength(1001);
+    expect(data.documents[0].linkedRecords).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "Property", label: "P1000 / Property 1000" }),
+      expect.objectContaining({ type: "Unit", label: "Unit 1000" }),
+    ]));
+    expectScopedReads();
+  });
+
+  it("resolves archived linked records without adding them to active upload options", async () => {
+    tables.properties[0].archived_at = "2026-10-21T00:00:00Z";
+    tables.units = [{ id: "old-unit", organization_id: "org-1", property_id: ids.property,
+      unit_number: "A1", archived_at: "2026-10-21T00:00:00Z" }];
+    tables.documents[0].unit_id = "old-unit";
+    const data = await getDocumentsScreenData("org-1");
+    expect(data.propertyOptions).toEqual([]);
+    expect(data.unitOptions).toEqual([]);
+    expect(data.documents[0].linkedRecords).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "Property", label: "TEST / Synthetic property" }),
+      expect.objectContaining({ type: "Unit", label: "Unit A1" }),
+    ]));
+    expectScopedReads();
+  });
+
   it("links an authorized event through the scoped property timeline", async () => {
     const data = await getDocumentsScreenData("org-1");
     const document = data.documents[0];

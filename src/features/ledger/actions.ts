@@ -1,5 +1,6 @@
 "use server";
 
+import { MAX_SERVER_UPLOAD_BYTES } from "@/lib/uploads/upload-limits";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { sha256Hex } from "@/features/documents/content-fingerprint";
@@ -140,9 +141,9 @@ export async function attachLedgerReceiptAction(
     };
   }
 
-  if (file.size > 10 * 1024 * 1024) {
+  if (file.size > MAX_SERVER_UPLOAD_BYTES) {
     return {
-      fieldErrors: { receipt: ["Receipts must be 10 MB or smaller."] },
+      fieldErrors: { receipt: ["Receipts must be 4 MB or smaller."] },
       status: "error",
     };
   }

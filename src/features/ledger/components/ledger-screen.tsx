@@ -571,7 +571,7 @@ function ReceiptPanel({
           <FileDropzoneField
             accept={DOCUMENT_FILE_ACCEPT}
             className="mt-2"
-            description="PDF, JPG, PNG, or WebP up to 10 MB."
+            description="PDF, JPG, PNG, or WebP up to 4 MB."
             name="receipt"
             required
           />
@@ -583,7 +583,7 @@ function ReceiptPanel({
         </label>
 
         <p className="rounded-md border border-border bg-muted px-3 py-2 text-xs leading-5 text-muted-foreground">
-          Accepted files: PDF, JPG, PNG, and WebP up to 10 MB.
+          Accepted files: PDF, JPG, PNG, and WebP up to 4 MB.
         </p>
 
         {state.message ? (

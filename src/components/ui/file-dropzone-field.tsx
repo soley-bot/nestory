@@ -1,9 +1,10 @@
 "use client";
 
 import { UploadCloud } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useDropzone, type Accept } from "react-dropzone";
 import { cn } from "@/lib/utils";
+import { MAX_SERVER_UPLOAD_BYTES, SERVER_UPLOAD_SIZE_MESSAGE } from "@/lib/uploads/upload-limits";
 
 export const DOCUMENT_FILE_ACCEPT: Accept = {
   "application/pdf": [".pdf"],
@@ -33,7 +34,10 @@ type FileDropzoneFieldProps = {
   description?: string;
   displayFileName?: string;
   name?: string;
+  maxSize?: number;
   onFile?: (file: File) => void;
+  onClear?: () => void;
+  onReject?: () => void;
   openRef?: { current: (() => void) | null };
   required?: boolean;
 };
@@ -50,13 +54,19 @@ export function FileDropzoneField(props: FileDropzoneFieldProps) {
   description,
   displayFileName,
   name,
+  maxSize = MAX_SERVER_UPLOAD_BYTES,
   onFile,
+  onClear,
+  onReject,
   openRef,
   required = false,
   } = props;
   const [fileName, setFileName] = useState("");
-  const { getInputProps, getRootProps, isDragActive, open } = useDropzone({
+  const [error, setError] = useState("");
+  const errorId = useId();
+  const { getInputProps, getRootProps, inputRef, isDragActive, open } = useDropzone({
     accept,
+    maxSize,
     maxFiles: 1,
     multiple: false,
     noClick: true,
@@ -69,7 +79,20 @@ export function FileDropzoneField(props: FileDropzoneFieldProps) {
       }
 
       setFileName(file.name);
+      setError("");
+      inputRef.current?.setCustomValidity("");
       onFile?.(file);
+    },
+    onDropRejected(rejections) {
+      const message = rejections.some((item) => item.errors.some((error) => error.code === "file-too-large"))
+        ? SERVER_UPLOAD_SIZE_MESSAGE : "Choose one file in an accepted format.";
+      setError(message);
+      setFileName("");
+      if (inputRef.current) {
+        inputRef.current.value = "";
+        inputRef.current.setCustomValidity(message);
+      }
+      onReject?.();
     },
   });
   const handleOpen = () => {
@@ -94,8 +117,8 @@ export function FileDropzoneField(props: FileDropzoneFieldProps) {
       <input
         {...getInputProps({ name })}
         aria-label={ariaLabel}
-        aria-describedby={ariaDescribedBy}
-        aria-invalid={ariaInvalid}
+        aria-describedby={[ariaDescribedBy, error ? errorId : undefined].filter(Boolean).join(" ") || undefined}
+        aria-invalid={error ? true : ariaInvalid}
         aria-labelledby={ariaLabelledBy}
         aria-required={ariaRequired ?? required}
         required={required}
@@ -127,6 +150,21 @@ export function FileDropzoneField(props: FileDropzoneFieldProps) {
           </span>
         ) : null}
       </button>
+      {error ? <div className="mt-2 text-sm">
+        <p className="text-danger" id={errorId} role="alert">{error}</p>
+        <button type="button" className="mt-1 underline" onClick={() => {
+          clearFileInput(inputRef.current);
+          setError("");
+          setFileName("");
+          onClear?.();
+        }}>Clear file selection</button>
+      </div> : null}
     </div>
   );
+}
+
+function clearFileInput(input: HTMLInputElement | null) {
+  if (!input) return;
+  input.value = "";
+  input.setCustomValidity("");
 }

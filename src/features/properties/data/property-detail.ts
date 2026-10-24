@@ -1,3 +1,4 @@
+import { getBusinessDateValue } from "@/lib/dates/business-date";
 import type { RecentChange } from "@/features/activity/activity.types";
 import type { LinkedDocument } from "@/features/documents/document.types";
 import type { AssetPhoto } from "@/features/photos/photo.types";
@@ -48,6 +49,9 @@ export type PropertyDetailLedgerRecord = PropertyLedgerRecord & {
   transaction_date: string;
   unit_id: string | null;
 };
+
+export type PropertyDetailLedgerTotalRecord = Omit<PropertyDetailLedgerRecord, "description" | "unit_id"> &
+  Partial<Pick<PropertyDetailLedgerRecord, "description" | "unit_id">>;
 
 export type PropertyDetailTimelineRecord = {
   cost_amount: number | null;
@@ -292,6 +296,7 @@ export type PropertyDetail = ReturnType<typeof buildPropertySummary> & {
 };
 
 export function buildPropertyDetail({
+  businessDate = getBusinessDateValue(),
   activeLeases = [],
   activeOwner,
   activity = [],
@@ -307,12 +312,13 @@ export function buildPropertyDetail({
   recordCounts = {},
   units,
 }: {
+  businessDate?: string;
   activeLeases?: PropertyDetailLeaseRecord[];
   activeOwner?: ActivePropertyOwnerLink | null;
   activity?: RecentChange[];
   documents?: PropertyDetailDocumentRecord[];
   expenseEvidence?: PropertyExpenseEvidenceRecord[];
-  ledgerEntries: PropertyDetailLedgerRecord[];
+  ledgerEntries: PropertyDetailLedgerTotalRecord[];
   maintenanceCases?: PropertyDetailMaintenanceRecord[];
   ownerHistory?: PropertyOwnerHistoryRecord[];
   photos?: AssetPhoto[];
@@ -406,14 +412,14 @@ export function buildPropertyDetail({
       maintenanceCases.filter(isOpenMaintenanceTask).length,
     overdueMaintenanceCases:
       recordCounts.overdueMaintenanceCases ??
-      maintenanceCases.filter(isOverdueMaintenanceTask).length,
+      maintenanceCases.filter(task => isOverdueMaintenanceTask(task, businessDate)).length,
     photos: recordCounts.photos ?? photos.length,
     timelineEvents: recordCounts.timelineEvents ?? recentTimelineEvents.length,
   };
 
   return {
     ...summary,
-    activeLeases: currentLeases.map((lease) =>
+    activeLeases: currentLeases.slice(0, 8).map((lease) =>
       toLeaseContext(lease, unitsById),
     ),
     activeUnitCount: activeUnits.length,
@@ -440,6 +446,7 @@ export function buildPropertyDetail({
       })),
     ),
     nextAction: buildPropertyNextAction({
+      businessDate,
       activeLeases: currentLeases,
       activeUnitCount: activeUnits.length,
       activeUnits,
@@ -627,7 +634,7 @@ function buildPropertyFinancialSummary({
   ledgerEntries,
 }: {
   currentDate?: Date;
-  ledgerEntries: PropertyDetailLedgerRecord[];
+  ledgerEntries: PropertyDetailLedgerTotalRecord[];
 }): PropertyFinancialSummary {
   const periodStart = getTrailingTwelveMonthStart(currentDate);
   const periodEntries = ledgerEntries.filter(
@@ -1043,6 +1050,7 @@ function buildPropertyHealthIndicators({
 }
 
 function buildPropertyNextAction({
+  businessDate,
   activeLeases,
   activeUnitCount,
   activeUnits,
@@ -1052,6 +1060,7 @@ function buildPropertyNextAction({
   maintenanceCases,
   propertyDraftLease,
 }: {
+  businessDate: string;
   activeLeases: PropertyDetailLeaseRecord[];
   activeUnitCount: number;
   activeUnits: PropertyDetailUnitRecord[];
@@ -1120,7 +1129,7 @@ function buildPropertyNextAction({
     };
   }
 
-  const overdueCase = maintenanceCases.find(isOverdueMaintenanceTask);
+  const overdueCase = maintenanceCases.find(task => isOverdueMaintenanceTask(task, businessDate));
 
   if (overdueCase) {
     return {
@@ -1156,7 +1165,7 @@ function buildPropertyNextAction({
   };
 }
 
-function formatPositiveLedgerDisplay(entries: PropertyDetailLedgerRecord[]) {
+function formatPositiveLedgerDisplay(entries: PropertyDetailLedgerTotalRecord[]) {
   return formatMoneyTotalsDisplay(
     entries.map((entry) => ({
       amount: entry.amount,
@@ -1166,7 +1175,7 @@ function formatPositiveLedgerDisplay(entries: PropertyDetailLedgerRecord[]) {
   );
 }
 
-function sumLedgerUsd(entries: PropertyDetailLedgerRecord[]) {
+function sumLedgerUsd(entries: PropertyDetailLedgerTotalRecord[]) {
   return entries.reduce((total, entry) => {
     if (entry.amount === null) {
       return total;
@@ -1303,11 +1312,11 @@ function compareMaintenanceCases(
   );
 }
 
-function isOverdueMaintenanceTask(task: PropertyDetailMaintenanceRecord) {
+function isOverdueMaintenanceTask(task: PropertyDetailMaintenanceRecord, businessDate: string) {
   return (
     isOpenMaintenanceTask(task) &&
     Boolean(task.due_date) &&
-    task.due_date! < new Date().toISOString().slice(0, 10)
+    task.due_date! < businessDate
   );
 }
 

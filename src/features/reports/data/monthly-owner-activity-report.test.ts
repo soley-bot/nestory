@@ -28,6 +28,8 @@ describe("owner activity report", () => {
       ["Management fee", "USD 80.00"],
       ["Property costs", "USD 120.00"],
       ["Owner distributions", "USD 200.00"],
+      ["Owner funding", "USD 0.00"],
+      ["Net change", "USD 400.00"],
     ]);
     expect(report.rows[0]?.cells).toMatchObject({
       managementFees: "USD 80.00",
@@ -90,6 +92,18 @@ describe("owner activity report", () => {
     expect(report.ownerOptions).toEqual([
       { id: "owner-1", label: "Sokha Vannak" },
     ]);
+  });
+
+  it("separates signed owner funding from operating activity and reconciles net movement", () => {
+    const report = buildMonthlyOwnerActivityReport({
+      entries: [entry("rent_income", 800, 800), entry("owner_contribution", 100, 100), entry("owner_contribution", -25, -25, "reversal"), entry("withdrawal", 200, -200)],
+      ownerAssignments: new Map(), period: { start: "2026-08-01", end: "2026-08-31" },
+      properties: [{ code: "RIV", id: "property-1", name: "Riverside" }], viewQuery: query(),
+    });
+    expect(report.rows[0].cells).toMatchObject({ rent: "USD 800.00", ownerFunding: "USD 75.00", netChange: "USD 675.00" });
+    expect(report.summary).toContainEqual(expect.objectContaining({ label: "Owner funding", value: "USD 75.00", sourceCount: 2 }));
+    expect(report.summary).toContainEqual(expect.objectContaining({ label: "Net change", value: "USD 675.00", sourceCount: 4 }));
+    expect(report.rows[0].sourceLinks.filter(source => source.id.startsWith("unknown:"))).toEqual(expect.arrayContaining([expect.objectContaining({ href: expect.stringContaining("activity=owner_cash") })]));
   });
 
   it("filters owner activity by the selected primary owner", () => {

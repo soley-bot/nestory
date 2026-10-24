@@ -228,11 +228,12 @@ export function buildTrustedReportPdf({
   if (report.kind === "income-expense") {
     return buildIncomeExpenseStatementPdf({ organizationName, report });
   }
-  if (["transactions", "management-fees", "rent-roll", "rent-collections"].includes(report.kind) && report.columns.length > 6) {
+  if (["transactions", "management-fees", "rent-roll", "rent-collections", "monthly-owner-activity"].includes(report.kind) && report.columns.length > 6) {
     // Wide operational tables are split into readable column panels. Every
     // panel repeats the record identity; no selected column is dropped.
-    const sections = Array.from({ length: Math.ceil(report.columns.length / 5) }, (_, index) => {
-      const panel = { ...report, title: `${report.title} - columns ${index * 5 + 1}-${Math.min(report.columns.length, index * 5 + 5)}`, columns: report.columns.slice(index * 5, index * 5 + 5) };
+    const panelSize = report.kind === "monthly-owner-activity" ? 4 : 5;
+    const sections = Array.from({ length: Math.ceil(report.columns.length / panelSize) }, (_, index) => {
+      const panel = { ...report, title: `${report.title} - columns ${index * panelSize + 1}-${Math.min(report.columns.length, index * panelSize + panelSize)}`, columns: report.columns.slice(index * panelSize, index * panelSize + panelSize) };
       const columns = buildTrustedReportPdfColumns(panel);
       return paginateRows(buildTrustedReportPdfRows(panel, columns), trustedTableTopY).map((page) => ({ page, columns, panel }));
     }).flat();
@@ -856,6 +857,13 @@ function buildTrustedReportPdfRows(
       ],
       index,
       reportColumns,
+      report.kind === "monthly-owner-activity" ? {
+        fontSize: Math.min(rowFontSize, ...report.columns.map((column, columnIndex) =>
+          column.align === "right"
+            ? fitTextFontSize(row.cells[column.key] ?? "-", reportColumns[columnIndex + 1].width - cellPaddingX * 2, rowFontSize)
+            : rowFontSize,
+        )),
+      } : {},
     ),
   );
 }
@@ -1955,9 +1963,11 @@ function drawReportDescription(
 }
 
 function drawSummaryCards(commands: string[], report: TrustedReport) {
-  const metrics = report.summary.slice(0, 4);
+  const isOwnerActivity = report.kind === "monthly-owner-activity";
+  const metrics = isOwnerActivity ? report.summary : report.summary.slice(0, 4);
+  const cardCount = isOwnerActivity ? Math.max(metrics.length, 1) : 4;
   const cardGap = 8;
-  const cardWidth = (tableWidth - cardGap * 3) / 4;
+  const cardWidth = (tableWidth - cardGap * (cardCount - 1)) / cardCount;
   const cardHeight = 42;
   const y = 396;
 
@@ -1971,13 +1981,13 @@ function drawSummaryCards(commands: string[], report: TrustedReport) {
     drawText(commands, metric.label.toUpperCase(), x + 8, y + 27, {
       bold: true,
       color: colors.muted,
-      fontSize: 6.8,
+      fontSize: isOwnerActivity ? fitTextFontSize(metric.label.toUpperCase(), cardWidth - 16, 6.8, true) : 6.8,
       width: cardWidth - 16,
     });
     drawText(commands, metric.value, x + 8, y + 14, {
       bold: true,
       color: colors.ink,
-      fontSize: 10,
+      fontSize: isOwnerActivity ? fitTextFontSize(metric.value, cardWidth - 16, 10, true) : 10,
       width: cardWidth - 16,
     });
     drawText(commands, `${metric.sourceCount} source rows`, x + 8, y + 4, {
@@ -1986,6 +1996,11 @@ function drawSummaryCards(commands: string[], report: TrustedReport) {
       width: cardWidth - 16,
     });
   });
+}
+
+function fitTextFontSize(value: string, width: number, preferredSize: number, bold = false) {
+  const fittedSize = (width - 1) / Math.max(estimateTextWidth(sanitizeText(value), 1, bold), 1);
+  return Math.min(preferredSize, Math.floor(fittedSize * 100) / 100);
 }
 
 function drawHeader(

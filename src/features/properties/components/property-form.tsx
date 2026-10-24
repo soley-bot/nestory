@@ -612,10 +612,11 @@ function InlinePropertyPhotoField({
         aria-invalid={ariaInvalid}
         aria-labelledby={ariaLabelledBy}
         aria-required={ariaRequired}
-        description="JPG, PNG, or WebP up to 10 MB."
+        description="JPG, PNG, or WebP up to 4 MB."
         displayFileName={preview?.name}
         key={dropzoneKey}
         name="photo"
+        onClear={onClear}
         onFile={onFile}
         openRef={openRef}
       />

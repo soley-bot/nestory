@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ExternalLink, FileText, Plus, ScrollText, UserRound } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { PhotoGallery } from "@/features/photos/components/photo-gallery";
 import {
   buildUnitRecordHref,
+  parseUnitDetailQuery,
   type UnitRecordSection,
 } from "@/features/units/unit-detail-route";
 import type {
@@ -52,8 +53,8 @@ export function UnitDetailView({
   canWriteFiles?: boolean;
   initialSection?: UnitRecordSection;
   onAddDocument?: () => void;
-  onCreateLease: () => void;
-  onNewMaintenanceCase: () => void;
+  onCreateLease?: () => void;
+  onNewMaintenanceCase?: () => void;
   onOpenLease: () => void;
   onOpenLedgerEntry: (entry: UnitLedgerContext) => void;
   onOpenMaintenanceCase: (maintenanceCase: UnitMaintenanceContext) => void;
@@ -62,6 +63,17 @@ export function UnitDetailView({
 }) {
   const [activeSection, setActiveSection] =
     useState<UnitRecordSection>(initialSection);
+
+  useEffect(() => {
+    function restoreSection() {
+      if (window.location.pathname !== `/units/${unit.id}`) return;
+      const { section } = parseUnitDetailQuery(Object.fromEntries(new URLSearchParams(window.location.search)));
+      setActiveSection(section);
+      document.getElementById(`unit-tab-${section}`)?.focus();
+    }
+    window.addEventListener("popstate", restoreSection);
+    return () => window.removeEventListener("popstate", restoreSection);
+  }, [unit.id]);
 
   return (
     <div
@@ -110,8 +122,8 @@ function UnitRecordPanel({
   canArchiveFiles: boolean;
   canWriteFiles: boolean;
   onAddDocument?: () => void;
-  onCreateLease: () => void;
-  onNewMaintenanceCase: () => void;
+  onCreateLease?: () => void;
+  onNewMaintenanceCase?: () => void;
   onOpenLease: () => void;
   onOpenLedgerEntry: (entry: UnitLedgerContext) => void;
   onOpenMaintenanceCase: (maintenanceCase: UnitMaintenanceContext) => void;
@@ -156,8 +168,8 @@ function getUnitRecordPanelContent({
   canArchiveFiles: boolean;
   canWriteFiles: boolean;
   onAddDocument?: () => void;
-  onCreateLease: () => void;
-  onNewMaintenanceCase: () => void;
+  onCreateLease?: () => void;
+  onNewMaintenanceCase?: () => void;
   onOpenLease: () => void;
   onOpenLedgerEntry: (entry: UnitLedgerContext) => void;
   onOpenMaintenanceCase: (maintenanceCase: UnitMaintenanceContext) => void;
@@ -199,7 +211,7 @@ function UnitOverviewPanel({
   onCreateLease,
   unit,
 }: {
-  onCreateLease: () => void;
+  onCreateLease?: () => void;
   unit: UnitDetail;
 }) {
   const openChecks = unit.healthIndicators.filter(
@@ -254,11 +266,11 @@ function UnitOverviewPanel({
         <section aria-label="Unit attention" id="unit-attention">
           <SectionTitle
             actions={
-              unit.repairAction.label === "Create draft lease" ? (
+              unit.repairAction.label === "Create draft lease" ? onCreateLease ? (
                 <Button onClick={onCreateLease} size="sm" variant="outline">
                   {unit.repairAction.label}
                 </Button>
-              ) : (
+              ) : null : (
                 <Link
                   className="inline-flex h-8 items-center rounded-md border border-border px-2.5 text-xs font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   href={unit.repairAction.href}
@@ -307,14 +319,14 @@ function UnitLeasePanel({
   onOpenLease,
   unit,
 }: {
-  onCreateLease: () => void;
+  onCreateLease?: () => void;
   onOpenLease: () => void;
   unit: UnitDetail;
 }) {
   const setupAction =
-    unit.repairAction.label === "Create draft lease" ? (
+    unit.repairAction.label === "Create draft lease" ? onCreateLease ? (
       <Button onClick={onCreateLease} size="sm">Create draft lease</Button>
-    ) : (
+    ) : null : (
       <Link
         className="inline-flex h-8 items-center rounded-md border border-border px-2.5 text-xs font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         href={unit.repairAction.href}
@@ -498,7 +510,7 @@ function UnitMaintenancePanel({
   onOpenMaintenanceCase,
   unit,
 }: {
-  onNewMaintenanceCase: () => void;
+  onNewMaintenanceCase?: () => void;
   onOpenMaintenanceCase: (maintenanceCase: UnitMaintenanceContext) => void;
   unit: UnitDetail;
 }) {
@@ -510,9 +522,11 @@ function UnitMaintenancePanel({
             <span className="text-xs text-muted-foreground">
               {unit.counts.openMaintenanceCases ?? 0} open · {unit.counts.overdueMaintenanceCases ?? 0} overdue
             </span>
-            <ActionButton icon={<Plus size={14} />} onClick={onNewMaintenanceCase}>
-              New case
-            </ActionButton>
+            {onNewMaintenanceCase ? (
+              <ActionButton icon={<Plus size={14} />} onClick={onNewMaintenanceCase}>
+                New case
+              </ActionButton>
+            ) : null}
           </>
         }
         title="Maintenance"

@@ -23,6 +23,7 @@ import {
   paidCostEvidenceActionMessage,
   preparePaidCostEvidence,
   preparePaidCostEvidenceForFixture,
+  validatePaidCostEvidenceFile,
 } from "@/features/finance-operations/paid-cost-evidence";
 import {
   invalidPdfFile,
@@ -41,6 +42,10 @@ const retainedHash =
 const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 describe("receipt upload errors", () => {
+  it("rejects files beyond the hosted request budget", () => {
+    const file = new File([new Uint8Array(4 * 1024 * 1024 + 1)], "receipt.pdf", { type: "application/pdf" });
+    expect(validatePaidCostEvidenceFile(file)).toContain("4 MB");
+  });
   it("explains an unsupported file without suggesting an identical retry", () => {
     expect(paidCostEvidenceActionMessage(new Error("Receipt evidence content does not match its file type.")))
       .toBe("This receipt file cannot be verified. Choose another PDF or a JPG, PNG, or WebP image, or remove the receipt to submit without it.");
