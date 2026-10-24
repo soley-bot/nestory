@@ -682,7 +682,7 @@ function TimelineDocumentPanel({
           <FileDropzoneField
             accept={DOCUMENT_FILE_ACCEPT}
             className="mt-2"
-            description="PDF, JPG, PNG, or WebP up to 10 MB."
+            description="PDF, JPG, PNG, or WebP up to 4 MB."
             name="document"
             required
           />

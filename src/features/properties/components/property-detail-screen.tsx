@@ -27,6 +27,7 @@ import {
   RestorePropertyPanel,
 } from "@/features/properties/components/property-drawer-panels";
 import { PropertyDetailView } from "@/features/properties/components/property-detail-view";
+import { PropertyFormOptions } from "./property-form-options";
 import { PropertyForm } from "@/features/properties/components/property-form";
 import type { PropertyRecordSection } from "@/features/properties/components/property-detail-view";
 import type { PropertyDetail } from "@/features/properties/data/property-detail";
@@ -53,9 +54,9 @@ type PropertyDetailScreenProps = {
   canRecordDepositReceipt?: boolean;
   canWrite?: boolean;
   initialSection?: Exclude<PropertyRecordSection, "account">;
-  ownerOptions: PropertyOwnerOption[];
+  ownerOptions?: PropertyOwnerOption[];
   property: PropertyDetail;
-  tenantOptions: LeaseTenantOption[];
+  tenantOptions?: LeaseTenantOption[];
 };
 
 export function PropertyDetailScreen({
@@ -216,24 +217,32 @@ export function PropertyDetailScreen({
               ]}
             />
           ) : drawer.mode === "create-lease" ? (
-            <LeaseForm
-              returnTo={`/properties/${property.id}`}
-              billingFormConfig={billingFormConfig}
-              canRecordDepositReceipt={canRecordDepositReceipt}
-              createContext={{
-                propertyId: drawer.property.id,
-                propertyLabel: drawer.property.name,
-                unitId: null,
-                unitLabel: null,
-              }}
-              onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
-              properties={[
-                { id: drawer.property.id, label: drawer.property.name },
-              ]}
-              tenants={tenantOptions}
-              units={[]}
-            />
+            <PropertyFormOptions
+              mode="lease"
+              propertyId={drawer.property.id}
+              initialOptions={tenantOptions ? { tenants: tenantOptions, billingFormConfig } : undefined}
+            >
+              {(options) => (
+                <LeaseForm
+                  returnTo={`/properties/${property.id}`}
+                  billingFormConfig={options.billingFormConfig}
+                  canRecordDepositReceipt={canRecordDepositReceipt}
+                  createContext={{
+                    propertyId: drawer.property.id,
+                    propertyLabel: drawer.property.name,
+                    unitId: null,
+                    unitLabel: null,
+                  }}
+                  onClose={() => setDrawer(null)}
+                  onSuccess={setStatusMessage}
+                  properties={[
+                    { id: drawer.property.id, label: drawer.property.name },
+                  ]}
+                  tenants={options.tenants}
+                  units={[]}
+                />
+              )}
+            </PropertyFormOptions>
           ) : drawer.mode === "create-document" ? (
             <DocumentForm
               fixedPropertyId={drawer.property.id}
@@ -256,14 +265,22 @@ export function PropertyDetailScreen({
                 }))}
             />
           ) : (
-            <PropertyForm
-              key={`edit-${drawer.property.id}`}
+            <PropertyFormOptions
               mode="edit"
-              onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
-              ownerOptions={ownerOptions}
-              property={drawer.property}
-            />
+              propertyId={drawer.property.id}
+              initialOptions={ownerOptions ? { owners: ownerOptions } : undefined}
+            >
+              {(options) => (
+                <PropertyForm
+                  key={`edit-${drawer.property.id}`}
+                  mode="edit"
+                  onClose={() => setDrawer(null)}
+                  onSuccess={setStatusMessage}
+                  ownerOptions={options.owners}
+                  property={drawer.property}
+                />
+              )}
+            </PropertyFormOptions>
           )}
         </SideDrawer>
       ) : null}
@@ -274,14 +291,22 @@ export function PropertyDetailScreen({
           open
           title="Assign owner"
         >
-          <PropertyForm
+          <PropertyFormOptions
             mode="edit"
-            onClose={() => setOwnerAssignmentOpen(false)}
-            onSuccess={setStatusMessage}
-            ownerOptions={ownerOptions}
-            property={property}
-            scope="owner"
-          />
+            propertyId={property.id}
+            initialOptions={ownerOptions ? { owners: ownerOptions } : undefined}
+          >
+            {(options) => (
+              <PropertyForm
+                mode="edit"
+                onClose={() => setOwnerAssignmentOpen(false)}
+                onSuccess={setStatusMessage}
+                ownerOptions={options.owners}
+                property={property}
+                scope="owner"
+              />
+            )}
+          </PropertyFormOptions>
         </Modal>
       ) : null}
 

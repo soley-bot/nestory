@@ -16,6 +16,18 @@ const unit = (index: number, propertyId: unknown): CappedReadRow => ({ ...scope,
 beforeEach(() => vi.mocked(createSupabaseServerClient).mockReset());
 
 describe("complete property registers under API row caps", () => {
+  it("uses every current lease for detail totals and unit mapping while bounding the lease preview", async () => {
+    const target = property(1);
+    const units = Array.from({ length: 1001 }, (_, index) => unit(index, target.id));
+    const leases = units.map((row, index) => ({ ...scope, id: id("lease", index), property_id: target.id, unit_id: row.id, status: "active", tenant_name: `Tenant ${index}`, monthly_rent_amount: 100, monthly_rent_currency: "USD", lease_start_date: "2026-01-01", lease_end_date: "2027-01-01" }));
+    const { client } = createCappedReadHarness({ properties: [target], units, current_leases: leases });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
+    const result = await getPropertyDetail(organizationId, String(target.id));
+    expect(result).toMatchObject({ activeUnitCount: 1001, occupiedUnits: 1001, currentLeaseCount: 1001, currentLeaseUnitCount: 1001, unitsWithoutCurrentLease: 0 });
+    expect(result?.monthlyRentDisplay).toEqual(expect.objectContaining({ primary: expect.stringContaining("100,100") }));
+    expect(result?.unitsList.find(row => row.id === id("unit", 1000))?.tenantName).toBe("Tenant 1000");
+    expect(result?.activeLeases).toHaveLength(8);
+  });
   it("searches related units and owners beyond property 1000 with exact filtered totals", async () => {
     const properties = Array.from({ length: 1205 }, (_, index) => property(index));
     const target = properties.at(-1)!;
@@ -109,13 +121,15 @@ describe("complete property registers under API row caps", () => {
   it("keeps full detail ledger totals while preserving the eight recent entries", async () => {
     const target = property(1);
     const ledger = Array.from({ length: 6001 }, (_, index) => ({ ...scope, id: id("entry", index), property_id: target.id, unit_id: null, transaction_date: "2026-01-01", direction: "income", category: "rent", amount: 1, currency: "USD", description: null }));
-    const { client } = createCappedReadHarness({ properties: [target], ledger_entries: [...ledger, { ...ledger[0], id: "foreign-entry", organization_id: "other-org", amount: 999999 }] });
+    const { client, reads } = createCappedReadHarness({ properties: [target], ledger_entries: [...ledger, { ...ledger[0], id: "foreign-entry", organization_id: "other-org", amount: 999999 }] });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
     const result = await getPropertyDetail(organizationId, String(target.id));
     expect(result?.netIncomeUsd).toBe(6001);
     expect(result?.counts.ledgerEntries).toBe(6001);
     expect(result?.recentLedgerEntries).toHaveLength(8);
     expect(result?.recentLedgerEntries[0].id).toBe(id("entry", 6000));
+    expect(reads.filter(read => read.table === "ledger_entries" && read.range).every(read => read.select === "id, transaction_date, direction, category, amount, currency")).toBe(true);
+    expect(reads.filter(read => read.table === "ledger_entries" && read.select?.includes("description")).map(read => read.returnedRows)).toEqual([8]);
   });
   it("carries the relation budget across property ID batches", async () => {
     const properties = Array.from({ length: 76 }, (_, index) => property(index));

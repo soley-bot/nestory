@@ -1,5 +1,6 @@
 "use server";
 
+import { MAX_SERVER_UPLOAD_BYTES } from "@/lib/uploads/upload-limits";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -543,8 +544,8 @@ function validateEvidenceFile(file: File) {
   if (!file.name.trim() || file.name.length > 255) {
     return "Use an evidence file name under 256 characters.";
   }
-  if (file.size > 10 * 1024 * 1024) {
-    return "Evidence files must be 10 MB or smaller.";
+  if (file.size > MAX_SERVER_UPLOAD_BYTES) {
+    return "Evidence files must be 4 MB or smaller.";
   }
   if (!documentMimeTypes.has(file.type)) {
     return "Upload a PDF, JPG, PNG, or WebP evidence file.";

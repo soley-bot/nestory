@@ -28,6 +28,7 @@ function query(result: Promise<unknown>) {
     select: vi.fn(() => chain), eq: vi.fn(() => chain), is: vi.fn(() => chain),
     in: vi.fn(() => chain), not: vi.fn(() => chain), order: vi.fn(() => chain), limit: vi.fn(() => chain),
     range: vi.fn(() => chain),
+    lt: vi.fn(() => chain),
     maybeSingle: () => result,
     then: countedResult.then.bind(countedResult),
   };

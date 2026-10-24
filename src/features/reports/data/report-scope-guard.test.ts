@@ -54,9 +54,11 @@ describe("financial report scope guard", () => {
     });
     expectBlocked(await report({ propertyId: property, unitId: unit }));
   });
-  it("rejects archived units", async () => {
+  it("retains authorized archived units for historical reports", async () => {
     mocks.context.mockResolvedValue({ properties: [{ id: property, code: "P1", name: "Property", archived_at: null }], units: [{ id: unit, property_id: property, unit_number: "A1", archived_at: "2026-08-01" }] });
-    expectBlocked(await report({ propertyId: property, unitId: unit }));
+    const result = await report({ propertyId: property, unitId: unit });
+    expect(result.scopeValidation).toBeUndefined();
+    expect(result.rows[0].cells.unit).toBe("Unit A1 (archived)");
   });
   it("loads the owner identity used by Unit P&L exports", async () => {
     mocks.context.mockResolvedValue({

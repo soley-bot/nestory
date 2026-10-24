@@ -15,7 +15,7 @@ function property(index: number) {
     id: scaleId(1, index), organization_id: SCALE_ORGANIZATION_ID,
     code: `P${String(index).padStart(5, "0")}`, name: `Synthetic property ${index}`,
     property_type: "Apartment", owner: null, address: `Synthetic address ${index}`,
-    status: "active", registered_date: "2024-01-01", rental_structure: "multi_unit",
+    status: "active", registered_date: "2024-01-01", rental_structure: "multi_unit" as const,
     acquisition_date: null, notes: null, archived_at: null, edit_version: "1",
   };
 }

@@ -1,3 +1,6 @@
+import { buildTrustedReportPdf } from "./pdf";
+import { buildTrustedReportXlsx } from "./excel";
+import { strFromU8, unzipSync } from "fflate";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getReportsScreenData } from "@/features/reports/data/reports";
@@ -105,6 +108,38 @@ describe("live Finance report reads", () => {
         id: `property-level:${PROPERTY_ID}`,
       }),
     ]);
+  });
+
+  it.each(["all", UNIT_ID])("retains archived unit identity in historical P&L for %s", async unitId => {
+    const harness = createReportReadHarness({
+      context: financeContext({ units: [{ id: UNIT_ID, property_id: PROPERTY_ID, unit_number: "A1", archived_at: "2026-08-01" }] }),
+      ownerProfitLossEvents: [{ ...ownerProfitLossEvent(), unit_id: UNIT_ID }],
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getReportsScreenData(ORGANIZATION_ID, reportQuery({ report: "unit-profit-loss", unitId }));
+    expect(result.trustedReport.rows).toEqual([expect.objectContaining({ cells: expect.objectContaining({ unit: "Unit A1 (archived)", income: "USD 300.00" }) })]);
+    expect(result.trustedReport.unitProfitLossLines?.[0]).toMatchObject({ unitId: UNIT_ID, unit: "Unit A1 (archived)" });
+    expect(result.unitOptions[0].label).toContain("(archived)");
+    const pdf = Buffer.from(buildTrustedReportPdf({ organizationName: "Synthetic company", report: result.trustedReport })).toString("latin1");
+    const pdfText = [...pdf.matchAll(/\(((?:\\.|[^\\)])*)\) Tj/g)].map(match => match[1]).join("").replaceAll("\\(", "(").replaceAll("\\)", ")");
+    const sheet = strFromU8(unzipSync(buildTrustedReportXlsx(result.trustedReport))["xl/worksheets/sheet1.xml"]!);
+    expect(pdfText).toContain("A1 (archived)");
+    expect(sheet).toContain("A1 (archived)");
+  });
+
+  it("fails closed instead of relabeling a missing non-null unit as property-level", async () => {
+    const harness = createReportReadHarness({ context: financeContext({ units: [] }), ownerProfitLossEvents: [{ ...ownerProfitLossEvent(), unit_id: UNIT_ID }] });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    await expect(getReportsScreenData(ORGANIZATION_ID, reportQuery({ report: "unit-profit-loss" }))).rejects.toThrow("unit identity is unavailable");
+  });
+
+  it("scopes selected P&L authority while retaining other property choices", async () => {
+    const harness = createReportReadHarness({ context: financeContext({ properties: [{ id: PROPERTY_ID, code: "RIV", name: "Riverside Apartments", archived_at: null }, { id: "other-property", code: "OTH", name: "Other property", archived_at: null }] }) });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getReportsScreenData(ORGANIZATION_ID, reportQuery({ report: "unit-profit-loss", propertyId: PROPERTY_ID }));
+    expect(harness.rpcCalls).toContainEqual(["get_finance_read_context", { p_organization_id: ORGANIZATION_ID, p_requested_property_id: PROPERTY_ID }]);
+    expect(harness.rpcCalls.filter(([name]) => name === "get_finance_read_context")).toHaveLength(1);
+    expect(result.propertyOptions.map(row => row.id)).toContain("other-property");
   });
 
   it("enriches names through the P&L loader without loading cash events", async () => {
@@ -322,7 +357,9 @@ function createReportReadHarness({
     }
   }
 
+  const rpcCalls: Array<[string, Record<string, unknown>]> = [];
   return {
+    rpcCalls,
     client: {
       from: (table: string) =>
         new Query({
@@ -334,6 +371,7 @@ function createReportReadHarness({
           count: table === "property_account_entries" ? propertyAccountEntries.length : 0,
         }),
       rpc: (name: string, args: Record<string, unknown>) => {
+        rpcCalls.push([name, args]);
         if (name === "get_finance_read_context") {
           return Promise.resolve(
             contextResponse ?? { data: context, error: null },

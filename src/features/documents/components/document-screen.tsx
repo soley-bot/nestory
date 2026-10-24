@@ -822,7 +822,7 @@ export function DocumentForm({
         >
           <FileDropzoneField
             accept={DOCUMENT_FILE_ACCEPT}
-            description="PDF, JPG, PNG, or WebP up to 10 MB."
+            description="PDF, JPG, PNG, or WebP up to 4 MB."
             name="document"
             required={mode === "create"}
           />

@@ -34,7 +34,7 @@ export default async function UnitFinancePage({
       <Link className="block text-sm underline" href={query.view === "rent" ? "/rent-income" : query.view === "expenses" ? "/bills-expenses" : "/finance"}>Open Finance</Link>
     </section>;
   }
-  const unit = await getUnitDetail(context.organizationId, unitId);
+  const unit = await getUnitDetail(context.organizationId, unitId, { operationalTimezone: context.operationalTimezone });
   if (!unit) notFound();
   const expenseMonth = typeof query.expenseMonth === "string" && /^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(query.expenseMonth) ? query.expenseMonth : "";
   const allData = await getFinanceOperationsData(

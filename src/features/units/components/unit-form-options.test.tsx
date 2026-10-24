@@ -85,7 +85,7 @@ describe("Unit form options request lifecycle", () => {
     fetchMock.mockResolvedValue(new Response("sensitive details", { status }));
     render(<Form />);
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toBe("Your access to this form has changed. Refresh the page to check your access.");
+    expect(alert.textContent).toBe("This form is unavailable with your current access. Refresh the page to check your access.");
     expect(screen.queryByRole("form")).toBeNull();
   });
 

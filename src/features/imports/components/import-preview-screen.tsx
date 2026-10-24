@@ -40,6 +40,7 @@ import {
   importTypeOrder,
 } from "@/features/imports/import-config";
 import { buildImportDraftKey } from "@/features/imports/import-draft-key";
+import { getImportPayloadError } from "@/features/imports/import-payload-limit";
 import { getImportRunPresentation } from "@/features/imports/import-result-presentation";
 import type {
   GenericImportPreviewRow,
@@ -151,6 +152,7 @@ export function ImportPreviewScreen({
         : "",
     [draftKey, mapping, parsedFile, selectedType],
   );
+  const payloadError = useMemo(() => getImportPayloadError(payload), [payload]);
   const templateHref = `data:text/csv;charset=utf-8,${encodeURIComponent(
     buildImportTemplateCsv(selectedType, referenceData),
   )}`;
@@ -235,12 +237,16 @@ export function ImportPreviewScreen({
     }
   }
 
-  function chooseType(type: ImportType) {
+  function clearFileSelection() {
     fileReadVersion.current += 1;
-    setSelectedType(type);
     setParsedFile(null);
     setMapping({});
     setFileError(null);
+  }
+
+  function chooseType(type: ImportType) {
+    setSelectedType(type);
+    clearFileSelection();
   }
 
   function updateMapping(field: string, value: string) {
@@ -298,13 +304,15 @@ export function ImportPreviewScreen({
           </div>
 
           <div className="p-4">
-            <FileDropzoneField
+            <FileDropzoneField maxSize={Infinity}
               key={selectedType}
               aria-label="Select CSV file to import"
               accept={CSV_FILE_ACCEPT}
               description="CSV only. Nestory matches recognizable columns automatically."
               displayFileName={parsedFile?.fileName}
               onFile={handleFileSelect}
+              onClear={clearFileSelection}
+              onReject={clearFileSelection}
             />
             {fileError ? (
               <p
@@ -464,7 +472,9 @@ export function ImportPreviewScreen({
 
             <div className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                {showCurrentActionState ? (
+                {payloadError ? (
+                  <p className="text-sm text-danger" role="alert">{payloadError}</p>
+                ) : showCurrentActionState ? (
                   <p
                     className={
                       importState.status === "error"
@@ -486,11 +496,18 @@ export function ImportPreviewScreen({
                   </p>
                 ) : null}
               </div>
-              <form action={importAction} className="shrink-0">
-                <input name="payload" type="hidden" value={payload} />
+              <form
+                action={importAction}
+                className="shrink-0"
+                onSubmit={(event) => {
+                  if (payloadError) event.preventDefault();
+                }}
+              >
+                <input name="payload" type="hidden" value={payloadError ? "" : payload} />
                 <Button
                   disabled={
                     importing ||
+                    Boolean(payloadError) ||
                     currentAction.blocksSubmission ||
                     rows.length === 0 ||
                     stats.readyCount === 0

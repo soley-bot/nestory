@@ -34,7 +34,7 @@ export const scopedBillingTermSchema = z.object({
 export type ScopedBillingTerm = z.infer<typeof scopedBillingTermSchema>;
 
 const financeContextSchema = z.object({
-  properties: z.array(z.object({ id: z.string(), code: z.string(), name: z.string(), archived_at: nullableText })),
+  properties: z.array(z.object({ id: z.string(), code: z.string(), name: z.string(), rental_structure: z.enum(["single_space", "multi_unit", "undecided"]).optional(), archived_at: nullableText })),
   units: z.array(z.object({ id: z.string(), property_id: z.string(), unit_number: z.string(), archived_at: nullableText })),
   people: z.array(z.object({ id: z.string(), display_name: z.string(), party_type: z.string(), archived_at: nullableText })),
   owner_assignments: z.array(z.object({

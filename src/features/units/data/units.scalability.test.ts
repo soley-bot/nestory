@@ -16,6 +16,29 @@ const lease = (index: number, unitId: unknown, status = "active"): CappedReadRow
 beforeEach(() => vi.mocked(createSupabaseServerClient).mockReset());
 
 describe("complete unit registers under API row caps", () => {
+  it.each(["text", "occupancy", "rent"])("hydrates only selected units after %s matching", async mode => {
+    const units = Array.from({ length: 24 }, (_, index) => unit(index, id("property", 1)));
+    const { client, reads } = createCappedReadHarness({ properties: [property(1)], units, current_leases: [lease(1, units[23].id)] });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
+    const result = await getUnitsScreenData(organizationId, parseUnitSearchParams(mode === "text" ? { query: "23" } : mode === "occupancy" ? { occupancy: "occupied" } : { sort: "rent_desc", pageSize: "10" }));
+    const selected = new Set(result.units.map(unit => unit.id));
+    expect(result.pagination.totalCount).toBe(mode === "rent" ? 24 : 1);
+    const expensiveReads = reads.filter(read => ["ledger_entries", "documents", "asset_photos"].includes(read.table) || (read.table === "timeline_events" && read.select?.includes("description")));
+    expect(expensiveReads.length).toBeGreaterThan(0);
+    expect(expensiveReads.every(read => read.filters.some(filter => filter.column === "unit_id" && filter.method === "in" && (filter.value as string[]).every(id => selected.has(id))))).toBe(true);
+  });
+
+  it.each([24, 150])("does no ledger/media hydration for an empty text match across %s units", async count => {
+    const units = Array.from({ length: count }, (_, index) => unit(index, id("property", 1)));
+    const { client, reads } = createCappedReadHarness({ properties: [property(1)], units });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
+    const result = await getUnitsScreenData(organizationId, parseUnitSearchParams({ query: "absentneedle" }));
+    expect(result.units).toEqual([]);
+    expect(reads.some(read => ["ledger_entries", "documents", "asset_photos"].includes(read.table))).toBe(false);
+    const timelineReads = reads.filter(read => read.table === "timeline_events");
+    expect(timelineReads).toHaveLength(Math.ceil(count / 75));
+    expect(timelineReads.every(read => read.select === "id, unit_id, event_date, event_type, title")).toBe(true);
+  });
   it("searches and filters occupancy beyond unit 1000 using current lease evidence", async () => {
     const units = Array.from({ length: 1205 }, (_, index) => unit(index, id("property", index)));
     const target = units.at(-1)!;

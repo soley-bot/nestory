@@ -13,7 +13,7 @@ import UnitFinancePage from "./page";
 afterEach(cleanup);
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.context.mockResolvedValue({ organizationId: "org", permissionKeys: new Set(["finance.view", "leases.view"]), capabilities: {} });
+  mocks.context.mockResolvedValue({ organizationId: "org", operationalTimezone: "Asia/Phnom_Penh", permissionKeys: new Set(["finance.view", "leases.view"]), capabilities: {} });
   mocks.unit.mockResolvedValue({ id: "existing-unit", propertyId: "property", unitNumber: "A01", propertyName: "Central" });
   mocks.finance.mockResolvedValue({});
   mocks.scope.mockReturnValue({});
@@ -40,15 +40,15 @@ describe("unit finance access", () => {
   });
 
   it("retains scoped finance for property-authorized roles", async () => {
-    mocks.context.mockResolvedValue({ organizationId: "org", permissionKeys: new Set(["finance.view", "properties.view"]), capabilities: {} });
+    mocks.context.mockResolvedValue({ organizationId: "org", operationalTimezone: "Asia/Phnom_Penh", permissionKeys: new Set(["finance.view", "properties.view"]), capabilities: {} });
     render(await UnitFinancePage({ params: Promise.resolve({ unitId: "existing-unit" }) }));
     expect(screen.getByText("Scoped finance")).toBeTruthy();
-    expect(mocks.unit).toHaveBeenCalledWith("org", "existing-unit");
+    expect(mocks.unit).toHaveBeenCalledWith("org", "existing-unit", { operationalTimezone: "Asia/Phnom_Penh" });
     expect(mocks.scope).toHaveBeenCalledWith({}, { propertyId: "property", unitId: "existing-unit" });
   });
 
   it("keeps genuine unavailable records unavailable for property-authorized roles", async () => {
-    mocks.context.mockResolvedValue({ organizationId: "org", permissionKeys: new Set(["finance.view", "properties.view"]), capabilities: {} });
+    mocks.context.mockResolvedValue({ organizationId: "org", operationalTimezone: "Asia/Phnom_Penh", permissionKeys: new Set(["finance.view", "properties.view"]), capabilities: {} });
     mocks.unit.mockResolvedValue(null);
     await expect(UnitFinancePage({ params: Promise.resolve({ unitId: "missing-unit" }) })).rejects.toThrow("NOT_FOUND");
     expect(mocks.finance).not.toHaveBeenCalled();

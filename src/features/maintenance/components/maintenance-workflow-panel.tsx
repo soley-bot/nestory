@@ -1,5 +1,6 @@
 "use client";
 
+import { UploadFileInput } from "@/components/ui/upload-file-input";
 import { useActionState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, CornerUpLeft, Pause, Play, Send } from "lucide-react";
@@ -196,12 +197,12 @@ function MaintenanceCostHandoffPanel({
             </label>
             <label className="space-y-1.5 text-sm font-medium">
               <span>Receipt</span>
-              <Input
+              <UploadFileInput
                 accept="application/pdf,image/jpeg,image/png,image/webp"
                 aria-label="Receipt"
                 name="evidenceFile"
                 required
-                type="file"
+
               />
             </label>
           </div>

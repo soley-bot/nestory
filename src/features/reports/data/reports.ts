@@ -90,9 +90,9 @@ export async function getReportsScreenData(
   const financeContext = await loadScopedFinanceContext(
     supabase,
     organizationId,
-    viewQuery.report === "unit-profit-loss" || viewQuery.propertyId === "all" ? undefined : viewQuery.propertyId,
+    viewQuery.propertyId === "all" ? undefined : viewQuery.propertyId,
   );
-  const { propertyOptions, unitOptions } = getReportSelectorData(financeContext, ["transactions", "management-fees", "rent-collections"].includes(viewQuery.report));
+  const { propertyOptions, unitOptions } = getReportSelectorData(financeContext, ["transactions", "management-fees", "rent-collections"].includes(viewQuery.report), viewQuery.report === "unit-profit-loss");
   const trustedReport = await getTrustedReport({
     financeContext,
     organizationId,
@@ -109,7 +109,7 @@ export async function getReportsScreenData(
   };
 }
 
-function getReportSelectorData(financeContext: ScopedFinanceContext, includeArchived = false) {
+function getReportSelectorData(financeContext: ScopedFinanceContext, includeArchived = false, includeArchivedUnits = false) {
   const properties = financeContext.properties.filter(
     (property) => includeArchived || property.archived_at === null,
   ).toSorted((first, second) => first.name.localeCompare(second.name));
@@ -118,7 +118,7 @@ function getReportSelectorData(financeContext: ScopedFinanceContext, includeArch
   const unitOptions = financeContext.units
     .filter(
       (unit) =>
-        (includeArchived || unit.archived_at === null) && propertiesById.has(unit.property_id),
+        (includeArchived || includeArchivedUnits || unit.archived_at === null) && propertiesById.has(unit.property_id),
     )
     .map((unit) => {
       const property = propertiesById.get(unit.property_id);

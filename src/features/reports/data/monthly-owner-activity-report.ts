@@ -174,7 +174,8 @@ export function buildMonthlyOwnerActivityReport({
       "owner_expense_reversal",
     ]);
     const withdrawals = categoryTotal(propertyEntries, "withdrawal");
-    const netChange = rent - fees - costs - withdrawals;
+    const ownerFunding = categoryTotal(propertyEntries, "owner_contribution");
+    const netChange = balanceEffectTotal(propertyEntries);
     const propertyLabel = formatPropertyOptionLabel(property);
     const owner = ownerAssignments.get(property.id);
     const sourceLinks = [...propertyEntries]
@@ -197,6 +198,7 @@ export function buildMonthlyOwnerActivityReport({
         cells: {
           managementFees: formatProfitLossAmount(fees),
           netChange: formatProfitLossAmount(netChange),
+          ownerFunding: formatProfitLossAmount(ownerFunding),
           owner: owner?.name ?? "Owner needed",
           property: propertyLabel,
           propertyCosts: formatProfitLossAmount(costs),
@@ -240,12 +242,13 @@ export function buildMonthlyOwnerActivityReport({
       { align: "right", key: "managementFees", label: "Management fee" },
       { align: "right", key: "propertyCosts", label: "Property costs" },
       { align: "right", key: "withdrawals", label: "Owner distributions" },
+      { align: "right", key: "ownerFunding", label: "Owner funding" },
       { align: "right", key: "netChange", label: "Net change" },
     ],
     description:
       "Recorded owner-account activity for the selected property and month.",
     emptyDescription:
-      "Record rent, a property cost, a management fee, or a withdrawal to see it here.",
+      "Record rent, a property cost, a management fee, owner funding, or a distribution to see it here.",
     emptyTitle: "No owner activity this month",
     exportFilenameBase: "monthly-owner-activity",
     generatedAt: new Date().toISOString(),
@@ -276,10 +279,21 @@ export function buildMonthlyOwnerActivityReport({
         visibleEntries,
         "withdrawal",
       ),
+      metric("Owner funding", categoryTotal(visibleEntries, "owner_contribution"), visibleEntries, "owner_contribution"),
+      {
+        label: "Net change",
+        value: formatProfitLossAmount(balanceEffectTotal(visibleEntries)),
+        sourceCount: visibleEntries.length,
+        detail: "Signed account movement including owner funding and distributions",
+      },
     ],
     title: "Owner activity",
     totalsTraceLabel: `Totals trace to ${visibleEntries.length} property account ${visibleEntries.length === 1 ? "entry" : "entries"}.`,
   };
+}
+
+function balanceEffectTotal(entries: AccountEntry[]) {
+  return entries.reduce((total, entry) => total + parseExactMoneyToCents(entry.balance_effect ?? 0), BigInt(0));
 }
 
 function categoryTotal(
@@ -320,7 +334,7 @@ function metric(
 
 function activityFilter(category: string | null) {
   if (category === "rent_income") return "rent";
-  if (category === "withdrawal") return "owner_cash";
+  if (category === "withdrawal" || category === "owner_contribution") return "owner_cash";
   if (category === "owner_expense_reversal") return "corrections";
   return "costs";
 }
@@ -347,6 +361,7 @@ function categoryLabel(category: string | null) {
   if (category === "owner_expense") return "Property cost";
   if (category === "owner_expense_reversal") return "Expense reversal";
   if (category === "withdrawal") return "Owner distribution";
+  if (category === "owner_contribution") return "Owner funding";
   return "Owner account entry";
 }
 

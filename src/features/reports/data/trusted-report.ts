@@ -347,6 +347,7 @@ export async function getTrustedReport({
       (await loadScopedFinanceContext(
         supabase,
         organizationId,
+        viewQuery.propertyId === "all" ? undefined : viewQuery.propertyId,
       ));
     const properties: PropertyRow[] = financeContext.properties
       .filter(
@@ -367,7 +368,7 @@ export async function getTrustedReport({
     const units: UnitRow[] = financeContext.units
       .filter(
         (unit) =>
-          unit.archived_at === null && visiblePropertyIds.has(unit.property_id),
+          visiblePropertyIds.has(unit.property_id),
       )
       .map((unit) => ({
         current_rent_amount: null,
@@ -377,7 +378,7 @@ export async function getTrustedReport({
         property_id: unit.property_id,
         size_sqm: null,
         status: "active",
-        unit_number: unit.unit_number,
+        unit_number: `${unit.unit_number}${unit.archived_at ? " (archived)" : ""}`,
       }));
     if (
       (viewQuery.propertyId !== "all" && !visiblePropertyIds.has(viewQuery.propertyId)) ||
@@ -763,6 +764,9 @@ function buildUnitPerformanceReport(context: ReportContext): TrustedReport {
 }
 
 function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
+  if (context.ownerProfitLossEvents.some(event => event.unitId !== null && context.unitsById.get(event.unitId)?.property_id !== event.propertyId)) {
+    throw new Error("Profit and loss unit identity is unavailable in the report scope.");
+  }
   const unitRows = context.units
     .toSorted((first, second) => {
       const firstProperty = context.propertiesById.get(first.property_id);
@@ -885,7 +889,7 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
                 context.propertiesById.get(event.propertyId),
               ),
               reportingGroup: event.categoryReportingGroup,
-              unit: unit ? `Unit ${unit.unit_number}` : "Property-level",
+              unit: event.unitId === null ? "Property-level" : `Unit ${unit!.unit_number}`,
             };
           })
           .toSorted(

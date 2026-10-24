@@ -9,6 +9,40 @@ import type { TrustedReport } from "@/features/reports/reports.types";
 import { isContainedPdf } from "@/lib/uploads/pdf-containment";
 
 describe("trusted report PDF export", () => {
+  it("preserves every owner activity amount and all six summary totals in readable panels", () => {
+    const report = monthlyOwnerActivityReport();
+    const metrics = [
+      { key: "rent", label: "Rent", value: "USD 100,000.01" },
+      { key: "managementFees", label: "Management fee", value: "-USD 123,456.78" },
+      { key: "propertyCosts", label: "Property costs", value: "USD 1,234,567.89" },
+      { key: "withdrawals", label: "Owner distributions", value: "-USD 9,876,543.21" },
+      { key: "ownerFunding", label: "Owner funding", value: "USD 123,456,789,012.34" },
+      { key: "netChange", label: "Net change", value: "-USD 987,654,321,098.76" },
+    ];
+    report.columns = [
+      { key: "property", label: "Property" },
+      { key: "owner", label: "Owner" },
+      ...metrics.map(({ key, label }) => ({ key, label, align: "right" as const })),
+    ];
+    report.rows[0]!.cells = { ...report.rows[0]!.cells, ...Object.fromEntries(metrics.map(({ key, value }) => [key, value])) };
+    report.summary = metrics.map(({ label, value }) => ({ label, value, detail: label, sourceCount: 1 }));
+    const bytes = buildTrustedReportPdf({ organizationName: "Nestory", report });
+    const pdf = Buffer.from(bytes).toString("latin1");
+    const texts = [...pdf.matchAll(/BT \/F[12] ([\d.]+) Tf 1 0 0 1 ([\d.]+) ([\d.]+) Tm \((.*)\) Tj ET/g)]
+      .map((match) => ({ size: Number(match[1]), x: Number(match[2]), y: Number(match[3]), text: match[4]! }));
+    expect(isContainedPdf(bytes)).toBe(true);
+    expect(pdf).toContain("columns 1-4");
+    expect(pdf).toContain("columns 5-8");
+    expect(pdf).toContain("/Count 2");
+    for (const { label, value } of metrics) {
+      expect(texts.filter((text) => text.y === 423 && text.text === label.toUpperCase())).toHaveLength(2);
+      expect(texts.filter((text) => text.y === 410 && text.text === value)).toHaveLength(2);
+      expect(texts.filter((text) => text.y < 350 && text.text === value)).toHaveLength(1);
+    }
+    expect(texts.filter((text) => text.text.includes("USD") && text.text.includes("..."))).toHaveLength(0);
+    const tableLabels = texts.filter((text) => text.y < 350 && report.columns.some((column) => column.label === text.text));
+    expect(tableLabels.map((text) => text.text)).toEqual(report.columns.map((column) => column.label));
+  });
   it("keeps wide report columns readable across repeated record panels", () => {
     const report = monthlyOwnerActivityReport();
     report.kind = "transactions";

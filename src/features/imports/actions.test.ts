@@ -29,6 +29,20 @@ vi.mock("@/features/imports/data/imports", () => ({
   getImportReferenceData: mocks.getImportReferenceData,
 }));
 
+describe("import payload request budget", () => {
+  it.each([stageImportRunAction, importReadyRowsAction])("rejects oversized UTF-8 payloads before accessing the database", async (action) => {
+    vi.clearAllMocks();
+    const formData = new FormData();
+    formData.set("payload", JSON.stringify({ value: "界".repeat(1_400_000) }));
+    expect(await action({}, formData)).toEqual({
+      message: "This import is too large to submit. Split the CSV into smaller files and try again.",
+      status: "error",
+    });
+    expect(mocks.requireSuperAdminContext).not.toHaveBeenCalled();
+    expect(mocks.createSupabaseServerClient).not.toHaveBeenCalled();
+  });
+});
+
 describe("commitStagedImportRunAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();

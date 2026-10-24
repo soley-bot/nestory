@@ -230,7 +230,7 @@ describe("FinanceOperationsScreen", () => {
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button",{name:"Add expense"}));
     const expense = screen.getByRole("dialog");
-    expect(within(expense).getByRole("combobox",{name:"Expense line 1 unit"}).hasAttribute("disabled")).toBe(true);
+    expect((await within(expense).findByRole("combobox",{name:"Expense line 1 unit"})).hasAttribute("disabled")).toBe(true);
     const lines=JSON.parse(expense.querySelector<HTMLInputElement>('input[name="lines"]')!.value);
     expect(lines[0].unitId).toBe("unit-2");
     await user.click(within(expense).getByRole("button", {name:"Add line"}));
@@ -410,7 +410,7 @@ describe("FinanceOperationsScreen", () => {
     await user.click(screen.getByRole("tab", { name: "Approved (1)" }));
     await user.click(screen.getByRole("button", { name: "View Sokha Repairs" }));
     await user.click(screen.getByRole("button", { name: "Edit expense" }));
-    const form = screen.getByRole("form", { name: "Record property expense form" });
+    const form = await screen.findByRole("form", { name: "Record property expense form" });
     const reason = screen.getByRole<HTMLInputElement>("textbox", { name: /^Reason for change/ });
     await user.type(reason, "Repair amount changed");
     const key = valueOfNamedInput(form, "idempotencyKey");
@@ -439,7 +439,7 @@ describe("FinanceOperationsScreen", () => {
     const user = userEvent.setup();
     render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canSubmitExpense: true })}
       initialExpenseIntent="owner" organizationName="IPS" view="expenses" />);
-    const form = screen.getByRole("form", { name: "Record property expense form" });
+    const form = await screen.findByRole("form", { name: "Record property expense form" });
     const allocation = screen.getByLabelText("Use owner funds held by management");
     const disclosure = allocation.closest("details");
     expect(disclosure).not.toBeNull();
@@ -476,7 +476,7 @@ describe("FinanceOperationsScreen", () => {
     });
     render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canSubmitExpense: true })}
       initialExpenseIntent="owner" organizationName="IPS" view="expenses" />);
-    const form = screen.getByRole("form", { name: "Record property expense form" });
+    const form = await screen.findByRole("form", { name: "Record property expense form" });
     const allocation = screen.getByLabelText<HTMLInputElement>("Use owner funds held by management");
     const disclosure = allocation.closest("details")!;
     const summary = within(disclosure).getByText(/Owner cash/);
@@ -508,7 +508,7 @@ describe("FinanceOperationsScreen", () => {
     const user = userEvent.setup();
     render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canSubmitExpense: true })}
       initialExpenseIntent="owner" organizationName="IPS" view="expenses" />);
-    const form = screen.getByRole("form", { name: "Record property expense form" });
+    const form = await screen.findByRole("form", { name: "Record property expense form" });
     await user.type(screen.getByLabelText("Line amount"), "30");
     fireEvent.submit(form);
     await screen.findByText("Choose a vendor or one-time payee.");
@@ -541,7 +541,7 @@ describe("FinanceOperationsScreen", () => {
     render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canSubmitExpense: true })}
       initialExpenseIntent="owner" organizationName="IPS" view="expenses"
       scope={{id:"unit-1",kind:"unit",label:"Unit 1",propertyId:"property-1",propertyLabel:"Riverside"}} />);
-    const form = screen.getByRole("form", { name: "Record property expense form" });
+    const form = await screen.findByRole("form", { name: "Record property expense form" });
     expect(JSON.parse(valueOfNamedInput(form,"lines")!)[0].unitId).toBe("unit-1");
     await user.click(screen.getByRole("combobox", {name:"Property"}));
     await user.click(screen.getByRole("option", {name:"Garden House"}));
@@ -550,7 +550,7 @@ describe("FinanceOperationsScreen", () => {
     expect(JSON.parse(valueOfNamedInput(form,"lines")!)[1]).toMatchObject({propertyId:"property-2",categoryAccountId:"category-2"});
   });
 
-  it("preserves the configured paid-from account for a scoped transaction", () => {
+  it("preserves the configured paid-from account for a scoped transaction", async () => {
     const input = data();
     input.payFromAccounts = [
       { accountClass: "asset", accountSubtype: "bank", displayName: "First bank", id: "first", propertyId: null },
@@ -559,7 +559,7 @@ describe("FinanceOperationsScreen", () => {
     render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canSubmitExpense: true })}
       initialExpenseIntent="owner" organizationName="IPS" view="expenses"
       scope={{ id: "property-1", kind: "property", label: "Riverside", propertyId: "property-1", propertyLabel: "Riverside" }} />);
-    expect(valueOfNamedInput(screen.getByRole("form", { name: "Record property expense form" }), "payFromAccountId")).toBe("configured");
+    expect(valueOfNamedInput(await screen.findByRole("form", { name: "Record property expense form" }), "payFromAccountId")).toBe("configured");
   });
   it.each(["submitted", "approved"] as const)("keeps a partial %s transaction read-only even for reviewers", async (status) => {
     const user = userEvent.setup();
@@ -1393,6 +1393,22 @@ describe("FinanceOperationsScreen", () => {
     vi.useRealTimers();
   });
 
+  it.each([true, false])("replaces retired policy instructions with current lease guidance, billing ready=%s", ready => {
+    const input = data();
+    input.leases[0].billing = ready ? billing() : null;
+    input.rentGenerationExceptions = [{ attemptCount: 2, billingPeriodStart: "2026-09-01", code: "rent_policy_missing", id: "legacy-policy", lastAttemptAt: "2026-09-01", leaseId: "lease-1", message: "Approve the monthly rent policy for this organization.", propertyId: "property-1" }];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRetryCurrentRent: true })} canViewLeases organizationName="IPS" view="work" />);
+    expect(screen.getByRole("link", { name: "Review lease billing" }).getAttribute("href")).toBe("/leases/lease-1?section=rent");
+    expect(screen.getByText("Approve the monthly rent policy for this organization.").closest("details")).not.toBeNull();
+    if (ready) {
+      expect(screen.getByText(/Recheck this earlier exception against the current lease billing rules/)).not.toBeNull();
+      expect(screen.getByRole("button", { name: "Recheck and generate missing rent for Sep 2026" })).not.toBeNull();
+    } else {
+      expect(screen.getByText(/Set up the lease billing rules before rechecking/)).not.toBeNull();
+      expect(screen.queryByRole("button", { name: /Recheck and generate/ })).toBeNull();
+    }
+  });
+
   it("shows automatic-rent exceptions without restoring a manual invoice path", () => {
     const input = data();
     input.leases[0].billing = billing();
@@ -1880,7 +1896,7 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.queryByText("of USD 785.00")).toBeNull();
   });
 
-  it("opens lease billing as one compact prefilled form", () => {
+  it("opens lease billing as one compact prefilled form", async () => {
     render(
       <FinanceOperationsScreen
         {...data()}
@@ -1903,6 +1919,7 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.queryByText("Post")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Set up" }));
+    await screen.findByRole("button", { name: "Save billing rules" });
     expect(
       screen.getByRole("dialog", { name: "Set up lease billing" }),
     ).not.toBeNull();
@@ -1927,7 +1944,7 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
   });
 
-  it("previews finance billing from the full lease boundary schedule", () => {
+  it("previews finance billing from the full lease boundary schedule", async () => {
     const input = data();
     Object.assign(input.leases[0]!, {
       billingPreview: {
@@ -1951,6 +1968,7 @@ describe("FinanceOperationsScreen", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Set up" }));
+    await screen.findByRole("button", { name: "Save billing rules" });
     const dialog = screen.getByRole("dialog", { name: "Set up lease billing" });
     const preview = within(dialog).getByRole("region", { name: "Rent preview" });
     expect(within(preview).getByText(/First month/)).not.toBeNull();
@@ -1960,7 +1978,7 @@ describe("FinanceOperationsScreen", () => {
     expect(within(preview).queryByText("Lease month")).toBeNull();
   });
 
-  it("submits a legacy snapshot id as the repair token while showing missing authority", () => {
+  it("submits a legacy snapshot id as the repair token while showing missing authority", async () => {
     const input = data();
     input.leases[0]!.expectedCurrentBillingRuleId = "legacy-snapshot-rule";
 
@@ -1975,6 +1993,7 @@ describe("FinanceOperationsScreen", () => {
 
     expect(screen.getByText("Set up lease billing")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Set up" }));
+    await screen.findByRole("button", { name: "Save billing rules" });
     const dialog = screen.getByRole("dialog", { name: "Set up lease billing" });
     expect(
       dialog.querySelector<HTMLInputElement>(
@@ -2029,7 +2048,7 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByRole("button", { name: "Repair" })).not.toBeNull();
   });
 
-  it("repairs an incomplete company lease with the company tenant selected", () => {
+  it("repairs an incomplete company lease with the company tenant selected", async () => {
     const input = data();
     input.leases[0]!.tenantLabel = "Sokha Trading Co.";
     input.leases[0]!.tenantPersonId = "person-company";
@@ -2049,6 +2068,7 @@ describe("FinanceOperationsScreen", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Repair" }));
+    await screen.findByRole("button", { name: "Save billing rules" });
     const dialog = screen.getByRole("dialog", { name: "Repair lease billing" });
     expect(
       within(dialog).getByRole("combobox", { name: "Bill to" }).textContent,
@@ -2495,7 +2515,7 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
   });
 
-  it("opens the exact lease billing repair supplied by setup readiness", () => {
+  it("opens the exact lease billing repair supplied by setup readiness", async () => {
     render(
       <FinanceOperationsScreen
         {...data()}
@@ -2506,6 +2526,7 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
+    await screen.findByRole("button", { name: "Save billing rules" });
     const drawer = screen.getByRole("dialog", {
       name: "Set up lease billing",
     });

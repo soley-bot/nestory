@@ -1,4 +1,6 @@
 import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import { getMaintenanceCaseCounts } from "@/features/properties/data/property-detail-counts";
+import { getBusinessDateValue } from "@/lib/dates/business-date";
 import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { matchesSearchText } from "@/lib/search/text";
 import { normalizeSearchText } from "@/lib/search/text";
@@ -333,6 +335,7 @@ async function getCompleteUnitsScreenData({
       .order("id", { ascending: true }).range(from, to),
   });
   const { units: unitRows, propertiesById } = splitUnitRowsAndProperties(rows as UnitRowWithProperty[]);
+  const unitRowsById = new Map(unitRows.map(unit => [unit.id, unit]));
 
   if (unitRows.length === 0) {
     return {
@@ -351,10 +354,20 @@ async function getCompleteUnitsScreenData({
       propertiesById,
       supabase,
       unitRows,
+      matching: { includeTimeline: Boolean(viewQuery.query.trim()) },
     })
   ).toSorted(compareUnitSummaries);
   const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
   const filteredUnits = filterUnitSummaries(units, viewQuery, portfolio);
+  if (viewQuery.sort === "net_desc") {
+    const ledgerByUnitId = groupByUnitId(await getLedgerTotalRowsForUnits(supabase, organizationId, filteredUnits.map(unit => unit.id)));
+    for (const summary of filteredUnits) {
+      summary.ledgerNetUsd = buildUnitSummary({
+        unit: unitRowsById.get(summary.id)!,
+        ledgerEntries: ledgerByUnitId.get(summary.id) ?? [],
+      }).ledgerNetUsd;
+    }
+  }
   const sortedUnits = sortUnitSummaries(filteredUnits, viewQuery.sort);
   const pagination = buildUnitPagination({
     page: viewQuery.page,
@@ -364,7 +377,12 @@ async function getCompleteUnitsScreenData({
 
   return {
     pagination,
-    units: getUnitPageSummaries(sortedUnits, pagination),
+    units: await loadUnitSummariesForRows({
+      organizationId,
+      propertiesById,
+      supabase,
+      unitRows: getUnitPageSummaries(sortedUnits, pagination).map(summary => unitRowsById.get(summary.id)!),
+    }),
   };
 }
 
@@ -373,11 +391,13 @@ async function loadUnitSummariesForRows({
   propertiesById,
   supabase,
   unitRows,
+  matching,
 }: {
   organizationId: string;
   propertiesById: Map<string, UnitPropertyRecord>;
   supabase: SupabaseServerClient;
   unitRows: UnitRecord[];
+  matching?: { includeTimeline: boolean };
 }) {
   const unitIds = new Set(unitRows.map((unit) => unit.id));
 
@@ -397,10 +417,12 @@ async function loadUnitSummariesForRows({
   ] =
     await Promise.all([
       getLeaseRowsForUnits(supabase, organizationId, [...unitIds]),
-      getTimelineContextRowsForUnits(supabase, organizationId, [...unitIds]),
-      getLedgerTotalRowsForUnits(supabase, organizationId, [...unitIds]),
-      getImageRowsForUnits(supabase, organizationId, [...unitIds]),
-      getUnitPhotoThumbnailUrls({
+      matching
+        ? matching.includeTimeline ? getTimelineContextRowsForUnits(supabase, organizationId, [...unitIds], true) : []
+        : getTimelineContextRowsForUnits(supabase, organizationId, [...unitIds]),
+      matching ? [] : getLedgerTotalRowsForUnits(supabase, organizationId, [...unitIds]),
+      matching ? [] : getImageRowsForUnits(supabase, organizationId, [...unitIds]),
+      matching ? new Map<string, string>() : getUnitPhotoThumbnailUrls({
         organizationId,
         supabase,
         unitIds: [...unitIds],
@@ -469,8 +491,13 @@ async function getPrimaryOwnerNamesForProperties(
   );
 }
 
-export async function getUnitDetail(organizationId: string, unitId: string) {
+export async function getUnitDetail(
+  organizationId: string,
+  unitId: string,
+  { operationalTimezone }: { operationalTimezone?: string } = {},
+) {
   const supabase = await createSupabaseServerClient();
+  const businessDate = getBusinessDateValue(new Date(), operationalTimezone);
 
   const unitResult = await supabase
     .from("units")
@@ -497,6 +524,7 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
     documentsResult,
     photos,
     maintenanceResult,
+    maintenanceCounts,
     activityResult,
   ] = await Promise.all([
     supabase
@@ -564,6 +592,7 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
       .order("due_date", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(50),
+    getMaintenanceCaseCounts({ supabase, organizationId, scopeColumn: "unit_id", scopeId: unit.id, businessDate }),
     supabase
       .from("activity_logs")
       .select(
@@ -622,6 +651,7 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
   ]);
 
   return buildUnitDetail({
+    businessDate,
     activeLease,
     activity,
     counts: {
@@ -629,8 +659,7 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
       ledgerEntries: ledgerResult.count ?? ledgerResult.data?.length ?? 0,
       maintenanceCases:
         maintenanceResult.count ?? maintenanceRows.length,
-      openMaintenanceCases: maintenanceRows.filter(isOpenMaintenanceTask).length,
-      overdueMaintenanceCases: maintenanceRows.filter(isOverdueMaintenanceTask).length,
+      ...maintenanceCounts,
       photos: photos.length,
       timelineEvents: timelineResult.count ?? timelineResult.data?.length ?? 0,
     },
@@ -910,6 +939,7 @@ async function getLeaseRowsForUnits(
       .select(leaseSelect, { count: "exact" })
       .eq("organization_id", organizationId)
       .in("unit_id", batch)
+      .in("status", ["active", "notice_given", "draft"])
       .is("archived_at", null)
       .order("lease_start_date", { ascending: false })
       .order("id", { ascending: true }).range(from, to),
@@ -922,19 +952,24 @@ async function getTimelineContextRowsForUnits(
   supabase: SupabaseServerClient,
   organizationId: string,
   unitIds: string[],
+  matching = false,
 ) {
   const rows = await queryUnitIdBatches(unitIds, (batch, remainingRows) => readCompleteRows<UnitTimelineRecord>({
     maxRows: remainingRows,
     context: "Could not load unit timeline context",
     getRowId: row => row.id,
-    readPage: (from, to) => supabase
-      .from("timeline_events")
-      .select(timelineContextSelect, { count: "exact" })
-      .eq("organization_id", organizationId)
-      .in("unit_id", batch)
-      .is("archived_at", null)
-      .order("event_date", { ascending: false })
-      .order("id", { ascending: false }).range(from, to),
+    readPage: (from, to) => {
+      const query = supabase.from("timeline_events");
+      const selected = matching
+        ? query.select("id, unit_id, event_date, event_type, title", { count: "exact" })
+        : query.select(timelineContextSelect, { count: "exact" });
+      return selected
+        .eq("organization_id", organizationId)
+        .in("unit_id", batch)
+        .is("archived_at", null)
+        .order("event_date", { ascending: false })
+        .order("id", { ascending: false }).range(from, to);
+    },
   }));
 
   return rows;
@@ -1051,16 +1086,4 @@ function compareStrings(first: string, second: string) {
     numeric: true,
     sensitivity: "base",
   });
-}
-
-function isOpenMaintenanceTask(task: UnitMaintenanceRecord) {
-  return task.status !== "completed" && task.status !== "cancelled";
-}
-
-function isOverdueMaintenanceTask(task: UnitMaintenanceRecord) {
-  return (
-    isOpenMaintenanceTask(task) &&
-    Boolean(task.due_date) &&
-    task.due_date! < new Date().toISOString().slice(0, 10)
-  );
 }

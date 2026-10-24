@@ -1,3 +1,4 @@
+import { MAX_SERVER_UPLOAD_BYTES } from "@/lib/uploads/upload-limits";
 import { createHash } from "node:crypto";
 import type { PrivilegedStepUpRequestClient } from "@/lib/auth/privileged-step-up-guard";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
@@ -13,7 +14,7 @@ const ALLOWED_PAID_COST_EVIDENCE_TYPES = new Set([
   "image/png",
   "image/webp",
 ]);
-const MAX_PAID_COST_EVIDENCE_BYTES = 10 * 1024 * 1024;
+const MAX_PAID_COST_EVIDENCE_BYTES = MAX_SERVER_UPLOAD_BYTES;
 
 export function paidCostEvidenceActionMessage(error: unknown) {
   if (isPrivilegedStepUpRequiredError(error)) {
@@ -52,7 +53,7 @@ export function validatePaidCostEvidenceFile(value: FormDataEntryValue | null) {
     return "Use a PDF, JPEG, PNG, or WebP receipt evidence file.";
   }
   if (value.size > MAX_PAID_COST_EVIDENCE_BYTES) {
-    return "Keep receipt evidence at or below 10 MB.";
+    return "Keep receipt evidence at or below 4 MB.";
   }
   return null;
 }

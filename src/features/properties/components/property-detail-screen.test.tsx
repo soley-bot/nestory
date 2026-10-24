@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -25,6 +26,42 @@ afterEach(() => {
 });
 
 describe("PropertyDetailScreen task-first detail contract", () => {
+  it("shows the complete active lease count when the preview is capped at eight", () => {
+    const detail = buildPropertyDetail({
+      property: { id: "property-nine", name: "Nine leases", code: "NINE", status: "active", property_type: "Apartment", rental_structure: "multi_unit", owner: null, address: null },
+      ledgerEntries: [],
+      units: Array.from({ length: 9 }, (_, index) => ({ id: `unit-${index}`, unit_number: String(index), status: "vacant", archived_at: null, floor: null, current_rent_amount: null, current_rent_currency: "USD" })),
+      activeLeases: Array.from({ length: 9 }, (_, index) => ({ id: `lease-${index}`, unit_id: `unit-${index}`, tenant_name: `Tenant ${index}`, status: "active", monthly_rent_amount: 100, monthly_rent_currency: "USD", lease_start_date: "2026-01-01", lease_end_date: "2027-01-01" })),
+    });
+    expect(detail.activeLeases).toHaveLength(8);
+    renderPropertyDetail({ propertyOverride: detail });
+    expect(within(screen.getByLabelText("Property summary")).getByText("9 active")).toBeTruthy();
+    expect(within(screen.getByLabelText("Property summary")).queryByText("8 active")).toBeNull();
+  });
+  it("restores the section and tab focus with browser Back and Forward", async () => {
+    window.history.replaceState({}, "", `/properties/${property.id}`);
+    renderPropertyDetail();
+    fireEvent.click(screen.getByRole("tab", { name: "Units" }));
+    expect(screen.getByRole("tabpanel", { name: "Units" })).toBeTruthy();
+    await traverseHistory("back");
+    expect(window.location.search).toBe("");
+    expect(screen.getByRole("tabpanel", { name: "Overview" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Overview" }).getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Overview" }));
+    await traverseHistory("forward");
+    expect(window.location.search).toBe("?section=units");
+    expect(screen.getByRole("tabpanel", { name: "Units" })).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Units" }));
+  });
+
+  it("restores an initial Files deep link after visiting another property section", async () => {
+    window.history.replaceState({}, "", `/properties/${property.id}?section=files`);
+    renderPropertyDetail({ initialSection: "files" });
+    fireEvent.click(screen.getByRole("tab", { name: "Overview" }));
+    await traverseHistory("back");
+    expect(screen.getByRole("tabpanel", { name: "Files" })).toBeTruthy();
+  });
+
   it("returns to the filtered register and preserves it when changing record sections", () => {
     const returnTo = "/properties?query=River&page=2&ownerStatus=missing";
     renderPropertyDetail({ returnTo });
@@ -802,3 +839,12 @@ const propertyWithAccentNextAction: PropertyDetail = {
     tone: "accent",
   },
 };
+
+async function traverseHistory(direction: "back" | "forward") {
+  await act(async () => {
+    await new Promise<void>((resolve) => {
+      window.addEventListener("popstate", () => resolve(), { once: true });
+      window.history[direction]();
+    });
+  });
+}

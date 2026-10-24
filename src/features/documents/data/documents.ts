@@ -14,6 +14,7 @@ import type {
   LinkedDocument,
 } from "@/features/documents/document.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { readCompleteRows } from "@/lib/db/complete-read";
 import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import { buildTimelineEventHref } from "@/features/timeline/timeline-navigation";
 import {
@@ -82,27 +83,27 @@ export async function getDocumentsScreenData(
   const supabase = await createSupabaseServerClient();
   const { from, to } = getRange(viewQuery.page, viewQuery.pageSize);
 
-  const [propertiesResult, unitsResult] = await Promise.all([
-    supabase
+  const [properties, units] = await Promise.all([
+    readCompleteRows<PropertyRow>({
+      context: "Could not load document properties",
+      getRowId: (row) => row.id,
+      readPage: (start, end) => supabase
       .from("properties")
-      .select("id, name, code")
+      .select("id, name, code", { count: "exact" })
       .eq("organization_id", organizationId)
       .is("archived_at", null)
-      .order("name", { ascending: true }),
-    supabase
+      .order("name", { ascending: true }).order("id").range(start, end),
+    }),
+    readCompleteRows<UnitRow>({
+      context: "Could not load document units",
+      getRowId: (row) => row.id,
+      readPage: (start, end) => supabase
       .from("units")
-      .select("id, property_id, unit_number")
+      .select("id, property_id, unit_number", { count: "exact" })
       .eq("organization_id", organizationId)
-      .is("archived_at", null),
+      .is("archived_at", null).order("id").range(start, end),
+    }),
   ]);
-
-  if (propertiesResult.error) {
-    throw new Error(`Could not load document properties: ${propertiesResult.error.message}`);
-  }
-
-  if (unitsResult.error) {
-    throw new Error(`Could not load document units: ${unitsResult.error.message}`);
-  }
 
   const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
   const groups = portfolio?.groups(viewQuery.query, ["file_name", "category"]) ?? [];
@@ -163,8 +164,23 @@ export async function getDocumentsScreenData(
     getTimelineEventsById(supabase, organizationId, timelineIds),
     getDocumentActivity(supabase, organizationId, documentIds),
   ]);
-  const propertiesById = indexById(propertiesResult.data ?? []);
-  const unitsById = indexById(unitsResult.data ?? []);
+  const propertiesById = indexById(properties);
+  const unitsById = indexById(units);
+  const missingPropertyIds = uniqueIdsOrEmpty(rows.flatMap((row) =>
+    row.property_id && !propertiesById.has(row.property_id) ? [row.property_id] : []));
+  const missingUnitIds = uniqueIdsOrEmpty(rows.flatMap((row) =>
+    row.unit_id && !unitsById.has(row.unit_id) ? [row.unit_id] : []));
+  const [linkedProperties, linkedUnits] = await Promise.all([
+    missingPropertyIds.length ? supabase.from("properties").select("id, name, code")
+      .eq("organization_id", organizationId).in("id", missingPropertyIds) : null,
+    missingUnitIds.length ? supabase.from("units").select("id, property_id, unit_number")
+      .eq("organization_id", organizationId).in("id", missingUnitIds) : null,
+  ]);
+  if (linkedProperties?.error || linkedUnits?.error) {
+    throw new Error("Could not load linked document property or unit details.");
+  }
+  for (const property of linkedProperties?.data ?? []) propertiesById.set(property.id, property);
+  for (const unit of linkedUnits?.data ?? []) unitsById.set(unit.id, unit);
   const leasesById = indexById(leases);
   const ledgerById = indexById(ledgerEntries);
   const tasksById = indexById(tasks);
@@ -198,11 +214,11 @@ export async function getDocumentsScreenData(
       pageSize: viewQuery.pageSize,
       totalCount: documentsResult.count ?? documents.length,
     }),
-    propertyOptions: (propertiesResult.data ?? []).map((property) => ({
+    propertyOptions: properties.map((property) => ({
       id: property.id,
       label: formatPropertyOptionLabel(property),
     })),
-    unitOptions: (unitsResult.data ?? []).map((unit) => {
+    unitOptions: units.map((unit) => {
       const property = propertiesById.get(unit.property_id);
 
       return {

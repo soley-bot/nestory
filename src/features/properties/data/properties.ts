@@ -1,4 +1,6 @@
 import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import { getMaintenanceCaseCounts } from "./property-detail-counts";
+import { getBusinessDateValue } from "@/lib/dates/business-date";
 import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { matchesSearchText } from "@/lib/search/text";
 import { normalizeSearchText } from "@/lib/search/text";
@@ -25,8 +27,10 @@ import {
   buildPropertyDetail,
   type PropertyDetailDocumentRecord,
   type PropertyExpenseEvidenceRecord,
-  type PropertyDetailLedgerRecord,
+  type PropertyDetailLedgerTotalRecord,
   type PropertyDetailMaintenanceRecord,
+  type PropertyDetailLeaseRecord,
+  type PropertyDetailUnitRecord,
   type PropertyOwnerHistoryRecord,
 } from "@/features/properties/data/property-detail";
 import {
@@ -561,8 +565,10 @@ export async function getPropertySummary(
 export async function getPropertyDetail(
   organizationId: string,
   propertyId: string,
+  { operationalTimezone }: { operationalTimezone?: string } = {},
 ) {
   const supabase = await createSupabaseServerClient();
+  const businessDate = getBusinessDateValue(new Date(), operationalTimezone);
   const detailRecordLimit = 8;
   // Read the version first: a later ownership change then produces a safe
   // conflict, never a fresh version attached to an older owner snapshot.
@@ -581,26 +587,34 @@ export async function getPropertyDetail(
   }
 
   const [
-    unitsResult,
+    unitRows,
     ownerRowsResult,
-    activeLeasesResult,
+    activeLeaseRows,
     propertyDraftLeaseResult,
     timelineResult,
     ledgerRows,
+    recentLedgerResult,
     documentsResult,
     expenseEvidenceResult,
     photos,
     maintenanceResult,
+    maintenanceCounts,
     activityResult,
   ] = await Promise.all([
-    supabase
+    readCompleteRows<PropertyDetailUnitRecord>({
+      context: "Could not load property units",
+      getRowId: row => row.id,
+      readPage: (from, to) => supabase
       .from("units")
       .select(
         "id, unit_number, floor, status, current_rent_amount, current_rent_currency, archived_at",
+        { count: "exact" },
       )
       .eq("organization_id", organizationId)
       .eq("property_id", propertyId)
-      .order("unit_number", { ascending: true }),
+      .order("unit_number", { ascending: true })
+      .order("id", { ascending: true }).range(from, to),
+    }),
     supabase
       .from("property_owners")
       .select(
@@ -609,7 +623,10 @@ export async function getPropertyDetail(
       .eq("organization_id", organizationId)
       .eq("property_id", propertyId)
       .order("started_on", { ascending: false, nullsFirst: false }),
-    supabase
+    readCompleteRows<PropertyDetailLeaseRecord>({
+      context: "Could not load property leases",
+      getRowId: row => row.id,
+      readPage: (from, to) => supabase
       .from("current_leases")
       .select(
         "id, unit_id, tenant_name, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency, archived_at",
@@ -620,7 +637,8 @@ export async function getPropertyDetail(
       .in("status", ["active", "notice_given"])
       .is("archived_at", null)
       .order("lease_end_date", { ascending: true })
-      .limit(detailRecordLimit),
+      .order("id", { ascending: true }).range(from, to),
+    }),
     supabase
       .from("current_leases")
       .select(
@@ -645,13 +663,13 @@ export async function getPropertyDetail(
       .order("event_date", { ascending: false })
       .order("id", { ascending: false })
       .limit(detailRecordLimit),
-    readCompleteRows<PropertyDetailLedgerRecord>({
+    readCompleteRows<PropertyDetailLedgerTotalRecord>({
       context: "Could not load property ledger",
       getRowId: row => row.id,
       readPage: (from, to) => supabase
       .from("ledger_entries")
       .select(
-        "id, unit_id, transaction_date, direction, category, amount, currency, description",
+        "id, transaction_date, direction, category, amount, currency",
         { count: "exact" },
       )
       .eq("organization_id", organizationId)
@@ -660,6 +678,14 @@ export async function getPropertyDetail(
       .order("transaction_date", { ascending: false })
       .order("id", { ascending: false }).range(from, to),
     }),
+    supabase.from("ledger_entries")
+      .select("id, unit_id, transaction_date, direction, category, amount, currency, description")
+      .eq("organization_id", organizationId)
+      .eq("property_id", propertyId)
+      .is("archived_at", null)
+      .order("transaction_date", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(detailRecordLimit),
     supabase
       .from("documents")
       .select(
@@ -698,6 +724,7 @@ export async function getPropertyDetail(
       .order("due_date", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(50),
+    getMaintenanceCaseCounts({ supabase, organizationId, scopeColumn: "property_id", scopeId: propertyId, businessDate }),
     supabase
       .from("activity_logs")
       .select(
@@ -710,19 +737,9 @@ export async function getPropertyDetail(
       .limit(6),
   ]);
 
-  if (unitsResult.error) {
-    throw new Error(`Could not load property units: ${unitsResult.error.message}`);
-  }
-
   if (ownerRowsResult.error) {
     throw new Error(
       `Could not load property owner history: ${ownerRowsResult.error.message}`,
-    );
-  }
-
-  if (activeLeasesResult.error) {
-    throw new Error(
-      `Could not load property leases: ${activeLeasesResult.error.message}`,
     );
   }
 
@@ -742,6 +759,10 @@ export async function getPropertyDetail(
     throw new Error(
       `Could not load property documents: ${documentsResult.error.message}`,
     );
+  }
+
+  if (recentLedgerResult.error) {
+    throw new Error(`Could not load recent property ledger: ${recentLedgerResult.error.message}`);
   }
 
   if (expenseEvidenceResult.error) {
@@ -787,8 +808,9 @@ export async function getPropertyDetail(
   });
 
   return buildPropertyDetail({
+    businessDate,
     activeLeases: [
-      ...(activeLeasesResult.data ?? []),
+      ...activeLeaseRows,
       ...(propertyDraftLeaseResult.data ?? []),
     ],
     activeOwner: activeOwner
@@ -806,20 +828,18 @@ export async function getPropertyDetail(
     ownerHistory,
     photos,
     property: propertyResult.data,
-    recentLedgerEntries: ledgerEntries.slice(0, detailRecordLimit),
+    recentLedgerEntries: recentLedgerResult.data ?? [],
     recentTimelineEvents: timelineResult.data ?? [],
     recordCounts: {
-      activeLeases: activeLeasesResult.count ?? activeLeasesResult.data?.length ?? 0,
+      activeLeases: activeLeaseRows.length,
       documents: documentsResult.count ?? documents.length,
       ledgerEntries: ledgerEntries.length,
       maintenanceCases: maintenanceResult.count ?? maintenanceCases.length,
-      openMaintenanceCases: maintenanceCases.filter(isOpenMaintenanceTask).length,
-      overdueMaintenanceCases:
-        maintenanceCases.filter(isOverdueMaintenanceTask).length,
+      ...maintenanceCounts,
       photos: photos.length,
       timelineEvents: timelineResult.count ?? timelineResult.data?.length ?? 0,
     },
-    units: unitsResult.data ?? [],
+    units: unitRows,
   });
 }
 
@@ -1130,18 +1150,6 @@ function getStoredPropertyStatusValues(status: PropertyStatusValue) {
   }
 
   return [status];
-}
-
-function isOpenMaintenanceTask(task: PropertyDetailMaintenanceRecord) {
-  return task.status !== "completed" && task.status !== "cancelled";
-}
-
-function isOverdueMaintenanceTask(task: PropertyDetailMaintenanceRecord) {
-  return (
-    isOpenMaintenanceTask(task) &&
-    Boolean(task.due_date) &&
-    task.due_date! < new Date().toISOString().slice(0, 10)
-  );
 }
 
 function formatPostgrestInFilter(values: ReadonlySet<string>) {

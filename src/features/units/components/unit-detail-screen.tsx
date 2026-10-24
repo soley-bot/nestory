@@ -56,6 +56,8 @@ type ConfirmationState = {
 type UnitDetailScreenProps = {
   activeSection: UnitRecordSection;
   canArchive: boolean;
+  canCreateLease: boolean;
+  canCreateMaintenanceCase: boolean;
   canRecordDepositReceipt: boolean;
   canWrite: boolean;
   sourceTaskId?: string;
@@ -65,6 +67,8 @@ type UnitDetailScreenProps = {
 export function UnitDetailScreen({
   activeSection,
   canArchive,
+  canCreateLease,
+  canCreateMaintenanceCase,
   canRecordDepositReceipt,
   canWrite,
   sourceTaskId,
@@ -193,14 +197,14 @@ export function UnitDetailScreen({
           setStatusMessage(null);
           setDrawer({ mode: "create-document", unit });
         } : undefined}
-        onCreateLease={() => {
+        onCreateLease={canCreateLease && !unit.isArchived ? () => {
           setStatusMessage(null);
           setDrawer({ mode: "create-lease", unit });
-        }}
-        onNewMaintenanceCase={() => {
+        } : undefined}
+        onNewMaintenanceCase={canCreateMaintenanceCase && !unit.isArchived ? () => {
           setStatusMessage(null);
           setDrawer({ mode: "create-maintenance", unit });
-        }}
+        } : undefined}
         onOpenLease={() => {
           setStatusMessage(null);
           setDrawer({ mode: "lease-detail", unit });

@@ -246,7 +246,7 @@ export function PhotoGallery({
           <Field label="Photo">
             <FileDropzoneField
               accept={PHOTO_FILE_ACCEPT}
-              description="JPG, PNG, or WebP up to 10 MB."
+              description="JPG, PNG, or WebP up to 4 MB."
               displayFileName={preview?.name}
               key={dropzoneKey}
               name="photo"

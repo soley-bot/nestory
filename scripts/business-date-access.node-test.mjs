@@ -33,7 +33,10 @@ test('each supported view permission has an existing date-dependent application 
   assert.match(read('src/app/(dashboard)/leases/page.tsx'), /requirePermission\("leases\.view"\)/);
   assert.match(read('src/features/leases/data/leases.ts'), /supabase\.rpc\("get_lease_rent_business_date"/);
   assert.match(read('src/app/(dashboard)/properties/[propertyId]/page.tsx'), /requirePermission\("properties\.view"\)/);
-  assert.match(read('src/app/(dashboard)/properties/[propertyId]/page.tsx'), /getLeaseBillingFormConfig\(context\.organizationId\)/);
+  const propertyFormOptions = read('src/app/api/properties/[propertyId]/form-options/route.ts');
+  assert.match(propertyFormOptions, /permissionKeys\.has\("properties\.view"\)/);
+  assert.match(propertyFormOptions, /getLeaseBillingFormConfig\(membership\.organizationId\)/);
+  assert.doesNotMatch(read('src/app/(dashboard)/properties/[propertyId]/page.tsx'), /getLeaseBillingFormConfig\(/);
   assert.match(read('src/app/(dashboard)/finance/page.tsx'), /requireFinanceContext\(\)/);
   assert.match(read('src/lib/auth/context.ts'), /requireFinanceContext = cache\(async \(\) =>\s*requireCapability\("canReadFinance"\)/);
   assert.match(read('src/lib/auth/capabilities.ts'), /canReadFinance: has\("finance\.view"\)/);

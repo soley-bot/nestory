@@ -1,5 +1,6 @@
 "use client";
 
+import { UploadFileInput } from "@/components/ui/upload-file-input";
 import Link from "next/link";
 import { recordDisplayLabel } from "@/lib/presentation/record-label";
 import { useRouter } from "next/navigation";
@@ -1017,7 +1018,7 @@ function OpeningFormModal({
           </Field>
           {isSuperAdmin ? (
             <Field label="Evidence file">
-              <Input
+              <UploadFileInput
                 accept="application/pdf,image/jpeg,image/png,image/webp"
                 onChange={async (event) => {
                   const file = event.target.files?.[0] ?? null;
@@ -1026,7 +1027,7 @@ function OpeningFormModal({
                   setEvidence(null);
                   setLocalHash(await sha256Hex(await file.arrayBuffer()));
                 }}
-                type="file"
+
               />
             </Field>
           ) : null}
