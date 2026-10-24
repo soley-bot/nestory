@@ -10,6 +10,7 @@ export type CappedRead = {
   count?: number | null;
 };
 type Result = { data: CappedReadRow[] | null; count: number | null; error: { message: string } | null };
+type ColumnValue = string | number | boolean | null | undefined;
 
 export function createCappedReadHarness(
   tables: Record<string, CappedReadRow[]>,
@@ -27,9 +28,10 @@ export function createCappedReadHarness(
       let exactCount = false;
       let head = false;
       let limit: number | undefined;
-      const filter = (method: string, column: string, value: unknown, predicate: (row: CappedReadRow) => boolean) => {
+      const filter = (method: string, column: string, value: unknown, predicate: (value: ColumnValue) => boolean) => {
         read.filters.push({ method, column, value });
-        predicates.push(predicate);
+        const getValue = columnAccessor(column);
+        predicates.push(row => predicate(getValue(row)));
         return query;
       };
       const result = (): Result => {
@@ -38,10 +40,11 @@ export function createCappedReadHarness(
         if (read.select?.includes("property:properties!")) {
           data = data.map(row => ({ ...row, property: (tables.properties ?? []).find(property => property.id === row.property_id) ?? null }));
         }
+        const orders = read.orders.map(order => ({ ...order, getValue: columnAccessor(order.column) }));
         data = [...data].sort((a, b) => {
-          for (const order of read.orders) {
-            const left = columnValue(a, order.column);
-            const right = columnValue(b, order.column);
+          for (const order of orders) {
+            const left = order.getValue(a);
+            const right = order.getValue(b);
             if (left === right) continue;
             if (left == null) return order.nullsFirst ? -1 : 1;
             if (right == null) return order.nullsFirst ? 1 : -1;
@@ -62,18 +65,18 @@ export function createCappedReadHarness(
       };
       const query = {
         select(value: string, config?: { count?: string; head?: boolean }) { read.select = value; exactCount = config?.count === "exact"; head = config?.head ?? false; return query; },
-        eq(column: string, value: unknown) { return filter("eq", column, value, row => columnValue(row, column) === value); },
-        neq(column: string, value: unknown) { return filter("neq", column, value, row => columnValue(row, column) !== value); },
-        is(column: string, value: unknown) { return filter("is", column, value, row => (columnValue(row, column) ?? null) === value); },
-        in(column: string, values: unknown[]) { const accepted = new Set(values); return filter("in", column, values, row => accepted.has(columnValue(row, column))); },
+        eq(column: string, value: unknown) { return filter("eq", column, value, actual => actual === value); },
+        neq(column: string, value: unknown) { return filter("neq", column, value, actual => actual !== value); },
+        is(column: string, value: unknown) { return filter("is", column, value, actual => (actual ?? null) === value); },
+        in(column: string, values: unknown[]) { const accepted = new Set(values); return filter("in", column, values, actual => accepted.has(actual)); },
         not(column: string, operator: string, value: unknown) {
           const excluded = operator === "in" ? new Set(String(value).slice(1, -1).split(",")) : undefined;
-          return filter("not", column, value, row => excluded ? !excluded.has(String(columnValue(row, column))) : (columnValue(row, column) ?? null) !== value);
+          return filter("not", column, value, actual => excluded ? !excluded.has(String(actual)) : (actual ?? null) !== value);
         },
-        gte(column: string, value: string | number) { return filter("gte", column, value, row => (columnValue(row, column) as string | number) >= value); },
-        lte(column: string, value: string | number) { return filter("lte", column, value, row => (columnValue(row, column) as string | number) <= value); },
-        gt(column: string, value: string | number) { return filter("gt", column, value, row => (columnValue(row, column) as string | number) > value); },
-        lt(column: string, value: string | number) { return filter("lt", column, value, row => (columnValue(row, column) as string | number) < value); },
+        gte(column: string, value: string | number) { return filter("gte", column, value, actual => (actual as string | number) >= value); },
+        lte(column: string, value: string | number) { return filter("lte", column, value, actual => (actual as string | number) <= value); },
+        gt(column: string, value: string | number) { return filter("gt", column, value, actual => (actual as string | number) > value); },
+        lt(column: string, value: string | number) { return filter("lt", column, value, actual => (actual as string | number) < value); },
         order(column: string, config: { ascending?: boolean; nullsFirst?: boolean } = {}) { read.orders.push({ column, ascending: config.ascending ?? true, nullsFirst: config.nullsFirst }); return query; },
         range(from: number, to: number) { read.range = [from, to]; return query; },
         limit(size: number) { limit = size; return query; },
@@ -87,7 +90,11 @@ export function createCappedReadHarness(
   return { client, reads };
 }
 
-function columnValue(row: CappedReadRow, column: string): string | number | boolean | null | undefined {
+// Parse column paths once per filter/order, not on every row of every page.
+// Only accessors are reused: each read still evaluates the current table data.
+function columnAccessor(column: string): (row: CappedReadRow) => ColumnValue {
   const relation = /^(\w+)\((\w+)\)$/.exec(column);
-  return (relation ? (row[relation[1]] as CappedReadRow | undefined)?.[relation[2]] : row[column]) as string | number | boolean | null | undefined;
+  if (!relation) return row => row[column] as ColumnValue;
+  const [, relationName, relationColumn] = relation;
+  return row => (row[relationName] as CappedReadRow | undefined)?.[relationColumn] as ColumnValue;
 }
