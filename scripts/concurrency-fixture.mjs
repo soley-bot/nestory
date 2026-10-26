@@ -33,6 +33,18 @@ BEGIN
 END;
 $concurrency_admission$;
 CREATE TEMP TABLE concurrency_preserved_scope(relation regclass PRIMARY KEY, digest text) ON COMMIT DROP;
+-- to_jsonb(timestamptz) follows the session timezone. The seed intentionally
+-- changes business timezone; compare both snapshots in one canonical timezone.
+-- Function SET restores the caller's timezone on return, including on error.
+CREATE FUNCTION pg_temp.concurrency_relation_digest(p_relation regclass,p_ids uuid[])
+RETURNS text LANGUAGE plpgsql SET timezone='UTC' AS $digest$
+DECLARE signature text;
+BEGIN
+  EXECUTE format('SELECT md5(coalesce(string_agg(to_jsonb(r)::text, E''\\n'' ORDER BY to_jsonb(r)::text),'''')) FROM %s r WHERE organization_id <> ALL($1)',p_relation)
+    INTO signature USING p_ids;
+  RETURN signature;
+END;
+$digest$;
 DO $concurrency_snapshot$
 DECLARE c record; signature text;
 BEGIN
@@ -42,8 +54,7 @@ BEGIN
     WHERE n.nspname IN ('public','app_private') AND t.relkind='r'
       AND a.attname='organization_id' AND NOT a.attisdropped AND a.atttypid='uuid'::regtype
   LOOP
-    EXECUTE format('SELECT md5(coalesce(string_agg(to_jsonb(r)::text, E''\\n'' ORDER BY to_jsonb(r)::text),'''')) FROM %s r WHERE organization_id <> ALL($1)',c.relation)
-      INTO signature USING ${values};
+    signature := pg_temp.concurrency_relation_digest(c.relation,${values});
     INSERT INTO concurrency_preserved_scope VALUES(c.relation,signature);
   END LOOP;
 END;
@@ -52,10 +63,9 @@ CREATE FUNCTION pg_temp.assert_concurrency_preserved() RETURNS void LANGUAGE plp
 DECLARE c record; signature text;
 BEGIN
   FOR c IN SELECT * FROM concurrency_preserved_scope LOOP
-    EXECUTE format('SELECT md5(coalesce(string_agg(to_jsonb(r)::text, E''\\n'' ORDER BY to_jsonb(r)::text),'''')) FROM %s r WHERE organization_id <> ALL($1)',c.relation)
-      INTO signature USING ${values};
+    signature := pg_temp.concurrency_relation_digest(c.relation,${values});
     IF signature IS DISTINCT FROM c.digest THEN
-      RAISE EXCEPTION 'Concurrency fixture changed an existing organization';
+      RAISE EXCEPTION 'Concurrency fixture changed an existing organization in %', c.relation;
     END IF;
   END LOOP;
 END;

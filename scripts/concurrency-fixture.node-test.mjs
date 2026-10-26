@@ -59,6 +59,16 @@ test('historical seed gets the same guard without baseline reload and transactio
   assert.throws(() => guardConcurrencySetup('BEGIN;\nCOMMIT;\nBEGIN;\nCOMMIT;', profile));
 });
 
+test('preservation fingerprints share a timezone-pinned function across the business timezone change', () => {
+  const profile = concurrencyIdentityProfile(randomUUID(), [baseline]);
+  const sql = concurrencyBaselineSql(baseline, profile);
+  assert.match(sql, /CREATE FUNCTION pg_temp.concurrency_relation_digest\(p_relation regclass,p_ids uuid\[\]\)\s*RETURNS text LANGUAGE plpgsql SET timezone='UTC'/);
+  assert.equal((sql.match(/signature := pg_temp\.concurrency_relation_digest\(c\.relation,/g) ?? []).length, 2);
+  assert.equal((sql.match(/string_agg\(to_jsonb\(r\)::text/g) ?? []).length, 1);
+  assert.match(sql, /SET LOCAL TIME ZONE 'Asia\/Phnom_Penh'/);
+  assert.match(sql, /Concurrency fixture changed an existing organization in %/);
+});
+
 test('case factory rejects non-CI before any Docker or database operation', () => {
   const previous = process.env.GITHUB_ACTIONS;
   process.env.GITHUB_ACTIONS = 'false';
