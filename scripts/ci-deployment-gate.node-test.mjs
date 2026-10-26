@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
@@ -511,6 +512,40 @@ test("production recovery runs only at the exact checkpoint and skips completed 
   assert.match(query, /THEN 'required'/);
   assert.match(query, /THEN 'complete'/);
   assert.match(query, /ELSE NULL/);
+});
+
+test("completed financial evidence recovery pairs each source-derived guard with its migration state", async () => {
+  const [original, migration, classifier] = await Promise.all([
+    readFile(new URL("../supabase/migrations/20260809170336_owner_opening_evidence_fingerprints.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20261024013613_financial_reset_exact_row_guard_integration.sql", import.meta.url), "utf8"),
+    readFile(financialEvidenceRecoveryClassifierPath, "utf8"),
+  ]);
+  const body = original.replaceAll("\r\n", "\n").match(/CREATE OR REPLACE FUNCTION app_private\.guard_financial_evidence_document\(\)[\s\S]*?AS \$\$([\s\S]*?)\$\$;/)?.[1];
+  assert.ok(body);
+  // PostgreSQL's canonical function header; matching the predecessor pin also
+  // verifies this reconstruction before applying the reviewed source transform.
+  const definition = "CREATE OR REPLACE FUNCTION app_private.guard_financial_evidence_document()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$" + body + "$function$\n";
+  const digest = value => createHash("sha256").update(value).digest("hex");
+  const oldPin = "db88ec0f62601bf0e8d21e658068b6e7f3314d25a2aea2bd32b00a38707274ba";
+  const newPin = "e5ecbe21529aab263650c99e0905647ac311e78696ef7adafc7a24fef085838e";
+  assert.equal(digest(definition), oldPin);
+  assert.match(migration, /\('app_private\.guard_financial_evidence_document\(\)','U','retained financial projection'\)/);
+  const encodedPrefix = migration.match(/v_prefix:=format\(E'((?:''|[^'])*)',v_pin\.reason,v_verbs\);/)?.[1];
+  assert.ok(encodedPrefix);
+  const prefix = encodedPrefix.replaceAll("''", "'").replaceAll("\\n", "\n")
+    .replace("%s", "retained financial projection").replace("%s", "'UPDATE'");
+  assert.match(migration, /overlay\(v_definition placing E'\\nBEGIN'\|\|v_prefix from v_position for length\(E'\\nBEGIN'\)\)/);
+  assert.equal(digest(definition.replace("\nBEGIN", "\nBEGIN" + prefix)), newPin);
+
+  const normalized = classifier.replace(/--[^\n]*/g, "").replace(/\s+/g, " ");
+  assert.match(normalized, /count\(\*\) FILTER \( WHERE version = '20261024013613' \)::integer AS reset_guard_versions_present/);
+  const completeCases = [...normalized.matchAll(/WHEN (.*?) THEN '([^']+)'/g)]
+    .filter(([, , state]) => state === "complete").map(([, condition]) => condition);
+  assert.deepEqual(completeCases, [0, 1].map((present, index) =>
+    `ledger.package_versions_present = 4 AND ledger.hosted_ledger_count >= 107 AND ledger.reset_guard_versions_present = ${present} AND guard.definition_sha256 = '${[oldPin, newPin][index]}'`));
+  assert.deepEqual([...normalized.matchAll(/THEN '([^']+)'/g)].map(([, state]) => state),
+    ["required", "restore_required", "resume", "restore_resume", "complete", "complete"]);
+  assert.match(normalized, /ELSE NULL/);
 });
 
 test("financial evidence recovery is exact, branch-only, and restores the strict guard", async () => {
