@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
 
 import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
 
@@ -35,7 +36,7 @@ export function BillingSetupForm({
   const defaults = toLeaseBillingRuleDefaults(lease, peopleOptions);
   useSuccess(state, onSuccess);
   return (
-    <form action={action} className="space-y-4 p-4">
+    <FinancialForm action={action} className="space-y-4 p-4">
       <input name="leaseId" type="hidden" value={lease.id} />
       <input
         name="expectedCurrentBillingRuleId"
@@ -94,7 +95,7 @@ export function BillingSetupForm({
         <span />
         <SubmitButton label="Save billing rules" />
       </FormFooter>
-    </form>
+    </FinancialForm>
   );
 }
 

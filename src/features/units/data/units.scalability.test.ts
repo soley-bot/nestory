@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSupabaseServerClient } from "@/lib/db/server";
-import { createCappedReadHarness, type CappedReadRow } from "@/lib/db/complete-read.test-fixture";
+import { createCappedReadHarness, type CappedReadRow } from "@/features/properties/data/financial-capped-read.test-fixture";
 import { parseUnitSearchParams } from "@/features/units/unit.filters";
 import { getUnitDetail, getUnitPropertyOptions, getUnitsScreenData } from "./units";
 

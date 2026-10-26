@@ -143,6 +143,14 @@ SELECT is((SELECT sum(CASE WHEN e.direction='income' THEN e.amount ELSE -e.amoun
 SELECT is((SELECT sum(s.customer_total_amount) FROM public.expense_submissions s JOIN public.expense_transaction_lines l ON l.submission_id=s.id WHERE l.transaction_id=(SELECT corrected_id FROM tenant_protected_case))
  +(SELECT sum(a.amount) FROM public.expense_customer_adjustments a JOIN public.expense_transaction_lines l ON l.submission_id=a.submission_id WHERE l.transaction_id=(SELECT transaction_id FROM tenant_protected_case)),10::numeric,
  'tenant charge detail nets the same ten-dollar correction while retaining five-dollar markup');
+-- Continuing rent needs its own invoice before the later owner month can close.
+-- The fixture has no management fee or rent collection, so this does not add
+-- an owner cash movement to the tenant-only expense correction below.
+RESET ROLE;
+SELECT app_private.generate_simple_lease_rent_invoice(org,lease_id,
+ (month+interval '1 month')::date,(month+interval '1 month')::date,'manual_recovery',actor)
+ FROM receipt_case;
+SET LOCAL ROLE authenticated;
 SELECT public.generate_owner_balance_period(org,property_id,owner_id,'USD',(month+interval '1 month')::date,'tenant-next-publication-period') FROM receipt_case;
 SELECT public.set_financial_month_lock(org,(month+interval '1 month')::date,true,'Publish next synthetic tenant period') FROM receipt_case;
 CREATE TEMP TABLE tenant_next_publication AS SELECT

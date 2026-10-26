@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  readBoundary: vi.fn(),
   from: vi.fn(),
   requireReadiness: vi.fn(),
   rpc: vi.fn(),
 }));
+
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialReadContext: mocks.readBoundary }));
 
 vi.mock("@/lib/auth/context", () => ({
   requireOwnerCloseReadinessContext: mocks.requireReadiness,
@@ -32,8 +35,34 @@ const publicationId = "00000000-0000-4000-8000-000000000020";
 const artifactId = "00000000-0000-4000-8000-000000000021";
 
 describe("close owner month loader", () => {
+  it("checks permission before invoking financial source guards", async () => {
+    mocks.requireReadiness.mockRejectedValueOnce(new Error("Not authorized"));
+    await expect(getOwnerCloseData({ currency: "USD", monthStart: "2026-08-01", propertyId, ownerPersonId: ownerId })).rejects.toThrow("Not authorized");
+    expect(mocks.readBoundary).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("does not read sources when the financial boundary rejects the request", async () => {
+    mocks.readBoundary.mockRejectedValueOnce(new Error("Financial reporting is paused"));
+    await expect(getOwnerCloseData({ currency: "USD", monthStart: "2026-08-01", propertyId, ownerPersonId: ownerId })).rejects.toThrow("Financial reporting is paused");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("discards the assembled payload when source revision changes before completion", async () => {
+    mocks.readBoundary.mockImplementationOnce(async (_organizationId, read) => {
+      await read({ generation: 2 });
+      throw new Error("Financial data changed while this report was loading");
+    });
+    await expect(getOwnerCloseData({ currency: "USD", monthStart: "2026-08-01", propertyId, ownerPersonId: ownerId })).rejects.toThrow("changed while");
+    expect(mocks.rpc).toHaveBeenCalled();
+  });
+  it("tags data with the verified generation and guards the selected month", async () => {
+    const result = await getOwnerCloseData({ currency: "USD", monthStart: "2026-08-01", propertyId, ownerPersonId: ownerId });
+    expect(result.financialGeneration).toBe(2);
+    expect(mocks.readBoundary).toHaveBeenCalledWith(organizationId, expect.any(Function), "2026-08-01");
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.readBoundary.mockImplementation(async (_organizationId, read) => read({ generation: 2 }));
     mocks.requireReadiness.mockResolvedValue({ organizationId });
     const readiness = {
         blockers: [{ code: "owner_close_reopen_required", series_id: seriesId, state: "closed" }],

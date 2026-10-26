@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import { ArrowRight } from "lucide-react";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +30,7 @@ export function OverviewDetailPage({
         current="Needs attention"
         items={[{ href: overviewHref, label: "Dashboard" }]}
       />
-      <AttentionWorkspace data={data} />
+      <FinancialReportBoundary expectedGeneration={data.financialGeneration}><AttentionWorkspace data={data} /></FinancialReportBoundary>
     </main>
   );
 }

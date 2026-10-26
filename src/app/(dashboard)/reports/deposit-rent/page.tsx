@@ -1,3 +1,5 @@
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
+import { FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { WorkspacePage } from "@/components/layout/workspace-page";
@@ -21,6 +23,7 @@ export default async function DepositRentReportPage({ searchParams }: {
   const parsed = z.object({ propertyId: z.uuid().optional(), month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }).safeParse({
     propertyId: params.propertyId || undefined, month: params.month ?? getBusinessMonthValue(new Date(), context.operationalTimezone),
   });
+  return withFinancialReadContext(context.organizationId, async (financialContext) => {
   const client = await createSupabaseServerClient();
   const finance = await loadScopedFinanceContext(client, context.organizationId);
   let report: Awaited<ReturnType<typeof loadLocalDepositReport>> | undefined, message = "", download = "";
@@ -35,7 +38,7 @@ export default async function DepositRentReportPage({ searchParams }: {
         report = await loadLocalDepositReport(client as unknown as LocalDepositClient, {
           actorId: context.userId, organizationId: context.organizationId, propertyIds: [parsed.data.propertyId], periodStart: from, periodEnd: to,
         });
-        download = new URLSearchParams({ propertyId: parsed.data.propertyId, from, to, expectedFingerprint: report.sourceFingerprint }).toString();
+        download = new URLSearchParams({ propertyId: parsed.data.propertyId, from, to, expectedFingerprint: report.sourceFingerprint, financialGeneration: String(financialContext.generation) }).toString();
       } catch { message = "The deposit sources could not be verified for this scope. Review the deposit history and try again."; }
     }
   }
@@ -51,6 +54,7 @@ export default async function DepositRentReportPage({ searchParams }: {
         <Button type="submit">View settlements</Button>
       </form>
       {message ? <ErrorState title="Unable to show deposit settlements" message={message} /> : null}
+      <FinancialReportBoundary expectedGeneration={financialContext.generation}>
       {report ? <>
         <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm">{property?.code} · {property?.name} · {report.periodLabel}</p>
           <div className="flex gap-3 text-sm"><a className="underline" href={`/api/reports/deposit-rent?${download}&format=pdf`}>Download PDF</a><a className="underline" href={`/api/reports/deposit-rent?${download}&format=xlsx`}>Download Excel</a></div>
@@ -65,6 +69,8 @@ export default async function DepositRentReportPage({ searchParams }: {
         {!reportRows.length ? <EmptyState kind="empty" title="No deposit rent settlements in this period" /> : null}
         <p className="text-xs text-muted-foreground">Deposit settlements only. View owner balances and official statements for the complete custody history.</p>
       </> : !message ? <p className="text-sm text-muted-foreground">Choose a property and month to review its deposit settlements.</p> : null}
+      </FinancialReportBoundary>
     </div>
   </WorkspacePage>;
+  }, parsed.success && parsed.data.propertyId ? `${parsed.data.month}-01` : undefined);
 }

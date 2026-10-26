@@ -1,4 +1,5 @@
 "use server";
+import { financialFormValues } from "@/lib/finance/financial-write-context";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -8,11 +9,11 @@ import { transactionDeleteSchema, transactionCommandError } from "./transaction-
 import type { FinanceOperationsActionState } from "./finance-operations.types";
 
 export async function deleteTransactionAction(_state: FinanceOperationsActionState, formData: FormData): Promise<FinanceOperationsActionState> {
-  const parsed = transactionDeleteSchema.safeParse(Object.fromEntries(formData));
+  const parsed = transactionDeleteSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0].message };
   const input = parsed.data;
   const context = await requireFinanceCorrectionContext();
-  const client = await createSupabaseServerClient();
+  const client = await createSupabaseServerClient(formData);
   const common = { p_organization_id: context.organizationId, p_reason: input.reason, p_idempotency_key: input.idempotencyKey };
   try {
     // Each command resolves the source property and enforces authority in PostgreSQL.

@@ -1,0 +1,214 @@
+{
+  "format": "nestory-unpublished-migration-identities-v1",
+  "sourceCommit": "c244dfacbd13cdfdce6a564ac4d4347863644e43",
+  "mainCommit": "815f2c75d705b66cedc4bf6740c2524dbee16b74",
+  "mainMigrationHead": "20261024013509",
+  "mainMigrationCount": 228,
+  "sqlBytesChanged": false,
+  "hostedHistoryChanged": false,
+  "renames": [
+    {
+      "from": "20261022110831_financial_write_lifecycle_fence.sql",
+      "to": "20261024013600_financial_write_lifecycle_fence.sql",
+      "bytes": 30180,
+      "beforeSha256": "a782eca914b9cb4f84c5e7f5b21f5754b78f828f673e548b4ea3eea70a52ec24",
+      "afterSha256": "a782eca914b9cb4f84c5e7f5b21f5754b78f828f673e548b4ea3eea70a52ec24"
+    },
+    {
+      "from": "20261022110849_enforce_lease_deposit_event_chronology.sql",
+      "to": "20261024013601_enforce_lease_deposit_event_chronology.sql",
+      "bytes": 4978,
+      "beforeSha256": "cf05fe8a48c59af04076dd6f1fae8e30ae9105328ec94624a52eeda7dc27f00b",
+      "afterSha256": "cf05fe8a48c59af04076dd6f1fae8e30ae9105328ec94624a52eeda7dc27f00b"
+    },
+    {
+      "from": "20261023012248_owner_close_monthly_rent_completeness.sql",
+      "to": "20261024013602_owner_close_monthly_rent_completeness.sql",
+      "bytes": 8358,
+      "beforeSha256": "cc75bde2894978bfd339bff138403a1497c6d805392dd226a2a3095629368298",
+      "afterSha256": "cc75bde2894978bfd339bff138403a1497c6d805392dd226a2a3095629368298"
+    },
+    {
+      "from": "20261023012530_checked_month_to_month_continuation.sql",
+      "to": "20261024013603_checked_month_to_month_continuation.sql",
+      "bytes": 9500,
+      "beforeSha256": "e2581a63524dd31b9cc3dbc618253134bdd3d84b0732be3a10a37349f2babe90",
+      "afterSha256": "e2581a63524dd31b9cc3dbc618253134bdd3d84b0732be3a10a37349f2babe90"
+    },
+    {
+      "from": "20261023012815_financial_artifact_generation_retirement.sql",
+      "to": "20261024013604_financial_artifact_generation_retirement.sql",
+      "bytes": 14244,
+      "beforeSha256": "5dfc5794f93098507c740db73e7764c936cc50ee0d654e3715311ad3acd41342",
+      "afterSha256": "5dfc5794f93098507c740db73e7764c936cc50ee0d654e3715311ad3acd41342"
+    },
+    {
+      "from": "20261023090000_financial_report_source_revisions.sql",
+      "to": "20261024013605_financial_report_source_revisions.sql",
+      "bytes": 4032,
+      "beforeSha256": "40d13ca6e74771defac7e00d2b2175363396e32711a4674aeebe622fa5a5f0b1",
+      "afterSha256": "40d13ca6e74771defac7e00d2b2175363396e32711a4674aeebe622fa5a5f0b1"
+    },
+    {
+      "from": "20261023091000_financial_report_revision_transaction_entries.sql",
+      "to": "20261024013606_financial_report_revision_transaction_entries.sql",
+      "bytes": 3236,
+      "beforeSha256": "b90d3fc636553d3693723749dc6bbff012c2249887eca7f946148e54e2c525f7",
+      "afterSha256": "b90d3fc636553d3693723749dc6bbff012c2249887eca7f946148e54e2c525f7"
+    },
+    {
+      "from": "20261023092000_preserve_deposit_chronology_lock_order.sql",
+      "to": "20261024013607_preserve_deposit_chronology_lock_order.sql",
+      "bytes": 2197,
+      "beforeSha256": "4d73c81f3a15691d57dda2c5b16e0da1a0a59b92ee93b733b72ad9661a2ce2b4",
+      "afterSha256": "4d73c81f3a15691d57dda2c5b16e0da1a0a59b92ee93b733b72ad9661a2ce2b4"
+    },
+    {
+      "from": "20261023093000_financial_report_revision_parent_lock_removal.sql",
+      "to": "20261024013608_financial_report_revision_parent_lock_removal.sql",
+      "bytes": 6455,
+      "beforeSha256": "890e878e5cc8cb8e1a98e6a893d4aaa064a3eaf7616923cee8fe47b0b7b7b638",
+      "afterSha256": "890e878e5cc8cb8e1a98e6a893d4aaa064a3eaf7616923cee8fe47b0b7b7b638"
+    },
+    {
+      "from": "20261023094000_timeline_financial_lifecycle_coverage.sql",
+      "to": "20261024013609_timeline_financial_lifecycle_coverage.sql",
+      "bytes": 2240,
+      "beforeSha256": "746fbf317ea018fb83c711a6452ad892140625d9bcb11917578f3e724bbd08c7",
+      "afterSha256": "746fbf317ea018fb83c711a6452ad892140625d9bcb11917578f3e724bbd08c7"
+    },
+    {
+      "from": "20261023095000_financial_document_lifecycle_coverage.sql",
+      "to": "20261024013610_financial_document_lifecycle_coverage.sql",
+      "bytes": 667,
+      "beforeSha256": "0d09cb01fafd4a432469e8e561bf14b6363f3f0a51e1c91b1ca76c6760e0f448",
+      "afterSha256": "0d09cb01fafd4a432469e8e561bf14b6363f3f0a51e1c91b1ca76c6760e0f448"
+    },
+    {
+      "from": "20261023100000_checked_operational_command_authority.sql",
+      "to": "20261024013611_checked_operational_command_authority.sql",
+      "bytes": 4302,
+      "beforeSha256": "ec98d41d27dbb9bcc00162f2d6957df7132374f1f36fea33a0b3c3e9d5c4a3e3",
+      "afterSha256": "ec98d41d27dbb9bcc00162f2d6957df7132374f1f36fea33a0b3c3e9d5c4a3e3"
+    },
+    {
+      "from": "20261023101000_financial_reset_private_action_foundation.sql",
+      "to": "20261024013612_financial_reset_private_action_foundation.sql",
+      "bytes": 48966,
+      "beforeSha256": "97400cbc6bd0b628d03a8aec394b3f7344f5409573215b7fe5de3ac17c1a4187",
+      "afterSha256": "97400cbc6bd0b628d03a8aec394b3f7344f5409573215b7fe5de3ac17c1a4187"
+    },
+    {
+      "from": "20261023102000_financial_reset_exact_row_guard_integration.sql",
+      "to": "20261024013613_financial_reset_exact_row_guard_integration.sql",
+      "bytes": 32175,
+      "beforeSha256": "57b55a0c4697117f4cffaf5b7d7196a0a621b382042cd8e43de4d525250a2e08",
+      "afterSha256": "57b55a0c4697117f4cffaf5b7d7196a0a621b382042cd8e43de4d525250a2e08"
+    },
+    {
+      "from": "20261023103000_paid_cost_evidence_generation_retirement.sql",
+      "to": "20261024013614_paid_cost_evidence_generation_retirement.sql",
+      "bytes": 3377,
+      "beforeSha256": "2972dcb0fd5f43a4f6f6b41c5b206924eee4ac4495da2655f3ba9e6de829a20c",
+      "afterSha256": "2972dcb0fd5f43a4f6f6b41c5b206924eee4ac4495da2655f3ba9e6de829a20c"
+    },
+    {
+      "from": "20261023104000_financial_reset_known_zero_checked_phase.sql",
+      "to": "20261024013615_financial_reset_known_zero_checked_phase.sql",
+      "bytes": 26461,
+      "beforeSha256": "a0b901b77ff3c59bc4876f741705f3a01025d5597888b7f0e454bba4c149a61a",
+      "afterSha256": "a0b901b77ff3c59bc4876f741705f3a01025d5597888b7f0e454bba4c149a61a"
+    },
+    {
+      "from": "20261023105000_financial_reset_checked_continuation_billing.sql",
+      "to": "20261024013616_financial_reset_checked_continuation_billing.sql",
+      "bytes": 28177,
+      "beforeSha256": "1352cc7f056f8a6825ebeb3c07692e36af026f88ac01eebe658141dc871d151f",
+      "afterSha256": "1352cc7f056f8a6825ebeb3c07692e36af026f88ac01eebe658141dc871d151f"
+    },
+    {
+      "from": "20261023110000_financial_reset_phase_recovery_sources.sql",
+      "to": "20261024013617_financial_reset_phase_recovery_sources.sql",
+      "bytes": 25783,
+      "beforeSha256": "b24222a3168e343446dda5255f4b0fdef92751f61cb7471d355f737b0d686942",
+      "afterSha256": "b24222a3168e343446dda5255f4b0fdef92751f61cb7471d355f737b0d686942"
+    },
+    {
+      "from": "20261023111000_financial_reset_contract_recovery_guards.sql",
+      "to": "20261024013618_financial_reset_contract_recovery_guards.sql",
+      "bytes": 4401,
+      "beforeSha256": "07511572485776e4d34127511f2fb9e89400b69a2543c8bf6aa62b2a78373d15",
+      "afterSha256": "07511572485776e4d34127511f2fb9e89400b69a2543c8bf6aa62b2a78373d15"
+    },
+    {
+      "from": "20261023112000_financial_reset_archived_property_known_zero.sql",
+      "to": "20261024013619_financial_reset_archived_property_known_zero.sql",
+      "bytes": 25128,
+      "beforeSha256": "647b93072808086565af6013934050896970b498af3a32be8e87a59f417992eb",
+      "afterSha256": "647b93072808086565af6013934050896970b498af3a32be8e87a59f417992eb"
+    },
+    {
+      "from": "20261023154356_financial_reset_report_finalization_checkpoint.sql",
+      "to": "20261024013620_financial_reset_report_finalization_checkpoint.sql",
+      "bytes": 34673,
+      "beforeSha256": "f065eeb8377ce1ff277af0c2b3f602b641672b3d7c255d91fa01db3a3a2c879a",
+      "afterSha256": "f065eeb8377ce1ff277af0c2b3f602b641672b3d7c255d91fa01db3a3a2c879a"
+    },
+    {
+      "from": "20261023161622_financial_reset_reviewed_deferred_leases_and_deposits.sql",
+      "to": "20261024013621_financial_reset_reviewed_deferred_leases_and_deposits.sql",
+      "bytes": 13489,
+      "beforeSha256": "188e3d2f9ff6cb8e87bce500ad4fd5045567fa8e7502ccce3e828560a57259b0",
+      "afterSha256": "188e3d2f9ff6cb8e87bce500ad4fd5045567fa8e7502ccce3e828560a57259b0"
+    },
+    {
+      "from": "20261023185247_financial_reset_reviewed_original_invoice_dates.sql",
+      "to": "20261024013622_financial_reset_reviewed_original_invoice_dates.sql",
+      "bytes": 12715,
+      "beforeSha256": "e18fe8bf242e173a3bee251169abe6df1cb38d2e61a39463e38db25440de83db",
+      "afterSha256": "e18fe8bf242e173a3bee251169abe6df1cb38d2e61a39463e38db25440de83db"
+    },
+    {
+      "from": "20261023185249_financial_reset_genuine_session_actor_bridge.sql",
+      "to": "20261024013623_financial_reset_genuine_session_actor_bridge.sql",
+      "bytes": 18229,
+      "beforeSha256": "6c4a83e8cfb3d7b0456f520830ed408d53f7cf1f5862d7922392ee23581f0819",
+      "afterSha256": "6c4a83e8cfb3d7b0456f520830ed408d53f7cf1f5862d7922392ee23581f0819"
+    },
+    {
+      "from": "20261023185310_financial_reset_hosted_operation_reservation.sql",
+      "to": "20261024013624_financial_reset_hosted_operation_reservation.sql",
+      "bytes": 32515,
+      "beforeSha256": "1246128c0f26bbb6f2b1a7262192f0200cfb3bceeb96947020f11d781cfbcb8b",
+      "afterSha256": "1246128c0f26bbb6f2b1a7262192f0200cfb3bceeb96947020f11d781cfbcb8b"
+    },
+    {
+      "from": "20261023231352_financial_reset_scoped_session_commands.sql",
+      "to": "20261024013625_financial_reset_scoped_session_commands.sql",
+      "bytes": 41276,
+      "beforeSha256": "5ac129cd8293fc7f36c332d12168d397205ae438691d0b5981d6fa4bca4b7763",
+      "afterSha256": "5ac129cd8293fc7f36c332d12168d397205ae438691d0b5981d6fa4bca4b7763"
+    },
+    {
+      "from": "20261023231756_financial_reset_scoped_continuation_reports.sql",
+      "to": "20261024013626_financial_reset_scoped_continuation_reports.sql",
+      "bytes": 27093,
+      "beforeSha256": "ae1f638fdb73060c24efd8eae1b45cbda681a1f5e19cbccc5fbc902f77ec8b65",
+      "afterSha256": "ae1f638fdb73060c24efd8eae1b45cbda681a1f5e19cbccc5fbc902f77ec8b65"
+    }
+  ],
+  "preservedLater": [
+    {
+      "file": "20261024015702_financial_reset_checked_reopening.sql",
+      "sha256": "5be7af62aac0418cbe2480a0b24c959f81cd5e4907a1abc406a273db05f434cf"
+    },
+    {
+      "file": "20261024021544_financial_reset_retired_deposit_journal_slots.sql",
+      "sha256": "5173e49fe6d6254587a6e36e644b46f136a82c94b2ac8a11d82620ac2b0367f5"
+    },
+    {
+      "file": "20261024023749_financial_reset_explicit_no_backup_binding.sql",
+      "sha256": "09e74b860af74067f8ecdd46bc5d73669a5c59e9c7fe33b7af715b5fd0d57577"
+    }
+  ]
+}

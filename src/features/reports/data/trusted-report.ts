@@ -1,3 +1,5 @@
+import { loadMonthlyRentGaps } from "./monthly-rent-completeness";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { loadProfitLossFunding } from "./profit-loss-funding-loader";
 import { formatDate } from "@/lib/dates/format";
@@ -6,7 +8,7 @@ import {
   formatMoneyDisplay,
   type CurrencyCode,
 } from "@/lib/money/format";
-import { getReportMonthRange } from "@/features/reports/reports.filters";
+import { getReportDateRange, getReportMonthRange, isExtendedReport } from "@/features/reports/reports.filters";
 import { getMonthlyOwnerActivityReport } from "@/features/reports/data/monthly-owner-activity-report";
 import { iteratePropertyCashEvents } from "@/features/finance/data/property-cash-events";
 import type {
@@ -277,30 +279,65 @@ function invalidReportScope(viewQuery: ReportsViewQuery): TrustedReport {
   };
 }
 
-export async function getTrustedReport({
-  financeContext: suppliedFinanceContext,
-  organizationId,
-  supabase: suppliedSupabase,
-  viewQuery,
-}: {
+type TrustedReportOptions = {
   financeContext?: ScopedFinanceContext;
   organizationId: string;
   supabase?: SupabaseServerClient;
   viewQuery: ReportsViewQuery;
-}): Promise<TrustedReport> {
+};
+
+export async function getTrustedReport(options: TrustedReportOptions): Promise<TrustedReport> {
+  if (options.viewQuery.scopeInvalid) return invalidReportScope(options.viewQuery);
+  if (options.viewQuery.report === "people-readiness") return loadTrustedReport(options);
+  let periodStart: string | undefined;
+  try {
+    periodStart = options.viewQuery.report === "rent-roll" ? undefined
+      : isExtendedReport(options.viewQuery.report) ? getReportDateRange(options.viewQuery).start
+      : getReportMonthRange(options.viewQuery.month).start;
+  } catch (error) { return invalidReportRange(options.viewQuery, error); }
+  try {
+    // All source queries, including completeness and attribution reads, are
+    // bounded by the same committed source revision.
+    return await withFinancialReadContext(options.organizationId, async (context) => ({
+      ...await loadTrustedReport(options),
+      financialGeneration: context.generation,
+    }), periodStart);
+  } catch {
+    const message = "Financial data changed or could not be verified. Reload the report and check that the selected period is within the workspace’s financial start date.";
+    return {
+      kind: options.viewQuery.report, title: "Report unavailable", columns: [], rows: [], summary: [],
+      description: message, emptyTitle: "Report unavailable", emptyDescription: message,
+      exportFilenameBase: options.viewQuery.report, generatedAt: new Date().toISOString(),
+      periodLabel: options.viewQuery.month, scopeLabel: "Selected scope", totalsTraceLabel: "",
+      exportValidation: { code: "financial_context_changed", message, status: 409 },
+      scopeValidation: { code: "financial_context_changed", message },
+    };
+  }
+}
+
+function invalidReportRange(viewQuery: ReportsViewQuery, error: unknown): TrustedReport {
+  const message = error instanceof Error ? error.message : "Choose a valid date range.";
+  return {
+    kind: viewQuery.report, title: "Report", columns: [], rows: [], summary: [],
+    description: "", emptyTitle: "Choose a valid date range", emptyDescription: "", exportFilenameBase: viewQuery.report,
+    generatedAt: new Date().toISOString(), periodLabel: "", scopeLabel: "Selected scope", totalsTraceLabel: "",
+    exportValidation: { code: "invalid_report_range", message, status: 400 },
+    scopeValidation: { code: "invalid_report_range", message },
+  };
+}
+
+async function loadTrustedReport({
+  financeContext: suppliedFinanceContext,
+  organizationId,
+  supabase: suppliedSupabase,
+  viewQuery,
+}: TrustedReportOptions): Promise<TrustedReport> {
   if (viewQuery.scopeInvalid) return invalidReportScope(viewQuery);
   if (["transactions", "management-fees", "rent-roll", "rent-collections"].includes(viewQuery.report)) {
-    const { getReportDateRange } = await import("../reports.filters");
     try {
       if (viewQuery.report !== "rent-roll") getReportDateRange(viewQuery);
     } catch (error) {
-      return {
-        kind: viewQuery.report, title: "Report", columns: [], rows: [], summary: [],
-        description: "", emptyTitle: "Choose a valid date range", emptyDescription: "", exportFilenameBase: viewQuery.report,
-        generatedAt: new Date().toISOString(), periodLabel: "", scopeLabel: "Selected scope", totalsTraceLabel: "",
-        exportValidation: { code: "invalid_report_range", message: error instanceof Error ? error.message : "Choose a valid date range.", status: 400 },
-        scopeValidation: { code: "invalid_report_range", message: error instanceof Error ? error.message : "Choose a valid date range." },
-      };
+      return invalidReportRange(viewQuery, error);
     }
     const options = { organizationId, viewQuery, supabase: suppliedSupabase, financeContext: suppliedFinanceContext };
     try {
@@ -320,6 +357,25 @@ export async function getTrustedReport({
         scopeValidation: { code: "report_source_unavailable", message },
       };
     }
+  }
+  if (["monthly-owner-activity", "unit-profit-loss"].includes(viewQuery.report)) {
+    const supabase = suppliedSupabase ?? await createSupabaseServerClient();
+    const financeContext = suppliedFinanceContext ?? await loadScopedFinanceContext(supabase, organizationId,
+      viewQuery.propertyId === "all" ? undefined : viewQuery.propertyId);
+    const gaps = await loadMonthlyRentGaps({ supabase, organizationId, context: financeContext, viewQuery, period: getReportMonthRange(viewQuery.month) });
+    if (gaps.length) {
+      const message = "Monthly rent billing is incomplete. Review the linked leases and generate the missing invoices before using this report.";
+      return {
+        kind: viewQuery.report, title: "Monthly billing needs review", description: message,
+        columns: [{ key: "property", label: "Property" }, { key: "tenant", label: "Tenant" }, { key: "issue", label: "Required action" }],
+        rows: gaps, summary: [], generatedAt: new Date().toISOString(), periodLabel: viewQuery.month,
+        scopeLabel: "Selected scope", exportFilenameBase: viewQuery.report, totalsTraceLabel: "Financial totals are unavailable until monthly billing is complete.",
+        emptyTitle: "Monthly billing needs review", emptyDescription: message,
+        exportValidation: { code: "monthly_rent_incomplete", message, status: 409 },
+      };
+    }
+    suppliedSupabase = supabase;
+    suppliedFinanceContext = financeContext;
   }
   if (viewQuery.report === "monthly-owner-activity") {
     return getMonthlyOwnerActivityReport({

@@ -1,3 +1,4 @@
+import { withFinancialDownloadContext } from "@/lib/finance/financial-write-context.server";
 import { getReportPdf } from "@/features/reports/data/pdf";
 import { downloadOwnerStatementArtifact } from "@/features/reports/data/owner-statement-artifacts";
 import { parseReportSearchParams } from "@/features/reports/reports.filters";
@@ -33,11 +34,11 @@ export async function GET(request: Request) {
     }
     try {
       const supabase = await createSupabaseServerClient();
-      const artifact = await downloadOwnerStatementArtifact(
+      const artifact = await withFinancialDownloadContext(membership.organizationId, request, () => downloadOwnerStatementArtifact(
         supabase,
         membership.organizationId,
         artifactId,
-      );
+      ));
       if (artifact.format !== "pdf") {
         return textResponse("Owner Statement artifact format mismatch.", 409);
       }
@@ -53,17 +54,21 @@ export async function GET(request: Request) {
     return textResponse("Forbidden", 403);
   }
 
-  const searchParams = Object.fromEntries(url.searchParams);
-  const viewQuery = parseReportSearchParams(searchParams, membership.operationalTimezone);
-  const pdf = await getReportPdf(
-    membership.organizationId,
-    membership.organizationName,
-    viewQuery,
-  );
-  if ("validation" in pdf) {
-    return textResponse(pdf.validation.message, pdf.validation.status);
+  try {
+    const searchParams = Object.fromEntries(url.searchParams);
+    const viewQuery = parseReportSearchParams(searchParams, membership.operationalTimezone);
+    const pdf = await withFinancialDownloadContext(membership.organizationId, request, () => getReportPdf(
+      membership.organizationId,
+      membership.organizationName,
+      viewQuery,
+    ));
+    if ("validation" in pdf) {
+      return textResponse(pdf.validation.message, pdf.validation.status);
+    }
+    return attachment(pdf.body, pdf.filename, "application/pdf");
+  } catch {
+    return textResponse("Financial data changed or could not be verified. Reload the report before downloading it.", 409);
   }
-  return attachment(pdf.body, pdf.filename, "application/pdf");
 }
 
 function attachment(bodyBytes: Uint8Array, filename: string, contentType: string) {

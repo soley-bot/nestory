@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { requireOwnerBalanceReadContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import {
   canonicalizeOwnerOpeningAmount,
   canonicalizeSignedOwnerOpeningAmount,
@@ -192,6 +193,17 @@ export async function getOpeningBalanceAuthorityData(
 ): Promise<OpeningBalanceAuthorityData> {
   const scope = inputSchema.parse(input);
   const context = await requireOwnerBalanceReadContext();
+  return withFinancialReadContext(context.organizationId, async (financialContext) => ({
+    ...await loadOpeningBalanceAuthorityData(scope, context.organizationId),
+    financialGeneration: financialContext.generation,
+  }), scope.effectiveDate);
+}
+
+async function loadOpeningBalanceAuthorityData(
+  scope: z.output<typeof inputSchema>,
+  organizationId: string,
+): Promise<OpeningBalanceAuthorityData> {
+  const context = { organizationId };
   const supabase = await createSupabaseServerClient();
 
   let requestQuery = supabase

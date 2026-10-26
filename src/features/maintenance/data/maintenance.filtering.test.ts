@@ -8,6 +8,9 @@ import { createPortfolioSearch } from "@/lib/search/portfolio";
 import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
 
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: vi.fn() }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({
+  withFinancialReadContext: vi.fn(async (_organizationId, read) => read({ generation: 0 })),
+}));
 vi.mock("@/lib/search/portfolio.server", () => ({ loadPortfolioSearch: vi.fn() }));
 
 const propertyId = "10000000-0000-4000-8000-000000000001";
@@ -28,6 +31,19 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("Maintenance filtering and queue destinations", () => {
+  it("preserves the default workspace date and verified generation through the read wrapper", async () => {
+    vi.setSystemTime(new Date("2026-10-23T17:30:00Z"));
+    installFixture([task("boundary", "pending", "2026-10-23", { title: "Boundary task" })]);
+    const result = await getMaintenanceScreenData("org-1",
+      parseMaintenanceSearchParams({ ...scopedParams, query: "boundary", review: "all" }),
+      actor, { canAssignCase: false }, { includeQueueCounts: true });
+    expect(result.financialGeneration).toBe(0);
+    expect(result.cases).toHaveLength(1);
+    expect(result.cases[0].isOverdue).toBe(true);
+    expect(result.cases[0].progressState).toBe("overdue");
+    expect(result.queueCounts?.overdue).toBe(1);
+  });
+
   it.each([
     ["Asia/Phnom_Penh", "2026-10-23T17:30:00Z", "2026-10-23", true],
     ["UTC", "2026-10-23T17:30:00Z", "2026-10-23", false],

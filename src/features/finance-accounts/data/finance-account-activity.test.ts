@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  readBoundary: vi.fn(),
   createSupabaseServerClient: vi.fn(),
   iterateOwnerProfitLossEvents: vi.fn(),
   iteratePropertyCashEvents: vi.fn(),
 }));
 
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialReadContext: mocks.readBoundary }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: mocks.createSupabaseServerClient,
 }));
@@ -24,8 +26,28 @@ const filters = {
 };
 
 describe("getFinanceAccountActivity", () => {
+  it("rejects unavailable financial context before any account sources", async () => {
+    mocks.readBoundary.mockRejectedValueOnce(new Error("Financial reporting is paused"));
+    await expect(getFinanceAccountActivity("org-1", "operating-account", filters)).rejects.toThrow("paused");
+    expect(mocks.createSupabaseServerClient).not.toHaveBeenCalled();
+  });
+  it("discards account totals when final source verification fails", async () => {
+    mocks.createSupabaseServerClient.mockResolvedValue(clientFixture());
+    mocks.readBoundary.mockImplementationOnce(async (_organizationId, read) => {
+      await read({ generation: 2 });
+      throw new Error("Financial data changed while loading");
+    });
+    await expect(getFinanceAccountActivity("org-1", "operating-account", filters)).rejects.toThrow("changed while");
+  });
+  it("passes the actual date start and tags the verified generation", async () => {
+    mocks.createSupabaseServerClient.mockResolvedValue(clientFixture());
+    expect((await getFinanceAccountActivity("org-1", "operating-account", filters))?.financialGeneration).toBe(2);
+    expect(mocks.readBoundary).toHaveBeenCalledWith("org-1", expect.any(Function), "2026-08-01");
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.readBoundary.mockImplementation(async (_organizationId, read) => read({ generation: 2, financial_start_date: null }));
     mocks.iterateOwnerProfitLossEvents.mockImplementation(() => asyncRows([]));
     mocks.iteratePropertyCashEvents.mockImplementation(() => asyncRows([]));
   });

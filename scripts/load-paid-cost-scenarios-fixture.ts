@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { fixtureIdentityProfile } from "./daily-fixture-identities.mjs";
+import { concurrencyIdentityProfile } from "./concurrency-fixture-identities.mjs";
 
 import type { Database } from "../src/types/database";
 import {
@@ -10,20 +11,27 @@ import {
   paidCostLifecycleOriginalDate,
 } from "./paid-cost-fixture-periods";
 
-const fixtureIds = fixtureIdentityProfile();
+const caseNamespace = process.env.NESTORY_CONCURRENCY_FIXTURE_NAMESPACE;
+if (caseNamespace && (process.env.GITHUB_ACTIONS !== "true" ||
+    !/^\d+$/.test(process.env.GITHUB_RUN_ID ?? "") ||
+    !/^supabase_db_[A-Za-z0-9_-]+$/.test(process.env.SUPABASE_DB_CONTAINER ?? ""))) {
+  throw new Error("Namespaced paid-cost fixtures require the admitted local CI project");
+}
+const caseProfile = caseNamespace ? concurrencyIdentityProfile(caseNamespace) : undefined;
+const fixtureIds = caseProfile ?? fixtureIdentityProfile();
 const organizationId = fixtureIds.id("00000000-0000-0000-0000-000000000001");
 const financeMemberId = fixtureIds.id("00000000-0000-0000-0000-000000000801");
-const vendorId = "80000000-0000-0000-0000-000000000006";
-const closePropertyId = "10000000-0000-0000-0000-000000000004";
-const closeOwnerId = "80000000-0000-0000-0000-000000000014";
-const centralPropertyId = "10000000-0000-0000-0000-000000000001";
-const centralOwnerId = "80000000-0000-0000-0000-000000000004";
-const centralLegacyUnitId = "20000000-0000-0000-0000-000000000001";
-const riversidePropertyId = "10000000-0000-0000-0000-000000000002";
-const riversideUnitId = "20000000-0000-0000-0000-000000000005";
-const gardenPropertyId = "10000000-0000-0000-0000-000000000003";
-const gardenUnitId = "20000000-0000-0000-0000-000000000006";
-const gardenTenantUnitId = "20000000-0000-0000-0000-000000000007";
+const vendorId = fixtureIds.id("80000000-0000-0000-0000-000000000006");
+const closePropertyId = fixtureIds.id("10000000-0000-0000-0000-000000000004");
+const closeOwnerId = fixtureIds.id("80000000-0000-0000-0000-000000000014");
+const centralPropertyId = fixtureIds.id("10000000-0000-0000-0000-000000000001");
+const centralOwnerId = fixtureIds.id("80000000-0000-0000-0000-000000000004");
+const centralLegacyUnitId = fixtureIds.id("20000000-0000-0000-0000-000000000001");
+const riversidePropertyId = fixtureIds.id("10000000-0000-0000-0000-000000000002");
+const riversideUnitId = fixtureIds.id("20000000-0000-0000-0000-000000000005");
+const gardenPropertyId = fixtureIds.id("10000000-0000-0000-0000-000000000003");
+const gardenUnitId = fixtureIds.id("20000000-0000-0000-0000-000000000006");
+const gardenTenantUnitId = fixtureIds.id("20000000-0000-0000-0000-000000000007");
 
 let fixturePhase = "initialize";
 
@@ -479,6 +487,7 @@ function client(url: string, key: string) {
 }
 
 async function signIn(client: SupabaseClient<Database>, email: string) {
+  if (caseProfile) email = caseProfile.email(email);
   const result = await client.auth.signInWithPassword({
     email,
     password: "123456789",

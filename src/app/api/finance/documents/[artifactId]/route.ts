@@ -1,3 +1,4 @@
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { downloadTenantCommercialDocumentArtifact } from "@/features/finance-operations/documents/commercial-document-artifacts";
 import {
   getCurrentUser,
@@ -32,11 +33,11 @@ export async function GET(
   }
 
   try {
-    const artifact = await downloadTenantCommercialDocumentArtifact(
+    const artifact = await withFinancialReadContext(membership.organizationId, () => downloadTenantCommercialDocumentArtifact(
       client,
       membership.organizationId,
       artifactId,
-    );
+    ));
     const filename = sanitizeAttachmentFilename(artifact.filename);
     const body = artifact.bytes.buffer.slice(
       artifact.bytes.byteOffset,

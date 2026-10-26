@@ -314,7 +314,7 @@ export async function createPettyCashAccountAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("create_petty_cash_account", {
     p_account_number: parsed.data.accountNumber,
     p_custodian_person_id: parsed.data.custodianPersonId || null,
@@ -364,7 +364,7 @@ export async function createPettyCashEntryAction(
   const propertyId =
     parsed.data.propertyId.length > 0 ? parsed.data.propertyId : null;
   const unitId = parsed.data.unitId.length > 0 ? parsed.data.unitId : null;
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("create_petty_cash_entry", {
     p_account_id: parsed.data.accountId,
     p_amount: Number(parsed.data.amount),
@@ -440,7 +440,7 @@ export async function updatePettyCashEntryAction(
   const propertyId =
     parsed.data.propertyId.length > 0 ? parsed.data.propertyId : null;
   const unitId = parsed.data.unitId.length > 0 ? parsed.data.unitId : null;
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { data, error } = await supabase.rpc("update_petty_cash_entry", {
     p_amount: Number(parsed.data.amount),
     p_category: parsed.data.category,
@@ -513,7 +513,7 @@ export async function voidPettyCashEntryAction(
     return invalidFormState(parsed.error);
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("void_petty_cash_entry", {
     p_entry_id: parsed.data.entryId,
     p_organization_id: context.organizationId,
@@ -562,7 +562,7 @@ export async function openNextPettyCashPeriodAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("open_next_petty_cash_period", {
     p_account_id: parsed.data.accountId,
     p_advance_amount: advanceAmount,
@@ -599,7 +599,7 @@ export async function postPettyCashEntryAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("post_petty_cash_entry", {
     p_entry_id: parsedEntryId.data,
     p_organization_id: context.organizationId,

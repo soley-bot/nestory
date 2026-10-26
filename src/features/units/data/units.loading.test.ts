@@ -7,6 +7,9 @@ import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: vi.fn() }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({
+  withFinancialReadContext: async (_org: string, read: (context: { generation: number }) => Promise<unknown>) => read({ generation: 2 }),
+}));
 vi.mock("@/features/photos/data/photos", () => ({
   getUnitPhotoThumbnailUrls: vi.fn(async () => new Map()),
   getPropertyPhotoThumbnailUrls: vi.fn(async () => new Map()),

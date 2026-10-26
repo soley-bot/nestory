@@ -30,6 +30,11 @@ afterEach(() => {
 });
 
 describe("createSupabaseServerClient", () => {
+  it("carries the original form generation to database mutation checks", async () => {
+    const form = new FormData(); form.set("__financialGeneration", "4");
+    await createSupabaseServerClient(form);
+    expect(createServerClient).toHaveBeenLastCalledWith(expect.any(String), expect.any(String), expect.objectContaining({ global: { headers: { "x-nestory-financial-generation": "4" } } }));
+  });
   it("keeps server-action Auth cookies valid on company subdomains", async () => {
     process.env.APP_ROOT_DOMAIN = "nestory-kh.com";
 

@@ -1,3 +1,5 @@
+import { copyFinancialGeneration } from "@/lib/finance/financial-write-context";
+
 export type ImportValidationSummary = {
   blocked: number;
   ready: number;
@@ -103,6 +105,7 @@ export async function runImportReadyRowsFlow({
 
   return commitStagedRun({
     commit,
+    formData,
     identity: { ...identity, runId: staged.runId },
     validationSummary: staged.summary,
   });
@@ -110,17 +113,19 @@ export async function runImportReadyRowsFlow({
 
 async function commitStagedRun({
   commit,
+  formData,
   identity,
   validationSummary,
 }: {
   commit: RunImportReadyRowsFlowOptions["commit"];
+  formData: FormData;
   identity: Pick<
     ImportReadyRowsState,
     "draftKey" | "runId" | "runStatus" | "sourceFileName"
   > & { runId: string };
   validationSummary: ImportValidationSummary;
 }): Promise<ImportReadyRowsState> {
-  const commitFormData = new FormData();
+  const commitFormData = copyFinancialGeneration(formData, new FormData());
   commitFormData.set("runId", identity.runId);
   const committed = await commit({}, commitFormData);
   const runStatus = committed.runStatus ?? identity.runStatus;

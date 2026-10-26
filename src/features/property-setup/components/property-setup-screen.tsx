@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useActionState, useState, useTransition } from "react";
@@ -601,7 +603,7 @@ function RentSetupStep({
         </p>
       </div>
       {needsActivation ? (
-        <form
+        <FinancialForm
           action={activationAction}
           className="rounded-md border border-border p-4"
         >
@@ -628,7 +630,7 @@ function RentSetupStep({
                 ? "Activate lease and confirm move-in"
                 : "Refresh move-in status"}
           </Button>
-        </form>
+        </FinancialForm>
       ) : null}
       {visibleBlockers.length > 0 ? (
         <section

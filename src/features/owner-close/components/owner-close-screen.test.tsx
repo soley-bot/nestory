@@ -1,5 +1,6 @@
 /* @vitest-environment jsdom */
 
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -21,7 +22,7 @@ import { OwnerCloseScreen } from "@/features/owner-close/components/owner-close-
 import type { OwnerCloseData } from "@/features/owner-close/owner-close.types";
 import { canonicalizeSignedOwnerOpeningAmount } from "@/features/owner-balances/owner-balance.money";
 
-afterEach(() => cleanup());
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 const propertyId = "00000000-0000-4000-8000-000000000002";
 const ownerId = "00000000-0000-4000-8000-000000000003";
@@ -32,6 +33,24 @@ const publicationId = "00000000-0000-4000-8000-000000000019";
 const amount = canonicalizeSignedOwnerOpeningAmount;
 
 describe("OwnerCloseScreen", () => {
+  it("hides cached close readiness and revision amounts after the session changes", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
+    const context = { generation: 1, status: "open" as const, financial_start_date: "2026-08-01", enforced: true };
+    const view = (generation: number) => <FinancialWriteProvider organizationId="org" context={{ ...context, generation }}>
+      <OwnerCloseScreen canClose canReopen data={closedData()} monthStart="2026-08-01" propertyId={propertyId} ownerPersonId={ownerId} />
+    </FinancialWriteProvider>;
+    const { rerender } = render(view(1));
+    expect(screen.getByTestId("owner-close-readiness")).toBeTruthy();
+    expect(screen.getAllByText("USD 900,719,925,474.09").length).toBeGreaterThan(0);
+    rerender(view(2));
+    expect(screen.queryByTestId("owner-close-readiness")).toBeNull();
+    expect(screen.queryByText("USD 900,719,925,474.09")).toBeNull();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reopen month" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Close owner month" })).toBeTruthy();
+    expect(screen.getByText(/Reload the page to verify the financial session/)).toBeTruthy();
+  });
+
   it("daily workflow exposes scoped close and publication to Finance permissions without reopening", () => {
     const open = closedData();
     open.series = null; open.revisions = []; open.publications = []; open.publicationReadiness = null;

@@ -3057,6 +3057,7 @@ export type Database = {
           error_message: string | null
           error_rows: number
           failed_count: number
+          financial_generation: number
           headers: Json
           id: string
           import_type: string
@@ -3084,6 +3085,7 @@ export type Database = {
           error_message?: string | null
           error_rows?: number
           failed_count?: number
+          financial_generation?: number
           headers?: Json
           id?: string
           import_type: string
@@ -3111,6 +3113,7 @@ export type Database = {
           error_message?: string | null
           error_rows?: number
           failed_count?: number
+          financial_generation?: number
           headers?: Json
           id?: string
           import_type?: string
@@ -3148,6 +3151,7 @@ export type Database = {
           blocker_count: number
           created_at: string
           data_owner: string
+          financial_generation: number
           id: string
           manifest: Json
           manifest_sha256: string
@@ -3167,6 +3171,7 @@ export type Database = {
           blocker_count?: number
           created_at?: string
           data_owner: string
+          financial_generation?: number
           id?: string
           manifest: Json
           manifest_sha256: string
@@ -3186,6 +3191,7 @@ export type Database = {
           blocker_count?: number
           created_at?: string
           data_owner?: string
+          financial_generation?: number
           id?: string
           manifest?: Json
           manifest_sha256?: string
@@ -6506,6 +6512,7 @@ export type Database = {
           closed_by: string | null
           content_hash: string | null
           currency: Database["public"]["Enums"]["currency_code"]
+          financial_generation: number
           id: string
           input_canonical: string | null
           input_hash: string | null
@@ -6528,6 +6535,7 @@ export type Database = {
           closed_by?: string | null
           content_hash?: string | null
           currency: Database["public"]["Enums"]["currency_code"]
+          financial_generation?: number
           id?: string
           input_canonical?: string | null
           input_hash?: string | null
@@ -6550,6 +6558,7 @@ export type Database = {
           closed_by?: string | null
           content_hash?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
+          financial_generation?: number
           id?: string
           input_canonical?: string | null
           input_hash?: string | null
@@ -8081,6 +8090,7 @@ export type Database = {
           content_type: string
           created_at: string
           created_by: string
+          financial_generation: number
           format: string
           id: string
           organization_id: string
@@ -8095,6 +8105,7 @@ export type Database = {
           content_type: string
           created_at?: string
           created_by: string
+          financial_generation?: number
           format: string
           id?: string
           organization_id: string
@@ -8109,6 +8120,7 @@ export type Database = {
           content_type?: string
           created_at?: string
           created_by?: string
+          financial_generation?: number
           format?: string
           id?: string
           organization_id?: string
@@ -8132,6 +8144,7 @@ export type Database = {
       owner_statement_publications: {
         Row: {
           content_hash: string
+          financial_generation: number
           generated_at: string
           generated_by: string
           id: string
@@ -8142,6 +8155,7 @@ export type Database = {
         }
         Insert: {
           content_hash: string
+          financial_generation?: number
           generated_at?: string
           generated_by: string
           id?: string
@@ -8152,6 +8166,7 @@ export type Database = {
         }
         Update: {
           content_hash?: string
+          financial_generation?: number
           generated_at?: string
           generated_by?: string
           id?: string
@@ -9524,6 +9539,7 @@ export type Database = {
           document_number: string
           failure_message: string | null
           filename: string | null
+          financial_generation: number
           id: string
           organization_id: string
           presentation_snapshot: Json | null
@@ -9545,6 +9561,7 @@ export type Database = {
           document_number: string
           failure_message?: string | null
           filename?: string | null
+          financial_generation?: number
           id?: string
           organization_id: string
           presentation_snapshot?: Json | null
@@ -9566,6 +9583,7 @@ export type Database = {
           document_number?: string
           failure_message?: string | null
           filename?: string | null
+          financial_generation?: number
           id?: string
           organization_id?: string
           presentation_snapshot?: Json | null
@@ -10169,6 +10187,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           currency: Database["public"]["Enums"]["currency_code"]
+          financial_generation: number
           id: string
           invoice_id: string
           organization_id: string
@@ -10185,6 +10204,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
+          financial_generation?: number
           id?: string
           invoice_id: string
           organization_id: string
@@ -10201,6 +10221,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
+          financial_generation?: number
           id?: string
           invoice_id?: string
           organization_id?: string
@@ -10331,6 +10352,7 @@ export type Database = {
           created_by: string | null
           currency: Database["public"]["Enums"]["currency_code"]
           due_date: string
+          financial_generation: number
           generated_at: string | null
           generation_source: string | null
           id: string
@@ -10366,6 +10388,7 @@ export type Database = {
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
           due_date: string
+          financial_generation?: number
           generated_at?: string | null
           generation_source?: string | null
           id?: string
@@ -10401,6 +10424,7 @@ export type Database = {
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
           due_date?: string
+          financial_generation?: number
           generated_at?: string | null
           generation_source?: string | null
           id?: string
@@ -11252,6 +11276,10 @@ export type Database = {
         }
         Returns: string
       }
+      approve_financial_reset_zero_plan: {
+        Args: { p_operation_id: string; p_review_sha256: string }
+        Returns: undefined
+      }
       approve_rent_policy_version: {
         Args: { p_organization_id: string; p_policy_id: string }
         Returns: string
@@ -11351,6 +11379,10 @@ export type Database = {
           p_storage_object_version: string
           p_storage_path: string
         }
+        Returns: string
+      }
+      authorize_financial_reset_hosted_action: {
+        Args: { p_action: string; p_binding: Json }
         Returns: string
       }
       begin_deposit_rent_journal_attempt: {
@@ -11476,6 +11508,19 @@ export type Database = {
           p_invoice_id: string
           p_organization_id: string
           p_reference: string
+        }
+        Returns: string
+      }
+      continue_lease_month_to_month: {
+        Args: {
+          p_expected_billing_rule_id: string
+          p_expected_fee_mode: string
+          p_expected_fee_value: number
+          p_expected_rent_amount: number
+          p_expected_term_id: string
+          p_idempotency_key: string
+          p_lease_id: string
+          p_organization_id: string
         }
         Returns: string
       }
@@ -12333,6 +12378,14 @@ export type Database = {
           label: string
           user_id: string
         }[]
+      }
+      get_financial_report_context: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
+      get_financial_write_context: {
+        Args: { p_organization_id: string }
+        Returns: Json
       }
       get_ips_cutover_batch: {
         Args: { p_batch_id: string; p_organization_id: string }

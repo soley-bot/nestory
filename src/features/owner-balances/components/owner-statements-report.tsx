@@ -1,6 +1,8 @@
 "use client";
+import { FinancialReportLink } from "@/lib/finance/financial-write-provider";
 
-import { Fragment, useRef, useState } from "react";
+
+import { Fragment, useEffect, useEffectEvent, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, ChevronRight, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +12,7 @@ import { SearchableSelectControl } from "@/components/ui/searchable-select-contr
 import { SelectControl } from "@/components/ui/select-control";
 
 import { formatCalendarDate } from "@/lib/dates/format";
+import { useFinancialWriteContext } from "@/lib/finance/financial-write-provider";
 import type { OwnerBalanceData } from "../owner-balance.types";
 import { readStatementReport, readStatementReports } from "../statement-report-action";
 
@@ -18,7 +21,10 @@ type Account = { ownerPersonId: string; propertyId: string; ownerLabel: string; 
 const keyOf = (account: Account) => `${account.ownerPersonId}:${account.propertyId}`;
 const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 
-export function OwnerStatementsReport({ data, month, selectedOwnerPersonId, selectedPropertyId, initialStatements = {}, reportType = "all" }: { reportType?: string; initialStatements?: Record<string, Statement>; data: OwnerBalanceData; month: string; selectedOwnerPersonId?: string; selectedPropertyId?: string }) {
+export function OwnerStatementsReport({ data, month, selectedOwnerPersonId, selectedPropertyId, initialStatements = {}, reportType = "all", invalidationKey }: { reportType?: string; initialStatements?: Record<string, Statement>; data: OwnerBalanceData; month: string; selectedOwnerPersonId?: string; selectedPropertyId?: string; invalidationKey?: string }) {
+  const financialSession = useFinancialWriteContext();
+  const [expectedGeneration] = useState(financialSession?.context.generation);
+  const sessionBlocked = Boolean(financialSession?.invalid || financialSession?.context.status === "frozen" || financialSession?.context.generation !== expectedGeneration);
   const [propertyId, setPropertyId] = useState(selectedPropertyId ?? "");
   const [ownerId, setOwnerId] = useState(selectedOwnerPersonId ?? "");
   const [view, setView] = useState(reportType);
@@ -29,26 +35,64 @@ export function OwnerStatementsReport({ data, month, selectedOwnerPersonId, sele
   const owners = data.ownerOptions.filter(owner => !propertyId || !owner.propertyIds || owner.propertyIds.includes(propertyId));
   const accounts: Account[] = selectedOwnerPersonId && selectedPropertyId && data.accountTotal > 0 && data.ownerOptions.some(item => item.id === selectedOwnerPersonId) && data.propertyOptions.some(item => item.id === selectedPropertyId) ? [{ ownerPersonId: selectedOwnerPersonId, propertyId: selectedPropertyId, ownerLabel: data.ownerOptions.find(item => item.id === selectedOwnerPersonId)?.label ?? "Owner", propertyLabel: data.propertyOptions.find(item => item.id === selectedPropertyId)?.label ?? "Property" }] : data.accounts;
   const inFlight = useRef(new Set<string>());
-  async function loadMany(requested: Account[]) {
-    const pending = requested.filter(account => !(keyOf(account) in statements) && !inFlight.current.has(keyOf(account)));
+  const requestGeneration = useRef(0);
+  const source = useRef({ data, month, invalidationKey, sessionBlocked });
+  async function loadMany(requested: Account[], force = false) {
+    if (sessionBlocked) return;
+    const pending = requested.filter(account => (force || !(keyOf(account) in statements)) && !inFlight.current.has(keyOf(account)));
     if (!pending.length) return;
+    const generation = requestGeneration.current;
     const keys = pending.map(keyOf);
     keys.forEach(key => inFlight.current.add(key));
     setLoading(current => new Set([...current, ...keys]));
     setErrors(current => new Set([...current].filter(key => !keys.includes(key))));
     try {
-      const results = await readStatementReports(pending.map(account => ({ month, ownerPersonId: account.ownerPersonId, propertyId: account.propertyId })));
+      const results = await readStatementReports(pending.map(account => ({ month, ownerPersonId: account.ownerPersonId, propertyId: account.propertyId, ...(expectedGeneration !== undefined ? { expectedGeneration } : {}) })));
+      if (generation !== requestGeneration.current) return;
       for (const result of results) {
         const key = `${result.scope.ownerPersonId}:${result.scope.propertyId}`;
         if (result.failed) setErrors(current => new Set(current).add(key));
         else setStatements(current => ({ ...current, [key]: result.statement }));
       }
-    } catch { setErrors(current => new Set([...current, ...keys])); }
+    } catch {
+      if (generation === requestGeneration.current) setErrors(current => new Set([...current, ...keys]));
+    }
     finally {
-      keys.forEach(key => inFlight.current.delete(key));
-      setLoading(current => new Set([...current].filter(key => !keys.includes(key))));
+      if (generation === requestGeneration.current) {
+        keys.forEach(key => inFlight.current.delete(key));
+        setLoading(current => new Set([...current].filter(key => !keys.includes(key))));
+      }
     }
   }
+  const refreshStatements = useEffectEvent(() => {
+    // A refreshed server payload or another session can invalidate even an
+    // empty result. Hide old totals/exports while checking the open accounts.
+    requestGeneration.current += 1;
+    inFlight.current.clear();
+    setStatements({});
+    setLoading(new Set());
+    setErrors(new Set());
+    void loadMany(accounts.filter(account => expanded.has(keyOf(account))), true);
+  });
+  useEffect(() => {
+    const previous = source.current;
+    source.current = { data, month, invalidationKey, sessionBlocked };
+    if (previous.data !== data || previous.month !== month || previous.invalidationKey !== invalidationKey || previous.sessionBlocked !== sessionBlocked) refreshStatements();
+  }, [data, month, invalidationKey, sessionBlocked]);
+  useEffect(() => {
+    const pendingRequests = inFlight.current;
+    const recheck = () => {
+      if (document.visibilityState === "visible") refreshStatements();
+    };
+    window.addEventListener("focus", recheck);
+    document.addEventListener("visibilitychange", recheck);
+    return () => {
+      window.removeEventListener("focus", recheck);
+      document.removeEventListener("visibilitychange", recheck);
+      requestGeneration.current += 1;
+      pendingRequests.clear();
+    };
+  }, []);
   async function load(account: Account) {
     await loadMany([account]);
   }
@@ -58,10 +102,11 @@ export function OwnerStatementsReport({ data, month, selectedOwnerPersonId, sele
     void load(account);
   }
   const pageHref = (page: number) => `/balances?${new URLSearchParams({ view: "statements", month, propertyId: selectedPropertyId ?? "", ownerPersonId: selectedOwnerPersonId ?? "", reportType: view, page: String(page) })}`;
+  if (sessionBlocked) return <section aria-label="Owner statements report" className="workspace-gutter-x py-6"><p role="alert">Reload the page to verify the current financial session before viewing statements or saved files.</p><Button variant="outline" onClick={() => window.location.reload()}>Reload page</Button></section>;
   return <section className="w-full pb-6" aria-label="Owner statements report">
     <header className="workspace-gutter-x flex min-h-12 items-center gap-3 border-b py-2">
       <Link href="/reports" className="flex items-center gap-1 text-xs text-muted-foreground"><ArrowLeft className="size-4" />All reports</Link>
-      <h1 className="text-sm font-semibold">Owner statement</h1><div className="ml-auto flex items-center gap-2"><DropdownMenu><DropdownMenuTrigger asChild><Button size="sm" variant="outline"><Download className="size-4" />Export</Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="max-w-[440px]">{accounts.some(account=>expanded.has(keyOf(account)) && statements[keyOf(account)]?.artifacts.length) ? accounts.filter(account=>expanded.has(keyOf(account))).flatMap(account=>(statements[keyOf(account)]?.artifacts??[]).map(artifact=><DropdownMenuItem asChild key={artifact.id}><a href={`/api/reports/${artifact.format==="pdf"?"pdf":"excel"}?artifactId=${artifact.id}`}>{account.ownerLabel} · {account.propertyLabel} · {artifact.format==="pdf"?"PDF":"Excel"}</a></DropdownMenuItem>)) : <DropdownMenuItem disabled>Expand a published statement to export its saved files</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu><Button size="sm" variant="outline" onClick={()=>window.location.reload()}>Refresh</Button></div>
+      <h1 className="text-sm font-semibold">Owner statement</h1><div className="ml-auto flex items-center gap-2"><DropdownMenu><DropdownMenuTrigger asChild><Button size="sm" variant="outline"><Download className="size-4" />Export</Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="max-w-[440px]">{accounts.some(account=>expanded.has(keyOf(account)) && statements[keyOf(account)]?.artifacts.length) ? accounts.filter(account=>expanded.has(keyOf(account))).flatMap(account=>(statements[keyOf(account)]?.artifacts??[]).map(artifact=><DropdownMenuItem asChild key={artifact.id}><FinancialReportLink href={`/api/reports/${artifact.format==="pdf"?"pdf":"excel"}?artifactId=${artifact.id}`}>{account.ownerLabel} · {account.propertyLabel} · {artifact.format==="pdf"?"PDF":"Excel"}</FinancialReportLink></DropdownMenuItem>)) : <DropdownMenuItem disabled>Expand a published statement to export its saved files</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu><Button size="sm" variant="outline" onClick={()=>window.location.reload()}>Refresh</Button></div>
     </header>
     <form method="get" className="workspace-gutter-x flex flex-wrap items-center gap-2 border-b bg-blue-50/20 py-2">
       <input type="hidden" name="view" value="statements" />
@@ -80,7 +125,8 @@ export function OwnerStatementsReport({ data, month, selectedOwnerPersonId, sele
           <button type="button" aria-expanded={open} aria-controls={`statement-${key}`} onClick={()=>toggle(account)} className="flex w-full items-center gap-2 bg-muted/40 px-3 py-3 text-left text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring">{open?<ChevronDown className="size-3"/>:<ChevronRight className="size-3"/>}<span>{account.propertyLabel} | {account.ownerLabel}</span><span className="ml-auto shrink-0 text-xs font-normal text-muted-foreground">{month}</span></button>
           <div id={`statement-${key}`} hidden={!open} className="space-y-3 p-3">
             {(loading.has(key) || (!(key in statements) && !errors.has(key)))?<p role="status" className="text-sm text-muted-foreground">Loading statement…</p>:errors.has(key)?<div role="alert" className="text-sm">Unable to load this statement. <Button variant="link" onClick={()=>void load(account)}>Retry</Button></div>:statement?<>
-              <div className="flex flex-wrap items-center gap-3 text-xs"><span className="text-muted-foreground">{statement.published ? "Published" : "Draft preview"} · {statement.statementNumber}{statement.stale?" · Account has newer activity":""}</span><div className="ml-auto flex gap-3">{statement.artifacts.map(artifact=><a className="font-medium underline underline-offset-4" key={artifact.id} href={`/api/reports/${artifact.format==="pdf"?"pdf":"excel"}?artifactId=${artifact.id}`}>{artifact.format==="pdf"?"PDF":"Excel"}</a>)}</div></div>
+              <div className="flex flex-wrap items-center gap-3 text-xs"><span className="text-muted-foreground">{statement.published ? "Published" : "Draft preview"} · {statement.statementNumber}{statement.stale?" · Account has newer activity":""}</span><div className="ml-auto flex gap-3">{statement.artifacts.map(artifact=><FinancialReportLink className="font-medium underline underline-offset-4" key={artifact.id} href={`/api/reports/${artifact.format==="pdf"?"pdf":"excel"}?artifactId=${artifact.id}`}>{artifact.format==="pdf"?"PDF":"Excel"}</FinancialReportLink>)}</div></div>
+              {statement.published && statement.stale ? <p role="status" className="text-sm text-muted-foreground">This published statement and its saved files show an earlier account state. Open Manage statement to prepare an updated statement.</p> : null}
               <StatementTables statement={statement} property={account.propertyLabel} view={view} month={month}/>
             </>:<p className="py-3 text-sm text-muted-foreground">No statement is ready for this month. Open Manage statement to review the required checks.</p>}
             <div className="flex justify-end"><Link href={manageHref} className="text-xs text-muted-foreground underline underline-offset-4">Manage statement</Link></div>

@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ list: vi.fn(), preview: vi.fn(), correct: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
@@ -14,7 +14,10 @@ async function prepare() {
   await screen.findByLabelText("Actual payment date");
   fireEvent.change(screen.getByLabelText("Actual payment date"), { target: { value: preview.newDate } });
   fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Actual bank transfer date" } });
-  fireEvent.click(screen.getByRole("button", { name: "Preview correction" }));
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Preview correction" }));
+  });
+  await waitFor(() => expect((screen.getByRole("button", { name: "Cancel" }) as HTMLButtonElement).disabled).toBe(false));
   await screen.findByRole("button", { name: "Confirm payment date correction" });
 }
 
@@ -29,7 +32,7 @@ describe("fee payment date modal", () => {
   it("loads settlements on mount and invalidates a reviewed preview when the date or settlement changes", async () => {
     render(<FeePaymentDateModal leaseId="lease" onClose={vi.fn()} onSuccess={vi.fn()} />);
     await prepare();
-    expect(mocks.list).toHaveBeenCalledWith("lease");
+    expect(mocks.list).toHaveBeenCalledWith("lease", expect.any(FormData));
     fireEvent.change(screen.getByLabelText("Actual payment date"), { target: { value: "2026-09-10" } });
     expect(screen.queryByRole("button", { name: "Confirm payment date correction" })).toBeNull();
     fireEvent.change(screen.getByLabelText("Actual payment date"), { target: { value: preview.newDate } });
@@ -91,8 +94,9 @@ describe("fee correction dismissal", () => {
     fireEvent.keyDown(screen.getByRole("dialog"), {key:"Escape"});
     expect(close).not.toHaveBeenCalled();
     fireEvent.click(await screen.findByRole("button", {name:"Continue waiting"}));
-    reject(new Error("network"));
+    await act(async () => { reject(new Error("network")); });
     await screen.findByText(/Retry with the same details/);
+    await waitFor(() => expect((screen.getByRole("button", {name:"Cancel"}) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole("button", {name:"Close modal"}));
     expect(screen.getByRole("alertdialog", {name:"Discard unsaved changes?"})).toBeTruthy();
     expect((screen.getByLabelText("Reason") as HTMLInputElement).value).toBe("Actual bank transfer date");

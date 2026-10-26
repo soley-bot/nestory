@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
 import { loadManualChargeInvoiceContext } from "../manual-charge-invoice-context";
 import { useManualChargeInvoiceContext } from "./use-manual-charge-invoice-context";
 vi.mock("../manual-charge-invoice-context", () => ({ loadManualChargeInvoiceContext: vi.fn() }));
-afterEach(() => { cleanup(); vi.resetAllMocks(); });
+afterEach(() => { cleanup(); vi.resetAllMocks(); vi.unstubAllGlobals(); });
 const invoice = { id: "off-page", invoiceNumber: "OFF-PAGE", dueDate: "2026-09-25" };
 it("blocks submission through pending and failed reads, and allows an explicit retry", async () => {
   vi.mocked(loadManualChargeInvoiceContext).mockRejectedValueOnce(new Error("timeout")).mockResolvedValueOnce(invoice);
@@ -73,4 +75,32 @@ it("requires a fresh lookup after disabling and re-enabling the same selection",
   await act(async () => resolveFresh(null));
   expect(result.current.ready).toBe(true);
   expect(result.current.invoice).toBeNull();
+});
+
+it("clears a verified invoice and preserves its original generation when the session changes",async()=>{
+ const context={generation:1,status:"open" as const,financial_start_date:"2026-10-01",enforced:true};
+ const check=vi.fn().mockResolvedValue({ok:true,json:async()=>({organizationId:"org",context})});vi.stubGlobal("fetch",check);
+ vi.mocked(loadManualChargeInvoiceContext).mockResolvedValue(invoice);
+ const wrapper=({children}:{children:ReactNode})=><FinancialWriteProvider organizationId="org" context={context}>{children}</FinancialWriteProvider>;
+ const {result}=renderHook(()=>useManualChargeInvoiceContext(true,"lease-1","2026-10"),{wrapper});
+ await waitFor(()=>expect(result.current.ready).toBe(true));
+ const originalIntent=vi.mocked(loadManualChargeInvoiceContext).mock.calls[0][1];
+ expect(originalIntent?.get("__financialGeneration")).toBe("1");
+ check.mockResolvedValue({ok:true,json:async()=>({organizationId:"org",context:{...context,generation:2}})});
+ fireEvent.focus(window);await waitFor(()=>expect(result.current.ready).toBe(false));
+ expect(result.current.invoice).toBeUndefined();
+ act(()=>result.current.retry());expect(loadManualChargeInvoiceContext).toHaveBeenCalledOnce();
+ expect(originalIntent?.get("__financialGeneration")).toBe("1");
+});
+
+it("ignores a pending invoice response after the financial session becomes unverifiable",async()=>{
+ const context={generation:1,status:"open" as const,financial_start_date:"2026-10-01",enforced:true};
+ const check=vi.fn().mockResolvedValue({ok:true,json:async()=>({organizationId:"org",context})});vi.stubGlobal("fetch",check);
+ let resolve!:(value:typeof invoice)=>void;vi.mocked(loadManualChargeInvoiceContext).mockImplementationOnce(()=>new Promise(done=>{resolve=done;}));
+ const wrapper=({children}:{children:ReactNode})=><FinancialWriteProvider organizationId="org" context={context}>{children}</FinancialWriteProvider>;
+ const {result}=renderHook(()=>useManualChargeInvoiceContext(true,"lease-1","2026-10"),{wrapper});
+ await waitFor(()=>expect(check).toHaveBeenCalledOnce());
+ check.mockResolvedValue({ok:false});fireEvent.focus(window);
+ await waitFor(()=>expect(document.querySelector('[role="alert"]')).not.toBeNull());
+ await act(async()=>resolve(invoice));expect(result.current.ready).toBe(false);expect(result.current.invoice).toBeUndefined();
 });

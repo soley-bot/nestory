@@ -6,6 +6,7 @@ import { z } from "zod";
 import { privilegedStepUpRequiredMessage } from "@/lib/auth/privileged-step-up-error";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { getCapturedFinancialIntent } from "@/lib/finance/captured-financial-intent.server";
 
 export type PrivilegedStepUpRequestClient = Awaited<
   ReturnType<typeof createSupabaseServerClient>
@@ -63,7 +64,7 @@ export async function requirePrivilegedStepUp(
   let admin;
   let assertion;
   try {
-    admin = createSupabaseAdminClient();
+    admin = createSupabaseAdminClient(getCapturedFinancialIntent(supabase));
     assertion = await admin.rpc(
       "assert_privileged_email_step_up_satisfied",
       {

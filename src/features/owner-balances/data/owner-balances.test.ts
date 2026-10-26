@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  readBoundary: vi.fn(),
   from: vi.fn(),
   requireReadContext: vi.fn(),
   rpc: vi.fn(),
 }));
+
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialReadContext: mocks.readBoundary }));
 
 vi.mock("@/lib/auth/context", () => ({
   requireOwnerBalanceReadContext: mocks.requireReadContext,
@@ -34,8 +37,34 @@ const reversalMovementId = "00000000-0000-4000-8000-000000000013";
 let readyPeriodInputWatermark = "2026-08-31T00:00:00Z";
 
 describe("authoritative owner balance loader", () => {
+  it("checks permission before invoking financial source guards", async () => {
+    mocks.requireReadContext.mockRejectedValueOnce(new Error("Not authorized"));
+    await expect(getOwnerBalanceData({ currency: "USD", periodStart: "2026-08-01", periodEnd: "2026-08-31", propertyId, ownerPersonId: ownerId })).rejects.toThrow("Not authorized");
+    expect(mocks.readBoundary).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("does not read sources when the financial boundary rejects the request", async () => {
+    mocks.readBoundary.mockRejectedValueOnce(new Error("Financial reporting is paused"));
+    await expect(getOwnerBalanceData({ currency: "USD", periodStart: "2026-08-01", periodEnd: "2026-08-31", propertyId, ownerPersonId: ownerId })).rejects.toThrow("Financial reporting is paused");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("discards the assembled payload when source revision changes before completion", async () => {
+    mocks.readBoundary.mockImplementationOnce(async (_organizationId, read) => {
+      await read({ generation: 2 });
+      throw new Error("Financial data changed while this report was loading");
+    });
+    await expect(getOwnerBalanceData({ currency: "USD", periodStart: "2026-08-01", periodEnd: "2026-08-31", propertyId, ownerPersonId: ownerId })).rejects.toThrow("changed while");
+    expect(mocks.rpc).toHaveBeenCalled();
+  });
+  it("tags data with the verified generation and guards the selected month", async () => {
+    const result = await getOwnerBalanceData({ currency: "USD", periodStart: "2026-08-01", periodEnd: "2026-08-31", propertyId, ownerPersonId: ownerId });
+    expect(result.financialGeneration).toBe(2);
+    expect(mocks.readBoundary).toHaveBeenCalledWith(organizationId, expect.any(Function), "2026-08-01");
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.readBoundary.mockImplementation(async (_organizationId, read) => read({ generation: 2 }));
     readyPeriodInputWatermark = "2026-08-31T00:00:00Z";
     mocks.requireReadContext.mockResolvedValue({ organizationId });
 

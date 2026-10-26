@@ -13,6 +13,8 @@ import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { UnitDetailScreen } from "@/features/units/components/unit-detail-screen";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
+import type { FinancialWriteContext } from "@/lib/finance/financial-write-context";
 import { buildUnitDetail } from "@/features/units/data/unit-summary";
 
 vi.mock("@/features/leases/actions", () => ({
@@ -50,6 +52,26 @@ beforeEach(() => {
 });
 
 describe("UnitDetailScreen focused operating record", () => {
+  it.each(["frozen", "open"] as const)("preserves unit navigation but hides financial amounts for a %s stale payload", (status) => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    renderUnitDetail({ context: { generation: 2, status, enforced: true, financial_start_date: "2026-10-01" }, unit: { ...unitDetail, financialGeneration: 1 } });
+    expect(screen.getByRole("heading", { name: "Unit 12A" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Units" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Lease" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("tabpanel")).toBeNull();
+  });
+  it("removes an already open edit drawer when its financial session changes", () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    const context: FinancialWriteContext = { generation: 2, status: "open", enforced: true, financial_start_date: "2026-10-01" };
+    const element = buildUnitDetailElement({ unit: { ...unitDetail, financialGeneration: 2 } });
+    const result = render(<FinancialWriteProvider organizationId="org" context={context}>{element}</FinancialWriteProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("form", { name: "Edit unit form" })).toBeTruthy();
+    result.rerender(<FinancialWriteProvider organizationId="org" context={{ ...context, generation: 3 }}>{element}</FinancialWriteProvider>);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Unit 12A" })).toBeTruthy();
+  });
   it("restores the section and tab focus with browser Back and Forward", async () => {
     window.history.replaceState({}, "", "/units/unit-1");
     renderUnitDetail();
@@ -400,6 +422,7 @@ describe("UnitDetailScreen focused operating record", () => {
 });
 
 function renderUnitDetail({
+  context,
   canArchive = true,
   canCreateLease = true,
   canCreateMaintenanceCase = true,
@@ -407,6 +430,7 @@ function renderUnitDetail({
   initialSection = "overview",
   unit = unitDetail,
 }: {
+  context?: FinancialWriteContext;
   canArchive?: boolean;
   canCreateLease?: boolean;
   canCreateMaintenanceCase?: boolean;
@@ -414,7 +438,9 @@ function renderUnitDetail({
   initialSection?: "overview" | "lease" | "finance" | "maintenance" | "files";
   unit?: typeof unitDetail;
 } = {}) {
-  return render(buildUnitDetailElement({ initialSection, unit, canArchive, canCreateLease, canCreateMaintenanceCase, canWrite }));
+  return render(buildUnitDetailElement({ initialSection, unit, canArchive, canCreateLease, canCreateMaintenanceCase, canWrite }), {
+    wrapper: context ? ({ children }) => <FinancialWriteProvider organizationId="org" context={context}>{children}</FinancialWriteProvider> : undefined,
+  });
 }
 
 function buildUnitDetailElement({

@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
+
 import Link from "next/link";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -69,6 +71,7 @@ type DrawerState =
   | { mode: "activity"; change: RecentChange; eventId?: string };
 
 type TimelineScreenProps = {
+  financialGeneration?: number;
   canArchive?: boolean;
   canWrite?: boolean;
   eventTypes: TimelineEventType[];
@@ -84,7 +87,15 @@ type TimelineScreenProps = {
   viewQuery: TimelineViewQuery;
 };
 
-export function TimelineScreen({
+export function TimelineScreen(props: TimelineScreenProps) {
+  return <FinancialReportBoundary expectedGeneration={props.financialGeneration} fallback={
+    <WorkspacePage title={props.title ?? "Timeline"}>
+      <p className="text-sm text-muted-foreground">Timeline amounts and actions are unavailable until the financial workspace is refreshed.</p>
+    </WorkspacePage>
+  }><TimelineScreenContent {...props} /></FinancialReportBoundary>;
+}
+
+function TimelineScreenContent({
   canArchive = true,
   canWrite = true,
   eventTypes,
@@ -537,7 +548,7 @@ function ArchiveTimelineEventPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
+    <FinancialForm action={action} className="flex h-full flex-col">
       <input name="eventId" type="hidden" value={event.id} />
       <div className="flex-1 px-4 py-5 sm:px-5">
         <div className="mb-4 flex items-center gap-2 text-danger">
@@ -573,7 +584,7 @@ function ArchiveTimelineEventPanel({
           {pending ? "Archiving..." : "Archive event"}
         </Button>
       </div>
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -599,7 +610,7 @@ function RestoreTimelineEventPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
+    <FinancialForm action={action} className="flex h-full flex-col">
       <input name="eventId" type="hidden" value={event.id} />
       <div className="flex-1 px-4 py-5 sm:px-5">
         <div className="mb-4 flex items-center gap-2 text-primary">
@@ -639,7 +650,7 @@ function RestoreTimelineEventPanel({
           {pending ? "Restoring..." : "Restore event"}
         </Button>
       </div>
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -665,7 +676,7 @@ function TimelineDocumentPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
+    <FinancialForm action={action} className="flex h-full flex-col">
       <input name="eventId" type="hidden" value={event.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="rounded-md border border-border bg-muted px-3 py-3">
@@ -717,6 +728,6 @@ function TimelineDocumentPanel({
           {pending ? "Uploading..." : "Attach document"}
         </Button>
       </div>
-    </form>
+    </FinancialForm>
   );
 }

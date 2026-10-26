@@ -1,3 +1,4 @@
+import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import { OwnerContributionControl, OwnerDistributionDateControl } from "@/features/owner-balances/components/owner-cash-controls";
 import { assignReportSourceAction, calculateReportMonthAction } from "@/features/reports/remediation-actions";
 import { reportReturnHref, withReportReturn } from "@/features/reports/report-return";
@@ -193,6 +194,16 @@ export function OwnerBalanceLedger({
         })}
       </nav>
 
+      <FinancialReportBoundary expectedGeneration={data.financialGeneration} fallback={!hasExactScope ? (
+        <nav aria-label="Owner account records" className="grid gap-2">
+          {data.accounts.map(account => (
+            <Link className="text-primary underline" key={`${account.propertyId}:${account.ownerPersonId}`}
+              href={`/balances?${new URLSearchParams({ month: selectedMonth, view: selectedView, propertyId: account.propertyId, ownerPersonId: account.ownerPersonId })}`}>
+              {account.ownerLabel}  {account.propertyLabel}
+            </Link>
+          ))}
+        </nav>
+      ) : undefined}>
       {!hasExactScope ? (
         <OwnerAccountRegister
           canResolveOwnership={canResolveOwnership}
@@ -521,6 +532,7 @@ export function OwnerBalanceLedger({
           </div>
         </>
       )}
+      </FinancialReportBoundary>
     </main>
   );
 }
@@ -943,7 +955,7 @@ function PropertyAccountLedger({
           />
         ) : null}
 
-        <form
+        <FinancialForm
           className="flex flex-col gap-3 border-b border-border pb-3 sm:flex-row sm:items-end"
           method="get"
         >
@@ -976,8 +988,9 @@ function PropertyAccountLedger({
           <Button className="h-9 px-4" type="submit" variant="outline">
             Apply
           </Button>
-        </form>
+        </FinancialForm>
 
+        <FinancialReportBoundary expectedGeneration={data.financialGeneration}>
         {!hasExactScope ? (
           <section className="border-y border-border py-10 text-sm">
             <h2 className="font-semibold">Select an owner</h2>
@@ -1051,7 +1064,7 @@ function PropertyAccountLedger({
                       ) : null}
                     </dl>
                   ) : null}
-                  <form className="flex items-end gap-2" method="get">
+                  <FinancialForm className="flex items-end gap-2" method="get">
                     <input name="month" type="hidden" value={selectedMonth} />
                     {selectedOwnerPersonId ? (
                       <input
@@ -1083,7 +1096,7 @@ function PropertyAccountLedger({
                     >
                       Filter
                     </Button>
-                  </form>
+                  </FinancialForm>
                 </div>
               </div>
               {filteredSources.length === 0 ? (
@@ -1190,6 +1203,7 @@ function PropertyAccountLedger({
             </section>
           </>
         )}
+        </FinancialReportBoundary>
       </div>
     </main>
   );
@@ -1500,7 +1514,7 @@ function OwnerCashActions({
       <div className="grid gap-3 xl:grid-cols-3">
         {(["owner_contribution", "owner_reimbursement"] as const).map(
           (eventType) => (
-            <form
+            <FinancialForm
               action={recordOwnerCashEventAction}
               className="grid gap-3 rounded-2xl border border-border/80 bg-card p-4"
               key={eventType}
@@ -1530,10 +1544,10 @@ function OwnerCashActions({
                   ? "Record owner contribution"
                   : "Record owner reimbursement"}
               </Button>
-            </form>
+            </FinancialForm>
           ),
         )}
-        <form
+        <FinancialForm
           action={recordOwnerDistributionAction}
           className="grid gap-3 rounded-2xl border border-border/80 bg-card p-4"
         >
@@ -1555,7 +1569,7 @@ function OwnerCashActions({
           <Button className="h-9 px-3" type="submit">
             Record owner distribution
           </Button>
-        </form>
+        </FinancialForm>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
         <ReversalForm
@@ -1591,7 +1605,7 @@ function ReversalForm({
   submitLabel: string;
 }) {
   return (
-    <form
+    <FinancialForm
       action={action}
       className="grid gap-3 rounded-2xl border border-border/80 bg-card p-4"
     >
@@ -1622,7 +1636,7 @@ function ReversalForm({
       <Button className="h-9 px-3" type="submit" variant="outline">
         {submitLabel}
       </Button>
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -1651,7 +1665,7 @@ function TransferAction({
         Super Admin only. Creates equal and opposite balance changes and keeps
         the evidence.
       </p>
-      <form
+      <FinancialForm
         action={transferOwnerBalanceComponentAction}
         className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"
       >
@@ -1740,7 +1754,7 @@ function TransferAction({
         <Button className="h-9 px-3 md:col-span-2 xl:col-span-4" type="submit">
           Transfer balance
         </Button>
-      </form>
+      </FinancialForm>
     </section>
   );
 }

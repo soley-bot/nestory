@@ -10,6 +10,8 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PropertyDetailScreen } from "@/features/properties/components/property-detail-screen";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
+import type { FinancialWriteContext } from "@/lib/finance/financial-write-context";
 import {
   buildPropertyDetail,
   type PropertyDetail,
@@ -22,10 +24,20 @@ vi.mock("@/features/leases/actions", () => ({
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   window.history.replaceState({}, "", "/");
 });
 
 describe("PropertyDetailScreen task-first detail contract", () => {
+  it.each(["frozen", "open"] as const)("preserves the property identity and navigation for a %s stale payload", (status) => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    renderPropertyDetail({ context: { generation: 2, status, enforced: true, financial_start_date: "2026-10-01" }, propertyOverride: { ...property, financialGeneration: 1 } });
+    expect(screen.getByRole("heading", { name: property.name })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Properties" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "View history" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("tabpanel")).toBeNull();
+  });
   it("shows the complete active lease count when the preview is capped at eight", () => {
     const detail = buildPropertyDetail({
       property: { id: "property-nine", name: "Nine leases", code: "NINE", status: "active", property_type: "Apartment", rental_structure: "multi_unit", owner: null, address: null },
@@ -581,6 +593,7 @@ describe("PropertyDetailScreen task-first detail contract", () => {
 });
 
 function renderPropertyDetail({
+  context,
   returnTo,
   canArchive,
   canCreateLease,
@@ -588,6 +601,7 @@ function renderPropertyDetail({
   initialSection,
   propertyOverride = property,
 }: {
+  context?: FinancialWriteContext;
   returnTo?: string;
   canArchive?: boolean;
   canCreateLease?: boolean;
@@ -606,6 +620,7 @@ function renderPropertyDetail({
       property={propertyOverride}
       tenantOptions={tenantOptions}
     />,
+    { wrapper: context ? ({ children }) => <FinancialWriteProvider organizationId="org" context={context}>{children}</FinancialWriteProvider> : undefined },
   );
 }
 

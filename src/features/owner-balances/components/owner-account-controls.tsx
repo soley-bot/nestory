@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import { useMemo, useState, type ReactNode } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -54,7 +56,7 @@ export function OwnerAccountScopeForm({
     : "";
 
   return (
-    <form
+    <FinancialForm
       className="grid gap-3 border-b border-border pb-4 md:grid-cols-[1.25fr_1.25fr_11rem_auto]"
       method="get"
     >
@@ -117,7 +119,7 @@ export function OwnerAccountScopeForm({
           ? selectedView === "statements" ? "View statements" : "View account"
           : "Apply filters"}
       </Button>
-    </form>
+    </FinancialForm>
   );
 }
 

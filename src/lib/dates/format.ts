@@ -12,6 +12,7 @@ const calendarDateFormatter = new Intl.DateTimeFormat("en-GB", {
 });
 
 export function formatDate(value: string | Date): string {
+  if (value === "infinity") return "Month to month";
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return calendarDateFormatter
       .formatToParts(new Date(`${value}T00:00:00Z`))

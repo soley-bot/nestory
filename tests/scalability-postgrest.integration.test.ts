@@ -18,6 +18,66 @@ vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: vi.fn() }));
 const enabled = process.env.NESTORY_SCALE_DATABASE_CI === "1";
 const apiUrl = "http://127.0.0.1:54321";
 type Env = Record<string, string | undefined>;
+const readContextRpcPaths = new Set([
+  "/rest/v1/rpc/get_finance_read_context",
+  "/rest/v1/rpc/get_financial_write_context",
+  "/rest/v1/rpc/get_financial_report_context",
+]);
+
+function assertReadOnlyPostgrestRequest(input: RequestInfo | URL, init?: RequestInit) {
+  const request = input instanceof Request ? input : null;
+  const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+  const method = (init?.method ?? request?.method ?? "GET").toUpperCase();
+  assert.equal(url.origin, apiUrl, "External network requests are forbidden.");
+  assert.ok(!url.username && !url.password, "URL credentials are forbidden.");
+  assert.ok(url.pathname.startsWith("/rest/v1/"), "Only read-only PostgREST is permitted; Auth, delivery, and Storage requests are forbidden.");
+  assert.ok(["GET", "HEAD", "POST"].includes(method), "Mutation methods are forbidden.");
+  if (method === "POST" || url.pathname.startsWith("/rest/v1/rpc/")) {
+    assert.ok(readContextRpcPaths.has(url.pathname), "Only the three read context RPCs are permitted.");
+  }
+}
+
+describe("scalability PostgREST request policy", () => {
+  it("allows table reads and only the three exact read context RPCs", () => {
+    for (const method of ["GET", "HEAD"]) {
+      expect(() => assertReadOnlyPostgrestRequest(`${apiUrl}/rest/v1/properties?select=id`, { method })).not.toThrow();
+    }
+    for (const rpc of readContextRpcPaths) {
+      for (const method of ["GET", "HEAD", "POST"]) {
+        expect(() => assertReadOnlyPostgrestRequest(new URL(rpc, apiUrl), { method })).not.toThrow();
+      }
+    }
+  });
+
+  it("rejects table mutations and non-read RPCs, including GET RPC requests", () => {
+    for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+      expect(() => assertReadOnlyPostgrestRequest(`${apiUrl}/rest/v1/properties`, { method })).toThrow();
+    }
+    for (const method of ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]) {
+      expect(() => assertReadOnlyPostgrestRequest(`${apiUrl}/rest/v1/rpc/create_property`, { method })).toThrow();
+    }
+    for (const method of ["PUT", "PATCH", "DELETE"]) {
+      expect(() => assertReadOnlyPostgrestRequest(`${apiUrl}/rest/v1/rpc/get_financial_write_context`, { method })).toThrow();
+    }
+  });
+
+  it("uses the effective Request method and rejects host, service and RPC-path substitutions", () => {
+    const tablePost = new Request(`${apiUrl}/rest/v1/properties`, { method: "POST" });
+    expect(() => assertReadOnlyPostgrestRequest(tablePost)).toThrow();
+    expect(() => assertReadOnlyPostgrestRequest(tablePost, { method: "GET" })).not.toThrow();
+    expect(() => assertReadOnlyPostgrestRequest(new Request(`${apiUrl}/rest/v1/properties`), { method: "POST" })).toThrow();
+    expect(() => assertReadOnlyPostgrestRequest(new Request(`${apiUrl}/rest/v1/rpc/get_financial_report_context`, { method: "POST" }))).not.toThrow();
+    for (const destination of [
+      "https://example.invalid/rest/v1/rpc/get_financial_report_context",
+      `${apiUrl}/auth/v1/user`, `${apiUrl}/storage/v1/object`, `${apiUrl}/functions/v1/deliver`,
+      `${apiUrl}/rest/v1/rpc/get_financial_report_context_extra`,
+      `${apiUrl}/rest/v1/rpc/get_financial_report_context/`,
+      `${apiUrl}/rest/v1/rpc/get_financial_report_context%2Fextra`,
+    ]) {
+      expect(() => assertReadOnlyPostgrestRequest(destination, { method: "POST" })).toThrow();
+    }
+  });
+});
 
 /** CI-only admission: neither a developer's local stack nor a hosted project is admitted. */
 function admit(env: Env, config: string, cwd: string, platform: string) {
@@ -194,11 +254,7 @@ async function makeHarness() {
       global: {
         headers: { Authorization: `Bearer ${token}` },
         fetch: async (input, init) => {
-          const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
-          assert.equal(url.origin, apiUrl, "External network requests are forbidden.");
-          assert.ok(url.pathname.startsWith("/rest/v1/"), "Only read-only PostgREST is permitted; Auth, delivery, and Storage requests are forbidden.");
-          assert.ok(["GET", "HEAD", "POST"].includes(init?.method ?? "GET"));
-          if (init?.method === "POST") assert.equal(url.pathname, "/rest/v1/rpc/get_finance_read_context", "Only the read context RPC is permitted.");
+          assertReadOnlyPostgrestRequest(input, init);
           verify(inspect("supabase_kong_nestory", "8000"), "supabase_kong_nestory", gateway.id);
           return fetch(input, { ...init, redirect: "error", signal: init?.signal ?? AbortSignal.timeout(30_000) });
         },

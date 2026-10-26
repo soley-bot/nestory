@@ -314,6 +314,7 @@ export type MaintenanceSummary = {
 };
 
 export type MaintenanceScreenData = {
+  financialGeneration?: number;
   branchOptions: MaintenanceBranchOption[];
   cases: MaintenanceCase[];
   pagination: MaintenancePagination;

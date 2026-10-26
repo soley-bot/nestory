@@ -1,4 +1,5 @@
 "use server";
+import { financialFormValues } from "@/lib/finance/financial-write-context";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -36,11 +37,11 @@ function correctionError(message = "") {
 }
 
 export async function correctOwnerTransactionAction(_previous: OwnerCashActionState, formData: FormData): Promise<OwnerCashActionState> {
-  const parsed = inputSchema.safeParse(Object.fromEntries(formData));
+  const parsed = inputSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0].message };
   const input = parsed.data;
   const context = await requireFinanceCorrectionContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   try {
     const common = {
       p_organization_id: context.organizationId,

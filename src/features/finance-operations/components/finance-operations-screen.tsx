@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
+
 import { SearchCombo } from "@/components/ui/search-combo";
 import { matchesSearchText } from "@/lib/search/text";
 
@@ -339,6 +341,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
       title={props.scope ? undefined : screen.title}
       toolbar={screen.toolbar}
     >
+      <FinancialReportBoundary expectedGeneration={props.financialGeneration}>
       <div className="flex min-w-0 flex-col">
         {statusMessage ? (
           <div className="shrink-0 border-b border-border bg-card px-4 py-2 sm:px-6">
@@ -633,6 +636,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
         </Modal>
       ) : null}
 
+      </FinancialReportBoundary>
     </WorkspacePage>
   );
 }
@@ -1661,7 +1665,7 @@ function RentGenerationRetry({
   );
 
   return (
-    <form action={action} className="space-y-1">
+    <FinancialForm action={action} className="space-y-1">
       <input name="exceptionId" type="hidden" value={exceptionId} />
       <Button
         aria-label={`${recheck ? "Recheck and generate" : "Generate"} missing rent for ${monthLabel}`}
@@ -1683,7 +1687,7 @@ function RentGenerationRetry({
           {state.message}
         </p>
       ) : null}
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -1720,7 +1724,7 @@ function HistoricalRentRecoveryForm({
   }
 
   return (
-    <form action={action} className="space-y-4 p-4">
+    <FinancialForm action={action} className="space-y-4 p-4">
       <Field label="Lease">
         <SelectControl
           defaultValue={eligibleLeases[0]?.id}
@@ -1747,7 +1751,7 @@ function HistoricalRentRecoveryForm({
         </span>
         <SubmitButton label="Generate selected month" />
       </FormFooter>
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -2521,7 +2525,7 @@ function InvoicePdfPublicationForm({
   }, [hidden]);
 
   return (
-    <form action={formAction} className="space-y-4 p-4" hidden={hidden}>
+    <FinancialForm action={formAction} className="space-y-4 p-4" hidden={hidden}>
       <input name="invoiceId" type="hidden" value={invoice.id} />
       <Field label="Payment instructions">
         <textarea
@@ -2550,7 +2554,7 @@ function InvoicePdfPublicationForm({
         </Button>
         <SubmitButton label="Publish PDF" />
       </FormFooter>
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -2639,12 +2643,12 @@ function ReceiptAction({
   if (!unavailable) return null;
 
   return (
-    <form action={formAction} className="flex flex-wrap items-center justify-end gap-2">
+    <FinancialForm action={formAction} className="flex flex-wrap items-center justify-end gap-2">
       <input name="paymentId" type="hidden" value={settlement.id} />
       <span className="text-muted-foreground">Receipt unavailable</span>
       {canRetry && !state.receiptRequiresReview ? <SubmitButton label="Create receipt again" /> : null}
       <ActionMessage state={state} />
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -3235,7 +3239,7 @@ function ExpenseReviewForm({
   useSuccess(state, onSuccess);
 
   return (
-    <form action={action} className="space-y-4 p-4" onChangeCapture={() => setDirty(true)} onInputCapture={() => setDirty(true)}>
+    <FinancialForm action={action} className="space-y-4 p-4" onChangeCapture={() => setDirty(true)} onInputCapture={() => setDirty(true)}>
       <input name="decision" type="hidden" value={decision} />
       <ExpenseLines submission={submission} />
 
@@ -3402,7 +3406,7 @@ function ExpenseReviewForm({
           }
         />
       </FormFooter>
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -3413,14 +3417,14 @@ function ExpenseCancellationForm({ submission, onSuccess }: { submission: Expens
   const [dirty, setDirty] = useState(false);
   useOverlayDraftGuard(useMemo<OverlayDraftGuard>(() => ({ status: pending ? "saving" : state.status === "success" ? "saved" : dirty || state.status === "error" ? "dirty" : "clean" }), [pending, dirty, state.status]));
   useSuccess(state, onSuccess);
-  return <form action={action} className="space-y-4 p-4" onChangeCapture={() => setDirty(true)} onInputCapture={() => setDirty(true)}>
+  return <FinancialForm action={action} className="space-y-4 p-4" onChangeCapture={() => setDirty(true)} onInputCapture={() => setDirty(true)}>
     <input name="transactionId" type="hidden" value={submission.transactionId ?? ""} />
     <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
     <p className="text-sm">Cancel this pending expense? No balance changes will be posted. Its history will be kept.</p>
     <Field label="Reason"><Input name="reason" value={reason} onChange={event => setReason(event.target.value)} minLength={3} maxLength={500} required /></Field>
     <ActionMessage state={state} />
     <FormFooter><span /><SubmitButton label="Cancel expense" /></FormFooter>
-  </form>;
+  </FinancialForm>;
 }
 
 function ExpenseReversalForm({
@@ -3441,7 +3445,7 @@ function ExpenseReversalForm({
   useSuccess(state, onSuccess);
 
   return (
-    <form action={action} className="space-y-4 p-4" onChangeCapture={() => setDirty(true)} onInputCapture={() => setDirty(true)}>
+    <FinancialForm action={action} className="space-y-4 p-4" onChangeCapture={() => setDirty(true)} onInputCapture={() => setDirty(true)}>
       <input name={submission.transactionId ? "transactionId" : "submissionId"} type="hidden" value={submission.transactionId ?? submission.id} />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
       <input name="reason" type="hidden" value={reason} />
@@ -3474,7 +3478,7 @@ function ExpenseReversalForm({
           label="Reverse expense"
         />
       </FormFooter>
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -3510,7 +3514,7 @@ function SettlementReversalForm({
   }
 
   return (
-    <form action={formAction} className="space-y-4 p-4">
+    <FinancialForm action={formAction} className="space-y-4 p-4">
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
       <input name="reason" type="hidden" value={reason} />
       <DefinitionRows
@@ -3565,7 +3569,7 @@ function SettlementReversalForm({
           label="Reverse payment record"
         />
       </FormFooter>
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -3595,7 +3599,7 @@ function OwnerPaymentForm({
   );
   useSuccess(state, onSuccess);
   return (
-    <form action={action} className="space-y-4 p-4">
+    <FinancialForm action={action} className="space-y-4 p-4">
       <DefinitionRows
         rows={[
           ["Owner", invoice.ownerLabel],
@@ -3629,7 +3633,7 @@ function OwnerPaymentForm({
         <span />
         <SubmitButton label="Record owner invoice payment" />
       </FormFooter>
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -3653,7 +3657,7 @@ function WithdrawalForm({
   );
   useSuccess(state, onSuccess);
   return (
-    <form action={action} className="space-y-4 bg-muted/15 p-4">
+    <FinancialForm action={action} className="space-y-4 bg-muted/15 p-4">
       <DefinitionRows
         rows={[
           ["Property", position.propertyLabel],
@@ -3718,7 +3722,7 @@ function WithdrawalForm({
         </Button>
         <SubmitButton label="Record owner distribution" />
       </FormFooter>
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -3781,7 +3785,7 @@ function ManualTenantChargeForm({
   );
 
   return (
-    <form
+    <FinancialForm
       action={action}
       className="space-y-4 p-4"
       onReset={(event) => {
@@ -3926,7 +3930,7 @@ function ManualTenantChargeForm({
         </Button>
         <SubmitButton label="Bill tenant" disabled={!invoiceContext.ready} />
       </FormFooter>
-    </form>
+    </FinancialForm>
   );
 }
 

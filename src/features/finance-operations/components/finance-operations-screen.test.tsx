@@ -8,6 +8,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AnchorHTMLAttributes } from "react";
@@ -29,6 +30,7 @@ const financeActionMocks = vi.hoisted(() => ({
   reverseExpenseAction: vi.fn(),
   cancelExpenseAction: vi.fn(),
   reviewExpenseAction: vi.fn(),
+  saveLeaseBillingAction: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -50,6 +52,7 @@ vi.mock("../actions", async (importOriginal) => {
     reverseExpenseAction: financeActionMocks.reverseExpenseAction,
     cancelExpenseAction: financeActionMocks.cancelExpenseAction,
     reviewExpenseAction: financeActionMocks.reviewExpenseAction,
+    saveLeaseBillingAction: financeActionMocks.saveLeaseBillingAction,
   };
 });
 
@@ -62,6 +65,7 @@ vi.mock("next/link", () => ({
 }));
 
 import { FinanceOperationsScreen } from "./finance-operations-screen";
+import { BillingSetupForm } from "./finance-billing-setup-form";
 import type { FinanceOperationsData } from "../finance-operations.types";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { buildLeaseRentChargesHref } from "@/features/leases/lease-detail-route";
@@ -83,6 +87,7 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   navigation.pathname = "/finance";
   navigation.pathname = "/finance";
   navigation.replace.mockReset();
@@ -95,6 +100,7 @@ afterEach(() => {
   financeActionMocks.reverseExpenseAction.mockReset();
   financeActionMocks.cancelExpenseAction.mockReset();
   financeActionMocks.reviewExpenseAction.mockReset();
+  financeActionMocks.saveLeaseBillingAction.mockReset();
 });
 
 class ResizeObserverStub {
@@ -104,6 +110,39 @@ class ResizeObserverStub {
 }
 
 describe("FinanceOperationsScreen", () => {
+  it.each([
+    { generation: 4, status: "open" as const, financial_start_date: "2026-10-01" },
+    { generation: 3, status: "frozen" as const, financial_start_date: "2026-10-01" },
+    { generation: 3, status: "open" as const, financial_start_date: "2026-10-02" },
+  ])("keeps the extracted billing intent pinned and blocks a changed financial context: %o", latest => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
+    const initial = { generation: 3, status: "open" as const, financial_start_date: "2026-10-01" };
+    const input = data();
+    const view = (context: typeof latest) => <FinancialWriteProvider organizationId="org" context={{ ...context, enforced: true }}>
+      <BillingSetupForm lease={{ ...input.leases[0], expectedCurrentBillingRuleId: "billing-original" }}
+        onSuccess={vi.fn()} operationalTimezone="UTC" organizationName="IPS" peopleOptions={input.peopleOptions} />
+    </FinancialWriteProvider>;
+    const rendered = render(view(initial));
+    const form = screen.getByRole("button", { name: "Save billing rules" }).closest("form")!;
+    expect(new FormData(form).get("__financialGeneration")).toBe("3");
+    expect(new FormData(form).get("expectedCurrentBillingRuleId")).toBe("billing-original");
+    rendered.rerender(view(latest));
+    expect(new FormData(form).get("__financialGeneration")).toBe("3");
+    expect(fireEvent.submit(form)).toBe(false);
+    expect(financeActionMocks.saveLeaseBillingAction).not.toHaveBeenCalled();
+  });
+
+  it("hides stale operations balances while retaining scoped property navigation", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
+    render(<FinancialWriteProvider organizationId="org" context={{ generation: 1, status: "open", financial_start_date: "2026-08-01", enforced: true }}>
+      <FinanceOperationsScreen {...data()} {...financeCapabilities()} financialGeneration={2} organizationName="IPS" view="rent"
+        scope={{ id: "property-1", kind: "property", label: "Home", propertyId: "property-1", propertyLabel: "Home" }} />
+    </FinancialWriteProvider>);
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByRole("navigation", { name: "Property finance" })).toBeTruthy();
+    expect(screen.getByText(/Reload the page to verify/)).toBeTruthy();
+  });
+
   it("retains the lease return across rent, expenses, owner account and a fresh scoped view", () => {
     const href = buildLeaseRentChargesHref({ leaseId: "lease-1", propertyId: "property-1", unitId: "unit-1", returnTo: "/units/unit-1?section=lease" });
     const leaseReturn = new URL(href, "https://nestory.invalid").searchParams.get("returnTo")!;
@@ -214,11 +253,14 @@ describe("FinanceOperationsScreen", () => {
 
   it("keeps selected transaction unit when opening charge, payment and expense forms", async () => {
     const user = userEvent.setup();
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
     const input = data();
     input.unitOptions.push({id:"unit-2",label:"Unit 02",propertyId:"property-1"});
     input.leases.push({...input.leases[0],id:"lease-2",unitId:"unit-2",unitLabel:"Unit 02",tenantLabel:"Other tenant"});
     input.tenantInvoices=[tenantInvoice(),{...tenantInvoice(),id:"invoice-2",leaseId:"lease-2",unitId:"unit-2",unitLabel:"Unit 02",recipientLabel:"Other tenant"}];
-    render(<FinanceOperationsScreen {...input} {...financeCapabilities({canRecordPayments:true,canSubmitExpense:true,canRecordOwnerCash:true})} organizationName="IPS" view="transactions" scope={{id:"property-1",kind:"property",label:"Riverside",propertyId:"property-1",propertyLabel:"Riverside"}} />);
+    render(<FinancialWriteProvider organizationId="org" context={{ generation: 3, status: "open", financial_start_date: "2026-10-01", enforced: true }}>
+      <FinanceOperationsScreen {...input} {...financeCapabilities({canRecordPayments:true,canSubmitExpense:true,canRecordOwnerCash:true})} organizationName="IPS" view="transactions" scope={{id:"property-1",kind:"property",label:"Riverside",propertyId:"property-1",propertyLabel:"Riverside"}} />
+    </FinancialWriteProvider>);
     await user.click(screen.getByRole("combobox",{name:"Transaction unit"}));
     await user.click(screen.getByRole("option",{name:"Unit 02"}));
     expect(screen.queryByRole("button",{name:"Owner distribution"})).toBeNull();
@@ -231,6 +273,7 @@ describe("FinanceOperationsScreen", () => {
     await user.click(screen.getByRole("button",{name:"Add expense"}));
     const expense = screen.getByRole("dialog");
     expect((await within(expense).findByRole("combobox",{name:"Expense line 1 unit"})).hasAttribute("disabled")).toBe(true);
+    expect(expense.querySelector<HTMLInputElement>('input[name="__financialGeneration"]')?.value).toBe("3");
     const lines=JSON.parse(expense.querySelector<HTMLInputElement>('input[name="lines"]')!.value);
     expect(lines[0].unitId).toBe("unit-2");
     await user.click(within(expense).getByRole("button", {name:"Add line"}));
@@ -4998,6 +5041,8 @@ vi.mock("../manual-charge-invoice-context", () => ({ loadManualChargeInvoiceCont
 
 it("verifies an invoice outside the filtered page before allowing a manual charge and inherits its future due date", async () => {
   const user = userEvent.setup();
+  const financialContext = { generation: 3, status: "open" as const, financial_start_date: "2026-10-01", enforced: true };
+  vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true, json: async () => ({ organizationId: "org", context: financialContext }) } as Response);
   let resolveInvoice!: (value: { id: string; invoiceNumber: string; dueDate: string }) => void;
   manualChargeContextMock.load.mockReturnValueOnce(new Promise(resolve => { resolveInvoice = resolve; }));
   const input = data();
@@ -5008,13 +5053,16 @@ it("verifies an invoice outside the filtered page before allowing a manual charg
   };
   navigation.pathname = "/rent-income";
   navigation.searchParams = new URLSearchParams("page=27&status=open&q=no-match");
-  render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordPayments: true })}
-    organizationName="IPS" scope={{ id: "property-1", kind: "property", label: "Home", propertyId: "property-1", propertyLabel: "Home" }} view="rent" />);
+  render(<FinancialWriteProvider organizationId="org" context={financialContext}>
+    <FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordPayments: true })}
+      organizationName="IPS" scope={{ id: "property-1", kind: "property", label: "Home", propertyId: "property-1", propertyLabel: "Home" }} view="rent" />
+  </FinancialWriteProvider>);
   await user.click(screen.getByRole("button", { name: "Bill tenant" }));
   const dialog = screen.getByRole("dialog", { name: "Bill tenant" });
   expect(within(dialog).getByRole("button", { name: "Bill tenant" })).toHaveProperty("disabled", true);
   expect(dialog.querySelector('input[name="dueDate"]')).toBeNull();
-  expect(manualChargeContextMock.load).toHaveBeenLastCalledWith({ leaseId: "lease-1", billingPeriod: getBusinessDateValue().slice(0, 7) });
+  expect(manualChargeContextMock.load).toHaveBeenLastCalledWith({ leaseId: "lease-1", billingPeriod: getBusinessDateValue().slice(0, 7) }, expect.any(FormData));
+  expect(manualChargeContextMock.load.mock.lastCall?.[1].get("__financialGeneration")).toBe("3");
   resolveInvoice({ id: "outside-page-paid", invoiceNumber: "OLD-PAID-INVOICE", dueDate: "2099-12-25" });
   await waitFor(() => expect(within(dialog).getByRole("button", { name: "Bill tenant" })).toHaveProperty("disabled", false));
   const dueDate = dialog.querySelector<HTMLInputElement>('input[name="dueDate"]');

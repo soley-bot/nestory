@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import Link from "next/link";
 import { useRecordLifecycleAction } from "@/features/records/use-record-lifecycle-action";
 import { Archive, RotateCcw } from "lucide-react";
@@ -44,7 +46,7 @@ export function ArchivePropertyPanel({
   });
 
   return (
-    <form
+    <FinancialForm
       onSubmit={onSubmit}
       aria-busy={pending}
       className={
@@ -98,7 +100,7 @@ export function ArchivePropertyPanel({
         pending={pending}
         presentation={presentation}
       />
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -117,7 +119,7 @@ export function RestorePropertyPanel({
   });
 
   return (
-    <form
+    <FinancialForm
       onSubmit={onSubmit}
       aria-busy={pending}
       className={
@@ -152,7 +154,7 @@ export function RestorePropertyPanel({
         pending={pending}
         presentation={presentation}
       />
-    </form>
+    </FinancialForm>
   );
 }
 

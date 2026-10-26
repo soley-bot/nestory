@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthSessionMissingError } from "@supabase/supabase-js";
+import { captureFinancialIntent } from "@/lib/finance/captured-financial-intent.server";
 
 vi.mock("server-only", () => ({}));
 
@@ -34,6 +35,14 @@ const userId = "20000000-0000-4000-8000-000000000001";
 const sessionId = "30000000-0000-4000-8000-000000000001";
 
 describe("privileged step-up guard", () => {
+  it("preserves the originating generation in privileged evidence operations", async () => {
+    const request = { auth: { getClaims: mocks.getClaims, getUser: mocks.getUser } };
+    const intent = new FormData(); intent.set("__financialGeneration", "2");
+    captureFinancialIntent(request, intent);
+    intent.set("__financialGeneration", "3");
+    await requirePrivilegedStepUp({ organizationId, userId }, request as never);
+    expect(mocks.createAdmin.mock.calls.at(-1)?.[0]?.get("__financialGeneration")).toBe("2");
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.rpc.mockReset();

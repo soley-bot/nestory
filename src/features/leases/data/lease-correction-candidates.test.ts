@@ -1,9 +1,26 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+const { readBoundary } = vi.hoisted(() => ({ readBoundary: vi.fn() }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialReadContext: readBoundary }));
+beforeEach(() => { vi.clearAllMocks(); readBoundary.mockReset(); readBoundary.mockImplementation(async (_org, read) => read({ generation: 2, financial_start_date: null })); });
 const { createSupabaseServerClient } = vi.hoisted(() => ({ createSupabaseServerClient: vi.fn() }));
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient }));
 import { getHistoricalRentCorrectionCandidates } from "@/features/leases/data/leases";
 
 describe("issued fee correction candidates", () => {
+  it("does not read correction sources when the financial snapshot is unavailable", async () => {
+    readBoundary.mockRejectedValueOnce(new Error("Financial reporting is paused"));
+    await expect(getHistoricalRentCorrectionCandidates("org", "lease")).rejects.toThrow("paused");
+    expect(createSupabaseServerClient).not.toHaveBeenCalled();
+  });
+  it("limits historical candidates to the verified financial start date", async () => {
+    readBoundary.mockImplementationOnce(async (_org, read) => read({ generation: 2, financial_start_date: "2026-10-01" }));
+    const gte = vi.fn(() => query);
+    const query = { select: () => query, eq: () => query, lte: () => query, gte, order: () => query, range: async () => ({ data: [], error: null }) };
+    createSupabaseServerClient.mockResolvedValue({ from: () => query });
+    expect(await getHistoricalRentCorrectionCandidates("org", "lease")).toEqual([]);
+    expect(gte).toHaveBeenCalledWith("billing_period_start", "2026-10-01");
+  });
+
   it("loads 1201 periods, complete fees and late corrections without crossing lease or organization scope", async () => {
     const invoices = Array.from({ length: 1201 }, (_, index) => ({
       id: `invoice-${String(index).padStart(4, "0")}`, organization_id: "org", lease_id: "lease", lifecycle: "issued",

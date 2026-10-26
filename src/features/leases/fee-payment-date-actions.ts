@@ -1,4 +1,6 @@
 "use server";
+import { withFinancialIntentReadContext } from "@/lib/finance/financial-write-context.server";
+import { financialWriteError } from "@/lib/finance/financial-write-context";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -33,6 +35,7 @@ export type FeePaymentDateActionState = {
 };
 
 function errorMessage(error: { message: string }) {
+  const lifecycle = financialWriteError(error.message); if (lifecycle) return lifecycle;
   const message = error.message.toLowerCase();
   if (/privileged_email_step_up_required|privileged email verification required/.test(message)) return "Verify this signed-in session by email, then retry the correction.";
   if (/closed|financial_month_locked|locked.*period|period.*locked/.test(message)) return "A financial month affected by this correction is closed. Reopen the period before correcting this payment.";
@@ -48,34 +51,38 @@ function errorMessage(error: { message: string }) {
   return "The fee payment date could not be corrected. Refresh the preview and try again.";
 }
 
-export async function listFeePaymentDateCandidatesAction(leaseId: string): Promise<{ candidates?: FeePaymentDateCandidate[]; message?: string }> {
+export async function listFeePaymentDateCandidatesAction(leaseId: string, financialIntent?: FormData): Promise<{ candidates?: FeePaymentDateCandidate[]; message?: string }> {
   if (!uuid.safeParse(leaseId).success) return { message: "Choose a valid lease." };
   const context = await requireHistoricalRentRecoveryContext();
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc("list_fee_payment_date_candidates", { p_organization_id: context.organizationId, p_lease_id: leaseId });
-  if (error) return { message: errorMessage(error) };
-  const parsed = z.array(candidateSchema).safeParse(data);
-  return parsed.success ? { candidates: parsed.data } : { message: "Nestory could not verify the fee settlements. Reload the lease and try again." };
+  return withFinancialIntentReadContext(context.organizationId, financialIntent, async () => {
+    const supabase = await createSupabaseServerClient(financialIntent);
+    const { data, error } = await supabase.rpc("list_fee_payment_date_candidates", { p_organization_id: context.organizationId, p_lease_id: leaseId });
+    if (error) return { message: errorMessage(error) };
+    const parsed = z.array(candidateSchema).safeParse(data);
+    return parsed.success ? { candidates: parsed.data } : { message: "Nestory could not verify the fee settlements. Reload the lease and try again." };
+  });
 }
 
-export async function previewFeePaymentDateCorrectionAction(input: { allocationId: string; paymentDate: string }): Promise<FeePaymentDateActionState> {
+export async function previewFeePaymentDateCorrectionAction(input: { allocationId: string; paymentDate: string }, financialIntent?: FormData): Promise<FeePaymentDateActionState> {
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message };
   const context = await requireHistoricalRentRecoveryContext();
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc("preview_fee_payment_date_correction", { p_organization_id: context.organizationId, p_allocation_id: parsed.data.allocationId, p_payment_date: parsed.data.paymentDate });
-  if (error) return { status: "error", message: errorMessage(error) };
-  const preview = previewSchema.safeParse(data);
-  if (!preview.success || preview.data.allocationId !== parsed.data.allocationId || preview.data.newDate !== parsed.data.paymentDate) return { status: "error", message: "Nestory could not verify the correction preview." };
-  return { status: "preview", preview: preview.data };
+  return withFinancialIntentReadContext<FeePaymentDateActionState>(context.organizationId, financialIntent, async () => {
+    const supabase = await createSupabaseServerClient(financialIntent);
+    const { data, error } = await supabase.rpc("preview_fee_payment_date_correction", { p_organization_id: context.organizationId, p_allocation_id: parsed.data.allocationId, p_payment_date: parsed.data.paymentDate });
+    if (error) return { status: "error", message: errorMessage(error) };
+    const preview = previewSchema.safeParse(data);
+    if (!preview.success || preview.data.allocationId !== parsed.data.allocationId || preview.data.newDate !== parsed.data.paymentDate) return { status: "error", message: "Nestory could not verify the correction preview." };
+    return { status: "preview", preview: preview.data };
+  }, parsed.data.paymentDate);
 }
 
-export async function correctFeePaymentDateAction(input: { allocationId: string; paymentDate: string; reason: string; previewHash: string; idempotencyKey: string }): Promise<FeePaymentDateActionState> {
+export async function correctFeePaymentDateAction(input: { allocationId: string; paymentDate: string; reason: string; previewHash: string; idempotencyKey: string }, financialIntent?: FormData): Promise<FeePaymentDateActionState> {
   const parsed = applySchema.safeParse(input);
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message };
   const context = await requireHistoricalRentRecoveryContext();
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc("correct_fee_payment_date", {
+  const writeClient = await createSupabaseServerClient(financialIntent);
+  const { data, error } = await writeClient.rpc("correct_fee_payment_date", {
     p_organization_id: context.organizationId, p_allocation_id: parsed.data.allocationId,
     p_payment_date: parsed.data.paymentDate, p_reason: parsed.data.reason,
     p_preview_hash: parsed.data.previewHash, p_idempotency_key: parsed.data.idempotencyKey,

@@ -1,4 +1,6 @@
 "use server";
+import { withFinancialIntentReadContext } from "@/lib/finance/financial-write-context.server";
+import { financialFormValues } from "@/lib/finance/financial-write-context";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -34,12 +36,13 @@ function recoveryError(message = "") {
 }
 
 export async function previewOwnerDistributionRecoveryAction(_state: OwnerDistributionRecoveryState, formData: FormData): Promise<OwnerDistributionRecoveryState> {
-  const parsed = inputSchema.safeParse(Object.fromEntries(formData));
+  const parsed = inputSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0].message };
   const context = await requireFinanceCorrectionContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const input = parsed.data;
   try {
+    return await withFinancialIntentReadContext<OwnerDistributionRecoveryState>(context.organizationId, formData, async () => {
     const withdrawal = await supabase.from("property_withdrawals").select("id,property_id,reversal_of_id").eq("organization_id", context.organizationId).eq("id", input.withdrawalId).maybeSingle();
     if (withdrawal.error || !withdrawal.data || withdrawal.data.reversal_of_id) return { status: "error", message: "The original distribution could not be read. Refresh the account and check your property access." };
     const lines = await supabase.from("owner_invoice_lines").select("id,recognized_on").eq("organization_id", context.organizationId).eq("property_id", withdrawal.data.property_id).eq("source_type", "management_fee").gt("recognized_on", input.distributionDate).limit(501);
@@ -63,14 +66,15 @@ export async function previewOwnerDistributionRecoveryAction(_state: OwnerDistri
     const preview = previewSchema.safeParse(result.data);
     if (!preview.success || preview.data.allocationId !== active[0].id || preview.data.withdrawalId !== input.withdrawalId || preview.data.newDate !== input.feePaymentDate || preview.data.newDistributionDate !== input.distributionDate) return { status: "error", message: "The preview could not be verified. Refresh and review the dates again." };
     return { status: preview.data.canApply ? "success" : "error", message: preview.data.canApply ? "Review both date changes. Nothing has been saved." : recoveryError(preview.data.blockers.join(" ")), preview: preview.data };
+    }, [input.distributionDate, input.feePaymentDate].sort()[0]);
   } catch { return { status: "error", message: recoveryError() }; }
 }
 
 export async function confirmOwnerDistributionRecoveryAction(_state: OwnerDistributionRecoveryState, formData: FormData): Promise<OwnerDistributionRecoveryState> {
-  const parsed = confirmSchema.safeParse(Object.fromEntries(formData));
+  const parsed = confirmSchema.safeParse(financialFormValues(formData));
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0].message };
   const context = await requireFinanceCorrectionContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const input = parsed.data;
   try {
     const withdrawal = await supabase.from("property_withdrawals").select("property_id").eq("organization_id", context.organizationId).eq("id", input.withdrawalId).maybeSingle();

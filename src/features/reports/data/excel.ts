@@ -6,7 +6,6 @@ import { strToU8, zipSync } from "fflate";
 import { addCompanyLogo } from "./excel-logo";
 
 import { getReportExportFilename } from "@/features/reports/data/report-format";
-import { getTrustedReport } from "@/features/reports/data/trusted-report";
 import type { OwnerStatementPublicationModel } from "@/features/reports/data/owner-statement-report";
 import type {
   ReportExportValidation,
@@ -31,6 +30,9 @@ export async function getReportExcel(
   | { body: Uint8Array; filename: string; validation?: never }
   | { body?: never; filename?: never; validation: ReportExportValidation }
 > {
+  // Pure workbook builders are also used by isolated Node fixture runners.
+  // Load request-bound readers only when an authenticated export is requested.
+  const { getTrustedReport } = await import("@/features/reports/data/trusted-report");
   const report = await getTrustedReport({ organizationId, viewQuery });
 
   if (report.exportValidation) {

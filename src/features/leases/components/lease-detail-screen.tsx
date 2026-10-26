@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
+
 import Link from "next/link";
 import {
   useActionState,
@@ -85,7 +87,7 @@ import type {
 import { getCalendarDateInTimeZone } from "@/features/leases/lease-billing-rule-state";
 import { workflowReturnHref } from "@/features/leases/workflow-return";
 import { useBusinessDate } from "@/lib/dates/business-date-provider";
-import { formatDate } from "@/lib/dates/format";
+import { formatDate, formatCalendarDate } from "@/lib/dates/format";
 
 type LeaseTransition =
   | "activate"
@@ -212,7 +214,7 @@ export function LeaseDetailScreen({
     lease.occupancies[0] ??
     null;
   const activeTerm =
-    lease.terms.find((term) => term.status === "active") ?? null;
+    lease.terms.find((term) => term.status === "active") ?? lease.terms.filter(term => term.status === "expired").sort((a, b) => b.endDate.localeCompare(a.endDate))[0] ?? null;
 
   const setStatusMessage = (message: string | null) => {
     setLocalStatus(
@@ -340,6 +342,7 @@ export function LeaseDetailScreen({
       ) : null}
 
       {paymentResolution ? (
+        <FinancialReportBoundary expectedGeneration={lease.financialGeneration}>
         <LeasePaymentResolutionView
           canRecordPayments={canRecordPayments}
           canViewFinance={canViewFinance}
@@ -352,6 +355,7 @@ export function LeaseDetailScreen({
           cancelHref={originHref}
           returnHref={returnHref}
         />
+        </FinancialReportBoundary>
       ) : (
         <LeaseDetailView
           returnTo={originHref}
@@ -394,6 +398,7 @@ export function LeaseDetailScreen({
         />
       )}
 
+      <FinancialReportBoundary expectedGeneration={lease.financialGeneration}>
       {drawer ? (
         <SideDrawer
           description={getDrawerDescription(drawer)}
@@ -531,6 +536,7 @@ export function LeaseDetailScreen({
 
       {feePaymentDateOpen ? <FeePaymentDateModal leaseId={lease.id} onClose={() => setFeePaymentDateOpen(false)} onSuccess={(message) => { setStatusMessage(message); setFeePaymentDateOpen(false); }} /> : null}
 
+      </FinancialReportBoundary>
       {uploadOpen ? (
         <Modal
           onClose={() => setUploadOpen(false)}
@@ -686,7 +692,7 @@ function LeaseDepositPanel({
                         ) : null}
                       </span>
                       {canManage && event.reversible && (!lease.isArchived || event.eventType === "refunded") ? (
-                        <form action={reverseDepositEvent}>
+                        <FinancialForm action={reverseDepositEvent}>
                           <input name="eventId" type="hidden" value={event.id} />
                           <input
                             name="eventDate"
@@ -702,7 +708,7 @@ function LeaseDepositPanel({
                             Reverse entry
                           </Button>
                           <p className="mt-1 max-w-xs text-xs text-muted-foreground">Reverses this record; the original stays in history. No money is transferred.</p>
-                        </form>
+                        </FinancialForm>
                       ) : null}
                     </div>
                   ))}
@@ -715,7 +721,7 @@ function LeaseDepositPanel({
             </div>
 
             {canManage && activityOptions.length ? (
-              <form
+              <FinancialForm
                 action={recordDepositEvent}
                 className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2"
                 ref={preserveDepositSubmission}
@@ -774,7 +780,7 @@ function LeaseDepositPanel({
                     {depositPending ? "Saving..." : "Save deposit activity"}
                   </Button>
                 </div>
-              </form>
+              </FinancialForm>
             ) : null}
           </section>
         );
@@ -1303,7 +1309,7 @@ function HistoricalRentCorrectionModal({
                 : "No eligible issued historical rent period is available for this Lease."}
           </div>
         ) : (
-          <form action={previewAction} className="space-y-4">
+          <FinancialForm action={previewAction} className="space-y-4">
             <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
             <label className="grid gap-1.5 text-sm font-medium">
               Issued rent period
@@ -1403,7 +1409,7 @@ function HistoricalRentCorrectionModal({
                 {previewPending ? "Checking..." : "Preview correction"}
               </Button>
             </div>
-          </form>
+          </FinancialForm>
         )}
 
         {preview && previewMatches ? (
@@ -1506,7 +1512,7 @@ function HistoricalRentCorrectionPreviewPanel({
           </ul>
         </div>
       ) : (
-        <form action={applyAction} className="space-y-3">
+        <FinancialForm action={applyAction} className="space-y-3">
           {correctedManagementFeeAmount !== undefined ? <input name="correctedManagementFeeAmount" type="hidden" value={correctedManagementFeeAmount} /> : null}
           <input name="invoiceId" type="hidden" value={invoiceId} />
           <input
@@ -1534,7 +1540,7 @@ function HistoricalRentCorrectionPreviewPanel({
                     : "Apply historical correction"}
             </Button>
           </div>
-        </form>
+        </FinancialForm>
       )}
     </section>
   );
@@ -1616,6 +1622,9 @@ function LeaseTermModal({
   const [idempotencyKey] = useState(
     () => `lease-term:${lease.id}:${mode}:${crypto.randomUUID()}`,
   );
+  const [monthToMonth, setMonthToMonth] = useState(false);
+  const continuationRule = lease.billingRules.find(rule => rule.effectiveFrom <= term.endDate && rule.effectiveTo === term.endDate);
+  const canContinue = mode === "renewal" && term.endDate !== "infinity" && term.endDate < businessDate && term.paymentFrequency === "monthly";
   const defaults = getTermChangeDefaults(mode, term, businessDate);
   const copy =
     mode === "renewal"
@@ -1655,7 +1664,16 @@ function LeaseTermModal({
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        {canContinue ? <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="monthToMonth" checked={monthToMonth} onChange={event => setMonthToMonth(event.target.checked)} />Continue month to month with unchanged rent and fees</label> : null}
+        {monthToMonth ? <div className="space-y-3 text-sm">
+          <p>Continues from {formatCalendarDate(defaults.startDate)} with no fixed end date. Rent remains {term.rentCurrency} {term.rentAmount.toFixed(2)} per month. The due day, collection route and management-fee setup carry forward. Original contract dates and history are kept.</p>
+          {continuationRule ? <p>Management fee: {continuationRule.managementFeeValue}{continuationRule.managementFeeMode === "percentage" ? "%" : " USD"}.</p> : <p role="alert">Review the missing billing rule before continuing.</p>}
+          <input type="hidden" name="billingRuleId" value={continuationRule?.id ?? ""} />
+          <input type="hidden" name="expectedRent" value={term.rentAmount} />
+          <input type="hidden" name="expectedFeeMode" value={continuationRule?.managementFeeMode ?? ""} />
+          <input type="hidden" name="expectedFeeValue" value={continuationRule?.managementFeeValue ?? ""} />
+          <label className="flex items-center gap-2"><input type="checkbox" name="confirmedContinuation" required />I confirm the tenant has stayed continuously and month-to-month continuation is agreed with unchanged rent and fees.</label>
+        </div> : <div className="grid gap-4 sm:grid-cols-2">
           <label className="grid gap-1.5 text-sm font-medium">
             {copy.startDateLabel}
             <DatePickerField
@@ -1667,12 +1685,12 @@ function LeaseTermModal({
           </label>
           <label className="grid gap-1.5 text-sm font-medium">
             {copy.endDateLabel}
-            <DatePickerField
+            {term.endDate === "infinity" ? <><span>Month to month</span><input type="hidden" name="endDate" value="infinity" /></> : <DatePickerField
               ariaLabel={copy.endDateLabel}
               defaultValue={defaults.endDate}
               name="endDate"
               required
-            />
+            />}
           </label>
           <label className="grid gap-1.5 text-sm font-medium">
             Rent amount
@@ -1709,7 +1727,7 @@ function LeaseTermModal({
               required
             />
           </label>
-        </div>
+        </div>}
 
         {mode !== "renewal" ? <p className="text-sm text-muted-foreground">Choose the first day of the month to change its rent, including the current or a past month within this active term. For an earlier term, use Correct historical rent. Issued rent and the ongoing schedule update together. Previous amounts remain in history.</p> : null}
 
@@ -1770,7 +1788,7 @@ function LeaseTransitionModal({
 
   return (
     <Modal onClose={onClose} open title={copy.title}>
-      <form action={formAction} className="space-y-4 p-4">
+      <FinancialForm action={formAction} className="space-y-4 p-4">
         <input name="leaseId" type="hidden" value={lease.id} />
         <input name="expectedStatus" type="hidden" value={lease.statusValue} />
         <input name="expectedOccupancyId" type="hidden" value={occupancyId} />
@@ -1827,7 +1845,7 @@ function LeaseTransitionModal({
             {pending ? "Saving..." : copy.submitLabel}
           </Button>
         </div>
-      </form>
+      </FinancialForm>
     </Modal>
   );
 }
@@ -1871,13 +1889,13 @@ function ScheduledActivationNotice({
           </p>
         </div>
         {canCancel && schedule.status === "pending" ? (
-          <form action={action}>
+          <FinancialForm action={action}>
             <input name="leaseId" type="hidden" value={lease.id} />
             <input name="scheduleId" type="hidden" value={schedule.id} />
             <Button disabled={pending} type="submit" variant="outline">
               {pending ? "Cancelling..." : "Cancel scheduled activation"}
             </Button>
-          </form>
+          </FinancialForm>
         ) : null}
       </div>
       {state.status === "error" && state.message ? (
@@ -1928,7 +1946,7 @@ function LeaseActivationModal({
 
   return (
     <Modal onClose={onClose} open title="Activate lease">
-      <form action={formAction} className="space-y-5 p-4">
+      <FinancialForm action={formAction} className="space-y-5 p-4">
         <input name="expectedTermId" type="hidden" value={lease.terms.find((term) => term.status === "draft")?.id ?? ""} />
         <input name="leaseId" type="hidden" value={lease.id} />
         <input name="expectedStatus" type="hidden" value="draft" />
@@ -2042,7 +2060,7 @@ function LeaseActivationModal({
             {pending ? "Saving..." : outcome === "completed" ? "Record ended lease" : expiredTerm ? "Renew and activate" : "Activate lease"}
           </Button>
         </div>
-      </form>
+      </FinancialForm>
     </Modal>
   );
 }
@@ -2086,7 +2104,7 @@ function LeasePaymentReceiptAction({
   }
 
   return (
-    <form action={formAction} className="flex flex-wrap items-center gap-2">
+    <FinancialForm action={formAction} className="flex flex-wrap items-center gap-2">
       <input name="paymentId" type="hidden" value={result.paymentId} />
       {!state.receiptRequiresReview ? <LeaseReceiptRetrySubmit /> : null}
       {state.status === "error" && state.message ? (
@@ -2094,7 +2112,7 @@ function LeasePaymentReceiptAction({
           {state.message}
         </span>
       ) : null}
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -2154,7 +2172,7 @@ function getTransitionCopy(transition: LeaseTransition) {
 }
 
 function getTermChangeDefaults(mode: LeaseTermChange, term: LeaseTermContext, businessDate: string) {
-  if (mode === "renewal") {
+  if (mode === "renewal" && term.endDate !== "infinity") {
     const startDate = addDaysIso(term.endDate, 1);
     const nextYear = new Date(`${startDate}T00:00:00.000Z`);
     nextYear.setUTCFullYear(nextYear.getUTCFullYear() + 1);
@@ -2166,7 +2184,7 @@ function getTermChangeDefaults(mode: LeaseTermChange, term: LeaseTermContext, bu
   }
 
   return {
-    endDate: term.endDate,
+    endDate: term.endDate === "infinity" ? "" : term.endDate,
     startDate: [term.startDate, `${businessDate.slice(0, 7)}-01`].sort().at(-1)!,
   };
 }

@@ -23,7 +23,20 @@ vi.mock("@/features/photos/data/photos", () => ({
 type Client = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 function useHarness(tables: Parameters<typeof createCappedReadHarness>[0], apiRowCap = 1000) {
   const harness = createCappedReadHarness(tables, { apiRowCap });
-  const client = harness.client as unknown as Client;
+  const financialContext = { generation: 0, status: "open", financial_start_date: null, enforced: false };
+  const client = {
+    ...harness.client,
+    rpc: vi.fn(async (name: string, args: Record<string, unknown>) => {
+      expect(args).toEqual({ p_organization_id: SCALE_ORGANIZATION_ID });
+      if (name === "get_financial_write_context") {
+        return { data: financialContext, error: null };
+      }
+      if (name === "get_financial_report_context") {
+        return { data: { context: financialContext, source_revision: "0" }, error: null };
+      }
+      throw new Error(`Unexpected scalability RPC: ${name}`);
+    }),
+  } as unknown as Client;
   vi.mocked(createSupabaseServerClient).mockResolvedValue(client);
   return { ...harness, client };
 }

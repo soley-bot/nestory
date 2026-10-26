@@ -95,6 +95,26 @@ async function select(scope, name, option) {
   await scope.getByRole("combobox", { name: accessibleName }).click();
   await page.getByRole("option", { name: option, exact: typeof option === "string" }).click();
 }
+async function openDailyLeaseForm(page) {
+  const opener = page.getByRole("button", { name: "Create new lease", exact: true });
+  const form = page.getByRole("form", { name: "Add lease form" });
+  // This SSR-visible type=button only sets createModal("lease"). A click before
+  // hydration can be lost. Retry only this reversible opener, before any input
+  // or submission, and only while the form is absent and the opener is visible.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (await form.isVisible()) return form;
+    assert.equal(await opener.getAttribute("type"), "button", "Lease opener must not submit a form");
+    await opener.click();
+    try {
+      await form.waitFor({ state: "visible", timeout: 5000 });
+      return form;
+    } catch (error) {
+      if (error.name !== "TimeoutError" || attempt === 2) throw error;
+      if (await form.isVisible()) return form;
+      if (!(await opener.isVisible())) throw error;
+    }
+  }
+}
 async function invoiceDetails() {
   await navigate(dailyInvoiceHref(invoice.id));
   const details = page.getByRole("dialog", { name: "Invoice details", exact: true });
@@ -117,8 +137,7 @@ try {
   // Finance Manager deliberately lacks properties.view; do not change its grants.
   await login(dailyActors.setup);
   await navigate(`/properties/setup?step=3&ownerId=${owner}&propertyId=${property}&unitId=${unit}&tenantId=${tenant}`);
-  await page.getByRole("button", { name: "Create new lease", exact: true }).click();
-  const form = page.getByRole("form", { name: "Add lease form" });
+  const form = await openDailyLeaseForm(page);
   await form.getByRole("button", { name: "Next", exact: true }).click();
   await setHiddenControlValue(form, "leaseStartDate", dates.month);
   await setHiddenControlValue(form, "leaseEndDate", dates.end);

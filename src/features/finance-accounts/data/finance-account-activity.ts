@@ -11,6 +11,7 @@ import type {
   OwnerProfitLossEventsRpcClient,
 } from "@/features/reports/data/owner-profit-loss-events.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
 
 export type FinanceAccountActivityFilters = {
@@ -20,6 +21,7 @@ export type FinanceAccountActivityFilters = {
 };
 
 export type FinanceAccountActivity = {
+  financialGeneration?: number;
   account: {
     accountClass: string;
     accountNumber: string | null;
@@ -104,6 +106,15 @@ export async function getFinanceAccountActivity(
   filters: FinanceAccountActivityFilters,
 ): Promise<FinanceAccountActivity | null> {
   validateFilters(filters);
+  return withFinancialReadContext(organizationId, async (financialContext) => {
+    const activity = await loadFinanceAccountActivity(organizationId, accountId, filters);
+    return activity ? { ...activity, financialGeneration: financialContext.generation } : null;
+  }, filters.periodStart);
+}
+
+async function loadFinanceAccountActivity(
+  organizationId: string, accountId: string, filters: FinanceAccountActivityFilters,
+): Promise<FinanceAccountActivity | null> {
   const client = await createSupabaseServerClient();
   const accountResult = await client.from("finance_accounts").select(
     "id, account_class, account_number, account_subtype, archived_at, description, display_name, property_id, system_role, use_for_lease_deposits",

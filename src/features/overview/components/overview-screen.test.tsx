@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
 import { OverviewScreen } from "@/features/overview/components/overview-screen";
 import { RecordsPropertyPreviewList } from "@/features/overview/components/records-property-preview-list";
 import type {
@@ -10,7 +11,16 @@ import type {
 } from "@/features/overview/overview.types";
 
 describe("OverviewScreen", () => {
-  afterEach(cleanup);
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+  it("hides dashboard amounts immediately when its payload belongs to an older financial session", () => {
+    const context = { generation: 2, status: "open" as const, financial_start_date: "2026-10-01", enforced: true };
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ organizationId: "org-1", context }) })));
+    render(<FinancialWriteProvider organizationId="org-1" context={context}><OverviewScreen data={{ ...data, financialGeneration: 1 }} query={query} /></FinancialWriteProvider>);
+    expect(screen.getByRole("heading", { name: "Dashboard", level: 1 })).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toContain("Reload the page");
+    expect(screen.queryByRole("region", { name: "Portfolio metrics" })).toBeNull();
+  });
 
   it("uses one compact Dashboard title without legacy tabs or actions", () => {
     render(<OverviewScreen data={data} query={query} />);

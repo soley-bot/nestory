@@ -663,6 +663,7 @@ describe("owner opening balance actions", () => {
 
 function initialForm() {
   const form = new FormData();
+  form.set("__financialGeneration", "1");
   form.set("propertyId", propertyId);
   form.set("ownerPersonId", ownerPersonId);
   form.set("currency", "USD");
@@ -680,6 +681,7 @@ function initialForm() {
 
 function correctionForm() {
   const form = new FormData();
+  form.set("__financialGeneration", "1");
   form.set("entryId", entryId);
   form.set("replacementAmount", "12.34");
   form.set("reason", "Correct reconciled opening");
@@ -693,6 +695,7 @@ function correctionForm() {
 
 function reviewForm(decision: "approve" | "reject") {
   const form = new FormData();
+  form.set("__financialGeneration", "1");
   form.set("requestId", requestId);
   form.set("decision", decision);
   form.set("reviewReason", "");

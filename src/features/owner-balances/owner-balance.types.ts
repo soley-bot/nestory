@@ -141,6 +141,7 @@ export type OwnerRosterReadinessRecord = {
 };
 
 export type OpeningBalanceAuthorityData = {
+  financialGeneration?: number;
   effectiveDate: string;
   groups: OwnerOpeningAuthorityGroup[];
   readiness: OwnerRosterReadinessRecord[];
@@ -235,6 +236,7 @@ export type OwnerAccountRegisterRecord = {
 };
 
 export type OwnerBalanceData = {
+  financialGeneration?: number;
   unitOptions?: {id: string; propertyId: string; label: string}[];
   accountPage: number;
   accountPageCount: number;

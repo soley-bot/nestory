@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import Link from "next/link";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -910,7 +912,7 @@ function DocumentArchivePanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
+    <FinancialForm action={action} className="flex h-full flex-col">
       <input name="documentId" type="hidden" value={document.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="rounded-md border border-border bg-muted px-3 py-3">
@@ -956,7 +958,7 @@ function DocumentArchivePanel({
           </Button>
         </div>
       </div>
-    </form>
+    </FinancialForm>
   );
 }
 
