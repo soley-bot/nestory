@@ -202,9 +202,84 @@ test('an early-flushed report checkpoint excludes concurrent contact writes and 
   const fixtureEnd = source.indexOf(fixtureMarker), reportEnd = source.indexOf(reportMarker);
   const fixtureBody = source.slice(0, fixtureEnd).replace(/^BEGIN;\s*/, '').replace('ON COMMIT DROP', 'ON COMMIT PRESERVE ROWS');
   const resetBody = source.slice(fixtureEnd, reportEnd);
+  const continuationStart = resetBody.indexOf('CREATE TEMP TABLE continuation_plan AS');
+  const continuationEnd = resetBody.indexOf('INSERT INTO reset_operator_fixture(binding)');
+  const actionStart = resetBody.indexOf('SELECT app_private.start_financial_reset_actions(');
+  const archiveEnd = resetBody.indexOf('INSERT INTO app_private.financial_write_controls(');
+  const zeroStart = resetBody.indexOf('SELECT app_private.apply_financial_reset_known_zero(');
+  assert.ok(archiveEnd > 0 && actionStart > archiveEnd && continuationStart > actionStart && continuationEnd > continuationStart && zeroStart > continuationEnd);
+  const continuationPlan = resetBody.slice(continuationStart, continuationEnd);
+  // Move the existing plan construction ahead of reservation and authorize
+  // execution before its first action. The SQL fixture's phase assertions stay.
+  const execution = resetBody.slice(actionStart, continuationStart) + resetBody.slice(zeroStart);
+  const restart = `COMMIT; BEGIN; SET LOCAL application_name='checkpoint-reset-${org}';
+    SET LOCAL statement_timeout='20s'; SET LOCAL idle_in_transaction_session_timeout='30s';`;
+  // This is a disposable SQL fixture with synthetic external review inputs, not
+  // a protected-runner or customer approval proof. Real guard APIs create every
+  // reservation, source checkpoint, stage receipt and reopening receipt.
+  const stages = `${remap(resetBody.slice(0, archiveEnd))}
+    ${remap(continuationPlan)}
+    CREATE TEMP TABLE phase_stage_fixture AS SELECT jsonb_build_object(
+      'operation_id','${operation}','organization_id',organization_id,'operation_kind','reset','restore_of',NULL,
+      'source_generation',0,'target_generation',1,'manifest_sha256',repeat('a',64),'plan_sha256',repeat('b',64),'schema_sha256',repeat('c',64),
+      'archive_sha256',(SELECT app_private.financial_reset_hash(jsonb_agg(jsonb_build_object('relation_name',relation_name,'primary_key',pk,'row_sha256',hash)
+        ORDER BY relation_name,pk::text)) FROM boundary_archive),
+      'action_sha256',(SELECT app_private.financial_reset_hash(jsonb_agg(a-ARRAY['before_row_text','after_row_text'] ORDER BY (a->>'ordinal')::integer))
+        FROM boundary_actions CROSS JOIN LATERAL jsonb_array_elements(value) a),
+      'archive_count',(SELECT count(*) FROM boundary_archive),'action_count',(SELECT count(*) FROM boundary_archive),
+      'audit_timestamp',statement_timestamp(),'audit_actor',admin_id) AS operation_binding,
+      jsonb_build_object('operation_id','${operation}','organization_id',organization_id,'manifest_sha256',repeat('a',64),'reset_plan_sha256',repeat('b',64),
+        'maker_actor_id',admin_id,'reviewer_actor_id','${original('7')}','effective_date',billing_month,'currencies','["USD"]'::jsonb,
+        'scopes',app_private.financial_reset_zero_scope_on_date(organization_id,billing_month)) AS zero_plan, NULL::jsonb AS binding
+      FROM boundary_state;
+    UPDATE phase_stage_fixture f SET binding=jsonb_build_object('version',1,'operation_id','${operation}','project_ref','syntheticprojectrefa','organization_id','${org}',
+      'packet_sha256',repeat('1',64),'main_sha',repeat('a',40),'sources_sha256',repeat('2',64),'schema_sha256',f.operation_binding->>'schema_sha256',
+      'ledger_sha256',repeat('3',64),'source_snapshot_sha256',app_private.financial_reset_hash(app_private.financial_reset_continuation_snapshot('${org}')),
+      'source_generation',0,'target_generation',1,'cutoff','2026-10-01','issue_date','2026-10-01',
+      'timezone',(SELECT operational_timezone FROM public.organizations WHERE id='${org}'),
+      'execution_business_date',app_private.rent_business_date('${org}',statement_timestamp()),'invoice_date_policy','original-reviewed-october',
+      'manifest_sha256',f.operation_binding->>'manifest_sha256','plan_sha256',f.operation_binding->>'plan_sha256',
+      'archive_sha256',f.operation_binding->>'archive_sha256','action_sha256',f.operation_binding->>'action_sha256',
+      'archive_artifact_sha256',repeat('5',64),'archive_count',f.operation_binding->'archive_count','action_count',f.operation_binding->'action_count',
+      'zero_review_sha256',app_private.financial_reset_hash(f.zero_plan),'report_review_sha256',repeat('6',64),
+      'continuation_semantic',(SELECT value-'source_sha256' FROM continuation_plan),
+      'continuation_semantic_sha256',(SELECT app_private.financial_reset_hash(value-'source_sha256') FROM continuation_plan));
+    INSERT INTO reset_operator_fixture(binding) SELECT binding FROM phase_stage_fixture;
+    ${restart}
+    ${authorize(actor, 'freeze')}
+    SELECT app_private.reserve_financial_reset_hosted_operation(binding) FROM phase_stage_fixture;
+    ${restart}
+    ${authorize(actor, 'checkpoint')}
+    SELECT app_private.checkpoint_financial_reset_hosted_operation(binding,app_private.financial_reset_hash(jsonb_build_object('synthetic_review_input','checkpoint','binding',binding))) FROM phase_stage_fixture;
+    ${restart}
+    ${authorize(actor, 'prepare')}
+    SELECT app_private.prepare_financial_reset_operation(operation_binding) FROM phase_stage_fixture;
+    SELECT app_private.archive_financial_reset_rows('${operation}',(SELECT jsonb_agg(jsonb_build_object('relation_name',relation_name,'primary_key',pk,
+      'row_text',image::text,'row_sha256',hash) ORDER BY ordinal) FROM boundary_archive));
+    SELECT app_private.prepare_financial_reset_actions('${operation}',value) FROM boundary_actions;
+    SELECT app_private.record_financial_reset_hosted_action_receipt(binding,'prepare',authorization_id,
+      app_private.financial_reset_hash(jsonb_build_object('synthetic_review_input','prepare','binding',binding))) FROM reset_operator_fixture;
+    ${restart}
+    ${authorize(actor, 'seal')}
+    SELECT app_private.seal_financial_reset_operation('${operation}');
+    SELECT app_private.prepare_financial_reset_zero_plan('${operation}',zero_plan,binding->>'zero_review_sha256') FROM phase_stage_fixture;
+    SELECT app_private.record_financial_reset_hosted_action_receipt(binding,'seal',authorization_id,
+      app_private.financial_reset_hash(jsonb_build_object('synthetic_review_input','seal','binding',binding))) FROM reset_operator_fixture;
+    ${restart}
+    SELECT set_config('test.zero_review',(SELECT binding->>'zero_review_sha256' FROM phase_stage_fixture),true);
+    SELECT pg_temp.reset_fixture_claims('${actor}'); SET SESSION AUTHORIZATION authenticator; SET LOCAL ROLE authenticated;
+    SELECT public.approve_financial_reset_zero_plan('${operation}',current_setting('test.zero_review'));
+    RESET ROLE; RESET SESSION AUTHORIZATION;
+    SELECT pg_temp.reset_fixture_claims('${original('7')}'); SET SESSION AUTHORIZATION authenticator; SET LOCAL ROLE authenticated;
+    SELECT public.approve_financial_reset_zero_plan('${operation}',current_setting('test.zero_review'));
+    RESET ROLE; RESET SESSION AUTHORIZATION;
+    SELECT set_config('request.jwt.claim.sub','',true),set_config('request.jwt.claims','{}',true);
+    ${restart}
+    ${authorize(actor, 'execute')}
+    SELECT app_private.assert_financial_reset_hosted_reservation(binding,'execute') FROM phase_stage_fixture;`;
   const reset = session(`${remap(fixtureBody)} COMMIT; BEGIN;
     SET LOCAL application_name='checkpoint-reset-${org}'; SET LOCAL statement_timeout='20s'; SET LOCAL idle_in_transaction_session_timeout='30s';
-    ${remap(resetBody)} SET CONSTRAINTS ALL IMMEDIATE;`, `checkpoint-reset-${org}`, 'supabase_admin');
+    ${stages} ${remap(execution)} SET CONSTRAINTS ALL IMMEDIATE;`, `checkpoint-reset-${org}`, 'supabase_admin');
   try {
     await waitFor(() => reset.stdout.includes('PHASE_READY'), reset, 'real report checkpoint reaches early constraint flush');
     assert.doesNotMatch(reset.stdout, /not ok [0-9]+/);
@@ -223,10 +298,40 @@ test('an early-flushed report checkpoint excludes concurrent contact writes and 
     assert.equal((await reset.done).status, 0, reset.stderr);
     assert.equal(sql(`SELECT contact_name FROM public.person_contacts WHERE id='${contact}';`), 'Preserved contact');
     sql(`SELECT app_private.assert_financial_reset_report_recovery_boundary('${operation}');`);
-    // A different transaction can reopen and post real ordinary cash. The
-    // completed checkpoint must not block future business or adopt its rows.
+    // The review/artifact references below are explicitly synthetic test
+    // inputs. Database receipts come only from the fresh API calls above and
+    // the actual checked-reopening function, never historical fixture records.
+    adminSql(`BEGIN;
+      ${gatewayFixture}
+      CREATE TEMP TABLE reopening_fixture AS
+      SELECT h.binding AS base,c.checkpoint_sha256,c.result_json->>'after_sha256' AS after_sha256,h.foreign_sha256,
+        NULL::jsonb AS evidence,NULL::text AS evidence_text
+      FROM app_private.financial_reset_hosted_reservations h JOIN app_private.financial_reset_verification_checkpoints c USING(operation_id)
+      WHERE h.operation_id='${operation}';
+      UPDATE reopening_fixture SET evidence=jsonb_build_object('format','nestory-reset-reopening-evidence-v1',
+        'operation_id','${operation}','organization_id','${org}','packet_sha256',base->>'packet_sha256',
+        'checkpoint_sha256',checkpoint_sha256,'after_sha256',after_sha256,'review_sha256',base->>'report_review_sha256',
+        'completion_intent_sha256',app_private.financial_reset_hash(jsonb_build_object('synthetic_review_input','completion-intent','binding',base)),
+        'completion_reconciliation_sha256',app_private.financial_reset_hash(jsonb_build_object('checkpoint',checkpoint_sha256,'after',after_sha256)),
+        'authority_receipt',jsonb_build_object('synthetic_review_input',true,'not_customer_or_protected_runner_authority',true,'operation_id','${operation}'),
+        'artifact_receipts',(SELECT jsonb_object_agg(kind,jsonb_build_object('artifact_sha256',CASE WHEN kind='archive' THEN base->>'archive_artifact_sha256'
+          ELSE app_private.financial_reset_hash(jsonb_build_object('synthetic_artifact',kind,'operation_id','${operation}')) END,
+          'receipt_sha256',app_private.financial_reset_hash(jsonb_build_object('synthetic_artifact_receipt',kind,'operation_id','${operation}'))))
+          FROM unnest(ARRAY['archive','containmentProof','liveConsent','restoreProof','storageProof']) kind));
+      UPDATE reopening_fixture SET evidence_text=evidence::text;
+      INSERT INTO reset_operator_fixture(binding) SELECT base||jsonb_build_object('reopening',jsonb_build_object('version',1,'request_id','${randomUUID()}',
+        'operation_id','${operation}','generation',base->'target_generation','cutoff',base->>'cutoff','checkpoint_sha256',checkpoint_sha256,
+        'after_sha256',after_sha256,'foreign_sha256',foreign_sha256,'review_sha256',base->>'report_review_sha256',
+        'evidence_sha256',encode(extensions.digest(evidence_text,'sha256'),'hex'),
+        'execution_business_date',app_private.rent_business_date('${org}',statement_timestamp()))) FROM reopening_fixture;
+      ${authorize(actor, 'reopen')}
+      SELECT app_private.reopen_financial_reset_checked(binding,evidence_text) FROM reset_operator_fixture CROSS JOIN reopening_fixture;
+      COMMIT;`);
+    assert.equal(sql(`SELECT count(*) FROM app_private.financial_reset_reopening_receipts WHERE operation_id='${operation}';`), '1');
+    assert.equal(sql(`SELECT count(*) FROM app_private.financial_reset_hosted_action_receipts WHERE operation_id='${operation}' AND action IN ('prepare','seal');`), '2');
+    assert.equal(sql(`SELECT status FROM app_private.financial_write_controls WHERE organization_id='${org}';`), 'open');
+    // Normal entry requires a new transaction after checked reopening commits.
     sql(`BEGIN;
-      UPDATE app_private.financial_write_controls SET status='open' WHERE organization_id='${org}';
       SET LOCAL request.jwt.claim.sub='${actor}'; SET LOCAL request.headers='{"x-nestory-financial-generation":"1"}';
       SELECT public.record_owner_contribution('${org}','${property}','${owner}','USD',
         app_private.rent_business_date('${org}',statement_timestamp()),1,'Synthetic post-checkpoint cash','checkpoint-later-cash');
