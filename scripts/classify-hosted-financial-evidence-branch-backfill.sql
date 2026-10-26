@@ -26,7 +26,10 @@ WITH targets(id, organization_id, branch_id) AS (
         '20260822071638',
         '20260822091214'
       )
-    )::integer AS package_versions_present
+    )::integer AS package_versions_present,
+    count(*) FILTER (
+      WHERE version = '20261024013613'
+    )::integer AS reset_guard_versions_present
   FROM supabase_migrations.schema_migrations
 ), guard AS (
   SELECT encode(
@@ -87,7 +90,16 @@ WITH targets(id, organization_id, branch_id) AS (
     THEN 'restore_resume'
     WHEN ledger.package_versions_present = 4
       AND ledger.hosted_ledger_count >= 107
+      AND ledger.reset_guard_versions_present = 0
       AND guard.definition_sha256 = 'db88ec0f62601bf0e8d21e658068b6e7f3314d25a2aea2bd32b00a38707274ba'
+    THEN 'complete'
+    -- The reviewed reset guard migration preserves the strict ordinary-write
+    -- body and adds only its exact-row reset-action verifier. Pin that released
+    -- definition together with its migration; neither alone proves completion.
+    WHEN ledger.package_versions_present = 4
+      AND ledger.hosted_ledger_count >= 107
+      AND ledger.reset_guard_versions_present = 1
+      AND guard.definition_sha256 = 'e5ecbe21529aab263650c99e0905647ac311e78696ef7adafc7a24fef085838e'
     THEN 'complete'
     ELSE NULL
   END AS recovery_state
