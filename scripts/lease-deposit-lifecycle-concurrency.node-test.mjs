@@ -2,13 +2,16 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { after, beforeEach, test } from "node:test";
+import { beforeEach, test } from "node:test";
+import { fileURLToPath } from "node:url";
+import { createConcurrencyFixture } from "./concurrency-fixture.mjs";
 import { selectLocalDatabaseContainer } from "./load-test-fixture.mjs";
 
 assert.equal(process.env.GITHUB_ACTIONS, "true", "Deposit concurrency fixtures require a disposable GitHub Actions runner.");
 const repoRoot = path.resolve(import.meta.dirname, "..");
-const organizationId = "00000000-0000-0000-0000-000000000001";
-const actorId = "00000000-0000-0000-0000-000000000101";
+let fixture;
+let organizationId;
+let actorId;
 const nonce = randomUUID();
 const inventory = spawnSync("docker", ["ps", "--filter", "name=^/supabase_db_", "--format", "{{.Names}}"], {
   cwd: repoRoot, encoding: "utf8", shell: false,
@@ -25,17 +28,11 @@ function psqlArgs(interactive = false) {
     "-d", "postgres", "-v", "ON_ERROR_STOP=1"];
 }
 function run(sql) {
-  const result = spawnSync("docker", [...psqlArgs(), "-c", sql], {
+  const result = spawnSync("docker", [...psqlArgs(), "-c", fixture.sql(sql)], {
     cwd: repoRoot, encoding: "utf8", shell: false, timeout: 30_000,
   });
   assert.equal(result.status, 0, result.stderr);
   return result.stdout.trim();
-}
-function reloadFixture() {
-  const result = spawnSync(process.execPath,
-    ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "scripts/load-test-fixture.mjs"],
-    { cwd: repoRoot, encoding: "utf8", shell: false, timeout: 90_000 });
-  assert.equal(result.status, 0, result.stderr);
 }
 function actorSql(body, name) {
   return `BEGIN;
@@ -59,7 +56,7 @@ function session(initialSql) {
     child.on("error", reject);
     child.on("close", (status) => { value.closed = true; resolve({ ...value, status }); });
   });
-  child.stdin.write(initialSql + "\n");
+  child.stdin.write(fixture.sql(initialSql) + "\n");
   return value;
 }
 async function waitUntil(predicate, detail, observed) {
@@ -76,7 +73,10 @@ function eventIdentity(output) {
 }
 
 beforeEach(() => {
-  reloadFixture();
+  fixture = createConcurrencyFixture({ repoRoot, container, sourceFiles: [fileURLToPath(import.meta.url)] });
+  fixture.loadBaseline();
+  organizationId = fixture.id("00000000-0000-0000-0000-000000000001");
+  actorId = fixture.id("00000000-0000-0000-0000-000000000101");
   run(actorSql(`DO $$ DECLARE p uuid; tenant uuid; created jsonb; BEGIN
     p := public.create_property_minimal('${organizationId}',
       (SELECT branch_id FROM public.properties WHERE id='10000000-0000-0000-0000-000000000001'),
@@ -101,7 +101,6 @@ beforeEach(() => {
     WHERE organization_id='${organizationId}' AND role_code='security_deposits';`);
   for (const id of [depositId, leaseId, accountId, occupancyId]) assert.match(id, /^[0-9a-f-]{36}$/);
 });
-after(reloadFixture);
 
 function endLease() {
   return `SELECT public.transition_lease_lifecycle('${organizationId}','${leaseId}',
@@ -146,11 +145,11 @@ for (const type of ["received", "refunded"]) {
       assert.match(retryId, /^[0-9a-f-]{36}$/);
       if (release === "COMMIT") assert.equal(originalId, retryId);
       else assert.notEqual(originalId, retryId);
-      assert.equal(run(`SELECT count(*) FROM public.lease_deposit_events WHERE reference='${key}';`), "1");
+      assert.equal(run(`SELECT count(*) FROM public.lease_deposit_events WHERE organization_id='${organizationId}' AND reference='${key}';`), "1");
       assert.equal(run(`SELECT count(*) FROM public.ledger_entries WHERE source_type='deposit_event' AND source_id='${retryId}';`), "1");
       assert.equal(run(`SELECT count(*) FROM public.activity_logs WHERE action='lease_deposit_event_recorded' AND new_values->>'eventId'='${retryId}';`), "1");
       assert.equal(run(`SELECT count(*) FROM app_private.financial_idempotency_requests
-        WHERE operation='record_lease_deposit_event' AND idempotency_key='${key}' AND status='completed';`), "1");
+        WHERE organization_id='${organizationId}' AND operation='record_lease_deposit_event' AND idempotency_key='${key}' AND status='completed';`), "1");
       const lostResponseRetry = run(actorSql(request, "deposit-lost-response-" + nonce) + "\nCOMMIT;");
       assert.equal(eventIdentity(lostResponseRetry), retryId);
     });
@@ -160,7 +159,7 @@ for (const type of ["received", "refunded"]) {
     const key = "deposit-conflict-" + type;
     const { retried } = await race(command(type, 50, key), command(type, 51, key), "COMMIT", false);
     assert.match(retried.stderr, /Conflicting financial idempotency request/);
-    assert.equal(run(`SELECT amount FROM public.lease_deposit_events WHERE reference='${key}';`), "50.00");
+    assert.equal(run(`SELECT amount FROM public.lease_deposit_events WHERE organization_id='${organizationId}' AND reference='${key}';`), "50.00");
   });
 }
 
@@ -207,12 +206,12 @@ test("deposit receipt completes while lifecycle holds the lease before its finan
   try {
     await waitUntil(() => lifecycle.stderr.includes("deposit_lifecycle_lease_locked"), "lifecycle lease lock", lifecycle);
     run(actorSql(command("received", 50, "deposit-lifecycle-receipt"), "deposit-lifecycle-receipt-" + nonce) + "\nCOMMIT;");
-    lifecycle.child.stdin.end(endLease() + "\nCOMMIT;\n");
+    lifecycle.child.stdin.end(fixture.sql(endLease()) + "\nCOMMIT;\n");
     const result = await lifecycle.done;
     assert.equal(result.status, 0, result.stderr);
     assert.doesNotMatch(result.stderr, /deadlock detected/i);
     assert.equal(run(`SELECT status FROM public.leases WHERE id='${leaseId}';`), "ended");
-    assert.equal(run(`SELECT count(*) FROM public.lease_deposit_events WHERE reference='deposit-lifecycle-receipt';`), "1");
+    assert.equal(run(`SELECT count(*) FROM public.lease_deposit_events WHERE organization_id='${organizationId}' AND reference='deposit-lifecycle-receipt';`), "1");
   } finally {
     if (!lifecycle.closed && !lifecycle.child.stdin.writableEnded) lifecycle.child.stdin.end("ROLLBACK;\n");
     await lifecycle.done;

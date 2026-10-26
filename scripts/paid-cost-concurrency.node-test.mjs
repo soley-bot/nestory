@@ -6,15 +6,12 @@ import { after, before, beforeEach, test } from "node:test";
 import { createClient } from "@supabase/supabase-js";
 
 import { selectLocalDatabaseContainer } from "./load-test-fixture.mjs";
+import { createConcurrencyFixture } from "./concurrency-fixture.mjs";
+import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
-const organizationId = "00000000-0000-0000-0000-000000000001";
-const superAdminId = "00000000-0000-0000-0000-000000000101";
-const financeManagerId = "00000000-0000-0000-0000-000000000701";
-const financeMemberId = "00000000-0000-0000-0000-000000000801";
-const closePropertyId = "10000000-0000-0000-0000-000000000004";
-const closeOwnerId = "80000000-0000-0000-0000-000000000014";
-const vendorId = "80000000-0000-0000-0000-000000000006";
+let fixture, organizationId, superAdminId, financeManagerId, financeMemberId,
+  closePropertyId, closeOwnerId, vendorId;
 const runNonce = randomUUID();
 
 function databaseContainer() {
@@ -46,7 +43,7 @@ function psqlArgs(sql) {
     "-v",
     "ON_ERROR_STOP=1",
     "-c",
-    sql,
+    fixture ? fixture.sql(sql) : sql,
   ];
 }
 
@@ -93,13 +90,16 @@ async function waitForMarker(session, marker, timeoutMs = 10_000) {
   assert.fail(`timed out waiting for ${marker}: ${session.stdout}\n${session.stderr}`);
 }
 
-function reloadFixture() {
-  const result = spawnSync(
-    process.execPath,
-    ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "scripts/load-test-fixture.mjs"],
-    { cwd: repoRoot, encoding: "utf8", shell: false, timeout: 90_000 },
-  );
-  assert.equal(result.status, 0, result.stderr);
+function createCaseFixture() {
+  fixture = createConcurrencyFixture({ repoRoot, container, sourceFiles: [fileURLToPath(import.meta.url)] });
+  organizationId = fixture.id("00000000-0000-0000-0000-000000000001");
+  superAdminId = fixture.id("00000000-0000-0000-0000-000000000101");
+  financeManagerId = fixture.id("00000000-0000-0000-0000-000000000701");
+  financeMemberId = fixture.id("00000000-0000-0000-0000-000000000801");
+  closePropertyId = fixture.id("10000000-0000-0000-0000-000000000004");
+  closeOwnerId = fixture.id("80000000-0000-0000-0000-000000000014");
+  vendorId = fixture.id("80000000-0000-0000-0000-000000000006");
+  fixture.loadBaseline({ paidCost: true });
 }
 
 function actorSql(actorId, body, pause = "") {
@@ -263,11 +263,15 @@ function installPauseHarness() {
   `);
 }
 
-before(installPauseHarness);
-beforeEach(reloadFixture);
+let pauseHarnessInstalled = false;
+before(() => {
+  fixture = createConcurrencyFixture({ repoRoot, container, sourceFiles: [fileURLToPath(import.meta.url)] });
+  installPauseHarness();
+  pauseHarnessInstalled = true;
+});
+beforeEach(createCaseFixture);
 after(() => {
-  removePauseHarness();
-  reloadFixture();
+  if (pauseHarnessInstalled) removePauseHarness();
 });
 
 test("selects the complete paid-cost scope when a legacy reference is reused", () => {
@@ -309,7 +313,8 @@ test("duplicate submit returns one exact actor-bound paid-cost identity", async 
   assert.doesNotMatch(`${firstResult.stderr}\n${secondResult.stderr}`, /40P01|deadlock detected/i);
   assert.equal(
     run(`SELECT count(*)::text || '|' || count(DISTINCT id)::text
-      FROM public.expense_submissions WHERE reference='TRACK6-RACE-DUPLICATE';`),
+      FROM public.expense_submissions WHERE organization_id='${organizationId}'
+        AND reference='TRACK6-RACE-DUPLICATE';`),
     "1|1",
   );
 });
@@ -348,7 +353,7 @@ test("one evidence identity cannot fund two concurrent paid costs", async () => 
   );
   assert.equal(
     run(`SELECT count(*)::text FROM app_private.financial_idempotency_requests
-      WHERE idempotency_key='track6-race-evidence-second';`),
+      WHERE organization_id='${organizationId}' AND idempotency_key='track6-race-evidence-second';`),
     "0",
   );
 });
@@ -534,7 +539,8 @@ test("reversal versus resubmit serializes append-only correction", async () => {
   assert.equal(
     run(`SELECT string_agg(reference || ':' || status, ',' ORDER BY reference)
       FROM public.expense_submissions
-      WHERE id='${scope.submissionId}' OR reference='TRACK6-RACE-CORRECTED';`),
+      WHERE organization_id='${organizationId}'
+        AND (id='${scope.submissionId}' OR reference='TRACK6-RACE-CORRECTED');`),
     "GDN-PUMP-2088:reversed,TRACK6-RACE-CORRECTED:submitted",
   );
 });
@@ -544,7 +550,7 @@ test("evidence registration versus mutation retains verified bytes", async () =>
   const service = createClient(runtime.apiUrl, runtime.serviceRoleKey, authOptions());
   const admin = createClient(runtime.apiUrl, runtime.anonKey, authOptions());
   const signedIn = await admin.auth.signInWithPassword({
-    email: "nestory@gmail.com",
+    email: fixture.email("nestory@gmail.com"),
     password: "123456789",
   });
   assert.equal(signedIn.error, null, signedIn.error?.message);

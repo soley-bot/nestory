@@ -4,9 +4,9 @@ Generated from package commands, GitHub workflows, script imports, source refere
 
 ## Summary
 
-- default-gate: 83
+- default-gate: 84
 - documented-operator: 9
-- reusable-support: 50
+- reusable-support: 52
 - specialist-command: 69
 - unreferenced: 3
 - workflow-gate: 43
@@ -26,6 +26,9 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/cleanup-paid-cost-storage-orphans.mjs` | documented-operator | `docs/repository/legacy-test-compatibility-inventory.md` |
 | `scripts/cleanup-paid-cost-storage-orphans.node-test.mjs` | default-gate | `docs/repository/legacy-test-compatibility-inventory.md`, `package:test:contracts` |
 | `scripts/compare-ips-cutover-rehearsals.mjs` | documented-operator | `docs/runbooks/ips-cutover.md` |
+| `scripts/concurrency-fixture-identities.mjs` | reusable-support | `scripts/concurrency-fixture.mjs`, `scripts/concurrency-fixture.node-test.mjs`, `scripts/load-paid-cost-scenarios-fixture.ts` |
+| `scripts/concurrency-fixture.mjs` | reusable-support | `scripts/concurrency-fixture.node-test.mjs`, `scripts/historical-rent-correction-concurrency.node-test.mjs`, `scripts/lease-deposit-lifecycle-concurrency.node-test.mjs`, `scripts/legacy-deposit-default-concurrency.node-test.mjs`, `scripts/paid-cost-concurrency.node-test.mjs` |
+| `scripts/concurrency-fixture.node-test.mjs` | default-gate | `package:test:contracts` |
 | `scripts/daily-fixture-identities.mjs` | reusable-support | `scripts/daily-workflow-contract.mjs`, `scripts/daily-workflow-contract.test.mjs`, `scripts/load-owner-statement-publication-fixture.ts`, `scripts/load-paid-cost-scenarios-fixture.ts`, `scripts/load-test-fixture.mjs` |
 | `scripts/daily-workflow-browser.config.mjs` | workflow-gate | `.github/workflows/daily-workflow-acceptance.yml` |
 | `scripts/daily-workflow-contract.mjs` | reusable-support | `scripts/daily-workflow-contract.test.mjs`, `scripts/run-daily-workflow-ci.mjs`, `scripts/smoke-daily-polish.mjs`, `scripts/smoke-daily-workflow.mjs` |
@@ -80,7 +83,7 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/lease-term-authority-concurrency.mjs` | specialist-command | `package:leases:test-term-authority`, `scripts/lease-term-authority-concurrency-contract.test.mjs` |
 | `scripts/legacy-deposit-default-concurrency.node-test.mjs` | specialist-command | `package:leases:test-deposit-default` |
 | `scripts/load-owner-statement-publication-fixture.ts` | reusable-support | `scripts/load-test-fixture.mjs`, `scripts/owner-statement-publication-fixture-contract.node-test.mjs`, `scripts/pilot-finance-reset-core.mjs` |
-| `scripts/load-paid-cost-scenarios-fixture.ts` | reusable-support | `scripts/load-test-fixture.mjs`, `scripts/pilot-finance-reset-core.mjs` |
+| `scripts/load-paid-cost-scenarios-fixture.ts` | reusable-support | `scripts/concurrency-fixture.mjs`, `scripts/load-test-fixture.mjs`, `scripts/pilot-finance-reset-core.mjs` |
 | `scripts/load-test-fixture-safety.node-test.mjs` | default-gate | `package:test:contracts` |
 | `scripts/load-test-fixture.mjs` | specialist-command | `docs/superpowers/plans/2026-08-10-owner-statement-publication.md`, `package:db:test:fixture`, `scripts/document-evidence-storage.node-test.mjs`, `scripts/document-replacement-concurrency.node-test.mjs`, `scripts/document-storage-lifecycle-concurrency.node-test.mjs`, `scripts/historical-rent-correction-concurrency.node-test.mjs`, `scripts/ips-cutover-concurrency.node-test.mjs`, `scripts/ips-rent-scenario-concurrency.node-test.mjs`, `scripts/lease-deposit-lifecycle-concurrency.node-test.mjs`, `scripts/legacy-deposit-default-concurrency.node-test.mjs`, `scripts/load-test-fixture.node-test.mjs`, `scripts/owner-balance-lifecycle-concurrency.node-test.mjs`, `scripts/owner-balance-lifecycle-correction-concurrency.node-test.mjs`, `scripts/owner-balance-lifecycle-loaded-fixture.node-test.mjs`, `scripts/owner-close-concurrency.node-test.mjs`, `scripts/owner-opening-balance-schema-concurrency.node-test.mjs`, `scripts/owner-opening-balance-workflow-concurrency.node-test.mjs`, `scripts/owner-roster-readiness-concurrency.node-test.mjs`, `scripts/owner-statement-artifact-storage.node-test.mjs`, `scripts/owner-statement-publication-concurrency.node-test.mjs`, `scripts/paid-cost-concurrency.node-test.mjs`, `scripts/photo-logo-storage-concurrency.node-test.mjs`, `scripts/report-owner-roster-preflight.mjs`, `scripts/run-daily-workflow-ci.mjs`, `scripts/smoke-daily-workflow.mjs`, `scripts/smoke-fixture-finance-manager-day.mjs`, `scripts/smoke-fixture-owner-balance-lifecycle.mjs`, `scripts/smoke-fixture-owner-close.mjs`, `scripts/smoke-ips-cutover-browser-acceptance.mjs`, `scripts/smoke-ips-cutover-rehearsal.mjs`, `scripts/smoke-ips-golden-setup.mjs`, `scripts/smoke-ips-paid-cost-browser-acceptance.mjs`, `scripts/smoke-ips-paid-cost-scenarios.mjs`, `scripts/smoke-ips-rent-browser-acceptance.mjs`, `scripts/smoke-ips-rent-scenarios.mjs`, `scripts/smoke-owner-balance-browser-acceptance.mjs`, `scripts/smoke-owner-close-browser-acceptance.mjs`, `scripts/smoke-owner-opening-browser-acceptance.mjs`, `scripts/smoke-owner-statement-browser-acceptance.mjs` |
 | `scripts/load-test-fixture.node-test.mjs` | default-gate | `docs/repository/legacy-test-compatibility-inventory.md`, `docs/superpowers/plans/2026-08-24-legacy-test-compatibility-cleanup.md`, `package:test:contracts` |

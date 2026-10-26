@@ -2,14 +2,17 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { after, beforeEach, test } from "node:test";
+import { beforeEach, test } from "node:test";
+import { fileURLToPath } from "node:url";
+import { createConcurrencyFixture } from "./concurrency-fixture.mjs";
 import { selectLocalDatabaseContainer } from "./load-test-fixture.mjs";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
-const organizationId = "00000000-0000-0000-0000-000000000001";
-const actorId = "00000000-0000-0000-0000-000000000101";
-const depositId = "88000000-0000-0000-0000-000000000092";
-const replacementId = "88000000-0000-0000-0000-000000000093";
+let fixture;
+let organizationId;
+let actorId;
+let depositId;
+let replacementId;
 const nonce = randomUUID();
 const inventory = spawnSync("docker", ["ps", "--filter", "name=^/supabase_db_", "--format", "{{.Names}}"], {
   cwd: repoRoot, encoding: "utf8", shell: false,
@@ -22,17 +25,11 @@ function psqlArgs(interactive = false) {
     "-d", "postgres", "-v", "ON_ERROR_STOP=1"];
 }
 function run(sql) {
-  const result = spawnSync("docker", [...psqlArgs(), "-c", sql], {
+  const result = spawnSync("docker", [...psqlArgs(), "-c", fixture.sql(sql)], {
     cwd: repoRoot, encoding: "utf8", shell: false, timeout: 30_000,
   });
   assert.equal(result.status, 0, result.stderr);
   return result.stdout.trim();
-}
-function reloadFixture() {
-  const result = spawnSync(process.execPath,
-    ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "scripts/load-test-fixture.mjs"],
-    { cwd: repoRoot, encoding: "utf8", shell: false, timeout: 90_000 });
-  assert.equal(result.status, 0, result.stderr);
 }
 function session(initialSql) {
   const child = spawn("docker", psqlArgs(true), { cwd: repoRoot, shell: false });
@@ -43,7 +40,7 @@ function session(initialSql) {
     child.on("error", reject);
     child.on("close", (status) => { value.closed = true; resolve({ ...value, status }); });
   });
-  child.stdin.write(initialSql + "\n");
+  child.stdin.write(fixture.sql(initialSql) + "\n");
   return value;
 }
 async function waitUntil(predicate, detail, observed) {
@@ -70,7 +67,12 @@ function receipt(reference) {
 }
 
 beforeEach(() => {
-  reloadFixture();
+  fixture = createConcurrencyFixture({ repoRoot, container, sourceFiles: [fileURLToPath(import.meta.url)] });
+  fixture.loadBaseline();
+  organizationId = fixture.id("00000000-0000-0000-0000-000000000001");
+  actorId = fixture.id("00000000-0000-0000-0000-000000000101");
+  depositId = fixture.id("88000000-0000-0000-0000-000000000092");
+  replacementId = fixture.id("88000000-0000-0000-0000-000000000093");
   run(`INSERT INTO public.lease_deposits(id,organization_id,lease_id,amount,currency,status,created_by,updated_by)
     SELECT '${depositId}','${organizationId}',id,500,'USD','pending','${actorId}','${actorId}'
     FROM public.current_leases WHERE organization_id='${organizationId}'
@@ -80,7 +82,6 @@ beforeEach(() => {
     VALUES('${replacementId}','${organizationId}','liability','current_liability',
       'Deposit default concurrency replacement',true,'${actorId}','${actorId}');`);
 });
-after(reloadFixture);
 
 for (const mode of ["retire", "rebind"]) {
   test(`legacy receipt versus default ${mode} has no account/role deadlock and retries safely`, async () => {
@@ -108,7 +109,7 @@ for (const mode of ["retire", "rebind"]) {
             SELECT public.set_finance_account_archived('${organizationId}','${originalId}',true,'${replacementId}');`
         : `RESET ROLE; UPDATE public.finance_account_roles SET account_id='${replacementId}'
             WHERE organization_id='${organizationId}' AND role_code='security_deposits';`;
-      retirement.child.stdin.end(mutation + "\nCOMMIT;\n");
+      retirement.child.stdin.end(fixture.sql(mutation) + "\nCOMMIT;\n");
       const [changed, recorded] = await Promise.all([retirement.done, recording.done]);
       assert.doesNotMatch(changed.stderr + recorded.stderr, /40P01|deadlock detected/i);
       assert.equal(changed.status, 0, changed.stderr);

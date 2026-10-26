@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
-import { after, beforeEach, test } from "node:test";
+import { beforeEach, test } from "node:test";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import { selectLocalDatabaseContainer } from "./load-test-fixture.mjs";
+import { createConcurrencyFixture } from "./concurrency-fixture.mjs";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const organizationId = "a1000000-0000-0000-0000-000000000001";
@@ -24,6 +26,7 @@ function databaseContainer() {
 }
 
 const container = databaseContainer();
+let fixture;
 
 function psqlArgs(sql) {
   return [
@@ -39,7 +42,7 @@ function psqlArgs(sql) {
     "-v",
     "ON_ERROR_STOP=1",
     "-c",
-    sql,
+    fixture.sql(sql),
   ];
 }
 
@@ -102,25 +105,26 @@ async function waitForDatabaseLock(applicationName, timeoutMs = 10_000) {
   assert.fail(`${applicationName} did not reach a database lock wait`);
 }
 
-function reloadFixture() {
-  const result = spawnSync(process.execPath, ["scripts/load-test-fixture.mjs"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    shell: false,
-    timeout: 40_000,
+function freshFixture() {
+  fixture = createConcurrencyFixture({
+    repoRoot,
+    container,
+    sourceFiles: [
+      fileURLToPath(import.meta.url),
+      path.join(repoRoot, "supabase/tests/historical_rent_correction_execution_test.sql"),
+    ],
   });
-  assert.equal(result.status, 0, result.stderr);
 }
 
 
 function setupCase() {
   // Reuse the independently reviewed disposable fixture, before its first
   // assertion or settlement. The fixture and its RPC assertions stay in one source.
-  const fixture = readFileSync(path.join(repoRoot,
+  const source = readFileSync(path.join(repoRoot,
     "supabase/tests/historical_rent_correction_execution_test.sql"), "utf8")
     .split("SELECT lives_ok($$SELECT public.preview_historical_rent_correction(")[0]
     .replace("SELECT no_plan();", "");
-  const output = run(fixture + `
+  const output = run(fixture.guardSetup(source + `
     SELECT jsonb_build_object(
       'invoiceId',c.invoice_id,
       'leaseId',state.good_lease_id, 'termId',state.good_term_id,
@@ -128,7 +132,7 @@ function setupCase() {
         state.organization_id,c.invoice_id,1200,10)->>'previewHash'
     ) FROM historical_cases c CROSS JOIN lease_rent_state state
     WHERE c.name='unpaid-increase';
-    COMMIT;`);
+    COMMIT;`));
   const row = output.split(/\r?\n/).findLast((line) => line.startsWith("{"));
   assert.ok(row, "fixture must return its exact invoice and preview");
   return JSON.parse(row);
@@ -158,8 +162,7 @@ function correctionResult(session) {
   return JSON.parse(row);
 }
 
-beforeEach(reloadFixture);
-after(reloadFixture);
+beforeEach(freshFixture);
 
 test("concurrent same-key correction callers both receive the identical result", { timeout: 30_000 }, async () => {
   const scope = setupCase();
