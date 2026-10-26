@@ -1,5 +1,6 @@
 "use server";
 
+import { copyFinancialGeneration } from "@/lib/finance/financial-write-context";
 import { MAX_SERVER_UPLOAD_BYTES } from "@/lib/uploads/upload-limits";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -168,7 +169,7 @@ export async function createUnitAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { data: unitId, error } = await supabase.rpc("create_unit", {
     p_bathroom_count: nullableNumber(parsed.data.bathroomCount),
     p_bedroom_count: nullableNumber(parsed.data.bedroomCount),
@@ -226,7 +227,7 @@ export async function updateUnitAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getUnitPathContext(
     supabase,
     context.organizationId,
@@ -298,7 +299,7 @@ export async function archiveUnitAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getUnitPathContext(
     supabase,
     context.organizationId,
@@ -338,7 +339,7 @@ export async function restoreUnitAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getUnitPathContext(
     supabase,
     context.organizationId,
@@ -395,7 +396,7 @@ async function uploadInlineUnitDocument({
     return null;
   }
 
-  const documentFormData = new FormData();
+  const documentFormData = copyFinancialGeneration(formData, new FormData());
   documentFormData.set("category", readString(formData, "documentCategory"));
   documentFormData.set("document", file);
   documentFormData.set("leaseId", "");

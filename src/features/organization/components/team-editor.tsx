@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import {
   forwardRef,
   useCallback,
@@ -194,7 +196,7 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
             onDiscard={draft.discard}
             status={draft.status}
           />
-          <form
+          <FinancialForm
             className="flex min-h-full min-w-0 flex-col"
             onSubmit={(event) => {
               event.preventDefault();
@@ -326,7 +328,7 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
                 statusMessage={serverError ?? draft.statusMessage}
               />
             </div>
-          </form>
+          </FinancialForm>
         </SideDrawer>
         {managedTeam ? (
           <TeamManageDrawer

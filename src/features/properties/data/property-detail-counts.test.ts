@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createSupabaseServerClient } from "@/lib/db/server";
-import { createCappedReadHarness } from "@/lib/db/complete-read.test-fixture";
+import { createCappedReadHarness } from "./financial-capped-read.test-fixture";
 import { getPropertyDetail } from "./properties";
 import { getUnitDetail } from "@/features/units/data/units";
 
@@ -29,6 +29,7 @@ describe("detail maintenance counts", () => {
         ? await getPropertyDetail("org", "property", { operationalTimezone })
         : await getUnitDetail("org", "unit", { operationalTimezone });
       expect(result?.counts.overdueMaintenanceCases).toBe(expected);
+      expect(result?.financialGeneration).toBe(2);
       const action = result && ("nextAction" in result ? result.nextAction : result.repairAction);
       expect(action?.label).toBe(expected ? "Review overdue issue" : "Review open issue");
     }

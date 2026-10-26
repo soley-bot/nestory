@@ -6,6 +6,9 @@ import { createSupabaseServerClient } from "@/lib/db/server";
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(),
 }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({
+  withFinancialReadContext: vi.fn(async (_organizationId, read) => read({ generation: 0, financial_start_date: null })),
+}));
 
 describe("getOverviewScreenData", () => {
   it("marks a brand new workspace as not yet set up", async () => {

@@ -1,6 +1,5 @@
 import { ownerStatementCash } from "@/features/reports/data/owner-statement-cash";
 import { profitLossSummaryRows, profitLossFundingNote, profitLossBasisNote, formatProfitLossAmount, type ProfitLossFunding } from "./profit-loss-funding";
-import { getTrustedReport } from "@/features/reports/data/trusted-report";
 import {
   formatLongReportDate,
   getReportExportFilename,
@@ -199,6 +198,9 @@ export async function getReportPdf(
   organizationName: string,
   viewQuery: ReportsViewQuery,
 ): Promise<PdfExport | PdfExportValidation> {
+  // Keep pure PDF rendering available to Node recovery/fixture runners without
+  // loading request-bound Server Component dependencies.
+  const { getTrustedReport } = await import("@/features/reports/data/trusted-report");
   const readinessReport = await getTrustedReport({
     organizationId,
     viewQuery,

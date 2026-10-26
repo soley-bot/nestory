@@ -146,7 +146,7 @@ export async function updateOrganizationAppearanceAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("update_organization_appearance", {
     p_accent_preset: parsed.data.accentPreset,
     p_accent_seed: accentSeed,
@@ -180,7 +180,7 @@ export async function updateOrganizationIdentityAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("update_organization_identity", {
     p_name: parsed.data.name,
     p_organization_id: context.organizationId,
@@ -212,7 +212,7 @@ export async function uploadOrganizationLogoAction(
     return { message: validation.error, status: "error" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const previousPath = await getCurrentLogoPath(
     supabase,
     context.organizationId,
@@ -278,7 +278,7 @@ export async function removeOrganizationLogoAction(
   void _state;
   void _formData;
   const context = await requireSuperAdminContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(_formData);
   const previousPath = await getCurrentLogoPath(
     supabase,
     context.organizationId,
@@ -320,7 +320,7 @@ export async function createBranchAction(
     return { message: "Enter a branch name and code.", status: "error" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("create_organization_branch", {
     p_address: parsed.data.address || null,
     p_code: parsed.data.code,
@@ -354,7 +354,7 @@ export async function createTeamAction(
     return { message: "Enter a team name.", status: "error" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("create_organization_team", {
     p_branch_id: parsed.data.branchId,
     p_manager_person_id: parsed.data.managerPersonId,
@@ -785,7 +785,7 @@ export async function updateMemberAccessAction(
     return { message: scopeError, status: "error" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await callWorkspaceAccessRpc(
     supabase,
     "update_organization_member_access",
@@ -836,7 +836,7 @@ export async function inviteOrganizationUserAction(
     return { message: scopeError, status: "error" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const createResult = await callWorkspaceAccessRpc(
     supabase,
     "create_organization_invitation",
@@ -962,7 +962,7 @@ export async function resendOrganizationInvitationAction(
     return { message: "Choose a valid invitation.", status: "error" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const refreshResult = await supabase.rpc("refresh_organization_invitation", {
     p_invitation_id: parsed.data.invitationId,
   });
@@ -1018,7 +1018,7 @@ export async function revokeOrganizationInvitationAction(
     return { message: "Choose a valid invitation.", status: "error" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("revoke_organization_invitation", {
     p_invitation_id: parsed.data.invitationId,
   });
@@ -1045,7 +1045,7 @@ export async function removeMemberAccessAction(
     return { message: "Choose a valid membership.", status: "error" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("remove_organization_member_access", {
     p_member_id: parsed.data.memberId,
     p_organization_id: context.organizationId,

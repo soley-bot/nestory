@@ -1,4 +1,6 @@
 "use server";
+import { financialFormValues } from "@/lib/finance/financial-write-context";
+import { financialWriteError } from "@/lib/finance/financial-write-context";
 
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
@@ -76,7 +78,7 @@ const resumePublicationSchema = z.object({
 export async function closeOwnerMonthAction(formData: FormData): Promise<void> {
   const input = parse(closeSchema, formData);
   const context = await requireOwnerCloseContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const result = await supabase.rpc("close_owner_month", {
     p_close_reason: input.closeReason,
     p_currency: input.currency,
@@ -92,7 +94,7 @@ export async function closeOwnerMonthAction(formData: FormData): Promise<void> {
 export async function reopenOwnerMonthAction(formData: FormData): Promise<void> {
   const input = parse(reopenSchema, formData);
   const context = await requireOwnerMonthReopenContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const result = await supabase.rpc("reopen_owner_month", {
     p_idempotency_key: input.idempotencyKey,
     p_organization_id: context.organizationId,
@@ -110,7 +112,7 @@ export async function recordOwnerCloseCorrectionAction(
   if (signedAmount === "0.00") throw new Error("Enter a nonzero correction amount.");
 
   const context = await requireOwnerMonthReopenContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const result = await supabase.rpc("record_owner_close_correction", {
     p_component: input.component,
     p_effective_date: input.effectiveDate,
@@ -128,7 +130,7 @@ export async function recordOwnerCloseCorrectionAction(
 export async function publishOwnerStatementAction(formData: FormData): Promise<void> {
   const input = parse(publishSchema, formData);
   const context = await requireOwnerStatementPublicationContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const publication = await supabase.rpc("publish_owner_statement", {
     p_idempotency_key: input.idempotencyKey,
     p_organization_id: context.organizationId,
@@ -152,7 +154,7 @@ export async function resumeOwnerStatementPublicationAction(
 ): Promise<void> {
   const input = parse(resumePublicationSchema, formData);
   const context = await requireOwnerStatementPublicationContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const publication = await supabase.rpc("resume_owner_statement_publication", {
     p_idempotency_key: input.idempotencyKey,
     p_organization_id: context.organizationId,
@@ -374,7 +376,7 @@ function parse<Schema extends z.ZodType>(
   schema: Schema,
   formData: FormData,
 ): z.output<Schema> {
-  const result = schema.safeParse(Object.fromEntries(formData));
+  const result = schema.safeParse(financialFormValues(formData));
   if (!result.success) {
     throw new ReportCommandValidationError(result.error.issues);
   }
@@ -382,6 +384,6 @@ function parse<Schema extends z.ZodType>(
 }
 
 function finish(error: { message?: string } | null) {
-  if (error) throw new Error(error.message ?? "Authoritative owner close command failed.");
+  if (error) throw new Error(financialWriteError(error.message) ?? error.message ?? "Authoritative owner close command failed.");
   revalidatePath("/balances");
 }

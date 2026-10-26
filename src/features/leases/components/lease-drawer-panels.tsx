@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import { useActionState, useEffect } from "react";
 import { Archive, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,7 +39,7 @@ export function ArchiveLeasePanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
+    <FinancialForm action={action} className="flex h-full flex-col">
       <input name="leaseId" type="hidden" value={lease.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="flex items-center gap-2 text-danger">
@@ -59,7 +61,7 @@ export function ArchiveLeasePanel({
         onClose={onClose}
         pending={pending}
       />
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -81,7 +83,7 @@ export function RestoreLeasePanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
+    <FinancialForm action={action} className="flex h-full flex-col">
       <input name="leaseId" type="hidden" value={lease.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="flex items-center gap-2 text-primary">
@@ -104,7 +106,7 @@ export function RestoreLeasePanel({
         onClose={onClose}
         pending={pending}
       />
-    </form>
+    </FinancialForm>
   );
 }
 

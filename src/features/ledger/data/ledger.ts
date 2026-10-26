@@ -2,6 +2,7 @@ import { readBoundedSearch } from "@/lib/search/bounded-register";
 import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
 import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
 import {
   formatPropertyOptionLabel,
@@ -98,6 +99,16 @@ export async function getLedgerScreenData(
   organizationId: string,
   viewQuery: LedgerViewQuery = DEFAULT_LEDGER_VIEW_QUERY,
 ) {
+  const dateScope = getLedgerTransactionDateScope(viewQuery);
+  return withFinancialReadContext(organizationId, async (financialContext) => ({
+    ...await loadLedgerScreenData(organizationId, viewQuery, financialContext.financial_start_date),
+    financialGeneration: financialContext.generation,
+  }), viewQuery.entryId ? undefined : dateScope.from ?? (viewQuery.dateTo || undefined));
+}
+
+async function loadLedgerScreenData(
+  organizationId: string, viewQuery: LedgerViewQuery, financialStartDate: string | null,
+) {
   const supabase = await createSupabaseServerClient();
 
   const [
@@ -193,6 +204,10 @@ export async function getLedgerScreenData(
       .from("ledger_entries")
       .select(ledgerEntrySelect, { count: "exact" })
       .eq("organization_id", organizationId);
+
+    // All-time and direct-entry reads still belong to the current accounting
+    // period; an old link must not bypass the workspace's lower date bound.
+    if (financialStartDate) ledgerQuery = ledgerQuery.gte("transaction_date", financialStartDate);
 
     if (viewQuery.archiveState === "active") {
       ledgerQuery = ledgerQuery.is("archived_at", null);

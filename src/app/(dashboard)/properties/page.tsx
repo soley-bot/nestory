@@ -26,7 +26,7 @@ export default async function PropertiesPage({
   }
 
   const viewQuery = parsePropertySearchParams(params);
-  const [{ pagination, properties }, ownerOptions, portfolioSummary, creationBranchOptions] = await Promise.all([
+  const [{ financialGeneration, pagination, properties }, ownerOptions, portfolioSummary, creationBranchOptions] = await Promise.all([
     getPropertiesScreenData(context.organizationId, viewQuery),
     getPropertyOwnerOptions(context.organizationId),
     getPropertyPortfolioSummary(context.organizationId),
@@ -36,6 +36,7 @@ export default async function PropertiesPage({
   ]);
   return (
     <PropertyScreen
+      financialGeneration={financialGeneration}
       canCreate={context.permissionKeys.has("properties.write")}
       canSetUp={context.permissionKeys.has("leases.activate")}
       creationBranchOptions={creationBranchOptions}

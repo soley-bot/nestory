@@ -1,3 +1,4 @@
+import { withFinancialDownloadContext } from "@/lib/finance/financial-write-context.server";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -49,8 +50,15 @@ const publicationMessage =
   "Report data is not available for export.";
 
 describe("report export routes", () => {
+  it.each(handlers)("rejects %s download when the financial session cannot be verified", async (_, handler, exportReport, route) => {
+    vi.mocked(withFinancialDownloadContext).mockRejectedValueOnce(new Error("financial generation stale"));
+    const response = await handler(new Request('http://localhost/api/reports/'+route+'?report=unit-profit-loss&month=2026-10&financialGeneration=1'));
+    expect(response.status).toBe(409);
+    expect(exportReport).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(withFinancialDownloadContext).mockImplementation(async (_org, _request, read) => read());
     vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1" } as never);
     vi.mocked(getFinanceReportMembershipForUser).mockResolvedValue({
       organizationId: "organization-1",
@@ -260,3 +268,5 @@ describe("report export routes", () => {
     expect(response.headers.get("Content-Type")).toBe("application/pdf");
   });
 });
+
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialDownloadContext: vi.fn(async (_org: string, _request: Request, read: () => Promise<unknown>) => read()) }));

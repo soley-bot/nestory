@@ -918,6 +918,7 @@ function buildLeaseNextAction({
 }
 
 function getLeaseEndRisk(endDate: string) {
+  if (endDate === "infinity") return { label: "Month to month", state: "healthy" as const, tone: "success" as const };
   const today = new Date().toISOString().slice(0, 10);
   const daysUntilEnd = Math.ceil(
     (new Date(`${endDate}T00:00:00.000Z`).getTime() -
@@ -956,6 +957,7 @@ function getEndRiskDescription(
     return "This lease is historical and should stay available for audit/reporting.";
   }
 
+  if (endRisk.label === "Month to month") return "This lease continues monthly without a fixed end date.";
   if (endRisk.state === "past") {
     return "The lease end date has passed while the record is not historical.";
   }

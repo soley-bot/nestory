@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -39,15 +41,15 @@ function RecoveryForm({ withdrawalId, distributionDate, onClose, onSuccess, onPe
   useEffect(() => { onPendingChange(pending); return () => onPendingChange(false); }, [pending, onPendingChange]);
   useEffect(() => { if (confirmState.status === "success") { onClose(); onSuccess(); router.refresh(); } }, [confirmState, onClose, onSuccess, router]);
   return <div className="space-y-4">
-    <form action={previewAction} className="space-y-3">
+    <FinancialForm action={previewAction} className="space-y-3">
       <input type="hidden" name="withdrawalId" value={withdrawalId} /><input type="hidden" name="distributionDate" value={distributionDate} />
       <p className="text-sm">Distribution date: {formatCalendarDate(distributionDate)}</p>
       <label className="grid gap-1 text-sm">Correct fee payment date<DatePickerField name="feePaymentDate" ariaLabel="Correct fee payment date" defaultValue={feePaymentDate} onValueChange={setFeePaymentDate} required /></label>
       <p className="text-xs text-muted-foreground">Use the date supported by your payment records.</p>
       <Button type="submit" variant="outline" disabled={pending || !feePaymentDate}>{previewPending ? "Checking…" : "Preview both changes"}</Button>
-    </form>
+    </FinancialForm>
     {previewState.status === "error" ? <p role="alert" className="text-sm text-destructive">{previewState.message}</p> : null}
-    {currentPreview ? <form action={confirmAction} className="space-y-4">
+    {currentPreview ? <FinancialForm action={confirmAction} className="space-y-4">
       {Object.entries({ withdrawalId, distributionDate, feePaymentDate, allocationId: currentPreview.allocationId, previewHash: currentPreview.previewHash, idempotencyKey: `${key}-${currentPreview.previewHash.slice(0, 12)}` }).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
       <table className="w-full text-left text-sm" aria-label="Related date correction review"><thead className="bg-[var(--table-header-bg)]"><tr><th className="p-2">Transaction</th><th className="p-2">Original date</th><th className="p-2">Corrected date</th><th className="p-2 text-right">Amount</th></tr></thead><tbody>
         <tr><th className="p-2 font-medium">Management fee</th><td className="p-2">{formatCalendarDate(currentPreview.oldDate)}</td><td className="p-2">{formatCalendarDate(currentPreview.newDate)}</td><td className="p-2 text-right tabular-nums">{formatMoney(currentPreview.amount)}</td></tr>
@@ -60,7 +62,7 @@ function RecoveryForm({ withdrawalId, distributionDate, onClose, onSuccess, onPe
         <Button type="submit" disabled={pending || reason.trim().length < 8}>{confirmPending ? "Saving…" : "Confirm both corrections"}</Button>
       </>}
       {confirmState.status === "error" ? <p role="alert" className="text-sm text-destructive">{confirmState.message}</p> : null}
-    </form> : null}
+    </FinancialForm> : null}
     <div className="flex justify-end border-t pt-3"><Button type="button" variant="outline" onClick={onClose} disabled={pending}>Cancel</Button></div>
   </div>;
 }

@@ -154,7 +154,7 @@ export async function createFinanceAccountAction(
   if (!parsed.success) return validationError(parsed.error);
 
   const context = await requireFinanceContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("create_finance_account", {
     p_account_class: parsed.data.accountClass,
     p_account_number: nullableRpcText(parsed.data.accountNumber),
@@ -185,7 +185,7 @@ export async function updateFinanceAccountAction(
   if (!parsed.success) return validationError(parsed.error);
 
   const context = await requireFinanceContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("update_finance_account", {
     p_account_id: parsed.data.accountId,
     p_account_number: nullableRpcText(parsed.data.accountNumber),
@@ -216,7 +216,7 @@ export async function setFinanceAccountArchivedAction(
   if (!parsed.success) return validationError(parsed.error);
 
   const context = await requireFinanceContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("set_finance_account_archived", {
     p_account_id: parsed.data.accountId,
     p_archived: parsed.data.archived,

@@ -7,6 +7,7 @@ import {
   screen,
   within,
 } from "@testing-library/react";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LedgerScreen } from "@/features/ledger/components/ledger-screen";
@@ -46,9 +47,22 @@ afterEach(() => {
   delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
   delete (HTMLElement.prototype as Partial<HTMLElement>).setPointerCapture;
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("LedgerScreen finance workspace contract", () => {
+  it("hides stale ledger amounts and inspectors without hiding workspace navigation", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
+    render(<FinancialWriteProvider organizationId="org" context={{ generation: 1, status: "open", financial_start_date: "2026-08-01", enforced: true }}>
+      <LedgerScreen financialGeneration={2} entries={entries} pagination={{ from: 1, to: entries.length, page: 1, pageSize: 50, totalCount: entries.length, totalPages: 1 }}
+        periodLocks={[]} propertyOptions={[]} recentChanges={[]} unitOptions={[]} viewQuery={defaultViewQuery} />
+    </FinancialWriteProvider>);
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Ledger" })).toBeTruthy();
+    expect(screen.getAllByText(/Reload the page to verify/).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Month lock" })).toBeNull();
+  });
+
   it("keeps finance rows dense, linked, and available in a deliberate quick view", async () => {
     const user = userEvent.setup();
     const { container } = renderLedger();

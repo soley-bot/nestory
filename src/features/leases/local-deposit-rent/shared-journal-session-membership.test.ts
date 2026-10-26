@@ -9,6 +9,12 @@ import { createOrdinarySharedJournalSession, createDormantSharedJournalSession }
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const actor = id(1), org = id(2), lease = id(5);
 const approved = ["leases.view", "finance.view", "leases.change_terms", "finance.record_payments", "finance.correct_records"];
+function readStatus(name:string) {
+  const context={generation:0,status:"open",financial_start_date:null,enforced:false};
+  if(name==="get_financial_write_context")return {data:context,error:null};
+  if(name==="get_financial_report_context")return {data:{context,source_revision:"0"},error:null};
+  return undefined;
+}
 function fixture(permissions = approved, mode = "active") {
   const results: Record<string, unknown> = {
     organization_members: mode === "nonmember" ? null : { organization_id: org, role: "custom", branch_id: id(10), custom_role_id: id(11), organizations: { name: "Synthetic Nestory", slug: "nestory", theme_mode: "light", accent_preset: "ocean", accent_seed: null } },
@@ -24,7 +30,7 @@ function fixture(permissions = approved, mode = "active") {
     return query;
   });
   transport.claims.mockResolvedValue({ data: { claims: { sub: actor, session_id: id(20) } }, error: null });
-  transport.rpc.mockResolvedValue({ data: null, error: null });
+  transport.rpc.mockImplementation(async name=>readStatus(name)??({ data: null, error: null }));
   transport.create.mockResolvedValue({ from: transport.from, auth: { getClaims: transport.claims }, rpc: transport.rpc });
 }
 beforeEach(() => { vi.clearAllMocks(); fixture(); });
@@ -41,7 +47,7 @@ describe("journal session with actual membership and capability resolution", () 
     for (const permissions of [["finance.view"], ["leases.view"], ["finance.publish"], []]) {
       transport.rpc.mockClear();
       fixture(permissions);
-      transport.rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "Existing dual property permission denied" } });
+      transport.rpc.mockImplementation(async name=>readStatus(name)??({ data: null, error: { code: "42501", message: "Existing dual property permission denied" } }));
       // Existing workspace resolver rejects an empty role before any RPC.
       await expect(createOrdinarySharedJournalSession().readCurrent(lease)).rejects.toMatchObject({ status: permissions.length ? 403 : 401 });
       if (!permissions.length) expect(transport.rpc).not.toHaveBeenCalled();

@@ -20,9 +20,17 @@ export async function downloadDailyArtifact(page, base, href, metadata, { timeou
   assert.ok(UUID.test(metadata.id ?? ""), "Expected a published artifact identity");
   const format = metadata.format ?? "pdf";
   assert.ok(Object.hasOwn(TYPES, format), "Unsupported artifact format");
+  const generations = url.searchParams.getAll("financialGeneration");
+  const generationValid = generations.length === 0 || (generations.length === 1
+    && /^(0|[1-9]\d{0,9})$/.test(generations[0]) && Number(generations[0]) <= 2147483647);
+  assert.ok(generationValid, "Invalid artifact financial generation");
+  // Retain the exact link's original generation. Never fetch or substitute a
+  // current value here; enrolled routes own rejection of missing/stale intent.
+  const allowedQuery = (...names) => [...url.searchParams.keys()].every(name => names.includes(name));
   const receipt = format === "pdf" && url.pathname === `/api/finance/documents/${metadata.id}` && !url.search;
   const report = url.pathname === `/api/reports/${format === "xlsx" ? "excel" : "pdf"}`
-    && url.searchParams.size === 1 && url.searchParams.get("artifactId") === metadata.id;
+    && allowedQuery("artifactId", "financialGeneration") && url.searchParams.getAll("artifactId").length === 1
+    && url.searchParams.get("artifactId") === metadata.id;
   assert.ok(receipt || report, "Unexpected artifact route or identity");
   const size = Number(metadata.size_bytes);
   assert.ok(Number.isSafeInteger(size) && size > 0 && size <= MAX_BYTES, "Invalid artifact byte bound");

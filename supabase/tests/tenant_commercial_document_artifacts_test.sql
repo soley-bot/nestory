@@ -213,7 +213,7 @@ SELECT col_is_unique(
 SELECT policies_are(
   'public',
   'tenant_commercial_document_artifacts',
-  ARRAY['Finance roles can read tenant commercial document artifacts'],
+  ARRAY['Finance roles can read tenant commercial document artifacts', 'financial_artifact_current_generation'],
   'artifact rows expose read-only finance access'
 );
 

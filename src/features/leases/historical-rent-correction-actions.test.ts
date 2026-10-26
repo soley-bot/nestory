@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+const { readBoundary } = vi.hoisted(() => ({ readBoundary: vi.fn() }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialIntentReadContext: readBoundary }));
+beforeEach(() => { readBoundary.mockReset(); readBoundary.mockImplementation(async (_org, _intent, read) => read({ generation: 2, status: "open", enforced: true, financial_start_date: "2026-08-01" })); });
 
 const { requireFinanceCorrectionContext, revalidatePath, rpc } =
   vi.hoisted(() => ({
@@ -24,6 +27,13 @@ const organizationId = "00000000-0000-4000-8000-000000000001";
 const invoiceId = "11111111-1111-4111-8111-111111111111";
 
 describe("historical rent correction actions", () => {
+  it("rejects stale financial intent before loading a correction preview", async () => {
+    readBoundary.mockRejectedValueOnce(new Error("The financial session changed"));
+    const intent = correctionForm(); intent.set("__financialGeneration", "1");
+    await expect(previewHistoricalRentCorrectionAction({}, intent)).rejects.toThrow("session changed");
+    expect(readBoundary).toHaveBeenCalledWith(organizationId, intent, expect.any(Function));
+    expect(rpc).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     requireFinanceCorrectionContext.mockReset();
     revalidatePath.mockReset();

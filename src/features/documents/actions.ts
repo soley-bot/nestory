@@ -158,7 +158,7 @@ export async function createDocumentAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const leaseId = parsed.data.leaseId || null;
   const taskId = parsed.data.taskId || null;
   const unitId = parsed.data.unitId || null;
@@ -298,7 +298,7 @@ export async function updateDocumentAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const previous = await getDocumentPathContext(
     supabase,
     context.organizationId,
@@ -484,7 +484,7 @@ export async function fingerprintDocumentContentAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const document = await getDocumentPathContext(
     supabase,
     context.organizationId,
@@ -584,7 +584,7 @@ async function updateDocumentArchiveState({
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const previous = await getDocumentPathContext(
     supabase,
     context.organizationId,

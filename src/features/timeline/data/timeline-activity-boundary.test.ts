@@ -7,6 +7,9 @@ import type { Database } from "@/types/database";
 
 const server = vi.hoisted(() => ({ create: vi.fn() }));
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: server.create }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({
+  withFinancialReadContext: vi.fn(async (_organizationId, read) => read({ generation: 0, financial_start_date: null })),
+}));
 
 const leaseId = "11111111-1111-4111-8111-111111111111";
 const taskId = "22222222-2222-4222-8222-222222222222";

@@ -55,7 +55,7 @@ export async function stageIpsCutoverBatchAction(
     return { message: "Enter a start date, data owner and valid import manifest.", status: "error" };
   }
   const context = await requireSuperAdminContext();
-  const supabase = (await createSupabaseServerClient()) as unknown as CutoverRpcClient;
+  const supabase = (await createSupabaseServerClient(formData)) as unknown as CutoverRpcClient;
   const result = await supabase.rpc("stage_ips_cutover_batch", {
     p_authority_start_date: parsed.data.authorityStartDate,
     p_data_owner: parsed.data.dataOwner,
@@ -95,7 +95,7 @@ export async function commitIpsCutoverBatchAction(
     return { message: "Choose a prepared import plan and explain how you checked the totals.", status: "error" };
   }
   const context = await requireSuperAdminContext();
-  const supabase = (await createSupabaseServerClient()) as unknown as CutoverRpcClient;
+  const supabase = (await createSupabaseServerClient(formData)) as unknown as CutoverRpcClient;
   const result = await supabase.rpc("commit_ips_cutover_batch", {
     p_batch_id: parsed.data.batchId,
     p_idempotency_key: parsed.data.idempotencyKey,

@@ -1,5 +1,6 @@
 "use server";
 
+import { withFinancialIntentReadContext } from "@/lib/finance/financial-write-context.server";
 import { revalidatePath } from "next/cache";
 import {
   historicalRentCorrectionErrorMessage,
@@ -79,43 +80,45 @@ export async function previewHistoricalRentCorrectionAction(
   }
 
   const context = await requireFinanceCorrectionContext();
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc(
-    "preview_historical_rent_correction",
-    {
-      p_corrected_due_day: parsed.data.correctedDueDay,
-      ...(parsed.data.correctedManagementFeeAmount !== undefined
-        ? { p_corrected_management_fee_amount: parsed.data.correctedManagementFeeAmount }
-        : {}),
-      p_corrected_rent_amount: parsed.data.correctedRentAmount,
-      p_invoice_id: parsed.data.invoiceId,
-      p_organization_id: context.organizationId,
-    },
-  );
+  return withFinancialIntentReadContext<HistoricalRentCorrectionActionState>(context.organizationId, formData, async () => {
+    const supabase = await createSupabaseServerClient(formData);
+    const { data, error } = await supabase.rpc(
+      "preview_historical_rent_correction",
+      {
+        p_corrected_due_day: parsed.data.correctedDueDay,
+        ...(parsed.data.correctedManagementFeeAmount !== undefined
+          ? { p_corrected_management_fee_amount: parsed.data.correctedManagementFeeAmount }
+          : {}),
+        p_corrected_rent_amount: parsed.data.correctedRentAmount,
+        p_invoice_id: parsed.data.invoiceId,
+        p_organization_id: context.organizationId,
+      },
+    );
 
-  if (error) {
-    return {
-      message: historicalRentCorrectionErrorMessage(error),
-      status: "error",
-    };
-  }
-  if (!isHistoricalRentCorrectionPreview(data) ||
-    (parsed.data.correctedManagementFeeAmount !== undefined &&
-      (data.correctionMode !== "management_fee" ||
-        data.correctedManagementFeeAmount !== parsed.data.correctedManagementFeeAmount))) {
-    return {
-      message: "Nestory could not verify the correction preview.",
-      status: "error",
-    };
-  }
+    if (error) {
+      return {
+        message: historicalRentCorrectionErrorMessage(error),
+        status: "error",
+      };
+    }
+    if (!isHistoricalRentCorrectionPreview(data) ||
+      (parsed.data.correctedManagementFeeAmount !== undefined &&
+        (data.correctionMode !== "management_fee" ||
+          data.correctedManagementFeeAmount !== parsed.data.correctedManagementFeeAmount))) {
+      return {
+        message: "Nestory could not verify the correction preview.",
+        status: "error",
+      };
+    }
 
-  return {
-    message: data.canApply
-      ? "Review the append-only changes before applying."
-      : "Resolve every blocker, then preview again.",
-    preview: data,
-    status: "preview",
-  };
+    return {
+      message: data.canApply
+        ? "Review the append-only changes before applying."
+        : "Resolve every blocker, then preview again.",
+      preview: data,
+      status: "preview",
+    };
+  });
 }
 
 export async function applyHistoricalRentCorrectionAction(
@@ -136,7 +139,7 @@ export async function applyHistoricalRentCorrectionAction(
   }
 
   const context = await requireFinanceCorrectionContext();
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("correct_historical_rent", {
     p_corrected_due_day: parsed.data.correctedDueDay,
     ...(parsed.data.correctedManagementFeeAmount !== undefined

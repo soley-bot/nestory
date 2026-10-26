@@ -5,6 +5,7 @@ import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { matchesSearchText } from "@/lib/search/text";
 import { normalizeSearchText } from "@/lib/search/text";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { DEFAULT_COMPLETE_READ_MAX_ROWS, readCompleteRows } from "@/lib/db/complete-read";
 import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
@@ -102,6 +103,17 @@ export async function getUnitsScreenData(
   organizationId: string,
   viewQuery: UnitViewQuery = parseUnitSearchParams({}),
 ) {
+  return withFinancialReadContext(organizationId, async (context) => {
+    const result = await readUnitsScreenData(organizationId, viewQuery);
+    return {
+      ...result,
+      financialGeneration: context.generation,
+      units: result.units.map((unit) => ({ ...unit, financialGeneration: context.generation })),
+    };
+  });
+}
+
+async function readUnitsScreenData(organizationId: string, viewQuery: UnitViewQuery) {
   const supabase = await createSupabaseServerClient();
 
   if (canUsePagedUnitBaseQuery(viewQuery)) {
@@ -496,6 +508,13 @@ export async function getUnitDetail(
   unitId: string,
   { operationalTimezone }: { operationalTimezone?: string } = {},
 ) {
+  return withFinancialReadContext(organizationId, async (context) => {
+    const unit = await readUnitDetail(organizationId, unitId, operationalTimezone);
+    return unit ? { ...unit, financialGeneration: context.generation } : null;
+  });
+}
+
+async function readUnitDetail(organizationId: string, unitId: string, operationalTimezone?: string) {
   const supabase = await createSupabaseServerClient();
   const businessDate = getBusinessDateValue(new Date(), operationalTimezone);
 

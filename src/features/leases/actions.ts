@@ -1,5 +1,7 @@
 "use server";
 
+import { continueLeaseMonthToMonthAction } from "./month-to-month-action";
+
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/context";
@@ -8,6 +10,7 @@ import {
   privilegedStepUpRequiredActionMessage,
 } from "@/lib/auth/privileged-step-up-error";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { financialWriteError } from "@/lib/finance/financial-write-context";
 import { postgresUuid } from "@/lib/validation/postgres-uuid";
 import {
   getLeaseMutationErrorMessage,
@@ -446,7 +449,7 @@ export async function createLeaseAction(
     return { message: "Refresh the form and try again.", status: "error" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const authorityPayload = leaseAuthorityRpcPayload(
     context.organizationId,
     parsed.data,
@@ -539,7 +542,7 @@ export async function recordCurrentLeaseOccupancyEvidenceAction(
     return invalidFormState(parsed.error);
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   // Generated RPC types cannot express nullable PostgreSQL function arguments.
   // The database intentionally accepts null when a scheduled date is unknown.
   const scheduledMoveInDate =
@@ -599,7 +602,7 @@ export async function transitionLeaseLifecycleAction(
     parsed.data.transition === "activate" ? "leases.activate" : "leases.close",
   );
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const scheduledMoveOutDate =
     (parsed.data.scheduledMoveOutDate || null) as string;
   const { data: result, error } = await supabase.rpc(
@@ -666,7 +669,7 @@ export async function renewAndActivateDraftLeaseAction(
     confirmed: readString(formData, "confirmRenewal"),
   });
   if (!parsed.success) return { ...invalidFormState(parsed.error), message: "Complete the dates, amounts, and confirmation before saving." };
-  const client = await createSupabaseServerClient();
+  const client = await createSupabaseServerClient(formData);
   const { data, error } = await client.rpc("renew_and_activate_draft_lease", {
     p_organization_id: context.organizationId, p_lease_id: parsed.data.leaseId,
     p_expected_occupancy_id: parsed.data.occupancyId, p_move_in_date: parsed.data.moveInDate,
@@ -705,7 +708,7 @@ export async function recordCompletedDraftLeaseAction(
     idempotencyKey: readString(formData, "idempotencyKey"),
   });
   if (!parsed.success) return { ...invalidFormState(parsed.error), message: "Complete the dates, amounts, and confirmation before saving." };
-  const client = await createSupabaseServerClient();
+  const client = await createSupabaseServerClient(formData);
   const { data, error } = await client.rpc("record_completed_draft_lease", {
     p_organization_id: context.organizationId,
     p_lease_id: parsed.data.leaseId,
@@ -743,7 +746,7 @@ export async function scheduleLeaseActivationAction(
     return invalidFormState(parsed.error);
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { data: result, error } = await supabase.rpc(
     "request_lease_activation",
     {
@@ -802,7 +805,7 @@ export async function cancelLeaseActivationAction(
   });
   if (!parsed.success) return invalidFormState(parsed.error);
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("cancel_lease_activation", {
     p_organization_id: context.organizationId,
     p_schedule_id: parsed.data.scheduleId,
@@ -843,7 +846,7 @@ export async function updateLeaseAction(
     return { message: "Refresh the form and try again.", status: "error" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getLeasePathContext(
     supabase,
     context.organizationId,
@@ -932,7 +935,7 @@ export async function saveLeaseBillingRulesAction(
     return { message: "Refresh the form and try again.", status: "error" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getLeasePathContext(
     supabase,
     context.organizationId,
@@ -971,6 +974,7 @@ export async function scheduleFutureRentTermAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
+  if (formData.get("monthToMonth") === "on") return continueLeaseMonthToMonthAction(formData);
   const context = await requirePermission("leases.change_terms");
   const parsed = parseFutureRentTermInput({
     endDate: readString(formData, "endDate"),
@@ -997,7 +1001,7 @@ export async function scheduleFutureRentTermAction(
     return { message: "Refresh the form and try again.", status: "error" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getLeasePathContext(
     supabase,
     context.organizationId,
@@ -1059,7 +1063,7 @@ export async function archiveLeaseAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getLeasePathContext(
     supabase,
     context.organizationId,
@@ -1105,7 +1109,7 @@ export async function restoreLeaseAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getLeasePathContext(
     supabase,
     context.organizationId,
@@ -1239,6 +1243,8 @@ function leaseActionErrorMessage(error: {
 
   const { details, message } = error;
   const errorMessage = `${message} ${details ?? ""}`;
+  const lifecycleMessage = financialWriteError(errorMessage);
+  if (lifecycleMessage) return lifecycleMessage;
   if (errorMessage.includes("lease_renewal_dates_invalid")) {
     return "Choose the actual move-in date within the original term, a renewal end date on or after today, and a positive rent amount.";
   }
@@ -1381,7 +1387,7 @@ export async function recordLeaseDepositEventAction(_state: LeaseActionState, fo
   const context = await requirePermission("leases.change_terms");
   const parsed = depositEventSchema.safeParse({ amount: readString(formData, "amount"), eventDate: readString(formData, "eventDate"), eventType: readString(formData, "eventType"), idempotencyKey: readString(formData, "idempotencyKey"), leaseDepositId: readString(formData, "leaseDepositId"), liabilityAccountId: readString(formData, "liabilityAccountId"), reference: readString(formData, "reference") });
   if (!parsed.success) return invalidFormState(parsed.error);
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("record_lease_deposit_event_idempotent", { p_organization_id: context.organizationId, p_lease_deposit_id: parsed.data.leaseDepositId, p_liability_account_id: parsed.data.liabilityAccountId, p_event_type: parsed.data.eventType, p_event_date: parsed.data.eventDate, p_amount: parsed.data.amount, p_reference: parsed.data.reference, p_idempotency_key: parsed.data.idempotencyKey });
   if (error) return {
     message: error.message.includes("Conflicting financial idempotency request")
@@ -1398,7 +1404,7 @@ export async function reverseLeaseDepositEventAction(_state: LeaseActionState, f
   const eventId = postgresUuid("Choose deposit activity.").safeParse(readString(formData, "eventId"));
   const eventDate = dateSchema.safeParse(readString(formData, "eventDate"));
   if (!eventId.success || !eventDate.success) return { message: "Choose valid deposit activity and a date.", status: "error" };
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("reverse_lease_deposit_event", { p_organization_id: context.organizationId, p_event_id: eventId.data, p_event_date: eventDate.data, p_reference: readString(formData, "reference") });
   if (error) return { message: leaseActionErrorMessage(error), status: "error" };
   revalidatePath("/leases"); revalidatePath("/overview");

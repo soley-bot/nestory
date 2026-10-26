@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm, FinancialReportBoundary, useFinancialFormData } from "@/lib/finance/financial-write-provider";
+
 import { Table } from "@/components/ui/table";
 
 import Link from "next/link";
@@ -156,6 +158,7 @@ type DrawerState =
     };
 
 type MaintenanceScreenProps = {
+  financialGeneration?: number;
   actor: MaintenanceActor;
   baseReview?: MaintenanceViewQuery["review"];
   branchOptions: MaintenanceBranchOption[];
@@ -185,7 +188,15 @@ type MaintenanceScreenProps = {
   viewQuery: MaintenanceViewQuery;
 };
 
-export function MaintenanceScreen({
+export function MaintenanceScreen(props: MaintenanceScreenProps) {
+  return <FinancialReportBoundary expectedGeneration={props.financialGeneration} fallback={
+    <WorkspacePage title={props.title ?? "Maintenance"}>
+      <p className="text-sm text-muted-foreground">Maintenance costs and actions are unavailable until the financial workspace is refreshed.</p>
+    </WorkspacePage>
+  }><MaintenanceScreenContent {...props} /></FinancialReportBoundary>;
+}
+
+function MaintenanceScreenContent({
   actor,
   baseReview = "open",
   branchOptions,
@@ -213,6 +224,7 @@ export function MaintenanceScreen({
   vendorOptions,
   viewQuery,
 }: MaintenanceScreenProps) {
+  const createFinancialFormData = useFinancialFormData();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -402,6 +414,7 @@ export function MaintenanceScreen({
       const result = await updateMaintenanceStatusAction(
         maintenanceCase.id,
         status,
+        createFinancialFormData(),
       );
 
       if (result.status === "error") {
@@ -1814,7 +1827,7 @@ export function MaintenanceForm({
   }, [state]);
 
   return (
-    <form action={action} className="flex h-full min-w-0 flex-col" ref={formRef} onChangeCapture={updateDirty} onInput={updateDirty} onClickCapture={updateDirty} onInvalidCapture={(event) => { const details = event.target instanceof HTMLElement ? event.target.closest("details") : null; if (details) details.open = true; }}>
+    <FinancialForm action={action} className="flex h-full min-w-0 flex-col" ref={formRef} onChangeCapture={updateDirty} onInput={updateDirty} onClickCapture={updateDirty} onInvalidCapture={(event) => { const details = event.target instanceof HTMLElement ? event.target.closest("details") : null; if (details) details.open = true; }}>
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
         {maintenanceCase ? (
           <input name="taskId" type="hidden" value={maintenanceCase.id} />
@@ -2154,7 +2167,7 @@ export function MaintenanceForm({
           </Button>
         </div>
       </div>
-    </form>
+    </FinancialForm>
   );
 }
 

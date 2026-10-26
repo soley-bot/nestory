@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
+
 import {
   useActionState,
   useEffect,
@@ -58,6 +60,7 @@ type DrawerState =
   | { mode: "activity"; change: RecentChange };
 
 type LedgerScreenProps = {
+  financialGeneration?: number;
   canLockFinancialMonth?: boolean;
   canManageFinance?: boolean;
   canReadFinanceReports?: boolean;
@@ -73,6 +76,7 @@ type LedgerScreenProps = {
 };
 
 export function LedgerScreen({
+  financialGeneration,
   canManageFinance = true,
   canLockFinancialMonth = canManageFinance,
   canReadFinanceReports = false,
@@ -203,7 +207,7 @@ export function LedgerScreen({
   return (
     <WorkspacePage
       actions={
-        <>
+        <FinancialReportBoundary expectedGeneration={financialGeneration}>
           <RecentChangesPopover
             changes={recentChanges}
             onSelectChange={(change) => {
@@ -224,7 +228,7 @@ export function LedgerScreen({
               </Button>
             </>
           ) : null}
-        </>
+        </FinancialReportBoundary>
       }
       breadcrumbItems={[{ href: "/finance", label: "Finance" }]}
       context={`${reviewPropertyLabel ?? "All properties"} · ${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
@@ -239,6 +243,7 @@ export function LedgerScreen({
       )}
       title="Ledger"
     >
+      <FinancialReportBoundary expectedGeneration={financialGeneration}>
       <div className="flex min-w-0 flex-col">
         {statusMessage ? (
           <div className="px-4 pt-5 sm:px-6 lg:px-6">
@@ -319,6 +324,7 @@ export function LedgerScreen({
           </Modal>
         ) : null}
       </div>
+      </FinancialReportBoundary>
     </WorkspacePage>
   );
 }
@@ -554,7 +560,7 @@ function ReceiptPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
+    <FinancialForm action={action} className="flex h-full flex-col">
       <input name="entryId" type="hidden" value={entry.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="rounded-md border border-border bg-muted px-3 py-3">
@@ -612,7 +618,7 @@ function ReceiptPanel({
           </Button>
         </div>
       </div>
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -640,7 +646,7 @@ function PeriodLockPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
+    <FinancialForm action={action} className="flex h-full flex-col">
       <div className="flex-1 space-y-5 px-4 py-5 sm:px-5">
         <ConsequencePanel
           summary={
@@ -753,6 +759,6 @@ function PeriodLockPanel({
           </Button>
         </div>
       </div>
-    </form>
+    </FinancialForm>
   );
 }

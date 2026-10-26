@@ -6,12 +6,14 @@ import { getReportPdf } from "@/features/reports/data/pdf";
 import { downloadOwnerStatementArtifact } from "@/features/reports/data/owner-statement-artifacts";
 import { getCurrentUser, getFinanceReportMembershipForUser, getOwnerStatementMembershipForUser } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialDownloadContext } from "@/lib/finance/financial-write-context.server";
 
 vi.mock("@/lib/auth/context", () => ({ getCurrentUser: vi.fn(), getFinanceReportMembershipForUser: vi.fn(), getOwnerStatementMembershipForUser: vi.fn() }));
 vi.mock("@/features/reports/data/excel", () => ({ getReportExcel: vi.fn() }));
 vi.mock("@/features/reports/data/pdf", () => ({ getReportPdf: vi.fn() }));
 vi.mock("@/features/reports/data/owner-statement-artifacts", () => ({ downloadOwnerStatementArtifact: vi.fn() }));
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: vi.fn() }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialDownloadContext: vi.fn() }));
 vi.mock("@/lib/observability/capture-unexpected-server-error", () => ({ captureUnexpectedServerError: vi.fn() }));
 
 const handlers = [["excel", excel, getReportExcel], ["pdf", pdf, getReportPdf]] as const;
@@ -19,6 +21,7 @@ const handlers = [["excel", excel, getReportExcel], ["pdf", pdf, getReportPdf]] 
 describe("restricted export boundaries", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(withFinancialDownloadContext).mockImplementation(async (_organizationId, _request, read) => read());
     vi.mocked(getCurrentUser).mockResolvedValue({ id: "synthetic-user-a" } as never);
     vi.mocked(getFinanceReportMembershipForUser).mockResolvedValue(null);
     vi.mocked(getOwnerStatementMembershipForUser).mockResolvedValue(null);
@@ -51,6 +54,7 @@ describe("restricted export boundaries", () => {
       ? ["synthetic-company-a", expect.anything(), "Synthetic A"]
       : ["synthetic-company-a", "Synthetic A", expect.anything()]));
     expect(getFinanceReportMembershipForUser).toHaveBeenCalledWith("synthetic-user-a");
+    expect(withFinancialDownloadContext).toHaveBeenCalledWith("synthetic-company-a", expect.any(Request), expect.any(Function));
   });
 
   it.each(handlers)("%s pins artifact lookup to the authorized company", async (route, handler) => {

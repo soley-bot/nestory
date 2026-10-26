@@ -7,6 +7,8 @@ import { getPrivilegedEmailStepUpStatus } from "@/features/auth/privileged-step-
 import { requireWorkspaceContext } from "@/lib/auth/context";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { BusinessDateProvider } from "@/lib/dates/business-date-provider";
+import { getFinancialWriteContext } from "@/lib/finance/financial-write-context.server";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +25,10 @@ export default async function DashboardLayout({
     );
   // SidebarProvider writes sidebar_state on every toggle; read it back so the
   // rail renders in the state the operator left it, with no flash on load.
-  const [cookieStore, stepUpStatus] = await Promise.all([
+  const [cookieStore, stepUpStatus, financialContext] = await Promise.all([
     cookies(),
     privilegedRoleHint ? getPrivilegedEmailStepUpStatus() : null,
+    getFinancialWriteContext(context.organizationId),
   ]);
   const sidebarState = cookieStore.get("sidebar_state")?.value;
   const businessClock = new Date();
@@ -52,6 +55,7 @@ export default async function DashboardLayout({
           serverTime={businessClock.toISOString()}
           timeZone={context.operationalTimezone}
         >
+          <FinancialWriteProvider context={financialContext} organizationId={context.organizationId} key={context.organizationId}>
           <AppShell
             defaultSidebarOpen={sidebarState !== "false"}
             organizationId={context.organizationId}
@@ -66,6 +70,7 @@ export default async function DashboardLayout({
           >
             {children}
           </AppShell>
+          </FinancialWriteProvider>
         </BusinessDateProvider>
       </WorkspacePrivilegedStepUpGate>
     </ThemeRuntime>

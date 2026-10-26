@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
+
 import Link from "next/link";
 import { recordDisplayLabel } from "@/lib/presentation/record-label";
 import { useRouter } from "next/navigation";
@@ -90,6 +92,7 @@ type DrawerState =
   | { entry: PettyCashEntry; mode: "post" };
 
 type PettyCashScreenProps = {
+  financialGeneration?: number;
   accounts: PettyCashAccount[];
   canAdministerAccounts?: boolean;
   canApproveExpenses?: boolean;
@@ -109,7 +112,15 @@ type PettyCashScreenProps = {
   unitOptions: PettyCashUnitOption[];
 };
 
-export function PettyCashScreen({
+export function PettyCashScreen(props: PettyCashScreenProps) {
+  return <FinancialReportBoundary expectedGeneration={props.financialGeneration} fallback={
+    <WorkspacePage title="Petty cash" localNav={<FinanceWorkspaceNavigation activeRoute="/petty-cash" canCorrectFinance={props.canCorrectFinance} canReadFinanceReports={props.canReadFinanceReports} />}>
+      <p className="p-4 text-sm">Cash amounts are unavailable until the financial session is verified.</p>
+    </WorkspacePage>
+  }><PettyCashScreenContent {...props} /></FinancialReportBoundary>;
+}
+
+function PettyCashScreenContent({
   accounts,
   canAdministerAccounts = true,
   canApproveExpenses = true,
@@ -972,7 +983,7 @@ function PettyCashAccountForm({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action}>
+    <FinancialForm action={action}>
       <div className="grid gap-4 p-4 sm:grid-cols-2">
         <Field label="Account number" error={state.fieldErrors?.accountNumber?.[0]}>
           <Input name="accountNumber" placeholder="PM-CASH-01" required />
@@ -1013,7 +1024,7 @@ function PettyCashAccountForm({
         onClose={onClose}
         submitLabel={pending ? "Creating..." : "Create account"}
       />
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -1097,7 +1108,7 @@ function PettyCashEntryForm({
   }
 
   return (
-    <form action={action} className="flex h-full flex-col">
+    <FinancialForm action={action} className="flex h-full flex-col">
       <input name="accountId" type="hidden" value={account.id} />
       <input name="periodId" type="hidden" value={period.id} />
       {entry ? <input name="entryId" type="hidden" value={entry.id} /> : null}
@@ -1428,7 +1439,7 @@ function PettyCashEntryForm({
               : "Add cash row"
         }
       />
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -1454,7 +1465,7 @@ function PostPettyCashPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
+    <FinancialForm action={action} className="flex h-full flex-col">
       <input name="entryId" type="hidden" value={entry.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <OperationSummary
@@ -1482,7 +1493,7 @@ function PostPettyCashPanel({
         onClose={onClose}
         submitLabel={pending ? "Posting..." : "Post to ledger"}
       />
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -1511,7 +1522,7 @@ function VoidPettyCashPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
+    <FinancialForm action={action} className="flex h-full flex-col">
       <input name="entryId" type="hidden" value={entry.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <OperationSummary
@@ -1543,7 +1554,7 @@ function VoidPettyCashPanel({
         onClose={onClose}
         submitLabel={pending ? "Voiding..." : "Void cash row"}
       />
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -1573,7 +1584,7 @@ function OpenNextPeriodPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
+    <FinancialForm action={action} className="flex h-full flex-col">
       <input name="accountId" type="hidden" value={account.id} />
       <input name="periodId" type="hidden" value={period.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
@@ -1607,7 +1618,7 @@ function OpenNextPeriodPanel({
         onClose={onClose}
         submitLabel={pending ? "Opening..." : "Open next month"}
       />
-    </form>
+    </FinancialForm>
   );
 }
 

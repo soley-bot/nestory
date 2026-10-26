@@ -31,6 +31,7 @@ export default async function MaintenancePage({
 
   return (
     <MaintenanceScreen
+      financialGeneration={data.financialGeneration}
       actor={{
         branchId: context.branchId,
         dataScope: context.isSuperAdmin ? "organization" : "branch",

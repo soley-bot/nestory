@@ -30,6 +30,7 @@ import type {
   TimelineViewQuery,
 } from "@/features/timeline/timeline.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import type { PermissionKey } from "@/lib/auth/permission-catalog";
 import { filterTimelineActivityEntityTypes } from "@/features/timeline/data/timeline-activity-permissions";
 import {
@@ -193,6 +194,24 @@ export async function getTimelineScreenData(
   viewQuery: TimelineViewQuery = DEFAULT_TIMELINE_VIEW_QUERY,
   options: { scope?: TimelineScope; permissionKeys?: ReadonlySet<PermissionKey> } = {},
 ) {
+  const financialScope = options.scope === "financial";
+  return withFinancialReadContext(organizationId, async (context) => {
+    const effectiveQuery = financialScope && context.financial_start_date && !viewQuery.dateFrom
+      ? { ...viewQuery, dateFrom: context.financial_start_date }
+      : viewQuery;
+    return {
+      ...await loadTimelineScreenData(organizationId, effectiveQuery, options, financialScope ? context.financial_start_date : null),
+      financialGeneration: context.generation,
+    };
+  }, financialScope ? viewQuery.dateFrom ?? viewQuery.dateTo ?? undefined : undefined);
+}
+
+async function loadTimelineScreenData(
+  organizationId: string,
+  viewQuery: TimelineViewQuery,
+  options: { scope?: TimelineScope; permissionKeys?: ReadonlySet<PermissionKey> },
+  financialStartDate: string | null,
+) {
   const supabase = await createSupabaseServerClient();
   const scope = options.scope ?? "global";
   const recentActivityEntityTypes = filterTimelineActivityEntityTypes(
@@ -220,6 +239,8 @@ export async function getTimelineScreenData(
         .eq("organization_id", organizationId);
 
       query = applyTimelineFilters(query, viewQuery, scope);
+      // A direct event link cannot bypass the active financial period.
+      if (financialStartDate) query = query.gte("event_date", financialStartDate);
       for (const group of filters) query = query.or(group);
       query = applyTimelineSort(query, viewQuery.sort);
 

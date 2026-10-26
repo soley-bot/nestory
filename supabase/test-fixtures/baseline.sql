@@ -27,70 +27,66 @@ BEGIN;
 -- business timezone so the fixture has the same calendar date on every host.
 SET LOCAL TIME ZONE 'Asia/Phnom_Penh';
 
-DO $$
+-- Load only into a fresh disposable database. Clearing tables here would erase
+-- prior evidence and also invokes immutable-evidence TRUNCATE guards on empty
+-- tables. Keep those guards and all existing records intact instead.
+SET LOCAL lock_timeout = '5s';
+DO $fixture_fresh_database$
 DECLARE
-  fixture_tables text;
+  fixture_table record;
+  populated boolean;
+  bootstrap_valid boolean;
+  -- These exact singleton tables are seeded by the forward migrations. Inspect
+  -- only their singleton shape; their private values are never read or changed.
+  bootstrap_tables constant text[] := ARRAY[
+    'finance_settlement_context_capability',
+    'financial_projection_context_capability',
+    'tenant_invoice_settlement_context_capability',
+    'property_branch_assignment_context_capability',
+    'finance_branch_authority_capability',
+    'maintenance_branch_authority_capability',
+    'expense_transaction_capability',
+    'financial_scheduler_capability'
+  ];
 BEGIN
-  SELECT string_agg(
-    format('%I.%I', tables.schemaname, tables.tablename),
-    ', ' ORDER BY tables.schemaname, tables.tablename
-  )
-  INTO fixture_tables
-  FROM pg_catalog.pg_tables AS tables
-  WHERE tables.schemaname IN ('app_private', 'public')
+  FOR fixture_table IN
+    SELECT tables.schemaname, tables.tablename
+    FROM pg_catalog.pg_tables AS tables
+    WHERE (
+      tables.schemaname IN ('app_private', 'public', 'auth')
+      OR (tables.schemaname = 'storage' AND tables.tablename = 'objects')
+    )
     AND NOT (
-      tables.schemaname = 'app_private'
-      AND tables.tablename LIKE '%\_capability' ESCAPE '\'
-    );
-
-  IF fixture_tables IS NOT NULL THEN
-    EXECUTE 'TRUNCATE TABLE ' || fixture_tables ||
-      ' RESTART IDENTITY CASCADE';
-  END IF;
+      (tables.schemaname = 'auth' AND tables.tablename = 'schema_migrations')
+      OR (tables.schemaname = 'app_private' AND tables.tablename IN (
+        'financial_reset_relation_rules', 'maintenance_automation_runs'
+      ))
+    )
+    ORDER BY tables.schemaname, tables.tablename
+  LOOP
+    EXECUTE format('LOCK TABLE %I.%I IN SHARE ROW EXCLUSIVE MODE',
+      fixture_table.schemaname, fixture_table.tablename);
+    IF fixture_table.schemaname = 'app_private'
+      AND fixture_table.tablename = ANY (bootstrap_tables) THEN
+      EXECUTE format('SELECT count(*) = 1 AND bool_and(singleton) FROM %I.%I',
+        fixture_table.schemaname, fixture_table.tablename) INTO bootstrap_valid;
+      IF bootstrap_valid IS DISTINCT FROM true THEN
+        RAISE EXCEPTION 'The operational fixture requires intact migration bootstrap in %.%',
+          fixture_table.schemaname, fixture_table.tablename USING ERRCODE = '55000';
+      END IF;
+      CONTINUE;
+    END IF;
+    EXECUTE format('SELECT EXISTS (SELECT 1 FROM %I.%I)',
+      fixture_table.schemaname, fixture_table.tablename) INTO populated;
+    IF populated THEN
+      RAISE EXCEPTION 'The operational fixture requires a fresh disposable database; existing rows in %.% were preserved',
+        fixture_table.schemaname, fixture_table.tablename
+        USING ERRCODE = '55000',
+          HINT = 'For a disposable local test project only, run supabase db reset --local --no-seed, then npm run db:test:fixture.';
+    END IF;
+  END LOOP;
 END;
-$$;
-
-DELETE FROM auth.identities
-WHERE user_id IN (
-  SELECT users.id
-  FROM auth.users AS users
-  WHERE users.email IN (
-    'nestory@gmail.com',
-    'finance.manager@nestory.com',
-    'finance.member@nestory.com',
-    'operations.manager@nestory.com',
-    'operations.member@nestory.com',
-    'manager@nestory.com',
-    'member@nestory.com',
-    'demo@nestory.com'
-  )
-  OR users.id IN (
-    '00000000-0000-0000-0000-000000000101',
-    '00000000-0000-0000-0000-000000000501',
-    '00000000-0000-0000-0000-000000000601',
-    '00000000-0000-0000-0000-000000000701',
-    '00000000-0000-0000-0000-000000000801'
-  )
-);
-
-DELETE FROM auth.users
-WHERE email IN (
-  'nestory@gmail.com',
-  'finance.manager@nestory.com',
-  'finance.member@nestory.com',
-  'operations.manager@nestory.com',
-  'operations.member@nestory.com',
-  'manager@nestory.com',
-  'member@nestory.com',
-  'demo@nestory.com'
-)
-OR id IN (
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000501',
-  '00000000-0000-0000-0000-000000000601',
-  '00000000-0000-0000-0000-000000000701',
-  '00000000-0000-0000-0000-000000000801'
-);
+$fixture_fresh_database$;
 
 WITH fixture_users(user_id, email, display_name) AS (
   VALUES

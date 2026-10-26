@@ -123,7 +123,7 @@ export async function createTimelineEventAction(
     parsed.data.costAmount.length > 0 ? Number(parsed.data.costAmount) : null;
   const costCurrency = costAmount === null ? null : "USD";
   const unitId = parsed.data.unitId.length > 0 ? parsed.data.unitId : null;
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { error } = await supabase.rpc("create_timeline_event", {
     p_cost_amount: costAmount,
     p_cost_currency: costCurrency,
@@ -187,7 +187,7 @@ export async function updateTimelineEventAction(
     parsed.data.costAmount.length > 0 ? Number(parsed.data.costAmount) : null;
   const costCurrency = costAmount === null ? null : "USD";
   const unitId = parsed.data.unitId.length > 0 ? parsed.data.unitId : null;
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getTimelinePathContext(
     supabase,
     context.organizationId,
@@ -240,7 +240,7 @@ export async function archiveTimelineEventAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getTimelinePathContext(
     supabase,
     context.organizationId,
@@ -285,7 +285,7 @@ export async function restoreTimelineEventAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getTimelinePathContext(
     supabase,
     context.organizationId,
@@ -365,7 +365,7 @@ export async function attachTimelineDocumentAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const { data: event, error: eventError } = await supabase
     .from("timeline_events")
     .select("id, property_id, unit_id, ledger_entry_id, lease_id, event_type")

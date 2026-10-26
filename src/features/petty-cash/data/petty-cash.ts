@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import {
   formatPropertyOptionLabel,
   formatUnitOptionLabel,
@@ -91,6 +92,19 @@ export async function getPettyCashScreenData(
     focusedEntryId?: string;
     selectedAccountId?: string;
   } = {},
+) {
+  return withFinancialReadContext(organizationId, async (context) => {
+    const data = await loadPettyCashScreenData(organizationId, options);
+    if (data.period && context.financial_start_date && data.period.periodStart < context.financial_start_date) {
+      throw new Error(`Financial reporting starts on ${context.financial_start_date}. Choose a period on or after that date.`);
+    }
+    return { ...data, financialGeneration: context.generation };
+  });
+}
+
+async function loadPettyCashScreenData(
+  organizationId: string,
+  options: { focusedEntryId?: string; selectedAccountId?: string },
 ) {
   const supabase = await createSupabaseServerClient();
   const focusedEntryReference = options.focusedEntryId

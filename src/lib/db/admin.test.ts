@@ -27,12 +27,27 @@ describe("createSupabaseAdminClient", () => {
       "https://example.supabase.co",
       "sb_secret_example",
       {
+        global: { headers: {} },
         auth: {
           autoRefreshToken: false,
           detectSessionInUrl: false,
           persistSession: false,
         },
       },
+    );
+  });
+
+  it("carries the captured financial intent into privileged writes", () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "sb_secret_example";
+    const intent = new FormData();
+    intent.set("__financialGeneration", "7");
+
+    createSupabaseAdminClient(intent);
+
+    expect(createClient).toHaveBeenCalledWith(
+      "https://example.supabase.co",
+      "sb_secret_example",
+      expect.objectContaining({ global: { headers: { "x-nestory-financial-generation": "7" } } }),
     );
   });
 });

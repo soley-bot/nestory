@@ -5,6 +5,7 @@ import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { matchesSearchText } from "@/lib/search/text";
 import { normalizeSearchText } from "@/lib/search/text";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { DEFAULT_COMPLETE_READ_MAX_ROWS, readCompleteRows } from "@/lib/db/complete-read";
 import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import {
@@ -112,6 +113,17 @@ type PagedPropertyRowsResult = {
 export async function getPropertySummaries(
   organizationId: string,
   options: PropertySummaryOptions = {},
+) {
+  return withFinancialReadContext(organizationId, async (context) =>
+    (await readPropertySummaries(organizationId, options)).map((property) => ({
+      ...property, financialGeneration: context.generation,
+    })),
+  );
+}
+
+async function readPropertySummaries(
+  organizationId: string,
+  options: PropertySummaryOptions,
 ) {
   const supabase = await createSupabaseServerClient();
   const activeOwnerLinks =
@@ -325,6 +337,17 @@ export async function getPropertiesScreenData(
   organizationId: string,
   viewQuery: PropertyViewQuery = parsePropertySearchParams({}),
 ) {
+  return withFinancialReadContext(organizationId, async (context) => {
+    const result = await readPropertiesScreenData(organizationId, viewQuery);
+    return {
+      ...result,
+      financialGeneration: context.generation,
+      properties: result.properties.map((property) => ({ ...property, financialGeneration: context.generation })),
+    };
+  });
+}
+
+async function readPropertiesScreenData(organizationId: string, viewQuery: PropertyViewQuery) {
   if (canUsePagedPropertyBaseQuery(viewQuery)) {
     return getPagedPropertiesScreenData({
       organizationId,
@@ -567,6 +590,13 @@ export async function getPropertyDetail(
   propertyId: string,
   { operationalTimezone }: { operationalTimezone?: string } = {},
 ) {
+  return withFinancialReadContext(organizationId, async (context) => {
+    const property = await readPropertyDetail(organizationId, propertyId, operationalTimezone);
+    return property ? { ...property, financialGeneration: context.generation } : null;
+  });
+}
+
+async function readPropertyDetail(organizationId: string, propertyId: string, operationalTimezone?: string) {
   const supabase = await createSupabaseServerClient();
   const businessDate = getBusinessDateValue(new Date(), operationalTimezone);
   const detailRecordLimit = 8;

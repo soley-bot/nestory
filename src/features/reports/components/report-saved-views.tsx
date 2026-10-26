@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Bookmark, X } from "lucide-react";
@@ -61,7 +63,7 @@ export function ReportSavedViews({ storageKey, viewQuery }: { storageKey: string
     <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md px-2 text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><Bookmark size={14} aria-hidden="true" />Saved views</summary>
     <div className="absolute right-0 z-30 mt-2 w-72 rounded-md border border-border bg-popover p-3 shadow-md">
       <p className="mb-3 text-xs text-muted-foreground">Saved on this browser</p>
-      <form onSubmit={(event) => {
+      <FinancialForm onSubmit={(event) => {
         event.preventDefault();
         const label = name.trim();
         if (!label) return;
@@ -78,7 +80,7 @@ export function ReportSavedViews({ storageKey, viewQuery }: { storageKey: string
         <label className="block text-xs font-medium" htmlFor="report-view-name">View name</label>
         <Input id="report-view-name" maxLength={60} value={name} onChange={(event) => setName(event.target.value)} required placeholder="For example, monthly fees" />
         <Button size="sm" type="submit" variant="outline">Save current view</Button>
-      </form>
+      </FinancialForm>
       {message ? <p role="status" className="mt-2 text-xs text-muted-foreground">{message}</p> : null}
       <ul aria-label="Saved report views" className="mt-3 divide-y divide-border border-t border-border">
         {views.map((view) => <li className="flex items-center gap-2 py-1" key={view.name}>

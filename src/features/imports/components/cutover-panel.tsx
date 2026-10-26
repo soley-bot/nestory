@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import { useActionState, useState, type ReactNode } from "react";
 import { AuditDetails } from "@/components/ui/audit-details";
 import { Button } from "@/components/ui/button";
@@ -137,7 +139,7 @@ export function CutoverPanel({
       </div>
       {canManage ? (
         <div className="grid gap-4 xl:grid-cols-2">
-          <form action={stageAction} className="space-y-3 rounded-md border border-border p-3">
+          <FinancialForm action={stageAction} className="space-y-3 rounded-md border border-border p-3">
             <h3 className="font-medium">Prepare import plan</h3>
             <FormField label="Start date" name="authorityStartDate" type="date" defaultValue={detail?.authorityStartDate ?? "2026-09-01"} />
             <FormField label="Data owner" name="dataOwner" defaultValue={detail?.dataOwner ?? ""} placeholder="Name or team" />
@@ -159,8 +161,8 @@ export function CutoverPanel({
               {staging ? "Preparing…" : "Prepare import plan"}
             </Button>
             <ActionMessage state={stageState} />
-          </form>
-          <form action={commitAction} className="space-y-3 rounded-md border border-border p-3">
+          </FinancialForm>
+          <FinancialForm action={commitAction} className="space-y-3 rounded-md border border-border p-3">
             <h3 className="font-medium">Confirm imported totals</h3>
             <input type="hidden" name="batchId" value={detail?.batchId ?? ""} />
             <input name="idempotencyKey" type="hidden" value={detail ? `ips-cutover-commit-${detail.batchId}` : ""} />
@@ -188,7 +190,7 @@ export function CutoverPanel({
               Activating production remains a separate approved step.
             </p>
             <ActionMessage state={commitState} />
-          </form>
+          </FinancialForm>
         </div>
       ) : (
         <p>Import cutover is read-only for this role.</p>

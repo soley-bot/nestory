@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
 import {
   formatLeaseStatus,
@@ -83,6 +84,22 @@ type OccupancyReportData = Pick<
 };
 
 export async function getReportsScreenData(
+  organizationId: string,
+  viewQuery: ReportsViewQuery,
+): Promise<ReportsScreenData> {
+  // The selector/source context belongs to the same read as report totals.
+  // Checking only inside getTrustedReport would accept a context loaded before
+  // a committed backdate, ownership edit, or financial reset.
+  const read = () => loadReportsScreenData(organizationId, viewQuery);
+  return viewQuery.report === "people-readiness"
+    ? read()
+    : withFinancialReadContext(organizationId, async (context) => {
+      const data = await read();
+      return { ...data, trustedReport: { ...data.trustedReport, financialGeneration: context.generation } };
+    });
+}
+
+async function loadReportsScreenData(
   organizationId: string,
   viewQuery: ReportsViewQuery,
 ): Promise<ReportsScreenData> {

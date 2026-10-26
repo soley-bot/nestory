@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { from } = vi.hoisted(() => ({ from: vi.fn() }));
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: async () => ({ from }) }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({
+  withFinancialReadContext: async (_org: string, read: (context: { generation: number }) => Promise<unknown>) => read({ generation: 2 }),
+}));
 vi.mock("@/lib/search/portfolio.server", () => ({ loadPortfolioSearch: vi.fn() }));
 vi.mock("@/features/photos/data/photos", () => ({
   getAssetPhotosForScope: async () => [],

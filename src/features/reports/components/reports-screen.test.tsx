@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { ReportBuilderScreen } from "@/features/reports/components/reports-screen";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
 import { prepareTrustedReportForScreen } from "@/features/reports/data/reports";
 import type {
   ReportsScreenData,
@@ -27,6 +28,15 @@ class ResizeObserverStub {
 }
 
 describe("Reports screen", () => {
+  it.each([[1, 2], [2, 1]])("hides generation %i report data inside a generation %i workspace before polling", (reportGeneration, sessionGeneration) => {
+    const fetchStatus = vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
+    try {
+      renderReport({ report: { ...unitProfitLossReport(), financialGeneration: reportGeneration }, sessionGeneration });
+      expect(screen.getByRole("alert").textContent).toContain("Reload");
+      expect(screen.queryByRole("table")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
+    } finally { fetchStatus.mockRestore(); }
+  });
   it("keeps all six collection totals, scope and exports visible in the denser layout", async () => {
     const report = ownerActivityReport();
     report.kind = "rent-collections";
@@ -185,9 +195,11 @@ describe("Reports screen", () => {
 function renderReport({
   report = unitProfitLossReport(),
   viewQuery = query(),
+  sessionGeneration,
 }: {
   report?: TrustedReport;
   viewQuery?: ReportsViewQuery;
+  sessionGeneration?: number;
 } = {}) {
   const data: ReportsScreenData = {
     ownerOptions: report.ownerOptions ?? [],
@@ -203,9 +215,10 @@ function renderReport({
     viewQuery,
   };
 
-  return render(
-    <ReportBuilderScreen {...data} organizationName="Demo Organization" />,
-  );
+  const content = <ReportBuilderScreen {...data} organizationName="Demo Organization" />;
+  return render(sessionGeneration === undefined ? content : <FinancialWriteProvider
+    context={{ generation: sessionGeneration, status: "open", financial_start_date: "2026-10-01", enforced: true }} organizationId="org"
+  >{content}</FinancialWriteProvider>);
 }
 
 function ownerActivityReport(): TrustedReport {

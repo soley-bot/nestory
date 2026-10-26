@@ -1,6 +1,7 @@
 // A small real-browser transport regression, not a Supabase integration test.
-// Auth/Storage boundaries are synthetic; proxy, cookie policy, receipt route and
-// PDF renderer are the application implementations. No DB or hosted URL is used.
+// Auth/Storage boundaries are synthetic; proxy, cookie policy, receipt/owner
+// download routes, lifecycle guards and PDF renderer are the application
+// implementations. No DB or hosted URL is used.
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -12,6 +13,8 @@ import { NextRequest } from "next/server";
 import { proxy } from "@/proxy";
 import { getAuthCookieOptions } from "@/lib/auth/tenant";
 import { GET as receiptGET } from "@/app/api/finance/documents/[artifactId]/route";
+import { GET as ownerPdfGET } from "@/app/api/reports/pdf/route";
+import { GET as ownerExcelGET } from "@/app/api/reports/excel/route";
 import { buildTenantReceiptPdf } from "@/features/finance-operations/documents/receipt-pdf";
 import { isContainedPdf } from "@/lib/uploads/pdf-containment";
 import { downloadDailyArtifact } from "./daily-workflow-download.mjs";
@@ -22,6 +25,10 @@ const synthetic = vi.hoisted(() => ({
   user: "00000000-0000-4000-8000-000000000701",
   organization: "00000000-0000-4000-8000-000000000001",
   download: vi.fn(),
+  ownerDownload: vi.fn(),
+  rpc: vi.fn(),
+  lifecycle: { generation: 0, status: "open", financial_start_date: null, enforced: false },
+  revision: "0",
 }));
 vi.mock("@supabase/ssr", () => ({
   createServerClient: (_url, _key, options) => ({ auth: { getClaims: async () => ({
@@ -31,14 +38,19 @@ vi.mock("@supabase/ssr", () => ({
   }) } }),
 }));
 vi.mock("@/lib/db/env", () => ({ getSupabaseEnv: () => ({ supabaseUrl: "http://127.0.0.1", supabaseKey: "synthetic-unused" }) }));
-vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: async () => ({}) }));
+vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: async () => ({ rpc: synthetic.rpc }) }));
 vi.mock("@/lib/auth/context", () => ({
   getCurrentUser: async () => ({ id: synthetic.user }),
   getWorkspaceMembershipForUser: async () => ({ organizationId: synthetic.organization, permissionKeys: new Set(["finance.view"]) }),
+  getOwnerStatementMembershipForUser: async () => ({ organizationId: synthetic.organization }),
+  getFinanceReportMembershipForUser: async () => null,
 }));
 vi.mock("@/features/finance-operations/documents/commercial-document-artifacts", () => ({ downloadTenantCommercialDocumentArtifact: synthetic.download }));
+vi.mock("@/features/reports/data/owner-statement-artifacts", () => ({ downloadOwnerStatementArtifact: synthetic.ownerDownload }));
+vi.mock("@/lib/observability/capture-unexpected-server-error", () => ({ captureUnexpectedServerError: vi.fn() }));
 
 const id = "a1111111-1111-4111-8111-111111111111";
+const xlsxId = "a2222222-2222-4222-8222-222222222222";
 const receiptPath = `/api/finance/documents/${id}`;
 const secretMarker = "synthetic-secret-must-not-be-reported";
 const mime = { pdf: "application/pdf", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
@@ -58,7 +70,7 @@ const xlsx = Buffer.from(zipSync({
   "xl/worksheets/sheet1.xml": strToU8('<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData/></worksheet>'),
 }));
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
-const metadata = (bytes = pdf, format = "pdf") => ({ id, size_bytes: bytes.length, sha256: digest(bytes), format });
+const metadata = (bytes = pdf, format = "pdf") => ({ id: format === "xlsx" ? xlsxId : id, size_bytes: bytes.length, sha256: digest(bytes), format });
 const attachment = (bytes = pdf, format = "pdf", changes = {}) => new Response(bytes, { headers: {
   "content-type": mime[format], "content-disposition": `attachment; filename="synthetic.${format}"`,
   "content-length": String(bytes.length), ...changes,
@@ -97,9 +109,9 @@ describe.sequential("authenticated daily artifact transport", () => {
           } else if (request.nextUrl.pathname === receiptPath) {
             response = await receiptGET(request, { params: Promise.resolve({ artifactId: id }) });
           } else if (request.nextUrl.pathname === "/api/reports/pdf") {
-            response = attachment();
+            response = await ownerPdfGET(request);
           } else if (request.nextUrl.pathname === "/api/reports/excel") {
-            response = attachment(xlsx, "xlsx");
+            response = await ownerExcelGET(request);
           } else {
             response = new Response("Synthetic endpoint", { status: 404 });
           }
@@ -122,6 +134,22 @@ describe.sequential("authenticated daily artifact transport", () => {
   beforeEach(async () => {
     override = undefined; requests.length = 0; serverErrors.length = 0; blockedDestinations.length = 0;
     synthetic.download.mockClear();
+    synthetic.lifecycle = { generation: 0, status: "open", financial_start_date: null, enforced: false };
+    synthetic.revision = "0";
+    synthetic.rpc.mockReset();
+    synthetic.rpc.mockImplementation(async (name, args) => {
+      expect(args).toEqual({ p_organization_id: synthetic.organization });
+      if (name === "get_financial_write_context") return { data: { ...synthetic.lifecycle }, error: null };
+      if (name === "get_financial_report_context") return { data: { context: { ...synthetic.lifecycle }, source_revision: synthetic.revision }, error: null };
+      throw new Error("Unexpected synthetic RPC");
+    });
+    synthetic.ownerDownload.mockReset();
+    synthetic.ownerDownload.mockImplementation(async (_client, organizationId, artifactId) => {
+      expect(organizationId).toBe(synthetic.organization);
+      expect([id, xlsxId]).toContain(artifactId);
+      const format = artifactId === xlsxId ? "xlsx" : "pdf";
+      return { bytes: format === "xlsx" ? xlsx : pdf, format, contentType: mime[format], filename: `synthetic.${format}` };
+    });
     context = await browser.newContext();
     await context.route("**/*", (route) => {
       if (new URL(route.request().url()).origin === base) return route.continue();
@@ -163,14 +191,45 @@ describe.sequential("authenticated daily artifact transport", () => {
     expect(await downloadDailyArtifact(page, base, receiptPath, metadata())).toBe(digest(pdf));
     expect(requests.at(-1)).toEqual({ path: receiptPath, hasCookie: true });
     expect(synthetic.download).toHaveBeenCalledOnce();
-    expect(synthetic.download).toHaveBeenCalledWith({}, synthetic.organization, id);
+    expect(synthetic.download).toHaveBeenCalledWith({ rpc: synthetic.rpc }, synthetic.organization, id);
     console.log(JSON.stringify({ reproduction: "local-only", previousStatus: 307, redirectHost: destination.hostname, redirectPath: "/login", previousRequestHadCookie: false, browserRequestHadCookie: true, receiptPdfVerified: true, receiptBytes: pdf.length, receiptSha256: digest(pdf) }));
   });
 
   it("keeps retained receipt bytes identical and verifies both owner document formats", async () => {
     for (let i = 0; i < 2; i++) expect(await downloadDailyArtifact(page, base, receiptPath, metadata())).toBe(digest(pdf));
     expect(await downloadDailyArtifact(page, base, `/api/reports/pdf?artifactId=${id}`, metadata())).toBe(digest(pdf));
-    expect(await downloadDailyArtifact(page, base, `/api/reports/excel?artifactId=${id}`, metadata(xlsx, "xlsx"))).toBe(digest(xlsx));
+    expect(await downloadDailyArtifact(page, base, `/api/reports/excel?artifactId=${xlsxId}`, metadata(xlsx, "xlsx"))).toBe(digest(xlsx));
+  });
+
+  it.each(["pdf", "xlsx"])("keeps the enrolled owner's original generation in its verified %s download", async format => {
+    synthetic.lifecycle = { generation: 7, status: "open", financial_start_date: "2026-10-01", enforced: true };
+    const bytes = format === "xlsx" ? xlsx : pdf;
+    const href = `/api/reports/${format === "xlsx" ? "excel" : "pdf"}?artifactId=${format === "xlsx" ? xlsxId : id}&financialGeneration=7`;
+    expect(await downloadDailyArtifact(page, base, href, metadata(bytes, format))).toBe(digest(bytes));
+    expect(synthetic.ownerDownload).toHaveBeenCalledOnce();
+    synthetic.lifecycle = { ...synthetic.lifecycle, generation: 8 };
+    await expect(downloadDailyArtifact(page, base, href, metadata(bytes, format))).rejects.toThrow("http_status (HTTP 409)");
+    expect(synthetic.ownerDownload).toHaveBeenCalledOnce();
+  });
+
+  it.each([undefined, "6"])("rejects enrolled owner generation %s before reading stored bytes", async generation => {
+    synthetic.lifecycle = { generation: 7, status: "open", financial_start_date: "2026-10-01", enforced: true };
+    const href = `/api/reports/pdf?artifactId=${id}${generation === undefined ? "" : `&financialGeneration=${generation}`}`;
+    await expect(downloadDailyArtifact(page, base, href, metadata())).rejects.toThrow("http_status (HTTP 409)");
+    expect(synthetic.ownerDownload).not.toHaveBeenCalled();
+  });
+
+  it("rejects a frozen receipt before storage and withholds bytes if source revision changes during retrieval", async () => {
+    synthetic.lifecycle = { generation: 7, status: "frozen", financial_start_date: "2026-10-01", enforced: true };
+    await expect(downloadDailyArtifact(page, base, receiptPath, metadata())).rejects.toThrow("http_status (HTTP 409)");
+    expect(synthetic.download).not.toHaveBeenCalled();
+    synthetic.lifecycle = { ...synthetic.lifecycle, status: "open" };
+    synthetic.download.mockImplementationOnce(async () => {
+      synthetic.revision = "1";
+      return { bytes: pdf, contentType: mime.pdf, filename: "synthetic.pdf", sourceState: "current" };
+    });
+    await expect(downloadDailyArtifact(page, base, receiptPath, metadata())).rejects.toThrow("http_status (HTTP 409)");
+    expect(synthetic.download).toHaveBeenCalledOnce();
   });
 
   it("rejects an unauthenticated session without following the login redirect", async () => {
@@ -229,6 +288,10 @@ describe.sequential("authenticated daily artifact transport", () => {
       `${receiptPath}?token=${secretMarker}`, `${receiptPath}#${secretMarker}`,
       "/api/finance/documents/a2222222-2222-4222-8222-222222222222",
       `http://[${secretMarker}`, `/api/reports/pdf?artifactId=${id}&token=${secretMarker}`,
+      `/api/reports/pdf?artifactId=${id}&artifactId=${id}`,
+      ...["", "07", "-1", "1.5", "2147483648", "7&financialGeneration=7"].map(generation => `/api/reports/pdf?artifactId=${id}&financialGeneration=${generation}`),
+      `${receiptPath}?financialGeneration=7`,
+      `${receiptPath}?financialGeneration=7&token=${secretMarker}`,
     ]) {
       let failure;
       try { await downloadDailyArtifact(page, base, href, metadata()); } catch (error) { failure = error; }

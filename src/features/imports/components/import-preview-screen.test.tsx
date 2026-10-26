@@ -9,6 +9,7 @@ import {
 } from "@/features/imports/components/import-preview-screen";
 import { autoMapImportHeaders, buildGenericImportPreviewRows } from "@/features/imports/import-config";
 import { parseCsv } from "@/features/imports/unit-import";
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
 
 const actions = vi.hoisted(() => ({
   importReadyRowsAction: vi.fn(),
@@ -32,6 +33,27 @@ beforeAll(() => {
 });
 
 describe("ImportPreviewScreen", () => {
+  it("keeps a valid import payload pinned to its original generation after a reset", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
+    const view = (generation: number) => <FinancialWriteProvider organizationId="org"
+      context={{ generation, status: "open", financial_start_date: "2026-10-01", enforced: true }}>
+      <ImportPreviewScreen recentRuns={[]} referenceData={{ leaseOccupancies: [], people: [], properties: [], units: [] }} savedMappings={[]} />
+    </FinancialWriteProvider>;
+    const rendered = render(view(3));
+    uploadCsv(rendered.container, "ready.csv", Promise.resolve("Property Code,Property Name\nNEW,New Home"));
+    const button = await screen.findByRole("button", { name: "Import 1 ready row" });
+    const form = button.closest("form")!;
+    expect(button).toHaveProperty("disabled", false);
+    const payload = new FormData(form).get("payload");
+    expect(payload).not.toBe("");
+    expect(new FormData(form).get("__financialGeneration")).toBe("3");
+    rendered.rerender(view(4));
+    expect(new FormData(form).get("payload")).toBe(payload);
+    expect(new FormData(form).get("__financialGeneration")).toBe("3");
+    await act(async () => { expect(fireEvent.submit(form)).toBe(false); });
+    expect(actions.importReadyRowsAction).not.toHaveBeenCalled();
+  });
+
   it("discards the old payload after a rejected replacement, before and after clearing", async () => {
     const user = userEvent.setup();
     const { container } = renderImport();
@@ -400,7 +422,10 @@ describe("ImportPreviewScreen", () => {
   });
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

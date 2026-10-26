@@ -1,3 +1,4 @@
+import { withFinancialDownloadContext } from "@/lib/finance/financial-write-context.server";
 import { loadLocalDepositReport, revalidateLocalDepositScope, LocalDepositExportError, type LocalDepositClient } from "./deposit-rent-local-source";
 import { buildTrustedReportPdf } from "./pdf";
 import { buildTrustedReportXlsx } from "./excel";
@@ -26,7 +27,7 @@ export function createLocalDepositExportHandler(dependencies: LocalDepositExport
     if (!membership) return text("Forbidden", 403);
     try {
       const query = new URL(request.url).searchParams;
-      const allowed = new Set(["propertyId", "unitId", "from", "to", "format", "expectedFingerprint"]);
+      const allowed = new Set(["propertyId", "unitId", "from", "to", "format", "expectedFingerprint", "financialGeneration"]);
       if ([...query.keys()].some(key => !allowed.has(key)) || [...allowed].some(key => key !== "propertyId" && query.getAll(key).length > 1)) throw new LocalDepositExportError(400, "Explicit local report scope required.");
       const parsed = z.strictObject({ propertyIds: z.array(z.uuid()).min(1).max(100), unitId: z.uuid().optional(),
         periodStart: z.iso.date(), periodEnd: z.iso.date(), format: z.enum(["pdf", "xlsx"]),
@@ -40,6 +41,7 @@ export function createLocalDepositExportHandler(dependencies: LocalDepositExport
       const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
       if (new Set(scope.propertyIds).size !== scope.propertyIds.length || scope.unitId && scope.propertyIds.length !== 1
         || start.getUTCDate() !== 1 || end !== scope.periodEnd) throw new LocalDepositExportError(400, "Explicit monthly property/unit scope required.");
+      return await withFinancialDownloadContext(membership.organizationId, request, async () => {
       const client = await dependencies.client();
       const reportScope = {
         actorId: user.id, organizationId: membership.organizationId, propertyIds: scope.propertyIds,
@@ -60,6 +62,7 @@ export function createLocalDepositExportHandler(dependencies: LocalDepositExport
           "Content-Type": scope.format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           "Content-Disposition": `attachment; filename="${report.exportFilenameBase}.${scope.format}"` },
       });
+      }, scope.periodStart);
     } catch (error) {
       return error instanceof LocalDepositExportError ? text(error.message, error.status) : text("Local report sources could not be verified.", 409);
     }

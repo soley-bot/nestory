@@ -24,7 +24,7 @@ export async function activateSetupLeaseAction(
   }
 
   const context = await requirePermission("leases.activate");
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const leaseResult = await supabase
     .from("current_leases")
     .select("status")

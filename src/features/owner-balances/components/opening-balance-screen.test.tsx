@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
 import {
   cleanup,
   fireEvent,
@@ -104,9 +105,37 @@ beforeEach(() => {
   });
 });
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("OpeningBalanceScreen", () => {
+  it.each([0, 2])("hides opening authority from generation %s under a retained generation one layout", generation => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
+    render(<FinancialWriteProvider organizationId={organizationId} context={{ generation: 1, status: "open", financial_start_date: "2026-08-01", enforced: true }}>
+      <OpeningBalanceScreen {...superAdminProps()} data={{ ...freshOwnerData(), financialGeneration: generation }} />
+    </FinancialWriteProvider>);
+    expect(screen.queryByRole("button", { name: "Start at zero" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Enter existing balances" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Owner account starting point" })).toBeTruthy();
+    expect(screen.getByText(/Reload the page to verify the financial session/)).toBeTruthy();
+  });
+  it("removes an open starting balance dialog and cached authority when the session changes", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
+    const user = userEvent.setup();
+    const context = { generation: 1, status: "open" as const, financial_start_date: "2026-08-01", enforced: true };
+    const view = (generation: number) => <FinancialWriteProvider organizationId={organizationId} context={{ ...context, generation }}>
+      <OpeningBalanceScreen {...superAdminProps()} data={freshOwnerData()} />
+    </FinancialWriteProvider>;
+    const { rerender } = render(view(1));
+    await user.click(screen.getByRole("button", { name: "Enter existing balances" }));
+    expect(screen.getByRole("dialog", { name: "Enter existing balances" })).toBeTruthy();
+    rerender(view(2));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start at zero" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Owner account starting point" })).toBeTruthy();
+    expect(screen.getByText(/Reload the page to verify the financial session/)).toBeTruthy();
+    expect(mocks.initial).not.toHaveBeenCalled();
+  });
+
   it("uses contextual labels when names are missing while retaining the submitted identities", async () => {
     const user = userEvent.setup();
     const { container } = renderScreen({ ...superAdminProps(), data: freshOwnerData(), ownerOptions: [], propertyOptions: [] });

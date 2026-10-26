@@ -40,6 +40,7 @@ describe("PropertiesPage creation scope", () => {
       { id: "branch-a", label: "Central" },
     ]);
     getPropertiesScreenData.mockResolvedValue({
+      financialGeneration: 2,
       pagination: { totalCount: 0 },
       properties: [],
     });
@@ -57,6 +58,7 @@ describe("PropertiesPage creation scope", () => {
     const screen = await PropertiesPage({ searchParams: Promise.resolve({}) });
 
     expect(getActivePropertyBranchOptions).toHaveBeenCalledWith("organization-1");
+    expect(screen.props.financialGeneration).toBe(2);
     expect(screen.props.creationBranchOptions).toEqual([
       { id: "branch-a", label: "Central" },
     ]);

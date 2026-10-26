@@ -1,19 +1,47 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getOverviewScreenData } from "@/features/overview/data/overview";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { createOverviewFixture, fixtureOrganizationId, type OverviewFixtureResult } from "./overview.test-fixture";
 
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: vi.fn() }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialReadContext: vi.fn() }));
 
 const query = { financeView: "collections", lens: "all", month: "2026-10", propertyId: "all", review: "all" } as const;
 const property = { id: "property-1", code: "ONE", name: "One", rental_structure: "multi_unit" };
 
 describe("overview complete scoped reads", () => {
   beforeEach(() => {
+    vi.mocked(withFinancialReadContext).mockImplementation(async (_organizationId, read) => read({ generation: 0, status: "open", financial_start_date: null, enforced: false }));
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-14T18:00:00.000Z")); // Oct 15 in Cambodia.
   });
   afterEach(() => vi.useRealTimers());
+
+  it("rejects an unverifiable financial session before loading dashboard amounts", async () => {
+    vi.mocked(createSupabaseServerClient).mockClear();
+    vi.mocked(withFinancialReadContext).mockRejectedValueOnce(new Error("Financial data changed"));
+    await expect(getOverviewScreenData(fixtureOrganizationId, query)).rejects.toThrow("Financial data changed");
+    expect(createSupabaseServerClient).not.toHaveBeenCalled();
+  });
+
+  it("starts dashboard cash history at the reset cutoff without inventing empty historical or future months", async () => {
+    vi.mocked(withFinancialReadContext).mockImplementationOnce(async (_organizationId, read) => read({ generation: 3, status: "open", financial_start_date: "2026-10-01", enforced: true }));
+    const fixture = createOverviewFixture({ ledger_entries: { data: [
+      { id: "old", direction: "expense", amount: 2000, currency: "USD", transaction_date: "2026-09-30" },
+      { id: "current", direction: "income", amount: 75, currency: "USD", transaction_date: "2026-10-02" },
+    ] } });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(fixture.client);
+    const result = await getOverviewScreenData(fixtureOrganizationId, query);
+    expect(result.financialGeneration).toBe(3);
+    expect(result.workspaceSetup.ledgerEntryCount).toBe(1);
+    expect(result.ledgerFlow).toHaveLength(1);
+    expect(result.ledgerFlow[0]).toMatchObject({ label: "Oct", income: 75, expense: 0 });
+    for (const request of fixture.requests.filter((request) => request.table === "ledger_entries")) {
+      expect(request.filters).toContainEqual({ column: "transaction_date", operator: "gte", value: "2026-10-01" });
+    }
+    expect(withFinancialReadContext).toHaveBeenCalledWith(fixtureOrganizationId, expect.any(Function), "2026-10-01");
+  });
 
   it("includes every row beyond 1,000 under a lower server cap and isolates organizations", async () => {
     const many = Array.from({ length: 1_005 }, (_, index) => String(index).padStart(5, "0"));

@@ -1,4 +1,6 @@
 "use client";
+
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SelectControl } from "@/components/ui/select-control";
@@ -41,7 +43,7 @@ function OwnerCashForm({ scope, propertyId, correction, onClose, onSuccess }: {
   const [key] = useState(() => `owner-cash-${globalThis.crypto.randomUUID()}`);
   const [state, action, pending] = useActionState(correction ? correctOwnerDistributionDateAction : recordOwnerContributionAction, { status: "idle" } as OwnerCashActionState);
   useEffect(() => { if (state.status === "success") { onSuccess(state.message ?? "Saved."); router.refresh(); } }, [state, onSuccess, router]);
-  return <form action={action} onReset={event => event.preventDefault()} className="space-y-4">
+  return <FinancialForm action={action} onReset={event => event.preventDefault()} className="space-y-4">
     <input name="propertyId" type="hidden" value={scope?.propertyId ?? propertyId} />
     <input name="idempotencyKey" type="hidden" value={key} />
     {correction ? <>
@@ -58,5 +60,5 @@ function OwnerCashForm({ scope, propertyId, correction, onClose, onSuccess }: {
     <label className="grid gap-1 text-sm">Reason<Input aria-label="Reason" name="reason" required minLength={correction ? 8 : 3} maxLength={500} /></label>
     {state.status === "error" ? <p role="alert" className="text-sm text-destructive">{state.message}</p> : null}
     <div className="flex justify-end gap-2 border-t pt-3"><Button type="button" variant="outline" onClick={onClose} disabled={pending}>Cancel</Button><Button type="submit" disabled={pending}>{pending ? "Saving…" : correction ? "Confirm date correction" : "Record contribution"}</Button></div>
-  </form>;
+  </FinancialForm>;
 }

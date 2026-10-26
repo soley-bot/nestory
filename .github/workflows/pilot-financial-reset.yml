@@ -1,0 +1,135 @@
+name: Pilot financial reset
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: One reviewed fixed action; never automatically retry
+        type: choice
+        options: [inspect, reconcile, freeze, checkpoint, prepare, seal, execute, prepare-recovery, execute-recovery, reopen, complete-receipt]
+        default: inspect
+        required: true
+      operation_id:
+        description: Original reviewed operation UUID
+        required: true
+        type: string
+      packet_sha256:
+        description: Reviewed packet digest
+        required: true
+        type: string
+      descriptors_sha256:
+        description: Reviewed input descriptor digest for the enrolled execution mode
+        required: true
+        type: string
+      authority_sha256:
+        description: Independently approved exact operation authority digest
+        required: true
+        type: string
+      authorization_id:
+        description: Existing DB authorization UUID, or none for reads, reopening and receipt completion
+        required: true
+        default: none
+        type: string
+      reconcile_action:
+        description: Original action for reconciliation or receipt completion, otherwise none
+        required: true
+        default: none
+        type: choice
+        options: [none, freeze, checkpoint, prepare, seal, execute, prepare-recovery, execute-recovery, reopen]
+
+permissions: {}
+
+jobs:
+  operation:
+    name: Pilot financial reset
+    if: github.ref == 'refs/heads/main' && github.workflow_sha == github.sha && vars.PILOT_RESET_EXECUTION_ENABLED == 'reviewed-operation-only'
+    # Routing is not provider authority. This label is an optional preprovisioned
+    # POSIX route; no runner is created/enrolled by this workflow or preparation.
+    runs-on: [self-hosted, linux, x64, nestory-reset-protected]
+    timeout-minutes: 30
+    environment: production-database
+    concurrency:
+      group: production-supabase
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - name: Check out exact reviewed main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Verify clean tracked runtime before private inputs
+        shell: bash
+        env:
+          NODE_OPTIONS: ''
+          NODE_PATH: ''
+          BASH_ENV: ''
+          ENV: ''
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain --untracked-files=all)"
+          git ls-files --error-unmatch \
+            .github/workflows/pilot-financial-reset.yml \
+            scripts/pilot-finance-reset-hosted-runner.mjs \
+            scripts/pilot-finance-reset-hosted-reconcile.mjs \
+            scripts/pilot-finance-reset-hosted-workflow-core.mjs \
+            scripts/pilot-finance-reset-hosted-actor.mjs \
+            scripts/pilot-finance-reset-hosted-transport.mjs \
+            scripts/pilot-finance-reset-hosted-transport-protocol.mjs \
+            scripts/pilot-finance-reset-hosted-protocol.mjs \
+            scripts/pilot-finance-reset-operator-core.mjs \
+            scripts/pilot-finance-reset-durable-store.mjs \
+            scripts/pilot-finance-reset-encrypted-artifacts.mjs \
+            scripts/pilot-finance-reset-recovery-artifact-reader.mjs \
+            scripts/pilot-finance-reset-executor-local.mjs \
+            scripts/pilot-finance-reset-executor-plan.mjs \
+            scripts/pilot-finance-reset-retired-journal-core.mjs \
+            scripts/pilot-finance-reset-no-backup-core.mjs \
+            scripts/pilot-finance-reset-no-backup-runtime.mjs \
+            scripts/pilot-finance-reset-no-backup-transport.mjs \
+            scripts/pilot-finance-reset-no-backup-reader.mjs \
+            scripts/pilot-finance-reset-current-session.mjs \
+            scripts/pilot-finance-reset-reopening-protocol.mjs \
+            scripts/pilot-finance-reset-core.mjs \
+            scripts/pilot-finance-reset-recovery-core.mjs \
+            scripts/pilot-finance-reset-registry.mjs \
+            scripts/local-recovery-docker.mjs \
+            scripts/ips-readiness-recovery-core.mjs \
+            scripts/hosted-migration-parity-core.mjs >/dev/null
+
+      - name: Run the single approved action through fixed providers
+        shell: bash
+        env:
+          NODE_OPTIONS: ''
+          NODE_PATH: ''
+          BASH_ENV: ''
+          ENV: ''
+          GH_TOKEN: ${{ github.token }}
+          PILOT_RESET_CONFIG_SHA256: ${{ vars.PILOT_RESET_CONFIG_SHA256 }}
+          # Used only by the legacy reviewed-backup route; v2 drops this input.
+          PILOT_RESET_ENCRYPTION_KEY: ${{ secrets.PILOT_RESET_ENCRYPTION_KEY }}
+          RESET_ACTION: ${{ inputs.action }}
+          RESET_OPERATION_ID: ${{ inputs.operation_id }}
+          RESET_PACKET_SHA256: ${{ inputs.packet_sha256 }}
+          RESET_DESCRIPTORS_SHA256: ${{ inputs.descriptors_sha256 }}
+          RESET_AUTHORITY_SHA256: ${{ inputs.authority_sha256 }}
+          RESET_AUTHORIZATION_ID: ${{ inputs.authorization_id }}
+          RESET_RECONCILE_ACTION: ${{ inputs.reconcile_action }}
+        run: |
+          set -euo pipefail
+          node scripts/pilot-finance-reset-hosted-runner.mjs \
+            --action "$RESET_ACTION" \
+            --operation-id "$RESET_OPERATION_ID" \
+            --packet-sha256 "$RESET_PACKET_SHA256" \
+            --descriptors-sha256 "$RESET_DESCRIPTORS_SHA256" \
+            --authority-sha256 "$RESET_AUTHORITY_SHA256" \
+            --authorization-id "$RESET_AUTHORIZATION_ID" \
+            --reconcile-action "$RESET_RECONCILE_ACTION"

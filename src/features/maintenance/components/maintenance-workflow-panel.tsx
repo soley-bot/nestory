@@ -1,5 +1,6 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
 import { UploadFileInput } from "@/components/ui/upload-file-input";
 import { useActionState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -174,7 +175,7 @@ function MaintenanceCostHandoffPanel({
             : "You can still finish the work."}
         </p>
       ) : (
-        <form action={action} className="space-y-3 rounded-md border border-border bg-card p-3">
+        <FinancialForm action={action} className="space-y-3 rounded-md border border-border bg-card p-3">
           {isApprovedAdjustment ? (
             <p className="text-xs leading-5 text-muted-foreground">
               Approved history stays unchanged. Update the recorded total in
@@ -247,7 +248,7 @@ function MaintenanceCostHandoffPanel({
               ? "Submit cost adjustment"
               : "Submit cost to Finance"}
           </Button>
-        </form>
+        </FinancialForm>
       )}
     </div>
   );
@@ -333,7 +334,7 @@ function CoordinatedExecutionPanel({
       ) : null}
       {availableActions.includes("block") && availableActions.includes("complete") ? (
         <>
-          <form action={action} className="space-y-2 rounded-md border border-border bg-card p-3">
+          <FinancialForm action={action} className="space-y-2 rounded-md border border-border bg-card p-3">
             <input name="taskId" type="hidden" value={maintenanceCase.id} />
             <input name="coordinatedAction" type="hidden" value="block" />
             <label className="block text-sm font-medium" htmlFor={`coordinated-block-${maintenanceCase.id}`}>
@@ -355,8 +356,8 @@ function CoordinatedExecutionPanel({
             <Button disabled={pending} type="submit">
               <Pause size={14} /> Mark coordinated work blocked
             </Button>
-          </form>
-          <form action={action} className="space-y-2 rounded-md border border-border bg-card p-3">
+          </FinancialForm>
+          <FinancialForm action={action} className="space-y-2 rounded-md border border-border bg-card p-3">
             <input name="taskId" type="hidden" value={maintenanceCase.id} />
             <input name="coordinatedAction" type="hidden" value="complete" />
             <label className="block text-sm font-medium" htmlFor={`coordinated-complete-${maintenanceCase.id}`}>
@@ -378,7 +379,7 @@ function CoordinatedExecutionPanel({
             <Button disabled={pending} type="submit" variant="default">
               <CheckCircle2 size={14} /> Complete coordinated work
             </Button>
-          </form>
+          </FinancialForm>
         </>
       ) : null}
       {state.fieldErrors?.coordinatedNote?.[0] ? (
@@ -451,7 +452,7 @@ function MemberExecutionPanel({
           {maintenanceCase.checklist.length === 0 ? (
             <p className="text-sm text-muted-foreground">No checklist items were assigned.</p>
           ) : maintenanceCase.checklist.map((item) => (
-            <form action={action} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-2" key={item.id}>
+            <FinancialForm action={action} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-2" key={item.id}>
               <input name="taskId" type="hidden" value={maintenanceCase.id} />
               <input name="executionAction" type="hidden" value="set_checklist_item" />
               <input name="checklistItemId" type="hidden" value={item.id} />
@@ -460,13 +461,13 @@ function MemberExecutionPanel({
               <Button disabled={pending || maintenanceCase.status === "blocked"} type="submit">
                 {item.completed ? "Reopen" : "Mark done"}
               </Button>
-            </form>
+            </FinancialForm>
           ))}
         </div>
       ) : null}
       {maintenanceCase.status === "in_progress" ? (
         <>
-          <form action={action} className="space-y-2 rounded-md border border-border bg-card p-3">
+          <FinancialForm action={action} className="space-y-2 rounded-md border border-border bg-card p-3">
             <input name="taskId" type="hidden" value={maintenanceCase.id} />
             <input name="executionAction" type="hidden" value="block" />
             <label className="block text-sm font-medium" htmlFor={`blocked-${maintenanceCase.id}`}>Blocker</label>
@@ -479,7 +480,7 @@ function MemberExecutionPanel({
               title="Block work consequence"
             />
             <Button disabled={pending} type="submit"><AlertTriangle size={14} /> Mark blocked</Button>
-          </form>
+          </FinancialForm>
           <ActionConsequence
             maintenanceCase={maintenanceCase}
             notification="Workspace handoff only"
@@ -519,7 +520,7 @@ function CompletionReviewPanel({
   }, [onStatusMessage, router, state.message, state.status]);
 
   return (
-    <form action={action} className="space-y-3 border-t border-border pt-3">
+    <FinancialForm action={action} className="space-y-3 border-t border-border pt-3">
       <input name="taskId" type="hidden" value={maintenanceCase.id} />
       <p className="text-sm font-semibold">Completion review</p>
       <TransitionConsequence
@@ -541,7 +542,7 @@ function CompletionReviewPanel({
         <Button disabled={pending} name="reviewAction" type="submit" value="reopen"><CornerUpLeft size={14} /> Return to assignee</Button>
       </div>
       {state.status === "error" && state.message ? <p className="text-sm text-danger" role="alert">{state.message}</p> : null}
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -554,11 +555,11 @@ function ExecutionButton({ action, actionName, children, disabled, primary, task
   taskId: string;
 }) {
   return (
-    <form action={action}>
+    <FinancialForm action={action}>
       <input name="taskId" type="hidden" value={taskId} />
       <input name="executionAction" type="hidden" value={actionName} />
       <Button disabled={disabled} type="submit" variant={primary ? "default" : "secondary"}>{children}</Button>
-    </form>
+    </FinancialForm>
   );
 }
 
@@ -570,11 +571,11 @@ function CoordinatedButton({ action, actionName, children, disabled, taskId }: {
   taskId: string;
 }) {
   return (
-    <form action={action}>
+    <FinancialForm action={action}>
       <input name="taskId" type="hidden" value={taskId} />
       <input name="coordinatedAction" type="hidden" value={actionName} />
       <Button disabled={disabled} type="submit" variant="secondary">{children}</Button>
-    </form>
+    </FinancialForm>
   );
 }
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import {
   forwardRef,
   useEffect,
@@ -146,7 +148,7 @@ export const AppearanceEditor = forwardRef<
           />
         </CardHeader>
         <CardContent className="p-0 [&_button]:min-h-11">
-          <form
+          <FinancialForm
             onSubmit={(event) => {
               event.preventDefault();
               void draft.submit((field) => {
@@ -322,7 +324,7 @@ export const AppearanceEditor = forwardRef<
               status={draft.status}
               statusMessage={draft.statusMessage}
             />
-          </form>
+          </FinancialForm>
         </CardContent>
       </Card>
     </div>

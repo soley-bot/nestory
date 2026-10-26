@@ -1,4 +1,5 @@
 "use server";
+import { financialWriteError } from "@/lib/finance/financial-write-context";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -218,7 +219,7 @@ export async function createMaintenanceCaseAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const checklist = parseMaintenanceChecklistText(parsed.data.checklistText);
   const { error } = await supabase.rpc("create_maintenance_task", {
     p_category: parsed.data.category,
@@ -286,7 +287,7 @@ export async function updateMaintenanceCaseAction(
     return invalidFormState(parsed.error);
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const checklist = parseMaintenanceChecklistText(parsed.data.checklistText);
   const { error } = await supabase.rpc("update_maintenance_task", {
     p_actual_cost_amount: parsed.data.actualCostAmount,
@@ -357,7 +358,7 @@ export async function submitMaintenanceCostAction(
   }
 
   const context = await requirePermission("maintenance.review");
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getMaintenancePathContext(
     supabase,
     context.organizationId,
@@ -416,6 +417,7 @@ export async function submitMaintenanceCostAction(
 export async function updateMaintenanceStatusAction(
   taskId: string,
   status: MaintenanceStatus,
+  financialIntent?: FormData,
 ): Promise<MaintenanceActionState> {
   const context = await requirePermission("maintenance.create_assign");
   const capabilities = getMaintenanceCapabilities(context);
@@ -437,7 +439,7 @@ export async function updateMaintenanceStatusAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(financialIntent);
   const { data: task, error: taskError } = await supabase
     .from("tasks")
     .select(
@@ -588,7 +590,7 @@ async function updateMaintenanceArchiveState({
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getMaintenancePathContext(
     supabase,
     context.organizationId,
@@ -650,7 +652,7 @@ export async function executeAssignedMaintenanceTaskAction(
     return { message: "Choose a checklist item.", status: "error" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getMaintenancePathContext(
     supabase,
     context.organizationId,
@@ -727,7 +729,7 @@ export async function executeCoordinatedMaintenanceTaskAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getMaintenancePathContext(
     supabase,
     context.organizationId,
@@ -785,7 +787,7 @@ export async function reviewMaintenanceCompletionAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getMaintenancePathContext(
     supabase,
     context.organizationId,
@@ -885,6 +887,7 @@ function revalidateMaintenancePaths({
 }
 
 function maintenanceActionErrorMessage(message: string) {
+  const lifecycle = financialWriteError(message); if (lifecycle) return lifecycle;
   if (message.includes("Property not found")) {
     return "Choose an active property.";
   }

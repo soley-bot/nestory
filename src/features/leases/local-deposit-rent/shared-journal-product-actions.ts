@@ -4,14 +4,14 @@ import { createDormantSharedJournalModalSession } from "./shared-journal-modal-s
 import { createOrdinarySharedJournalModalSession } from "./shared-journal-modal-session";
 import { revalidatePath } from "next/cache";
 
-export async function listDepositRent(leaseId: string) {
-  return createOrdinarySharedJournalModalSession().list(leaseId);
+export async function listDepositRent(leaseId: string, financialIntent?: FormData) {
+  return createOrdinarySharedJournalModalSession(financialIntent).list(leaseId);
 }
-export async function previewDepositRent(draft: DepositRentDraft) {
-  return createOrdinarySharedJournalModalSession().preview(draft);
+export async function previewDepositRent(draft: DepositRentDraft, financialIntent?: FormData) {
+  return createOrdinarySharedJournalModalSession(financialIntent).preview(draft);
 }
-export async function confirmDepositRent(input: { leaseId: string; token: string; idempotencyKey: string }) {
-  const result = await createOrdinarySharedJournalModalSession().confirm(input);
+export async function confirmDepositRent(input: { leaseId: string; token: string; idempotencyKey: string }, financialIntent?: FormData) {
+  const result = await createOrdinarySharedJournalModalSession(financialIntent).confirm(input);
   if (result.status === "success") {
     for (const path of ["/leases", "/rent", "/ledger", "/balances", "/reports", "/timeline"]) revalidatePath(path);
   }

@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+const { downloadBoundary } = vi.hoisted(() => ({ downloadBoundary: vi.fn() }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialDownloadContext: downloadBoundary }));
+beforeEach(() => { downloadBoundary.mockReset(); downloadBoundary.mockImplementation(async (_org, _request, read) => read()); });
 import { strFromU8, unzipSync } from "fflate";
 import { createLocalDepositExportHandler, LOCAL_DEPOSIT_EXPORT_ENABLED } from "./deposit-rent-local-export";
 import { loadLocalDepositReport, type LocalDepositClient } from "./deposit-rent-local-source";
@@ -42,6 +45,20 @@ function harness(change?: (data: ReturnType<typeof fixture>)=>void, options: {me
 function request(format="xlsx",extra="") {return new Request(`http://local.test/local-validation?propertyId=${property}&unitId=${unit}&from=2026-10-01&to=2026-10-31&format=${format}${extra}`);}
 
 describe("unmounted, disabled local source/client/export integration",()=>{
+  it("rejects stale download intent before any deposit source read and checks the monthly cutoff", async () => {
+    downloadBoundary.mockRejectedValueOnce(new Error("The financial session changed"));
+    const h = harness(); const req = request("xlsx", "&financialGeneration=1");
+    expect((await h.handle(req)).status).toBe(409);
+    expect(downloadBoundary).toHaveBeenCalledWith(org, req, expect.any(Function), "2026-10-01");
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+  it("withholds rendered bytes when sources change during export", async () => {
+    downloadBoundary.mockImplementationOnce(async (_org, _request, read) => { await read(); throw new Error("Financial data changed"); });
+    const h = harness(); const response = await h.handle(request());
+    expect(response.status).toBe(409);
+    expect(response.headers.get("Content-Type")).toContain("text/plain");
+    expect(h.rpc).toHaveBeenCalled();
+  });
   it.each(["pdf", "xlsx"])("exports only settlements, without paired custody amount rows in %s", async format => {
     const h=harness(data=>{ data.context.deposit_events[0].event_date="2026-10-01"; data.packet.events[0].event_date="2026-10-01"; });
     const response=await h.handle(request(format));expect(response.status).toBe(200);

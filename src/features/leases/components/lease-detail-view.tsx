@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
+
 import Link from "next/link";
 import { useActionState, useState, type ReactNode } from "react";
 import { FilePlus2 } from "lucide-react";
@@ -67,6 +69,7 @@ export function LeaseDetailView({
     <div className="workspace-gutter-x flex flex-col gap-5 pb-12">
       <LeaseRecordNav activeSection={activeSection} leaseId={lease.id} returnTo={returnTo} />
 
+      <FinancialReportBoundary expectedGeneration={lease.financialGeneration}>
       <div aria-label="Lease record details" className="min-w-0" role="region">
         {activeSection === "overview" ? (
           <LeaseOverview
@@ -93,6 +96,7 @@ export function LeaseDetailView({
           <LeaseFilesAndHistory lease={lease} onAttachFile={onAttachFile} />
         ) : null}
       </div>
+      </FinancialReportBoundary>
     </div>
   );
 }
@@ -207,7 +211,7 @@ function LeaseOverview({
           ) : null}
           {permissions.canChangeTerms &&
           !lease.isArchived &&
-          lease.statusValue === "active" ? (
+          lease.statusValue === "active" && !lease.terms.some(term => term.endDate === "infinity" && term.status === "active") ? (
             <Button onClick={() => onScheduleTerm("renewal")}>
               Renew lease
             </Button>
@@ -523,7 +527,7 @@ function LeaseOccupancy({
             id="occupancy-evidence-heading"
             title="Move-in confirmation"
           />
-          <form
+          <FinancialForm
             action={recordEvidence}
             className="mt-3 grid gap-3 border-y border-border py-4 sm:grid-cols-2 lg:grid-cols-4"
           >
@@ -569,7 +573,7 @@ function LeaseOccupancy({
                 {pending ? "Saving..." : "Confirm move-in"}
               </Button>
             </div>
-          </form>
+          </FinancialForm>
         </section>
       ) : null}
     </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { FinancialForm } from "@/lib/finance/financial-write-provider";
+
 import { matchesSearchText } from "@/lib/search/text";
 
 import { startTransition, useActionState, useMemo, useState } from "react";
@@ -443,7 +445,7 @@ function RecordLifecycleForm({
   state: FinanceAccountActionState;
 }) {
   return (
-    <form
+    <FinancialForm
       className="flex h-full flex-col"
       onSubmit={(event) => {
         event.preventDefault();
@@ -469,7 +471,7 @@ function RecordLifecycleForm({
           {pending ? "Saving" : saveLabel}
         </Button>
       </div>
-    </form>
+    </FinancialForm>
   );
 }
 

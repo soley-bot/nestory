@@ -4,7 +4,7 @@ import { parseReportSearchParams } from "../reports.filters";
 
 const mocks = vi.hoisted(() => ({ context: vi.fn(), events: vi.fn(), client: vi.fn() }));
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: mocks.client }));
-vi.mock("@/features/finance-operations/data/scoped-finance-context", async (importOriginal) => ({ ...await importOriginal<typeof import("@/features/finance-operations/data/scoped-finance-context")>(), loadScopedFinanceContext: mocks.context }));
+vi.mock("@/features/finance-operations/data/scoped-finance-context", async (importOriginal) => ({ ...await importOriginal<typeof import("@/features/finance-operations/data/scoped-finance-context")>(), loadScopedFinanceContext: async (...args: unknown[]) => ({ leases: [], terms: [], owner_assignments: [], people: [], ...await mocks.context(...args) }) }));
 vi.mock("./owner-profit-loss-events", () => ({ iterateOwnerProfitLossEvents: mocks.events }));
 vi.mock("./profit-loss-funding-loader", () => ({ loadProfitLossFunding: async () => ({ contributionCents: BigInt(0), remainingBalanceCents: BigInt(0) }) }));
 const property = "11111111-1111-4111-8111-111111111111";
@@ -102,3 +102,5 @@ describe("financial report scope guard", () => {
     expect(result.scopeValidation).toBeUndefined();
   });
 });
+
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ withFinancialReadContext: async (_org: string, read: (context: unknown) => Promise<unknown>) => read({ generation: 0, status: "open", financial_start_date: null, enforced: false }) }));
