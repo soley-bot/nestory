@@ -16,6 +16,7 @@ const tables = Object.entries(RESET_REGISTRY).sort(([a], [b]) => a.localeCompare
 const operationFields = ['operation_id','organization_id','operation_kind','restore_of','source_generation','target_generation',
   'manifest_sha256','plan_sha256','schema_sha256','archive_sha256','action_sha256','archive_count','action_count','audit_timestamp','audit_actor'].sort();
 const cyclePatches = {
+  'public.expense_transactions': { replaces_transaction_id: null },
   'public.finance_expense_items': { ledger_entry_id: null },
   'public.finance_payment_allocations': { ledger_entry_id: null },
   'public.finance_receipt_allocations': { ledger_entry_id: null },
@@ -74,22 +75,33 @@ fk_descriptors AS (SELECT c.oid constraint_oid,c.conname,c.confmatchtype,c.conre
   ARRAY(SELECT a.attname::text FROM unnest(c.conkey) WITH ORDINALITY k(n,i) JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=k.n ORDER BY k.i) columns,
   ARRAY(SELECT a.attname::text FROM unnest(c.confkey) WITH ORDINALITY k(n,i) JOIN pg_attribute a ON a.attrelid=c.confrelid AND a.attnum=k.n ORDER BY k.i) target_columns
   FROM pg_constraint c WHERE c.contype='f'),
+fk_source_keys AS MATERIALIZED (SELECT f.constraint_oid,s.row_key,
+ ARRAY(SELECT s.row_json->k FROM unnest(f.columns) WITH ORDINALITY u(k,n) ORDER BY n) key_values
+ FROM fk_descriptors f JOIN rows s ON s.relation_oid=f.conrelid),
+fk_target_keys AS MATERIALIZED (SELECT f.constraint_oid,t.row_key,
+ ARRAY(SELECT t.row_json->k FROM unnest(f.target_columns) WITH ORDINALITY u(k,n) ORDER BY n) key_values
+ FROM fk_descriptors f JOIN rows t ON t.relation_oid=f.confrelid),
+staged_fk_sources AS MATERIALIZED (SELECT f.constraint_oid,i.row_key FROM images i JOIN fk_descriptors f ON f.conrelid=i.relation_oid WHERE i.disposition='archive-remove' AND cardinality(i.changed_columns)>0 AND
+ EXISTS(SELECT 1 FROM unnest(f.columns) k WHERE i.row_json->>k IS NOT NULL AND i.after_json->>k IS NULL)
+ AND (f.confmatchtype='s' OR f.confmatchtype='f' AND NOT EXISTS(SELECT 1 FROM unnest(f.columns) k WHERE i.after_json->>k IS NOT NULL))),
 physical_edges AS (SELECT s.row_key source_key,t.row_key target_key,'foreign-key'::text kind,f.conname::text column_name,
   s.organization_id source_org,t.organization_id target_org,
-  EXISTS(SELECT 1 FROM images i WHERE i.row_key=s.row_key AND i.disposition='archive-remove' AND cardinality(i.changed_columns)>0 AND
-    EXISTS(SELECT 1 FROM unnest(f.columns) k WHERE i.row_json->>k IS NOT NULL AND i.after_json->>k IS NULL)
-    AND (f.confmatchtype='s' OR f.confmatchtype='f' AND NOT EXISTS(SELECT 1 FROM unnest(f.columns) k WHERE i.after_json->>k IS NOT NULL))) staged
-  FROM fk_descriptors f JOIN rows s ON s.relation_oid=f.conrelid JOIN rows t ON t.relation_oid=f.confrelid
+  EXISTS(SELECT 1 FROM staged_fk_sources z WHERE z.constraint_oid=f.constraint_oid AND z.row_key=s.row_key) staged
+  FROM fk_source_keys sk JOIN fk_target_keys tk ON tk.constraint_oid=sk.constraint_oid AND tk.key_values=sk.key_values
+  JOIN fk_descriptors f ON f.constraint_oid=sk.constraint_oid
+  JOIN rows s ON s.row_key=sk.row_key JOIN rows t ON t.row_key=tk.row_key
   WHERE NOT EXISTS(SELECT 1 FROM generate_subscripts(f.columns,1) n WHERE s.row_json->>f.columns[n] IS NULL
     OR s.row_json->f.columns[n] IS DISTINCT FROM t.row_json->f.target_columns[n])),
 static_rules AS (SELECT * FROM jsonb_to_recordset(${jsonSql(staticRefs)}) x("table" text,"column" text,target text,historical boolean,seed boolean)),
 poly_rules AS (SELECT * FROM jsonb_to_recordset(${jsonSql(polyRefs)}) x("table" text,"column" text,type_column text,kind text,targets jsonb,historical boolean)),
-logical_refs AS (SELECT s.row_key,s.organization_id,s.relation_name,s.row_json,r."column" column_name,r.target,
+logical_refs AS MATERIALIZED (SELECT s.row_key,s.organization_id,s.relation_name,s.row_json,r."column" column_name,r.target,
   r.historical,r.seed,false polymorphic FROM rows s JOIN static_rules r ON r."table"=s.relation_name WHERE s.row_json->>r."column" IS NOT NULL
   UNION ALL SELECT s.row_key,s.organization_id,s.relation_name,s.row_json,r."column",t.value,r.historical,false,true
   FROM rows s JOIN poly_rules r ON r."table"=s.relation_name AND s.row_json->>r.type_column=r.kind
   CROSS JOIN LATERAL jsonb_array_elements_text(r.targets) t WHERE s.row_json->>r."column" IS NOT NULL),
-logical_edges AS (SELECT r.row_key source_key,t.row_key target_key,'logical-reference'::text kind,r.column_name,
+logical_row_counts AS MATERIALIZED (SELECT rr.row_key,rr.column_name,count(DISTINCT t.row_key) n FROM logical_refs rr JOIN rows t ON t.relation_name=rr.target AND t.row_json->>'id'=rr.row_json->>rr.column_name GROUP BY rr.row_key,rr.column_name),
+logical_auth_counts AS MATERIALIZED (SELECT rr.row_key,rr.column_name,count(*) n FROM logical_refs rr JOIN auth.users u ON rr.target='auth.users' AND u.id::text=rr.row_json->>rr.column_name GROUP BY rr.row_key,rr.column_name),
+logical_edges AS MATERIALIZED (SELECT r.row_key source_key,t.row_key target_key,'logical-reference'::text kind,r.column_name,
   r.organization_id source_org,t.organization_id target_org,false staged
   FROM logical_refs r JOIN rows t ON t.relation_name=r.target AND t.row_json->>'id'=r.row_json->>r.column_name
   WHERE NOT r.historical),
@@ -99,24 +111,41 @@ retired AS (SELECT r.row_key FROM selected r WHERE
   OR r.relation_name='app_private.finance_category_idempotency_result_seals' AND EXISTS(SELECT 1 FROM selected p
     WHERE p.relation_name='app_private.financial_idempotency_requests' AND p.row_json->>'status'='completed' AND p.row_json->>'financial_generation'='0'
     AND p.row_json->'organization_id'=r.row_json->'organization_id' AND p.row_json->'operation'=r.row_json->'operation'
-    AND p.row_json->'idempotency_key'=r.row_json->'idempotency_key')),
-temporary_logical AS (SELECT e.source_key,e.target_key FROM logical_edges e JOIN selected s ON s.row_key=e.source_key JOIN selected t ON t.row_key=e.target_key
+    AND p.row_json->'idempotency_key'=r.row_json->'idempotency_key')
+ OR r.relation_name='app_private.tenant_commercial_document_upload_attestations'
+ AND r.row_json->'financial_generation'='0'::jsonb
+ AND r.row_json->>'consumed_at' IS NOT NULL AND r.row_json->>'consumed_by' IS NOT NULL
+ AND r.row_json->'consumed_by'=r.row_json->'attested_by'
+ AND (r.row_json->>'attested_at')::timestamptz <= (r.row_json->>'consumed_at')::timestamptz
+ AND EXISTS(SELECT 1 FROM selected a WHERE a.relation_name='public.tenant_commercial_document_artifacts' AND a.disposition='archive-remove'
+ AND a.row_json->'organization_id'=r.row_json->'organization_id' AND a.row_json->'source_kind'=r.row_json->'source_kind'
+ AND a.row_json->'source_id'=r.row_json->'source_id' AND a.row_json->'financial_generation'='0'::jsonb
+ AND a.row_json->>'publication_status'='published' AND a.row_json->>'content_type'='application/pdf'
+ AND a.row_json->'published_by'=r.row_json->'consumed_by' AND a.row_json->'published_at'=r.row_json->'consumed_at'
+ AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['storage_path','storage_object_id','storage_object_version','size_bytes','sha256','renderer_version']) k
+ WHERE r.row_json->>k IS NULL OR r.row_json->k IS DISTINCT FROM a.row_json->k)
+ AND r.row_json->>'presentation_snapshot_sha256'=app_private.tenant_commercial_document_snapshot_sha256(a.row_json->'presentation_snapshot'))
+ AND EXISTS(SELECT 1 FROM selected src WHERE src.disposition='archive-remove'
+ AND src.relation_name=CASE r.row_json->>'source_kind' WHEN 'invoice' THEN 'public.tenant_invoices' WHEN 'receipt' THEN 'public.tenant_invoice_payments' END
+ AND src.row_json->'organization_id'=r.row_json->'organization_id' AND src.row_json->'id'=r.row_json->'source_id'
+ AND src.row_json->'financial_generation'='0'::jsonb)),
+temporary_logical AS MATERIALIZED (SELECT e.source_key,e.target_key FROM logical_edges e JOIN selected s ON s.row_key=e.source_key JOIN selected t ON t.row_key=e.target_key
   WHERE e.column_name='source_id' AND s.disposition='archive-remove' AND t.disposition='archive-remove'
   AND ((s.relation_name='public.ledger_entries' AND s.row_json->>'source_type'='owner_collection_allocation'
     AND t.relation_name='public.owner_collection_confirmation_allocations' AND t.row_json->'ledger_entry_id'=s.row_json->'id')
    OR (s.relation_name='public.owner_invoice_lines' AND s.row_json->>'source_type'='owner_expense'
     AND t.relation_name='public.ips_expense_responsibilities' AND t.row_json->'owner_invoice_line_id'=s.row_json->'id'))
-  AND EXISTS(SELECT 1 FROM physical_edges f WHERE f.source_key=t.row_key AND f.target_key=s.row_key)
-  AND NOT EXISTS(SELECT 1 FROM images i WHERE i.row_key IN (s.row_key,t.row_key) AND cardinality(i.changed_columns)>0)),
-historical_edges AS (SELECT a.row_key source_key,b.row_key target_key FROM selected a JOIN selected b ON a.relation_name=b.relation_name
+  AND (t.row_key,s.row_key) IN (SELECT f.source_key,f.target_key FROM physical_edges f)
+  AND NOT (s.row_key IN (SELECT i.row_key FROM images i WHERE cardinality(i.changed_columns)>0) OR t.row_key IN (SELECT i.row_key FROM images i WHERE cardinality(i.changed_columns)>0))),
+historical_edges AS MATERIALIZED (SELECT a.row_key source_key,b.row_key target_key FROM selected a JOIN selected b ON a.relation_name=b.relation_name
   AND a.relation_name='public.owner_opening_balance_entries' AND a.row_json->>'entry_kind'='correction_replacement'
   AND b.row_json->>'entry_kind'='correction_reversal' AND a.row_json->'request_id'=b.row_json->'request_id'
   UNION SELECT a.row_key,c.row_key FROM selected c JOIN selected l ON l.relation_name='public.owner_invoice_lines'
   AND l.row_json->'id'=c.row_json->'owner_invoice_line_id' AND l.row_json->>'source_type'='owner_expense'
   JOIN selected a ON a.relation_name='public.expense_customer_adjustments' AND a.row_json->'responsibility_id'=l.row_json->'source_id'
   AND a.row_json->>'responsibility'='owner' WHERE c.relation_name='public.owner_charge_cash_allocations' AND c.row_json->>'reversal_of_id' IS NULL),
-all_edges AS (SELECT * FROM physical_edges UNION ALL SELECT * FROM logical_edges),
-removal_edges AS (SELECT DISTINCT e.source_key,e.target_key FROM all_edges e JOIN selected s ON s.row_key=e.source_key
+all_edges AS MATERIALIZED (SELECT * FROM physical_edges UNION ALL SELECT * FROM logical_edges),
+removal_edges AS MATERIALIZED (SELECT DISTINCT e.source_key,e.target_key FROM all_edges e JOIN selected s ON s.row_key=e.source_key
   JOIN selected t ON t.row_key=e.target_key WHERE s.disposition='archive-remove' AND t.disposition='archive-remove' AND NOT e.staged
   AND NOT EXISTS(SELECT 1 FROM temporary_logical x WHERE x.source_key=e.source_key AND x.target_key=e.target_key AND e.kind='logical-reference')
   UNION SELECT source_key,target_key FROM historical_edges),
@@ -159,20 +188,21 @@ blockers AS (
         AND x.row_json->>'responsibility'='owner')>1) HAVING count(*)>0
   UNION ALL SELECT 'cross_organization_reference',count(*) FROM all_edges e,params p WHERE
     (e.source_org=p.organization_id::text OR e.target_org=p.organization_id::text) AND e.source_org IS DISTINCT FROM e.target_org HAVING count(*)>0
-  UNION ALL SELECT 'unresolved_logical_reference',count(*) FROM (SELECT r.row_key,r.column_name FROM logical_refs r,params p
-    WHERE r.organization_id=p.organization_id::text AND NOT r.historical
-      AND NOT (r.seed AND r.row_json->>r.column_name=r.organization_id)
-    GROUP BY r.row_key,r.column_name HAVING (SELECT count(DISTINCT t.row_key) FROM logical_refs rr JOIN rows t ON t.relation_name=rr.target
-      AND t.row_json->>'id'=rr.row_json->>rr.column_name WHERE rr.row_key=r.row_key AND rr.column_name=r.column_name)
-      +(SELECT count(*) FROM logical_refs rr JOIN auth.users u ON rr.target='auth.users' AND u.id::text=rr.row_json->>rr.column_name
-        WHERE rr.row_key=r.row_key AND rr.column_name=r.column_name)<>1) unresolved HAVING count(*)>0
+  UNION ALL SELECT 'unresolved_logical_reference',count(*) FROM
+ (SELECT r.row_key,r.column_name FROM logical_refs r,params p WHERE r.organization_id=p.organization_id::text AND NOT r.historical
+ AND NOT (r.seed AND r.row_json->>r.column_name=r.organization_id) GROUP BY r.row_key,r.column_name) eligible
+ LEFT JOIN logical_row_counts rc USING(row_key,column_name) LEFT JOIN logical_auth_counts ac USING(row_key,column_name)
+ WHERE coalesce(rc.n,0)+coalesce(ac.n,0)<>1 HAVING count(*)>0
   UNION ALL SELECT 'unknown_polymorphic_kind',count(*) FROM selected s JOIN
     (SELECT DISTINCT "table",type_column,"column" FROM poly_rules) r ON r."table"=s.relation_name WHERE s.row_json->>r."column" IS NOT NULL
     AND NOT EXISTS(SELECT 1 FROM poly_rules p WHERE p."table"=r."table" AND p.type_column=r.type_column AND p."column"=r."column" AND p.kind=s.row_json->>r.type_column) HAVING count(*)>0
   UNION ALL SELECT 'retained_reference_to_removed_parent',count(*) FROM all_edges e JOIN selected s ON s.row_key=e.source_key
     JOIN selected t ON t.row_key=e.target_key WHERE s.disposition<>'archive-remove' AND t.disposition='archive-remove' AND NOT e.staged
-    AND NOT (s.relation_name='app_private.finance_category_idempotency_result_seals' AND e.kind='logical-reference' AND e.column_name='result_id'
-      AND EXISTS(SELECT 1 FROM retired r WHERE r.row_key=s.row_key)) HAVING count(*)>0
+    AND NOT (EXISTS(SELECT 1 FROM retired r WHERE r.row_key=s.row_key) AND e.kind='logical-reference' AND (
+ (s.relation_name='app_private.finance_category_idempotency_result_seals' AND e.column_name='result_id')
+ OR (s.relation_name='app_private.tenant_commercial_document_upload_attestations' AND e.column_name='source_id'
+ AND s.row_json->'organization_id'=t.row_json->'organization_id' AND s.row_json->'source_id'=t.row_json->'id'
+ AND t.relation_name=CASE s.row_json->>'source_kind' WHEN 'invoice' THEN 'public.tenant_invoices' WHEN 'receipt' THEN 'public.tenant_invoice_payments' END))) HAVING count(*)>0
   UNION ALL SELECT 'unsupported_dependency_cycle',count(*) FROM reach WHERE source_key=target_key HAVING count(*)>0
   UNION ALL SELECT 'reset_rule_missing',count(*) FROM selected s WHERE s.disposition IN ('archive-remove','normalize-reviewed','retire-intent')
     AND NOT EXISTS(SELECT 1 FROM app_private.financial_reset_relation_rules r WHERE r.relation_name=s.relation_name) HAVING count(*)>0
@@ -214,7 +244,7 @@ summary AS (SELECT jsonb_build_object('format','nestory-server-reset-materializa
 }
 
 export function buildServerResetPreviewSql(scope) {
-  return `BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;\nSET LOCAL search_path=pg_catalog,public;\nSET LOCAL timezone='UTC';\nSET LOCAL statement_timeout='120s';\n${materializationCtes(scope)}\nSELECT payload||jsonb_build_object('manifest_sha256',app_private.financial_reset_hash(payload)) AS summary FROM summary;\nCOMMIT;`;
+  return `BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;\nSET LOCAL search_path=pg_catalog,public;\nSET LOCAL timezone='UTC'; SET LOCAL enable_nestloop=off;\nSET LOCAL statement_timeout='120s';\n${materializationCtes(scope)}\nSELECT payload||jsonb_build_object('manifest_sha256',app_private.financial_reset_hash(payload)) AS summary FROM summary;\nCOMMIT;`;
 }
 
 // Direct-maintenance composition consumes these images only in PostgreSQL.
@@ -222,7 +252,7 @@ export function buildServerResetPreviewSql(scope) {
 export function buildServerResetMaintenanceCaptureSql({ scope, expectedManifestSha256 }) {
   assertScope(scope);
   if (!digest.test(expectedManifestSha256 ?? '')) throw Error('server_materializer_manifest_invalid');
-  return `SET LOCAL search_path=pg_catalog,public; SET LOCAL timezone='UTC';
+  return `SET LOCAL search_path=pg_catalog,public; SET LOCAL timezone='UTC'; SET LOCAL enable_nestloop=off;
 CREATE TEMP TABLE nestory_maintenance_materialized(summary jsonb NOT NULL,archive jsonb NOT NULL,actions jsonb NOT NULL) ON COMMIT DROP;
 DO $server_reset_capture$ DECLARE v_summary jsonb; v_archive jsonb; v_actions jsonb; BEGIN
  ${materializationCtes(scope)}
@@ -257,7 +287,7 @@ export function buildServerResetPrepareBlock({ scope, expectedManifestSha256, op
       !Number.isSafeInteger(operationBinding.action_count) || operationBinding.action_count < 0 || timestampMicros(operationBinding.audit_timestamp) === null) {
     throw Error('server_materializer_prepare_binding_invalid');
   }
-  return `SET LOCAL search_path=pg_catalog,public; SET LOCAL timezone='UTC';
+  return `SET LOCAL search_path=pg_catalog,public; SET LOCAL timezone='UTC'; SET LOCAL enable_nestloop=off;
 DO $server_reset_prepare$ DECLARE v_summary jsonb; v_archive jsonb; v_actions jsonb; v_binding jsonb:=${jsonSql(operationBinding)};
 BEGIN
  ${materializationCtes(scope)}
