@@ -21,6 +21,36 @@ function client(invoices: unknown[] = [], lines: { invoice_id: string; id?: stri
 }
 const load = (supabase = client(), input = context, scope = viewQuery) => loadMonthlyRentGaps({ supabase, organizationId: "org", context: input, viewQuery: scope, period });
 describe("monthly rent completeness", () => {
+  it.each(["active", "notice_given", "ended", "terminated"])("checks historical rent after a later renewal (%s)", async status => {
+    for (const month of ["09", "10"]) {
+      const reportPeriod = { start: `2026-${month}-01`, end: `2026-${month}-${month === "09" ? "30" : "31"}` };
+      const renewalStart = month === "09" ? "2026-10-01" : "2026-11-01";
+      const input = { ...context, leases: [{ ...context.leases[0], status, lease_start_date: renewalStart, lease_end_date: "2027-10-31" }], terms: [
+        { ...context.terms[0], end_date: reportPeriod.end },
+        { ...context.terms[0], start_date: renewalStart, end_date: "2027-10-31" },
+      ] };
+      const historicalInvoice = { ...invoice, billing_period_start: reportPeriod.start };
+      const read = (supabase = client()) => loadMonthlyRentGaps({ supabase, organizationId: "org", context: input, viewQuery, period: reportPeriod });
+      expect(await read()).toHaveLength(1);
+      expect(await read(client([historicalInvoice], [{ invoice_id: "i1" }]))).toEqual([]);
+      expect((await read(client([historicalInvoice, { ...historicalInvoice, id: "i2" }], [{ invoice_id: "i1" }, { invoice_id: "i2" }])))[0].cells.issue).toContain("Multiple issued rent invoices");
+    }
+  });
+  it("excludes leases whose authoritative history begins after the month", async () => {
+    expect(await load(client(), { ...context,
+      leases: [{ ...context.leases[0], lease_start_date: "2026-11-01" }],
+      terms: [{ ...context.terms[0], start_date: "2026-11-01", end_date: "2027-10-31" }],
+    })).toEqual([]);
+  });
+  it("does not charge a zero-rent historical month because a later renewal has rent", async () => {
+    expect(await load(client(), { ...context,
+      leases: [{ ...context.leases[0], lease_start_date: "2026-11-01" }],
+      terms: [
+        { ...context.terms[0], end_date: period.end, rent_amount: 0 },
+        { ...context.terms[0], start_date: "2026-11-01", end_date: "2027-10-31" },
+      ],
+    })).toEqual([]);
+  });
   it.each(["active", "notice_given", "ended", "terminated"])("retains positive rent earlier in a month before a zero-rent renewal (%s)", async status => {
     const input = { ...context, leases: [{ ...context.leases[0], status }], terms: [
       { ...context.terms[0], end_date: "2026-10-14" },

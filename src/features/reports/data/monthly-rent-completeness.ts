@@ -24,7 +24,9 @@ export async function loadMonthlyRentGaps({ supabase, organizationId, context, v
     ))).map(property => [property.id, property]));
   const leases = context.leases.filter(lease => !lease.archived_at && (["active", "notice_given"].includes(lease.status)
     || (["ended", "terminated"].includes(lease.status) && context.terms.some(term => term.lease_id === lease.id && term.start_date <= period.end && term.end_date >= period.start)))
-    && lease.lease_start_date <= period.end && properties.has(lease.property_id)
+    // The lease header reflects the current term; a later renewal must not hide earlier obligations.
+    && (lease.lease_start_date <= period.end || context.terms.some(term => term.lease_id === lease.id && term.start_date <= period.end))
+    && properties.has(lease.property_id)
     && (viewQuery.unitId === "all" || lease.unit_id === viewQuery.unitId));
   const expectedLeases = leases.filter(lease => {
     const started = context.terms.filter(term => term.lease_id === lease.id && term.start_date <= period.end)
