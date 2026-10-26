@@ -189,7 +189,12 @@ test('an early-flushed report checkpoint excludes concurrent contact writes and 
   const fixtureUuid = /fa231050-0000-(?:0000-0000|4000-8000)-[0-9]{12}/g;
   const identifiers = new Map([...source.matchAll(fixtureUuid)].map(match => [match[0], randomUUID()]));
   const fixtureSuffix = randomUUID();
-  const remap = text => text.replace(fixtureUuid, value => identifiers.get(value))
+  // The SQL fixture selects its reviewer by a UUID prefix. Randomized actors
+  // no longer share that prefix, so bind the exact reviewer before remapping.
+  const reviewerSessionSelector = "id::text LIKE 'fa231050-%' AND id<>('fa231050-0000-0000-0000-000000000001')::uuid";
+  assert.equal(source.split(reviewerSessionSelector).length, 2, 'the reviewer session selector must have one known fixture occurrence');
+  const remap = text => text.replace(reviewerSessionSelector, "id='fa231050-0000-0000-0000-000000000007'::uuid")
+    .replace(fixtureUuid, value => identifiers.get(value))
     .replaceAll("'reset-continuation-fixture'", `'reset-continuation-${fixtureSuffix}'`)
     .replaceAll("'reset-report-foreign-contact'", `'reset-report-contact-${fixtureSuffix}'`)
     .replaceAll('reset-continuation@test.invalid', `reset-continuation-${fixtureSuffix}@test.invalid`)
