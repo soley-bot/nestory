@@ -26,7 +26,7 @@ SELECT ok(has_function_privilege('service_role',
 -- transaction-local and rollback-only; the calls below use normal guards.
 CREATE TEMP TABLE upload_retirement_scope AS SELECT gen_random_uuid() org,
  gen_random_uuid() actor,gen_random_uuid() outsider,gen_random_uuid() property_id,
- gen_random_uuid() tenant,date_trunc('month',current_date)::date month;
+ gen_random_uuid() tenant,date_trunc('month',current_date)::date AS period_start;
 CREATE TEMP TABLE upload_retirement_case AS SELECT s.*,kind,gen_random_uuid() source_id,
  gen_random_uuid() object_id,gen_random_uuid() attestation_id,
  kind NOT LIKE '%unconsumed' AS consumed,
@@ -51,12 +51,12 @@ INSERT INTO public.people(id,organization_id,display_name)
 INSERT INTO public.properties(id,organization_id,name,code,property_type)
  SELECT property_id,org,'Upload retirement property','UPLOAD','apartment' FROM upload_retirement_scope;
 INSERT INTO app_private.financial_write_controls(organization_id,generation,status,financial_start_date)
- SELECT org,1,'open',month FROM upload_retirement_scope;
+ SELECT org,1,'open',period_start FROM upload_retirement_scope;
 INSERT INTO public.tenant_invoices(id,organization_id,invoice_number,property_id,lease_id,billing_term_id,
  billing_period_start,billing_period_end,issue_date,due_date,collection_route,recipient_kind,recipient_person_id,
  recipient_label,total_amount,financial_generation)
  SELECT source_id,org,'UPLOAD-'||kind,property_id,gen_random_uuid(),gen_random_uuid(),
- month,month,month,month,'through_ips','individual',tenant,'Upload tenant',100,1 FROM upload_retirement_case;
+ period_start,period_start,period_start,period_start,'through_ips','individual',tenant,'Upload tenant',100,1 FROM upload_retirement_case;
 INSERT INTO storage.objects(id,bucket_id,name,version,metadata)
  SELECT object_id,'tenant-commercial-documents',path,'retirement-v1',
  '{"mimetype":"application/pdf","size":100}'::jsonb FROM upload_retirement_case;
