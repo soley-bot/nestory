@@ -1,12 +1,15 @@
 /* @vitest-environment jsdom */
 
 import {
+  act,
   fireEvent,
   render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
+import { hydrateRoot, type Root } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -43,6 +46,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { SettingsWorkspace } from "@/features/organization/components/settings-workspace";
+import { BranchEditor } from "@/features/organization/components/branch-editor";
 import {
   cleanupSettingsWorkspaceTest,
   defaultSettingsWorkspaceProps as defaultProps,
@@ -63,6 +67,41 @@ afterEach(() => {
 });
 
 describe("SettingsWorkspace navigation and layout", () => {
+  it("keeps Add branch disabled in a fresh document until hydration attaches its handler", async () => {
+    const props = {
+      branches: [],
+      canManageStructure: true,
+      focusServerError: false,
+      onDraftStatusChange: vi.fn(),
+      organizationName: "Synthetic hydration workspace",
+    };
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(<BranchEditor {...props} />);
+    document.body.append(container);
+    let root: Root | undefined;
+    const hydrationError = vi.fn();
+    try {
+      const trigger = within(container).getByRole("button", { name: "Add branch" });
+      expect(trigger).toHaveProperty("disabled", true);
+      // This is the HTML a new tab sees before its client bundle is ready.
+      trigger.click();
+      expect(screen.queryByRole("dialog", { name: "Add branch" })).toBeNull();
+      await act(async () => {
+        root = hydrateRoot(container, <BranchEditor {...props} />, { onRecoverableError: hydrationError });
+      });
+      await waitFor(() => expect(trigger).toHaveProperty("disabled", false));
+      expect(hydrationError).not.toHaveBeenCalled();
+      await userEvent.setup().click(trigger);
+      const drawer = screen.getByRole("dialog", { name: "Add branch" });
+      await userEvent.setup().type(within(drawer).getByLabelText("Name", { exact: true }), "Second tab branch");
+      expect(within(drawer).getByLabelText("Name", { exact: true })).toHaveProperty("value", "Second tab branch");
+      expect(createBranchAction).not.toHaveBeenCalled();
+    } finally {
+      await act(async () => root?.unmount());
+      container.remove();
+    }
+  });
+
   it.each([
     ["organization", "Organization"],
     ["appearance", "Appearance"],
