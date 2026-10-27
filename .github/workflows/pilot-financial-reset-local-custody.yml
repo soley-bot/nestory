@@ -94,6 +94,15 @@ jobs:
           esac
       - name: Install locked dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prepare ephemeral runner memory before private inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          active_before=$(awk 'END { print NR - 1 }' /proc/swaps)
+          sudo swapoff -a
+          awk 'END { exit (NR != 1) }' /proc/swaps
+          printf '{"format":"nestory-local-custody-memory-v1","activeSwapDevicesBefore":%s,"activeSwapDevicesAfter":0}\n' "$active_before"
       - name: Wait for exact run ticket and execute once
         if: inputs.mode == 'execute' || inputs.mode == 'reconcile'
         shell: bash

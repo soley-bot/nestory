@@ -52,6 +52,38 @@ const root=path.resolve(import.meta.dirname,'..'),exec=promisify(execFile);
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const digest=/^[a-f0-9]{64}$/,sha=/^[a-f0-9]{40}$/;
 const fail=code=>{throw Error(`local_custody_${code}`);};
+const publicFailureCodes=new Set(['local_custody_database_inputs_invalid','local_custody_private_path_invalid',
+ 'local_custody_swap_present','local_custody_binary_unavailable','local_custody_ca_changed',
+ 'local_custody_database_connection_unverified','local_custody_private_file_invalid',
+ 'local_custody_checkout_invalid','local_custody_origin_invalid','local_custody_sql_prefix_changed',
+ 'local_custody_tls_certificate_failed','local_custody_database_authentication_failed',
+ 'local_custody_database_endpoint_failed','local_custody_database_network_failed',
+ 'local_custody_database_identity_failed','local_custody_database_bucket_failed',
+ 'hosted_transport_process_failed']);
+export function localCustodyFailureCode(error){
+ return publicFailureCodes.has(error?.message)?error.message:'local_custody_worker_stopped';
+}
+export function classifyLocalCustodyDatabaseFailure(bytes){
+ // Fixed categories only; raw libpq/SQL output may contain private values.
+ const value=bytes.toString('utf8');
+ if(/certificate verify failed|server certificate.*does not match host|root certificate file|SSL error/i.test(value))return 'local_custody_tls_certificate_failed';
+ if(/password authentication failed|SASL authentication failed|authentication failed/i.test(value))return 'local_custody_database_authentication_failed';
+ if(/Tenant or user not found/i.test(value))return 'local_custody_database_endpoint_failed';
+ if(/could not translate host name|could not connect to server|connection to server.*failed|timeout expired|Network is unreachable|Connection refused/i.test(value))return 'local_custody_database_network_failed';
+ if(/local_custody_database_identity/.test(value))return 'local_custody_database_identity_failed';
+ if(/local_custody_private_bucket_changed/.test(value))return 'local_custody_database_bucket_failed';
+ return 'hosted_transport_process_failed';
+}
+async function localCustodyPsql(connection,sql,action='observe',version=null){
+ const diagnostic=Buffer.alloc(8192);let length=0,active=true;
+ const spawnPrivate=(...args)=>{const child=spawn(...args);child.stderr.on('data',bytes=>{
+  if(!active)return;
+  const buffer=Buffer.isBuffer(bytes)?bytes:Buffer.from(bytes);length+=buffer.copy(diagnostic,length,0,Math.max(0,diagnostic.length-length));
+ });return child;};
+ try{return await runHostedPsql(connection,sql,spawnPrivate,action,version);}
+ catch{throw Error(classifyLocalCustodyDatabaseFailure(diagnostic.subarray(0,length)));}
+ finally{active=false;diagnostic.fill(0);}
+}
 const same=(a,b)=>canonicalJson(a)===canonicalJson(b);
 const exact=(o,keys)=>o&&Object.getPrototypeOf(o)===Object.prototype&&same(Object.keys(o).sort(),[...keys].sort());
 const parse=b=>JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(b));
@@ -259,7 +291,7 @@ export async function runLocalCustodyWorker(){
   if(mode==='capability-probe')return {format:'nestory-local-custody-capability-probe-v1',...invocation,githubProtectionReadsVerified:true,
    psqlAvailable:psqlSha256!==null,psqlSha256,caSha256:LOCAL_CUSTODY_CA_SHA256,databaseConnectionAttempted:false,customerDataRead:false,mutationAttempted:false};
   let db;try{db=await privateConnection(env);env.SUPABASE_DB_PASSWORD=undefined;delete process.env.SUPABASE_DB_PASSWORD;
-   if((await runHostedPsql(db.connection,guardedSql('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;\nSELECT 1;\nCOMMIT;',false),spawn)).trim()!=='1')fail('database_connection_unverified');
+   if((await localCustodyPsql(db.connection,guardedSql('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;\nSELECT 1;\nCOMMIT;',false))).trim()!=='1')fail('database_connection_unverified');
    return {format:'nestory-local-custody-tls-probe-v1',...invocation,psqlSha256,caSha256:LOCAL_CUSTODY_CA_SHA256,
     fixedSessionPoolerTlsVerifyFull:true,databaseIdentityVerified:true,customerDataRead:false,mutationAttempted:false};
   }finally{if(db)await db.cleanup();}
@@ -293,8 +325,8 @@ export async function runLocalCustodyWorker(){
   const {ticket,payload}=verified,sql=verifyLocalCustodyPayload(verified),files=await verifyHostedPacketSources(payload.packet);
   privateDb=await privateConnection(env);env.SUPABASE_DB_PASSWORD=undefined;
   const connectionProbe=guardedSql('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;\nSELECT 1;\nCOMMIT;');
-  if((await runHostedPsql(privateDb.connection,connectionProbe,spawn)).trim()!=='1')fail('database_connection_unverified');
-  async function observe(){let o;try{o=JSON.parse((await runHostedPsql(privateDb.connection,guardedSql(observationSql(payload.packet,payload.binding,ticket.authorizationId,ticket.action)),spawn)).trim());}catch{fail('observation_failed');}
+  if((await localCustodyPsql(privateDb.connection,connectionProbe)).trim()!=='1')fail('database_connection_unverified');
+  async function observe(){let o;try{o=JSON.parse((await localCustodyPsql(privateDb.connection,guardedSql(observationSql(payload.packet,payload.binding,ticket.authorizationId,ticket.action)))).trim());}catch{fail('observation_failed');}
    assertHostedObservation(payload.packet,o,files);return o;}
   if(mode==='reconcile'){
    const observation=await readLocalCustodyAfterRefresh({expected:first,refresh:()=>job(env,env.GH_TOKEN),read:observe});
@@ -309,11 +341,11 @@ export async function runLocalCustodyWorker(){
     observation:before,artifacts:payload.artifacts,recovery:payload.recovery})!==sql)fail('preflight_changed');
   assertLocalCustodyResetScope({action:ticket.action,binding:payload.binding,artifacts:payload.artifacts,recovery:payload.recovery});
   // Exactly one write call. A lost/failed reply goes only to read-only reconcile.
-  return await createLocalCustodySingleAttempt({write:()=>runHostedPsql(privateDb.connection,sql,spawn,ticket.action,payload.artifacts.continuationPlan.version),readback:observe,
+  return await createLocalCustodySingleAttempt({write:()=>localCustodyPsql(privateDb.connection,sql,ticket.action,payload.artifacts.continuationPlan.version),readback:observe,
    reconcile:observation=>reconcileLocalCustodyObservation({...verified,observation})})();
  }finally{key.fill(0);if(privateDb)await privateDb.cleanup();}
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  try{console.log(JSON.stringify(await runLocalCustodyWorker()));}
- catch{console.error(JSON.stringify({status:'stopped',code:'local_custody_worker_stopped',automaticRetryAllowed:false}));process.exitCode=1;}
+ catch(error){console.error(JSON.stringify({status:'stopped',code:localCustodyFailureCode(error),automaticRetryAllowed:false}));process.exitCode=1;}
 }

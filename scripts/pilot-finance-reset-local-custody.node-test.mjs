@@ -4,12 +4,30 @@ import {randomBytes} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {LOCAL_CUSTODY_BUCKET,LOCAL_CUSTODY_JOB,localCustodyObjectPath,assertLocalCustodySignedUrl,encryptLocalCustodyTransfer,
- decryptLocalCustodyTransfer,assertLocalCustodyJob,createLocalCustodySingleAttempt,readLocalCustodyAfterRefresh,runLocalCustodyWorker,localCustodyMutationSql,assertLocalCustodyBucketMetadata,exerciseLocalCustodyBucketProvision,LOCAL_CUSTODY_CA_SHA256,LOCAL_CUSTODY_SOURCES,assertLocalCustodyResetScope} from './pilot-finance-reset-local-custody-runner.mjs';
+ decryptLocalCustodyTransfer,assertLocalCustodyJob,createLocalCustodySingleAttempt,readLocalCustodyAfterRefresh,runLocalCustodyWorker,localCustodyMutationSql,assertLocalCustodyBucketMetadata,exerciseLocalCustodyBucketProvision,LOCAL_CUSTODY_CA_SHA256,LOCAL_CUSTODY_SOURCES,assertLocalCustodyResetScope,localCustodyFailureCode,classifyLocalCustodyDatabaseFailure} from './pilot-finance-reset-local-custody-runner.mjs';
 import {createHash} from 'node:crypto';
 import {LOCAL_DISPATCH_WORKFLOW,LOCAL_DISPATCH_REPOSITORY} from './local-backup-dispatch-bundle.mjs';
 const locator={operationId:'11111111-1111-4111-8111-111111111111',nonce:'22222222-2222-4222-8222-222222222222',action:'freeze'};
 const url=`https://pfvmztxktkwyewvxfgot.supabase.co/storage/v1/object/sign/${LOCAL_CUSTODY_BUCKET}/${localCustodyObjectPath(locator)}?token=${'a'.repeat(30)}`;
 const bucket=()=>({id:LOCAL_CUSTODY_BUCKET,name:LOCAL_CUSTODY_BUCKET,public:false,file_size_limit:33554432,allowed_mime_types:['application/octet-stream']});
+
+test('failure diagnostics expose only exact fixed codes, never private error text',()=>{
+ assert.equal(localCustodyFailureCode(Error('local_custody_swap_present')),'local_custody_swap_present');
+ for(const value of ['PRIVATE_PASSWORD', 'local_custody_swap_present PRIVATE_PASSWORD', 'local_custody_arbitrary_private_value'])
+  assert.equal(localCustodyFailureCode(Error(value)),'local_custody_worker_stopped');
+ for(const [message,expected]of [
+  ['certificate verify failed PRIVATE_PASSWORD','local_custody_tls_certificate_failed'],
+  ['connection to server at PRIVATE_HOST failed: FATAL: password authentication failed for user PRIVATE_USER','local_custody_database_authentication_failed'],
+  ['FATAL: Tenant or user not found PRIVATE_USER','local_custody_database_endpoint_failed'],
+  ['connection to server at PRIVATE_HOST failed: timeout expired','local_custody_database_network_failed'],
+  ['ERROR: local_custody_database_identity PRIVATE_ROW','local_custody_database_identity_failed'],
+  ['ERROR: local_custody_private_bucket_changed PRIVATE_ROW','local_custody_database_bucket_failed'],
+  ['unrecognized PRIVATE_ROW PRIVATE_PASSWORD','hosted_transport_process_failed'],
+ ]){
+  const code=classifyLocalCustodyDatabaseFailure(Buffer.from(message));
+  assert.equal(code,expected);assert.equal(localCustodyFailureCode(Error(code)),expected);assert.doesNotMatch(code,/PRIVATE/);
+ }
+});
 test('existing matching handoff bucket is accepted without a write',async()=>{
  const r=await exerciseLocalCustodyBucketProvision({read:async()=>bucket(),create:async()=>assert.fail('unexpected create'),refresh:async()=>assert.fail('unexpected refresh')});
  assert.deepEqual(r,{outcome:'existing-matching',createAttempted:false});
@@ -153,4 +171,10 @@ test('workflow keeps serialized protected writer, pinned actions and no ordinary
  assert.match(text,/PILOT_RESET_LOCAL_CUSTODY_ENABLED: \$\{\{ vars.PILOT_RESET_LOCAL_CUSTODY_ENABLED \}\}/);
  assert.match(text,/test "\$PILOT_RESET_LOCAL_CUSTODY_ENABLED" = reviewed-operation-only/);
  assert.ok(text.indexOf('test "$PILOT_RESET_LOCAL_CUSTODY_ENABLED"')<text.indexOf('- name: Check out exact main'));
+ assert.ok(text.indexOf('sudo swapoff -a')<text.indexOf('SUPABASE_DB_PASSWORD:'));
+ assert.ok(text.indexOf('sudo swapoff -a')<text.indexOf('SUPABASE_ACCESS_TOKEN:'));
+ assert.match(text,/awk 'END \{ exit \(NR != 1\) \}' \/proc\/swaps/);
+ const runner=await readFile(new URL('./pilot-finance-reset-local-custody-runner.mjs',import.meta.url),'utf8');
+ assert.match(runner,/readFile\('\/proc\/swaps','utf8'\)/);
+ assert.match(runner,/fail\('swap_present'\)/);
 });

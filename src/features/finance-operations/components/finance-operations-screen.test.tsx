@@ -3912,8 +3912,10 @@ describe("FinanceOperationsScreen", () => {
     await user.click(screen.getByRole("button", { name: "Continue waiting" }));
     finish({ status: "error", message: "Try safely again." });
     await screen.findByText("Try safely again.");
-    expect(field).toHaveProperty("value", "Keep this draft");
-    expect(valueOfNamedInput(form, "idempotencyKey")).toBe(key);
+    await waitFor(() => {
+      expect(field).toHaveProperty("value", "Keep this draft");
+      expect(valueOfNamedInput(form, "idempotencyKey")).toBe(key);
+    });
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Keep editing" }));
     fireEvent.submit(form);
