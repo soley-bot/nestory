@@ -57,21 +57,32 @@ $$;
 
 CREATE FUNCTION app_private.assert_financial_reset_empty_contracts(p_org uuid,p_semantic jsonb) RETURNS void
  LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
-DECLARE i jsonb;
+DECLARE v_contracts jsonb;
 BEGIN
  PERFORM app_private.assert_financial_reset_empty_semantic(p_semantic);
- IF (SELECT coalesce(jsonb_agg(id::text ORDER BY id::text),'[]') FROM public.leases WHERE organization_id=p_org)
+ -- Reuse one fresh complete row image within this assertion only. Nested report
+ -- commands still repeat all checks; no authority or source result is cached.
+ v_contracts:=app_private.financial_reset_preserved_contracts(p_org);
+ IF (SELECT coalesce(jsonb_agg(value->>'id' ORDER BY value->>'id'),'[]') FROM jsonb_array_elements(v_contracts->'leases'))
   IS DISTINCT FROM (SELECT coalesce(jsonb_agg(value->>'lease_id' ORDER BY value->>'lease_id'),'[]') FROM jsonb_array_elements(p_semantic->'leases')) THEN
   RAISE EXCEPTION 'financial_reset_continuation_roster_mismatch' USING ERRCODE='23514';
  END IF;
- IF app_private.financial_reset_hash(app_private.financial_reset_preserved_contracts(p_org)) IS DISTINCT FROM p_semantic->>'contracts_sha256' THEN
+ IF app_private.financial_reset_hash(v_contracts) IS DISTINCT FROM p_semantic->>'contracts_sha256' THEN
   RAISE EXCEPTION 'financial_reset_empty_contracts_changed' USING ERRCODE='40001';
  END IF;
- FOR i IN SELECT value FROM jsonb_array_elements(p_semantic->'leases') LOOP
-  IF app_private.financial_reset_hash(app_private.financial_reset_preserved_lease_source(p_org,(i->>'lease_id')::uuid)) IS DISTINCT FROM i->>'source_sha256' THEN
-   RAISE EXCEPTION 'financial_reset_empty_contracts_changed' USING ERRCODE='40001';
-  END IF;
- END LOOP;
+ IF EXISTS(WITH terms AS MATERIALIZED (
+   SELECT value->>'lease_id' lease_id,jsonb_agg(value ORDER BY (value->>'id')::uuid) row_images
+   FROM jsonb_array_elements(v_contracts->'terms') GROUP BY value->>'lease_id'),
+  rules AS MATERIALIZED (
+   SELECT value->>'lease_id' lease_id,jsonb_agg(value ORDER BY (value->>'id')::uuid) row_images
+   FROM jsonb_array_elements(v_contracts->'billing_rules') GROUP BY value->>'lease_id')
+  SELECT 1 FROM jsonb_array_elements(v_contracts->'leases') l
+   JOIN jsonb_array_elements(p_semantic->'leases') i ON i->>'lease_id'=l->>'id'
+   LEFT JOIN terms t ON t.lease_id=l->>'id' LEFT JOIN rules b ON b.lease_id=l->>'id'
+  WHERE app_private.financial_reset_hash(jsonb_build_object('lease',l,'terms',coalesce(t.row_images,'[]'::jsonb),
+   'billing_rules',coalesce(b.row_images,'[]'::jsonb))) IS DISTINCT FROM i->>'source_sha256') THEN
+  RAISE EXCEPTION 'financial_reset_empty_contracts_changed' USING ERRCODE='40001';
+ END IF;
 END;
 $$;
 

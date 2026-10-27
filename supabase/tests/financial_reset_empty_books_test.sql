@@ -94,6 +94,16 @@ UPDATE public.person_roles SET status='inactive' WHERE person_id=pg_temp.empty_b
 SELECT throws_ok($$SELECT * FROM app_private.financial_reset_empty_zero_roster_on_date((SELECT org FROM empty_books_state),pg_temp.empty_books_id(9010),'2026-10-01')$$,
  '23514','owner_person_inactive','v4 still requires an active owner role for historical identities');
 ROLLBACK TO SAVEPOINT inactive_owner_role;
+CREATE FUNCTION pg_temp.contract_review(p_org uuid) RETURNS jsonb LANGUAGE sql AS $$
+ SELECT jsonb_build_object('version',4,'actor_id',(SELECT maker FROM empty_books_state),'billing_period_start','2026-10-01',
+  'issue_date','2026-10-01','execution_business_date','2026-10-27','invoice_date_policy','empty-books-no-invoices',
+  'contracts_sha256',app_private.financial_reset_hash(app_private.financial_reset_preserved_contracts(p_org)),
+  'leases',(SELECT coalesce(jsonb_agg(jsonb_build_object('lease_id',l.id,'disposition','preserve-unbilled',
+   'source_sha256',app_private.financial_reset_hash(app_private.financial_reset_preserved_lease_source(p_org,l.id))) ORDER BY l.id),'[]')
+   FROM public.leases l WHERE l.organization_id=p_org))
+$$;
+SELECT lives_ok($$SELECT app_private.assert_financial_reset_empty_contracts(org,pg_temp.contract_review(org)) FROM empty_books_state$$,
+ 'fresh complete contract assertion accepts an empty lease roster');
 CREATE TEMP TABLE empty_books_contract_fixture AS
 SELECT n,pg_temp.empty_books_id(n) AS lease,pg_temp.empty_books_id(100+n) AS term,
  pg_temp.empty_books_id(200+n) AS rule,pg_temp.empty_books_id(300+n) AS unit,
@@ -106,7 +116,15 @@ SELECT pg_temp.reset_fixture_claims(maker) FROM empty_books_state;
 INSERT INTO public.leases(id,organization_id,property_id,unit_id,primary_tenant_person_id,status,deposit_amount,deposit_currency,created_by,updated_by,archived_at,archived_by)
 SELECT lease,org,property,unit,tenant,CASE WHEN n>=7 THEN 'ended' ELSE 'active' END,1234.56,'USD',maker,maker,
  CASE WHEN n=8 THEN clock_timestamp() ELSE NULL END,CASE WHEN n=8 THEN maker ELSE NULL END
- FROM empty_books_contract_fixture CROSS JOIN empty_books_state;
+ FROM empty_books_contract_fixture CROSS JOIN empty_books_state WHERE n=1;
+SELECT lives_ok($$SELECT app_private.assert_financial_reset_empty_contracts(org,pg_temp.contract_review(org)) FROM empty_books_state$$,
+ 'one lease with no terms or billing rules matches the independent native source');
+INSERT INTO public.leases(id,organization_id,property_id,unit_id,primary_tenant_person_id,status,deposit_amount,deposit_currency,created_by,updated_by,archived_at,archived_by)
+SELECT lease,org,property,unit,tenant,CASE WHEN n>=7 THEN 'ended' ELSE 'active' END,1234.56,'USD',maker,maker,
+ CASE WHEN n=8 THEN clock_timestamp() ELSE NULL END,CASE WHEN n=8 THEN maker ELSE NULL END
+ FROM empty_books_contract_fixture CROSS JOIN empty_books_state WHERE n>1;
+SELECT lives_ok($$SELECT app_private.assert_financial_reset_empty_contracts(org,pg_temp.contract_review(org)) FROM empty_books_state$$,
+ 'one-image contract assertion matches the independent per-lease source with no child rows');
 INSERT INTO public.lease_terms(id,organization_id,lease_id,term_sequence,start_date,end_date,rent_amount,rent_currency,rent_due_day,
  payment_frequency,status,authority_kind,confirmed_at,confirmed_by,created_by,updated_by)
 -- Draft authoritative terms cannot generate rent until their normal activation.
@@ -120,6 +138,40 @@ INSERT INTO public.lease_billing_terms(id,organization_id,lease_id,property_id,e
 SELECT rule,org,lease,property,'2026-09-01',ends_on,'through_ips','percentage',10,n=2,false,'individual',tenant,
  'UTC','last_calendar_day','actual_days','actual_days','next_full_month',true,'lease_default_v1',now(),maker,maker,maker
 FROM empty_books_contract_fixture CROSS JOIN empty_books_state;
+SELECT lives_ok($$SELECT app_private.assert_financial_reset_empty_contracts(org,pg_temp.contract_review(org)) FROM empty_books_state$$,
+ 'complete native row images preserve null fields and fractional numeric contract values');
+SELECT throws_ok($$SELECT app_private.assert_financial_reset_empty_contracts(org,jsonb_set(pg_temp.contract_review(org),'{leases,0,source_sha256}',to_jsonb(repeat('f',64)))) FROM empty_books_state$$,
+ '40001','financial_reset_empty_contracts_changed','a matching global digest never substitutes for every per-lease digest');
+SELECT throws_ok($$SELECT app_private.assert_financial_reset_empty_contracts(org,jsonb_set(pg_temp.contract_review(org),'{leases}',(pg_temp.contract_review(org)->'leases')-0)) FROM empty_books_state$$,
+ '23514','financial_reset_continuation_roster_mismatch','omitted contracts still fail the complete roster check');
+SELECT throws_ok($$SELECT app_private.assert_financial_reset_empty_contracts(org,jsonb_set(pg_temp.contract_review(org),'{contracts_sha256}',to_jsonb(repeat('f',64)))) FROM empty_books_state$$,
+ '40001','financial_reset_empty_contracts_changed','per-lease digests never replace the full global image digest');
+SAVEPOINT contract_assertion_drift;
+INSERT INTO public.lease_terms(id,organization_id,lease_id,term_sequence,start_date,end_date,rent_amount,rent_currency,rent_due_day,
+ payment_frequency,status,authority_kind,confirmed_at,confirmed_by,created_by,updated_by)
+SELECT pg_temp.empty_books_id(50+n),org,pg_temp.empty_books_id(1),2+n,
+ DATE '2027-09-01'+(n||' years')::interval,DATE '2028-08-31'+(n||' years')::interval,432.10,'USD',7,'monthly','draft','authoritative',now(),maker,maker,maker
+ FROM empty_books_state CROSS JOIN generate_series(0,1) n ORDER BY n DESC;
+INSERT INTO public.lease_billing_terms(id,organization_id,lease_id,property_id,effective_from,effective_to,collection_route,
+ management_fee_mode,management_fee_value,charge_management_fee_when_active,full_management_fee_during_proration,
+ billing_recipient_kind,billing_recipient_person_id,rent_calculation_timezone,short_month_due_day_rule,
+ lease_start_proration_rule,lease_end_proration_rule,mid_period_rent_change_rule,charge_through_lease_end,rule_source,
+ confirmed_at,confirmed_by,created_by,updated_by)
+SELECT pg_temp.empty_books_id(1050+n),org,pg_temp.empty_books_id(1),property,
+ DATE '2027-09-01'+(n||' years')::interval,DATE '2028-08-31'+(n||' years')::interval,
+ 'through_ips','percentage',7.25,false,false,'individual',tenant,'UTC','last_calendar_day','actual_days','actual_days','next_full_month',true,'lease_default_v1',now(),maker,maker,maker
+ FROM empty_books_state CROSS JOIN generate_series(0,1) n ORDER BY n DESC;
+SELECT lives_ok($$SELECT app_private.assert_financial_reset_empty_contracts(org,pg_temp.contract_review(org)) FROM empty_books_state$$,
+ 'grouped history hashes match the original native reader for multiple reverse-inserted child UUIDs');
+CREATE TEMP TABLE contract_review_before AS SELECT org,pg_temp.contract_review(org) review FROM empty_books_state;
+UPDATE public.lease_terms SET rent_amount=1234.56 WHERE id=pg_temp.empty_books_id(101);
+SELECT throws_ok($$SELECT app_private.assert_financial_reset_empty_contracts(org,review) FROM contract_review_before$$,
+ '40001','financial_reset_empty_contracts_changed','a changed child amount invalidates the captured global image');
+SELECT throws_ok($$SELECT app_private.assert_financial_reset_empty_contracts(org,jsonb_set(review,'{contracts_sha256}',to_jsonb(app_private.financial_reset_hash(app_private.financial_reset_preserved_contracts(org))))) FROM contract_review_before$$,
+ '40001','financial_reset_empty_contracts_changed','refreshing only the global image cannot hide a changed per-lease history');
+SELECT lives_ok($$SELECT app_private.assert_financial_reset_empty_contracts(org,pg_temp.contract_review(org)) FROM empty_books_state$$,
+ 'fresh per-lease hashes agree exactly after a valid fractional amount change');
+ROLLBACK TO SAVEPOINT contract_assertion_drift;
 INSERT INTO public.lease_deposits(id,organization_id,lease_id,amount,currency,status,notes,created_by,updated_by)
 SELECT pg_temp.empty_books_id(400+n),org,lease,1234.56,'USD','pending','Contract requirement is unchanged',maker,maker
 FROM empty_books_contract_fixture CROSS JOIN empty_books_state;
