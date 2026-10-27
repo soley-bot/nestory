@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// This UI accepts the digest-only output of hostedBinding(), never executable
+// This UI accepts hostedBinding() and exact zero-plan text, never executable
 // SQL, credentials, row archives, endpoint URLs or arbitrary RPC names.
 export const PILOT_RESET_ORGANIZATION = "752a87b8-bd04-4a45-9cb8-00687af66e73";
 export const PILOT_RESET_PROJECT = "pfvmztxktkwyewvxfgot";
@@ -57,12 +57,41 @@ const binding = z.object({
     value.recovery.source_generation === value.target_generation &&
     value.recovery.target_generation === value.recovery.source_generation + 1)));
 
+// Display-only plan metadata; the action verifies the untouched database text
+// digest against the existing native zero_review_sha256 before any RPC.
+const reviewedZeroPlan = z.object({
+  version: z.literal(4), approval_policy: z.literal("pilot-october-single-admin-v1").optional(),
+  operation_id: operationId, organization_id: z.literal(PILOT_RESET_ORGANIZATION),
+  manifest_sha256: sha, reset_plan_sha256: sha, maker_actor_id: uuid, reviewer_actor_id: uuid.nullable(),
+  effective_date: z.literal("2026-10-01"), currencies: z.tuple([z.literal("USD")]),
+  scopes: z.array(z.object({
+    property_id: uuid, property_owner_id: uuid, owner_person_id: uuid, ownership_percent: z.number().positive().max(100),
+    ownership_roster_hash: sha, currency: z.literal("USD"), property_row_sha256: sha,
+    property_archived_at: z.string().nullable(), owner_person_row_sha256: sha,
+  }).strict()).min(1).max(1000),
+}).strict().refine(plan => plan.approval_policy
+  ? plan.reviewer_actor_id === null
+  : plan.reviewer_actor_id !== null && plan.reviewer_actor_id !== plan.maker_actor_id);
+
 export const sessionReviewSchema = z.object({
   format: z.literal("nestory-pilot-reset-session-review-v1"),
   action: z.enum(["freeze", "checkpoint", "prepare", "seal", "execute", "prepare-recovery", "execute-recovery", "approve-zero-plan"]),
-  binding, bindingSha256: sha,
-}).strict().refine(value => value.action.endsWith("-recovery") === Boolean(value.binding.recovery));
+  binding, bindingSha256: sha, zeroPlanText: z.string().min(1).max(MAX_REVIEW_BYTES),
+}).strict().refine(value => value.action.endsWith("-recovery") === Boolean(value.binding.recovery))
+  .refine(value => {
+    try {
+      const plan = reviewedZeroPlan.parse(JSON.parse(value.zeroPlanText));
+      const b = value.binding;
+      return (!plan.approval_policy || b.source_generation === 0 && b.target_generation === 1) &&
+        plan.operation_id === b.operation_id && plan.organization_id === b.organization_id &&
+        plan.manifest_sha256 === b.manifest_sha256 && plan.reset_plan_sha256 === b.plan_sha256 &&
+        plan.maker_actor_id === b.continuation_semantic.actor_id;
+    } catch { return false; }
+  });
 export type SessionReview = z.infer<typeof sessionReviewSchema>;
+export function reviewUsesSoleAdministrator(review: SessionReview): boolean {
+  return JSON.parse(review.zeroPlanText).approval_policy === "pilot-october-single-admin-v1";
+}
 export type MaintenanceActionState = {
   kind: "idle" | "invalid" | "issued" | "endorsed" | "uncertain";
   message?: string;

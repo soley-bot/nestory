@@ -35,7 +35,7 @@ test('saved rehearsal references are private byte-bound archives, never supplied
 test('rehearsal verification rejects partial coverage, row images and false authority claims',()=>{
  const value={format:'nestory-local-ram-rehearsal-verification-v1',phase:'reset',canonicalRowsVerified:true,foreignKeysVerified:true,contractsUnchanged:true,frozen:true,generation:1,
   exactLifecycleDeltaVerified:true,contractsSha256:hash,tableCensus:LOCAL_CAPTURE_POLICY.map(p=>({table_name:p.table,row_count:0,rows_sha256:hash})),checkpointSha256:hash,
-  syntheticActorCount:2,productionPermissionProven:false,productionForeignDataProven:false,excludedCredentialTablesRestored:false,storageRecoveryVerified:false};
+  syntheticActorCount:1,productionPermissionProven:false,productionForeignDataProven:false,excludedCredentialTablesRestored:false,storageRecoveryVerified:false};
  assert.equal(assertBusinessRehearsalVerification(value,'reset',hash),value);
  for(const patch of [{tableCensus:value.tableCensus.slice(1)},{frozen:false},{generation:2},{contractsSha256:'b'.repeat(64)},{productionPermissionProven:true},{rows:[]},
   {tableCensus:[{...value.tableCensus[0],row_text:'private'},...value.tableCensus.slice(1)]},
@@ -179,4 +179,21 @@ test('execution and verification diagnostics accept only the two fixed runtime c
  }
  for(const value of [null,{},'local_business_runtime_private_row_value','local_business_runtime_rehearsal_execution_invalid_private'])
   assert.equal(safeBusinessRehearsalFailureCode(value),null);
+});
+
+test('inverse action diagnostics expose only bound ordinal registry relation kind and catalog constraint',async()=>{
+ const {safeBusinessInverseAction,resolveBusinessInverseAction}=await import('./local-backup-business-runtime.mjs');
+ const value={ordinal:2,relation:'public.ledger_entries',kind:'restore',constraintIndex:1};
+ const actions=[{}, {ordinal:2,relation_name:value.relation,kind:value.kind}],constraints=['public.ledger_entries.ledger_entries_amount_check'];
+ assert.deepEqual(resolveBusinessInverseAction(value,actions,constraints),{ordinal:2,relation:value.relation,kind:'restore',constraintName:constraints[0]});
+ assert.equal(resolveBusinessInverseAction(value,actions,['public.people.private_name']),null);
+ assert.equal(resolveBusinessInverseAction({...value,ordinal:1},actions,constraints),null);
+ assert.equal(resolveBusinessInverseAction({...value,constraintIndex:2},actions,constraints),null);
+ assert.equal(resolveBusinessInverseAction({...value,constraintIndex:0},actions,constraints).constraintName,null);
+ for(const patch of [{ordinal:0},{ordinal:1000001},{ordinal:2.5},{relation:'public.private_customer'},{kind:'archive-delete'},{constraintIndex:-1},{constraintIndex:1000001},{private:'value'}])assert.equal(safeBusinessInverseAction({...value,...patch}),null);
+ const valid='NOTICE: 00000: local_ram_rehearsal_inverse_action:2:public.ledger_entries:restore:1';
+ const d=createBusinessDatabaseDiagnostics();d.push(valid.slice(0,30));d.push(valid.slice(30)+'\n');assert.deepEqual(d.finish(),{phaseTimings:[],inverseAction:value});
+ for(const line of [valid+' private-row',valid+':private-row',valid.replace(':2:',':02:'),valid.replace('public.ledger_entries','public.private_customer'),valid.replace(':1',':1000001'),valid.replace('restore','archive-delete')]){
+  const rejected=createBusinessDatabaseDiagnostics();rejected.push(line+'\n');assert.deepEqual(rejected.finish(),{phaseTimings:[]});
+ }
 });

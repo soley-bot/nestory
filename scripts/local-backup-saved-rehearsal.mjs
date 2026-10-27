@@ -50,7 +50,7 @@ export function rehydrateSavedPilotRehearsal({manifestBytes,proof,rehearsalInput
   result.format!=='nestory-local-business-reset-inverse-result-v1'||result.operationId!==r.operationId||result.recoveryId!==i.recoveryId||
   result.authorityKind!=='local-sql-session-fixture'||result.productionPermissionProven!==false||result.productionForeignDataProven!==false||
   !same(result.recoveryBaseline,b.recoveryBaseline)||!same(result.executionBaseline,b.executionBaseline)||
-  !same(result.fixture,{format:'nestory-local-synthetic-actor-fixture-v1',actorCount:2,sessionCount:2,fixtureTransactionId:phases.fixtureTransactionId,authorityKind:'local-sql-session-fixture',productionPermissionProven:false,customerAuthImpersonated:false})||
+  !same(result.fixture,{format:'nestory-local-synthetic-actor-fixture-v1',actorCount:1,sessionCount:1,fixtureTransactionId:phases.fixtureTransactionId,authorityKind:'local-sql-session-fixture',productionPermissionProven:false,customerAuthImpersonated:false})||
   !same(result.before,{contractsSha256:contracts,censusAlgorithm:'sha256-of-concatenated-row-sha256-ordered-by-postgresql-primary-key-text',
    tableCensus:snapshot.tables.filter(t=>t.capture==='full-row-image').map(t=>({table_name:t.table_name,row_count:t.row_count,rows_sha256:t.rows_sha256}))})||
   !exact(result.transition,['name','sha256'])||result.transition.name!=='20261027005615_financial_reset_empty_books_preserved_contracts.sql'||!hash.test(result.transition.sha256))fail();

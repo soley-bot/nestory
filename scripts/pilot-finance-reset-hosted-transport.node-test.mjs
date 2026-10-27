@@ -512,3 +512,14 @@ test('recovery-only native contract rows pass the closed phase projection withou
   assert.throws(()=>validateArtifacts(f.packet,f.artifacts,reviewFor(a)),/hosted_transport_/);
  }
 });
+
+test('single-admin discriminator is limited to the one Pilot empty-books transition',async()=>{
+ const {PILOT_SINGLE_ADMIN_POLICY,assertPilotSingleAdminOperation,isPilotSingleAdminZeroPlan}=await import('./pilot-finance-reset-single-admin-policy.mjs');
+ const z={approval_policy:PILOT_SINGLE_ADMIN_POLICY,version:4,operation_id:'10000000-0000-4000-8000-000000000001',
+  organization_id:'752a87b8-bd04-4a45-9cb8-00687af66e73',effective_date:'2026-10-01',maker_actor_id:'10000000-0000-4000-8000-000000000002',reviewer_actor_id:null};
+ const o={operationId:z.operation_id,organizationId:z.organization_id,projectRef:'pfvmztxktkwyewvxfgot',cutoff:'2026-10-01',issueDate:'2026-10-01',sourceGeneration:0,targetGeneration:1,invoiceDatePolicy:'empty-books-no-invoices'};
+ assert.equal(assertPilotSingleAdminOperation(z,o),true);
+ for(const patch of [{approval_policy:'other'},{version:3},{reviewer_actor_id:z.maker_actor_id},{effective_date:'2026-11-01'},{organization_id:z.operation_id}])assert.throws(()=>assertPilotSingleAdminOperation({...z,...patch},o));
+ for(const patch of [{sourceGeneration:1,targetGeneration:2},{projectRef:'other'},{cutoff:'2026-11-01'},{invoiceDatePolicy:'rebill'},{operationId:z.maker_actor_id}])assert.throws(()=>assertPilotSingleAdminOperation(z,{...o,...patch}));
+ const legacy={...z};delete legacy.approval_policy;assert.equal(isPilotSingleAdminZeroPlan(legacy),false);
+});

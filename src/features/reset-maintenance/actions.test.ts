@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fixtureActor, reviewFixture } from "./review.test-fixtures";
+import { fixtureActor, reviewFixture, soleAdministratorReviewFixture } from "./review.test-fixtures";
 import type { SessionReview } from "./review";
 const { context, stepUp, rpc, createClient, serviceRpc } = vi.hoisted(() => ({
   context: vi.fn(), stepUp: vi.fn(), rpc: vi.fn(), createClient: vi.fn(), serviceRpc: vi.fn(),
@@ -81,4 +81,24 @@ describe("Pilot maintenance genuine-session actions", () => {
     rpc.mockResolvedValue({ data: { token: "unexpected" }, error: null }); expect((await submit()).kind).toBe("uncertain");
     expect((await submit(form(reviewFixture("approve-zero-plan")))).kind).toBe("uncertain");
   });
+});
+
+it("records one sole-maker endorsement through the unchanged genuine session RPC",async()=>{
+ const r=soleAdministratorReviewFixture();rpc.mockResolvedValue({data:null,error:null});
+ expect((await submit(form(r))).kind).toBe("endorsed");
+ expect(rpc).toHaveBeenCalledExactlyOnceWith("approve_financial_reset_zero_plan",{p_operation_id:r.binding.operation_id,p_review_sha256:r.binding.zero_review_sha256});
+ expect(serviceRpc).not.toHaveBeenCalled();
+});
+it("rejects changed raw plan bytes and a different user before obtaining a session client",async()=>{
+ const r=soleAdministratorReviewFixture();r.zeroPlanText+=" ";expect((await submit(form(r))).kind).toBe("invalid");
+ context.mockResolvedValue({userId:"10000000-0000-4000-8000-000000000002",operationalTimezone:"Asia/Phnom_Penh"});
+ expect((await submit(form(soleAdministratorReviewFixture()))).kind).toBe("invalid");expect(createClient).not.toHaveBeenCalled();expect(rpc).not.toHaveBeenCalled();
+});
+it("rejects omitted plan text or altered legacy plan bytes before any approval RPC",async()=>{
+ for(const review of [reviewFixture("approve-zero-plan"),soleAdministratorReviewFixture()]){
+  const {zeroPlanText,...omitted}=review;const data=form(review);data.set("review",JSON.stringify(omitted));
+  expect((await submit(data)).kind).toBe("invalid");
+  expect((await submit(form({...review,zeroPlanText:zeroPlanText+" "}))).kind).toBe("invalid");
+ }
+ expect(createClient).not.toHaveBeenCalled();expect(rpc).not.toHaveBeenCalled();
 });

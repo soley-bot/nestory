@@ -6,15 +6,15 @@ import {buildPilotRamInversePlan} from '../local-backup-ram-rehearsal-plan.mjs';
 const hash=v=>createHash('sha256').update(v).digest('hex'),id=n=>`11111111-1111-4111-8111-${String(n).padStart(12,'0')}`,h='a'.repeat(64);
 export function rehearsalSqlFixture(){
  const source=pilotRamPlanFixture(),plan=source.planner.acceptMaterialization(source.preview,source.materialization),planBinding=buildPilotRehearsalBinding(plan);
- const fixture={maker:id(1),reviewer:id(2),makerSession:id(3),reviewerSession:id(4)},fixtureTransactionId='100',b=planBinding;
- const zeroPlan={version:4,operation_id:b.operationId,organization_id:b.organizationId,manifest_sha256:b.materialization.manifestSha256,reset_plan_sha256:b.planSha256,
- maker_actor_id:fixture.maker,reviewer_actor_id:fixture.reviewer,effective_date:'2026-10-01',currencies:['USD'],scopes:[{property_id:id(5),property_owner_id:id(6),owner_person_id:id(7),
+ const fixture={maker:id(1),makerSession:id(3)},fixtureTransactionId='100',b=planBinding;
+ const zeroPlan={version:4,approval_policy:'pilot-october-single-admin-v1',operation_id:b.operationId,organization_id:b.organizationId,manifest_sha256:b.materialization.manifestSha256,reset_plan_sha256:b.planSha256,
+ maker_actor_id:fixture.maker,reviewer_actor_id:null,effective_date:'2026-10-01',currencies:['USD'],scopes:[{property_id:id(5),property_owner_id:id(6),owner_person_id:id(7),
  ownership_percent:100,ownership_roster_hash:h,currency:'USD',property_row_sha256:h,property_archived_at:null,owner_person_row_sha256:h}]};
  const continuationPlan={version:4,actor_id:fixture.maker,billing_period_start:'2026-10-01',issue_date:'2026-10-01',execution_business_date:'2026-10-27',invoice_date_policy:'empty-books-no-invoices',contracts_sha256:h,
  leases:[{lease_id:id(8),disposition:'preserve-unbilled',source_sha256:h}]};
  const phases={zeroPlan,zeroPlanText:JSON.stringify(zeroPlan),zeroReviewSha256:hash(JSON.stringify(zeroPlan)),continuationPlan,continuationPlanText:JSON.stringify(continuationPlan),
  reportPlan:{report_review_sha256:h},auditTimestamp:'2026-10-27T00:00:00Z',timezone:'Asia/Bangkok',executionBusinessDate:'2026-10-27',fixtureSourceSha256:h,fixtureForeignSha256:h,fixtureTransactionId,
- fixtureRows:[fixture.maker,fixture.reviewer].map(user_id=>{const rowText=JSON.stringify({id:user_id,organization_id:b.organizationId,user_id,role:'super_admin',branch_id:null,person_id:null});return{rowText,rowSha256:hash(rowText)}}),reportRevisionBefore:'1'};
+ fixtureRows:[fixture.maker].map(user_id=>{const rowText=JSON.stringify({id:user_id,organization_id:b.organizationId,user_id,role:'super_admin',branch_id:null,person_id:null});return{rowText,rowSha256:hash(rowText)}}),reportRevisionBefore:'1'};
  const row={id:id(9),organization_id:b.organizationId,financial_generation:1},before=JSON.stringify(row);
  const phaseBinding=Object.fromEntries(['schema_sha256','zero_review_sha256','zero_authority_sha256','continuation_review_sha256','continuation_before_sha256','continuation_after_sha256','sources_sha256','source_sha256','report_checkpoint_sha256'].map(k=>[k,h]));
  const continuationReviewText=JSON.stringify({...continuationPlan,source_sha256:phaseBinding.continuation_before_sha256});

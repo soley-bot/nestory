@@ -12,6 +12,19 @@ function input(){return sync({zeroPlan:{operation_id:id(1),organization_id:'752a
  leases:[{lease_id:id(7),disposition:'preserve-unbilled',source_sha256:h}]},reportPlan:{report_review_sha256:h}});}
 function versionFour(){const p=input();p.zeroPlan.version=4;p.zeroPlan.scopes[0].owner_person_row_sha256=h;return sync(p);}
 
+test('sole-admin policy remains in economic semantics and cannot reuse a two-person rehearsal',()=>{
+ const two=versionFour(),one=versionFour();
+ one.zeroPlan.approval_policy='pilot-october-single-admin-v1';one.zeroPlan.reviewer_actor_id=null;
+ const expected=pilotActorNeutralSemantics(sync(one));
+ assert.notEqual(expected.economicZeroSha256,pilotActorNeutralSemantics(two).economicZeroSha256);
+ const otherMaker=structuredClone(one);otherMaker.zeroPlan.maker_actor_id=id(8);otherMaker.continuationPlan.actor_id=id(8);
+ assert.deepEqual(pilotActorNeutralSemantics(sync(otherMaker)),expected);
+ const omitted=structuredClone(one);delete omitted.zeroPlan.approval_policy;
+ assert.throws(()=>pilotActorNeutralSemantics(sync(omitted)));
+ const duplicate=sync(one);duplicate.zeroPlanText=duplicate.zeroPlanText.replace('{','{"approval_policy":"pilot-october-single-admin-v1",');
+ assert.throws(()=>pilotActorNeutralSemantics(duplicate));
+});
+
 test('marked v4 zero plan binds exact owner-person state and keeps the discriminator in its economic hash',()=>{
  const legacy=input(),marked=versionFour();
  assert.notEqual(pilotActorNeutralSemantics(legacy).economicZeroSha256,pilotActorNeutralSemantics(marked).economicZeroSha256);

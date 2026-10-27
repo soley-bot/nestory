@@ -13,7 +13,7 @@ function fixture(){
  f.inverseInputs.phaseBindingText=JSON.stringify(f.inverseInputs.phaseBinding);
  const verification=phase=>({format:'nestory-local-ram-rehearsal-verification-v1',phase,canonicalRowsVerified:true,foreignKeysVerified:true,contractsUnchanged:true,frozen:true,
   generation:phase==='reset'?1:2,exactLifecycleDeltaVerified:true,contractsSha256:h,tableCensus:f.snapshot.tables.map(t=>({table_name:t.table_name,row_count:t.capture==='full-row-image'?t.row_count:0,rows_sha256:t.rows_sha256})),
-  checkpointSha256:phase==='reset'?h:'b'.repeat(64),syntheticActorCount:2,productionPermissionProven:false,productionForeignDataProven:false,excludedCredentialTablesRestored:false,storageRecoveryVerified:false});
+  checkpointSha256:phase==='reset'?h:'b'.repeat(64),syntheticActorCount:1,productionPermissionProven:false,productionForeignDataProven:false,excludedCredentialTablesRestored:false,storageRecoveryVerified:false});
  const execution=phase=>({format:`nestory-local-ram-${phase==='reset'?'reset':'inverse'}-execution-v1`,operationId:phase==='reset'?f.operationId:f.recoveryId,status:'actions_complete',generation:phase==='reset'?1:2,
   actionCount:phase==='reset'?f.plan.actions.length:f.canonicalInverse.actions.length,appliedCount:phase==='reset'?f.plan.actions.length:f.canonicalInverse.actions.length,
   knownZeroVerified:phase==='reset',recoveryVerified:phase!=='reset',checkpoint:{kind:phase==='reset'?'checked-reports':'phase-recovery',sha256:phase==='reset'?h:'b'.repeat(64),generation:phase==='reset'?1:2,resultSha256:phase==='reset'?h:'b'.repeat(64)},
@@ -21,7 +21,7 @@ function fixture(){
   ...(phase==='reset'?{authorityTiming:structuredClone(f.authorityTiming)}:{})});
  const storage={metadataRows:f.snapshot.storageMetadata.length,bucketRows:f.snapshot.storageBucketMetadata.length,exactMetadataVerified:true,physicalFileBytesVerified:false};
  const result={format:'nestory-local-business-reset-inverse-result-v1',operationId:f.operationId,recoveryId:f.recoveryId,authorityKind:'local-sql-session-fixture',productionPermissionProven:false,productionForeignDataProven:false,
-  fixture:{format:'nestory-local-synthetic-actor-fixture-v1',actorCount:2,sessionCount:2,fixtureTransactionId:f.fixtureTransactionId,authorityKind:'local-sql-session-fixture',productionPermissionProven:false,customerAuthImpersonated:false},
+  fixture:{format:'nestory-local-synthetic-actor-fixture-v1',actorCount:1,sessionCount:1,fixtureTransactionId:f.fixtureTransactionId,authorityKind:'local-sql-session-fixture',productionPermissionProven:false,customerAuthImpersonated:false},
   before:{contractsSha256:h,censusAlgorithm:'sha256-of-concatenated-row-sha256-ordered-by-postgresql-primary-key-text',tableCensus:f.snapshot.tables.filter(t=>t.capture==='full-row-image').map(t=>({table_name:t.table_name,row_count:t.row_count,rows_sha256:t.rows_sha256}))},
   reset:execution('reset'),resetVerification:verification('reset'),resetStorage:storage,inverse:execution('recovered'),recovered:verification('recovered'),recoveredStorage:storage,
   transition:{name:'20261027005615_financial_reset_empty_books_preserved_contracts.sql',sha256:h},recoveryBaseline:rehearsal.binding.recoveryBaseline,executionBaseline:rehearsal.binding.executionBaseline};
@@ -52,6 +52,9 @@ for(const[name,change]of[
  ['native continuation source changed',f=>{const input=f.inverseInputs.inverseInputs,review=JSON.parse(input.continuationReviewText);review.source_sha256='f'.repeat(64);input.continuationReviewText=JSON.stringify(review);input.phaseBinding.continuation_review_sha256=hash(input.continuationReviewText);input.phaseBindingText=JSON.stringify(input.phaseBinding)}],
  ['altered inverse row',f=>f.inverseInputs.canonicalInverse.actions[0].before_sha256='f'.repeat(64)],
  ['production identity relabel',f=>f.proof.resetInverseResult.productionPermissionProven=true],
+ ['old two-actor proof relabel',f=>{f.proof.resetInverseResult.fixture.actorCount=2;f.proof.resetInverseResult.fixture.sessionCount=2}],
+ ['extra reviewer fixture',f=>{f.rehearsalInputs.fixture.reviewer=id(81);f.rehearsalInputs.fixture.reviewerSession=id(82)}],
+ ['old two-actor verification',f=>f.proof.resetInverseResult.resetVerification.syntheticActorCount=2],
  ['missing native timing',f=>delete f.proof.resetInverseResult.reset.authorityTiming],
  ['timing success flag substituted',f=>f.proof.resetInverseResult.reset.authorityTiming={verified:true}],
  ['inverse timing shape widened',f=>f.proof.resetInverseResult.inverse.authorityTiming={consumedAgeSeconds:1,remainingSeconds:299}],

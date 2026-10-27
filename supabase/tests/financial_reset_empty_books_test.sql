@@ -1,3 +1,7 @@
+\if :{?empty_books_single_admin}
+\else
+\set empty_books_single_admin false
+\endif
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SELECT no_plan();
@@ -35,7 +39,7 @@ CREATE FUNCTION pg_temp.empty_books_id(n integer) RETURNS uuid LANGUAGE sql IMMU
 $$;
 CREATE TEMP TABLE empty_books_state AS SELECT
  pg_temp.empty_books_id(9001) AS maker,pg_temp.empty_books_id(9002) AS reviewer,
- pg_temp.empty_books_id(9003) AS org,pg_temp.empty_books_id(9004) AS property,
+ CASE WHEN :'empty_books_single_admin'::boolean THEN '752a87b8-bd04-4a45-9cb8-00687af66e73'::uuid ELSE pg_temp.empty_books_id(9003) END AS org,pg_temp.empty_books_id(9004) AS property,
  pg_temp.empty_books_id(9005) AS tenant,pg_temp.empty_books_id(9006) AS owner,
  pg_temp.empty_books_id(700) AS operation,transaction_timestamp() AS started_at;
 INSERT INTO auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data)
@@ -172,6 +176,14 @@ SELECT throws_ok($$SELECT app_private.assert_financial_reset_empty_contracts(org
 SELECT lives_ok($$SELECT app_private.assert_financial_reset_empty_contracts(org,pg_temp.contract_review(org)) FROM empty_books_state$$,
  'fresh per-lease hashes agree exactly after a valid fractional amount change');
 ROLLBACK TO SAVEPOINT contract_assertion_drift;
+SAVEPOINT ordinary_opening_self_review;
+SELECT pg_temp.reset_fixture_claims(maker) FROM empty_books_state;
+SELECT public.submit_owner_opening_balance(org,property,owner,'USD','2026-10-01',
+ (enum_range(NULL::public.owner_balance_component))[1],0,'Ordinary synthetic opening','Ordinary synthetic evidence',NULL,repeat('a',64),NULL,'ordinary-self-review-probe') FROM empty_books_state;
+SELECT throws_ok($$SELECT public.review_owner_opening_balance(s.org,r.id,'approve','Ordinary review','ordinary-self-review-denied')
+ FROM empty_books_state s JOIN public.owner_opening_balance_requests r ON r.organization_id=s.org$$,
+ '22023','Owner opening submitter cannot review the same request','ordinary public opening RPC retains independent review even for the selected sole administrator');
+ROLLBACK TO SAVEPOINT ordinary_opening_self_review;
 INSERT INTO public.lease_deposits(id,organization_id,lease_id,amount,currency,status,notes,created_by,updated_by)
 SELECT pg_temp.empty_books_id(400+n),org,lease,1234.56,'USD','pending','Contract requirement is unchanged',maker,maker
 FROM empty_books_contract_fixture CROSS JOIN empty_books_state;
@@ -266,13 +278,46 @@ SELECT app_private.archive_financial_reset_rows(operation,(SELECT jsonb_agg(json
 SELECT app_private.prepare_financial_reset_actions(operation,value) FROM empty_books_state CROSS JOIN empty_books_actions;
 CREATE TEMP TABLE empty_books_zero_review AS SELECT operation,jsonb_build_object('version',4,'operation_id',operation,'organization_id',org,'manifest_sha256',repeat('a',64),
  'reset_plan_sha256',repeat('b',64),'maker_actor_id',maker,'reviewer_actor_id',reviewer,'effective_date','2026-10-01','currencies','["USD"]'::jsonb,
- 'scopes',app_private.financial_reset_empty_zero_scope_on_date(org,'2026-10-01')) AS value FROM empty_books_state;
+ 'scopes',app_private.financial_reset_empty_zero_scope_on_date(org,'2026-10-01'))||CASE WHEN :'empty_books_single_admin'::boolean THEN jsonb_build_object('approval_policy','pilot-october-single-admin-v1','reviewer_actor_id',NULL) ELSE '{}'::jsonb END AS value FROM empty_books_state;
 SELECT throws_ok($$SELECT app_private.prepare_financial_reset_empty_zero_plan(operation,value-'version',app_private.financial_reset_hash(value-'version')) FROM empty_books_zero_review$$,
  '23514','financial_reset_zero_review_scope_invalid','historical preparation requires the explicit reviewed version4 marker');
 SELECT throws_ok($$SELECT app_private.prepare_financial_reset_empty_zero_plan(operation,jsonb_set(value,'{scopes,0,owner_person_row_sha256}',to_jsonb(repeat('d',64))),
  app_private.financial_reset_hash(jsonb_set(value,'{scopes,0,owner_person_row_sha256}',to_jsonb(repeat('d',64))))) FROM empty_books_zero_review$$,
  '23514','financial_reset_zero_review_scope_invalid','zero review binds exact person row bytes as well as property and ownership roster');
+\if :empty_books_single_admin
+SELECT is(app_private.financial_reset_single_admin_mode(pg_temp.empty_books_id(9999)),false,'unknown operation does not acquire single-admin policy');
+SELECT is((SELECT app_private.financial_reset_single_admin_mode(operation) FROM empty_books_state),false,'prepared operation without a zero plan does not acquire policy');
+CREATE FUNCTION pg_temp.prepare_single(p jsonb) RETURNS void LANGUAGE sql AS $$
+ SELECT app_private.prepare_financial_reset_empty_zero_plan((SELECT operation FROM empty_books_state),p,app_private.financial_reset_hash(p))
+$$;
+SELECT throws_ok($$SELECT pg_temp.prepare_single(value-'approval_policy') FROM empty_books_zero_review$$,
+ '42501','financial_reset_zero_independent_actors_required','unmarked v4 still requires two distinct actors');
+SELECT throws_ok($$SELECT pg_temp.prepare_single(value-'reviewer_actor_id') FROM empty_books_zero_review$$,
+ '23514','financial_reset_zero_review_scope_invalid','single policy requires explicit JSON null reviewer');
+SELECT throws_ok($$SELECT pg_temp.prepare_single(jsonb_set(value,'{maker_actor_id}','null')) FROM empty_books_zero_review$$,
+ '23514','financial_reset_single_admin_policy_invalid','NULL sole actor is never an approval identity');
+SELECT throws_ok($$SELECT pg_temp.prepare_single(jsonb_set(value,'{reviewer_actor_id}',to_jsonb((SELECT reviewer FROM empty_books_state)))) FROM empty_books_zero_review$$,
+ '23514','financial_reset_single_admin_policy_invalid','single policy cannot fabricate a second reviewer');
+SELECT throws_ok($$SELECT pg_temp.prepare_single(jsonb_set(value,'{approval_policy}','"unknown"')) FROM empty_books_zero_review$$,
+ '23514','financial_reset_single_admin_policy_invalid','unknown approval policy is rejected');
+SELECT throws_ok($$SELECT app_private.financial_reset_single_admin_mode(operation,jsonb_set(value,'{organization_id}',to_jsonb(pg_temp.empty_books_id(9003)))) FROM empty_books_zero_review$$,
+ '23514','financial_reset_single_admin_policy_invalid','single policy is fixed to the Pilot organization');
+SELECT throws_ok($$SELECT app_private.financial_reset_single_admin_mode(operation,jsonb_set(value,'{effective_date}','"2026-11-01"')) FROM empty_books_zero_review$$,
+ '23514','financial_reset_single_admin_policy_invalid','single policy is fixed to the October cutoff');
+\endif
 SELECT app_private.prepare_financial_reset_zero_plan(operation,value,app_private.financial_reset_hash(value)) FROM empty_books_zero_review;
+\if :empty_books_single_admin
+SELECT throws_ok($$SELECT app_private.assert_financial_reset_zero_endorsement(operation,'maker') FROM empty_books_state$$,
+ '42501','financial_reset_zero_session_endorsement_required','naming the maker never substitutes for genuine endorsement');
+SELECT ok((SELECT i.indisunique AND i.indisvalid AND i.indnkeyatts=1 AND a.attname='organization_id'
+ AND pg_get_expr(i.indpred,i.indrelid) = '((plan_json ->> ''approval_policy''::text) = ''pilot-october-single-admin-v1''::text)'
+ FROM pg_index i JOIN pg_attribute a ON a.attrelid=i.indrelid AND a.attnum=i.indkey[0]
+ WHERE i.indexrelid='app_private.financial_reset_single_admin_once'::regclass),
+ 'actual one-off index is valid and unique for organization under only the marked policy');
+SELECT throws_ok($$SELECT app_private.prepare_financial_reset_operation((to_jsonb(o)-ARRAY['database_oid','database_name','status','execution_backend','execution_xid','created_at','completed_at'])||jsonb_build_object('operation_id',pg_temp.empty_books_id(701)))
+ FROM app_private.financial_reset_operations o JOIN empty_books_state s ON o.operation_id=s.operation$$,
+ '23505',NULL,'native one-pending lifecycle rejects a competing operation before the policy reservation');
+\endif
 SELECT pg_temp.reset_fixture_claims(maker) FROM empty_books_state;
 SELECT set_config('empty_books.operation',operation::text,true),set_config('empty_books.zero_review',review_sha256,true)
 FROM empty_books_state JOIN app_private.financial_reset_zero_plans ON operation_id=operation;
@@ -284,9 +329,24 @@ RESET SESSION AUTHORIZATION;
 SELECT pg_temp.reset_fixture_claims(reviewer) FROM empty_books_state;
 SET SESSION AUTHORIZATION authenticator;
 SET LOCAL ROLE authenticated;
+\if :empty_books_single_admin
+SELECT throws_ok($$SELECT public.approve_financial_reset_zero_plan(current_setting('empty_books.operation')::uuid,current_setting('empty_books.zero_review'))$$,
+ '42501','financial_reset_zero_approval_forbidden','another genuine administrator cannot approve the pinned sole-maker plan');
+\else
 SELECT public.approve_financial_reset_zero_plan(current_setting('empty_books.operation')::uuid,current_setting('empty_books.zero_review'));
+\endif
 RESET ROLE;
 RESET SESSION AUTHORIZATION;
+\if :empty_books_single_admin
+SELECT is((SELECT count(*) FROM app_private.financial_reset_zero_approvals WHERE operation_id=(SELECT operation FROM empty_books_state)),1::bigint,'exactly one real approval is recorded');
+SELECT is((SELECT count(*) FROM app_private.financial_reset_zero_session_endorsements WHERE operation_id=(SELECT operation FROM empty_books_state)),1::bigint,'exactly one session endorsement is recorded');
+SELECT is((SELECT app_private.financial_reset_zero_endorsement_status(operation,'reviewer')->>'status' FROM empty_books_state),'missing','reviewer evidence remains explicitly missing');
+SAVEPOINT single_admin_stale_session;
+UPDATE auth.sessions SET not_after=clock_timestamp()-interval '1 second' WHERE user_id=(SELECT maker FROM empty_books_state);
+SELECT throws_ok($$SELECT app_private.assert_financial_reset_zero_endorsement(operation,'maker') FROM empty_books_state$$,
+ '42501','financial_reset_zero_session_endorsement_stale','expired sole-maker session cannot authorize zero commands');
+ROLLBACK TO SAVEPOINT single_admin_stale_session;
+\endif
 SELECT app_private.seal_financial_reset_operation(operation) FROM empty_books_state;
 SELECT app_private.start_financial_reset_actions(operation) FROM empty_books_state;
 -- The exact-action invoker guards require the native executor's existing role.
@@ -300,6 +360,30 @@ DO $$ DECLARE a record; BEGIN
 END $$;
 RESET ROLE;
 SELECT app_private.complete_financial_reset_actions(operation) FROM empty_books_state;
+\if :empty_books_single_admin
+SAVEPOINT second_single_reservation;
+SELECT app_private.prepare_financial_reset_operation((to_jsonb(o)-ARRAY['database_oid','database_name','status','execution_backend','execution_xid','created_at','completed_at'])||jsonb_build_object('operation_id',pg_temp.empty_books_id(701)))
+ FROM app_private.financial_reset_operations o JOIN empty_books_state s ON o.operation_id=s.operation;
+SELECT throws_ok($$SELECT app_private.prepare_financial_reset_empty_zero_plan(pg_temp.empty_books_id(701),jsonb_set(value,'{operation_id}',to_jsonb(pg_temp.empty_books_id(701))),
+ app_private.financial_reset_hash(jsonb_set(value,'{operation_id}',to_jsonb(pg_temp.empty_books_id(701))))) FROM empty_books_zero_review$$,
+ '23505',NULL,'actual one-off reservation rejects a second marked operation after the pending lifecycle has completed');
+ROLLBACK TO SAVEPOINT second_single_reservation;
+SAVEPOINT single_generation_scope;
+UPDATE app_private.financial_write_controls SET generation=2 WHERE organization_id=(SELECT org FROM empty_books_state);
+SELECT app_private.prepare_financial_reset_operation((to_jsonb(o)-ARRAY['database_oid','database_name','status','execution_backend','execution_xid','created_at','completed_at'])||jsonb_build_object('operation_id',pg_temp.empty_books_id(702),'source_generation',1,'target_generation',2))
+ FROM app_private.financial_reset_operations o JOIN empty_books_state s ON o.operation_id=s.operation;
+SELECT throws_ok($$SELECT app_private.financial_reset_single_admin_mode(pg_temp.empty_books_id(702),jsonb_set(value,'{operation_id}',to_jsonb(pg_temp.empty_books_id(702)))) FROM empty_books_zero_review$$,
+ '23514','financial_reset_single_admin_policy_invalid','later generation reset cannot acquire the one-off single policy');
+ROLLBACK TO SAVEPOINT single_generation_scope;
+SAVEPOINT single_recovery_scope;
+UPDATE app_private.financial_write_controls SET generation=2 WHERE organization_id=(SELECT org FROM empty_books_state);
+SELECT app_private.prepare_financial_reset_operation((to_jsonb(o)-ARRAY['database_oid','database_name','status','execution_backend','execution_xid','created_at','completed_at'])||jsonb_build_object('operation_id',pg_temp.empty_books_id(703),'operation_kind','restore','restore_of',o.operation_id,'source_generation',1,'target_generation',2))
+ FROM app_private.financial_reset_operations o JOIN empty_books_state s ON o.operation_id=s.operation;
+SELECT is(app_private.financial_reset_single_admin_mode(pg_temp.empty_books_id(703)),false,'genuine prepared recovery with no zero plan remains outside single-admin policy');
+SELECT throws_ok($$SELECT app_private.financial_reset_single_admin_mode(pg_temp.empty_books_id(703),jsonb_set(value,'{operation_id}',to_jsonb(pg_temp.empty_books_id(703)))) FROM empty_books_zero_review$$,
+ '23514','financial_reset_single_admin_policy_invalid','recovery cannot acquire the marked reset policy');
+ROLLBACK TO SAVEPOINT single_recovery_scope;
+\endif
 CREATE TEMP TABLE empty_books_plan AS SELECT jsonb_build_object('version',4,'actor_id',maker,'billing_period_start','2026-10-01',
  'issue_date','2026-10-01','execution_business_date',CASE WHEN date_trunc('month',app_private.rent_business_date(org,statement_timestamp()))::date=DATE '2026-10-01'
   THEN app_private.rent_business_date(org,statement_timestamp()) ELSE DATE '2026-10-01' END,
@@ -325,6 +409,29 @@ RESET SESSION AUTHORIZATION;
 SELECT app_private.consume_financial_reset_actor_authorization(authorization_id,binding,'execute') FROM reset_operator_fixture;
 SELECT set_config('request.jwt.claim.sub','',true),set_config('request.jwt.claims','{}',true);
 SELECT app_private.apply_financial_reset_known_zero(operation) FROM empty_books_state;
+\if :empty_books_single_admin
+SELECT ok((SELECT count(*)>0 AND bool_and(r.submitted_by=s.maker AND r.reviewed_by=s.maker AND r.proposed_amount=0
+ AND r.source_reference=app_private.financial_reset_zero_source_reference(s.operation)) FROM public.owner_opening_balance_requests r JOIN empty_books_state s ON s.org=r.organization_id),
+ 'marked known-zero records truthfully name the sole actor as submitter and reviewer');
+SELECT ok(NOT EXISTS(SELECT 1 FROM app_private.financial_reset_zero_command_context WHERE backend_pid=pg_backend_pid()),'private command context is closed after known zero');
+CREATE FUNCTION pg_temp.single_row_check(p_image jsonb) RETURNS boolean LANGUAGE plpgsql AS $$
+DECLARE expression text; allowed boolean;
+BEGIN
+ SELECT pg_get_expr(conbin,conrelid) INTO STRICT expression FROM pg_constraint WHERE conrelid='public.owner_opening_balance_requests'::regclass AND conname='owner_opening_balance_requests_independent_reviewer_check';
+ EXECUTE format('SELECT (%s) IS TRUE FROM jsonb_populate_record(NULL::public.owner_opening_balance_requests,$1)',expression) INTO allowed USING p_image;
+ RETURN allowed;
+END;
+$$;
+SELECT ok((SELECT bool_and(pg_temp.single_row_check(to_jsonb(r))) FROM public.owner_opening_balance_requests r JOIN empty_books_state s ON s.org=r.organization_id),
+ 'saved self-review rows remain valid under the row-local CHECK without active command context');
+SELECT ok((SELECT bool_and(NOT pg_temp.single_row_check(to_jsonb(r)||jsonb_build_object('source_reference',NULL))) FROM public.owner_opening_balance_requests r JOIN empty_books_state s ON s.org=r.organization_id),
+ 'NULL marker cannot turn the row CHECK into an allowed UNKNOWN result');
+SELECT ok((SELECT bool_and(NOT pg_temp.single_row_check(to_jsonb(r)||jsonb_build_object('proposed_amount',1))) FROM public.owner_opening_balance_requests r JOIN empty_books_state s ON s.org=r.organization_id),
+ 'nonzero self-review rows remain forbidden by the physical CHECK');
+SELECT throws_ok($$INSERT INTO public.owner_opening_balance_requests SELECT (jsonb_populate_record(NULL::public.owner_opening_balance_requests,to_jsonb(r)||jsonb_build_object('id',pg_temp.empty_books_id(9998)))).*
+ FROM public.owner_opening_balance_requests r JOIN empty_books_state s ON s.org=r.organization_id LIMIT 1$$,
+ '42501','financial_reset_single_admin_command_required','a forged marked row cannot be inserted outside consumed native command context');
+\endif
 SELECT ok((SELECT count(*)=4 AND bool_and(proposed_amount=0 AND status='approved') FROM public.owner_opening_balance_requests WHERE property_id=pg_temp.empty_books_id(9010)),
  'consumed v4 session authorizes only four checked zero components for the archived property');
 SELECT ok((SELECT archived_at IS NOT NULL FROM public.people WHERE id=pg_temp.empty_books_id(9011)) AND

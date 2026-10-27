@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from "@/lib/db/server";
 import { requirePrivilegedStepUp } from "@/lib/auth/privileged-step-up-guard";
 import { isPrivilegedStepUpRequiredError } from "@/lib/auth/privileged-step-up-error";
 import { requirePilotResetContext } from "./context";
-import { canonicalReviewBinding, parseSessionReview, type MaintenanceActionState } from "./review";
+import { canonicalReviewBinding, parseSessionReview, reviewUsesSoleAdministrator, type MaintenanceActionState } from "./review";
 
 export async function submitMaintenanceReviewAction(
   _previous: MaintenanceActionState,
@@ -23,6 +23,9 @@ export async function submitMaintenanceReviewAction(
   if (!review || review.binding.timezone !== context.operationalTimezone ||
     createHash("sha256").update(canonicalReviewBinding(review.binding)).digest("hex") !== review.bindingSha256 ||
     (review.action !== "approve-zero-plan" && review.binding.continuation_semantic.actor_id !== context.userId)) return invalid;
+
+  if (createHash("sha256").update(review.zeroPlanText).digest("hex") !== review.binding.zero_review_sha256 ||
+    reviewUsesSoleAdministrator(review) && review.binding.continuation_semantic.actor_id !== context.userId) return invalid;
 
   const client = await createSupabaseServerClient();
   // The guard's returned service client is deliberately discarded. These two

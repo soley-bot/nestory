@@ -19,7 +19,7 @@ export const RESET_PERSISTENT_ROOT = '/var/lib/nestory-reset';
 export const HOSTED_RUNTIME_SOURCE_FILES = Object.freeze([
   RESET_WORKFLOW_PATH, 'scripts/pilot-finance-reset-hosted-reconcile.mjs',
   ...['hosted-runner', 'hosted-workflow-core', 'hosted-actor', 'hosted-transport', 'hosted-transport-protocol',
-    'hosted-protocol', 'operator-core', 'durable-store', 'encrypted-artifacts', 'external-store', 'recovery-artifact-reader',
+    'hosted-protocol', 'single-admin-policy', 'operator-core', 'durable-store', 'encrypted-artifacts', 'external-store', 'recovery-artifact-reader',
     'executor-local', 'executor-plan', 'retired-journal-core', 'no-backup-core', 'no-backup-runtime', 'no-backup-transport',
     'no-backup-reader', 'current-session', 'reopening-protocol', 'migration-parity',
     'core', 'recovery-core', 'registry'].map(name => `scripts/pilot-finance-reset-${name}.mjs`),

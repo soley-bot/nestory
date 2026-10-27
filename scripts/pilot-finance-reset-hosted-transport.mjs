@@ -1,6 +1,7 @@
 // Concrete fixed hosted psql transport. Construction never dispatches a write.
 // Protected runtime/session/persistence providers are required dependencies;
 // synthetic process tests do not certify a production connection or consent.
+import {assertPilotSingleAdminOperation} from './pilot-finance-reset-single-admin-policy.mjs';
 import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -174,7 +175,7 @@ function precondition(action,packet,binding,a,r,o) {
  if(action==='prepare-recovery') {if(o.operation||o.recoveryReservation||!r)fail('recovery_precondition_failed');return;}
  const expected=recovery?r.review.operation:a.actions.operation;
  if(!operationMatches(o.operation,expected)||o.appliedCount!==0||o.operation.status!==(action==='seal'?'prepared':'sealed')) fail('phase_precondition_failed');
- if(action==='execute'&&(o.approvalCount!==2||o.zero?.reviewSha256!==binding.zero_review_sha256||!sameDatabaseJson(o.zero.plan,a.zeroPlan))) fail('independent_approvals_required');
+ if(action==='execute'&&(o.approvalCount!==(assertPilotSingleAdminOperation(a.zeroPlan,packet.operation)?1:2)||o.zero?.reviewSha256!==binding.zero_review_sha256||!sameDatabaseJson(o.zero.plan,a.zeroPlan))) fail('independent_approvals_required');
  if(action==='execute-recovery'&&(!o.recoveryReservation||!same(o.recoveryReservation.binding,binding))) fail('recovery_reservation_required');
 }
 

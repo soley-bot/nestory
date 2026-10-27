@@ -207,7 +207,23 @@ export function sqlDoBlock(body, preferredTag) {
   return `DO ${tag} ${body} ${tag};`;
 }
 
+export const EMPTY_BOOKS_ACTION_BATCH_SIZE=64;
+// Code-generation helper only. Callers supply already validated native action
+// blocks; it creates no permission, capability, session or persistent function.
+export function emptyBooksActionBatchSql(blocks){
+  if(!Array.isArray(blocks)||!blocks.length||blocks.some(b=>typeof b!=='string'||!b.length))throw Error('Invalid empty-books action blocks.');
+  const sql=[];
+  for(let i=0;i<blocks.length;i+=EMPTY_BOOKS_ACTION_BATCH_SIZE)
+    sql.push(sqlDoBlock(`BEGIN\n${blocks.slice(i,i+EMPTY_BOOKS_ACTION_BATCH_SIZE).join('\n')}\nEND`,'empty_books_action_batch'));
+  return sql.join('\n');
+}
 export function buildActionTransactionSql(operationId, actions, faultAfterAction = null, checkedReview = null, finalizeRecovery = false) {
+  return actionTransactionSql(operationId,actions,faultAfterAction,checkedReview,finalizeRecovery,false);
+}
+export function buildEmptyBooksActionTransactionSql(operationId,actions,faultAfterAction=null,finalizeRecovery=false){
+  return actionTransactionSql(operationId,actions,faultAfterAction,null,finalizeRecovery,true);
+}
+function actionTransactionSql(operationId, actions, faultAfterAction, checkedReview, finalizeRecovery,emptyBooks) {
   if (typeof finalizeRecovery !== 'boolean' || (finalizeRecovery && checkedReview)) throw Error('Recovery finalization cannot be combined with reset phases.');
   if (!uuid.test(operationId ?? '') || !Array.isArray(actions) || !actions.length ||
       (faultAfterAction !== null && (!Number.isSafeInteger(faultAfterAction) || faultAfterAction < 1 || faultAfterAction > actions.length))) throw Error('Invalid action transaction.');
@@ -221,6 +237,7 @@ export function buildActionTransactionSql(operationId, actions, faultAfterAction
       set_config('request.jwt.claim',${literal(claims)},true),set_config('request.jwt.claim.sub',${literal(checkedReview.continuation.actor_id)},true);`);
   }
   const seen = new Set();
+  const actionBlocks=[];
   for (const [index, action] of actions.entries()) {
     if (!actionUuid.test(action.action_id ?? '') || seen.has(action.action_id) || action.ordinal !== index + 1 ||
         !['normalization', 'archive-delete', 'restore', 'recovery-prune', 'recovery-repair'].includes(action.kind) || !action.primary_key ||
@@ -247,10 +264,15 @@ export function buildActionTransactionSql(operationId, actions, faultAfterAction
       const setters = action.changed_columns.map(column => `${identifier(column)}=(jsonb_populate_record(NULL::${table},${after})).${identifier(column)}`).join(',');
       dml = `UPDATE ${table} t SET ${setters} WHERE ${pk} AND to_jsonb(t)=${before};`;
     }
-    statements.push(`SELECT app_private.arm_financial_reset_action(${literal(operationId)}::uuid,${literal(action.action_id)}::uuid);`,
-      sqlDoBlock(`DECLARE affected bigint; BEGIN ${dml} GET DIAGNOSTICS affected=ROW_COUNT; IF affected<>1 THEN RAISE EXCEPTION 'Exact reset action row count mismatch'; END IF; END`, 'exact_row'));
-    if (faultAfterAction === index + 1) statements.push("DO $fault$ BEGIN RAISE EXCEPTION 'Injected reset action rollback'; END $fault$;");
+    const arm=`app_private.arm_financial_reset_action(${literal(operationId)}::uuid,${literal(action.action_id)}::uuid)`,
+      block=`DECLARE affected bigint; BEGIN ${dml} GET DIAGNOSTICS affected=ROW_COUNT; IF affected<>1 THEN RAISE EXCEPTION 'Exact reset action row count mismatch'; END IF; END`;
+    if(emptyBooks)actionBlocks.push(`PERFORM ${arm};\n${block};${faultAfterAction===index+1?"\nRAISE EXCEPTION 'Injected reset action rollback';":''}`);
+    else{
+      statements.push(`SELECT ${arm};`,sqlDoBlock(block,'exact_row'));
+      if (faultAfterAction === index + 1) statements.push("DO $fault$ BEGIN RAISE EXCEPTION 'Injected reset action rollback'; END $fault$;");
+    }
   }
+  if(emptyBooks)statements.push(emptyBooksActionBatchSql(actionBlocks));
   statements.push(`SELECT app_private.complete_financial_reset_actions(${literal(operationId)}::uuid);`);
   if (checkedReview) statements.push(
     `SELECT app_private.apply_financial_reset_known_zero(${literal(operationId)}::uuid);`,

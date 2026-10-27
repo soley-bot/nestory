@@ -1,10 +1,46 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {classifyBusinessSchemaCorrection,buildBusinessSchemaPermissionCorrection,buildBusinessSchemaStructuralCorrection} from './local-backup-business-schema-restore.mjs';
+import {classifyBusinessSchemaCorrection,buildBusinessSchemaPermissionCorrection,buildBusinessSchemaStructuralCorrection,
+ selectPinnedBusinessSchemaReplay,BUSINESS_SCHEMA_TRANSITION} from './local-backup-business-schema-restore.mjs';
+import {describeMigrationStatement} from './hosted-migration-parity-core.mjs';
 const hash=x=>createHash('sha256').update(x).digest('hex');
 const row=(kind,name,v)=>{const definition=typeof v==='string'?v:JSON.stringify(v);return{kind,name,definition,sha256:hash(definition)}};
 const packet=definitions=>({definitions,catalog:definitions.map(({kind,name,sha256})=>({kind,name,sha256}))});
+function schemaReplayFixture(afterRelease=false){
+ const sources=Array.from({length:259},(_,i)=>{const name=`${String(20260101000000+i)}_fixture_${i}.sql`,sql=`SELECT ${i};\n`;return{name,sql,sha256:hash(sql)}});
+ const ledger=sources.map(s=>({version:s.name.slice(0,14),name:s.name.slice(15,-4),statements:[describeMigrationStatement(s.sql)]}));
+ const baseLedger=structuredClone(ledger);
+ if(afterRelease){const sql='SELECT 260;\n';sources.push({name:BUSINESS_SCHEMA_TRANSITION,sql,sha256:hash(sql)});
+  ledger.push({version:BUSINESS_SCHEMA_TRANSITION.slice(0,14),name:BUSINESS_SCHEMA_TRANSITION.slice(15,-4),statements:[describeMigrationStatement(sql)]});}
+ return{baseLedger,targetLedger:ledger,replay:{sources,contract:{format:'nestory-verified-business-migration-replay-v1',versions:ledger.map(x=>x.version),capturedLedgerDescriptorSha256:hash(JSON.stringify(ledger))}}};
+}
+test('saved 259 schema and exact one-migration target choose the same empty baseline without relaxing catalog checks',()=>{
+ for(const afterRelease of [false,true]){
+  const input=schemaReplayFixture(afterRelease),plan=selectPinnedBusinessSchemaReplay(input);
+  assert.equal(plan.baseSources.length,259);assert.equal(plan.targetVersions,afterRelease?260:259);
+  assert.equal(plan.transition?.name??null,afterRelease?BUSINESS_SCHEMA_TRANSITION:null);
+  assert.equal(plan.fullTargetCatalogRequired,true);assert.equal(plan.customerRowsImported,false);
+  assert.ok(Object.isFrozen(plan));assert.ok(Object.isFrozen(plan.baseSources));
+  assert.deepEqual(plan.baseSources,input.replay.sources.slice(0,259));
+ }
+});
+test('schema replay transition refuses drifted baselines, unverified source bytes and any extra or different migration',()=>{
+ const mutations=[
+  x=>x.baseLedger[0].name='changed',x=>x.baseLedger.pop(),x=>x.targetLedger.pop(),x=>x.replay.sources.pop(),
+  x=>x.replay.contract.capturedLedgerDescriptorSha256='0'.repeat(64),x=>x.replay.contract.versions.reverse(),
+  x=>x.replay.sources[0].sql+='SELECT 999;',x=>x.replay.sources[0].sha256='0'.repeat(64),
+  x=>x.replay.sources[259].name='20261027005616_unreviewed.sql',
+  x=>{x.targetLedger[259].version='20261027005616';x.replay.sources[259].name='20261027005616_financial_reset_empty_books_preserved_contracts.sql';},
+  x=>{const s=x.replay.sources[259];s.sql='SELECT 999;\n';s.sha256=hash(s.sql);},
+  x=>x.targetLedger.push(structuredClone(x.targetLedger[259])),
+ ];
+ for(const mutate of mutations){const input=schemaReplayFixture(true);mutate(input);assert.throws(()=>selectPinnedBusinessSchemaReplay(input),/replay_transition_invalid/);}
+ // Even a matching outer descriptor digest cannot authorize changed SQL.
+ const changed=schemaReplayFixture(true);changed.targetLedger[259].statements[0].sha256='0'.repeat(64);
+ changed.replay.contract.capturedLedgerDescriptorSha256=hash(JSON.stringify(changed.targetLedger));
+ assert.throws(()=>selectPinnedBusinessSchemaReplay(changed),/replay_transition_invalid/);
+});
 test('classifies exact function and relation ACL changes separately from application definition changes',()=>{
  const a=row('function','public.test()',['CREATE FUNCTION test() RETURNS int LANGUAGE sql AS $$SELECT 1$$;','[]','postgres']);
  const e=row('function','public.test()',[JSON.parse(a.definition)[0],'["=X/postgres"]','postgres']);

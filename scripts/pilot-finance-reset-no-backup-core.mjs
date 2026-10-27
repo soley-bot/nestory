@@ -44,7 +44,7 @@ export const NO_BACKUP_REQUIRED_SOURCE_FILES = Object.freeze([
   '.github/workflows/ci.yml', '.github/workflows/pilot-financial-reset.yml',
   ...['no-backup-core', 'no-backup-runtime', 'no-backup-transport', 'no-backup-reader', 'current-session', 'retired-journal-core', 'operator-core', 'hosted-runner', 'hosted-reconcile', 'hosted-workflow-core',
     'hosted-actor', 'hosted-approval', 'hosted-reader', 'hosted-transport', 'hosted-transport-protocol', 'migration-parity',
-    'hosted-protocol', 'durable-store', 'encrypted-artifacts', 'external-store', 'recovery-artifact-reader', 'reopening-protocol',
+    'hosted-protocol', 'single-admin-policy', 'durable-store', 'encrypted-artifacts', 'external-store', 'recovery-artifact-reader', 'reopening-protocol',
     'executor-local', 'executor-plan', 'core', 'recovery-core', 'registry'].map(name => `scripts/pilot-finance-reset-${name}.mjs`),
   'scripts/local-recovery-docker.mjs', 'scripts/ips-readiness-recovery-core.mjs', 'scripts/hosted-migration-parity-core.mjs',
   'supabase/migration-reconciliations/20260821-hosted-migration-canonical-hashes.json',

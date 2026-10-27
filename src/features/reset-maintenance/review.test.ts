@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { parseSessionReview, MAX_REVIEW_BYTES, RESET_STAGE_LABELS } from "./review";
-import { reviewFixture } from "./review.test-fixtures";
+import { reviewFixture, soleAdministratorReviewFixture } from "./review.test-fixtures";
 
 describe("Pilot session review file", () => {
   it.each(Object.keys(RESET_STAGE_LABELS) as (keyof typeof RESET_STAGE_LABELS)[])("accepts the exact reviewed %s stage", action => {
@@ -43,4 +43,19 @@ describe("Pilot session review file", () => {
     const duplicate = reviewFixture(); duplicate.binding.continuation_semantic.leases.push(duplicate.binding.continuation_semantic.leases[0]);
     expect(parseSessionReview(JSON.stringify(duplicate))).toBeNull();
   });
+});
+
+it("accepts a bound sole-maker declaration and refuses a fake reviewer or wider transition",()=>{
+ const r=soleAdministratorReviewFixture();expect(parseSessionReview(JSON.stringify(r))).toEqual(r);
+ for(const patch of [{reviewer_actor_id:r.binding.continuation_semantic.actor_id},{approval_policy:"other"},{version:3},{organization_id:r.binding.operation_id}]){
+  const changed={...r,zeroPlanText:JSON.stringify({...JSON.parse(r.zeroPlanText!),...patch})};expect(parseSessionReview(JSON.stringify(changed))).toBeNull();
+ }
+ const wide=structuredClone(r);wide.binding.source_generation=1;wide.binding.target_generation=2;expect(parseSessionReview(JSON.stringify(wide))).toBeNull();
+});
+it("requires raw plan text for marked and unmarked v4 files",()=>{
+ for(const review of [reviewFixture(),soleAdministratorReviewFixture()]){
+  const {zeroPlanText,...omitted}=review;
+  expect(zeroPlanText.length).toBeGreaterThan(0);
+  expect(parseSessionReview(JSON.stringify(omitted))).toBeNull();
+ }
 });

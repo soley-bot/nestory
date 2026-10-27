@@ -11,15 +11,17 @@ import { RAM_POSTGRES_IMAGE } from './local-backup-restore.mjs';
 import { backupHash,readPrivateBackupFile,writePrivateBackupFile,decryptLocalBackup,decryptLocalBackupChunks,encryptLocalBackup,loadRecoveryPublicKey } from './local-backup-crypto.mjs';
 import { verifyCaptureChunk,verifyCaptureCompleteness,LOCAL_CAPTURE_POLICY } from './local-backup-capture.mjs';
 import { validateBusinessSnapshot,verifyBusinessMigrationReplay,buildSelectedBusinessRestoreSql } from './local-backup-business-restore.mjs';
-import { catalogExpression } from './pilot-finance-reset-hosted-transport-protocol.mjs';
-import { canonicalMigrationHash,hashGitMigrationBody,reconstructLocalMigrationDescriptors } from './hosted-migration-parity-core.mjs';
+import { catalogExpression,ledgerExpression } from './pilot-finance-reset-hosted-transport-protocol.mjs';
+import { canonicalMigrationHash,hashGitMigrationBody,reconstructLocalMigrationDescriptors,describeMigrationStatement } from './hosted-migration-parity-core.mjs';
 import { schemaDiagnosticSql,schemaCensusSql } from './ips-readiness-recovery-core.mjs';
-import {buildBusinessSchemaPermissionCorrection,buildBusinessSchemaStructuralCorrection,classifyBusinessSchemaCorrection} from './local-backup-business-schema-restore.mjs';
+import {buildBusinessSchemaPermissionCorrection,buildBusinessSchemaStructuralCorrection,classifyBusinessSchemaCorrection,
+ selectPinnedBusinessSchemaReplay,BUSINESS_SCHEMA_TRANSITION} from './local-backup-business-schema-restore.mjs';
 import {readBusinessSchemaSource,assertBusinessSchemaArchiveReference} from './local-backup-business-schema-source.mjs';
 import {createPilotRamRehearsalPlanner} from './local-backup-ram-rehearsal-plan.mjs';
 import {buildPilotRehearsalBinding,bindPilotRehearsalSemantics} from './local-backup-packet-bridge.mjs';
 import * as rehearsalSql from './local-backup-business-rehearsal-sql.mjs';
 import {sqlDoBlock} from './pilot-finance-reset-executor-local.mjs';
+import {RESET_REGISTRY} from './pilot-finance-reset-registry.mjs';
 
 const root=path.resolve(import.meta.dirname,'..'),self=fileURLToPath(import.meta.url);
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
@@ -31,6 +33,7 @@ const exact=(o,k)=>o&&JSON.stringify(Object.keys(o).sort())===JSON.stringify([..
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 let diagnosticStage='request';
 let diagnosticResetExecution=null,diagnosticResetVerificationComplete=false;
+let diagnosticInverseActions=[],diagnosticInverseConstraints=[];
 const childEnvironment=()=>({SystemRoot:'C:\\Windows',WINDIR:'C:\\Windows',SystemDrive:'C:',ComSpec:'C:\\Windows\\System32\\cmd.exe',PATHEXT:'.COM;.EXE;.BAT;.CMD',PATH:'C:\\Windows\\System32;C:\\Program Files\\Docker\\Docker\\resources\\bin',
  USERPROFILE:'C:\\Users\\USer',APPDATA:'C:\\Users\\USer\\AppData\\Roaming',LOCALAPPDATA:'C:\\Users\\USer\\AppData\\Local',
  TEMP:'C:\\Users\\USer\\AppData\\Local\\Temp',TMP:'C:\\Users\\USer\\AppData\\Local\\Temp'});
@@ -127,6 +130,18 @@ export function safeBusinessInverseCause(value){
  return exact(value,['phase','cause'])&&inverseDiagnosticSections.includes(value.phase)&&rehearsalSql.RAM_INVERSE_NATIVE_CAUSES.includes(value.cause)?
   {phase:value.phase,cause:value.cause}:null;
 }
+export function safeBusinessInverseAction(value){
+ return exact(value,['ordinal','relation','kind','constraintIndex'])&&Number.isSafeInteger(value.ordinal)&&value.ordinal>=1&&value.ordinal<=1000000&&
+  Object.hasOwn(RESET_REGISTRY,value.relation)&&['restore','recovery-prune','recovery-repair'].includes(value.kind)&&
+  Number.isSafeInteger(value.constraintIndex)&&value.constraintIndex>=0&&value.constraintIndex<=1000000?{...value}:null;
+}
+export function resolveBusinessInverseAction(value,actions,constraints){
+ const v=safeBusinessInverseAction(value);if(!v||!Array.isArray(actions)||!Array.isArray(constraints))return null;
+ const a=actions[v.ordinal-1];if(!a||a.ordinal!==v.ordinal||a.relation_name!==v.relation||a.kind!==v.kind)return null;
+ const name=v.constraintIndex===0?null:constraints[v.constraintIndex-1];
+ if(v.constraintIndex!==0&&(typeof name!=='string'||!name.startsWith(v.relation+'.')||!/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/.test(name)))return null;
+ return{ordinal:v.ordinal,relation:v.relation,kind:v.kind,constraintName:name};
+}
 export function parseBusinessDatabaseFailure(stderr){
  if(typeof stderr!=='string')return{};
  const line=/(?:^|\n)(?:psql:<stdin>:\d+:\s*)?(?:ERROR|FATAL):\s+([0-9A-Z]{5})(?::\s*([^\r\n]*))?(?:\r?\n|$)/.exec(stderr.slice(0,2048));
@@ -136,7 +151,7 @@ export function parseBusinessDatabaseFailure(stderr){
 // Retain only fixed diagnostic names and bounded numeric timing observations.
 // Native query/context lines are discarded, including oversized lines.
 export function createBusinessDatabaseDiagnostics(){
- let line='',dropping=false,failure={},phaseTimings=[],inverseCause=null;
+ let line='',dropping=false,failure={},phaseTimings=[],inverseCause=null,inverseAction=null;
  const consume=()=>{
   if(!dropping){
    const error=parseBusinessDatabaseFailure(line+'\n');if(error.sqlState&&!failure.sqlState)failure=error;
@@ -145,11 +160,13 @@ export function createBusinessDatabaseDiagnostics(){
     phaseTimings.push({phase:match[1],outcome:match[2],elapsedMilliseconds:Number(match[3])});
    const cause=/^(?:psql:<stdin>:\d+:\s*)?NOTICE:\s+(?:00000:\s*)?local_ram_rehearsal_inverse_cause:([a-z_]+):([a-z_]+)\r?$/.exec(line);
    if(cause&&!inverseCause)inverseCause=safeBusinessInverseCause({phase:cause[1],cause:cause[2]});
+   const action=/^(?:psql:<stdin>:\d+:\s*)?NOTICE:\s+(?:00000:\s*)?local_ram_rehearsal_inverse_action:([1-9][0-9]{0,6}):([a-z_]+\.[a-z_]+):([a-z-]+):(0|[1-9][0-9]{0,6})\r?$/.exec(line);
+   if(action&&!inverseAction)inverseAction=safeBusinessInverseAction({ordinal:Number(action[1]),relation:action[2],kind:action[3],constraintIndex:Number(action[4])});
   }
   line='';dropping=false;
  };
  return{push(chunk){for(const character of String(chunk)){if(character==='\n')consume();else if(!dropping){if(line.length>=2048){line='';dropping=true}else line+=character}}},
-  finish(){if(line||dropping)consume();return{...failure,phaseTimings:phaseTimings.map(p=>({...p})),...(inverseCause?{inverseCause:{...inverseCause}}:{})}}};
+  finish(){if(line||dropping)consume();return{...failure,phaseTimings:phaseTimings.map(p=>({...p})),...(inverseCause?{inverseCause:{...inverseCause}}:{}),...(inverseAction?{inverseAction:{...inverseAction}}:{})}}};
 }
 export function safeBusinessRehearsalFailureCode(message){
  if(typeof message!=='string')return null;
@@ -272,8 +289,8 @@ async function readRuntimeSchema(runtime){
  if(start<0||end<start)fail('schema_failed');
  return JSON.parse(await runtime.sql(`SET search_path=pg_catalog,public;${schemaCensusSql.slice(start,end+1)} SELECT jsonb_build_object('catalog',jsonb_agg(jsonb_build_object('kind',kind,'name',name,'sha256',encode(extensions.digest(definition,'sha256'),'hex')) ORDER BY kind COLLATE "C",name COLLATE "C"),'definitions',jsonb_agg(jsonb_build_object('kind',kind,'name',name,'definition',definition,'sha256',encode(extensions.digest(definition,'sha256'),'hex')) ORDER BY kind COLLATE "C",name COLLATE "C")) FROM objects;`));
 }
-async function correctPinnedBusinessSchema(runtime,expected,reference){
- const {payload:source,evidence}=await readBusinessSchemaSource(reference);
+async function correctPinnedBusinessSchema(runtime,expected,reference,savedSource=null){
+ const {payload:source,evidence}=savedSource??await readBusinessSchemaSource(reference);
  // A newer business snapshot may reuse this package only if its entire source
  // catalog and original ledger descriptors remain identical. No caller waiver.
  if(!same(source.catalog,expected.catalog)||!same(source.ledger,expected.ledger))fail('schema_failed');
@@ -287,7 +304,24 @@ async function correctPinnedBusinessSchema(runtime,expected,reference){
  return{format:'nestory-exact-local-schema-reconstruction-v1',sourceArchive:evidence,objectCount:actual.catalog.length,
   catalogSha256,replayedLedgerRowsPreserved:true,capturedDefinitionBytesPreserved:true};
 }
-const transitionName='20261027005615_financial_reset_empty_books_preserved_contracts.sql';
+const transitionName=BUSINESS_SCHEMA_TRANSITION;
+async function applyPinnedBusinessSchemaTransition(runtime,source,requireEmpty){
+ if(source?.name!==transitionName||typeof source.sql!=='string'||source.sha256!==backupHash(source.sql)||typeof requireEmpty!=='boolean')fail('rehearsal_baseline_invalid');
+ // Only this already-owned socket runtime may execute repository migration SQL.
+ // The migration has its own transaction; any failure destroys the RAM clone.
+ await runtime.sql(`BEGIN;
+ DO $local_schema_transition$ BEGIN
+  IF session_user<>'postgres' OR current_user<>'postgres' OR current_database()<>'postgres' OR inet_server_addr() IS NOT NULL
+   OR current_setting('data_directory')<>'/db/pg' OR current_setting('listen_addresses')<>''
+   OR (SELECT count(*) FROM supabase_migrations.schema_migrations)<>259
+   OR EXISTS(SELECT 1 FROM supabase_migrations.schema_migrations WHERE version>='20261027005615')
+   ${requireEmpty?"OR EXISTS(SELECT 1 FROM public.organizations) OR EXISTS(SELECT 1 FROM auth.users) OR EXISTS(SELECT 1 FROM storage.objects)":""}
+  THEN RAISE EXCEPTION 'local_rehearsal_transition_baseline_invalid'; END IF;
+ END $local_schema_transition$;
+ ${source.sql}
+ INSERT INTO supabase_migrations.schema_migrations(version,name,statements)
+ VALUES('20261027005615','financial_reset_empty_books_preserved_contracts',ARRAY[${literal(source.sql)}]); COMMIT;`);
+}
 const inputReferenceKeys=['keyId','archiveId','archiveSha256','plaintextSha256','plaintextBytes'];
 export function assertBusinessRehearsalInputReference(reference,keyId){
  if(!exact(reference,inputReferenceKeys)||reference.keyId!==keyId||!uuid.test(keyId)||!uuid.test(reference.archiveId)||
@@ -323,7 +357,7 @@ export function assertBusinessRehearsalVerification(value,phase,contractsSha256)
  if(!['reset','recovered'].includes(phase)||!exact(value,keys)||value.format!=='nestory-local-ram-rehearsal-verification-v1'||value.phase!==phase||
   value.generation!==(phase==='reset'?1:2)||value.frozen!==true||value.canonicalRowsVerified!==true||value.foreignKeysVerified!==true||
   value.contractsUnchanged!==true||value.exactLifecycleDeltaVerified!==true||!digest.test(contractsSha256)||value.contractsSha256!==contractsSha256||
-  !digest.test(value.checkpointSha256)||value.syntheticActorCount!==2||value.productionPermissionProven!==false||value.productionForeignDataProven!==false||
+  !digest.test(value.checkpointSha256)||value.syntheticActorCount!==1||value.productionPermissionProven!==false||value.productionForeignDataProven!==false||
   value.excludedCredentialTablesRestored!==false||value.storageRecoveryVerified!==false||!Array.isArray(value.tableCensus)||value.tableCensus.length!==LOCAL_CAPTURE_POLICY.length)fail('rehearsal_verification_invalid');
  const roster=new Set(LOCAL_CAPTURE_POLICY.map(r=>r.table));
  for(const row of value.tableCensus){
@@ -382,18 +416,21 @@ export function buildBusinessRestoreAnalyzeSql(){
 async function rehearseRestoredBusiness({runtime,payload,snapshot,request,custody,replay}){
  const json=async(sql,action='default')=>JSON.parse(await runtime.sql(sql,'postgres',action));
  diagnosticStage='rehearsal-migration';
- if(replay.sources.some(s=>s.name===transitionName)||replay.sources.length!==259)fail('rehearsal_baseline_invalid');
  const transition=(await readFile(path.join(root,'supabase/migrations',transitionName),'utf8')).replaceAll('\r\n','\n'),transitionSha256=backupHash(transition);
- await runtime.sql(`BEGIN; DO $$ BEGIN IF EXISTS(SELECT 1 FROM supabase_migrations.schema_migrations WHERE version>='20261027005615') THEN RAISE EXCEPTION 'local_rehearsal_transition_already_installed'; END IF; END $$;\n${transition}\nINSERT INTO supabase_migrations.schema_migrations(version,name,statements) VALUES('20261027005615','financial_reset_empty_books_preserved_contracts',ARRAY[${literal(transition)}]); COMMIT;`);
+ if(replay.sources.length===259&&!replay.sources.some(s=>s.name===transitionName)){
+  await applyPinnedBusinessSchemaTransition(runtime,{name:transitionName,sql:transition,sha256:transitionSha256},false);
+ }else if(replay.sources.length!==260||replay.sources[259].name!==transitionName||replay.sources[259].sha256!==transitionSha256){
+  fail('rehearsal_baseline_invalid');
+ }
  const operationId=randomUUID(),recoveryId=randomUUID(),planner=createPilotRamRehearsalPlanner({manifestBytes:payload,expectedSourceSha256:request.sourceSha256,operationId});
  diagnosticStage='rehearsal-preview';const preview=await json(planner.previewSql());
  diagnosticStage='rehearsal-materialize';const materialization=await json(planner.materializeSql(preview)),plan=planner.acceptMaterialization(preview,materialization),planBinding=buildPilotRehearsalBinding(plan);
  const beforeContractsSha256=await runtime.sql(`BEGIN READ ONLY;SELECT app_private.financial_reset_hash(app_private.financial_reset_preserved_contracts(${literal(planBinding.organizationId)}::uuid));COMMIT;`);
  if(!digest.test(beforeContractsSha256))fail('rehearsal_contracts_changed');
- const fixture={maker:randomUUID(),reviewer:randomUUID(),makerSession:randomUUID(),reviewerSession:randomUUID()};
+ const fixture={maker:randomUUID(),makerSession:randomUUID()};
  diagnosticStage='rehearsal-fixture';const fixtureResult=await json(rehearsalSql.buildRamActorFixtureSql(fixture));
  if(!exact(fixtureResult,['format','actorCount','sessionCount','authorityKind','productionPermissionProven','customerAuthImpersonated','fixtureTransactionId'])||
-  fixtureResult.format!=='nestory-local-synthetic-actor-fixture-v1'||fixtureResult.actorCount!==2||fixtureResult.sessionCount!==2||
+  fixtureResult.format!=='nestory-local-synthetic-actor-fixture-v1'||fixtureResult.actorCount!==1||fixtureResult.sessionCount!==1||
   fixtureResult.authorityKind!=='local-sql-session-fixture'||fixtureResult.productionPermissionProven!==false||fixtureResult.customerAuthImpersonated!==false||
   typeof fixtureResult.fixtureTransactionId!=='string'||!/^[1-9][0-9]*$/.test(fixtureResult.fixtureTransactionId))fail('rehearsal_fixture_invalid');
  diagnosticStage='rehearsal-prepare';const phases=await json(rehearsalSql.buildRamResetPrepareSql({plan,planBinding,fixture,fixtureTransactionId:fixtureResult.fixtureTransactionId}));
@@ -409,6 +446,8 @@ async function rehearseRestoredBusiness({runtime,payload,snapshot,request,custod
  diagnosticStage='rehearsal-sources';const inverseInputs=await json(rehearsalSql.buildRamInverseReadbackSql({plan,planBinding}));
  diagnosticStage='rehearsal-inverse-plan';const canonicalInverse=await json(rehearsalSql.buildRamInverseCanonicalSql({plan,planBinding,inverseInputs,recoveryId}));
  await custody.check();diagnosticStage='rehearsal-inverse-execute';
+ diagnosticInverseActions=canonicalInverse.actions.map(a=>({ordinal:a.ordinal,relation_name:a.relation_name,kind:a.kind}));
+ diagnosticInverseConstraints=rehearsalSql.ramInverseConstraintRoster(plan);
  const inverse=summarizeBusinessRehearsalExecution(await json(rehearsalSql.buildRamInverseExecuteSql({plan,planBinding,fixture,phases,inverseInputs,recoveryId,canonicalInverse})),'recovered',recoveryId);
  diagnosticStage='rehearsal-verify';const recovered=await json(rehearsalSql.buildRamRehearsalVerificationSql({plan,planBinding,fixture,phases,inverseInputs,recoveryId,canonicalInverse,phase:'recovered'}));
  const recoveredStorage=await verifyRehearsalStorage(runtime,snapshot);
@@ -429,7 +468,7 @@ async function rehearseRestoredBusiness({runtime,payload,snapshot,request,custod
 }
 async function restoreChild(internal,rehearse=false){
  const {request,binding}=assertBusinessChildRequest(internal);
- assertBusinessRestoreRequest(request);diagnosticStage='spill';diagnosticResetExecution=null;diagnosticResetVerificationComplete=false;const initialPins=await sourcePins();
+ assertBusinessRestoreRequest(request);diagnosticStage='spill';diagnosticResetExecution=null;diagnosticResetVerificationComplete=false;diagnosticInverseActions=[];diagnosticInverseConstraints=[];const initialPins=await sourcePins();
  await localRecoveryDocker({execute:async(...a)=>(await execute(...a)).toString('utf8')});
  const custody=await holdSpillCustody(),before=custody.initial;let encrypted,envelopeBytes,payload,runtime,removed=false;
  try{
@@ -459,8 +498,26 @@ async function restoreChild(internal,rehearse=false){
     await writePrivateBackupFile(randomUUID(),'proof.json',Buffer.from(JSON.stringify({format:'nestory-local-business-migration-failure-v1',restoreProven:false,sourceSha256:request.sourceSha256,failures})));
    }throw error;
   }
-  await bootstrap(runtime,replay);await custody.check();diagnosticStage='schema';
-  let catalog=JSON.parse(await runtime.sql(`SET search_path=pg_catalog,public; SELECT ${catalogExpression};`)),schemaReconstruction=null;
+  let schemaReconstruction=null;
+  if(replay.sources.some(s=>s.name===transitionName)){
+   // Reuse the authenticated 259 schema only as a baseline, never as a claim
+   // that it is the current 260 catalog. No customer rows exist at this stage.
+   diagnosticStage='schema-transition-baseline';
+   const saved=await readBusinessSchemaSource(request.schemaArchive);
+   const selected=selectPinnedBusinessSchemaReplay({baseLedger:saved.payload.ledger,targetLedger:checked.snapshot.ledger,replay});
+   if(!selected.transition)fail('rehearsal_baseline_invalid');
+   await bootstrap(runtime,{sources:selected.baseSources});await custody.check();
+   const baseProof=await correctPinnedBusinessSchema(runtime,saved.payload,request.schemaArchive,saved);
+   diagnosticStage='schema-transition';await applyPinnedBusinessSchemaTransition(runtime,selected.transition,true);
+   const targetCatalog=JSON.parse(await runtime.sql(`SET search_path=pg_catalog,public; SELECT ${catalogExpression};`));
+   if(!same(targetCatalog,checked.snapshot.catalog))fail('schema_failed');
+   schemaReconstruction={format:'nestory-exact-local-schema-reconstruction-v2',base:baseProof,
+    transition:{name:selected.transition.name,sha256:selected.transition.sha256},targetLedgerSha256:selected.targetLedgerSha256,
+    objectCount:targetCatalog.length,catalogSha256:await runtime.sql(`SET search_path=pg_catalog,public; SELECT encode(extensions.digest(${catalogExpression}::text,'sha256'),'hex');`),
+    fullTargetCatalogMatched:true,customerRowsImported:false};
+  }else{await bootstrap(runtime,replay);await custody.check();}
+  diagnosticStage='schema';
+  let catalog=JSON.parse(await runtime.sql(`SET search_path=pg_catalog,public; SELECT ${catalogExpression};`));
   if(!same(catalog,checked.snapshot.catalog)){
    schemaReconstruction=await correctPinnedBusinessSchema(runtime,checked.snapshot,request.schemaArchive);await custody.check();
    catalog=JSON.parse(await runtime.sql(`SET search_path=pg_catalog,public; SELECT ${catalogExpression};`));
@@ -501,6 +558,7 @@ async function restoreChild(internal,rehearse=false){
    sqlState:/^[0-9A-Z]{5}$/.test(error?.sqlState)?error.sqlState:null,processTimedOut:error?.processTimedOut===true,
    databaseCode:preparationDatabaseCodes.has(error?.databaseCode)?error.databaseCode:null,
    inverseCause:safeBusinessInverseCause(error?.inverseCause),
+   inverseAction:resolveBusinessInverseAction(error?.inverseAction,diagnosticInverseActions,diagnosticInverseConstraints),
    phaseTimings:Array.isArray(error?.phaseTimings)&&error.phaseTimings.length?error.phaseTimings:runtime?.phaseTimings()??[],
    successfulResetExecution:diagnosticResetExecution,resetVerificationCompleted:diagnosticResetVerificationComplete,
    knownFailure:safeBusinessRehearsalFailureCode(error?.message)})));
@@ -561,7 +619,11 @@ export async function exerciseSyntheticSchemaPermissionCorrection(){
 }
 // Compile the reviewed finite correction in an empty owned RAM clone. This
 // entry never reads the business archive or imports customer/auth/storage rows.
-export async function exercisePinnedBusinessSchemaCorrection(reference){
+export async function exercisePinnedBusinessSchemaCorrection(reference){return exerciseSavedBusinessSchema(reference,false)}
+// Reconstruct the predicted post-release catalog twice in fresh empty RAM.
+// This is not a hosted 260 capture and never imports customer/auth/storage rows.
+export async function exercisePinnedBusinessSchemaTransition(reference){return exerciseSavedBusinessSchema(reference,true)}
+async function exerciseSavedBusinessSchema(reference,exerciseTransition){
  assertBusinessSchemaArchiveReference(reference);
  const custody=await holdSpillCustody();let runtime;let stage='source';
  try{
@@ -579,6 +641,27 @@ export async function exercisePinnedBusinessSchemaCorrection(reference){
   await writePrivateBackupFile(randomUUID(),'proof.json',Buffer.from(JSON.stringify({...classification,format:'nestory-local-empty-schema-correction-result-v1',correctionExecuted:true,
    sourceArchive:evidence,customerRowsImported:false,stage:'catalog'})));
   if(classification.changes.length)throw Error('local_business_schema_final_catalog_mismatch');
+  if(exerciseTransition){
+   stage='transition-first';const transitionSql=(await readFile(path.join(root,'supabase/migrations',transitionName),'utf8')).replaceAll('\r\n','\n');
+   const targetLedger=[...source.ledger,{version:'20261027005615',name:'financial_reset_empty_books_preserved_contracts',statements:[describeMigrationStatement(transitionSql)]}];
+   const targetReplay=verifyBusinessMigrationReplay(targetLedger,local,await readFile(path.join(root,'supabase/migration-reconciliations/20260821-hosted-migration-canonical-hashes.json')));
+   const selected=selectPinnedBusinessSchemaReplay({baseLedger:source.ledger,targetLedger,replay:targetReplay});
+   await applyPinnedBusinessSchemaTransition(runtime,selected.transition,true);
+   const predicted=await readRuntimeSchema(runtime),predictedLedger=JSON.parse(await runtime.sql(`SET search_path=pg_catalog,public;SELECT ${ledgerExpression};`));
+   await custody.check();await runtime.remove();
+   stage='transition-fresh-bootstrap';runtime=await createRuntime();await bootstrap(runtime,{sources:selected.baseSources});
+   await correctPinnedBusinessSchema(runtime,source,reference,{payload:source,evidence});
+   stage='transition-fresh-apply';await applyPinnedBusinessSchemaTransition(runtime,selected.transition,true);
+   const reconstructed=await readRuntimeSchema(runtime),reconstructedLedger=JSON.parse(await runtime.sql(`SET search_path=pg_catalog,public;SELECT ${ledgerExpression};`));
+   if(!same(predicted.catalog,reconstructed.catalog)||!same(predictedLedger,reconstructedLedger))fail('schema_failed');
+   if(backupHash((await readFile(path.join(root,'supabase/migrations',transitionName),'utf8')).replaceAll('\r\n','\n'))!==selected.transition.sha256)fail('source_changed');
+   await custody.check();await runtime.remove();
+   const proof={format:'nestory-local-empty-schema-transition-proof-v1',sourceArchive:evidence,
+    transition:{name:transitionName,sha256:selected.transition.sha256},baseObjects:source.catalog.length,targetObjects:reconstructed.catalog.length,
+    exactCatalogMatched:true,exactLedgerMatched:true,reconstructionPasses:2,customerRowsImported:false,
+    derivedTarget:true,postReleaseCaptureProven:false,ownedContainersRemoved:true};
+   await writePrivateBackupFile(randomUUID(),'proof.json',Buffer.from(JSON.stringify(proof)));return proof;
+  }
   await custody.check();await runtime.remove();return{format:'nestory-local-empty-schema-correction-proof-v1',sourceArchive:evidence,
    exactCatalogMatched:true,objects:final.catalog.length,replayedVersions:replay.sources.length,customerRowsImported:false,ownedContainerRemoved:true};
  }catch(error){

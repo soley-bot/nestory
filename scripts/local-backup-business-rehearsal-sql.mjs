@@ -6,8 +6,9 @@ import {isDeepStrictEqual} from 'node:util';
 import {PILOT_BACKUP_ORGANIZATION,LOCAL_CAPTURE_POLICY} from './local-backup-capture.mjs';
 import {buildPilotRehearsalBinding,bindPilotRehearsalSemantics} from './local-backup-packet-bridge.mjs';
 import {inspectPilotRamRehearsalPlan,buildPilotRamInversePlan} from './local-backup-ram-rehearsal-plan.mjs';
-import {buildActionTransactionSql,sqlDoBlock} from './pilot-finance-reset-executor-local.mjs';
+import {buildActionTransactionSql,emptyBooksActionBatchSql,sqlDoBlock} from './pilot-finance-reset-executor-local.mjs';
 import {catalogExpression,ledgerExpression,digestJson} from './pilot-finance-reset-hosted-transport-protocol.mjs';
+import {PILOT_SINGLE_ADMIN_POLICY,isPilotSingleAdminZeroPlan} from './pilot-finance-reset-single-admin-policy.mjs';
 import {RESET_REGISTRY} from './pilot-finance-reset-registry.mjs';
 const hash=v=>createHash('sha256').update(v).digest('hex');
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/,digest=/^[a-f0-9]{64}$/;
@@ -26,7 +27,7 @@ END`,'ram_local');
 const settings="SET LOCAL standard_conforming_strings=on; SET LOCAL timezone='UTC'; SET LOCAL search_path=pg_catalog,public; SET LOCAL statement_timeout='120s';";
 const begin=(readOnly=false)=>`BEGIN ISOLATION LEVEL READ COMMITTED${readOnly?' READ ONLY':''};\n${settings}\n${RAM_REHEARSAL_LOCAL_GUARD}`;
 function fixtureChecked(f){
- if(!exact(f,['maker','reviewer','makerSession','reviewerSession'])||Object.values(f).some(x=>!uuid.test(x))||new Set(Object.values(f)).size!==4)fail('fixture_invalid');return f;
+ if(!exact(f,['maker','makerSession'])||Object.values(f).some(x=>!uuid.test(x))||new Set(Object.values(f)).size!==2)fail('fixture_invalid');return f;
 }
 
 function lifecycleVerificationSql({b,p,f,recovered,recoveryId,canonicalInverse,inverseInputs,actionInputs,archiveRows}){
@@ -85,11 +86,11 @@ function lifecycleVerificationSql({b,p,f,recovered,recoveryId,canonicalInverse,i
   WHERE s.organization_id=${org} AND (s.operation_id<>${op} OR s.phase NOT IN ('known-zero','continuation','reports') OR s.generation<>1 OR s.financial_start_date<>'2026-10-01'
    OR s.backend_pid<>o.execution_backend OR s.transaction_id<>o.execution_xid)) THEN RAISE EXCEPTION 'local_ram_rehearsal_phase_fence_changed'; END IF;
  IF EXISTS(SELECT 1 FROM app_private.financial_reset_zero_approvals s WHERE s.organization_id=${org} AND
-  (s.operation_id<>${op} OR s.review_sha256<>${literal(p.zeroReviewSha256)} OR s.approved_by<>CASE s.approval_kind WHEN 'maker' THEN ${literal(f.maker)}::uuid ELSE ${literal(f.reviewer)}::uuid END))
+  (s.operation_id<>${op} OR s.review_sha256<>${literal(p.zeroReviewSha256)} OR s.approval_kind<>'maker' OR s.approved_by<>${literal(f.maker)}::uuid))
  OR EXISTS(SELECT 1 FROM app_private.financial_reset_zero_session_endorsements s WHERE s.organization_id=${org} AND
   (s.operation_id<>${op} OR s.review_sha256<>${literal(p.zeroReviewSha256)} OR s.endorsement_number<>1 OR
-   s.actor_id<>CASE s.approval_kind WHEN 'maker' THEN ${literal(f.maker)}::uuid ELSE ${literal(f.reviewer)}::uuid END OR
-   s.session_id<>CASE s.approval_kind WHEN 'maker' THEN ${literal(f.makerSession)}::uuid ELSE ${literal(f.reviewerSession)}::uuid END)) THEN RAISE EXCEPTION 'local_ram_rehearsal_approvals_changed'; END IF;
+   s.approval_kind<>'maker' OR s.actor_id<>${literal(f.maker)}::uuid OR
+   s.session_id<>${literal(f.makerSession)}::uuid)) THEN RAISE EXCEPTION 'local_ram_rehearsal_approvals_changed'; END IF;
  FOR r IN SELECT value FROM jsonb_array_elements(${json(authorities)}) LOOP
   IF (SELECT count(*) FROM app_private.financial_reset_actor_authorizations a JOIN app_private.financial_reset_operations o ON o.operation_id=(r->>'operation_id')::uuid
    WHERE a.organization_id=${org} AND a.action=r->>'action' AND a.binding=r->'binding' AND a.binding_sha256=app_private.financial_reset_hash(a.binding)
@@ -134,7 +135,7 @@ function auditVerificationSql({b,p,f}){
  IF EXISTS(SELECT 1 FROM ram_audit_additions a WHERE relation_name='public.activity_logs' AND
   (row_json->>'organization_id' IS DISTINCT FROM ${org}::text OR row_json->>'entity_type' IS DISTINCT FROM 'owner_opening_balance_request'
   OR row_json->>'action' NOT IN ('submitted','approved') OR row_json->'previous_values' IS DISTINCT FROM 'null'::jsonb
-  OR row_json->>'actor_id' IS DISTINCT FROM CASE row_json->>'action' WHEN 'submitted' THEN ${literal(f.maker)} ELSE ${literal(f.reviewer)} END
+  OR row_json->>'actor_id' IS DISTINCT FROM ${literal(f.maker)}
   OR row_json->'new_values'->>'source' IS DISTINCT FROM 'checked_rpc'
   OR row_json->'new_values'->>'operation' IS DISTINCT FROM CASE row_json->>'action' WHEN 'submitted' THEN 'submit_owner_opening_balance' ELSE 'review_owner_opening_balance' END
   OR NOT EXISTS(SELECT 1 FROM ram_audit_additions i WHERE i.relation_name='app_private.financial_idempotency_requests'
@@ -164,12 +165,12 @@ function phaseChecked(plan,fixture,p){
    ![p.zeroReviewSha256,p.reportPlan?.report_review_sha256,p.fixtureSourceSha256,p.fixtureForeignSha256].every(x=>digest.test(x))||
    !Number.isFinite(Date.parse(p.auditTimestamp))||!/^2026-10-\d{2}$/.test(p.executionBusinessDate)||typeof p.timezone!=='string'||
    hash(p.zeroPlanText)!==p.zeroReviewSha256||!isDeepStrictEqual(JSON.parse(p.zeroPlanText),p.zeroPlan)||
-   !isDeepStrictEqual(JSON.parse(p.continuationPlanText),p.continuationPlan)||p.zeroPlan.version!==4||p.zeroPlan.maker_actor_id!==fixture.maker||p.zeroPlan.reviewer_actor_id!==fixture.reviewer||
+   !isDeepStrictEqual(JSON.parse(p.continuationPlanText),p.continuationPlan)||p.zeroPlan.version!==4||p.zeroPlan.maker_actor_id!==fixture.maker||p.zeroPlan.reviewer_actor_id!==null||!isPilotSingleAdminZeroPlan(p.zeroPlan)||
    p.continuationPlan.actor_id!==fixture.maker||p.continuationPlan.execution_business_date!==p.executionBusinessDate||
-   !Array.isArray(p.fixtureRows)||p.fixtureRows.length!==2||!/^[0-9]+$/.test(p.reportRevisionBefore)||!transactionIdValid(p.fixtureTransactionId))fail('phases_changed');
+   !Array.isArray(p.fixtureRows)||p.fixtureRows.length!==1||!/^[0-9]+$/.test(p.reportRevisionBefore)||!transactionIdValid(p.fixtureTransactionId))fail('phases_changed');
  for(const row of p.fixtureRows){if(!exact(row,['rowText','rowSha256'])||typeof row.rowText!=='string'||hash(row.rowText)!==row.rowSha256)fail('fixture_readback_changed');
-  const v=JSON.parse(row.rowText);if(v.organization_id!==PILOT_BACKUP_ORGANIZATION||![fixture.maker,fixture.reviewer].includes(v.user_id)||v.role!=='super_admin'||v.branch_id!==null||v.person_id!==null)fail('fixture_readback_changed');}
- if(new Set(p.fixtureRows.map(r=>JSON.parse(r.rowText).user_id)).size!==2)fail('fixture_readback_changed');
+  const v=JSON.parse(row.rowText);if(v.organization_id!==PILOT_BACKUP_ORGANIZATION||v.user_id!==fixture.maker||v.role!=='super_admin'||v.branch_id!==null||v.person_id!==null)fail('fixture_readback_changed');}
+ if(new Set(p.fixtureRows.map(r=>JSON.parse(r.rowText).user_id)).size!==1)fail('fixture_readback_changed');
  bindPilotRehearsalSemantics(plan,{zeroPlan:p.zeroPlan,zeroPlanText:p.zeroPlanText,continuationPlan:p.continuationPlan,reportPlan:p.reportPlan});return p;
 }
 function catalogGuard(plan){const v=inspectPilotRamRehearsalPlan(plan);return sqlDoBlock(`BEGIN
@@ -182,15 +183,15 @@ function claims(actor,session){return sqlDoBlock(`BEGIN
 END`,'ram_synthetic_claims')}
 const clearClaims=sqlDoBlock("BEGIN PERFORM set_config('request.jwt.claim.sub','',true); PERFORM set_config('request.jwt.claims','{}',true); END",'ram_clear_claims');
 function actorGuard(f){return sqlDoBlock(`BEGIN
- IF (SELECT count(*) FROM auth.sessions WHERE (id,user_id) IN ((${literal(f.makerSession)}::uuid,${literal(f.maker)}::uuid),(${literal(f.reviewerSession)}::uuid,${literal(f.reviewer)}::uuid)))<>2
- OR (SELECT count(*) FROM public.organization_members WHERE organization_id=${org} AND user_id IN (${literal(f.maker)}::uuid,${literal(f.reviewer)}::uuid)
- AND role='super_admin' AND branch_id IS NULL AND person_id IS NULL)<>2 THEN RAISE EXCEPTION 'local_ram_rehearsal_fixture_changed'; END IF;
+ IF (SELECT count(*) FROM auth.sessions WHERE (id,user_id) IN ((${literal(f.makerSession)}::uuid,${literal(f.maker)}::uuid)))<>1
+ OR (SELECT count(*) FROM public.organization_members WHERE organization_id=${org} AND user_id=${literal(f.maker)}::uuid
+ AND role='super_admin' AND branch_id IS NULL AND person_id IS NULL)<>1 THEN RAISE EXCEPTION 'local_ram_rehearsal_fixture_changed'; END IF;
 END`,'ram_actors')}
 export function buildRamActorFixtureSql(fixture){
- const f=fixtureChecked(fixture),ids=[f.maker,f.reviewer];
+ const f=fixtureChecked(fixture),ids=[f.maker];
  return `${begin()}\n${sqlDoBlock(`BEGIN
  IF EXISTS(SELECT 1 FROM auth.users WHERE id=ANY(ARRAY[${ids.map(x=>literal(x)+'::uuid').join(',')}]))
- OR EXISTS(SELECT 1 FROM auth.sessions WHERE id=ANY(ARRAY[${[f.makerSession,f.reviewerSession].map(x=>literal(x)+'::uuid').join(',')}]))
+ OR EXISTS(SELECT 1 FROM auth.sessions WHERE id=ANY(ARRAY[${[f.makerSession].map(x=>literal(x)+'::uuid').join(',')}]))
  OR EXISTS(SELECT 1 FROM public.organization_members WHERE user_id=ANY(ARRAY[${ids.map(x=>literal(x)+'::uuid').join(',')}])) THEN
  RAISE EXCEPTION 'local_ram_rehearsal_synthetic_actor_collision'; END IF;
  IF EXISTS(SELECT 1 FROM app_private.privileged_email_step_up_policies WHERE organization_id=${org} AND enforcement_enabled) THEN
@@ -200,10 +201,10 @@ END`,'ram_fixture_new')}
  SELECT actor,'authenticated','authenticated','ram-rehearsal-'||actor::text||'@test.invalid','{"provider":"email","providers":["email"]}'::jsonb,'{}'::jsonb,false
  FROM unnest(ARRAY[${ids.map(x=>literal(x)+'::uuid').join(',')}]) actor;
  INSERT INTO auth.sessions(id,user_id,created_at,updated_at,aal) VALUES
- (${literal(f.makerSession)},${literal(f.maker)},clock_timestamp(),clock_timestamp(),'aal1'),(${literal(f.reviewerSession)},${literal(f.reviewer)},clock_timestamp(),clock_timestamp(),'aal1');
- INSERT INTO public.organization_members(organization_id,user_id,role) VALUES (${org},${literal(f.maker)},'super_admin'),(${org},${literal(f.reviewer)},'super_admin');
+ (${literal(f.makerSession)},${literal(f.maker)},clock_timestamp(),clock_timestamp(),'aal1');
+ INSERT INTO public.organization_members(organization_id,user_id,role) VALUES (${org},${literal(f.maker)},'super_admin');
  ${actorGuard(f)}
- SELECT jsonb_build_object('format','nestory-local-synthetic-actor-fixture-v1','actorCount',2,'sessionCount',2,
+ SELECT jsonb_build_object('format','nestory-local-synthetic-actor-fixture-v1','actorCount',1,'sessionCount',1,
  'authorityKind','local-sql-session-fixture','productionPermissionProven',false,'customerAuthImpersonated',false,'fixtureTransactionId',txid_current()::text);
  COMMIT;`;
 }
@@ -231,7 +232,7 @@ export function buildRamResetPrepareSql({plan,planBinding,fixture,fixtureTransac
 END`,'ram_prepare')}
  ${sqlDoBlock(`DECLARE zero_value jsonb; continuation_value jsonb; BEGIN
  ${prepareDiagnostic('zero_scope',`zero_value:=jsonb_build_object('version',4,'operation_id',${op},'organization_id',${org},'manifest_sha256',${literal(b.materialization.manifestSha256)},'reset_plan_sha256',${literal(b.planSha256)},
- 'maker_actor_id',${literal(f.maker)},'reviewer_actor_id',${literal(f.reviewer)},'effective_date','2026-10-01','currencies','["USD"]'::jsonb,
+ 'approval_policy',${literal(PILOT_SINGLE_ADMIN_POLICY)},'maker_actor_id',${literal(f.maker)},'reviewer_actor_id',NULL,'effective_date','2026-10-01','currencies','["USD"]'::jsonb,
  'scopes',app_private.financial_reset_empty_zero_scope_on_date(${org},DATE '2026-10-01'));`)}
  ${prepareDiagnostic('continuation',`continuation_value:=jsonb_build_object('version',4,'actor_id',${literal(f.maker)},'billing_period_start','2026-10-01','issue_date','2026-10-01',
  'execution_business_date',app_private.rent_business_date(${org},statement_timestamp()),'invoice_date_policy','empty-books-no-invoices',
@@ -251,7 +252,7 @@ END`,'ram_prepare')}
  'timezone',(SELECT operational_timezone FROM public.organizations WHERE id=${org}),'executionBusinessDate',continuation_plan->>'execution_business_date',
  'fixtureSourceSha256',app_private.financial_reset_hash(app_private.financial_reset_continuation_snapshot(${org})),
  'fixtureForeignSha256',app_private.financial_reset_hash(app_private.financial_reset_hosted_foreign_census(${org})),
- 'fixtureRows',(SELECT jsonb_agg(jsonb_build_object('rowText',to_jsonb(m)::text,'rowSha256',app_private.financial_reset_hash(to_jsonb(m))) ORDER BY user_id) FROM public.organization_members m WHERE organization_id=${org} AND user_id IN (${literal(f.maker)}::uuid,${literal(f.reviewer)}::uuid)),
+ 'fixtureRows',(SELECT jsonb_agg(jsonb_build_object('rowText',to_jsonb(m)::text,'rowSha256',app_private.financial_reset_hash(to_jsonb(m))) ORDER BY user_id) FROM public.organization_members m WHERE organization_id=${org} AND user_id=${literal(f.maker)}::uuid),
  'fixtureTransactionId',${literal(fixtureTransactionId)},
  'reportRevisionBefore',(SELECT coalesce(sum(revision),0)::text FROM app_private.financial_report_source_revisions WHERE organization_id=${org})) AS result FROM ram_phases;`)} END`,'ram_prepare_readback')}
  SELECT result FROM ram_prepare_readback;
@@ -290,14 +291,31 @@ const inverseCauseMapperSql=`CREATE FUNCTION pg_temp.ram_inverse_native_cause(p_
  ${RAM_INVERSE_NATIVE_CAUSES.map(code=>`WHEN '${code}' THEN '${code}'`).join('\n ')}
  ELSE NULL::text END
  $ram_inverse_mapper$;`;
-const inverseDiagnostic=(section,sql)=>`DECLARE ram_inverse_message text; ram_inverse_cause text; BEGIN\n${sql}\nEXCEPTION WHEN query_canceled OR OTHERS THEN
+export function ramInverseConstraintRoster(plan){
+ const catalog=inspectPilotRamRehearsalPlan(plan).executionBaseline.catalog;
+ return Object.freeze(catalog.filter(c=>c.kind==='constraint'&&/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/.test(c.name)&&
+  Object.hasOwn(RESET_REGISTRY,c.name.split('.').slice(0,2).join('.'))).map(c=>c.name).sort());
+}
+function inverseConstraintMapperSql(plan){
+ const names=ramInverseConstraintRoster(plan);
+ return `CREATE FUNCTION pg_temp.ram_inverse_constraint(p_relation text,p_constraint text) RETURNS integer
+ LANGUAGE sql IMMUTABLE SET search_path='' AS $ram_constraint_mapper$
+ SELECT CASE p_relation||'.'||p_constraint
+ ${names.length?names.map((name,i)=>`WHEN ${literal(name)} THEN ${i+1}`).join('\n '):'WHEN NULL THEN 0'}
+ ELSE 0 END $ram_constraint_mapper$;`;
+}
+const inverseDiagnostic=(section,sql,action=null)=>`DECLARE ram_inverse_message text; ram_inverse_cause text; ram_inverse_constraint text; ram_inverse_constraint_index integer; BEGIN\n${sql}\nEXCEPTION WHEN query_canceled OR OTHERS THEN
  GET STACKED DIAGNOSTICS ram_inverse_message=MESSAGE_TEXT;
  ram_inverse_cause:=pg_temp.ram_inverse_native_cause(ram_inverse_message);
  ram_inverse_message:=NULL;
  IF ram_inverse_cause IS NOT NULL THEN RAISE NOTICE 'local_ram_rehearsal_inverse_cause:${section}:%',ram_inverse_cause; END IF;
+ ${action?`GET STACKED DIAGNOSTICS ram_inverse_constraint=CONSTRAINT_NAME;
+ ram_inverse_constraint_index:=pg_temp.ram_inverse_constraint(${literal(action.relation_name)},ram_inverse_constraint);
+ ram_inverse_constraint:=NULL;
+ RAISE NOTICE 'local_ram_rehearsal_inverse_action:${action.ordinal}:${action.relation_name}:${action.kind}:%',ram_inverse_constraint_index;`:''}
  RAISE EXCEPTION USING ERRCODE=SQLSTATE, MESSAGE='local_ram_rehearsal_inverse_${section}_failed', DETAIL='', HINT='';
 END`;
-const inverseBlock=(section,sql)=>sqlDoBlock(inverseDiagnostic(section,sql),`ram_inverse_${section}`);
+const inverseBlock=(section,sql,action=null)=>sqlDoBlock(inverseDiagnostic(section,sql,action),`ram_inverse_${section}`);
 function nativeActions(operationId,actions,finalize=false,diagnostics=false){
  const inner=buildActionTransactionSql(operationId,actions,null,null,finalize);
  if(!inner.startsWith('BEGIN;\n')||!inner.endsWith('\nCOMMIT;'))fail('native_action_builder_changed');
@@ -307,10 +325,10 @@ function nativeActions(operationId,actions,finalize=false,diagnostics=false){
  const diagnosticBlock=diagnostics==='inverse'?inverseBlock:executionBlock;
  if(diagnostics){
   let count=0;
-  body=body.replace(/^DO (\$[a-zA-Z0-9_]+\$) ([\s\S]*?) \1;/gm,(_,tag,block)=>{count++;return diagnosticBlock('native_action',`${block};`)});
+  body=body.replace(/^DO (\$[a-zA-Z0-9_]+\$) ([\s\S]*?) \1;/gm,(_,tag,block)=>{const action=actions[count++];return diagnosticBlock('native_action',`${block};`,diagnostics==='inverse'?action:null)});
   if(count!==actions.length)fail('native_action_builder_changed');
  }
- return body.replace(/^SELECT (app_private\.[^\n]+);$/gm,(_,call)=>{
+ body=body.replace(/^SELECT (app_private\.[^\n]+);$/gm,(_,call)=>{
   if(!diagnostics)return sqlDoBlock(`BEGIN PERFORM ${call}; END`,'ram_native');
   const section=call.startsWith('app_private.start_financial_reset_actions(')?'native_start':
    call.startsWith('app_private.arm_financial_reset_action(')?'native_arm':
@@ -319,6 +337,13 @@ function nativeActions(operationId,actions,finalize=false,diagnostics=false){
   if(!section)fail('native_action_builder_changed');
   return diagnosticBlock(section,`PERFORM ${call};`);
  });
+ if(!diagnostics)return body;
+ // Keep every independently guarded arm and row statement, including its
+ // bounded exception diagnostic, inside the same fixed-size transport batch.
+ const pairs=[...body.matchAll(/^DO (\$ram_(?:execute|inverse)_native_arm(?:_\d+)?\$) ([\s\S]*?) \1;\nDO (\$ram_(?:execute|inverse)_native_action(?:_\d+)?\$) ([\s\S]*?) \3;/gm)];
+ if(pairs.length!==actions.length||pairs.some((m,i)=>i>0&&body.slice(pairs[i-1].index+pairs[i-1][0].length,m.index)!=='\n'))fail('native_action_builder_changed');
+ const first=pairs[0].index,last=pairs.at(-1);
+ return body.slice(0,first)+emptyBooksActionBatchSql(pairs.map(m=>`${m[2]};\n${m[4]};`))+body.slice(last.index+last[0].length);
 }
 function actorBinding(b,p){return{version:1,operation_id:b.operationId,project_ref:'syntheticprojectrefa',organization_id:b.organizationId,
  packet_sha256:b.planSha256,main_sha:'0'.repeat(40),sources_sha256:b.planSha256,schema_sha256:b.executionBaseline.schemaSha256,
@@ -345,7 +370,7 @@ export function buildRamResetExecuteSql({plan,planBinding,fixture,phases}){
  SELECT pg_advisory_xact_lock(hashtextextended('financial_write_lifecycle_v1:'||${org}::text,0));
  ${sqlDoBlock(`BEGIN IF (SELECT plan_json::text FROM app_private.financial_reset_zero_plans WHERE operation_id=${op}) IS DISTINCT FROM ${literal(p.zeroPlanText)}
  OR app_private.financial_reset_hash(app_private.financial_reset_continuation_snapshot(${org}))<>${literal(p.fixtureSourceSha256)} THEN RAISE EXCEPTION 'local_ram_rehearsal_prepared_source_changed'; END IF; END`,'ram_prepared')}
- ${[ [f.maker,f.makerSession],[f.reviewer,f.reviewerSession] ].map(([actor,session])=>`${claims(actor,session)}
+ ${[ [f.maker,f.makerSession] ].map(([actor,session])=>`${claims(actor,session)}
  SET SESSION AUTHORIZATION authenticator; SET LOCAL ROLE authenticated;
  ${executionBlock('endorsement',`PERFORM public.approve_financial_reset_zero_plan(${op},${literal(p.zeroReviewSha256)});`)}
  RESET ROLE; RESET SESSION AUTHORIZATION;`).join('\n')}
@@ -474,6 +499,7 @@ export function buildRamInverseExecuteSql({plan,planBinding,fixture,phases,inver
  ${c.candidate_after_row_text===null?'NULL::jsonb':`to_jsonb(jsonb_populate_record(NULL::${relation(c.relation_name)},${literal(c.candidate_after_row_text)}::jsonb))`} THEN RAISE EXCEPTION 'local_ram_rehearsal_inverse_readback_changed'; END IF; END`,'ram_typed_proof')).join('\n');
  return `${begin()}\n${catalogGuard(plan)}\n${actorGuard(f)}
  ${inverseCauseMapperSql}
+ ${inverseConstraintMapperSql(plan)}
  SELECT pg_advisory_xact_lock(hashtextextended('financial_write_lifecycle_v1:'||${org}::text,0));
  ${typedProof}
  ${sqlDoBlock(`BEGIN ${inverseDiagnostic('prepare_operation',`IF NOT EXISTS(SELECT 1 FROM app_private.financial_write_controls WHERE organization_id=${org} AND generation=1 AND status='frozen') THEN RAISE EXCEPTION 'local_ram_rehearsal_recovery_generation_changed'; END IF;
@@ -506,9 +532,9 @@ export function buildRamRehearsalVerificationSql({plan,planBinding,fixture,phase
   .map(r=>({relation_name:r.relation_name,primary_key:r.primary_key,row_text:r.expected_row_text}));
  const lifecycleCounts={financial_reset_operations:generation,financial_reset_archive_rows:plan.archiveRows.length,
   financial_reset_actions:plan.actions.length+(recovered?canonicalInverse.actions.length:0),financial_reset_zero_plans:1,
-  financial_reset_zero_approvals:2,financial_reset_phase_fences:3,financial_reset_continuation_plans:1,
+  financial_reset_zero_approvals:1,financial_reset_phase_fences:3,financial_reset_continuation_plans:1,
   financial_reset_recovery_plans:recovered?1:0,financial_reset_recovery_sources:recovered?inverseInputs.phaseSources.length:0,
-  financial_reset_verification_checkpoints:generation,financial_reset_actor_authorizations:generation,financial_reset_zero_session_endorsements:2};
+  financial_reset_verification_checkpoints:generation,financial_reset_actor_authorizations:generation,financial_reset_zero_session_endorsements:1};
  const life=LOCAL_CAPTURE_POLICY.filter(r=>r.table.startsWith('app_private.financial_reset_'));
  const actionInputs=[{operation_id:b.operationId,actions:plan.actions},...(recovered?[{operation_id:recoveryId,actions:canonicalInverse.actions}]:[])];
  const knownZeroTables=['public.owner_opening_balance_requests','public.owner_opening_balance_entries'];
@@ -578,6 +604,6 @@ export function buildRamRehearsalVerificationSql({plan,planBinding,fixture,phase
  'contractsSha256',app_private.financial_reset_hash(app_private.financial_reset_preserved_contracts(${org})),
  'tableCensus',(SELECT jsonb_agg(to_jsonb(t) ORDER BY table_name) FROM ram_census t),
  'checkpointSha256',(SELECT checkpoint_sha256 FROM app_private.financial_reset_verification_checkpoints WHERE operation_id=${recovered?rop:op}),
- 'syntheticActorCount',2,'productionPermissionProven',false,'productionForeignDataProven',false,'excludedCredentialTablesRestored',false,'storageRecoveryVerified',false);
+ 'syntheticActorCount',1,'productionPermissionProven',false,'productionForeignDataProven',false,'excludedCredentialTablesRestored',false,'storageRecoveryVerified',false);
  COMMIT;`;
 }

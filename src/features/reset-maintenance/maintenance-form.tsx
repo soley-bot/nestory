@@ -4,7 +4,7 @@ import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { submitMaintenanceReviewAction } from "./actions";
-import { MAX_REVIEW_BYTES, parseSessionReview, RESET_STAGE_LABELS, type MaintenanceActionState, type SessionReview } from "./review";
+import { MAX_REVIEW_BYTES, parseSessionReview, reviewUsesSoleAdministrator, RESET_STAGE_LABELS, type MaintenanceActionState, type SessionReview } from "./review";
 
 export function MaintenanceForm() {
   const [source, setSource] = useState("");
@@ -34,7 +34,7 @@ export function MaintenanceForm() {
             setSource(content); setReview(parsed);
           } catch { if (read === fileRead.current) setFileError("The file could not be read."); }
         }} />
-        <p className="text-xs text-muted-foreground">Only the reviewed binding and digests belong in this file. Do not select a backup, secret, token or SQL file.</p>
+        <p className="text-xs text-muted-foreground">Only the reviewed binding, zero plan and digests belong in this file. Do not select a backup, secret, token or SQL file.</p>
         {fileError && <p role="alert" className="text-sm text-destructive">{fileError}</p>}
       </div>
       <input type="hidden" name="review" value={source} />
@@ -54,7 +54,7 @@ export function MaintenanceForm() {
           </>}
         </dl>
         {review.binding.recovery && <p className="text-sm text-muted-foreground">Recovery may restore prior financial records. Review its separate operation, recovery plan and checkpoint before approving.</p>}
-        {review.action === "approve-zero-plan" && <p className="text-sm text-muted-foreground">The database accepts this endorsement only from the maker or reviewer named in the prepared zero plan. Each person must use their own signed-in session.</p>}
+        {reviewUsesSoleAdministrator(review) ? <p className="text-sm font-medium">One-off Pilot October policy: you approve as the sole administrator. No independent reviewer is claimed. Only the named maker’s genuine signed-in session may endorse this plan; all backup, recovery and scope checks still apply.</p> : review.action === "approve-zero-plan" && <p className="text-sm text-muted-foreground">The database accepts this endorsement only from the maker or reviewer named in the prepared zero plan. Each person must use their own signed-in session.</p>}
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" name="confirm" value="reviewed" required disabled={locked} className="mt-1" />
           <span>I reviewed the matching packet and the stage and digests shown above, and approve this stage.</span>

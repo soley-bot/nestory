@@ -33,6 +33,16 @@ no replacement invoices. Keep automatic invoice rebuilding disabled. The current
 empty-books contract remains frozen/billing-paused; reopening for manual billing
 is a separate reviewed step, not an automatic consequence of reset success.
 
+The owner clarified that the other administrator accounts are test accounts and
+requested sole approval for this one-off operation. The reviewed
+`pilot-october-single-admin-v1` policy is limited to Pilot, October 1, USD,
+generation 0 to 1 and empty books. It records one genuine maker approval and
+current session endorsement, with a null reviewer. It neither invents an
+independent reviewer nor changes the normal two-person policy. Retained consent
+identifies the original app-side relay and its provenance. The maintenance page
+requires the complete hashed zero plan and displays the selected policy before
+approval; see [session review](pilot-reset-session-approval-ui.md).
+
 ## What is verified and what remains
 
 The owner's elevated check on October 27 confirmed C: is fully encrypted with
@@ -72,6 +82,14 @@ checks. They describe the captured source; they do not certify current business
 data or authorize schema changes. The isolated restore must reproduce the full
 captured catalog before importing any selected-organization records. This is a
 scoped business recovery test, not a physical cluster or Auth credential backup.
+
+A capture taken after the single pending migration can use the saved exact
+259-version schema as its baseline plus the byte-verified 260 migration. The
+runtime reconstructs that baseline in an empty RAM database, applies only that
+transition, and checks the entire captured target catalog and verified installed
+ledger before importing rows. Two fresh empty reconstructions matched; this
+tests the derived target and is not evidence of a current post-release capture.
+Any extra migration, changed source prefix or catalog mismatch remains blocked.
 
 The owner also approved the Docker/WSL restart. The original 43 containers were
 restarted, `/proc/swaps` reported zero active swap entries, and the approved

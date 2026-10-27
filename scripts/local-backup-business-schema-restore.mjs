@@ -1,11 +1,43 @@
 // Pure schema correction classification. This does not execute definitions or
 // relax the exact full-catalog check before business data restoration.
 import {createHash} from 'node:crypto';
+import {selectCapturedMigrations} from './pilot-finance-reset-migration-parity.mjs';
 const hash=v=>createHash('sha256').update(v).digest('hex');
 const fail=()=>{throw Error('local_business_schema_definition_invalid')};
 const exact=(v,k)=>v&&Object.getPrototypeOf(v)===Object.prototype&&Object.keys(v).sort().join(',')===[...k].sort().join(',');
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const kinds=new Set(['schema','relation','column','constraint','index','policy','function','trigger','enum','default_acl']);
+export const BUSINESS_SCHEMA_TRANSITION='20261027005615_financial_reset_empty_books_preserved_contracts.sql';
+// A post-release capture can be rebuilt from the saved exact 259 schema plus
+// this one verified migration. This only selects sources: the runtime must
+// reconstruct the empty baseline, apply the transition, and compare the ENTIRE
+// target catalog and ledger before importing any business row.
+export function selectPinnedBusinessSchemaReplay({baseLedger,targetLedger,replay}){
+ const invalid=()=>{throw Error('local_business_schema_replay_transition_invalid')};
+ if(!Array.isArray(baseLedger)||baseLedger.length!==259||!Array.isArray(targetLedger)||![259,260].includes(targetLedger.length)||
+  !same(baseLedger,targetLedger.slice(0,259))||!Array.isArray(replay?.sources)||replay.sources.length!==targetLedger.length||
+  replay.contract?.format!=='nestory-verified-business-migration-replay-v1'||
+  replay.contract.capturedLedgerDescriptorSha256!==hash(JSON.stringify(targetLedger))||
+  !same(replay.contract.versions,targetLedger.map(x=>x.version)))invalid();
+ for(const [i,source]of replay.sources.entries()){
+  const entry=targetLedger[i];
+  if(!entry||!/^\d{14}$/.test(entry.version)||!/^[a-z0-9_]+$/.test(entry.name)||
+   source.name!==`${entry.version}_${entry.name}.sql`||typeof source.sql!=='string'||
+   source.sql.includes('\r')||source.sha256!==hash(source.sql)||i>0&&replay.sources[i-1].name>=source.name)invalid();
+ }
+ if(replay.sources.slice(0,259).some(s=>s.name>=BUSINESS_SCHEMA_TRANSITION))invalid();
+ const transition=replay.sources[259]??null;
+ if(transition){
+  if(transition.name!==BUSINESS_SCHEMA_TRANSITION)invalid();
+  // No historical reconciliation exception is permitted for the new source.
+  let selected;try{selected=selectCapturedMigrations([targetLedger[259]],[transition])}catch{invalid()}
+  if(selected[0].sha256!==transition.sha256)invalid();
+ }
+ return Object.freeze({format:'nestory-pinned-business-schema-replay-v1',
+  baseSources:Object.freeze(replay.sources.slice(0,259)),transition,
+  baseLedgerSha256:hash(JSON.stringify(baseLedger)),targetLedgerSha256:hash(JSON.stringify(targetLedger)),
+  targetVersions:targetLedger.length,fullTargetCatalogRequired:true,customerRowsImported:false});
+}
 function checkedDefinitions(payload){
  if(!payload||!Array.isArray(payload.catalog)||!Array.isArray(payload.definitions)||payload.catalog.length!==payload.definitions.length)fail();
  const map=new Map();

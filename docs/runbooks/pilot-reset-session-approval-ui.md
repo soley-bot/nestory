@@ -23,10 +23,12 @@ The two mutation calls are fixed:
   verifies the actual session and actor, limits validity to at most five minutes
   and rechecks authority when the protected executor consumes the locator.
 - `approve_financial_reset_zero_plan`: uses that same cookie-session client for
-  the operation and zero-plan digest. The database requires the separately named
-  maker or reviewer and the existing per-property permission. Each person uses
-  their own signed-in session; this page cannot approve both identities for one
-  person.
+  the operation and zero-plan digest. Unmarked plans require the separately named
+  maker and reviewer, each using their own signed-in session. The explicit
+  `pilot-october-single-admin-v1` plan uses one genuine maker endorsement and a
+  null reviewer, only for the reviewed Pilot October generation 0-to-1 reset.
+  The page identifies that policy without claiming independent review. Native
+  per-property permission, current-session and execution checks still apply.
 
 The service client returned by the verification guard is never used for either
 RPC. No access tokens or cookies are extracted or included in the review file.
@@ -34,7 +36,7 @@ RPC. No access tokens or cookies are extracted or included in the review file.
 ## Review file
 
 The local operator supplies a JSON document no larger than 256 KiB with exactly
-four fields:
+five fields:
 
 | Field | Required value |
 | --- | --- |
@@ -42,13 +44,29 @@ four fields:
 | `action` | An existing hosted stage or `approve-zero-plan` |
 | `binding` | Exact `hostedBinding()` version 1 output, with version 4 empty-books continuation |
 | `bindingSha256` | `digestJson(binding)` from the existing transport protocol |
+| `zeroPlanText` | Exact original PostgreSQL zero-plan text whose SHA-256 equals `binding.zero_review_sha256` |
+
+Use `prepareLocalDispatchSessionReview({packet, artifacts, action})` from
+`scripts/local-backup-dispatch-review.mjs` for the reset stages and zero-plan
+endorsement. It includes the original `artifacts.zeroPlanText` automatically.
+Separately reviewed recovery files also carry the original reset's exact plan
+text and their separate recovery binding; this reset-stage producer does not
+infer or create recovery consent.
+
+Raw plan text is mandatory for both marked and unmarked version 4 review files.
+Regenerate older four-field files; there is no omission fallback. The parser
+accepts distinct maker/reviewer identities for unmarked plans and maker/null
+reviewer for the sole-admin marker. Before either RPC, the server hashes the
+untouched text and checks it against the binding. Do not parse and reserialize
+the plan to generate this field: PostgreSQL numeric text remains authoritative.
+This review-file change does not change legacy native plan or packet shapes.
 
 The compact sorted-key file binding digest differs from PostgreSQL JSON text
 digests. Existing semantic digests are passed unchanged and remain database
 verified. Recovery stages require their separately reviewed recovery binding;
 ordinary stages reject it. Legacy rebuilding and no-backup modes are refused.
 
-The file contains the reviewed binding and digests, never SQL, row archives,
+The file contains the reviewed binding, zero-plan text and digests, never SQL, row archives,
 credentials, tokens, external URLs or module paths. The schema rejects unknown
 fields and duplicate lease entries. The operator must generate it from the actual
 reviewed packet; manually constructing a file does not prove backup or execution
@@ -66,3 +84,9 @@ or retry. After a lost or uncertain response, the form disables resubmission.
 The operator must inspect the original recorded outcome before proceeding.
 Session approval does not remove the protected dispatch hold or replace the
 required backup/restore, source, migration, exact-main and writer checks.
+
+For the sole-admin operation, the operator's retained consent preserves the
+exact app-side conversation relay text, `source_thread_id`, and relay receipt
+time (`recordedAt`), with `provenance: app-side-conversation-relay`. It does not
+claim that a human transcript was fetched. That provenance is review evidence;
+the actual administrator's native signed-in approval is still required later.

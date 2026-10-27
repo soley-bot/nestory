@@ -1,14 +1,16 @@
 // Fixed reviewed graph and SQL construction. No connections or runtime authority.
 import { isDeepStrictEqual } from 'node:util';
+import {isPilotSingleAdminZeroPlan,assertPilotSingleAdminOperation} from './pilot-finance-reset-single-admin-policy.mjs';
 import { assertOperatorPacket, canonicalJson, hashBytes, operationBusinessDate, operationInvoiceDatePolicy } from './pilot-finance-reset-operator-core.mjs';
 import { exactKeys, same } from './pilot-finance-reset-hosted-protocol.mjs';
 import { RESET_REGISTRY } from './pilot-finance-reset-registry.mjs';
-import { buildActionTransactionSql, sqlDoBlock } from './pilot-finance-reset-executor-local.mjs';
+import { buildActionTransactionSql, buildEmptyBooksActionTransactionSql, sqlDoBlock } from './pilot-finance-reset-executor-local.mjs';
 import { assertEmptyBooksContinuation, EMPTY_BOOKS_MIGRATION } from './pilot-finance-reset-executor-plan.mjs';
 import { schemaCensusSql } from './ips-readiness-recovery-core.mjs';
 
 export const HOSTED_ACTIONS = Object.freeze(['freeze','checkpoint','prepare','seal','execute','prepare-recovery','execute-recovery']);
 export const TRANSPORT_SOURCE_FILES = Object.freeze([
+ 'scripts/pilot-finance-reset-single-admin-policy.mjs',
  'scripts/pilot-finance-reset-hosted-transport.mjs','scripts/pilot-finance-reset-hosted-transport-protocol.mjs',
  'scripts/pilot-finance-reset-operator-core.mjs','scripts/pilot-finance-reset-hosted-protocol.mjs',
  'scripts/pilot-finance-reset-no-backup-core.mjs',
@@ -60,8 +62,9 @@ export function validateZeroPlanText(artifacts,expectedDigest) {
 export function validateReviewedZeroPlanShape(z,continuation){
  const versioned=z&&Object.hasOwn(z,'version'),base=['operation_id','organization_id','manifest_sha256','reset_plan_sha256',
   'maker_actor_id','reviewer_actor_id','effective_date','currencies','scopes'];
- if(!exactKeys(z,[...base,...(versioned?['version']:[])])||!Array.isArray(z.scopes))fail('zero_plan_shape_invalid');
+ if(!exactKeys(z,[...base,...(versioned?['version']:[]),...(z&&Object.hasOwn(z,'approval_policy')?['approval_policy']:[])])||!Array.isArray(z.scopes))fail('zero_plan_shape_invalid');
  if(versioned&&(z.version!==4||continuation?.version!==4||continuation.invoice_date_policy!=='empty-books-no-invoices'))fail('zero_plan_version_invalid');
+ isPilotSingleAdminZeroPlan(z);
  const scope=['property_id','property_owner_id','owner_person_id','ownership_percent','ownership_roster_hash','currency','property_row_sha256','property_archived_at'];
  for(const row of z.scopes)if(!exactKeys(row,[...scope,...(versioned?['owner_person_row_sha256']:[])])||
   versioned&&!digestPattern.test(row.owner_person_row_sha256))fail('zero_scope_shape_invalid');
@@ -201,6 +204,7 @@ export function validateArtifacts(packet,artifacts,recovery=null) {
  const o=packet.operation,b=packet.databaseBinding;
  validateZeroPlanText(artifacts,b.zeroReviewSha256);
  validateReviewedZeroPlanShape(artifacts.zeroPlan,artifacts.continuationPlan);
+ assertPilotSingleAdminOperation(artifacts.zeroPlan,o);
  if(!same(artifacts.manifest,{manifest_sha256:b.manifestSha256,source_snapshot_sha256:packet.sourceSnapshotSha256,
   schema_sha256:packet.schemaSha256,ledger_sha256:packet.ledgerSha256})||
   !exactKeys(artifacts.actions,['operation','actions'])||!same(artifacts.reportPlan,{report_review_sha256:b.reportReviewSha256})) fail('artifact_binding_invalid');
@@ -312,7 +316,9 @@ export function mutationSql({binding,action,authorizationId,authoritySha256,obse
   if(action==='execute'||action==='execute-recovery') {
    const isRecovery=action==='execute-recovery';
    if(isRecovery&&!recovery) fail('recovery_review_required');
-   const inner=buildActionTransactionSql(id,isRecovery?recovery.review.actions:artifacts.actions.actions,null,null,isRecovery);
+   const nativeActions=isRecovery?recovery.review.actions:artifacts.actions.actions;
+   const inner=artifacts.continuationPlan.version===4?buildEmptyBooksActionTransactionSql(id,nativeActions,null,isRecovery):
+     buildActionTransactionSql(id,nativeActions,null,null,isRecovery);
    if(!inner.startsWith('BEGIN;\n')||!inner.endsWith('\nCOMMIT;')) fail('action_builder_changed');
    statements.push(inner.slice(7,-8));
    if(!isRecovery) statements.push(`SET LOCAL statement_timeout='${review.version===4?'300':'60'}s';`,

@@ -1,5 +1,6 @@
 // Acyclic, actor-neutral economic semantics for the saved rehearsal→packet
 // bridge. No actor authorization or runtime custody can be obtained here.
+import {isPilotSingleAdminZeroPlan} from './pilot-finance-reset-single-admin-policy.mjs';
 import {digestDatabaseJson,digestJson,sortDescriptors,validateArtifacts,validateReviewedZeroPlanShape} from './pilot-finance-reset-hosted-transport-protocol.mjs';
 import {assertEmptyBooksContinuation,patchRowText} from './pilot-finance-reset-executor-plan.mjs';
 import {inspectPilotRamRehearsalPlan} from './local-backup-ram-rehearsal-plan.mjs';
@@ -77,7 +78,8 @@ export function pilotActorNeutralSemantics(input){
  let parsed;try{parsed=JSON.parse(zeroPlanText)}catch{fail()}
  if(digestDatabaseJson(parsed)!==digestDatabaseJson(zeroPlan))fail();
  validateReviewedZeroPlanShape(zeroPlan,continuationPlan);
- if(![zeroPlan.operation_id,zeroPlan.organization_id,zeroPlan.maker_actor_id,zeroPlan.reviewer_actor_id].every(v=>uuid.test(v))||
+ const single=isPilotSingleAdminZeroPlan(zeroPlan);
+ if(![zeroPlan.operation_id,zeroPlan.organization_id,zeroPlan.maker_actor_id,...(single?[]:[zeroPlan.reviewer_actor_id])].every(v=>uuid.test(v))||
   zeroPlan.organization_id!=='752a87b8-bd04-4a45-9cb8-00687af66e73'||zeroPlan.maker_actor_id===zeroPlan.reviewer_actor_id||
   !hash.test(zeroPlan.manifest_sha256)||!hash.test(zeroPlan.reset_plan_sha256)||zeroPlan.effective_date!=='2026-10-01'||
   JSON.stringify(zeroPlan.currencies)!=='["USD"]'||!Array.isArray(zeroPlan.scopes)||!zeroPlan.scopes.length||zeroPlan.scopes.length>100000)fail();

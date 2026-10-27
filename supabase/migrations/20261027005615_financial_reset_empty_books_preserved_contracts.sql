@@ -540,4 +540,259 @@ REVOKE ALL ON FUNCTION app_private.financial_reset_preserved_contracts(uuid),app
  app_private.assert_financial_reset_empty_sources(uuid,boolean),app_private.assert_financial_reset_empty_plan(uuid,jsonb),
  app_private.prepare_financial_reset_empty_continuation(uuid,jsonb,text),app_private.apply_financial_reset_empty_continuation(uuid),
  app_private.financial_reset_empty_report_blocker(uuid,uuid,public.currency_code,jsonb) FROM PUBLIC,anon,authenticated,service_role;
+
+-- DRAFT ONLY: append before COMMIT in pending 260 after independent review.
+-- This file is outside the frozen runtime source closure. No email or account
+-- UUID is hardcoded: the protected reviewed operation pins its genuine maker.
+CREATE UNIQUE INDEX financial_reset_single_admin_once
+ ON app_private.financial_reset_zero_plans(organization_id)
+ WHERE plan_json->>'approval_policy'='pilot-october-single-admin-v1';
+
+CREATE FUNCTION app_private.financial_reset_single_admin_mode(p_operation uuid,p_plan jsonb DEFAULT NULL)
+ RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE o app_private.financial_reset_operations%ROWTYPE; z app_private.financial_reset_zero_plans%ROWTYPE; actor uuid;
+BEGIN
+ IF p_plan IS NULL THEN
+  SELECT * INTO z FROM app_private.financial_reset_zero_plans WHERE operation_id=p_operation;
+  IF NOT FOUND THEN RETURN false; END IF;
+  IF z.review_sha256 IS DISTINCT FROM app_private.financial_reset_hash(z.plan_json) THEN
+   RAISE EXCEPTION 'financial_reset_single_admin_review_changed' USING ERRCODE='23514';
+  END IF;
+  p_plan:=z.plan_json;
+ END IF;
+ IF NOT p_plan ? 'approval_policy' THEN RETURN false; END IF;
+ SELECT * INTO STRICT o FROM app_private.financial_reset_operations WHERE operation_id=p_operation;
+ IF p_plan->>'approval_policy' IS DISTINCT FROM 'pilot-october-single-admin-v1'
+  OR p_plan->'version' IS DISTINCT FROM '4'::jsonb
+  OR p_plan->'reviewer_actor_id' IS DISTINCT FROM 'null'::jsonb
+  OR p_plan->>'operation_id' IS DISTINCT FROM p_operation::text
+  OR p_plan->>'organization_id' IS DISTINCT FROM '752a87b8-bd04-4a45-9cb8-00687af66e73'
+  OR o.organization_id IS DISTINCT FROM '752a87b8-bd04-4a45-9cb8-00687af66e73'::uuid
+  OR o.operation_kind IS DISTINCT FROM 'reset' OR o.restore_of IS NOT NULL
+  OR o.source_generation IS DISTINCT FROM 0 OR o.target_generation IS DISTINCT FROM 1
+  OR p_plan->>'effective_date' IS DISTINCT FROM '2026-10-01'
+  OR p_plan->'currencies' IS DISTINCT FROM '["USD"]'::jsonb
+  OR coalesce(p_plan->>'maker_actor_id','') !~ '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
+  OR NOT EXISTS(SELECT 1 FROM app_private.financial_write_controls WHERE organization_id=o.organization_id AND financial_start_date=DATE '2026-10-01') THEN
+  RAISE EXCEPTION 'financial_reset_single_admin_policy_invalid' USING ERRCODE='23514';
+ END IF;
+ actor:=(p_plan->>'maker_actor_id')::uuid;
+ IF NOT EXISTS(SELECT 1 FROM public.organization_members m JOIN auth.users u ON u.id=m.user_id
+  WHERE m.organization_id=o.organization_id AND m.user_id=actor AND m.role='super_admin' AND m.branch_id IS NULL AND m.person_id IS NULL
+   AND u.deleted_at IS NULL AND NOT coalesce(u.is_anonymous,false) AND (u.banned_until IS NULL OR u.banned_until<=clock_timestamp())) THEN
+  RAISE EXCEPTION 'financial_reset_single_admin_actor_required' USING ERRCODE='42501';
+ END IF;
+ RETURN true;
+END;
+$$;
+
+-- Effective command actor is distinct from an endorsement receipt. In the
+-- marked mode no reviewer approval/endorsement row exists or is synthesized.
+CREATE FUNCTION app_private.financial_reset_zero_review_actor(p_operation uuid) RETURNS uuid
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE z jsonb; single_mode boolean;
+BEGIN
+ single_mode:=app_private.financial_reset_single_admin_mode(p_operation);
+ SELECT plan_json INTO STRICT z FROM app_private.financial_reset_zero_plans WHERE operation_id=p_operation;
+ RETURN (z->>(CASE WHEN single_mode THEN 'maker_actor_id' ELSE 'reviewer_actor_id' END))::uuid;
+END;
+$$;
+CREATE FUNCTION app_private.financial_reset_zero_source_reference(p_operation uuid) RETURNS text
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE prefix text;
+BEGIN
+ prefix:=CASE WHEN app_private.financial_reset_single_admin_mode(p_operation)
+  THEN 'financial-reset-single-admin:' ELSE 'financial-reset:' END;
+ RETURN prefix||p_operation::text||':'||(SELECT review_sha256 FROM app_private.financial_reset_zero_plans WHERE operation_id=p_operation);
+END;
+$$;
+CREATE FUNCTION app_private.assert_financial_reset_zero_approval_count(p_operation uuid) RETURNS void
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE z app_private.financial_reset_zero_plans%ROWTYPE; single_mode boolean; expected integer;
+BEGIN
+ SELECT * INTO STRICT z FROM app_private.financial_reset_zero_plans WHERE operation_id=p_operation;
+ single_mode:=app_private.financial_reset_single_admin_mode(p_operation); expected:=CASE WHEN single_mode THEN 1 ELSE 2 END;
+ IF (SELECT count(*) FROM app_private.financial_reset_zero_approvals a WHERE a.operation_id=p_operation
+  AND a.organization_id=z.organization_id AND a.review_sha256=z.review_sha256
+  AND a.approved_by=(z.plan_json->>(a.approval_kind||'_actor_id'))::uuid)<>expected
+  OR (single_mode AND (SELECT count(*) FROM app_private.financial_reset_zero_approvals WHERE operation_id=p_operation)<>1) THEN
+  IF single_mode THEN RAISE EXCEPTION 'financial_reset_single_admin_approval_required' USING ERRCODE='42501'; END IF;
+  RAISE EXCEPTION 'financial_reset_zero_independent_approval_required' USING ERRCODE='42501';
+ END IF;
+END;
+$$;
+
+CREATE FUNCTION app_private.financial_reset_single_admin_self_review(p_org uuid,p_request uuid) RETURNS boolean
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE c app_private.financial_reset_zero_command_context%ROWTYPE;
+BEGIN
+ SELECT * INTO c FROM app_private.financial_reset_zero_command_context WHERE backend_pid=pg_backend_pid();
+ IF NOT FOUND OR c.command IS DISTINCT FROM 'review' OR c.organization_id IS DISTINCT FROM p_org
+  OR c.request_id IS DISTINCT FROM p_request OR NOT app_private.financial_reset_single_admin_mode(c.operation_id) THEN RETURN false; END IF;
+ PERFORM app_private.assert_financial_reset_zero_command_context(c);
+ RETURN true;
+END;
+$$;
+
+-- The row constraint is stable without an active session, including during a
+-- future checked restore. A live BEFORE guard separately authorizes creation.
+ALTER TABLE public.owner_opening_balance_requests DROP CONSTRAINT owner_opening_balance_requests_independent_reviewer_check;
+ALTER TABLE public.owner_opening_balance_requests ADD CONSTRAINT owner_opening_balance_requests_independent_reviewer_check CHECK(
+ reviewed_by IS NULL OR reviewed_by<>submitted_by OR (
+  organization_id='752a87b8-bd04-4a45-9cb8-00687af66e73'::uuid AND effective_date=DATE '2026-10-01'
+  AND currency='USD' AND request_kind='initial' AND proposed_amount=0 AND status='approved'
+  AND correction_of_entry_id IS NULL AND resubmission_of_request_id IS NULL AND supporting_document_id IS NULL
+  AND reason='Reviewed reset known-zero opening' AND review_reason IS NOT NULL AND review_reason='Reviewed reset known-zero opening'
+  AND source_reference IS NOT NULL
+  AND source_reference ~ '^financial-reset-single-admin:[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}:[a-f0-9]{64}$'
+  AND right(source_reference,64)=evidence_sha256));
+
+CREATE FUNCTION app_private.guard_financial_reset_single_admin_opening() RETURNS trigger
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE c app_private.financial_reset_zero_command_context%ROWTYPE; actor uuid;
+BEGIN
+ IF NOT coalesce(NEW.source_reference LIKE 'financial-reset-single-admin:%',false)
+  AND (NEW.reviewed_by IS NULL OR NEW.reviewed_by<>NEW.submitted_by) THEN RETURN NEW; END IF;
+ -- Existing exact-image recovery remains valid; this grants no new capability.
+ IF app_private.financial_reset_action_allowed(TG_RELID,TG_OP,CASE WHEN TG_OP='INSERT' THEN NULL ELSE to_jsonb(OLD) END,to_jsonb(NEW)) THEN RETURN NEW; END IF;
+ SELECT * INTO c FROM app_private.financial_reset_zero_command_context WHERE backend_pid=pg_backend_pid();
+ IF NOT FOUND OR NOT app_private.financial_reset_single_admin_mode(c.operation_id)
+  OR (TG_OP='INSERT' AND c.command IS DISTINCT FROM 'submit')
+  OR (TG_OP='UPDATE' AND (c.command IS DISTINCT FROM 'review' OR c.request_id IS DISTINCT FROM NEW.id)) THEN
+  RAISE EXCEPTION 'financial_reset_single_admin_command_required' USING ERRCODE='42501';
+ END IF;
+ actor:=app_private.assert_financial_reset_zero_command_context(c);
+ IF NEW.organization_id IS DISTINCT FROM c.organization_id OR NEW.submitted_by IS DISTINCT FROM actor
+  OR NEW.property_id::text IS DISTINCT FROM c.scope->>'property_id'
+  OR NEW.owner_person_id::text IS DISTINCT FROM c.scope->>'owner_person_id'
+  OR NEW.property_owner_id::text IS DISTINCT FROM c.scope->>'property_owner_id'
+  OR NEW.ownership_percent_snapshot IS DISTINCT FROM (c.scope->>'ownership_percent')::numeric
+  OR NEW.ownership_roster_hash IS DISTINCT FROM c.scope->>'ownership_roster_hash'
+  OR NEW.component IS DISTINCT FROM c.component OR NEW.currency IS DISTINCT FROM 'USD'::public.currency_code
+  OR NEW.effective_date IS DISTINCT FROM DATE '2026-10-01' OR NEW.request_kind IS DISTINCT FROM 'initial' OR NEW.proposed_amount IS DISTINCT FROM 0::numeric
+  OR NEW.correction_of_entry_id IS NOT NULL OR NEW.resubmission_of_request_id IS NOT NULL OR NEW.supporting_document_id IS NOT NULL
+  OR NEW.reason IS DISTINCT FROM 'Reviewed reset known-zero opening'
+  OR NEW.source_reference IS DISTINCT FROM app_private.financial_reset_zero_source_reference(c.operation_id)
+  OR NEW.evidence_sha256 IS DISTINCT FROM c.review_sha256
+  OR (TG_OP='INSERT' AND (NEW.status IS DISTINCT FROM 'submitted' OR NEW.reviewed_by IS NOT NULL))
+  OR (TG_OP='UPDATE' AND (NEW.status IS DISTINCT FROM 'approved' OR NEW.reviewed_by IS DISTINCT FROM actor
+   OR NEW.review_reason IS DISTINCT FROM 'Reviewed reset known-zero opening')) THEN
+  RAISE EXCEPTION 'financial_reset_single_admin_row_invalid' USING ERRCODE='23514';
+ END IF;
+ RETURN NEW;
+END;
+$$;
+CREATE TRIGGER "001_financial_reset_single_admin_opening" BEFORE INSERT OR UPDATE ON public.owner_opening_balance_requests
+ FOR EACH ROW EXECUTE FUNCTION app_private.guard_financial_reset_single_admin_opening();
+
+-- Exact anchors are a review boundary. Only the v4 preparation clone, existing
+-- reset adapters and their private context validators receive policy branches.
+DO $single_admin_integration$
+DECLARE d text; a text; b text; r record;
+BEGIN
+ d:=replace(pg_get_functiondef('app_private.prepare_financial_reset_empty_zero_plan(uuid,jsonb,text)'::regprocedure),E'\r\n',E'\n');
+ a:=$a$ARRAY['currencies','effective_date','maker_actor_id','manifest_sha256','operation_id','organization_id','reset_plan_sha256','reviewer_actor_id','scopes','version']::text[]$a$;
+ b:=$b$(CASE WHEN p_plan ? 'approval_policy' THEN ARRAY['approval_policy','currencies','effective_date','maker_actor_id','manifest_sha256','operation_id','organization_id','reset_plan_sha256','reviewer_actor_id','scopes','version']::text[] ELSE $b$||a||' END)';
+ IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'financial_reset_single_admin_shape_anchor_changed'; END IF;
+ d:=replace(d,a,b);
+ a:=$a$ IF (p_plan->>'maker_actor_id')::uuid IS NULL OR (p_plan->>'reviewer_actor_id')::uuid IS NULL$a$;
+ b:=$b$ IF app_private.financial_reset_single_admin_mode(p_operation_id,p_plan) THEN NULL;
+ ELSIF (p_plan->>'maker_actor_id')::uuid IS NULL OR (p_plan->>'reviewer_actor_id')::uuid IS NULL$b$;
+ IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'financial_reset_single_admin_prepare_anchor_changed'; END IF;
+ EXECUTE replace(d,a,b);
+
+ -- Once the marked immutable plan exists, issuance and every consumed-context
+ -- recheck bind the sole maker explicitly, including the existing recovery path.
+ FOR r IN SELECT * FROM (VALUES
+  ('public.authorize_financial_reset_hosted_action(jsonb,text)','v_actor',' PERFORM app_private.assert_financial_reset_actor_binding(p_binding,p_action);'),
+  ('app_private.assert_financial_reset_hosted_actor_context(jsonb,text)','v_row.actor_id',' RETURN jsonb_build_object(''authorizationId'',v_row.authorization_id,''actorId'',v_row.actor_id,''backendPid'',v_row.backend_pid,''transactionId'',v_row.transaction_id::text);')
+ ) x(signature,actor,anchor) LOOP
+  d:=replace(pg_get_functiondef(r.signature::regprocedure),E'\r\n',E'\n');
+  IF (length(d)-length(replace(d,r.anchor,'')))/length(r.anchor)<>1 THEN RAISE EXCEPTION 'financial_reset_single_admin_authority_anchor_changed'; END IF;
+  b:=' IF EXISTS(SELECT 1 FROM app_private.financial_reset_zero_plans WHERE operation_id=(p_binding->>''operation_id'')::uuid AND plan_json ? ''approval_policy'') THEN'
+   ||E'\n  PERFORM app_private.financial_reset_single_admin_mode((p_binding->>''operation_id'')::uuid);'
+   ||E'\n  IF '||r.actor||' IS DISTINCT FROM (SELECT (plan_json->>''maker_actor_id'')::uuid FROM app_private.financial_reset_zero_plans WHERE operation_id=(p_binding->>''operation_id'')::uuid)'
+   ||' OR p_binding->>''zero_review_sha256'' IS DISTINCT FROM (SELECT review_sha256 FROM app_private.financial_reset_zero_plans WHERE operation_id=(p_binding->>''operation_id'')::uuid) THEN RAISE EXCEPTION ''financial_reset_single_admin_actor_required'' USING ERRCODE=''42501''; END IF;'
+   ||E'\n END IF;\n';
+  EXECUTE replace(d,r.anchor,CASE WHEN r.actor='v_actor' THEN r.anchor||E'\n'||b ELSE b||r.anchor END);
+ END LOOP;
+
+ FOR r IN SELECT * FROM (VALUES
+  ('app_private.assert_financial_reset_scoped_operator(uuid)',
+   ' RETURN a.actor_id;',
+   E' IF app_private.financial_reset_single_admin_mode(p_operation) AND a.actor_id IS DISTINCT FROM (SELECT (plan_json->>''maker_actor_id'')::uuid FROM app_private.financial_reset_zero_plans WHERE operation_id=p_operation) THEN RAISE EXCEPTION ''financial_reset_single_admin_actor_required'' USING ERRCODE=''42501''; END IF;\n RETURN a.actor_id;'),
+  ('app_private.financial_reset_zero_endorsement_actor(uuid,text)',
+   ' SELECT * INTO STRICT z FROM app_private.financial_reset_zero_plans WHERE operation_id=p_operation;',
+   E' SELECT * INTO STRICT z FROM app_private.financial_reset_zero_plans WHERE operation_id=p_operation;\n PERFORM app_private.financial_reset_single_admin_mode(p_operation);'),
+  ('public.approve_financial_reset_zero_plan(uuid,text)',
+   ' IF v_actor=(v_plan.plan_json->>''maker_actor_id'')::uuid THEN v_kind:=''maker''; v_permission:=''finance.submit_expenses'';',
+   E' IF app_private.financial_reset_single_admin_mode(p_operation_id) THEN\n  IF v_actor IS DISTINCT FROM (v_plan.plan_json->>''maker_actor_id'')::uuid THEN RAISE EXCEPTION ''financial_reset_zero_approval_forbidden'' USING ERRCODE=''42501''; END IF;\n  v_kind:=''maker''; v_permission:=''finance.submit_expenses'';\n ELSIF v_actor=(v_plan.plan_json->>''maker_actor_id'')::uuid THEN v_kind:=''maker''; v_permission:=''finance.submit_expenses'';'),
+  ('public.approve_financial_reset_zero_plan(uuid,text)',
+   ' FOR v_scope IN SELECT value FROM jsonb_array_elements(v_plan.plan_json->''scopes'') LOOP',
+   E' PERFORM app_private.financial_reset_single_admin_mode(p_operation_id);\n FOR v_scope IN SELECT value FROM jsonb_array_elements(v_plan.plan_json->''scopes'') LOOP\n  IF app_private.financial_reset_single_admin_mode(p_operation_id) AND (app_private.can_access_property(v_op.organization_id,(v_scope->>''property_id'')::uuid,''finance.submit_expenses'') IS DISTINCT FROM true OR app_private.can_access_property(v_op.organization_id,(v_scope->>''property_id'')::uuid,''finance.approve_expenses'') IS DISTINCT FROM true) THEN RAISE EXCEPTION ''financial_reset_zero_approval_forbidden'' USING ERRCODE=''42501''; END IF;'),
+  ('app_private.assert_financial_reset_zero_command_context(app_private.financial_reset_zero_command_context)',
+   'v_reviewer:=app_private.assert_financial_reset_zero_endorsement(c.operation_id,''reviewer'');',
+   'v_reviewer:=CASE WHEN app_private.financial_reset_single_admin_mode(c.operation_id) THEN v_maker ELSE app_private.assert_financial_reset_zero_endorsement(c.operation_id,''reviewer'') END;'),
+  ('app_private.assert_financial_reset_zero_command_context(app_private.financial_reset_zero_command_context)',
+   'IF v_maker IS NOT DISTINCT FROM v_reviewer THEN',
+   'IF v_maker IS NOT DISTINCT FROM v_reviewer AND NOT app_private.financial_reset_single_admin_mode(c.operation_id) THEN'),
+  ('app_private.apply_financial_reset_known_zero(uuid)',
+   'PERFORM app_private.assert_financial_reset_zero_endorsement(p_operation_id,''reviewer'');',
+   'IF NOT app_private.financial_reset_single_admin_mode(p_operation_id) THEN PERFORM app_private.assert_financial_reset_zero_endorsement(p_operation_id,''reviewer''); END IF;'),
+  ('app_private.financial_reset_scoped_review_opening(uuid,uuid,text,text,text)',
+   'IF v_request.submitted_by = v_actor_id THEN',
+   'IF v_request.submitted_by = v_actor_id AND NOT app_private.financial_reset_single_admin_self_review(p_organization_id,p_request_id) THEN')
+ ) x(signature,anchor,replacement) LOOP
+  d:=replace(pg_get_functiondef(r.signature::regprocedure),E'\r\n',E'\n');
+  IF (length(d)-length(replace(d,r.anchor,'')))/length(r.anchor)<>1 THEN RAISE EXCEPTION 'financial_reset_single_admin_adapter_anchor_changed'; END IF;
+  EXECUTE replace(d,r.anchor,r.replacement);
+ END LOOP;
+
+ -- Existing separate approval-count assertions in normal and archived scope.
+ FOR r IN SELECT * FROM (VALUES
+  ('app_private.apply_financial_reset_known_zero(uuid)','p_operation_id',E' IF (SELECT count(*) FROM app_private.financial_reset_zero_approvals a WHERE a.operation_id=p_operation_id\n    AND a.organization_id=v_op.organization_id AND a.review_sha256=v_plan.review_sha256\n    AND a.approved_by=(v_plan.plan_json->>(a.approval_kind||''_actor_id''))::uuid)<>2 THEN\n   RAISE EXCEPTION ''financial_reset_zero_independent_approval_required'' USING ERRCODE=''42501'';\n END IF;'),
+  ('app_private.assert_financial_reset_archived_zero_context(app_private.financial_reset_archived_zero_command_context)','v_op.operation_id',E' IF (SELECT count(*) FROM app_private.financial_reset_zero_approvals a WHERE a.operation_id=v_op.operation_id\n  AND a.organization_id=v_op.organization_id AND a.review_sha256=v_plan.review_sha256\n  AND a.approved_by=(v_plan.plan_json->>(a.approval_kind||''_actor_id''))::uuid)<>2 THEN\n  RAISE EXCEPTION ''financial_reset_zero_independent_approval_required'' USING ERRCODE=''42501'';\n END IF;')
+ ) x(signature,operation,anchor) LOOP
+  d:=replace(pg_get_functiondef(r.signature::regprocedure),E'\r\n',E'\n');
+  IF (length(d)-length(replace(d,r.anchor,'')))/length(r.anchor)<>1 THEN RAISE EXCEPTION 'financial_reset_single_admin_count_anchor_changed'; END IF;
+  EXECUTE replace(d,r.anchor,' PERFORM app_private.assert_financial_reset_zero_approval_count('||r.operation||');');
+ END LOOP;
+
+ FOR r IN SELECT * FROM (VALUES
+  ('app_private.apply_financial_reset_known_zero(uuid)','p_operation_id','v_plan',2),
+  ('app_private.assert_financial_reset_archived_zero_context(app_private.financial_reset_archived_zero_command_context)','v_op.operation_id','v_plan',1)
+ ) x(signature,operation,plan,expected) LOOP
+  d:=replace(pg_get_functiondef(r.signature::regprocedure),E'\r\n',E'\n');
+  a:='('||r.plan||'.plan_json->>''reviewer_actor_id'')::uuid';
+  IF (length(d)-length(replace(d,a,'')))/length(a)<>r.expected THEN RAISE EXCEPTION 'financial_reset_single_admin_actor_postcondition_changed'; END IF;
+  d:=replace(d,a,'app_private.financial_reset_zero_review_actor('||r.operation||')');
+  d:=replace(d,'r.reviewed_by<>app_private.financial_reset_zero_review_actor(','r.reviewed_by IS DISTINCT FROM app_private.financial_reset_zero_review_actor(');
+  d:=replace(d,'e.created_by<>app_private.financial_reset_zero_review_actor(','e.created_by IS DISTINCT FROM app_private.financial_reset_zero_review_actor(');
+  EXECUTE d;
+ END LOOP;
+ d:=replace(pg_get_functiondef('app_private.assert_financial_reset_archived_zero_context(app_private.financial_reset_archived_zero_command_context)'::regprocedure),E'\r\n',E'\n');
+ a:=$a$(v_plan.plan_json->>(CASE p_context.command WHEN 'submit' THEN 'maker_actor_id' ELSE 'reviewer_actor_id' END))::uuid$a$;
+ b:=$b$(CASE p_context.command WHEN 'submit' THEN (v_plan.plan_json->>'maker_actor_id')::uuid ELSE app_private.financial_reset_zero_review_actor(v_op.operation_id) END)$b$;
+ IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'financial_reset_single_admin_archived_actor_changed'; END IF;
+ EXECUTE replace(d,a,b);
+
+ FOR r IN SELECT * FROM (VALUES
+  ('app_private.apply_financial_reset_known_zero(uuid)',$a$'financial-reset:'||p_operation_id::text||':'||v_plan.review_sha256$a$,'p_operation_id'),
+  ('app_private.assert_financial_reset_zero_command_context(app_private.financial_reset_zero_command_context)',$a$'financial-reset:'||c.operation_id::text||':'||c.review_sha256$a$,'c.operation_id'),
+  ('app_private.check_financial_reset_zero_command(text,jsonb)',$a$'financial-reset:'||c.operation_id::text||':'||c.review_sha256$a$,'c.operation_id'),
+  ('app_private.assert_financial_reset_archived_zero_context(app_private.financial_reset_archived_zero_command_context)',$a$'financial-reset:'||v_op.operation_id::text||':'||v_plan.review_sha256$a$,'v_op.operation_id'),
+  ('app_private.check_financial_reset_archived_zero_command(text,jsonb)',$a$'financial-reset:'||c.operation_id::text||':'||c.review_sha256$a$,'c.operation_id')
+ ) x(signature,anchor,operation) LOOP
+  d:=replace(pg_get_functiondef(r.signature::regprocedure),E'\r\n',E'\n');
+  IF (length(d)-length(replace(d,r.anchor,'')))/length(r.anchor)<>1 THEN RAISE EXCEPTION 'financial_reset_single_admin_reference_anchor_changed'; END IF;
+  EXECUTE replace(d,r.anchor,'app_private.financial_reset_zero_source_reference('||r.operation||')');
+ END LOOP;
+END;
+$single_admin_integration$;
+
+REVOKE ALL ON FUNCTION app_private.financial_reset_single_admin_mode(uuid,jsonb),app_private.financial_reset_zero_review_actor(uuid),
+ app_private.financial_reset_zero_source_reference(uuid),app_private.assert_financial_reset_zero_approval_count(uuid),
+ app_private.financial_reset_single_admin_self_review(uuid,uuid),app_private.guard_financial_reset_single_admin_opening()
+ FROM PUBLIC,anon,authenticated,service_role;
+
 COMMIT;

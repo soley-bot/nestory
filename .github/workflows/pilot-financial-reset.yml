@@ -89,6 +89,7 @@ jobs:
             supabase/migration-reconciliations/20260821-hosted-migration-canonical-hashes.json \
             scripts/pilot-finance-reset-hosted-transport-protocol.mjs \
             scripts/pilot-finance-reset-hosted-protocol.mjs \
+            scripts/pilot-finance-reset-single-admin-policy.mjs \
             scripts/pilot-finance-reset-operator-core.mjs \
             scripts/pilot-finance-reset-durable-store.mjs \
             scripts/pilot-finance-reset-encrypted-artifacts.mjs \

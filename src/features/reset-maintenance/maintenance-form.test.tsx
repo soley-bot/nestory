@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { fixtureActor, reviewFixture } from "./review.test-fixtures";
+import { fixtureActor, reviewFixture, soleAdministratorReviewFixture } from "./review.test-fixtures";
 const { submit, context, stepUp, rpc, serviceRpc } = vi.hoisted(() => ({ submit: vi.fn(), context: vi.fn(), stepUp: vi.fn(), rpc: vi.fn(), serviceRpc: vi.fn() }));
 vi.mock("./actions", () => ({ submitMaintenanceReviewAction: submit }));
 vi.mock("./context", () => ({ requirePilotResetContext: context }));
@@ -71,4 +71,11 @@ it("submits rendered React form data containing Next metadata through the real s
   expect(context).toHaveBeenCalledOnce(); expect(stepUp).toHaveBeenCalledOnce();
   expect(rpc).toHaveBeenCalledExactlyOnceWith("authorize_financial_reset_hosted_action", { p_binding: review.binding, p_action: "freeze" });
   expect(serviceRpc).not.toHaveBeenCalled();
+});
+
+it("shows sole-administrator consent without claiming an independent reviewer",async()=>{
+ render(<MaintenanceForm />);choose(JSON.stringify(soleAdministratorReviewFixture()));
+ await screen.findByText(/No independent reviewer is claimed/);
+ expect(screen.queryByText(/Each person must use their own signed-in session/)).toBeNull();
+ expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(false);expect(submit).not.toHaveBeenCalled();
 });

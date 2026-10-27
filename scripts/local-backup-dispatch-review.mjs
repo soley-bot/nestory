@@ -1,6 +1,7 @@
 // Typed review evidence, not an alternative authorization mechanism. Native
 // genuine-session ingress, approvals, containment and consumed authority remain
 // mandatory in the existing worker and database transaction.
+import {PILOT_SINGLE_ADMIN_POLICY,isPilotSingleAdminZeroPlan,assertPilotSingleAdminOperation} from './pilot-finance-reset-single-admin-policy.mjs';
 import {canonicalJson,hashBytes,assertOperatorPacket} from './pilot-finance-reset-operator-core.mjs';
 import {digestJson,digestDatabaseJson,hostedBinding,validateArtifacts,sortDescriptors} from './pilot-finance-reset-hosted-transport-protocol.mjs';
 import {assertHostedPrecondition} from './pilot-finance-reset-hosted-transport.mjs';
@@ -12,31 +13,44 @@ const exact=(v,k)=>v&&Object.getPrototypeOf(v)===Object.prototype&&Object.keys(v
 const fail=()=>{throw Error('local_dispatch_review_unverified')};
 const timestamp=v=>typeof v==='string'&&Number.isFinite(Date.parse(v))&&new Date(Date.parse(v)).toISOString()===v;
 const encode=v=>canonicalJson(v);
+// UI metadata only; this does not issue native authority or attest custody.
+// Every v4 file carries the original text so policy display cannot be omitted.
+export function prepareLocalDispatchSessionReview({packet,artifacts,action}){
+ scope(packet,artifacts);
+ if(![...actions,'approve-zero-plan'].includes(action))fail();
+ const binding=hostedBinding(packet,artifacts.continuationPlan);
+ const text=encode({format:'nestory-pilot-reset-session-review-v1',action,binding,bindingSha256:digestJson(binding),zeroPlanText:artifacts.zeroPlanText});
+ if(Buffer.byteLength(text)>262144)fail();
+ return text;
+}
 function scope(packet,artifacts){
  assertOperatorPacket(packet);validateArtifacts(packet,artifacts);
  if(packet.operation.organizationId!==org||packet.operation.projectRef!==project||packet.operation.invoiceDatePolicy!=='empty-books-no-invoices'||
   packet.operation.sourceGeneration!==0||packet.operation.targetGeneration!==1||artifacts.continuationPlan.version!==4||
-  !uuid.test(artifacts.zeroPlan.maker_actor_id)||!uuid.test(artifacts.zeroPlan.reviewer_actor_id)||
+  !uuid.test(artifacts.zeroPlan.maker_actor_id)||(!assertPilotSingleAdminOperation(artifacts.zeroPlan,packet.operation)&&!uuid.test(artifacts.zeroPlan.reviewer_actor_id))||
   artifacts.zeroPlan.maker_actor_id===artifacts.zeroPlan.reviewer_actor_id||artifacts.zeroPlan.maker_actor_id!==artifacts.continuationPlan.actor_id)fail();
  return {operation:packet.operation,sourcesSha256:packet.sourcesSha256,schemaSha256:packet.schemaSha256,ledgerSha256:packet.ledgerSha256,
   sourceSnapshotSha256:packet.sourceSnapshotSha256,databaseBinding:packet.databaseBinding,archiveRows:packet.archiveRows,actionCount:packet.actionCount};
 }
 function actors(packet,artifacts,observation){
+ const kinds=assertPilotSingleAdminOperation(artifacts.zeroPlan,packet.operation)?['maker']:['maker','reviewer'];
  if(!exact(observation,['format','organizationId','observedAt','actors'])||observation.format!=='nestory-local-actor-readiness-v1'||
-  observation.organizationId!==org||!timestamp(observation.observedAt)||!Array.isArray(observation.actors)||observation.actors.length!==2)fail();
- for(const [index,kind]of ['maker','reviewer'].entries()){
+  observation.organizationId!==org||!timestamp(observation.observedAt)||!Array.isArray(observation.actors)||observation.actors.length!==kinds.length)fail();
+ for(const [index,kind]of kinds.entries()){
   const row=observation.actors[index];if(!exact(row,['kind','actorId','currentSessionCount','sessionCensusSha256'])||row.kind!==kind||
    row.actorId!==artifacts.zeroPlan[`${kind}_actor_id`]||!Number.isSafeInteger(row.currentSessionCount)||row.currentSessionCount<1||
    !hash.test(row.sessionCensusSha256))fail();
  }
 }
-// Aggregate-only read of the two already selected identities. It does not
+// Aggregate-only read of the already selected identities. It does not
 // extract cookies, JWTs, session IDs, credential rows or create any authority.
-export function localDispatchActorReadinessSql({maker,reviewer}){
- if(!uuid.test(maker)||!uuid.test(reviewer)||maker===reviewer)fail();
+export function localDispatchActorReadinessSql({maker,reviewer,approvalPolicy=null}){
+ const single=approvalPolicy===PILOT_SINGLE_ADMIN_POLICY;
+ if(approvalPolicy!==null&&!single||!uuid.test(maker)||(single?reviewer!==null:!uuid.test(reviewer)||maker===reviewer))fail();
+ const selected=single?`('maker','${maker}'::uuid,1)`:`('maker','${maker}'::uuid,1),('reviewer','${reviewer}'::uuid,2)`;
  return `BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
 SET LOCAL search_path=pg_catalog,public; SET LOCAL timezone='UTC'; SET LOCAL statement_timeout='30s';
-WITH selected(kind,actor_id,ordinal) AS (VALUES ('maker','${maker}'::uuid,1),('reviewer','${reviewer}'::uuid,2)),
+WITH selected(kind,actor_id,ordinal) AS (VALUES ${selected}),
 current_sessions AS (SELECT a.kind,a.actor_id,a.ordinal,s.id FROM selected a JOIN auth.sessions s ON s.user_id=a.actor_id
  WHERE app_private.financial_reset_actor_is_current('${org}'::uuid,a.actor_id,s.id)),
 rows AS (SELECT a.kind,a.actor_id,a.ordinal,count(s.id)::integer n,
@@ -48,16 +62,17 @@ SELECT jsonb_build_object('format','nestory-local-actor-readiness-v1','organizat
 COMMIT;`;
 }
 export function prepareLocalDispatchReviewArtifacts({packet,artifacts,actorObservation,sourceObservation,retainedInstruction}){
- const binding=scope(packet,artifacts),reviewBindingSha256=digestJson(binding);
+ const binding=scope(packet,artifacts),reviewBindingSha256=digestJson(binding),single=isPilotSingleAdminZeroPlan(artifacts.zeroPlan);
  actors(packet,artifacts,actorObservation);
  assertHostedPrecondition('freeze',packet,hostedBinding(packet,artifacts.continuationPlan),artifacts,null,sourceObservation);
- if(!hash.test(sourceObservation.foreignSha256)||!exact(retainedInstruction,['reference','text','recordedAt'])||
+ if(!hash.test(sourceObservation.foreignSha256)||!exact(retainedInstruction,['reference','text','recordedAt',...(single?['provenance','source_thread_id']:[])])||
   typeof retainedInstruction.reference!=='string'||retainedInstruction.reference.length<1||retainedInstruction.reference.length>512||
   typeof retainedInstruction.text!=='string'||retainedInstruction.text.trim().length<1||Buffer.byteLength(retainedInstruction.text)>32768||
-  !timestamp(retainedInstruction.recordedAt))fail();
+  !timestamp(retainedInstruction.recordedAt)||single&&(retainedInstruction.provenance!=='app-side-conversation-relay'||typeof retainedInstruction.source_thread_id!=='string'||retainedInstruction.source_thread_id.length<1||retainedInstruction.source_thread_id.length>128))fail();
  const common={reviewBindingSha256};
+ const policyReview=single?{approvalPolicy:PILOT_SINGLE_ADMIN_POLICY,independentReviewer:false}:{};
  const output={
-  actorApprovals:encode({format:'nestory-local-preexecution-actor-review-v1',...common,readiness:actorObservation,
+  actorApprovals:encode({format:'nestory-local-preexecution-actor-review-v1',...common,...policyReview,readiness:actorObservation,
    sessionPossessionProven:false,nativeZeroApprovals:'pending-prepared-plan',nativeStageAuthorization:'required-separately'}),
   containmentProof:encode({format:'nestory-local-preexecution-containment-review-v1',...common,
    sourceObservationSha256:digestDatabaseJson(sourceObservation),foreignSha256:sourceObservation.foreignSha256,
@@ -78,8 +93,10 @@ export function assertLocalDispatchReviewArtifacts({packet,artifacts,reviews,req
    requirePacketHashes&&(packet.artifacts[role]?.sha256!==hashBytes(raw)||packet.artifacts[role]?.bytes!==Buffer.byteLength(raw)))fail();
  }
  const a=parsed.actorApprovals,c=parsed.containmentProof,l=parsed.liveConsent;
- if(!exact(a,['format','reviewBindingSha256','readiness','sessionPossessionProven','nativeZeroApprovals','nativeStageAuthorization'])||
+ const single=isPilotSingleAdminZeroPlan(artifacts.zeroPlan);
+ if(!exact(a,['format','reviewBindingSha256','readiness','sessionPossessionProven','nativeZeroApprovals','nativeStageAuthorization',...(single?['approvalPolicy','independentReviewer']:[])])||
   a.format!=='nestory-local-preexecution-actor-review-v1'||a.sessionPossessionProven!==false||a.nativeZeroApprovals!=='pending-prepared-plan'||a.nativeStageAuthorization!=='required-separately')fail();
+ if(single&&(a.approvalPolicy!==PILOT_SINGLE_ADMIN_POLICY||a.independentReviewer!==false))fail();
  actors(packet,artifacts,a.readiness);
  if(!exact(c,['format','reviewBindingSha256','sourceObservationSha256','foreignSha256','restoreProofSha256','storageProofSha256','productionFreeze','protectedWriter','normalWritesReopening'])||
   c.format!=='nestory-local-preexecution-containment-review-v1'||![c.sourceObservationSha256,c.foreignSha256,c.restoreProofSha256,c.storageProofSha256].every(v=>hash.test(v))||
@@ -88,9 +105,9 @@ export function assertLocalDispatchReviewArtifacts({packet,artifacts,reviews,req
  if(!exact(l,['format','reviewBindingSha256','scope','instruction','instructionSha256','liveRecovery','offHostKeyRecoveryProven','nativeStageAuthorization'])||
   l.format!=='nestory-local-retained-instruction-review-v1'||l.scope!=='pilot-october-empty-books-preserved-contracts'||
   l.liveRecovery!=='requires-separate-consent'||l.offHostKeyRecoveryProven!==false||l.nativeStageAuthorization!=='required-separately'||
-  !exact(l.instruction,['reference','text','recordedAt'])||typeof l.instruction.reference!=='string'||l.instruction.reference.length<1||l.instruction.reference.length>512||
+  !exact(l.instruction,['reference','text','recordedAt',...(single?['provenance','source_thread_id']:[])])||typeof l.instruction.reference!=='string'||l.instruction.reference.length<1||l.instruction.reference.length>512||
   typeof l.instruction.text!=='string'||!l.instruction.text.trim()||Buffer.byteLength(l.instruction.text)>32768||
-  !timestamp(l.instruction.recordedAt)||l.instructionSha256!==hashBytes(l.instruction.text))fail();
+  !timestamp(l.instruction.recordedAt)||l.instructionSha256!==hashBytes(l.instruction.text)||single&&(l.instruction.provenance!=='app-side-conversation-relay'||typeof l.instruction.source_thread_id!=='string'||l.instruction.source_thread_id.length<1||l.instruction.source_thread_id.length>128))fail();
  return parsed;
 }
 function stageChecks({packet,artifacts,reviews,action,observation,nativeApprovals,now,historical}){
@@ -102,7 +119,9 @@ function stageChecks({packet,artifacts,reviews,action,observation,nativeApproval
  if(action==='freeze'&&digestDatabaseJson(observation)!==parsed.containmentProof.sourceObservationSha256)fail();
  if(action==='execute'){
   const value=validateApprovalObservation(packet,nativeApprovals);
-  if(!approvalReadinessMatches(packet,value)||value.approvals.length!==2||value.endorsements.length!==2||
+  const single=assertPilotSingleAdminOperation(artifacts.zeroPlan,packet.operation),required=single?1:2;
+  if(single&&(value.zeroPlan.approvalPolicy!==PILOT_SINGLE_ADMIN_POLICY||value.approvals.some(a=>a.kind!=='maker')||value.endorsements.some(e=>e.kind!=='maker')))fail();
+  if(!approvalReadinessMatches(packet,value)||value.approvals.length!==required||value.endorsements.length!==required||
    value.zeroPlan.makerActorId!==artifacts.zeroPlan.maker_actor_id||value.zeroPlan.reviewerActorId!==artifacts.zeroPlan.reviewer_actor_id||
    value.endorsements.some(e=>e.availability.status!=='current'||Date.parse(e.availability.observedAt)>now||!historical&&Date.parse(e.credentialExpiresAt)<=now))fail();
  }else if(nativeApprovals!==null)fail();
