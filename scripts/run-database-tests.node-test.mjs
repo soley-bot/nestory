@@ -3,11 +3,12 @@ import test from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { SESSION_TESTS, databaseTestPlan, localDatabaseTestTarget, verifyPgTapOutput } from './run-database-tests.mjs';
 
-test('all ten privileged tests stay classified and every other SQL test remains ordinary', () => {
+test('all eleven privileged tests stay classified and every other SQL test remains ordinary', () => {
   const root = new URL('../supabase/tests/', import.meta.url);
   const files = readdirSync(root).filter(name => name.endsWith('.sql')).map(name => ({ name, source: readFileSync(new URL(name, root), 'utf8') }));
   const plan = databaseTestPlan(files);
-  assert.equal(plan.session.length, 10);
+  assert.equal(plan.session.length, 11);
+  assert.ok(plan.session.some(file => file.name === 'financial_reset_empty_books_test.sql'));
   assert.equal(plan.ordinary.length + plan.session.length, files.length);
   assert.throws(() => databaseTestPlan(files.filter(file => file.name !== SESSION_TESTS[0])), /exactly once/);
   assert.throws(() => databaseTestPlan([...files, { name: 'unexpected.sql', source: 'SET SESSION AUTHORIZATION authenticator;' }]), /classification/);
@@ -17,6 +18,8 @@ test('all ten privileged tests stay classified and every other SQL test remains 
 test('strict TAP validation rejects failures, missing assertions and missing plans', () => {
   assert.equal(verifyPgTapOutput('ok 1 - first\nok 2 - second\n1..2\n', 'proof'), 2);
   assert.equal(verifyPgTapOutput('1..2\nok 1 - first\nok 2 # SKIP Original-date success path is eligible only during October 2026; no clock override is used.\n', 'financial_reset_original_invoice_dates_test.sql'), 2);
+  assert.equal(verifyPgTapOutput('1..2\nok 1 - first\nok 2 # SKIP October-only success path is not executed with a fabricated database clock.\n', 'financial_reset_empty_books_test.sql'), 2);
+  assert.throws(() => verifyPgTapOutput('1..1\nok 1 # SKIP unexpected\n', 'financial_reset_empty_books_test.sql'));
   for (const bad of ['ok 1 - first', '1..2\nok 1 - first', '1..1\nnot ok 1 - failed', '1..1\nBail out! denied', '1..1\nok 2 - wrong', '1..1\nok 1 - ignored # TODO later', '1..0 # SKIP all', '1..1\n1..1\nok 1 - first', '1..1\nok 1 # SKIP unexpected']) {
     assert.throws(() => verifyPgTapOutput(bad, 'proof'));
   }

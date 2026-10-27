@@ -4,6 +4,7 @@ import { assertOperatorPacket, canonicalJson, hashBytes, operationBusinessDate, 
 import { exactKeys, same } from './pilot-finance-reset-hosted-protocol.mjs';
 import { RESET_REGISTRY } from './pilot-finance-reset-registry.mjs';
 import { buildActionTransactionSql, sqlDoBlock } from './pilot-finance-reset-executor-local.mjs';
+import { assertEmptyBooksContinuation, EMPTY_BOOKS_MIGRATION } from './pilot-finance-reset-executor-plan.mjs';
 import { schemaCensusSql } from './ips-readiness-recovery-core.mjs';
 
 export const HOSTED_ACTIONS = Object.freeze(['freeze','checkpoint','prepare','seal','execute','prepare-recovery','execute-recovery']);
@@ -15,6 +16,7 @@ export const TRANSPORT_SOURCE_FILES = Object.freeze([
  'scripts/pilot-finance-reset-retired-journal-core.mjs',
  'scripts/pilot-finance-reset-registry.mjs','scripts/ips-readiness-recovery-core.mjs','scripts/hosted-migration-parity-core.mjs',
  'supabase/migrations/20261024013624_financial_reset_hosted_operation_reservation.sql',
+ `supabase/migrations/${EMPTY_BOOKS_MIGRATION}`,
 ]);
 export const digestPattern = /^[a-f0-9]{64}$/;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
@@ -80,6 +82,7 @@ export const ledgerExpression = `(SELECT coalesce(jsonb_agg(jsonb_build_object('
 export function hostedBinding(packet,continuation,recovery=null) {
  assertOperatorPacket(packet);
  const o=packet.operation,b=packet.databaseBinding;
+ validateEmptyBooksBinding(o,continuation);
  const result={version:1,operation_id:o.operationId,project_ref:o.projectRef,organization_id:o.organizationId,
   packet_sha256:packet.packetSha256,main_sha:o.mainSha,sources_sha256:packet.sourcesSha256,schema_sha256:packet.schemaSha256,
   ledger_sha256:packet.ledgerSha256,source_snapshot_sha256:packet.sourceSnapshotSha256,source_generation:o.sourceGeneration,
@@ -96,6 +99,14 @@ export function hostedBinding(packet,continuation,recovery=null) {
   phase_binding_sha256:recovery.review.phaseBindingSha256,review_artifact_sha256:recovery.artifactSha256,
   execution_business_date:recovery.review.executionBusinessDate};
  return result;
+}
+
+function validateEmptyBooksBinding(operation,continuation) {
+ if(continuation?.version!==4&&operationInvoiceDatePolicy(operation)!=='empty-books-no-invoices')return;
+ try { assertEmptyBooksContinuation(continuation); } catch { fail('empty_books_semantic_invalid'); }
+ if(operationInvoiceDatePolicy(operation)!=='empty-books-no-invoices'||
+  continuation.execution_business_date!==operationBusinessDate(operation)||continuation.issue_date!==operation.issueDate||
+  continuation.billing_period_start!==operation.cutoff) fail('empty_books_binding_invalid');
 }
 
 const operationFields=['operation_id','organization_id','operation_kind','restore_of','source_generation','target_generation',
@@ -197,6 +208,7 @@ export function validateArtifacts(packet,artifacts,recovery=null) {
   seen.add(key);
  }
  const c=artifacts.continuationPlan,z=artifacts.zeroPlan;
+ validateEmptyBooksBinding(o,c);
  if(!c||Object.hasOwn(c,'source_sha256')||c.billing_period_start!==o.cutoff||c.issue_date!==o.issueDate||!uuid.test(c.actor_id)||
    !z||z.operation_id!==o.operationId||z.organization_id!==o.organizationId||z.manifest_sha256!==b.manifestSha256||
    z.reset_plan_sha256!==b.planSha256||z.effective_date!==o.cutoff) fail('phase_review_invalid');

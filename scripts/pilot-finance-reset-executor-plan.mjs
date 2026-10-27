@@ -7,6 +7,30 @@ const key = row => json([row.table, row.pk]);
 const equal = (a, b) => json(a) === json(b);
 const actorUuid = /^00000000-0000-0000-0000-000000000[15678]01$/;
 const anyUuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
+export const EMPTY_BOOKS_MIGRATION = '20261027005615_financial_reset_empty_books_preserved_contracts.sql';
+
+// This mode reviews every preserved lease and its complete contract history.
+// PostgreSQL verifies the roster and hashes against its locked source snapshot.
+export function assertEmptyBooksContinuation(continuation) {
+  const keys = (value, names) => value && equal(Object.keys(value).sort(), [...names].sort());
+  if (!keys(continuation, ['version', 'actor_id', 'billing_period_start', 'issue_date', 'execution_business_date',
+    'invoice_date_policy', 'contracts_sha256', 'leases']) || continuation.version !== 4 ||
+    !anyUuid.test(continuation.actor_id ?? '') || continuation.billing_period_start !== TARGET.cutoff ||
+    continuation.issue_date !== TARGET.cutoff || continuation.invoice_date_policy !== 'empty-books-no-invoices' ||
+    !/^2026-10-(?:0[1-9]|[12][0-9]|3[01])$/.test(continuation.execution_business_date ?? '') ||
+    !digest.test(continuation.contracts_sha256 ?? '') || !Array.isArray(continuation.leases)) {
+    throw Error('Empty-books continuation semantic review is invalid.');
+  }
+  const ids = new Set();
+  for (const lease of continuation.leases) {
+    if (!keys(lease, ['lease_id', 'disposition', 'source_sha256']) || !anyUuid.test(lease.lease_id ?? '') ||
+      lease.disposition !== 'preserve-unbilled' || !digest.test(lease.source_sha256 ?? '') || ids.has(lease.lease_id)) {
+      throw Error('Invalid or repeated reviewed preserved unbilled lease.');
+    }
+    ids.add(lease.lease_id);
+  }
+  return continuation;
+}
 function intact(value, field, label) {
   if (!value || typeof value !== 'object') throw Error(`Missing ${label}.`);
   const { [field]: hash, ...body } = value;
@@ -36,6 +60,11 @@ export function assertCheckedPhaseReview(review, materialized) {
         !/^(?:\d{1,3})(?:\.\d+)?$/.test(String(scope.ownership_percent)) || Number(scope.ownership_percent) <= 0 || Number(scope.ownership_percent) > 100 ||
         scopeIds.has(scope.property_owner_id)) throw Error('Invalid or repeated reviewed zero scope.');
     scopeIds.add(scope.property_owner_id);
+  }
+  if (continuation?.version === 4) {
+    assertEmptyBooksContinuation(continuation);
+    if (!actorUuid.test(continuation.actor_id)) throw Error('Empty-books synthetic actor review is invalid.');
+    return review;
   }
   const originalDates = continuation.version === 3;
   const continuationKeys = ['version', 'actor_id', 'billing_period_start', 'issue_date', 'leases'];

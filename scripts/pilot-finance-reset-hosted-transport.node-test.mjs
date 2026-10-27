@@ -12,7 +12,7 @@ import { createHostedResetTransport, HOSTED_TRANSPORT_IMPLEMENTATION_GAPS, asser
 
 const root=path.resolve(import.meta.dirname,'..'),id=n=>`10000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const catalog=[{kind:'function',name:'app_private.synthetic_contract()',sha256:'b'.repeat(64)}];
-async function fixture(rawOwnership=null) {
+async function fixture(rawOwnership=null,invoiceDatePolicy='original-reviewed-october') {
  const names=[...new Set([...SOURCE_ENTRYPOINTS,...TRANSPORT_SOURCE_FILES])].sort();
  const files=await Promise.all(names.map(async name=>[name,await readFile(path.join(root,name))]));
  const ledger=files.filter(([name])=>/^supabase\/migrations\/\d{14}_[a-z0-9_]+\.sql$/.test(name)).map(([name,bytes])=>{
@@ -23,7 +23,7 @@ async function fixture(rawOwnership=null) {
  const ciphertext=Object.fromEntries(REQUIRED_ARTIFACTS.map(role=>[role,`synthetic-encrypted-${role}`]));
  const review={format:'nestory-protected-reset-review-v1',operation:{operationId:id(10),projectRef:'syntheticprojectrefa',organizationId:id(11),mainSha:'a'.repeat(40),
   sourceGeneration:0,targetGeneration:1,cutoff:'2026-10-01',issueDate:'2026-10-01',timezone:'Asia/Phnom_Penh',
-  executionBusinessDate:'2026-10-23',invoiceDatePolicy:'original-reviewed-october'},schemaSha256:digestJson(catalog),
+  executionBusinessDate:'2026-10-23',invoiceDatePolicy},schemaSha256:digestJson(catalog),
   ledgerSha256:digestJson(ledger),sourceSnapshotSha256:'d'.repeat(64),archiveRows:1,actionCount:1,
   databaseBinding:Object.fromEntries(['manifestSha256','planSha256','archiveSha256','actionSha256','zeroReviewSha256','continuationSemanticSha256','reportReviewSha256']
    .map((key,index)=>[key,String(index+1).repeat(64)])),artifacts:Object.fromEntries(Object.entries(ciphertext).map(([key,value])=>[key,hashBytes(value)]))};
@@ -46,12 +46,47 @@ async function fixture(rawOwnership=null) {
   continuationPlan:{version:3,actor_id:id(1),billing_period_start:o.cutoff,issue_date:o.issueDate,
    execution_business_date:o.executionBusinessDate,invoice_date_policy:o.invoiceDatePolicy,leases:[{lease_id:id(44),monthly_rent:'1000.00'}]},
   reportPlan:{report_review_sha256:b.reportReviewSha256}};
+ if(invoiceDatePolicy==='empty-books-no-invoices')artifacts.continuationPlan={version:4,actor_id:id(1),
+  billing_period_start:o.cutoff,issue_date:o.issueDate,execution_business_date:o.executionBusinessDate,
+  invoice_date_policy:invoiceDatePolicy,contracts_sha256:'a'.repeat(64),
+  leases:[{lease_id:id(44),disposition:'preserve-unbilled',source_sha256:'b'.repeat(64)}]};
  const binding=hostedBinding(packet,artifacts.continuationPlan);
  const observation={catalog,ledger,businessDate:o.executionBusinessDate,timezone:o.timezone,sourceSha256:packet.sourceSnapshotSha256,foreignSha256:'e'.repeat(64),
   control:null,reservation:null,recoveryReservation:null,recoveryCheckpoint:null,operation:null,appliedCount:0,archiveCount:0,actionCount:0,
   capabilityCount:0,zero:null,continuation:null,phaseFences:[],approvalCount:0,checkpoint:null,authorization:null,actionReceipt:null};
  return {packet,artifacts,binding,observation};
 }
+
+test('recovery-backed transport preserves explicit v4 no-op semantic and exact phase/checkpoint sequence', async () => {
+ const f=await fixture(null,'empty-books-no-invoices');
+ assert.equal(validateArtifacts(f.packet,f.artifacts),f.artifacts);
+ assert.deepEqual(f.binding.continuation_semantic,f.artifacts.continuationPlan);
+ assert.equal(f.binding.version,1);
+ assert.equal(f.binding.invoice_date_policy,'empty-books-no-invoices');
+ const sql=mutationSql({...f,action:'execute',authorizationId:id(99),authoritySha256:'f'.repeat(64)});
+ assert.ok(sql.includes('"disposition":"preserve-unbilled"'));
+ assert.ok(sql.indexOf('apply_financial_reset_known_zero')<sql.indexOf('apply_financial_reset_continuation'));
+ assert.ok(sql.indexOf('apply_financial_reset_continuation')<sql.indexOf('apply_financial_reset_reports'));
+ assert.ok(sql.indexOf('apply_financial_reset_reports')<sql.indexOf('COMMIT;'));
+ assert.match(sql,/hosted_transport_semantic_changed/);
+ assert.match(sql,/hosted_transport_foreign_rows_changed/);
+ assert.doesNotMatch(sql,/generate_.*invoice|continue_month_to_month/);
+ assert.throws(()=>assertHostedTransportDispatchImplemented(),/hosted_transport_/);
+});
+
+test('recovery-backed transport rejects v4 policy/date/hash/lease mismatches before dispatch',async()=>{
+ const f=await fixture(null,'empty-books-no-invoices');
+ for(const mutate of [c=>{c.version=3;},c=>{c.invoice_date_policy='original-reviewed-october';},
+  c=>{c.execution_business_date='2026-10-24';},c=>{delete c.contracts_sha256;},
+  c=>{c.leases[0].disposition='bill';},c=>{c.leases[0].rent_amount='0.00';},
+  c=>{c.leases.push(c.leases[0]);},c=>{c.source_sha256='a'.repeat(64);}]) {
+  const changed=structuredClone(f.artifacts);mutate(changed.continuationPlan);
+  assert.throws(()=>validateArtifacts(f.packet,changed),/hosted_transport_empty_books/);
+  assert.throws(()=>hostedBinding(f.packet,changed.continuationPlan),/hosted_transport_empty_books/);
+ }
+ const legacy=await fixture();
+ assert.throws(()=>hostedBinding(legacy.packet,f.artifacts.continuationPlan),/hosted_transport_empty_books_binding_invalid/);
+});
 async function harness(config={}) {
  const f=await fixture(config.rawOwnership??null),calls=[],records=new Map(),events=[],authorization=Object.freeze({syntheticOpaqueHandle:true});
  const connection={expectedProjectRef:f.packet.operation.projectRef,host:`db.${f.packet.operation.projectRef}.supabase.co`,port:5432,database:'postgres',user:'postgres',

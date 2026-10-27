@@ -13,6 +13,7 @@ export const SESSION_TESTS = Object.freeze([
   'financial_reset_archived_property_known_zero_test.sql',
   'financial_reset_checked_reopening_test.sql',
   'financial_reset_continuation_test.sql',
+  'financial_reset_empty_books_test.sql',
   'financial_reset_explicit_no_backup_binding_test.sql',
   'financial_reset_genuine_session_actor_bridge_test.sql',
   'financial_reset_held_deposit_forward_test.sql',
@@ -55,6 +56,7 @@ export function verifyPgTapOutput(output, name) {
     const knownDateSkips = {
       'financial_reset_held_deposit_forward_test.sql': 'Forward original-date success is eligible only in October 2026; the real clock is not changed.',
       'financial_reset_original_invoice_dates_test.sql': 'Original-date success path is eligible only during October 2026; no clock override is used.',
+      'financial_reset_empty_books_test.sql': 'October-only success path is not executed with a fabricated database clock.',
     };
     const skip = line.match(/\s+#\s*SKIP\s+(.*)$/i);
     if (skip) assert.equal(skip[1], knownDateSkips[name], `${name}: only the existing date-bound skip is allowed`);
@@ -120,7 +122,7 @@ export async function main(repository = path.resolve(import.meta.dirname, '..'))
   let assertions = 0;
   for (const file of plan.session) {
     const count = runSessionTest(file, target); assertions += count;
-    console.log(`${file.name}: ${count} pgTAP assertions verified (local session-authority fixture; only the two existing calendar-bound skips are permitted).`);
+    console.log(`${file.name}: ${count} pgTAP assertions verified (local session-authority fixture; only explicitly reviewed calendar-bound skips are permitted).`);
   }
   console.log(`${plan.session.length} session-authority files, ${assertions} assertions passed.`);
 }

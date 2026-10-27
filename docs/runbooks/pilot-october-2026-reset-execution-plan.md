@@ -24,16 +24,22 @@ include current-period transactions and each tenant balance category to be reset
 Establish approved known-zero owner components at the selected boundary; actual
 owner contributions are re-entered manually. Preserve property, unit, owner, tenant
 and lease identities, relationships, contracts and agreed deposit requirements.
-Correct only individually approved continuations through the checked workflow.
+In a rebuild mode, correct only individually approved continuations through the
+checked workflow. The version-4 empty-books mode preserves every contract unchanged.
 No old rent, payment, expense, deposit receipt or owner contribution is automatically
 replayed. October/November below are illustrative reporting periods only.
 
-There are distinct verification stages: an empty financial baseline with
-known-zero openings, then correctly regenerated October rent/fees and stored owner
-report periods. The completed checkpoint will have tenant receivables; it must
-not be described as a zero tenant balance. An empty baseline cannot pass October
-owner-close billing completeness. The checked stages must finish in one reset
-transaction before its frozen report checkpoint can commit.
+The reviewed continuation version selects the final accounting state:
+
+| Mode | Final checked state |
+| --- | --- |
+| Versions 1–3: rebuild | Known-zero openings followed by reviewed October rent/fees and stored owner report periods. Generated receivables mean the result is no longer a zero tenant balance. Reviewed deferrals can leave billing incomplete. |
+| Version 4: `empty-books-no-invoices` | Known-zero openings, unchanged lease contracts, no tenant or owner invoices, and persisted zero report periods. Billing stays paused, `billing_complete: false`, and `close_ready: false`. |
+
+Both modes require exact reset actions, known-zero completion, a checked
+continuation phase and the final report checkpoint in one transaction. An empty
+baseline cannot claim October owner-close billing completeness. Version 4 records
+an explicitly reviewed no-op continuation; it does not skip a required phase.
 
 ## Artifacts required before an execution can be approved
 
@@ -107,7 +113,9 @@ rent policies, bank/finance accounts, reconciliation sources, categories and the
 role/source/category mappings. Preserve `petty_cash_accounts`, operational task and
 recurrence identities, lease documents/photos and audit/activity history. Preserve
 committed `import_runs`/`import_rows` referenced by lease provenance and import mappings.
-Only individually approved continuations in the private manifest may append contractual terms/rules.
+Only individually approved continuations in a rebuild manifest may append
+contractual terms/rules. Version 4 prohibits all lease, term and billing-rule changes,
+including rent, dates, fees, collection routes and historical contract rows.
 
 `lease_deposits` preserve contractual requirements: keep IDs, lease, type, amount,
 currency and notes. Recorded receipts/refunds, custody, applications, ledger links
@@ -225,12 +233,59 @@ and agreed deposit amounts unchanged.
 Use source-revision context plus authoritative fingerprints for reports; failure
 or incomplete billing is an explicit state, not a zero-filled success.
 
-Record the zero phase result while still frozen. Complete checked billing and
+Record the zero phase result while still frozen. Complete the selected checked continuation and
 durable owner-report finalization before the same reset transaction commits its
 final checkpoint; a checked-zero-only commit is refused. The separately committed
 freeze remains if that transaction fails. No phase result authorizes reopening.
 
-## Restore contractual continuity and October billing
+## Version 4: preserve contracts and finish with empty books
+
+Migration `20261027005615_financial_reset_empty_books_preserved_contracts.sql`
+adds the explicit `empty-books-no-invoices` review. It neither selects a customer
+operation nor performs a reset during migration application. Use the exact
+[v4 review contract](financial-reset-continuation-phase.md#version-4-empty-books-contract)
+with the recovery-backed hosted binding version 1; the separate no-backup binding
+version 2 does not support this mode.
+
+The review includes **every organization lease**, including archived and terminal
+leases, and hashes all lease, term and billing-rule rows. Each lease has only
+`lease_id`, `disposition: preserve-unbilled` and its complete source hash. There are
+no billed, renewed or deferred subsets. Preserve properties, units, people,
+relationships and agreed deposit requirements under the existing exact-row manifest.
+
+After the reviewed financial removal and known-zero phase, continuation records
+identical before/after snapshots and creates no rent, fee, invoice or contract rows.
+The report phase still verifies zero authority and persists the final snapshot.
+Active scopes are labeled `empty-books-billing-paused`; archived scopes remain
+`archived-known-zero-only`. Ordinary missing-rent blockers remain visible. The
+private checkpoint accepts only the precisely matched reviewed missing-rent
+blockers; it does not change ordinary close readiness or make the month closable.
+
+Require no remaining tenant/owner invoices, zero financial source balances,
+unchanged full contract fingerprints, and both phase results carrying
+`empty_books: true`, `billing_paused: true`, `contracts_unchanged: true`,
+`billing_complete: false` and `close_ready: false`. Known-zero openings and zero
+report rows remain as accounting authority; removing all evidence rows is not the
+meaning of empty books.
+
+Keep the completed reset frozen. Its v4 binding cannot use the normal reopening
+path to resume billing or financial entry. A separately bound recovery operation
+may still pass the existing recovery/reopening checks after restoring prior
+authority; that exception does not reopen the empty-books state. A later restart
+needs its own reviewed scope and supported implementation.
+
+The unconditional hosted dispatch integration hold remains in place. Synthetic
+tests and disposable database proof demonstrate the implementation only; they
+are not customer execution, consent, a verified customer backup, or permission to
+remove the hold. The native `createFreshOwnedResetClone`/`rehearseCheckedReset`
+adapter also rejects v4 before clone creation pending consumed-session integration.
+Pure review/SQL construction and scoped pgTAP proof do not make that runner
+available. All hosted prerequisites above still apply.
+
+## Prior rebuild modes: contractual continuity and October billing
+
+The following invoice-generation and reopening steps apply to the earlier rebuild
+modes. They must not be applied to a version-4 empty-books review.
 
 Use exact lease, predecessor term and rule identities from the private approved
 manifest. The [continuation review guidance](pilot-october-2026-lease-continuations.md)

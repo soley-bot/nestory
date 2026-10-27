@@ -8,6 +8,7 @@ import { canonicalJson, hashBytes, hashSourceBytes } from './pilot-finance-reset
 import { NO_BACKUP_REQUIRED_SOURCE_FILES, NO_BACKUP_EVIDENCE_ROLES, NO_BACKUP_POLICY, NO_BACKUP_PROJECT, NO_BACKUP_ORGANIZATION,
   prepareNoBackupPacket, hostedNoBackupBinding } from './pilot-finance-reset-no-backup-core.mjs';
 import { digestJson } from './pilot-finance-reset-hosted-transport-protocol.mjs';
+import { ACTOR_SOURCE_FILES } from './pilot-finance-reset-hosted-actor.mjs';
 import { NO_BACKUP_FORWARD_ACTIONS, noBackupDeletionScope, noBackupActionSlot,
   prepareNoBackupAction, reconcileNoBackupAction } from './pilot-finance-reset-no-backup-transport.mjs';
 import { HOSTED_RUNTIME_SOURCE_FILES, RESET_WORKFLOW_PATH } from './pilot-finance-reset-hosted-workflow-core.mjs';
@@ -17,7 +18,9 @@ import { createNoBackupProtectedRuntime, createSyntheticNoBackupRuntimeForTests,
 const test = (name, run) => nodeTest(name, { concurrency: false }, async t => { t.mock.method(Date, 'now', () => now); await run(t); });
 const id = n => `10000000-0000-4000-8000-${String(n).padStart(12, '0')}`, d = c => c.repeat(64), copy = x => structuredClone(x);
 const now = Date.parse('2026-10-24T04:00:00Z');
-const sourceContents = Object.fromEntries(await Promise.all([...new Set([...NO_BACKUP_REQUIRED_SOURCE_FILES, ...HOSTED_RUNTIME_SOURCE_FILES, 'scripts/pilot-finance-reset-no-backup-runtime.mjs'])].map(async name =>
+// The simulated composition still uses the real actor source verifier. Pin its
+// complete closure, including additive migrations inherited from the transport.
+const sourceContents = Object.fromEntries(await Promise.all([...new Set([...NO_BACKUP_REQUIRED_SOURCE_FILES, ...HOSTED_RUNTIME_SOURCE_FILES, ...ACTOR_SOURCE_FILES, 'scripts/pilot-finance-reset-no-backup-runtime.mjs'])].map(async name =>
   [name, await readFile(new URL(`../${name}`, import.meta.url))])));
 const sources = Object.entries(sourceContents).map(([name, content]) => ({ path: name, sha256: hashSourceBytes(content) }));
 const catalog = [{ kind: 'function', name: 'app_private.synthetic_only()', sha256: d('b') }];
