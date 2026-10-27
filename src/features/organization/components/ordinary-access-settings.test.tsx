@@ -40,7 +40,11 @@ describe("staff access activation review", () => {
     expect(within(dialog).getByText(/Enable access for Test company/)).toBeTruthy();
     expect(within(dialog).getByText(/No memberships, role assignments, invitation acceptances or emails/)).toBeTruthy();
     expect(activate).not.toHaveBeenCalled();
-    await user.click(within(dialog).getByRole("button", { name: "Keep contained" }));
+    const cancel = within(dialog).getByRole("button", { name: "Keep contained" });
+    // The dialog mounts before the async readiness transition clears pending.
+    // user-event does not retry a click made while the button is disabled.
+    await waitFor(() => expect(cancel).toHaveProperty("disabled", false));
+    await user.click(cancel);
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(activate).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Review staff access" }));
