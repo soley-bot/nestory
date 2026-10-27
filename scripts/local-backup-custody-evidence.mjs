@@ -2,7 +2,7 @@
 // from its substantive assertions; neither a hash nor this reader performs an
 // inverse rehearsal. Operational admission requires every saved producer proof
 // and a current bound witness; the independent execution hold remains in force.
-import {backupHash,readPrivateBackupFile,decryptLocalBackup,loadRecoveryPublicKey} from './local-backup-crypto.mjs';
+import {backupHash,readPrivateBackupFile,decryptLocalBackup,loadRecoveryPublicKey,verifyPrivateBackupCiphertexts} from './local-backup-crypto.mjs';
 import {assertStoredLocalFileManifest} from './local-backup-files.mjs';
 import {readBusinessRuntimeSourcePins,assertBusinessSpillObservation,assertBusinessRehearsalInputReference} from './local-backup-business-runtime.mjs';
 import {assertPilotPacketRehearsalBinding} from './local-backup-packet-bridge.mjs';
@@ -113,8 +113,7 @@ export async function verifySavedLocalRecoveryEvidence({evidence,custody,packet,
  const plain=await decryptLocalBackup(keyId,cipher);let manifest;
  try{manifest=assertStoredLocalFileManifest(decode(plain));}finally{plain.fill(0);cipher.fill(0)}
  if(manifest.sourceSha256!==sourceSha256||manifest.planSha256!==f.planSha256||manifest.objects.length!==f.objects||manifest.totalBytes!==f.totalBytes)fail();
- for(const object of manifest.objects){const saved=await readPrivateBackupFile(object.archiveId,'archive.pgp');
-  try{if(saved.length!==object.ciphertextBytes||backupHash(saved)!==object.ciphertextSha256)fail();}finally{saved.fill(0)}}
+ await verifyPrivateBackupCiphertexts(manifest.objects.map(({archiveId,ciphertextBytes,ciphertextSha256})=>({archiveId,ciphertextBytes,ciphertextSha256})));
  const k=proofs.keyRecovery,{metadata}=await loadRecoveryPublicKey(keyId),sample=await readPrivateBackupFile(k.archiveId,'synthetic.pgp');
  if(k.keyFingerprint!==metadata.fingerprint||backupHash(sample)!==k.ciphertextSha256)fail();sample.fill(0);
  await assertSavedPilotRehearsalHeld(context);

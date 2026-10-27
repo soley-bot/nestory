@@ -168,7 +168,13 @@ async function discoverLocalDispatchHeld(r){
  const key=`${prefix(input.locator)}/response`,prior=await store.read(key);
  if(prior){const p=JSON.parse(prior);if(p.runId!==run.id||p.runAttempt!==1)fail('original_run_changed');}
  else await createManualResetCoordinator({store}).recordBootstrapResponse({...input.locator,bootstrapClaimSha256:digestJson(claim),runId:run.id,runAttempt:1});
- return {status:'original-run-enrolled',...input.locator,runId:run.id,runAttempt:1,githubStatus:run.status};
+ const waitingWorkerReady=run.status==='in_progress'&&localDispatchWorkerWaiting(await api('actions/runs/'+run.id+'/attempts/1/jobs?per_page=100'),run,input.payload.packet.operation.mainSha);
+ return {status:'original-run-enrolled',...input.locator,runId:run.id,runAttempt:1,githubStatus:run.status,waitingWorkerReady};
+}
+export function localDispatchWorkerWaiting(jobs,run,mainSha){
+ if(!Array.isArray(jobs?.jobs)||jobs.total_count!==jobs.jobs.length)fail('waiting_worker_not_ready');
+ return jobs.jobs.filter(j=>j.name==='Pilot reset local custody'&&j.status==='in_progress'&&j.run_id===run.id&&j.run_attempt===1&&
+   j.head_sha===mainSha&&Array.isArray(j.steps)&&j.steps.some(s=>s.name==='Wait for exact run ticket and execute once'&&s.status==='in_progress')).length===1;
 }
 async function publishLocalDispatchHeld(r,authorizationId){
  assertHostedTransportDispatchImplemented();if(!uuid.test(authorizationId))fail('authorization_invalid');
@@ -176,8 +182,7 @@ async function publishLocalDispatchHeld(r,authorizationId){
  const enrolled=await required(store,`${prefix(locator)}/response`),run=await findOriginalRun(input,'execute');
  if(!run||run.id!==enrolled.runId||run.status!=='in_progress')fail('original_run_not_active');
  const jobs=await api(`actions/runs/${run.id}/attempts/1/jobs?per_page=100`);
- if(!Array.isArray(jobs.jobs)||jobs.total_count!==jobs.jobs.length||jobs.jobs.filter(j=>j.name==='Pilot reset local custody'&&j.status==='in_progress'&&j.run_id===run.id&&j.run_attempt===1&&
-   j.head_sha===payload.packet.operation.mainSha&&Array.isArray(j.steps)&&j.steps.some(s=>s.name==='Wait for exact run ticket and execute once'&&s.status==='in_progress')).length!==1)fail('waiting_worker_not_ready');
+ if(!localDispatchWorkerWaiting(jobs,run,payload.packet.operation.mainSha))fail('waiting_worker_not_ready');
  const secret=await transfer(store,locator);
  try{
   if(secret.data.inputArchiveId!==r.inputArchiveId||secret.data.inputArchiveSha256!==r.inputArchiveSha256||secret.claim.payloadSha256!==digestDatabaseJson(payload))fail('original_input_changed');

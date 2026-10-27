@@ -7,7 +7,7 @@ import {prepareOperatorPacket,REQUIRED_ARTIFACTS,SOURCE_ENTRYPOINTS,hashBytes,ca
 import {hostedBinding} from './pilot-finance-reset-hosted-transport-protocol.mjs';
 import {localDispatchActorReadinessSql,prepareLocalDispatchReviewArtifacts,assertLocalDispatchReviewArtifacts,
  prepareLocalDispatchStageAuthority,assertLocalDispatchStageAuthority,assertLocalDispatchStageEvidenceRecord} from './local-backup-dispatch-review.mjs';
-import {bootstrapLocalDispatch,publishLocalDispatch,dispatchLocalReconciliation,discoverLocalDispatch,collectLocalDispatchReceipt,persistPreparedLocalDispatchInput,extractLocalCustodyReceipt,localCustodyRunTitle} from './local-backup-dispatch-local.mjs';
+import {bootstrapLocalDispatch,publishLocalDispatch,dispatchLocalReconciliation,discoverLocalDispatch,collectLocalDispatchReceipt,persistPreparedLocalDispatchInput,extractLocalCustodyReceipt,localCustodyRunTitle,localDispatchWorkerWaiting} from './local-backup-dispatch-local.mjs';
 const locator={operationId:'11111111-1111-4111-8111-111111111111',action:'execute',nonce:'22222222-2222-4222-8222-222222222222'};
 const receipt={format:'nestory-local-custody-result-v1',operationId:locator.operationId,action:locator.action,runId:'123',runAttempt:1,intentSha256:'a'.repeat(64),
  outcome:'committed-and-verified',mutationRetried:false,observationSha256:'b'.repeat(64),checkpointSha256:'c'.repeat(64),normalWritesReopened:false};
@@ -178,4 +178,17 @@ test('volatile native approval observation is single-response only, with no stit
 test('observation custody APIs require the real held saved context before any file or private-key access',async()=>{
  await assert.rejects(persistLocalDispatchObservation({context:{},request:{},package:{}}),/saved_rehearsal_unverified/);
  await assert.rejects(openLocalDispatchObservation({context:{},request:{},reference:{}}),/saved_rehearsal_unverified/);
+});
+
+
+test('discover readiness means the single exact original worker is polling, not merely running',()=>{
+ const run={id:123},mainSha='a'.repeat(40);
+ const job={name:'Pilot reset local custody',status:'in_progress',run_id:123,run_attempt:1,head_sha:mainSha,
+  steps:[{name:'Wait for exact run ticket and execute once',status:'in_progress'}]};
+ assert.equal(localDispatchWorkerWaiting({jobs:[job],total_count:1},run,mainSha),true);
+ for(const changed of [{...job,status:'queued'},{...job,run_id:124},{...job,run_attempt:2},{...job,head_sha:'b'.repeat(40)},
+  {...job,steps:[{name:'Check out exact main',status:'in_progress'}]},{...job,steps:[{name:'Wait for exact run ticket and execute once',status:'completed'}]}])
+  assert.equal(localDispatchWorkerWaiting({jobs:[changed],total_count:1},run,mainSha),false);
+ assert.equal(localDispatchWorkerWaiting({jobs:[job,job],total_count:2},run,mainSha),false);
+ assert.throws(()=>localDispatchWorkerWaiting({jobs:[job],total_count:2},run,mainSha));
 });

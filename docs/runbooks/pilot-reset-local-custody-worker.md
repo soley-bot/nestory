@@ -322,6 +322,24 @@ journal records, never worker stdout. The worker still independently observes
 current database state, checks native prerequisites and consumes real session
 authority in the sole mutation transaction. No execution hold is removed.
 
+Before requesting the short-lived stage authorization, complete bootstrap and
+discovery and require `waitingWorkerReady:true` from discovery. This means the
+single exact original run/attempt is in the ticket-polling step; a queued or
+merely started job is insufficient. Publication repeats the same live check.
+
+Both publication load and the durable signer still perform full saved-custody
+admission. Their attachment checks use one `verify-archives` Windows helper
+batch each: at most256 unique UUID `archive.pgp` files, each with the existing
+1..8MiB ciphertext limit. The fixed-root ancestor handles stay pinned through
+the batch; each file retains its owner/DACL before-and-after checks, reparse
+and single-link restrictions, exact length/hash verification and buffer
+clearing. Only a bounded receipt bound to the exact input roster returns to
+Node. No attachment decryption, cached success assertion or skipped late check
+replaces admission. These helper changes alter rehearsal source pins; a final
+admitting proof must be produced with the changed sources. Measure full
+publication overhead and native phase duration before relying on the unchanged
+native authorization lifetime.
+
 `local-backup-dispatch-observation.mjs` supplies the fixed read-only connector
 queries without a local database credential. `buildLocalDispatchObservationSql`
 takes `request`, `publicKeyArmored`, `publicKeySha256`,

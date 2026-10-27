@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { assertBusinessRestoreRequest,assertBusinessChildRequest,assertBusinessRamContainer,assertBusinessSpillObservation,verifyBusinessVendorBundle,assertBusinessRehearsalInputReference,assertBusinessRehearsalVerification,summarizeBusinessRehearsalExecution,parseBusinessDatabaseFailure,safeBusinessRehearsalFailureCode,businessSqlTimeoutMs } from './local-backup-business-runtime.mjs';
+import { assertBusinessRestoreRequest,assertBusinessChildRequest,assertBusinessRamContainer,assertBusinessSpillObservation,verifyBusinessVendorBundle,assertBusinessRehearsalInputReference,assertBusinessRehearsalVerification,summarizeBusinessRehearsalExecution,parseBusinessDatabaseFailure,safeBusinessRehearsalFailureCode,businessSqlTimeoutMs,createBusinessDatabaseDiagnostics,buildBusinessRestoreAnalyzeSql } from './local-backup-business-runtime.mjs';
 import {LOCAL_CAPTURE_POLICY} from './local-backup-capture.mjs';
 import { RAM_POSTGRES_IMAGE } from './local-backup-restore.mjs';
 import { verifyBusinessMigrationReplay,buildSelectedBusinessRestoreSql } from './local-backup-business-restore.mjs';
@@ -56,6 +56,36 @@ test('execution proof projects aggregate status and refuses incomplete or stale 
 test('only the fixed reset execution receives a longer process watchdog',()=>{
  assert.equal(businessSqlTimeoutMs(),180000);assert.equal(businessSqlTimeoutMs('execute'),600000);
  for(const value of ['observe','execute-recovery',null,600000,{}])assert.throws(()=>businessSqlTimeoutMs(value),/process_budget_invalid/);
+});
+test('phase diagnostics survive split chunks and discard native customer context',()=>{
+ const d=createBusinessDatabaseDiagnostics();
+ const text='psql:<stdin>:12: NOTICE:  00000: local_ram_rehearsal_phase:known_zero:success:12345\n'+
+  'CONTEXT: private customer row must never survive\n'+
+  'x'.repeat(9000)+'\n'+
+  'NOTICE:  00000: local_ram_rehearsal_phase:continuation:success:700\n'+
+  'NOTICE:  00000: local_ram_rehearsal_phase:reports:failure:60000\n'+
+  'psql:<stdin>:99: ERROR:  57014: local_ram_rehearsal_execute_reports_failed\nDETAIL: private sql\n';
+ for(let i=0;i<text.length;i+=17)d.push(text.slice(i,i+17));
+ assert.deepEqual(d.finish(),{sqlState:'57014',databaseCode:'local_ram_rehearsal_execute_reports_failed',phaseTimings:[
+  {phase:'known_zero',outcome:'success',elapsedMilliseconds:12345},{phase:'continuation',outcome:'success',elapsedMilliseconds:700},
+  {phase:'reports',outcome:'failure',elapsedMilliseconds:60000}]});
+});
+test('timing observations reject arbitrary phases, payloads, overflow and duplicate notices',()=>{
+ const d=createBusinessDatabaseDiagnostics();
+ for(const message of ['known_zero:success:-1','known_zero:success:1.2','known_zero:success:600001','known_zero:success:01',
+  'known_zero:success:1:private','private:success:1','reports:approved:2'])d.push(`NOTICE: 00000: local_ram_rehearsal_phase:${message}\n`);
+ d.push('NOTICE: 00000: local_ram_rehearsal_phase:known_zero:success:0\nNOTICE: 00000: local_ram_rehearsal_phase:known_zero:failure:1\n');
+ assert.deepEqual(d.finish(),{phaseTimings:[{phase:'known_zero',outcome:'success',elapsedMilliseconds:0}]});
+});
+test('restore statistics use only the fixed imported roster with local and unchanged-catalog guards',()=>{
+ const sql=buildBusinessRestoreAnalyzeSql();
+ const analyzed=[...sql.matchAll(/^\s*ANALYZE "([a-z_]+)"\."([a-z_]+)";/gm)].map(m=>`${m[1]}.${m[2]}`);
+ assert.deepEqual(analyzed,[...LOCAL_CAPTURE_POLICY.filter(p=>p.capture==='full-row-image').map(p=>p.table),'storage.buckets','storage.objects','auth.users']);
+ assert.equal(new Set(analyzed).size,analyzed.length);
+ assert.match(sql,/current_setting\('data_directory'\)<>'\/db\/pg'/);
+ assert.match(sql,/inet_server_addr\(\) IS NOT NULL/);
+ assert.match(sql,/ram_analyze_catalog\) IS DISTINCT FROM/);
+ assert.doesNotMatch(sql,/VACUUM|DISABLE TRIGGER|session_replication_role|ANALYZE VERBOSE/);
 });
 test('private vendor recovery bundle proves every reviewed source without workspace vendor paths',()=>{
  const digest=b=>createHash('sha256').update(b).digest('hex');

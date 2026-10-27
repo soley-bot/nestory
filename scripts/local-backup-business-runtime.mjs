@@ -108,7 +108,7 @@ const validationCodes=new Set(['migration_content_unproven','migration_inputs_in
  'reconciliation_manifest_invalid','payload_scope_invalid','payload_digest_invalid','payload_invalid','restore_metadata_invalid','table_coverage_invalid','excluded_rows_present',
  'row_count_invalid','row_digest_invalid','row_json_invalid','row_scope_invalid','duplicate_row','storage_metadata_invalid','storage_bucket_invalid',
  'storage_reference_invalid','storage_reference_source_mismatch','storage_reference_unrestorable','storage_scope_invalid']);
-const safeRuntimeCode=/^local_business_runtime_(?:request|spill|decrypt|snapshot-validation|migration-proof|runtime-create|bootstrap-initial|bootstrap-image-(?:init-scripts|migrations)|bootstrap-vendor-batch-\d+|bootstrap-repository-batch-\d+|bootstrap-ledger|bootstrap-scaffold|schema|restore|rehearsal-(?:migration|preview|materialize|fixture|prepare|execute|sources|inverse-plan|inverse-execute|verify|save))_failed\n$/;
+const safeRuntimeCode=/^local_business_runtime_(?:request|spill|decrypt|snapshot-validation|migration-proof|runtime-create|bootstrap-initial|bootstrap-image-(?:init-scripts|migrations)|bootstrap-vendor-batch-\d+|bootstrap-repository-batch-\d+|bootstrap-ledger|bootstrap-scaffold|schema|restore|restore-statistics|rehearsal-(?:migration|preview|materialize|fixture|prepare|execute|sources|inverse-plan|inverse-execute|verify|save))_failed\n$/;
 const safeFailure=text=>safeRuntimeCode.test(text)||/^local_business_runtime_validation_[a-z_]+_failed\n$/.test(text)&&validationCodes.has(text.slice('local_business_runtime_validation_'.length,-'_failed\n'.length));
 const preparationDatabaseCodes=new Set(['operation_id_reused','restore_binding_invalid','archive_scope_invalid','archive_not_preparable','archive_image_invalid',
  'original_row_text_required','action_scope_invalid','action_not_preparable','action_archive_required','action_before_invalid','action_after_invalid',
@@ -125,6 +125,22 @@ export function parseBusinessDatabaseFailure(stderr){
  if(!line)return{};
  return {sqlState:line[1],...(preparationDatabaseCodes.has(line[2])?{databaseCode:line[2]}:{})};
 }
+// Retain only fixed diagnostic names and bounded numeric timing observations.
+// Native query/context lines are discarded, including oversized lines.
+export function createBusinessDatabaseDiagnostics(){
+ let line='',dropping=false,failure={},phaseTimings=[];
+ const consume=()=>{
+  if(!dropping){
+   const error=parseBusinessDatabaseFailure(line+'\n');if(error.sqlState&&!failure.sqlState)failure=error;
+   const match=/^(?:psql:<stdin>:\d+:\s*)?NOTICE:\s+(?:00000:\s*)?local_ram_rehearsal_phase:(known_zero|continuation|reports):(success|failure):(0|[1-9][0-9]{0,5})\r?$/.exec(line);
+   if(match&&Number(match[3])<=600000&&phaseTimings.length<3&&!phaseTimings.some(p=>p.phase===match[1]))
+    phaseTimings.push({phase:match[1],outcome:match[2],elapsedMilliseconds:Number(match[3])});
+  }
+  line='';dropping=false;
+ };
+ return{push(chunk){for(const character of String(chunk)){if(character==='\n')consume();else if(!dropping){if(line.length>=2048){line='';dropping=true}else line+=character}}},
+  finish(){if(line||dropping)consume();return{...failure,phaseTimings:phaseTimings.map(p=>({...p}))}}};
+}
 export function safeBusinessRehearsalFailureCode(message){
  if(typeof message!=='string')return null;
  return /^(?:pilot_ram_plan|local_ram_rehearsal)_[a-z_]+$/.test(message)||
@@ -134,12 +150,12 @@ async function execute(file,args,input,options={}){
  return new Promise((resolve,reject)=>{
   const binary=file==='docker'?'C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe':file;
   const c=spawn(binary,args,{shell:false,windowsHide:true,env:childEnvironment(),stdio:['pipe','pipe','pipe']});
-  let size=0,bad=false,timedOut=false,safeError='',sqlStateText='';const chunks=[];const stop=()=>{bad=true;c.kill()};const timer=setTimeout(()=>{timedOut=true;stop()},options.timeoutMs??180000);
+  let size=0,bad=false,timedOut=false,safeError='';const diagnostics=createBusinessDatabaseDiagnostics(),chunks=[];const stop=()=>{bad=true;c.kill()};const timer=setTimeout(()=>{timedOut=true;stop()},options.timeoutMs??180000);
   c.stdout.on('data',b=>{size+=b.length;if(size>(options.maxBytes??64*1024*1024))stop();else chunks.push(b)});
-  c.stderr.on('data',b=>{if(options.safeRuntimeErrors&&safeError.length<256)safeError+=b.toString('utf8');if(file==='docker'&&sqlStateText.length<2048)sqlStateText+=b.toString('utf8').slice(0,2048-sqlStateText.length)});c.stdin.on('error',stop);c.on('error',stop);
-  c.on('close',code=>{clearTimeout(timer);if(bad||code!==0){for(const b of chunks)b.fill(0);const error=Error(safeFailure(safeError)?safeError.trim():'local_business_runtime_process_failed');
-   Object.assign(error,parseBusinessDatabaseFailure(sqlStateText),{processTimedOut:timedOut});reject(error)}
-   else{const out=Buffer.concat(chunks);for(const b of chunks)b.fill(0);resolve(options.withPid?{bytes:out,pid:c.pid}:out)}});c.stdin.end(input??'');
+  c.stderr.on('data',b=>{if(options.safeRuntimeErrors&&safeError.length<256)safeError+=b.toString('utf8');if(file==='docker')diagnostics.push(b.toString('utf8'))});c.stdin.on('error',stop);c.on('error',stop);
+  c.on('close',code=>{clearTimeout(timer);const observed=diagnostics.finish();if(bad||code!==0){for(const b of chunks)b.fill(0);const error=Error(safeFailure(safeError)?safeError.trim():'local_business_runtime_process_failed');
+   Object.assign(error,observed,{processTimedOut:timedOut});reject(error)}
+   else{const out=Buffer.concat(chunks);out.businessDiagnostics=observed;for(const b of chunks)b.fill(0);resolve(options.withPid?{bytes:out,pid:c.pid}:out)}});c.stdin.end(input??'');
  });
 }
 async function withEncryptionEvidence(o){
@@ -190,7 +206,10 @@ async function createRuntime(existingBinding){
  const binding={runId,id};
  const inspect=async()=>{const rows=JSON.parse(await docker(['inspect',id]));if(rows.length!==1)fail('runtime_unavailable');assertBusinessRamContainer(binding,rows[0]);};
  const exec=async(args,input,options)=>{await inspect();const out=await docker(['exec','-i',id,...args],input,options);try{await inspect();return out}catch(e){out.fill(0);throw e}};
- const sql=async(input,user='postgres',action='default')=>(await exec(['psql','-X','-qAt','-h','/db','-U',user,'-d','postgres','-v','ON_ERROR_STOP=1','-v','VERBOSITY=verbose'],input,{timeoutMs:businessSqlTimeoutMs(action)})).toString('utf8').trim();
+ let phaseTimings=[];
+ const sql=async(input,user='postgres',action='default')=>{const out=await exec(['psql','-X','-qAt','-h','/db','-U',user,'-d','postgres','-v','ON_ERROR_STOP=1','-v','VERBOSITY=verbose'],input,{timeoutMs:businessSqlTimeoutMs(action)});
+  if(action==='execute')phaseTimings=out.businessDiagnostics.phaseTimings;
+  try{return out.toString('utf8').trim()}finally{out.fill(0)}};
  const remove=async()=>{const rows=JSON.parse(await docker(['inspect',id]));if(rows.length!==1)fail('cleanup_unconfirmed');assertBusinessRamContainer(binding,rows[0],rows[0].State?.Running===true);await docker(['rm','-f',id]);if((await docker(['ps','-aq','--no-trunc','--filter',`id=${id}`])).toString('utf8').trim())fail('cleanup_unconfirmed')};
  const exists=async()=>{const ids=(await docker(['ps','-aq','--no-trunc','--filter',`id=${id}`])).toString('utf8').trim();if(ids&&ids!==id)fail('cleanup_identity_changed');return Boolean(ids)};
  const cleanup=async()=>{if(await exists())await remove()};
@@ -198,7 +217,7 @@ async function createRuntime(existingBinding){
   let ready=false;for(let i=0;i<50;i++){try{if(await sql('SELECT 1','supabase_admin')==='1'){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}
   if(!ready)fail('startup_failed');
   if((await exec(['/bin/sh','-c','cat /sys/fs/cgroup/memory.max /sys/fs/cgroup/memory.swap.max'])).toString('utf8').trim()!==`${memory}\n0`)fail('container_swap_enabled');
-  return {binding,exec,sql,remove,exists,cleanup};
+  return {binding,exec,sql,remove,exists,cleanup,phaseTimings:()=>phaseTimings.map(p=>({...p}))};
  }catch(e){try{await remove()}catch{fail('failure_cleanup_unconfirmed')}throw e}
 }
 async function bootstrap(runtime,replay){
@@ -332,6 +351,24 @@ async function verifyRehearsalStorage(runtime,snapshot){
  await runtime.sql(`BEGIN READ ONLY; SET LOCAL standard_conforming_strings=on;SET LOCAL search_path=pg_catalog,public;SET LOCAL timezone='UTC';${checks}\nCOMMIT;`);
  return{metadataRows:snapshot.storageMetadata.length,bucketRows:(snapshot.storageBucketMetadata??[]).length,exactMetadataVerified:true,physicalFileBytesVerified:false};
 }
+// A restored database needs planner statistics just like a normal PostgreSQL
+// restore. Analyze only the fixed imported roster inside the owned RAM server.
+// Statistics are not authority evidence; exact schema and row checks still run.
+export function buildBusinessRestoreAnalyzeSql(){
+ const tables=[...LOCAL_CAPTURE_POLICY.filter(p=>p.capture==='full-row-image').map(p=>p.table),'storage.buckets','storage.objects','auth.users'];
+ const relation=s=>s.split('.').map(p=>`"${p}"`).join('.');
+ return `BEGIN;SET LOCAL statement_timeout='120s';SET LOCAL search_path=pg_catalog,public;
+ ${sqlDoBlock(`BEGIN IF session_user<>'postgres' OR current_user<>'postgres' OR current_database()<>'postgres' OR inet_server_addr() IS NOT NULL
+ OR current_setting('data_directory')<>'/db/pg' OR current_setting('listen_addresses')<>'' THEN RAISE EXCEPTION 'local_business_runtime_analyze_target_invalid'; END IF; END`,'ram_analyze_guard')}
+ CREATE TEMP TABLE ram_analyze_catalog ON COMMIT DROP AS SELECT encode(extensions.digest(${catalogExpression}::text,'sha256'),'hex') sha256,
+ (SELECT count(*) FROM pg_class WHERE oid IN (${tables.map(t=>`${literal(t)}::regclass`).join(',')}) AND reltuples<0) uninitialized_relations;
+ ${tables.map(t=>`ANALYZE ${relation(t)};`).join('\n')}
+ ${sqlDoBlock(`BEGIN IF (SELECT sha256 FROM ram_analyze_catalog) IS DISTINCT FROM encode(extensions.digest(${catalogExpression}::text,'sha256'),'hex')
+ OR (SELECT count(*) FROM pg_class WHERE oid IN (${tables.map(t=>`${literal(t)}::regclass`).join(',')}) AND reltuples>=0)<>${tables.length}
+ THEN RAISE EXCEPTION 'local_business_runtime_analyze_verification_failed'; END IF; END`,'ram_analyze_verified')}
+ SELECT jsonb_build_object('format','nestory-local-restore-planner-statistics-v1','relationCount',${tables.length},'previouslyUninitializedRelations',(SELECT uninitialized_relations FROM ram_analyze_catalog),'catalogUnchanged',true,'statisticsInitialized',true);
+ COMMIT;`;
+}
 async function rehearseRestoredBusiness({runtime,payload,snapshot,request,custody,replay}){
  const json=async(sql,action='default')=>JSON.parse(await runtime.sql(sql,'postgres',action));
  diagnosticStage='rehearsal-migration';
@@ -433,19 +470,25 @@ async function restoreChild(internal,rehearse=false){
   }
   diagnosticStage='restore';
   const result=JSON.parse(await runtime.sql(buildSelectedBusinessRestoreSql({bytes:payload,expectedSourceSha256:request.sourceSha256,migrationReplay:replay.contract})));
+  diagnosticStage='restore-statistics';const plannerStatistics=JSON.parse(await runtime.sql(buildBusinessRestoreAnalyzeSql()));
+  if(!exact(plannerStatistics,['format','relationCount','previouslyUninitializedRelations','catalogUnchanged','statisticsInitialized'])||plannerStatistics.format!=='nestory-local-restore-planner-statistics-v1'||
+   plannerStatistics.relationCount!==LOCAL_CAPTURE_POLICY.filter(p=>p.capture==='full-row-image').length+3||plannerStatistics.catalogUnchanged!==true||plannerStatistics.statisticsInitialized!==true||
+   !Number.isSafeInteger(plannerStatistics.previouslyUninitializedRelations)||plannerStatistics.previouslyUninitializedRelations<0||plannerStatistics.previouslyUninitializedRelations>plannerStatistics.relationCount)fail('statistics_unproven');
   const rehearsalResult=rehearse?await rehearseRestoredBusiness({runtime,payload,snapshot:checked.snapshot,request,custody,replay}):{financialResetInverseProven:false};
   const after=await custody.check();await runtime.remove();removed=true;
   if(!same(initialPins,await sourcePins()))fail('source_changed');
   for(const source of replay.sources)if(backupHash((await readFile(path.join(root,'supabase/migrations',source.name),'utf8')).replaceAll('\r\n','\n'))!==source.sha256)fail('source_changed');
   const proofId=randomUUID(),proof={...request,...result,format:'nestory-local-business-ram-restore-proof-v1',proofId,
    childPid:process.pid,freshProcessDecryption:true,ownedContainerRemoved:true,containerId:runtime.binding.id,image:RAM_POSTGRES_IMAGE,
-   spillBefore:before,spillAfter:after,migrationReplay:replay.contract,schemaReconstruction,sourcePins:initialPins,physicalFileBytesVerified:false,...rehearsalResult};
+   spillBefore:before,spillAfter:after,migrationReplay:replay.contract,schemaReconstruction,sourcePins:initialPins,plannerStatistics,
+   ...(rehearse?{rehearsalPhaseTimings:runtime.phaseTimings()}:{}),physicalFileBytesVerified:false,...rehearsalResult};
   await writePrivateBackupFile(proofId,'proof.json',Buffer.from(JSON.stringify(proof)));return proof;
  }catch(error){
   if(rehearse&&/^rehearsal-[a-z-]+$/.test(diagnosticStage))await writePrivateBackupFile(randomUUID(),'proof.json',Buffer.from(JSON.stringify({
    format:'nestory-local-business-rehearsal-failure-v1',sourceSha256:request.sourceSha256,stage:diagnosticStage,financialResetInverseProven:false,
    sqlState:/^[0-9A-Z]{5}$/.test(error?.sqlState)?error.sqlState:null,processTimedOut:error?.processTimedOut===true,
    databaseCode:preparationDatabaseCodes.has(error?.databaseCode)?error.databaseCode:null,
+   phaseTimings:Array.isArray(error?.phaseTimings)?error.phaseTimings:[],
    knownFailure:safeBusinessRehearsalFailureCode(error?.message)})));
   throw error;
  }finally{encrypted?.fill(0);envelopeBytes?.fill(0);payload?.fill(0);try{if(runtime&&!removed)await runtime.remove()}finally{await custody.close()}}

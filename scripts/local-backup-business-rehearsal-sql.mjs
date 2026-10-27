@@ -257,7 +257,12 @@ END`,'ram_prepare')}
  SELECT result FROM ram_prepare_readback;
  COMMIT;`;
 }
-function executionDiagnostic(section,sql){return `BEGIN\n${sql}\nEXCEPTION WHEN query_canceled OR OTHERS THEN
+function executionDiagnostic(section,sql){
+ const timed=['known_zero','continuation','reports'].includes(section);
+ const elapsed="floor(extract(epoch FROM clock_timestamp()-ram_phase_started)*1000)::bigint";
+ const notice=outcome=>timed?`RAISE NOTICE 'local_ram_rehearsal_phase:${section}:${outcome}:%',${elapsed};`:'';
+ return `${timed?'DECLARE ram_phase_started timestamptz:=clock_timestamp(); ':''}BEGIN\n${sql}\n${notice('success')}\nEXCEPTION WHEN query_canceled OR OTHERS THEN
+ ${notice('failure')}
  RAISE EXCEPTION USING ERRCODE=SQLSTATE, MESSAGE='local_ram_rehearsal_execute_${section}_failed', DETAIL='', HINT='';
 END`;}
 const executionBlock=(section,sql)=>sqlDoBlock(executionDiagnostic(section,sql),`ram_execute_${section}`);

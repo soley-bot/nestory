@@ -53,6 +53,49 @@ export async function writePrivateBackupFile(id, kind, bytes) {
 }
 export const readPrivateBackupFile = (id, kind) => windows('read', filename(id, kind), null);
 
+// Same per-object ciphertext bound as the existing file manifest. This is a
+// metadata request builder, not an assertion that any archive has been checked.
+export function preparePrivateBackupCiphertextBatch(objects) {
+  if (!Array.isArray(objects) || objects.length > 256) fail('ciphertext_batch_invalid');
+  const seen=new Set();let totalBytes=0;
+  const entries=objects.map(o=>{
+    if(!o || Object.getPrototypeOf(o)!==Object.prototype ||
+      Object.keys(o).sort().join(',')!=='archiveId,ciphertextBytes,ciphertextSha256' ||
+      typeof o.archiveId!=='string' || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(o.archiveId) ||
+      typeof o.ciphertextSha256!=='string' || !/^[a-f0-9]{64}$/.test(o.ciphertextSha256) ||
+      !Number.isSafeInteger(o.ciphertextBytes) || o.ciphertextBytes<1 || o.ciphertextBytes>8*1024*1024 ||
+      seen.has(o.archiveId)) fail('ciphertext_batch_invalid');
+    seen.add(o.archiveId);totalBytes+=o.ciphertextBytes;
+    return {archiveId:o.archiveId,ciphertextBytes:o.ciphertextBytes,ciphertextSha256:o.ciphertextSha256};
+  });
+  if(totalBytes>256*8*1024*1024)fail('ciphertext_batch_invalid');
+  const bytes=Buffer.from(JSON.stringify({format:'nestory-local-ciphertext-batch-v1',objects:entries}));
+  if(bytes.length>65536)fail('ciphertext_batch_invalid');
+  return {bytes,inputSha256:backupHash(bytes),files:entries.length,totalBytes};
+}
+export function assertPrivateBackupCiphertextBatchResult(objects,result) {
+  const request=preparePrivateBackupCiphertextBatch(objects);
+  try {
+    if(!result || Object.getPrototypeOf(result)!==Object.prototype ||
+      Object.keys(result).sort().join(',')!=='bytes,files,format,inputSha256' ||
+      result.format!=='nestory-local-ciphertext-batch-result-v1' || result.inputSha256!==request.inputSha256 ||
+      result.files!==request.files || result.bytes!==request.totalBytes)fail('ciphertext_batch_unverified');
+    return Object.freeze({...result});
+  }finally{request.bytes.fill(0)}
+}
+export async function verifyPrivateBackupCiphertexts(objects) {
+  objects=structuredClone(objects);
+  const request=preparePrivateBackupCiphertextBatch(objects);let response;
+  try {
+    // Existing fixed Windows helper, bounded anonymous-pipe protocol; no
+    // callback, caller-selected helper, path, decryption or key unwrap.
+    response=await windows('verify-archives',null,request.bytes);
+    if(response.length>1024)fail('ciphertext_batch_unverified');
+    let result;try{result=JSON.parse(new TextDecoder('utf8',{fatal:true}).decode(response))}catch{fail('ciphertext_batch_unverified')}
+    return assertPrivateBackupCiphertextBatchResult(objects,result);
+  }finally{request.bytes.fill(0);response?.fill(0)}
+}
+
 export async function createLocalRecoveryKey() {
   const id = randomUUID();
   let generated, wrapped;

@@ -59,9 +59,15 @@ test('execution matches production statement budgets and reports fixed cancellat
   const selected=blocks.filter(b=>b.includes(`MESSAGE='local_ram_rehearsal_execute_${section}_failed'`));
   assert.ok(selected.length,section);
   for(const b of selected){
-   assert.match(b,/EXCEPTION WHEN query_canceled OR OTHERS THEN\s+RAISE EXCEPTION USING ERRCODE=SQLSTATE,/);
+   assert.match(b,/EXCEPTION WHEN query_canceled OR OTHERS THEN\s+(?:RAISE NOTICE '[^']+',[^;]+;\s+)?RAISE EXCEPTION USING ERRCODE=SQLSTATE,/);
    assert.match(b,/DETAIL='', HINT=''/);
-   assert.doesNotMatch(b,/SQLERRM|GET STACKED DIAGNOSTICS|RAISE (NOTICE|WARNING)/);
+   assert.doesNotMatch(b,/SQLERRM|GET STACKED DIAGNOSTICS|RAISE WARNING/);
+   const notices=[...b.matchAll(/RAISE NOTICE '([^']+)',([^;]+);/g)];
+   if(['known_zero','continuation','reports'].includes(section)){
+    assert.deepEqual(notices.map(m=>m[1]),[`local_ram_rehearsal_phase:${section}:success:%`,`local_ram_rehearsal_phase:${section}:failure:%`]);
+    for(const m of notices)assert.equal(m[2],"floor(extract(epoch FROM clock_timestamp()-ram_phase_started)*1000)::bigint");
+    assert.match(b,/DECLARE ram_phase_started timestamptz:=clock_timestamp\(\); BEGIN/);
+   }else assert.equal(notices.length,0);
   }
  }
  for(const [section,call] of [['known_zero','apply_financial_reset_known_zero'],['continuation','prepare_financial_reset_continuation'],['reports','apply_financial_reset_reports']]){
@@ -76,7 +82,7 @@ test('execution matches production statement budgets and reports fixed cancellat
  assert.match(sql.slice(0,nativeStart),/SET LOCAL statement_timeout='60s'/);
  const afterStart=sql.slice(nativeStart);
  assert.deepEqual([...afterStart.matchAll(/SET LOCAL statement_timeout='([^']+)'/g)].map(m=>m[1]),['300s','60s']);
- assert.match(afterStart,/SET LOCAL statement_timeout='300s';\s+DO (\$[a-zA-Z0-9_]+\$) BEGIN\s+PERFORM app_private\.apply_financial_reset_known_zero\([^\n]+\);\s+EXCEPTION WHEN query_canceled OR OTHERS THEN\s+RAISE EXCEPTION USING ERRCODE=SQLSTATE, MESSAGE='local_ram_rehearsal_execute_known_zero_failed', DETAIL='', HINT='';\s+END \1;\s+SET LOCAL statement_timeout='60s';/);
+ assert.match(afterStart,/SET LOCAL statement_timeout='300s';\s+DO (\$[a-zA-Z0-9_]+\$) DECLARE ram_phase_started timestamptz:=clock_timestamp\(\); BEGIN\s+PERFORM app_private\.apply_financial_reset_known_zero\([^\n]+\);\s+RAISE NOTICE 'local_ram_rehearsal_phase:known_zero:success:%',[^;]+;\s+EXCEPTION WHEN query_canceled OR OTHERS THEN\s+RAISE NOTICE 'local_ram_rehearsal_phase:known_zero:failure:%',[^;]+;\s+RAISE EXCEPTION USING ERRCODE=SQLSTATE, MESSAGE='local_ram_rehearsal_execute_known_zero_failed', DETAIL='', HINT='';\s+END \1;\s+SET LOCAL statement_timeout='60s';/);
  assert.equal((sql.match(/^BEGIN ISOLATION LEVEL READ COMMITTED;/gm)??[]).length,1);
  assert.equal((sql.match(/^ COMMIT;$/gm)??[]).length,1);
  assert.match(sql,/SET CONSTRAINTS ALL IMMEDIATE/);

@@ -38,8 +38,10 @@ public static class LocalBackupNative {
     using(var f=new FileStream(h,FileAccess.Read)) {
       if(f.Length<1 || f.Length>67108864) throw new IOException();
       var b=new byte[(int)f.Length]; int offset=0;
-      while(offset<b.Length) { int n=f.Read(b,offset,b.Length-offset); if(n==0) throw new IOException(); offset+=n; }
-      if(f.Length!=b.Length) throw new IOException(); return b;
+      try {
+        while(offset<b.Length) { int n=f.Read(b,offset,b.Length-offset); if(n==0) throw new IOException(); offset+=n; }
+        if(f.Length!=b.Length) throw new IOException(); return b;
+      } catch { Array.Clear(b,0,b.Length); throw; }
     }
   }
 }
@@ -72,8 +74,43 @@ try {
   $text=[Console]::In.ReadToEnd()
   if($text.Length -lt 1 -or $text.Length -gt 92000000){throw 'request'}
   $request=$text | ConvertFrom-Json
-  if((($request.PSObject.Properties.Name | Sort-Object)-join ',') -ne 'action,name,payload' -or @('protect','unprotect','write','read') -notcontains $request.action){throw 'request'}
-  if(@('protect','unprotect') -contains $request.action){
+  if((($request.PSObject.Properties.Name | Sort-Object)-join ',') -ne 'action,name,payload' -or @('protect','unprotect','write','read','verify-archives') -notcontains $request.action){throw 'request'}
+  if($request.action -eq 'verify-archives'){
+    if($null -ne $request.name -or $request.payload -isnot [string]){throw 'request'}
+    $raw=[Convert]::FromBase64String($request.payload)
+    if($raw.Length -lt 1 -or $raw.Length -gt 65536 -or [Convert]::ToBase64String($raw) -ne $request.payload){throw 'batch'}
+    $utf8=[Text.UTF8Encoding]::new($false,$true)
+    $batch=$utf8.GetString($raw) | ConvertFrom-Json
+    if((($batch.PSObject.Properties.Name | Sort-Object)-join ',') -ne 'format,objects' -or
+       $batch.format -ne 'nestory-local-ciphertext-batch-v1' -or $batch.objects -isnot [Array] -or $batch.objects.Count -gt 256){throw 'batch'}
+    $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    [long]$total=0
+    # Validate the entire roster before opening any file. Only fixed archive UUIDs.
+    foreach($object in $batch.objects){
+      if((($object.PSObject.Properties.Name | Sort-Object)-join ',') -ne 'archiveId,ciphertextBytes,ciphertextSha256' -or
+         $object.archiveId -isnot [string] -or $object.archiveId -cnotmatch '^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$' -or
+         $object.ciphertextSha256 -isnot [string] -or $object.ciphertextSha256 -cnotmatch '^[a-f0-9]{64}$' -or
+         ($object.ciphertextBytes -isnot [int] -and $object.ciphertextBytes -isnot [long]) -or
+         $object.ciphertextBytes -lt 1 -or $object.ciphertextBytes -gt 8388608 -or -not $seen.Add($object.archiveId)){throw 'object'}
+      $total+=$object.ciphertextBytes
+      if($total -gt 2147483648){throw 'total'}
+    }
+    foreach($object in $batch.objects){
+      $filename=Join-Path $root ('local-backup-'+$object.archiveId+'.archive.pgp')
+      $checkedBytes=$null
+      try {
+        Assert-Private $filename $owner $false
+        $checkedBytes=[LocalBackupNative]::ReadExact($filename)
+        Assert-Private $filename $owner $false
+        if($checkedBytes.Length -ne $object.ciphertextBytes -or (Hash-Bytes $checkedBytes) -cne $object.ciphertextSha256){throw 'ciphertext'}
+      } finally { if($null -ne $checkedBytes){[Array]::Clear($checkedBytes,0,$checkedBytes.Length)} }
+    }
+    Assert-Private $root $owner $true
+    Assert-Private ([IO.Directory]::GetParent($root).FullName) $owner $true
+    $receipt=@{format='nestory-local-ciphertext-batch-result-v1';inputSha256=(Hash-Bytes $raw);files=$batch.objects.Count;bytes=$total}
+    $resultBytes=$utf8.GetBytes(($receipt | ConvertTo-Json -Compress))
+    $result=@{status='ok';payload=[Convert]::ToBase64String($resultBytes);sha256=(Hash-Bytes $resultBytes);bytes=$resultBytes.Length}
+  } elseif(@('protect','unprotect') -contains $request.action){
     if($null -ne $request.name -or $request.payload -isnot [string]){throw 'request'}
     $raw=[Convert]::FromBase64String($request.payload)
     if($raw.Length -lt 1 -or $raw.Length -gt 65536 -or [Convert]::ToBase64String($raw) -ne $request.payload){throw 'bytes'}
