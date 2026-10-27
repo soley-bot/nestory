@@ -803,4 +803,69 @@ REVOKE ALL ON FUNCTION app_private.financial_reset_single_admin_mode(uuid,jsonb)
  app_private.financial_reset_single_admin_self_review(uuid,uuid),app_private.guard_financial_reset_single_admin_opening()
  FROM PUBLIC,anon,authenticated,service_role;
 
+-- Select the same exact row through its real typed primary key. The original
+-- JSON-key residual, organization predicate and caller's row-lock choice remain.
+-- No authority is granted here; all four callers retain their existing checks.
+CREATE FUNCTION app_private.financial_reset_lookup_row(p_relation oid,p_key jsonb,p_organization uuid,p_for_share boolean)
+ RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path='' AS $$
+DECLARE v_schema text; v_table text; v_predicate text; v_row jsonb;
+BEGIN
+ SELECT n.nspname,c.relname INTO v_schema,v_table FROM pg_catalog.pg_class c
+ JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+ JOIN app_private.financial_reset_relation_rules r ON pg_catalog.to_regclass(r.relation_name)::oid=c.oid
+  AND r.relation_name=n.nspname||'.'||c.relname
+ WHERE c.oid=p_relation AND c.relkind='r';
+ IF NOT FOUND THEN RAISE EXCEPTION 'financial_reset_relation_not_allowed' USING ERRCODE='23514'; END IF;
+ SELECT pg_catalog.string_agg(pg_catalog.format('t.%I=k.%I',a.attname,a.attname),' AND ' ORDER BY k.n)
+ INTO v_predicate FROM pg_catalog.pg_index i
+ CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY k(attnum,n)
+ JOIN pg_catalog.pg_attribute a ON a.attrelid=i.indrelid AND a.attnum=k.attnum AND NOT a.attisdropped
+ WHERE i.indrelid=p_relation AND i.indisprimary AND i.indisvalid AND k.n<=i.indnkeyatts;
+ IF v_predicate IS NULL THEN RAISE EXCEPTION 'financial_reset_primary_key_required' USING ERRCODE='23514'; END IF;
+ IF p_for_share IS NULL THEN RAISE EXCEPTION 'financial_reset_lookup_lock_required' USING ERRCODE='22023'; END IF;
+ EXECUTE pg_catalog.format('SELECT to_jsonb(t) FROM %I.%I t CROSS JOIN jsonb_populate_record(NULL::%I.%I,$2) k WHERE %s AND app_private.financial_reset_primary_key($1,to_jsonb(t))=$2 AND t.organization_id=$3%s',
+  v_schema,v_table,v_schema,v_table,v_predicate,CASE WHEN p_for_share THEN ' FOR SHARE OF t' ELSE '' END)
+ INTO v_row USING p_relation,p_key,p_organization;
+ RETURN v_row;
+END;
+$$;
+ALTER FUNCTION app_private.financial_reset_lookup_row(oid,jsonb,uuid,boolean) OWNER TO postgres;
+REVOKE ALL ON FUNCTION app_private.financial_reset_lookup_row(oid,jsonb,uuid,boolean) FROM PUBLIC,anon,authenticated,service_role;
+
+DO $indexed_exact_rows$
+DECLARE r record; d text;
+BEGIN
+ FOR r IN SELECT * FROM (VALUES
+  ('app_private.guard_financial_reset_archive_insert()',
+   '2323bbb59e8b795899f073d53f58b2cbb9b1211b535f1c9cba3ee7d2da33156b',
+   $old$ EXECUTE format('SELECT to_jsonb(t) FROM %I.%I t WHERE app_private.financial_reset_primary_key($1,to_jsonb(t))=$2 AND t.organization_id=$3 FOR SHARE',
+   split_part(NEW.relation_name,'.',1),split_part(NEW.relation_name,'.',2)) INTO v_actual USING NEW.relation_oid,NEW.primary_key,v_op.organization_id;$old$,
+   $new$ v_actual:=app_private.financial_reset_lookup_row(NEW.relation_oid,NEW.primary_key,v_op.organization_id,true);$new$),
+  ('app_private.seal_financial_reset_operation(uuid)',
+   '7e30c09844632bfdd20c6e7977e2d1f7675e80ff176acf6e749fc6acb42add99',
+   $old$     EXECUTE format('SELECT to_jsonb(t) FROM %I.%I t WHERE app_private.financial_reset_primary_key($1,to_jsonb(t))=$2 AND t.organization_id=$3 FOR SHARE',
+       split_part(v_action.relation_name,'.',1),split_part(v_action.relation_name,'.',2)) INTO v_current USING v_action.relation_oid,v_action.primary_key,v_op.organization_id;$old$,
+   $new$     v_current:=app_private.financial_reset_lookup_row(v_action.relation_oid,v_action.primary_key,v_op.organization_id,true);$new$),
+  ('app_private.prepare_financial_reset_recovery(uuid,jsonb)',
+   'b1b4c1515918ef07640f5228097e9345859f6356facb66dcccc4566b1e4bec28',
+   $old$   EXECUTE format('SELECT to_jsonb(t) FROM %I.%I t WHERE app_private.financial_reset_primary_key($1,to_jsonb(t))=$2 AND organization_id=$3 FOR SHARE',
+     split_part(v_source->>'relation_name','.',1),split_part(v_source->>'relation_name','.',2)) INTO v_actual
+     USING to_regclass(v_source->>'relation_name')::oid,v_source->'primary_key',v_op.organization_id;$old$,
+   $new$   v_actual:=app_private.financial_reset_lookup_row(to_regclass(v_source->>'relation_name')::oid,v_source->'primary_key',v_op.organization_id,true);$new$),
+  ('app_private.assert_financial_reset_recovery_coverage(uuid)',
+   '8bdfc8ca063b6c8810ceb3114e9e1a4d3ae340ca17c32d35069d696443036fd8',
+   $old$     EXECUTE format('SELECT to_jsonb(t) FROM %I.%I t WHERE app_private.financial_reset_primary_key($1,to_jsonb(t))=$2 AND organization_id=$3',
+       split_part(v_row.relation_name,'.',1),split_part(v_row.relation_name,'.',2)) INTO v_final USING to_regclass(v_row.relation_name)::oid,v_row.primary_key,v_op.organization_id;$old$,
+   $new$     v_final:=app_private.financial_reset_lookup_row(to_regclass(v_row.relation_name)::oid,v_row.primary_key,v_op.organization_id,false);$new$)
+ ) x(signature,sha256,anchor,replacement) LOOP
+  d:=replace(pg_catalog.pg_get_functiondef(r.signature::regprocedure),E'\r\n',E'\n');
+  IF encode(extensions.digest(d,'sha256'),'hex') IS DISTINCT FROM r.sha256
+   OR (length(d)-length(replace(d,r.anchor,'')))/length(r.anchor)<>1 THEN
+   RAISE EXCEPTION 'financial_reset_indexed_lookup_predecessor_changed: %',r.signature;
+  END IF;
+  EXECUTE replace(d,r.anchor,r.replacement);
+ END LOOP;
+END;
+$indexed_exact_rows$;
+
 COMMIT;
