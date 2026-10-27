@@ -7,6 +7,7 @@ import {
   buildArtifactRunName,
   collectSmokeFailures,
   createReadOnlyRequestPolicy,
+  createPilotFixtureBlock,
   formatViewportPass,
   formatViewportSummary,
   getKeyboardZoomAuditFailures,
@@ -56,6 +57,7 @@ const manifest = JSON.parse(
 const routes = manifest
   .filter((entry) => !routeFilter || entry.route === routeFilter)
   .map((entry) => ({
+    fixtureBlock: createPilotFixtureBlock(entry, "super_admin", baseUrl),
     expectedAccess: entry.smoke.expectedAccess.super_admin,
     expectedFinalPath: entry.smoke.expectedFinalPath ?? null,
     manifestRoute: entry.route,
@@ -125,7 +127,10 @@ try {
       if (message.type() === "error") {
         const messageText = message.text();
 
-        if (isExpectedDevServerConsoleError(messageText)) {
+        if (activeErrors?.fixtureBlock && message.location().url === `${activeErrors.fixtureBlock.baseUrl}${activeErrors.fixtureBlock.route}` &&
+          messageText === "Failed to load resource: the server responded with a status of 404 (Not Found)") {
+          activeErrors.ignoredConsoleErrors.push(`Expected blocked-fixture document 404: ${messageText}`);
+        } else if (isExpectedDevServerConsoleError(messageText)) {
           activeErrors?.ignoredConsoleErrors.push(messageText);
         } else {
           activeErrors?.consoleErrors.push(messageText);
@@ -141,12 +146,13 @@ try {
     });
 
     for (const route of routes) {
-      activeErrors = { consoleErrors: [], ignoredConsoleErrors: [], pageErrors: [] };
+      activeErrors = { consoleErrors: [], ignoredConsoleErrors: [], pageErrors: [], fixtureBlock: route.fixtureBlock };
       results.push(
         await captureRoute({
           axeEnabled,
           errors: activeErrors,
           expectedAccess: route.expectedAccess,
+          fixtureBlock: route.fixtureBlock,
           expectedFinalPath: route.expectedFinalPath,
           manifestRoute: route.manifestRoute,
           page,
@@ -332,6 +338,7 @@ async function auditRole({ browser: browserInstance, credentials, role }) {
           (entry) => entry.route === route.manifestRoute,
         );
         const expectedAccess = manifestEntry.smoke.expectedAccess[role];
+        const fixtureBlock = createPilotFixtureBlock(manifestEntry, role, baseUrl);
 
         try {
           const response = await page.goto(requestedUrl, {
@@ -339,7 +346,7 @@ async function auditRole({ browser: browserInstance, credentials, role }) {
             waitUntil: "domcontentloaded",
           });
           responseStatus = response?.status() ?? null;
-          await followExpectedRedirect({
+          if (!fixtureBlock) await followExpectedRedirect({
             expectedAccess,
             page,
             requestedUrl,
@@ -349,7 +356,7 @@ async function auditRole({ browser: browserInstance, credentials, role }) {
           navigationError = error instanceof Error ? error.message : String(error);
         }
 
-        const accessResult = getAccessResult({
+        const accessResult = fixtureBlock && responseStatus === 404 && !navigationError ? "fixture-blocked" : getAccessResult({
           finalUrl: page.url(),
           navigationError,
           requestedRoute: route.path,
@@ -357,6 +364,9 @@ async function auditRole({ browser: browserInstance, credentials, role }) {
         });
 
         auditResults.push({
+          ...(fixtureBlock ? { fixtureBlock } : {}),
+          responseStatus,
+          finalUrl: page.url(),
           accessResult,
           expectedAccess,
           finalPath: toPathAndSearch(page.url()),
@@ -410,6 +420,7 @@ async function captureRoute({
   axeEnabled,
   errors,
   expectedAccess,
+  fixtureBlock = null,
   expectedFinalPath,
   manifestRoute,
   page,
@@ -432,7 +443,7 @@ async function captureRoute({
       waitUntil: "domcontentloaded",
     });
     responseStatus = response?.status() ?? null;
-    await followExpectedRedirect({
+    if (!fixtureBlock) await followExpectedRedirect({
       expectedAccess,
       expectedFinalPath,
       page,
@@ -446,6 +457,14 @@ async function captureRoute({
 
   const finalUrl = page.url();
   const finalPath = toPathAndSearch(finalUrl);
+  if (fixtureBlock) {
+    return { fixtureBlock, expectedAccess,
+      accessResult: responseStatus === 404 && !navigationError ? "fixture-blocked" : getAccessResult({ finalUrl, navigationError, requestedRoute: route, responseStatus }),
+      responseStatus, navigationError, finalUrl, finalPath, manifestRoute, route,
+      consoleErrors: errors.consoleErrors, pageErrors: errors.pageErrors, ignoredConsoleErrors: errors.ignoredConsoleErrors,
+      screenshot: await saveViewportScreenshot({ page, screenshotPath }),
+      viewport: viewport.name, viewportWidth: viewport.width, viewportHeight: viewport.height };
+  }
   const horizontalOverflow = await measureHorizontalOverflow(page).catch(
     (error) => ({
       error: error instanceof Error ? error.message : String(error),
@@ -1325,6 +1344,7 @@ function renderEvidenceDocument(summary) {
     `- Serious/critical axe findings, application errors, document overflow, unreachable actions, blocked mutations, and query-contract failures: ${failureCount}.`,
     "- Copy and information discipline remain contextual design evidence; this runtime result certifies layout, access, interaction, and accessibility behavior.",
     "- Local fixture evidence only; this is not hosted production certification.",
+    `- ${summary.results.filter((result) => result.fixtureBlock).length} captures are blocked-fixture 404 observations; they provide no positive production UI or accessibility proof.`,
     "",
     "## Route matrix",
     "",

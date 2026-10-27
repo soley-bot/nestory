@@ -31,7 +31,7 @@ const normalizationPatches = {
   'public.timeline_events': { ledger_entry_id: null, cost_amount: null, cost_currency: null },
 };
 const policy = { registry: RESET_REGISTRY, static: STATIC_REFERENCES, polymorphic: POLYMORPHIC_REFERENCES,
-  cyclePatches, normalizationPatches, version: 'nestory-server-reset-materialization-v1' };
+  cyclePatches, normalizationPatches, historicalOrdering: ['contribution-reversal-before-correction'], version: 'nestory-server-reset-materialization-v1' };
 export const SERVER_MATERIALIZER_POLICY_SHA256 = hash(JSON.stringify(policy));
 
 function assertScope(scope) {
@@ -140,6 +140,9 @@ temporary_logical AS MATERIALIZED (SELECT e.source_key,e.target_key FROM logical
 historical_edges AS MATERIALIZED (SELECT a.row_key source_key,b.row_key target_key FROM selected a JOIN selected b ON a.relation_name=b.relation_name
   AND a.relation_name='public.owner_opening_balance_entries' AND a.row_json->>'entry_kind'='correction_replacement'
   AND b.row_json->>'entry_kind'='correction_reversal' AND a.row_json->'request_id'=b.row_json->'request_id'
+  UNION SELECT a.row_key,b.row_key FROM selected a JOIN selected b ON a.relation_name='public.owner_cash_events'
+    AND b.relation_name=a.relation_name AND a.row_json->>'corrects_event_id' IS NOT NULL
+    AND b.row_json->'organization_id'=a.row_json->'organization_id' AND b.row_json->'reversal_of_id'=a.row_json->'corrects_event_id'
   UNION SELECT a.row_key,c.row_key FROM selected c JOIN selected l ON l.relation_name='public.owner_invoice_lines'
   AND l.row_json->'id'=c.row_json->'owner_invoice_line_id' AND l.row_json->>'source_type'='owner_expense'
   JOIN selected a ON a.relation_name='public.expense_customer_adjustments' AND a.row_json->'responsibility_id'=l.row_json->'source_id'
@@ -175,6 +178,19 @@ blockers AS (
         AND b.row_json->'request_id'=a.row_json->'request_id' AND (b.row_json->>'reversal_of_entry_id' IS NULL
           OR EXISTS(SELECT 1 FROM unnest(ARRAY['organization_id','property_id','owner_person_id','currency','effective_date','component']) k
             WHERE nullif(a.row_json->>k,'') IS NULL OR jsonb_typeof(a.row_json->k)<>'string' OR a.row_json->k IS DISTINCT FROM b.row_json->k)))) HAVING count(*)>0
+  UNION ALL SELECT 'historical_contribution_lineage_invalid',count(*) FROM selected a
+    WHERE a.relation_name='public.owner_cash_events' AND a.row_json->>'corrects_event_id' IS NOT NULL
+    AND (a.row_json->>'reversal_of_id' IS NOT NULL OR
+      (SELECT count(*) FROM selected b WHERE b.relation_name=a.relation_name AND b.row_json->'organization_id'=a.row_json->'organization_id'
+       AND b.row_json->'reversal_of_id'=a.row_json->'corrects_event_id')<>1 OR NOT EXISTS(
+      SELECT 1 FROM selected o JOIN selected b ON b.relation_name=o.relation_name AND b.row_json->'organization_id'=o.row_json->'organization_id'
+       AND b.row_json->'reversal_of_id'=o.row_json->'id' WHERE o.relation_name=a.relation_name
+       AND o.row_json->'organization_id'=a.row_json->'organization_id' AND o.row_json->'id'=a.row_json->'corrects_event_id'
+       AND o.disposition='archive-remove' AND b.disposition='archive-remove' AND a.disposition='archive-remove'
+       AND o.row_json->>'reversal_of_id' IS NULL AND o.row_json->>'event_type'='owner_contribution' AND b.row_json->>'corrects_event_id' IS NULL
+       AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['property_id','owner_person_id','currency','event_type']) k
+         WHERE a.row_json->k IS DISTINCT FROM o.row_json->k OR b.row_json->k IS DISTINCT FROM o.row_json->k)
+       AND b.row_json->'event_date'=o.row_json->'event_date' AND (b.row_json->>'amount')::numeric=-(o.row_json->>'amount')::numeric)) HAVING count(*)>0
   UNION ALL SELECT 'historical_held_cash_source_unresolved',count(*) FROM selected a
     WHERE a.relation_name='public.owner_charge_cash_allocations' AND a.row_json->>'reversal_of_id' IS NULL
       AND NOT EXISTS(SELECT 1 FROM selected l WHERE l.relation_name='public.owner_invoice_lines'

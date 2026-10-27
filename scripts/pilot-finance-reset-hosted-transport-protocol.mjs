@@ -1,23 +1,30 @@
 // Fixed reviewed graph and SQL construction. No connections or runtime authority.
 import { isDeepStrictEqual } from 'node:util';
+import {isPilotSingleAdminZeroPlan,assertPilotSingleAdminOperation} from './pilot-finance-reset-single-admin-policy.mjs';
 import { assertOperatorPacket, canonicalJson, hashBytes, operationBusinessDate, operationInvoiceDatePolicy } from './pilot-finance-reset-operator-core.mjs';
 import { exactKeys, same } from './pilot-finance-reset-hosted-protocol.mjs';
 import { RESET_REGISTRY } from './pilot-finance-reset-registry.mjs';
-import { buildActionTransactionSql, sqlDoBlock } from './pilot-finance-reset-executor-local.mjs';
+import { buildActionTransactionSql, buildEmptyBooksActionTransactionSql, sqlDoBlock } from './pilot-finance-reset-executor-local.mjs';
+import { assertEmptyBooksContinuation, EMPTY_BOOKS_MIGRATION } from './pilot-finance-reset-executor-plan.mjs';
 import { schemaCensusSql } from './ips-readiness-recovery-core.mjs';
 
 export const HOSTED_ACTIONS = Object.freeze(['freeze','checkpoint','prepare','seal','execute','prepare-recovery','execute-recovery']);
 export const TRANSPORT_SOURCE_FILES = Object.freeze([
+ 'scripts/pilot-finance-reset-single-admin-policy.mjs',
  'scripts/pilot-finance-reset-hosted-transport.mjs','scripts/pilot-finance-reset-hosted-transport-protocol.mjs',
  'scripts/pilot-finance-reset-operator-core.mjs','scripts/pilot-finance-reset-hosted-protocol.mjs',
  'scripts/pilot-finance-reset-no-backup-core.mjs',
  'scripts/pilot-finance-reset-executor-local.mjs','scripts/pilot-finance-reset-executor-plan.mjs',
  'scripts/pilot-finance-reset-retired-journal-core.mjs',
  'scripts/pilot-finance-reset-registry.mjs','scripts/ips-readiness-recovery-core.mjs','scripts/hosted-migration-parity-core.mjs',
+ 'scripts/pilot-finance-reset-migration-parity.mjs','supabase/migration-reconciliations/20260821-hosted-migration-canonical-hashes.json',
  'supabase/migrations/20261024013624_financial_reset_hosted_operation_reservation.sql',
+ `supabase/migrations/${EMPTY_BOOKS_MIGRATION}`,
 ]);
 export const digestPattern = /^[a-f0-9]{64}$/;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+// Server action IDs are MD5 digests cast to uuid, with no RFC-v4 bit rewrite.
+const actionUuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 export const fail = code => { throw new Error(`hosted_transport_${code}`); };
 export const literal = value => value === null ? 'NULL' : `'${String(value).replace(/'/g,"''")}'`;
 export const jsonSql = value => `${literal(canonicalJson(value))}::jsonb`;
@@ -50,6 +57,19 @@ export function validateZeroPlanText(artifacts,expectedDigest) {
  if(!parsed||Array.isArray(parsed)||typeof parsed!=='object'||!sameDatabaseJson(parsed,artifacts.zeroPlan)) fail('zero_plan_text_mismatch');
  return raw;
 }
+// The historical schema remains exact and unversioned. The new discriminator
+// opts into an independently reviewed empty-books roster, never ordinary billing.
+export function validateReviewedZeroPlanShape(z,continuation){
+ const versioned=z&&Object.hasOwn(z,'version'),base=['operation_id','organization_id','manifest_sha256','reset_plan_sha256',
+  'maker_actor_id','reviewer_actor_id','effective_date','currencies','scopes'];
+ if(!exactKeys(z,[...base,...(versioned?['version']:[]),...(z&&Object.hasOwn(z,'approval_policy')?['approval_policy']:[])])||!Array.isArray(z.scopes))fail('zero_plan_shape_invalid');
+ if(versioned&&(z.version!==4||continuation?.version!==4||continuation.invoice_date_policy!=='empty-books-no-invoices'))fail('zero_plan_version_invalid');
+ isPilotSingleAdminZeroPlan(z);
+ const scope=['property_id','property_owner_id','owner_person_id','ownership_percent','ownership_roster_hash','currency','property_row_sha256','property_archived_at'];
+ for(const row of z.scopes)if(!exactKeys(row,[...scope,...(versioned?['owner_person_row_sha256']:[])])||
+  versioned&&!digestPattern.test(row.owner_person_row_sha256))fail('zero_scope_shape_invalid');
+ return z;
+}
 export const sortDescriptors = rows => [...rows].sort((a,b) => canonicalJson(a)<canonicalJson(b)?-1:canonicalJson(a)>canonicalJson(b)?1:0);
 // PostgreSQL timestamps carry up to six fractional digits. Parse only whole
 // seconds through Date, then add the untouched fraction as integer microseconds.
@@ -80,6 +100,7 @@ export const ledgerExpression = `(SELECT coalesce(jsonb_agg(jsonb_build_object('
 export function hostedBinding(packet,continuation,recovery=null) {
  assertOperatorPacket(packet);
  const o=packet.operation,b=packet.databaseBinding;
+ validateEmptyBooksBinding(o,continuation);
  const result={version:1,operation_id:o.operationId,project_ref:o.projectRef,organization_id:o.organizationId,
   packet_sha256:packet.packetSha256,main_sha:o.mainSha,sources_sha256:packet.sourcesSha256,schema_sha256:packet.schemaSha256,
   ledger_sha256:packet.ledgerSha256,source_snapshot_sha256:packet.sourceSnapshotSha256,source_generation:o.sourceGeneration,
@@ -96,6 +117,14 @@ export function hostedBinding(packet,continuation,recovery=null) {
   phase_binding_sha256:recovery.review.phaseBindingSha256,review_artifact_sha256:recovery.artifactSha256,
   execution_business_date:recovery.review.executionBusinessDate};
  return result;
+}
+
+function validateEmptyBooksBinding(operation,continuation) {
+ if(continuation?.version!==4&&operationInvoiceDatePolicy(operation)!=='empty-books-no-invoices')return;
+ try { assertEmptyBooksContinuation(continuation); } catch { fail('empty_books_semantic_invalid'); }
+ if(operationInvoiceDatePolicy(operation)!=='empty-books-no-invoices'||
+  continuation.execution_business_date!==operationBusinessDate(operation)||continuation.issue_date!==operation.issueDate||
+  continuation.billing_period_start!==operation.cutoff) fail('empty_books_binding_invalid');
 }
 
 const operationFields=['operation_id','organization_id','operation_kind','restore_of','source_generation','target_generation',
@@ -140,7 +169,7 @@ function validateRows(actions,organization,recovery) {
   const ordinary=rule&&['archive-remove','normalize-reviewed','retire-intent'].includes(rule.disposition);
   const allowed=recovery?(a.kind==='restore'?ordinary:a.kind==='recovery-prune'?recoveryPruneRelations.has(a.relation_name):
    a.kind==='recovery-repair'&&a.relation_name==='public.lease_terms'):ordinary;
-  if(!allowed||!uuid.test(a.action_id)||a.ordinal!==index+1||
+  if(!allowed||!actionUuid.test(a.action_id)||a.ordinal!==index+1||
    (!recovery&&!['archive-delete','normalization'].includes(a.kind))||
    (recovery&&!['restore','recovery-prune','recovery-repair'].includes(a.kind))||
    (a.kind==='archive-delete'&&rule.disposition!=='archive-remove')) fail('action_outside_closed_registry');
@@ -174,6 +203,8 @@ function validateRows(actions,organization,recovery) {
 export function validateArtifacts(packet,artifacts,recovery=null) {
  const o=packet.operation,b=packet.databaseBinding;
  validateZeroPlanText(artifacts,b.zeroReviewSha256);
+ validateReviewedZeroPlanShape(artifacts.zeroPlan,artifacts.continuationPlan);
+ assertPilotSingleAdminOperation(artifacts.zeroPlan,o);
  if(!same(artifacts.manifest,{manifest_sha256:b.manifestSha256,source_snapshot_sha256:packet.sourceSnapshotSha256,
   schema_sha256:packet.schemaSha256,ledger_sha256:packet.ledgerSha256})||
   !exactKeys(artifacts.actions,['operation','actions'])||!same(artifacts.reportPlan,{report_review_sha256:b.reportReviewSha256})) fail('artifact_binding_invalid');
@@ -197,6 +228,7 @@ export function validateArtifacts(packet,artifacts,recovery=null) {
   seen.add(key);
  }
  const c=artifacts.continuationPlan,z=artifacts.zeroPlan;
+ validateEmptyBooksBinding(o,c);
  if(!c||Object.hasOwn(c,'source_sha256')||c.billing_period_start!==o.cutoff||c.issue_date!==o.issueDate||!uuid.test(c.actor_id)||
    !z||z.operation_id!==o.operationId||z.organization_id!==o.organizationId||z.manifest_sha256!==b.manifestSha256||
    z.reset_plan_sha256!==b.planSha256||z.effective_date!==o.cutoff) fail('phase_review_invalid');
@@ -218,6 +250,7 @@ export function validateArtifacts(packet,artifacts,recovery=null) {
 
 export function observationSql(packet,binding,authorizationId=null,action=null) {
  const id=binding.recovery?.operation_id??binding.operation_id,org=literal(binding.organization_id),op=literal(id),base=literal(binding.operation_id);
+ const emptyBooks=binding.continuation_semantic?.version===4;
  return `BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
 SET LOCAL standard_conforming_strings=on; SET LOCAL statement_timeout='30s'; SET LOCAL search_path=pg_catalog,public; SET LOCAL timezone='UTC';
 SELECT jsonb_build_object('catalog',${catalogExpression},'ledger',${ledgerExpression},
@@ -240,7 +273,11 @@ SELECT jsonb_build_object('catalog',${catalogExpression},'ledger',${ledgerExpres
  'actionCount',(SELECT count(*) FROM app_private.financial_reset_actions WHERE operation_id=${op}::uuid),
  'capabilityCount',(SELECT count(*) FROM app_private.financial_reset_transaction_capabilities WHERE organization_id=${org}::uuid),
  'zero',(SELECT jsonb_build_object('status',status,'reviewSha256',review_sha256,'planSha256',app_private.financial_reset_hash(plan_json),'plan',plan_json,'backendPid',execution_backend,'transactionId',execution_xid::text) FROM app_private.financial_reset_zero_plans WHERE operation_id=${base}::uuid),
- 'continuation',(SELECT jsonb_build_object('status',status,'semantic',plan_json-'source_sha256','reviewSha256',review_sha256) FROM app_private.financial_reset_continuation_plans WHERE operation_id=${base}::uuid),
+ 'continuation',(SELECT jsonb_build_object('status',status,'semantic',plan_json-'source_sha256','reviewSha256',review_sha256${emptyBooks?",'result',result_json,'unchanged',before_images=after_images":''}) FROM app_private.financial_reset_continuation_plans WHERE operation_id=${base}::uuid),
+ ${emptyBooks?`'emptyBooks',(SELECT jsonb_build_object('contractsSha256',app_private.financial_reset_hash(app_private.financial_reset_preserved_contracts(${org}::uuid)),
+  'tenantInvoices',(SELECT count(*) FROM public.tenant_invoices WHERE organization_id=${org}::uuid),
+  'ownerInvoices',(SELECT count(*) FROM public.owner_invoices WHERE organization_id=${org}::uuid))
+  FROM app_private.financial_reset_continuation_plans WHERE operation_id=${base}::uuid AND plan_json->'version'='4'::jsonb),`:''}
  'phaseFences',(SELECT coalesce(jsonb_agg(jsonb_build_object('phase',phase,'backendPid',backend_pid,'transactionId',transaction_id::text) ORDER BY phase),'[]'::jsonb) FROM app_private.financial_reset_phase_fences WHERE operation_id=${op}::uuid),
  'approvalCount',(SELECT count(*) FROM app_private.financial_reset_zero_approvals WHERE operation_id=${base}::uuid AND review_sha256=${literal(binding.zero_review_sha256)}),
  'checkpoint',(SELECT jsonb_build_object('kind',checkpoint_kind,'generation',generation,'sha256',checkpoint_sha256,
@@ -279,10 +316,14 @@ export function mutationSql({binding,action,authorizationId,authoritySha256,obse
   if(action==='execute'||action==='execute-recovery') {
    const isRecovery=action==='execute-recovery';
    if(isRecovery&&!recovery) fail('recovery_review_required');
-   const inner=buildActionTransactionSql(id,isRecovery?recovery.review.actions:artifacts.actions.actions,null,null,isRecovery);
+   const nativeActions=isRecovery?recovery.review.actions:artifacts.actions.actions;
+   const inner=artifacts.continuationPlan.version===4?buildEmptyBooksActionTransactionSql(id,nativeActions,null,isRecovery):
+     buildActionTransactionSql(id,nativeActions,null,null,isRecovery);
    if(!inner.startsWith('BEGIN;\n')||!inner.endsWith('\nCOMMIT;')) fail('action_builder_changed');
    statements.push(inner.slice(7,-8));
-   if(!isRecovery) statements.push(`SELECT app_private.apply_financial_reset_known_zero(${op}::uuid);`,
+   if(!isRecovery) statements.push(`SET LOCAL statement_timeout='${review.version===4?'300':'60'}s';`,
+    `SELECT app_private.apply_financial_reset_known_zero(${op}::uuid);`,
+    `SET LOCAL statement_timeout='60s';`,
     sqlDoBlock(`DECLARE reviewed jsonb; BEGIN
      IF app_private.financial_reset_hash(${jsonSql(review)})<>${literal(binding.continuation_semantic_sha256)} THEN RAISE EXCEPTION 'hosted_transport_semantic_changed'; END IF;
      reviewed:=${jsonSql(review)}||jsonb_build_object('source_sha256',app_private.financial_reset_hash(app_private.financial_reset_continuation_snapshot(${literal(binding.organization_id)}::uuid)));

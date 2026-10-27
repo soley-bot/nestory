@@ -10,6 +10,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,10 @@ const initialBranchDraft: BranchDraft = {
   address: "",
 };
 
+const subscribeToHydration = () => () => {};
+const hydratedSnapshot = () => true;
+const serverSnapshot = () => false;
+
 type BranchEditorProps = {
   branches: OrganizationBranch[];
   canManageStructure: boolean;
@@ -69,6 +74,13 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
     controllerRef,
   ) {
   const formRef = useRef<HTMLFormElement>(null);
+  // A new tab can display the server HTML before React attaches onClick.
+  // Keep this client-only action disabled until that first hydration completes.
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    hydratedSnapshot,
+    serverSnapshot,
+  );
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [managedBranch, setManagedBranch] = useState<OrganizationBranch | null>(null);
   const draft = useSettingsDraft({
@@ -116,7 +128,7 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
       <Card className="min-w-0" data-testid="settings-editor" size="sm">
         <CardHeader className="border-b">
           <SettingsSectionHeader
-            action={<Button onClick={() => setDrawerOpen(true)}>Add branch</Button>}
+            action={<Button disabled={!hydrated} onClick={() => setDrawerOpen(true)}>Add branch</Button>}
             description="Properties and work by location."
             title="Branches"
           />

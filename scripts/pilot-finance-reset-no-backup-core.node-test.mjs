@@ -54,6 +54,16 @@ function rehash(packet) {
   return packet;
 }
 
+test('empty-books v4 cannot reuse the independently scoped no-backup policy', () => {
+  const continuation = { version: 4, actor_id: id(3), billing_period_start: '2026-10-01', issue_date: '2026-10-01',
+    execution_business_date: '2026-10-24', invoice_date_policy: 'empty-books-no-invoices', contracts_sha256: d('9'),
+    leases: [{ lease_id: id(10), disposition: 'preserve-unbilled', source_sha256: d('8') }] };
+  const f = fixture(continuation), packet = prepareNoBackupPacket(f.input);
+  assert.throws(() => hostedNoBackupBinding(packet, continuation, f.postgresSemanticText), /semantic_scope_invalid/);
+  f.input.review.operation.invoiceDatePolicy = 'empty-books-no-invoices';
+  assert.throws(() => prepareNoBackupPacket(f.input), /no_backup_/);
+});
+
 test('complete references produce a truthful blocked no-backup packet, without payloads or authority', () => {
   const { packet } = prepared();
   assert.equal(assertNoBackupPacket(packet), packet);

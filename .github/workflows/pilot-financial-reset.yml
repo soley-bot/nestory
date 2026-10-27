@@ -78,16 +78,22 @@ jobs:
           test -z "$(git status --porcelain --untracked-files=all)"
           git ls-files --error-unmatch \
             .github/workflows/pilot-financial-reset.yml \
+            package.json \
+            package-lock.json \
             scripts/pilot-finance-reset-hosted-runner.mjs \
             scripts/pilot-finance-reset-hosted-reconcile.mjs \
             scripts/pilot-finance-reset-hosted-workflow-core.mjs \
             scripts/pilot-finance-reset-hosted-actor.mjs \
             scripts/pilot-finance-reset-hosted-transport.mjs \
+            scripts/pilot-finance-reset-migration-parity.mjs \
+            supabase/migration-reconciliations/20260821-hosted-migration-canonical-hashes.json \
             scripts/pilot-finance-reset-hosted-transport-protocol.mjs \
             scripts/pilot-finance-reset-hosted-protocol.mjs \
+            scripts/pilot-finance-reset-single-admin-policy.mjs \
             scripts/pilot-finance-reset-operator-core.mjs \
             scripts/pilot-finance-reset-durable-store.mjs \
             scripts/pilot-finance-reset-encrypted-artifacts.mjs \
+            scripts/pilot-finance-reset-external-store.mjs \
             scripts/pilot-finance-reset-recovery-artifact-reader.mjs \
             scripts/pilot-finance-reset-executor-local.mjs \
             scripts/pilot-finance-reset-executor-plan.mjs \

@@ -7,12 +7,38 @@ import { PassThrough, Writable } from 'node:stream';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { REQUIRED_ARTIFACTS, SOURCE_ENTRYPOINTS, canonicalJson, hashBytes, hashSourceBytes, prepareOperatorPacket } from './pilot-finance-reset-operator-core.mjs';
-import { HOSTED_ACTIONS, TRANSPORT_SOURCE_FILES, hostedBinding, digestJson, digestDatabaseJson, mutationSql, observationSql, validateArtifacts, validateZeroPlanText, timestampMicros } from './pilot-finance-reset-hosted-transport-protocol.mjs';
-import { createHostedResetTransport, HOSTED_TRANSPORT_IMPLEMENTATION_GAPS, assertHostedTransportDispatchImplemented } from './pilot-finance-reset-hosted-transport.mjs';
+import { HOSTED_ACTIONS, TRANSPORT_SOURCE_FILES, hostedBinding, digestJson, digestDatabaseJson, mutationSql, observationSql, validateArtifacts, validateZeroPlanText, validateReviewedZeroPlanShape, timestampMicros } from './pilot-finance-reset-hosted-transport-protocol.mjs';
+import { createHostedResetTransport, verifyHostedResetExecutionReadback, HOSTED_TRANSPORT_IMPLEMENTATION_GAPS, assertHostedTransportDispatchImplemented,hostedPsqlTimeoutMs } from './pilot-finance-reset-hosted-transport.mjs';
 
 const root=path.resolve(import.meta.dirname,'..'),id=n=>`10000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const catalog=[{kind:'function',name:'app_private.synthetic_contract()',sha256:'b'.repeat(64)}];
-async function fixture(rawOwnership=null) {
+test('only execute has a longer watchdog and v4 known-zero has a bounded isolated statement budget',async()=>{
+ assert.equal(hostedPsqlTimeoutMs(),180000);
+ for(const action of HOSTED_ACTIONS)for(const version of [null,1,2,3,4])assert.equal(hostedPsqlTimeoutMs(action,version),action==='execute'&&version===4?600000:180000);
+ for(const action of [null,600000,'arbitrary',{}])assert.throws(()=>hostedPsqlTimeoutMs(action),/process_budget_invalid/);
+ for(const version of ['4',0,5,600000,{}])assert.throws(()=>hostedPsqlTimeoutMs('execute',version),/process_budget_invalid/);
+ const f=await fixture(null,'empty-books-no-invoices');
+ const sql=mutationSql({...f,action:'execute',authorizationId:id(99),authoritySha256:'f'.repeat(64)});
+ assert.match(sql,/SET LOCAL statement_timeout='300s';\nSELECT app_private\.apply_financial_reset_known_zero\([^\n]+\);\nSET LOCAL statement_timeout='60s';/);
+ const legacy=await fixture();
+ assert.ok(!mutationSql({...legacy,action:'execute',authorizationId:id(99),authoritySha256:'f'.repeat(64)}).includes("statement_timeout='300s'"));
+});
+test('server MD5 action UUID remains exact through validation and SQL; authority IDs remain v4',async()=>{
+ const f=await fixture(),actionId='123a1f51-1234-2abc-cdef-0123456789ab';
+ f.artifacts.actions.actions[0].action_id=actionId;
+ assert.equal(validateArtifacts(f.packet,f.artifacts).actions.actions[0].action_id,actionId);
+ const sql=mutationSql({...f,action:'execute',authorizationId:id(99),authoritySha256:'f'.repeat(64)});
+ assert.ok(sql.includes(`'${actionId}'::uuid`));
+ assert.throws(()=>mutationSql({...f,action:'execute',authorizationId:actionId,authoritySha256:'f'.repeat(64)}),/dispatch_descriptor_invalid/);
+ for(const invalid of [actionId.toUpperCase(),actionId.replaceAll('-',''),actionId+'x',"'; SELECT 1; --",null]){
+  const a=structuredClone(f.artifacts);a.actions.actions[0].action_id=invalid;
+  assert.throws(()=>validateArtifacts(f.packet,a),/action_outside_closed_registry/);
+ }
+ const a=structuredClone(f.artifacts),p=structuredClone(f.packet);p.actionCount=2;a.actions.operation.action_count=2;
+ a.actions.actions.push({...a.actions.actions[0],ordinal:2});
+ assert.throws(()=>validateArtifacts(p,a),/Unsealed or unsupported row action/);
+});
+async function fixture(rawOwnership=null,invoiceDatePolicy='original-reviewed-october') {
  const names=[...new Set([...SOURCE_ENTRYPOINTS,...TRANSPORT_SOURCE_FILES])].sort();
  const files=await Promise.all(names.map(async name=>[name,await readFile(path.join(root,name))]));
  const ledger=files.filter(([name])=>/^supabase\/migrations\/\d{14}_[a-z0-9_]+\.sql$/.test(name)).map(([name,bytes])=>{
@@ -23,14 +49,16 @@ async function fixture(rawOwnership=null) {
  const ciphertext=Object.fromEntries(REQUIRED_ARTIFACTS.map(role=>[role,`synthetic-encrypted-${role}`]));
  const review={format:'nestory-protected-reset-review-v1',operation:{operationId:id(10),projectRef:'syntheticprojectrefa',organizationId:id(11),mainSha:'a'.repeat(40),
   sourceGeneration:0,targetGeneration:1,cutoff:'2026-10-01',issueDate:'2026-10-01',timezone:'Asia/Phnom_Penh',
-  executionBusinessDate:'2026-10-23',invoiceDatePolicy:'original-reviewed-october'},schemaSha256:digestJson(catalog),
+  executionBusinessDate:'2026-10-23',invoiceDatePolicy},schemaSha256:digestJson(catalog),
   ledgerSha256:digestJson(ledger),sourceSnapshotSha256:'d'.repeat(64),archiveRows:1,actionCount:1,
   databaseBinding:Object.fromEntries(['manifestSha256','planSha256','archiveSha256','actionSha256','zeroReviewSha256','continuationSemanticSha256','reportReviewSha256']
    .map((key,index)=>[key,String(index+1).repeat(64)])),artifacts:Object.fromEntries(Object.entries(ciphertext).map(([key,value])=>[key,hashBytes(value)]))};
  const zeroPlanBase={operation_id:review.operation.operationId,organization_id:review.operation.organizationId,
   manifest_sha256:review.databaseBinding.manifestSha256,reset_plan_sha256:review.databaseBinding.planSha256,
   effective_date:review.operation.cutoff,maker_actor_id:id(1),reviewer_actor_id:id(2),currencies:['USD'],scopes:[]};
- const zeroPlanText=rawOwnership===null?JSON.stringify(zeroPlanBase):JSON.stringify(zeroPlanBase).replace('"scopes":[]',`"scopes":[{"ownership_percent":${rawOwnership}}]`);
+ const scope={property_id:id(51),property_owner_id:id(52),owner_person_id:id(53),ownership_percent:100,ownership_roster_hash:'a'.repeat(64),
+  currency:'USD',property_row_sha256:'b'.repeat(64),property_archived_at:null};
+ const zeroPlanText=rawOwnership===null?JSON.stringify(zeroPlanBase):JSON.stringify({...zeroPlanBase,scopes:[scope]}).replace('"ownership_percent":100',`"ownership_percent":${rawOwnership}`);
  review.databaseBinding.zeroReviewSha256=hashBytes(zeroPlanText);
  const packet=prepareOperatorPacket({review,artifacts:ciphertext,candidateHead:review.operation.mainSha,sources:files.map(([name,bytes])=>({path:name,sha256:hashSourceBytes(bytes)}))});
  const o=packet.operation,b=packet.databaseBinding;
@@ -46,14 +74,61 @@ async function fixture(rawOwnership=null) {
   continuationPlan:{version:3,actor_id:id(1),billing_period_start:o.cutoff,issue_date:o.issueDate,
    execution_business_date:o.executionBusinessDate,invoice_date_policy:o.invoiceDatePolicy,leases:[{lease_id:id(44),monthly_rent:'1000.00'}]},
   reportPlan:{report_review_sha256:b.reportReviewSha256}};
+ if(invoiceDatePolicy==='empty-books-no-invoices')artifacts.continuationPlan={version:4,actor_id:id(1),
+  billing_period_start:o.cutoff,issue_date:o.issueDate,execution_business_date:o.executionBusinessDate,
+  invoice_date_policy:invoiceDatePolicy,contracts_sha256:'a'.repeat(64),
+  leases:[{lease_id:id(44),disposition:'preserve-unbilled',source_sha256:'b'.repeat(64)}]};
  const binding=hostedBinding(packet,artifacts.continuationPlan);
  const observation={catalog,ledger,businessDate:o.executionBusinessDate,timezone:o.timezone,sourceSha256:packet.sourceSnapshotSha256,foreignSha256:'e'.repeat(64),
   control:null,reservation:null,recoveryReservation:null,recoveryCheckpoint:null,operation:null,appliedCount:0,archiveCount:0,actionCount:0,
   capabilityCount:0,zero:null,continuation:null,phaseFences:[],approvalCount:0,checkpoint:null,authorization:null,actionReceipt:null};
  return {packet,artifacts,binding,observation};
 }
+test('strict zero schema preserves legacy input and admits marker4 only with empty-books continuation4',async()=>{
+ const f=await fixture('25.50','empty-books-no-invoices'),z=structuredClone(f.artifacts.zeroPlan),c=f.artifacts.continuationPlan;
+ assert.equal(validateReviewedZeroPlanShape(z,c),z);const marked={...z,version:4,scopes:z.scopes.map(s=>({...s,owner_person_row_sha256:'a'.repeat(64)}))};
+ assert.equal(validateReviewedZeroPlanShape(marked,c),marked);
+ for(const change of [p=>p.version=2,p=>p.version='4',p=>delete p.scopes[0].owner_person_row_sha256,p=>p.extra=true]){
+  const bad=structuredClone(marked);change(bad);assert.throws(()=>validateReviewedZeroPlanShape(bad,c),/zero_/);
+ }
+ assert.throws(()=>validateReviewedZeroPlanShape(marked,{...c,version:3}),/zero_plan_version_invalid/);
+ assert.throws(()=>validateReviewedZeroPlanShape(marked,{...c,invoice_date_policy:'original-reviewed-october'}),/zero_plan_version_invalid/);
+ assert.throws(()=>validateReviewedZeroPlanShape({...marked,version:undefined},c),/zero_plan_version_invalid/);
+ assert.throws(()=>validateReviewedZeroPlanShape({...z,scopes:marked.scopes},c),/zero_scope_shape_invalid/);
+});
+
+test('recovery-backed transport preserves explicit v4 no-op semantic and exact phase/checkpoint sequence', async () => {
+ const f=await fixture(null,'empty-books-no-invoices');
+ assert.equal(validateArtifacts(f.packet,f.artifacts),f.artifacts);
+ assert.deepEqual(f.binding.continuation_semantic,f.artifacts.continuationPlan);
+ assert.equal(f.binding.version,1);
+ assert.equal(f.binding.invoice_date_policy,'empty-books-no-invoices');
+ const sql=mutationSql({...f,action:'execute',authorizationId:id(99),authoritySha256:'f'.repeat(64)});
+ assert.ok(sql.includes('"disposition":"preserve-unbilled"'));
+ assert.ok(sql.indexOf('apply_financial_reset_known_zero')<sql.indexOf('apply_financial_reset_continuation'));
+ assert.ok(sql.indexOf('apply_financial_reset_continuation')<sql.indexOf('apply_financial_reset_reports'));
+ assert.ok(sql.indexOf('apply_financial_reset_reports')<sql.indexOf('COMMIT;'));
+ assert.match(sql,/hosted_transport_semantic_changed/);
+ assert.match(sql,/hosted_transport_foreign_rows_changed/);
+ assert.doesNotMatch(sql,/generate_.*invoice|continue_month_to_month/);
+ assert.throws(()=>assertHostedTransportDispatchImplemented(),/hosted_transport_/);
+});
+
+test('recovery-backed transport rejects v4 policy/date/hash/lease mismatches before dispatch',async()=>{
+ const f=await fixture(null,'empty-books-no-invoices');
+ for(const mutate of [c=>{c.version=3;},c=>{c.invoice_date_policy='original-reviewed-october';},
+  c=>{c.execution_business_date='2026-10-24';},c=>{delete c.contracts_sha256;},
+  c=>{c.leases[0].disposition='bill';},c=>{c.leases[0].rent_amount='0.00';},
+  c=>{c.leases.push(c.leases[0]);},c=>{c.source_sha256='a'.repeat(64);}]) {
+  const changed=structuredClone(f.artifacts);mutate(changed.continuationPlan);
+  assert.throws(()=>validateArtifacts(f.packet,changed),/hosted_transport_empty_books/);
+  assert.throws(()=>hostedBinding(f.packet,changed.continuationPlan),/hosted_transport_empty_books/);
+ }
+ const legacy=await fixture();
+ assert.throws(()=>hostedBinding(legacy.packet,f.artifacts.continuationPlan),/hosted_transport_empty_books_binding_invalid/);
+});
 async function harness(config={}) {
- const f=await fixture(config.rawOwnership??null),calls=[],records=new Map(),events=[],authorization=Object.freeze({syntheticOpaqueHandle:true});
+ const f=await fixture(config.rawOwnership??null,config.invoiceDatePolicy??'original-reviewed-october'),calls=[],records=new Map(),events=[],authorization=Object.freeze({syntheticOpaqueHandle:true});
  const connection={expectedProjectRef:f.packet.operation.projectRef,host:`db.${f.packet.operation.projectRef}.supabase.co`,port:5432,database:'postgres',user:'postgres',
   psqlPath:'/protected/bin/psql',sslRootCertPath:'/protected/root.crt',passwordFilePath:'/protected/pgpass'};
  const input={...f,calls,records,events,authorization,connection};
@@ -106,6 +181,59 @@ function seedCommittedStage(h,action) {
    appliedCount:0,archiveSha256:h.binding.archive_sha256,actionSha256:h.binding.action_sha256,zero:structuredClone(o.zero)}};
 }
 
+function seedCommittedEmptyBooks(h) {
+ seedCommittedStage(h,'seal');
+ const o=h.observation,semantic=h.artifacts.continuationPlan,tx={backendPid:81,transactionId:'12345'};
+ o.operation={...o.operation,status:'actions_complete',execution_backend:tx.backendPid,execution_xid:tx.transactionId};
+ o.appliedCount=h.packet.actionCount;o.zero={...o.zero,status:'complete',...tx};
+ const result={empty_books:true,billing_paused:true,contracts_unchanged:true,contracts_sha256:semantic.contracts_sha256,
+  billing_complete:false,close_ready:false,deferred_lease_count:0,preserved_unbilled_lease_count:semantic.leases.length};
+ o.continuation={status:'complete',semantic:structuredClone(semantic),reviewSha256:'c'.repeat(64),unchanged:true,
+  result:{...result,before_sha256:'d'.repeat(64),after_sha256:'d'.repeat(64),leases:semantic.leases.map(lease=>({...lease,
+   invoice_id:null,generated_rent_amount:0,generated_fee_amount:0,contract_changed:false}))}};
+ o.emptyBooks={contractsSha256:semantic.contracts_sha256,tenantInvoices:0,ownerInvoices:0};
+ o.phaseFences=['known-zero','continuation','reports'].map(phase=>({phase,...tx}));
+ o.checkpoint={kind:'checked-reports',generation:1,hashValid:true,currentImagesMatch:true,sha256:'e'.repeat(64),...tx,
+  result:{...result,reports_persisted:true,control_reopened:false,close_published:false}};
+ seedIntent(h,'execute');
+}
+
+test('v4 lost-response reconciliation proves paused empty books using only database reads',async()=>{
+ const h=await harness({invoiceDatePolicy:'empty-books-no-invoices'});seedCommittedEmptyBooks(h);
+ const input={packet:h.packet,binding:h.binding,artifacts:h.artifacts,recovery:null,observation:h.observation,authorizationId:id(99),action:'execute'};
+ assert.equal(verifyHostedResetExecutionReadback(input),true);
+ assert.equal(verifyHostedResetExecutionReadback({...input,authorizationId:id(98)}),false);
+ assert.throws(()=>verifyHostedResetExecutionReadback({...input,action:'freeze'}),/execution_readback_invalid/);
+ const result=await h.transport.reconcile({action:'execute'});
+ assert.equal(result.outcome,'committed-and-verified');
+ assert.equal(result.emptyBooksVerified,true);assert.equal(result.billingPaused,true);
+ assert.equal(result.billingComplete,false);assert.equal(result.closeReady,false);assert.equal(result.contractsUnchanged,true);
+ assert.equal(mutationCalls(h).length,0);assert.equal(h.records.size,1);
+ assert.match(h.calls[0].input,/financial_reset_preserved_contracts/);
+ assert.match(h.calls[0].input,/'tenantInvoices'/);
+});
+
+test('v4 reconciliation refuses generic complete checkpoints and any changed empty-books evidence',async()=>{
+ const cases=[
+  o=>{delete o.emptyBooks;},o=>{o.emptyBooks.tenantInvoices=1;},o=>{o.emptyBooks.ownerInvoices=1;},
+  o=>{o.emptyBooks.contractsSha256='b'.repeat(64);},o=>{o.continuation.unchanged=false;},
+  o=>{delete o.continuation.result;},o=>{o.continuation.result.after_sha256='c'.repeat(64);},
+  o=>{o.continuation.result.leases[0].invoice_id=id(98);},o=>{o.continuation.result.leases[0].contract_changed=true;},
+  o=>{o.continuation.result.leases[0].generated_fee_amount=1;},o=>{o.continuation.result.leases[0].source_sha256='f'.repeat(64);},
+  o=>{o.continuation.result.leases=[];},o=>{o.phaseFences[2].phase='continuation';},
+  o=>{o.authorization.actorId=id(98);},
+ ];
+ for(const phase of ['continuation','checkpoint'])for(const field of ['empty_books','billing_paused','contracts_unchanged','billing_complete','close_ready']) {
+  cases.push(o=>{o[phase].result[field]=!o[phase].result[field];});
+ }
+ for(const mutate of cases) {
+  const h=await harness({invoiceDatePolicy:'empty-books-no-invoices'});seedCommittedEmptyBooks(h);mutate(h.observation);
+  const result=await h.transport.reconcile({action:'execute'});
+  assert.equal(result.outcome,'not-proven-do-not-retry');assert.equal(result.emptyBooksVerified,false);
+  assert.equal(result.billingPaused,null);assert.equal(mutationCalls(h).length,0);assert.equal(h.records.size,1);
+ }
+});
+
 test('construction dispatches nothing and rejects arbitrary connection or operation selectors',async()=>{
  const h=await harness();assert.equal(h.calls.length,0);
  assert.throws(()=>createHostedResetTransport({...h.ports,sql:'DELETE FROM public.people'}),/options_invalid/);
@@ -119,6 +247,7 @@ test('construction dispatches nothing and rejects arbitrary connection or operat
 test('inspection independently reads catalog and complete ledger with fixed TLS and no inherited environment',async()=>{
  const h=await harness();await h.transport.inspect();assert.equal(h.calls.length,1);
  const c=h.calls[0];assert.match(c.input,/REPEATABLE READ READ ONLY/);assert.match(c.input,/pg_get_functiondef/);assert.match(c.input,/pg_get_triggerdef/);
+ assert.doesNotMatch(c.input,/'emptyBooks'|'unchanged'|financial_reset_preserved_contracts/);
  assert.match(c.input,/schema_migrations/);assert.equal(c.options.shell,false);assert.equal(c.options.env.PGSSLMODE,'verify-full');
  assert.equal(c.options.env.PGPASSFILE,h.connection.passwordFilePath);assert.equal(c.options.env.PGPASSWORD,undefined);
  assert.equal(c.options.env.PGOPTIONS,undefined);assert.equal(c.options.env.PGSERVICE,undefined);
@@ -382,4 +511,15 @@ test('recovery-only native contract rows pass the closed phase projection withou
   {...actionFor('public.lease_terms','recovery-repair',{status:'active'}),changed_columns:['updated_at']}]) {
   assert.throws(()=>validateArtifacts(f.packet,f.artifacts,reviewFor(a)),/hosted_transport_/);
  }
+});
+
+test('single-admin discriminator is limited to the one Pilot empty-books transition',async()=>{
+ const {PILOT_SINGLE_ADMIN_POLICY,assertPilotSingleAdminOperation,isPilotSingleAdminZeroPlan}=await import('./pilot-finance-reset-single-admin-policy.mjs');
+ const z={approval_policy:PILOT_SINGLE_ADMIN_POLICY,version:4,operation_id:'10000000-0000-4000-8000-000000000001',
+  organization_id:'752a87b8-bd04-4a45-9cb8-00687af66e73',effective_date:'2026-10-01',maker_actor_id:'10000000-0000-4000-8000-000000000002',reviewer_actor_id:null};
+ const o={operationId:z.operation_id,organizationId:z.organization_id,projectRef:'pfvmztxktkwyewvxfgot',cutoff:'2026-10-01',issueDate:'2026-10-01',sourceGeneration:0,targetGeneration:1,invoiceDatePolicy:'empty-books-no-invoices'};
+ assert.equal(assertPilotSingleAdminOperation(z,o),true);
+ for(const patch of [{approval_policy:'other'},{version:3},{reviewer_actor_id:z.maker_actor_id},{effective_date:'2026-11-01'},{organization_id:z.operation_id}])assert.throws(()=>assertPilotSingleAdminOperation({...z,...patch},o));
+ for(const patch of [{sourceGeneration:1,targetGeneration:2},{projectRef:'other'},{cutoff:'2026-11-01'},{invoiceDatePolicy:'rebill'},{operationId:z.maker_actor_id}])assert.throws(()=>assertPilotSingleAdminOperation(z,{...o,...patch}));
+ const legacy={...z};delete legacy.approval_policy;assert.equal(isPilotSingleAdminZeroPlan(legacy),false);
 });

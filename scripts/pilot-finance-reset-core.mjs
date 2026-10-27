@@ -31,6 +31,7 @@ export const VALIDATION_SOURCE_ARTIFACTS = Object.freeze([
     '20261024013619_financial_reset_archived_property_known_zero.sql',
     '20261024013620_financial_reset_report_finalization_checkpoint.sql',
     '20261024013621_financial_reset_reviewed_deferred_leases_and_deposits.sql',
+    '20261027005615_financial_reset_empty_books_preserved_contracts.sql',
   ].map(name => ({ name, root: 'project', directory: 'supabase/migrations' })),
   { name: 'baseline.sql', root: 'project', directory: 'supabase/test-fixtures' },
   { name: 'archived-property-overlay.sql', root: 'project', directory: 'supabase/test-fixtures' },

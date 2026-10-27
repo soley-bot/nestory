@@ -4,6 +4,7 @@
 import { createCipheriv, createDecipheriv, KeyObject, randomBytes } from 'node:crypto';
 import { assertOperatorPacket, canonicalJson, hashBytes, REQUIRED_ARTIFACTS } from './pilot-finance-reset-operator-core.mjs';
 import { inspectLocalStoreMechanism } from './pilot-finance-reset-durable-store.mjs';
+import { inspectExternalStoreMechanism } from './pilot-finance-reset-external-store.mjs';
 
 const FORMAT = 'nestory-reset-aes-gcm-v1';
 const ALGORITHM = 'aes-256-gcm';
@@ -214,8 +215,11 @@ export function createBoundArtifactReader({ provider, packet, descriptors, verif
       const store = providerStores.get(provider);
       let mechanism;
       try { mechanism = inspectLocalStoreMechanism(store); }
-      catch { fail('runtime_provider_verification_required'); }
-      if (mechanism.kind !== 'exclusive-file-and-directory-fsync') fail('synthetic_provider_not_hosted');
+      catch {
+        try { mechanism = inspectExternalStoreMechanism(store); await store.assertCurrent(); }
+        catch { fail('runtime_provider_verification_required'); }
+      }
+      if (!['exclusive-file-and-directory-fsync', 'aws-s3-conditional-versioned-object-lock'].includes(mechanism.kind)) fail('synthetic_provider_not_hosted');
       const artifacts = {};
       for (const role of recoveryRoles) {
         const observed = await provider.reconcile({ slot: artifactSlot(pinned[role].binding), descriptor: snapshot(pinned[role]) });

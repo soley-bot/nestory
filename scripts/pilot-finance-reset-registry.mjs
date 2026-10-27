@@ -166,6 +166,13 @@ export const RETAINED_IDENTITY_FIELDS = Object.freeze({
 export const REBUILD_REQUIREMENTS = Object.freeze([
  { table: 'public.owner_opening_balance_entries', phase: 'zero-checkpoint', components: ['ips_held_owner_cash', 'owner_due_to_ips', 'ips_due_to_owner', 'security_deposit_custody'], amount: '0', evidenceRequired: true },
  { table: 'public.petty_cash_periods', phase: 'zero-checkpoint', openingAmount: '0', advanceAmount: '0' },
- { table: 'public.tenant_invoices', phase: 'after-zero-checkpoint', month: '2026-10-01', exactLeaseRuleManifestRequired: true },
+ { table: 'public.tenant_invoices', phase: 'after-zero-checkpoint', month: '2026-10-01', exactLeaseRuleManifestRequired: true,
+   continuationPlanVersions: [1, 2, 3] },
 ]);
+// Select only after a strict continuation review. Empty books retains the zero
+// authority requirements and explicitly excludes automatic invoice rebuilding.
+export function resetRequirementsForContinuation(version) {
+ if (![1, 2, 3, 4].includes(version)) throw Error('Unknown reset continuation version.');
+ return REBUILD_REQUIREMENTS.filter(requirement => !requirement.continuationPlanVersions || requirement.continuationPlanVersions.includes(version));
+}
 export const RESET_REGISTRY = Object.freeze(Object.fromEntries(Object.entries(registry).map(([key, value]) => [key, Object.freeze(value)])));

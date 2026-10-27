@@ -4,6 +4,7 @@
   "reviewMethod": "Manual route-by-route review of headings, labels, table headers, filters, actions, badges, helper text, states, confirmations, disclosures, and generated labels.",
   "dispositions": ["remove", "rename", "shorten", "preserve-for-safety", "move-to-technical-audit-disclosure"],
   "routes": [
+    {"route":"/settings/maintenance","result":"pass","findings":[{"issue":"A financial reset approval must identify its exact scope and distinguish approval from execution.","disposition":"preserve-for-safety","outcome":"The page states preserved contracts, zero balances, paused billing and separate execution. Digests appear after selecting a reviewed file."}],"defaultTechnicalMetadata":"disclosed","safetyCopy":"preserved"},
     { "route": "/", "result": "pass", "findings": [{ "issue": "Post-hero feature repetition", "disposition": "remove", "outcome": "Reduced to three strong sections while preserving the hero." }], "defaultTechnicalMetadata": "absent", "safetyCopy": "not-applicable" },
     { "route": "/request", "result": "pass", "findings": [{ "issue": "Internal workflow-fit qualification language", "disposition": "rename", "outcome": "Now states that portfolio and priorities are confirmed before workspace creation." }], "defaultTechnicalMetadata": "absent", "safetyCopy": "preserved" },
     { "route": "/login", "result": "pass", "findings": [], "defaultTechnicalMetadata": "absent", "safetyCopy": "preserved" },

@@ -15,8 +15,11 @@ import { hostedBinding, mutationSql, validateArtifacts } from './pilot-finance-r
 const id = n => `10000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const copy = value => JSON.parse(canonicalJson(value));
 const quoted = JSON.stringify;
+// Legacy native prepare requires all nine fields, including distinct actors and
+// the scope roster. This isolated financial-lock fixture has no properties.
 const originalZeroPlan = (operation,binding) => ({ operation_id:operation.operationId,organization_id:operation.organizationId,
-  manifest_sha256:binding.manifestSha256,reset_plan_sha256:binding.planSha256,effective_date:operation.cutoff });
+  manifest_sha256:binding.manifestSha256,reset_plan_sha256:binding.planSha256,effective_date:operation.cutoff,
+  maker_actor_id:id(1),reviewer_actor_id:id(2),currencies:['USD'],scopes:[] });
 // Fixed native PostgreSQL jsonb text vectors, independently spelling out the
 // key order and spaces used by financial_reset_action_digest. No generic JSON
 // serializer under test is reused to build expected database hashes.

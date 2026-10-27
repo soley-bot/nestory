@@ -1,22 +1,41 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
-import { SESSION_TESTS, databaseTestPlan, localDatabaseTestTarget, verifyPgTapOutput } from './run-database-tests.mjs';
+import { SESSION_TESTS, SINGLE_ADMIN_RUNTIME_BOOTSTRAP_SQL, databaseTestPlan, localDatabaseTestTarget, runSessionTest, verifyPgTapOutput } from './run-database-tests.mjs';
 
-test('all ten privileged tests stay classified and every other SQL test remains ordinary', () => {
+test('all twelve privileged tests stay classified and every other SQL test remains ordinary', () => {
   const root = new URL('../supabase/tests/', import.meta.url);
   const files = readdirSync(root).filter(name => name.endsWith('.sql')).map(name => ({ name, source: readFileSync(new URL(name, root), 'utf8') }));
   const plan = databaseTestPlan(files);
-  assert.equal(plan.session.length, 10);
+  assert.equal(plan.session.length, 12);
+  assert.ok(plan.session.some(file => file.name === 'financial_reset_empty_books_test.sql'));
   assert.equal(plan.ordinary.length + plan.session.length, files.length);
   assert.throws(() => databaseTestPlan(files.filter(file => file.name !== SESSION_TESTS[0])), /exactly once/);
   assert.throws(() => databaseTestPlan([...files, { name: 'unexpected.sql', source: 'SET SESSION AUTHORIZATION authenticator;' }]), /classification/);
   assert.throws(() => databaseTestPlan([...files, files.find(file => file.name === SESSION_TESTS[0])]), /exactly once/);
 });
 
+test('only the fixed single-admin include expands before streamed session execution',()=>{
+ const root=new URL('../supabase/tests/',import.meta.url);
+ const files=readdirSync(root).filter(name=>name.endsWith('.sql')).map(name=>({name,source:readFileSync(new URL(name,root),'utf8')}));
+ const selected=databaseTestPlan(files).session.find(f=>f.name==='financial_reset_single_admin_test.sql');
+ assert.ok(selected.source.startsWith('\\set empty_books_single_admin true\n'));
+ assert.match(selected.source,/SET SESSION AUTHORIZATION authenticator/);
+ assert.match(selected.source,/ROLLBACK;\s*$/);
+ assert.doesNotMatch(selected.source,/^\s*\\(?:i|ir)\s/m);
+ for(const source of ['\\ir ../../private.sql\n','\\ir financial_reset_empty_books_test.sql\n',
+  files.find(f=>f.name==='financial_reset_single_admin_test.sql').source+'SELECT 1;\n']){
+  assert.throws(()=>databaseTestPlan(files.map(f=>f.name==='financial_reset_single_admin_test.sql'?{...f,source}:f)),/exact reviewed/);
+ }
+ assert.throws(()=>databaseTestPlan(files.filter(f=>f.name!=='financial_reset_empty_books_test.sql')),/exactly one/);
+ assert.throws(()=>databaseTestPlan(files.map(f=>f.name==='financial_reset_empty_books_test.sql'?{...f,source:f.source+'\n\\ir forbidden.sql\n'}:f)),/include other files|rollback/i);
+});
+
 test('strict TAP validation rejects failures, missing assertions and missing plans', () => {
   assert.equal(verifyPgTapOutput('ok 1 - first\nok 2 - second\n1..2\n', 'proof'), 2);
   assert.equal(verifyPgTapOutput('1..2\nok 1 - first\nok 2 # SKIP Original-date success path is eligible only during October 2026; no clock override is used.\n', 'financial_reset_original_invoice_dates_test.sql'), 2);
+  assert.equal(verifyPgTapOutput('1..2\nok 1 - first\nok 2 # SKIP October-only success path is not executed with a fabricated database clock.\n', 'financial_reset_empty_books_test.sql'), 2);
+  assert.throws(() => verifyPgTapOutput('1..1\nok 1 # SKIP unexpected\n', 'financial_reset_empty_books_test.sql'));
   for (const bad of ['ok 1 - first', '1..2\nok 1 - first', '1..1\nnot ok 1 - failed', '1..1\nBail out! denied', '1..1\nok 2 - wrong', '1..1\nok 1 - ignored # TODO later', '1..0 # SKIP all', '1..1\n1..1\nok 1 - first', '1..1\nok 1 # SKIP unexpected']) {
     assert.throws(() => verifyPgTapOutput(bad, 'proof'));
   }
@@ -52,4 +71,54 @@ test('target rejects remote or conflicting connections before SQL', async () => 
   const f = fixture(); f.setIdentity({ id: 'a'.repeat(64), name: '/supabase_db_owned', project: 'other', running: true });
   await assert.rejects(localDatabaseTestTarget(f.options));
   assert.ok(!f.calls.some(call => call.args.includes('psql')));
+});
+
+test('single-admin fixture uses a clean isolated schema and fresh capability bootstrap, then verifies cleanup and source census', async () => {
+  for (const failFixture of [false, true]) {
+    const f = fixture(); const execute = f.options.execute;
+    f.options.execute = (command, args, input) => {
+      const result = execute(command, args, input);
+      if (args.includes('pg_dump')) return '-- synthetic dump';
+      if (input?.startsWith('SELECT coalesce(json_agg')) return '["public.organizations","auth.users"]';
+      if (input?.startsWith("SELECT jsonb_build_object('rows'")) return '{"rows":[0,0],"organizations":"digest"}';
+      if (input?.startsWith('SELECT count(*) FROM pg_database')) return '0';
+      if (input === 'ROLLBACK;') { if (failFixture) throw Error('synthetic fixture failure'); return 'ok 1 - native\n1..1\n'; }
+      return result;
+    };
+    const target = await localDatabaseTestTarget(f.options);
+    const file = { name: 'financial_reset_single_admin_test.sql', source: 'ROLLBACK;' };
+    if (failFixture) assert.throws(() => runSessionTest(file, target), /synthetic fixture failure/);
+    else assert.equal(runSessionTest(file, target), 1);
+    const dumps = f.calls.filter(c => c.args.includes('pg_dump'));
+    assert.equal(dumps.length, 3);
+    assert.ok(dumps[0].args.includes('--section=pre-data'));
+    assert.ok(dumps[1].args.includes('--table=app_private.financial_reset_relation_rules'));
+    assert.ok(dumps[1].args.includes('--data-only'));
+    assert.ok(dumps[2].args.includes('--section=post-data'));
+    const creation = f.calls.find(c => c.input?.startsWith('CREATE DATABASE'));
+    assert.match(creation.input, /^CREATE DATABASE single_admin_test_[a-f0-9]{32} TEMPLATE template0;$/);
+    assert.ok(f.calls.some(c => c.input === creation.input.replace('CREATE', 'DROP').replace(' TEMPLATE template0', '')));
+    assert.equal(f.calls.filter(c => c.input?.startsWith("SELECT jsonb_build_object('rows'")).length, failFixture ? 3 : 4);
+    assert.ok(f.calls.some(c => c.input === SINGLE_ADMIN_RUNTIME_BOOTSTRAP_SQL));
+    assert.doesNotMatch(f.calls.map(c => c.input ?? '').join('\n'), /DISABLE TRIGGER|session_replication_role|TRUNCATE|ALTER ROLE/);
+    assert.equal((SINGLE_ADMIN_RUNTIME_BOOTSTRAP_SQL.match(/INSERT INTO/g) ?? []).length, 8);
+    assert.doesNotMatch(SINGLE_ADMIN_RUNTIME_BOOTSTRAP_SQL, /auth\.|organization_members|capability_token\s*\)\s*SELECT/);
+    assert.ok(f.calls.filter(c => c.input?.startsWith("SELECT jsonb_build_object('rows'")).every(c => /extensions\.digest/.test(c.input)));
+  }
+});
+
+test('single-admin cleanup still checks absence and source after a failed drop', async () => {
+  const f = fixture(); const execute = f.options.execute;
+  f.options.execute = (command, args, input) => {
+    const result = execute(command, args, input);
+    if (args.includes('pg_dump')) return '-- synthetic dump';
+    if (input?.startsWith('SELECT coalesce(json_agg')) return '["public.organizations"]';
+    if (input?.startsWith("SELECT jsonb_build_object('rows'")) return 'same bounded census';
+    if (input?.startsWith('DROP DATABASE')) throw Error('synthetic drop denied');
+    if (input?.startsWith('SELECT count(*) FROM pg_database')) return '1';
+    return result;
+  };
+  const target = await localDatabaseTestTarget(f.options);
+  assert.throws(() => target.runSingleAdmin({name:'financial_reset_single_admin_test.sql',source:'ROLLBACK;'}), /databaseAbsent=false, sourceUnchanged=true/);
+  assert.ok(f.calls.at(-1).input.startsWith("SELECT jsonb_build_object('rows'"));
 });

@@ -192,6 +192,17 @@ test('exact action SQL names only changed fields and requires one matching full 
   assert.ok(sql.indexOf('arm_financial_reset_action') < sql.indexOf('UPDATE "public"'));
   assert.ok(sql.indexOf('complete_financial_reset_actions') < sql.indexOf('COMMIT'));
 });
+
+test('server deterministic UUID action identity is preserved without weakening operation identity or duplicate checks', () => {
+  const actionId='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',a={...action(),action_id:actionId};
+  const sql=buildActionTransactionSql(id,[a]);
+  assert.ok(sql.includes(`arm_financial_reset_action('${id}'::uuid,'${actionId}'::uuid)`));
+  assert.equal(a.action_id,actionId);
+  assert.throws(()=>buildActionTransactionSql(actionId,[a]),/Invalid action transaction/);
+  assert.throws(()=>buildActionTransactionSql(id,[a,{...a,ordinal:2}]),/Unsealed or unsupported row action/);
+  for(const invalid of [actionId.replaceAll('-',''),actionId.toUpperCase(),actionId+'x',"'; SELECT 1; --"])
+    assert.throws(()=>buildActionTransactionSql(id,[{...a,action_id:invalid}]),/Unsealed or unsupported row action/);
+});
 test('SQL builder rejects injection, unsupported verbs, noncontiguous actions and key mutation', () => {
   for (const mutate of [a => { a.relation_name = 'public.timeline_events;DROP TABLE people'; },
     a => { a.kind = 'arbitrary'; }, a => { a.ordinal = 2; }, a => { a.changed_columns = ['id']; },
@@ -301,4 +312,29 @@ test('failure evidence preserves original identities and cleanup failure never b
     return { path: stage, sha256: hash };
   } }, result: {} }), error => error.rehearsalFailure.finalReportPersisted === false &&
     error.rehearsalFailure.cleanup.cloneDropped === true && error.rehearsalFailure.evidence.sha256 === hash);
+});
+
+test('v4 action transport groups exactly64 guarded actions without changing DML or legacy statements',async()=>{
+ const {buildEmptyBooksActionTransactionSql,EMPTY_BOOKS_ACTION_BATCH_SIZE}=await import('./pilot-finance-reset-executor-local.mjs');
+ assert.equal(EMPTY_BOOKS_ACTION_BATCH_SIZE,64);
+ for(const count of [1,63,64,65,128,129]){
+  const actions=Array.from({length:count},(_,i)=>({...action(),ordinal:i+1,action_id:`00000000-0000-4000-8000-${String(i+1).padStart(12,'0')}`}));
+  const old=buildActionTransactionSql(id,actions),sql=buildEmptyBooksActionTransactionSql(id,actions);
+  const batches=[...sql.matchAll(/DO (\$empty_books_action_batch(?:_\d+)?\$) ([\s\S]*?) \1;/g)];
+  assert.equal(batches.length,Math.ceil(count/64));
+  assert.deepEqual(batches.map(b=>(b[2].match(/PERFORM app_private.arm_financial_reset_action/g)??[]).length),Array.from({length:Math.ceil(count/64)},(_,i)=>Math.min(64,count-i*64)));
+  const arms=s=>[...s.matchAll(/(?:SELECT|PERFORM) (app_private.arm_financial_reset_action\([^;]+\));/g)].map(m=>m[1]);
+  assert.deepEqual(arms(sql),arms(old));
+  const dml=s=>[...s.matchAll(/DECLARE affected bigint; BEGIN ([\s\S]*?) GET DIAGNOSTICS affected=ROW_COUNT;/g)].map(m=>m[1]);
+  assert.deepEqual(dml(sql),dml(old));assert.equal(dml(sql).length,count);
+  assert.equal((old.match(/DO \$exact_row\$/g)??[]).length,count);
+  assert.equal((sql.match(/BEGIN;/g)??[]).length,1);assert.equal((sql.match(/COMMIT;/g)??[]).length,1);
+  assert.match(sql,/statement_timeout='60s'/);assert.doesNotMatch(sql,/CREATE FUNCTION|DISABLE|replication_role|set_config/);
+  for(const fault of [64,65].filter(v=>v<=count)){
+   const injected=buildEmptyBooksActionTransactionSql(id,actions,fault);
+   assert.equal((injected.match(/Injected reset action rollback/g)??[]).length,1);
+   assert.ok(injected.indexOf(`'${actions[fault-1].action_id}'`)<injected.indexOf('Injected reset action rollback'));
+   if(fault<count)assert.ok(injected.indexOf('Injected reset action rollback')<injected.indexOf(`'${actions[fault].action_id}'`));
+  }
+ }
 });

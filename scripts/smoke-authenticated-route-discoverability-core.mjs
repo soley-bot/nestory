@@ -35,6 +35,36 @@ export function buildDiscoverabilityPlan(contract) {
   return journeys;
 }
 
+export function assertPilotFixtureApplicability(route, value) {
+  if (route !== "/settings/maintenance" ||
+    JSON.stringify(Object.keys(value ?? {}).sort()) !== JSON.stringify(["environment", "reason"]) ||
+    value.environment !== "pilot-production" || typeof value.reason !== "string" || !value.reason.trim()) {
+    throw new Error(`${route}: unsupported fixture applicability`);
+  }
+  return value;
+}
+
+export function buildLocalFixtureDiscoverabilityPlan(contract) {
+  const fullPlan = buildDiscoverabilityPlan(contract);
+  const outOfScope = [];
+  for (const route of contract.routes) {
+    if (route.applicability === undefined) continue;
+    const value = route.applicability;
+    assertPilotFixtureApplicability(route.route, value);
+    if (route.guard !== "requirePilotResetContext") {
+      throw new Error(`${route.route}: unsupported fixture applicability`);
+    }
+    const conditional = fullPlan.filter((journey) => journey.route === route.route);
+    if (conditional.length !== 1 || conditional[0].id !== "sa:pilot-reset-review" ||
+      conditional[0].role !== "super_admin" || conditional[0].entryId !== "settings-maintenance") {
+      throw new Error(`${route.route}: unexpected conditional journey`);
+    }
+    outOfScope.push({ id: conditional[0].id, reason: value.reason, requiredEnvironment: value.environment });
+  }
+  const excluded = new Set(outOfScope.map(({ id }) => id));
+  return { journeys: fullPlan.filter(({ id }) => !excluded.has(id)), outOfScope };
+}
+
 export function createPassedJourneyEvidence(id, chain) {
   return {
     chain: [...chain],
@@ -93,9 +123,16 @@ export function findForbiddenGlobalEntries(contract, role, visibleHrefs) {
   );
 }
 
-export function validateDiscoverabilityEvidence(contract, evidence) {
+export function validateDiscoverabilityEvidence(contract, evidence, { scope = "full" } = {}) {
   const issues = [];
-  const plan = buildDiscoverabilityPlan(contract);
+  if (!["full", "local-fixture"].includes(scope)) return ["unsupported evidence scope"];
+  if ((evidence?.scope ?? "full") !== scope) issues.push(`evidence scope must be ${scope}`);
+  const fixture = buildLocalFixtureDiscoverabilityPlan(contract);
+  const plan = scope === "local-fixture" ? fixture.journeys : buildDiscoverabilityPlan(contract);
+  const excluded = scope === "local-fixture" ? fixture.outOfScope : [];
+  if (JSON.stringify(evidence?.outOfScope ?? []) !== JSON.stringify(excluded)) {
+    issues.push("out-of-scope journeys must exactly match the declared fixture applicability");
+  }
   const expectedJourneyIds = new Set(plan.map((journey) => journey.id));
   const journeyById = new Map(
     (evidence?.journeys ?? []).map((journey) => [journey.id, journey]),

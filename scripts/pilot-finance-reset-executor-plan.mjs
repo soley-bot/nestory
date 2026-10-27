@@ -7,6 +7,30 @@ const key = row => json([row.table, row.pk]);
 const equal = (a, b) => json(a) === json(b);
 const actorUuid = /^00000000-0000-0000-0000-000000000[15678]01$/;
 const anyUuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
+export const EMPTY_BOOKS_MIGRATION = '20261027005615_financial_reset_empty_books_preserved_contracts.sql';
+
+// This mode reviews every preserved lease and its complete contract history.
+// PostgreSQL verifies the roster and hashes against its locked source snapshot.
+export function assertEmptyBooksContinuation(continuation) {
+  const keys = (value, names) => value && equal(Object.keys(value).sort(), [...names].sort());
+  if (!keys(continuation, ['version', 'actor_id', 'billing_period_start', 'issue_date', 'execution_business_date',
+    'invoice_date_policy', 'contracts_sha256', 'leases']) || continuation.version !== 4 ||
+    !anyUuid.test(continuation.actor_id ?? '') || continuation.billing_period_start !== TARGET.cutoff ||
+    continuation.issue_date !== TARGET.cutoff || continuation.invoice_date_policy !== 'empty-books-no-invoices' ||
+    !/^2026-10-(?:0[1-9]|[12][0-9]|3[01])$/.test(continuation.execution_business_date ?? '') ||
+    !digest.test(continuation.contracts_sha256 ?? '') || !Array.isArray(continuation.leases)) {
+    throw Error('Empty-books continuation semantic review is invalid.');
+  }
+  const ids = new Set();
+  for (const lease of continuation.leases) {
+    if (!keys(lease, ['lease_id', 'disposition', 'source_sha256']) || !anyUuid.test(lease.lease_id ?? '') ||
+      lease.disposition !== 'preserve-unbilled' || !digest.test(lease.source_sha256 ?? '') || ids.has(lease.lease_id)) {
+      throw Error('Invalid or repeated reviewed preserved unbilled lease.');
+    }
+    ids.add(lease.lease_id);
+  }
+  return continuation;
+}
 function intact(value, field, label) {
   if (!value || typeof value !== 'object') throw Error(`Missing ${label}.`);
   const { [field]: hash, ...body } = value;
@@ -36,6 +60,11 @@ export function assertCheckedPhaseReview(review, materialized) {
         !/^(?:\d{1,3})(?:\.\d+)?$/.test(String(scope.ownership_percent)) || Number(scope.ownership_percent) <= 0 || Number(scope.ownership_percent) > 100 ||
         scopeIds.has(scope.property_owner_id)) throw Error('Invalid or repeated reviewed zero scope.');
     scopeIds.add(scope.property_owner_id);
+  }
+  if (continuation?.version === 4) {
+    assertEmptyBooksContinuation(continuation);
+    if (!actorUuid.test(continuation.actor_id)) throw Error('Empty-books synthetic actor review is invalid.');
+    return review;
   }
   const originalDates = continuation.version === 3;
   const continuationKeys = ['version', 'actor_id', 'billing_period_start', 'issue_date', 'leases'];
@@ -165,13 +194,49 @@ const cycleColumns = {
   'public.property_withdrawals': ['ledger_entry_id'],
 };
 
+// Additional deletion edge makes the inverse insert the reversal before its
+// correction. Scope and full archived images are checked; no row is rewritten.
+// Exact numeric lineage remains checked by the server blocker and native INSERT
+// guard; this helper deliberately does not compare parsed JavaScript amounts.
+export function ownerContributionRestoreRemovalEdges(archiveRows, removalRows, organizationId) {
+  if (!anyUuid.test(organizationId ?? '')) throw Error('Contribution restore organization is invalid.');
+  const rows = new Map(), removable = new Set(removalRows.map(key));
+  for (const row of archiveRows.filter(r => r.table === 'public.owner_cash_events')) {
+    const values = JSON.parse(row.rowText); patchRowText(row.rowText, {});
+    if (sha256(row.rowText) !== row.sha256 || !anyUuid.test(values.id ?? '') ||
+      values.organization_id !== organizationId || !equal(row.pk, [values.id]) || rows.has(values.id)) {
+      throw Error('Contribution restore archived identity is invalid.');
+    }
+    rows.set(values.id, { ...row, values });
+  }
+  const edges = [], scope = ['property_id','owner_person_id','currency','event_type'];
+  for (const correction of rows.values()) {
+    const c = correction.values; if (c.corrects_event_id == null) continue;
+    const original = rows.get(c.corrects_event_id);
+    const reversals = [...rows.values()].filter(r => r.values.reversal_of_id === c.corrects_event_id);
+    if (!anyUuid.test(c.corrects_event_id) || c.reversal_of_id !== null || !original || reversals.length !== 1) {
+      throw Error('Contribution restore requires one archived original and reversal.');
+    }
+    const reversal = reversals[0], o = original.values, r = reversal.values;
+    if (o.reversal_of_id !== null || o.event_type !== 'owner_contribution' || r.corrects_event_id !== null ||
+      scope.some(k => typeof o[k] !== 'string' || !o[k] || c[k] !== o[k] || r[k] !== o[k]) || r.event_date !== o.event_date) {
+      throw Error('Contribution restore lineage scope is invalid.');
+    }
+    if ([original, reversal, correction].some(row => !removable.has(key(row)))) throw Error('Contribution restore endpoint is not removable.');
+    edges.push({ kind: 'historical-restore-order', rule: 'contribution-reversal-before-correction',
+      source: { table: correction.table, pk: correction.pk }, target: { table: reversal.table, pk: reversal.pk } });
+  }
+  return edges;
+}
+
 // Immediate historical validators impose two row-specific restore sequences
 // beyond foreign keys. Express their inverse as extra removal-order edges;
 // these do not remove or reclassify any catalog dependency.
 export function historicalRestoreRemovalEdges(archiveRows, removalRows) {
   const relevant = new Set(['public.owner_opening_balance_entries', 'public.owner_charge_cash_allocations',
     'public.owner_invoice_lines', 'public.expense_customer_adjustments']);
-  const captured = new Map(), removable = new Set(removalRows.map(key)), edges = [];
+  const captured = new Map(), removable = new Set(removalRows.map(key)),
+    edges = ownerContributionRestoreRemovalEdges(archiveRows, removalRows, TARGET.organization);
   const identity = row => ({ table: row.table, pk: row.pk });
   for (const row of archiveRows) {
     if (!relevant.has(row.table)) continue;

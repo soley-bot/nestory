@@ -10,7 +10,7 @@ import { canonicalJson, hashBytes, hashSourceBytes, prepareOperatorPacket, REQUI
 import { RESET_REPOSITORY, RESET_PROJECT, RESET_ORGANIZATION, RESET_WORKFLOW_PATH, RESET_PERSISTENT_ROOT,
   parseHostedWorkflowArguments, assertHostedConfiguration, assertPrivatePathObservation, assertPersistentMount,
   assertWorkflowInvocation, assertRuntimeEvidence, validateHostedDescriptors, assertProtectedEnvironment,
-  HOSTED_RUNTIME_SOURCE_FILES, assertHostedSourceCoverage, requiresSupplementalRecovery, assertSupplementalRecoveryEvidence,
+  HOSTED_RUNTIME_SOURCE_FILES, HOSTED_BOUND_SOURCE_FILES, assertHostedSourceCoverage, summarizeHostedInspection, requiresSupplementalRecovery, assertSupplementalRecoveryEvidence,
   assertHistoricalReadAuthority, isNoBackupWorkflow, NO_BACKUP_RUNTIME_INPUT_ROLES, validateNoBackupRuntimeInputs } from './pilot-finance-reset-hosted-workflow-core.mjs';
 import { NO_BACKUP_POLICY, NO_BACKUP_EVIDENCE_ROLES, NO_BACKUP_REQUIRED_SOURCE_FILES, prepareNoBackupPacket }
   from './pilot-finance-reset-no-backup-core.mjs';
@@ -378,9 +378,24 @@ test('source pins cover the complete actual runner import graph before private i
   const workflow = await readFile(path.join(root, RESET_WORKFLOW_PATH), 'utf8');
   const cleanRuntime = workflow.slice(workflow.indexOf('git ls-files --error-unmatch'), workflow.indexOf('>/dev/null'));
   for (const name of HOSTED_RUNTIME_SOURCE_FILES) assert.ok(cleanRuntime.includes(name), `untracked runtime dependency: ${name}`);
-  const packet = { sourceFiles: HOSTED_RUNTIME_SOURCE_FILES.map(name => ({ path: name, sha256: hash('1') })) };
+  const packet = { sourceFiles: HOSTED_BOUND_SOURCE_FILES.map(name => ({ path: name, sha256: hash('1') })) };
   assertHostedSourceCoverage(packet);
-  for (const name of HOSTED_RUNTIME_SOURCE_FILES) assert.throws(() => assertHostedSourceCoverage({ sourceFiles: packet.sourceFiles.filter(file => file.path !== name) }), /source_coverage_missing/);
+  for (const name of HOSTED_BOUND_SOURCE_FILES) assert.throws(() => assertHostedSourceCoverage({ sourceFiles: packet.sourceFiles.filter(file => file.path !== name) }), /source_coverage_missing/);
+  assert.throws(() => assertHostedSourceCoverage({ sourceFiles: HOSTED_RUNTIME_SOURCE_FILES.map(path => ({ path, sha256: hash('1') })) }), /source_coverage_missing/);
+});
+
+test('read-only hosted inspection hashes fractional database evidence without exposing its values', () => {
+  const { packet } = fixture();
+  const observation = { zero: { plan: { scopes: [{ ownership_percent: 25.5 }] } },
+    checkpoint: { result: { movement_amount: 123.45 } } };
+  const summary = summarizeHostedInspection(packet, observation);
+  assert.deepEqual(Object.keys(summary).sort(), ['observationSha256', 'operationId', 'status']);
+  assert.equal(summary.status, 'observed-read-only');
+  assert.match(summary.observationSha256, /^[a-f0-9]{64}$/);
+  assert.deepEqual(summarizeHostedInspection(packet, { checkpoint: observation.checkpoint, zero: observation.zero }), summary);
+  assert.notEqual(summarizeHostedInspection(packet, { ...observation, zero: { plan: { scopes: [{ ownership_percent: 25.6 }] } } }).observationSha256,
+    summary.observationSha256);
+  assert.throws(() => summarizeHostedInspection(packet, { amount: NaN }), /database_observation_json_invalid/);
 });
 
 function recoveryFixture() {

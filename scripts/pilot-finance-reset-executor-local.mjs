@@ -10,13 +10,16 @@ import { localRecoveryDocker } from './local-recovery-docker.mjs';
 import { assertInventoryManifest, assertOwnedClone, assertSourceContainer, assertDiskSpace, assertDump, assertManifestRows, cloneIdentity } from './pilot-finance-reset-recovery-core.mjs';
 import { schemaCensusSql, tableCensusSql, parseJsonLines, compareEvidence, assertUniqueObjectKeys } from './ips-readiness-recovery-core.mjs';
 import { reconstructLocalMigrationDescriptors } from './hosted-migration-parity-core.mjs';
-import { materializeRestoreActions, assertCheckedPhaseReview, orderRecoverySources } from './pilot-finance-reset-executor-plan.mjs';
+import { materializeRestoreActions, assertCheckedPhaseReview, assertEmptyBooksContinuation, orderRecoverySources } from './pilot-finance-reset-executor-plan.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const projectRoot = path.join(os.tmpdir(), 'nestory-pilot-reset-db-20261023');
 const evidenceRoot = path.resolve(root, '..', 'technical-readiness', 'pilot-reset-20261023', 'implementation', 'rehearsals');
 const hash = /^[a-f0-9]{64}$/;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+// Server materialization uses md5(... )::uuid for immutable action identities;
+// those canonical PostgreSQL UUIDs do not promise UUIDv4 version/variant bits.
+const actionUuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const literal = value => `'${String(value).replaceAll("'", "''")}'`;
 const identifier = value => {
   if (!/^[a-z][a-z0-9_]*$/.test(value ?? '')) throw Error('Invalid catalog identifier.');
@@ -59,7 +62,17 @@ export function assertFixedLocalEnvironment({ platform, env, actualProjectPath, 
   }
 }
 
-export function assertActionReadiness(materialized, mode) {
+function assertNativeContinuationSupported(phaseReview) {
+  // This adapter supplies historical raw synthetic claims. They cannot satisfy
+  // the current claim-free, consumed-session known-zero operator contract.
+  // Pure plan/SQL construction and scoped database tests grant no runner authority.
+  if (phaseReview?.continuation?.version === 4) {
+    throw Error('Native empty-books rehearsal requires consumed-session integration.');
+  }
+}
+
+export function assertActionReadiness(materialized, mode, phaseReview = null) {
+  assertNativeContinuationSupported(phaseReview);
   if (['rehearseArchiveRestore', 'rehearseCheckedReset'].includes(mode) && materialized.syntheticOnly === true && materialized.customerApproval === false &&
       materialized.executionSupported === false && materialized.blockers.length === 1 &&
       materialized.blockers[0].code === 'known_zero_authority_unimplemented') {
@@ -135,6 +148,29 @@ export function checkedInvoiceSequenceEvidence(evidence, createdInvoices) {
 }
 
 export function checkedBillingSummary(review, phases) {
+  if (review.continuation.version === 4) {
+    const continuation = assertEmptyBooksContinuation(review.continuation);
+    const actual = phases.continuationResult?.leases;
+    if (!Array.isArray(actual) || actual.length !== continuation.leases.length ||
+      new Set(actual.map(lease => lease.lease_id)).size !== actual.length ||
+      [phases.continuationResult, phases.reportResult].some(result => result?.empty_books !== true ||
+        result?.billing_paused !== true || result?.contracts_unchanged !== true || result?.billing_complete !== false ||
+        result?.close_ready !== false || result?.deferred_lease_count !== 0 ||
+        result?.preserved_unbilled_lease_count !== continuation.leases.length) ||
+      phases.reportResult.reports_persisted !== true || phases.continuationUnchanged !== true ||
+      phases.remainingTenantInvoices !== 0 || phases.remainingOwnerInvoices !== 0 || phases.createdOwnerInvoices !== 0) {
+      throw Error('Persisted empty-books billing pause or unchanged snapshot does not match the reviewed contracts.');
+    }
+    for (const lease of continuation.leases) {
+      const stored = actual.find(item => item.lease_id === lease.lease_id);
+      if (!stored || Object.entries(lease).some(([key, value]) => json(stored[key]) !== json(value)) ||
+        stored.invoice_id !== null || stored.generated_rent_amount !== 0 || stored.generated_fee_amount !== 0 ||
+        stored.contract_changed !== false) throw Error('Persisted preserved lease changed its reviewed contract or created billing.');
+    }
+    return { reviewedLeaseDecisionsVerified: true, billingComplete: false, deferredUnbilledLeaseCount: 0,
+      emptyBooksVerified: true, billingPaused: true, closeReady: false, contractsUnchanged: true,
+      preservedUnbilledLeaseCount: continuation.leases.length };
+  }
   const deferred = review.continuation.leases.filter(lease => lease.disposition === 'defer-expired-unbilled');
   const actual = phases.continuationResult?.leases?.filter(lease => lease.disposition === 'defer-expired-unbilled');
   const billingComplete = deferred.length === 0;
@@ -171,7 +207,23 @@ export function sqlDoBlock(body, preferredTag) {
   return `DO ${tag} ${body} ${tag};`;
 }
 
+export const EMPTY_BOOKS_ACTION_BATCH_SIZE=64;
+// Code-generation helper only. Callers supply already validated native action
+// blocks; it creates no permission, capability, session or persistent function.
+export function emptyBooksActionBatchSql(blocks){
+  if(!Array.isArray(blocks)||!blocks.length||blocks.some(b=>typeof b!=='string'||!b.length))throw Error('Invalid empty-books action blocks.');
+  const sql=[];
+  for(let i=0;i<blocks.length;i+=EMPTY_BOOKS_ACTION_BATCH_SIZE)
+    sql.push(sqlDoBlock(`BEGIN\n${blocks.slice(i,i+EMPTY_BOOKS_ACTION_BATCH_SIZE).join('\n')}\nEND`,'empty_books_action_batch'));
+  return sql.join('\n');
+}
 export function buildActionTransactionSql(operationId, actions, faultAfterAction = null, checkedReview = null, finalizeRecovery = false) {
+  return actionTransactionSql(operationId,actions,faultAfterAction,checkedReview,finalizeRecovery,false);
+}
+export function buildEmptyBooksActionTransactionSql(operationId,actions,faultAfterAction=null,finalizeRecovery=false){
+  return actionTransactionSql(operationId,actions,faultAfterAction,null,finalizeRecovery,true);
+}
+function actionTransactionSql(operationId, actions, faultAfterAction, checkedReview, finalizeRecovery,emptyBooks) {
   if (typeof finalizeRecovery !== 'boolean' || (finalizeRecovery && checkedReview)) throw Error('Recovery finalization cannot be combined with reset phases.');
   if (!uuid.test(operationId ?? '') || !Array.isArray(actions) || !actions.length ||
       (faultAfterAction !== null && (!Number.isSafeInteger(faultAfterAction) || faultAfterAction < 1 || faultAfterAction > actions.length))) throw Error('Invalid action transaction.');
@@ -185,8 +237,9 @@ export function buildActionTransactionSql(operationId, actions, faultAfterAction
       set_config('request.jwt.claim',${literal(claims)},true),set_config('request.jwt.claim.sub',${literal(checkedReview.continuation.actor_id)},true);`);
   }
   const seen = new Set();
+  const actionBlocks=[];
   for (const [index, action] of actions.entries()) {
-    if (!uuid.test(action.action_id ?? '') || seen.has(action.action_id) || action.ordinal !== index + 1 ||
+    if (!actionUuid.test(action.action_id ?? '') || seen.has(action.action_id) || action.ordinal !== index + 1 ||
         !['normalization', 'archive-delete', 'restore', 'recovery-prune', 'recovery-repair'].includes(action.kind) || !action.primary_key ||
         !Object.keys(action.primary_key).length || (action.before_row_text !== null && !hash.test(action.before_sha256 ?? ''))) throw Error('Unsealed or unsupported row action.');
     seen.add(action.action_id);
@@ -211,10 +264,15 @@ export function buildActionTransactionSql(operationId, actions, faultAfterAction
       const setters = action.changed_columns.map(column => `${identifier(column)}=(jsonb_populate_record(NULL::${table},${after})).${identifier(column)}`).join(',');
       dml = `UPDATE ${table} t SET ${setters} WHERE ${pk} AND to_jsonb(t)=${before};`;
     }
-    statements.push(`SELECT app_private.arm_financial_reset_action(${literal(operationId)}::uuid,${literal(action.action_id)}::uuid);`,
-      sqlDoBlock(`DECLARE affected bigint; BEGIN ${dml} GET DIAGNOSTICS affected=ROW_COUNT; IF affected<>1 THEN RAISE EXCEPTION 'Exact reset action row count mismatch'; END IF; END`, 'exact_row'));
-    if (faultAfterAction === index + 1) statements.push("DO $fault$ BEGIN RAISE EXCEPTION 'Injected reset action rollback'; END $fault$;");
+    const arm=`app_private.arm_financial_reset_action(${literal(operationId)}::uuid,${literal(action.action_id)}::uuid)`,
+      block=`DECLARE affected bigint; BEGIN ${dml} GET DIAGNOSTICS affected=ROW_COUNT; IF affected<>1 THEN RAISE EXCEPTION 'Exact reset action row count mismatch'; END IF; END`;
+    if(emptyBooks)actionBlocks.push(`PERFORM ${arm};\n${block};${faultAfterAction===index+1?"\nRAISE EXCEPTION 'Injected reset action rollback';":''}`);
+    else{
+      statements.push(`SELECT ${arm};`,sqlDoBlock(block,'exact_row'));
+      if (faultAfterAction === index + 1) statements.push("DO $fault$ BEGIN RAISE EXCEPTION 'Injected reset action rollback'; END $fault$;");
+    }
   }
+  if(emptyBooks)statements.push(emptyBooksActionBatchSql(actionBlocks));
   statements.push(`SELECT app_private.complete_financial_reset_actions(${literal(operationId)}::uuid);`);
   if (checkedReview) statements.push(
     `SELECT app_private.apply_financial_reset_known_zero(${literal(operationId)}::uuid);`,
@@ -336,13 +394,14 @@ const nativeExecute = (file, args, input, { timeoutMs = 60_000, env = process.en
 });
 
 export async function createFreshOwnedResetClone({ inventory, recoveryProof, materialized, executorSources, mode = 'fullReset', phaseReview = null }) {
+  assertNativeContinuationSupported(phaseReview);
   // Retain private copies: a caller cannot swap the reviewed plan while an
   // asynchronous clone/freeze operation is waiting for the local database.
   inventory = structuredClone(inventory); recoveryProof = structuredClone(recoveryProof);
   materialized = structuredClone(materialized); executorSources = structuredClone(executorSources);
   phaseReview = structuredClone(phaseReview);
   assertResetPrerequisites({ inventory, recoveryProof, materialized, executorSources });
-  assertActionReadiness(materialized, mode);
+  assertActionReadiness(materialized, mode, phaseReview);
   if (mode === 'rehearseCheckedReset') assertCheckedPhaseReview(phaseReview, materialized);
   else if (phaseReview !== null) throw Error('Checked phase review cannot be attached to another execution mode.');
   assertFixedLocalEnvironment({ platform: process.platform, env: process.env,
@@ -455,6 +514,10 @@ export async function createFreshOwnedResetClone({ inventory, recoveryProof, mat
       'public.owner_invoices', 'public.owner_invoice_lines', 'public.activity_logs', 'public.rent_generation_exceptions',
       'app_private.financial_idempotency_requests', 'public.owner_event_allocation_sets', 'public.owner_event_owner_allocations',
       'public.owner_component_movements', 'public.owner_balance_periods', 'public.owner_balance_period_components']);
+    if (phaseReview?.continuation.version === 4) {
+      checkedPhaseTables.delete('public.lease_terms');
+      checkedPhaseTables.delete('public.lease_billing_terms');
+    }
     const checkedUntouchedSql = untouchedCensusSql(before.tables.filter(item => !checkedPhaseTables.has(`${item.schema}.${item.name}`)), inventory, materialized);
     const checkedUntouchedBefore = mode === 'rehearseCheckedReset' ? await rows(identity.database, checkedUntouchedSql) : null;
     const foreignSql = foreignCensusSql(before.tables);
@@ -475,7 +538,7 @@ export async function createFreshOwnedResetClone({ inventory, recoveryProof, mat
     };
     const freeze = async () => {
       if (reservation) throw Error('This clone already has an immutable freeze reservation.');
-      assertActionReadiness(materialized, mode);
+      assertActionReadiness(materialized, mode, phaseReview);
       await assertOwned(); const current = await census(identity.database);
       compareEvidence(before.tables, current.tables, 'Clone before first frozen transaction');
       compareEvidence(before.schema, current.schema, 'Clone schema before first frozen transaction');
@@ -519,7 +582,7 @@ export async function createFreshOwnedResetClone({ inventory, recoveryProof, mat
     const prepare = async () => {
       if (!reservation) throw Error('Committed freeze reservation must precede preparation.');
       if (sealedActions) throw Error('Operation is already sealed; inspect its original UUID.');
-      assertActionReadiness(materialized, mode);
+      assertActionReadiness(materialized, mode, phaseReview);
       await assertOwned();
       const tableCatalog = new Map(inventory.tables.map(table => [table.table, table]));
       const archive = materialized.archiveRows.map(row => {
@@ -779,6 +842,9 @@ export async function createFreshOwnedResetClone({ inventory, recoveryProof, mat
           'reportCheckpointMatches',r.checkpoint_kind='checked-reports' AND r.generation=o.target_generation
             AND r.checkpoint_sha256=app_private.financial_reset_hash(r.result_json) AND r.before_images=c.after_images,
           'reportCheckpointSha256',r.checkpoint_sha256,'reportResult',r.result_json,
+          'continuationUnchanged',c.before_images=c.after_images,
+          'remainingTenantInvoices',(SELECT count(*) FROM public.tenant_invoices WHERE organization_id=o.organization_id),
+          'remainingOwnerInvoices',(SELECT count(*) FROM public.owner_invoices WHERE organization_id=o.organization_id),
           'createdOwnerInvoices',(SELECT count(*) FROM jsonb_array_elements(c.after_images->'public.owner_invoices') a
             WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(c.before_images->'public.owner_invoices') b WHERE b->>'id'=a->>'id')),
           'createdOwnerInvoiceNumbers',(SELECT coalesce(jsonb_agg(a->>'invoice_number' ORDER BY a->>'invoice_number'),'[]')
@@ -810,7 +876,8 @@ export async function createFreshOwnedResetClone({ inventory, recoveryProof, mat
       await sourceUnchanged();
       return { ...result, ...billing, archivedRowsVerified: archive.rowCount, semanticReviewSha256: phaseReview.reviewSha256,
         sourceUnchanged: true, preservedTablesUnchanged: true, foreignRowsUnchanged: true,
-        knownZeroVerified: true, continuationBillingVerified: true, reportsPersisted: true, actualResetRecoveryProven: false };
+        knownZeroVerified: true, continuationBillingVerified: phaseReview.continuation.version !== 4,
+        reportsPersisted: true, actualResetRecoveryProven: false };
     };
     const verifyPhaseRecovery = async () => {
       if (mode !== 'rehearseCheckedReset' || !phaseRecovery || !retainedPhaseHistory || !restoreReservation) throw Error('Phase recovery is not prepared.');
@@ -913,7 +980,7 @@ export async function rehearseArchiveRestore(options) {
 // predecessor-term changes before restoring the original immutable archive.
 export async function rehearseCheckedReset(options) {
   options = structuredClone(options);
-  assertActionReadiness(options.materialized, 'rehearseCheckedReset');
+  assertActionReadiness(options.materialized, 'rehearseCheckedReset', options.phaseReview);
   assertCheckedPhaseReview(options.phaseReview, options.materialized);
   const clone = await createFreshOwnedResetClone({ ...options, mode: 'rehearseCheckedReset' });
   let result, failure, phase = 'freeze';
@@ -958,9 +1025,12 @@ export async function rehearseCheckedReset(options) {
     phase = 'verify-phase-derived-recovery';
     const recovery = await clone.verifyPhaseRecovery();
     result = { format: 'nestory-synthetic-checked-reset-rehearsal-v1', syntheticOnly: true, customerApproval: false,
-      executionSupported: false, knownZeroPhaseVerified: true, continuationBillingVerified: true, reportsPersisted: phases.reportsPersisted,
+      executionSupported: false, knownZeroPhaseVerified: true, continuationBillingVerified: phases.continuationBillingVerified,
+      reportsPersisted: phases.reportsPersisted,
       reviewedLeaseDecisionsVerified: phases.reviewedLeaseDecisionsVerified, billingComplete: phases.billingComplete,
       deferredUnbilledLeaseCount: phases.deferredUnbilledLeaseCount,
+      ...(phases.emptyBooksVerified ? { emptyBooksVerified: true, billingPaused: true, closeReady: false,
+        contractsUnchanged: true, preservedUnbilledLeaseCount: phases.preservedUnbilledLeaseCount } : {}),
       actualResetRecoveryProven: recovery.actualResetRecoveryProven,
       finalState: 'original-finance-restored-with-retired-phase-history', controlReopenedAfterCommit: false,
       manifestSha256: options.inventory.manifestSha256, actionsSha256: options.materialized.actionsSha256,

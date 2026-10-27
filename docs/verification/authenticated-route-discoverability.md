@@ -1,8 +1,8 @@
 # Authenticated route discoverability
 
-<!-- contract-sha256:d01b50cbd18566d4e2a0f248bc19e70c3ae29d2b4972b863512326b44cf5c461 -->
+<!-- contract-sha256:12789ee3b1e14f840cde4b9613ae33cd0c5dd7077b49e4efd70eca8d411fc725 -->
 
-This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 51 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
+This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 52 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
 
 Classifications are `global`, `context`, `profile`, or `intentionally inaccessible`. An authorized page is incomplete unless its visible entry and browser journey from the current shell or contextual origin both exist.
 
@@ -110,6 +110,8 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 | `/vendors` | `requirePermission` / `canManageAccess` | context via people-vendors; pending sa:vendors | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/work-orders -->
 | `/work-orders` | `requirePermission("maintenance.view")` / `maintenance.view` | global via shell-work-orders; pending sa:work-orders | Intentionally inaccessible — Requires maintenance.view. | Intentionally inaccessible — Requires maintenance.view. | global via shell-work-orders; pending om:work-orders | context via maintenance-work-orders; pending omem:work-orders | none |
+<!-- authenticated-route:/settings/maintenance -->
+| `/settings/maintenance` | `requirePilotResetContext` / `canManageAccess` | context via settings-maintenance; pending sa:pilot-reset-review | Intentionally inaccessible — Requires the Pilot unscoped Super Admin and reset permissions. | Intentionally inaccessible — Requires the Pilot unscoped Super Admin and reset permissions. | Intentionally inaccessible — Requires the Pilot unscoped Super Admin and reset permissions. | Intentionally inaccessible — Requires the Pilot unscoped Super Admin and reset permissions. | none |
 
 ## Browser evidence
 

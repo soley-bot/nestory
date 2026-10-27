@@ -46,23 +46,24 @@ export function hashSourceBytes(bytes) {
 }
 const hashJson = value => hashBytes(canonicalJson(value));
 
-// An explicitly reviewed original-date replay keeps issuance separate from the
-// actual organization business date. Legacy packets retain their exact shape.
+// Reviewed October modes keep the boundary separate from the actual business
+// date. Empty-books uses issueDate only as a scope binding; it issues no invoices.
+// Legacy packets retain their exact shape.
 export const operationBusinessDate = operation => operation.executionBusinessDate ?? operation.issueDate;
 export const operationInvoiceDatePolicy = operation => operation.invoiceDatePolicy ?? 'execution-business-date';
 
 function validateOperation(operation) {
   const baseFields = ['operationId', 'projectRef', 'organizationId', 'mainSha', 'sourceGeneration',
     'targetGeneration', 'cutoff', 'issueDate', 'timezone'];
-  const originalDates = keys(operation, [...baseFields, 'executionBusinessDate', 'invoiceDatePolicy']);
-  if ((!keys(operation, baseFields) && !originalDates) || !uuid.test(operation.operationId) ||
+  const datedPolicy = keys(operation, [...baseFields, 'executionBusinessDate', 'invoiceDatePolicy']);
+  if ((!keys(operation, baseFields) && !datedPolicy) || !uuid.test(operation.operationId) ||
     !/^[a-z0-9]{20}$/.test(operation.projectRef) || !uuid.test(operation.organizationId) ||
     !gitSha.test(operation.mainSha) || !Number.isSafeInteger(operation.sourceGeneration) ||
     operation.sourceGeneration < 0 || operation.sourceGeneration >= 2147483647 ||
     operation.targetGeneration !== operation.sourceGeneration + 1 || operation.cutoff !== '2026-10-01' ||
     !/^2026-10-(?:0[1-9]|[12][0-9]|3[01])$/.test(operation.issueDate) ||
     typeof operation.timezone !== 'string' || operation.timezone.length > 100) fail('operator_scope_invalid');
-  if (originalDates && (operation.invoiceDatePolicy !== 'original-reviewed-october' || operation.issueDate !== '2026-10-01' ||
+  if (datedPolicy && (!['original-reviewed-october', 'empty-books-no-invoices'].includes(operation.invoiceDatePolicy) || operation.issueDate !== '2026-10-01' ||
     !/^2026-10-(?:0[1-9]|[12][0-9]|3[01])$/.test(operation.executionBusinessDate) ||
     operation.executionBusinessDate < operation.issueDate)) fail('operator_invoice_date_policy_invalid');
   try { new Intl.DateTimeFormat('en-CA', { timeZone: operation.timezone }).format(); }

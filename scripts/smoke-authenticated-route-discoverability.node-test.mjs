@@ -6,6 +6,7 @@ import { runInNewContext } from "node:vm";
 import {
   buildDeniedGlobalEntryChecks,
   buildDiscoverabilityPlan,
+  buildLocalFixtureDiscoverabilityPlan,
   createPassedJourneyEvidence,
   createSessionStartEvidence,
   directDenialRoutes,
@@ -89,6 +90,7 @@ for (const [entryId, route, expected] of [
   ["finance-account-detail", "/finance/accounts/[accountId]", ["Advanced", "Chart of Accounts", "Activity for Operating bank"]],
   ["shell-settings", "/settings", ["Settings"]],
   ["settings-organization", "/settings/organization", ["Settings", "Organization"]],
+  ["settings-maintenance", "/settings/maintenance", ["Settings", "Organization", "Review October reset"]],
   ["settings-appearance", "/settings/appearance", ["Settings", "Appearance"]],
   ["settings-branches", "/settings/branches", ["Settings", "Branches"]],
   ["settings-teams", "/settings/teams", ["Settings", "Teams"]],
@@ -111,6 +113,7 @@ for (const [entryId, route, expected] of [
       "/finance/accounts": [{ name: "Activity for Operating bank", href: "/finance/accounts/account-1" }],
       "/settings/organization": [
         { name: "Organization", href: "/settings/organization" },
+        { name: "Review October reset", href: "/settings/maintenance" },
         { name: "Appearance", href: "/settings/appearance" },
         { name: "Branches", href: "/settings/branches" },
         { name: "Teams", href: "/settings/teams" },
@@ -311,9 +314,8 @@ test("denied global checks fail when a forbidden anchor is injected", () => {
   );
 });
 
-test("validates one workspace session per role and shell-relative journey chains", () => {
-  const plan = buildDiscoverabilityPlan(contract);
-  const evidence = {
+function passedEvidence(plan) {
+  return {
     denials: Object.entries(directDenialRoutes)
       .filter(([, route]) => route)
       .map(([role, route]) => ({ role, route, status: "passed" })),
@@ -331,6 +333,50 @@ test("validates one workspace session per role and shell-relative journey chains
     ),
     total: plan.length,
   };
+}
+
+test("local fixtures exclude exactly the Pilot-only review while the full plan still requires it", () => {
+  const full = buildDiscoverabilityPlan(contract);
+  const fixture = buildLocalFixtureDiscoverabilityPlan(contract);
+  assert.equal(full.filter(({ id }) => id === "sa:pilot-reset-review").length, 1);
+  assert.deepEqual(fixture.journeys, full.filter(({ id }) => id !== "sa:pilot-reset-review"));
+  assert.deepEqual(fixture.outOfScope, [{
+    id: "sa:pilot-reset-review",
+    reason: contract.routes.find(({ route }) => route === "/settings/maintenance").applicability.reason,
+    requiredEnvironment: "pilot-production",
+  }]);
+  const evidence = { ...passedEvidence(fixture.journeys), scope: "local-fixture", outOfScope: fixture.outOfScope };
+  assert.deepEqual(validateDiscoverabilityEvidence(contract, evidence, { scope: "local-fixture" }), []);
+  assert.ok(validateDiscoverabilityEvidence(contract, evidence).some((issue) => issue.includes("sa:pilot-reset-review")));
+  assert.ok(validateDiscoverabilityEvidence(contract, { ...evidence, scope: "full" }).length);
+});
+
+test("fixture evidence rejects missing, altered, duplicate and unrelated exclusions", () => {
+  const fixture = buildLocalFixtureDiscoverabilityPlan(contract);
+  const evidence = { ...passedEvidence(fixture.journeys), scope: "local-fixture", outOfScope: fixture.outOfScope };
+  for (const outOfScope of [[], [{ ...fixture.outOfScope[0], reason: "other" }],
+    [...fixture.outOfScope, fixture.outOfScope[0]], [...fixture.outOfScope, { id: "sa:overview", reason: "skip", requiredEnvironment: "pilot-production" }]]) {
+    assert.match(validateDiscoverabilityEvidence(contract, { ...evidence, outOfScope }, { scope: "local-fixture" }).join("\n"), /out-of-scope journeys/);
+  }
+  const missing = { ...evidence, journeys: evidence.journeys.slice(1), passed: evidence.passed - 1, total: evidence.total - 1 };
+  assert.ok(validateDiscoverabilityEvidence(contract, missing, { scope: "local-fixture" }).length);
+  assert.ok(validateDiscoverabilityEvidence(contract, evidence, { scope: "anything" }).length);
+});
+
+test("applicability cannot exclude another route or broaden the conditional role roster", () => {
+  for (const mutate of [
+    (c) => { c.routes.find(({ route }) => route === "/overview").applicability = { environment: "pilot-production", reason: "skip" }; },
+    (c) => { c.routes.find(({ route }) => route === "/settings/maintenance").applicability.environment = "any-host"; },
+    (c) => { c.routes.find(({ route }) => route === "/settings/maintenance").applicability.reason = ""; },
+    (c) => { c.routes.find(({ route }) => route === "/settings/maintenance").roleAccess.finance_manager = ["context", "settings-maintenance", "fm:pilot-reset-review"]; },
+  ]) {
+    const changed = structuredClone(contract); mutate(changed);
+    assert.throws(() => buildLocalFixtureDiscoverabilityPlan(changed), /applicability|conditional journey/);
+  }
+});
+
+test("validates one workspace session per role and shell-relative journey chains", () => {
+  const evidence = passedEvidence(buildDiscoverabilityPlan(contract));
 
   assert.deepEqual(validateDiscoverabilityEvidence(contract, evidence), []);
   evidence.journeys[0].chain.unshift("/workspace");

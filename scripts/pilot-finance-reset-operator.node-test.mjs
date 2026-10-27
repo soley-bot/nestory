@@ -104,6 +104,49 @@ test('original-date option binds actual business date without approving or selec
   assert.equal(operationInvoiceDatePolicy(packet().operation), 'execution-business-date');
 });
 
+test('empty-books scope is separately bound and keeps recovery and execution gates', () => {
+  const input = fixture();
+  Object.assign(input.review.operation, {
+    issueDate: '2026-10-01', executionBusinessDate: '2026-10-27',
+    invoiceDatePolicy: 'empty-books-no-invoices',
+  });
+  const prepared = prepareOperatorPacket(input);
+  assertOperatorPacket(prepared);
+  assert.equal(operationInvoiceDatePolicy(prepared.operation), 'empty-books-no-invoices');
+  assert.equal(operationBusinessDate(prepared.operation), '2026-10-27');
+  assert.equal(prepared.executionSupported, false);
+  assert.equal(prepared.customerApprovalVerified, false);
+  assert.deepEqual(prepared.implementationBlockers, IMPLEMENTATION_BLOCKERS);
+  const observation = observed(prepared);
+  observation.businessDate = '2026-10-27';
+  assert.equal(reconcileOperatorState(prepared, observation).next, 'capture-frozen-recovery-checkpoint');
+  const rebuild = structuredClone(input);
+  rebuild.review.operation.invoiceDatePolicy = 'original-reviewed-october';
+  assert.notEqual(prepareOperatorPacket(rebuild).packetSha256, prepared.packetSha256);
+  input.review.artifacts.restoreProof = null;
+  delete input.artifacts.restoreProof;
+  const missingRecovery = prepareOperatorPacket(input);
+  const missingObservation = observed(missingRecovery);
+  missingObservation.businessDate = '2026-10-27';
+  assert.equal(reconcileOperatorState(missingRecovery, missingObservation).reason, 'operation_evidence_incomplete');
+});
+
+for (const mutate of [
+  operation => { operation.executionBusinessDate = '2026-11-01'; },
+  operation => { operation.issueDate = '2026-10-02'; },
+  operation => { operation.cutoff = '2026-10-02'; },
+  operation => { operation.invoiceDatePolicy = 'empty-books-and-rebill'; },
+  operation => { delete operation.executionBusinessDate; },
+]) test('empty-books policy refuses a changed October boundary or incomplete date binding', () => {
+  const input = fixture();
+  Object.assign(input.review.operation, {
+    issueDate: '2026-10-01', executionBusinessDate: '2026-10-27',
+    invoiceDatePolicy: 'empty-books-no-invoices',
+  });
+  mutate(input.review.operation);
+  assert.throws(() => prepareOperatorPacket(input), /operator_(scope|invoice_date_policy)_invalid/);
+});
+
 for (const mutate of [
   operation => { operation.executionBusinessDate = '2026-11-01'; },
   operation => { operation.issueDate = '2026-10-02'; },

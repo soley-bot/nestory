@@ -16,6 +16,27 @@ INSERT INTO public.financial_month_locks(id,organization_id,month_start,locked_b
 CREATE TEMP TABLE reset_foundation_fixture AS
 SELECT to_jsonb(t) AS original, app_private.financial_reset_primary_key('public.financial_month_locks'::regclass,to_jsonb(t)) AS pk
 FROM public.financial_month_locks t WHERE id='fa231010-0000-4000-8000-000000000030';
+SELECT is((SELECT app_private.financial_reset_lookup_row('public.financial_month_locks'::regclass,pk,
+ 'fa231010-0000-4000-8000-000000000001',true) FROM reset_foundation_fixture),
+ (SELECT original FROM reset_foundation_fixture),'indexed shared-lock lookup returns the exact original row');
+SELECT is((SELECT app_private.financial_reset_lookup_row('public.financial_month_locks'::regclass,pk,
+ 'fa231010-0000-4000-8000-000000000001',false) FROM reset_foundation_fixture),
+ (SELECT original FROM reset_foundation_fixture),'unlocked coverage lookup returns the same exact row');
+SELECT is((SELECT app_private.financial_reset_lookup_row('public.financial_month_locks'::regclass,pk,
+ 'fa231010-0000-4000-8000-000000000009',true) FROM reset_foundation_fixture),NULL::jsonb,
+ 'typed primary key never substitutes for the organization predicate');
+SELECT is((SELECT app_private.financial_reset_lookup_row('public.financial_month_locks'::regclass,pk||'{"extra":1}'::jsonb,
+ 'fa231010-0000-4000-8000-000000000001',true) FROM reset_foundation_fixture),NULL::jsonb,
+ 'the original JSON primary-key residual rejects extra key fields');
+SELECT is((SELECT app_private.financial_reset_lookup_row('public.financial_month_locks'::regclass,jsonb_build_object('id',upper(pk->>'id')),
+ 'fa231010-0000-4000-8000-000000000001',true) FROM reset_foundation_fixture),NULL::jsonb,
+ 'typed UUID equivalence cannot admit a noncanonical JSON primary key');
+SELECT is(app_private.financial_reset_lookup_row('public.financial_month_locks'::regclass,
+ '{"id":"fa231010-0000-4000-8000-000000000099"}', 'fa231010-0000-4000-8000-000000000001',true),NULL::jsonb,
+ 'missing indexed source remains missing');
+SELECT throws_ok($$SELECT app_private.financial_reset_lookup_row('public.organizations'::regclass,
+ '{"id":"fa231010-0000-4000-8000-000000000001"}','fa231010-0000-4000-8000-000000000001',true)$$,
+ '23514','financial_reset_relation_not_allowed','lookup cannot select an unregistered relation');
 CREATE TEMP TABLE reset_foundation_inputs(kind text PRIMARY KEY,actions jsonb,binding jsonb);
 INSERT INTO reset_foundation_inputs(kind,actions)
 SELECT 'reset',jsonb_build_array(jsonb_build_object('action_id','fa231010-0000-4000-8000-000000000101','ordinal',1,

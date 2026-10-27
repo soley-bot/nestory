@@ -1,0 +1,262 @@
+import {rehearsalSqlFixture as fixture} from './fixtures/local-backup-rehearsal-sql-fixture.mjs';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
+import {LOCAL_CAPTURE_POLICY} from './local-backup-capture.mjs';
+import {buildRamActorFixtureSql,buildRamResetPrepareSql,buildRamResetExecuteSql,buildRamInverseReadbackSql,
+ buildRamInverseCanonicalSql,buildRamInverseExecuteSql,buildRamRehearsalVerificationSql,RAM_INVERSE_NATIVE_CAUSES,RAM_PREPARE_SECTIONS} from './local-backup-business-rehearsal-sql.mjs';
+const id=n=>`11111111-1111-4111-8111-${String(n).padStart(12,'0')}`;
+const builders=[buildRamResetPrepareSql,buildRamResetExecuteSql,buildRamInverseReadbackSql,buildRamInverseCanonicalSql,buildRamInverseExecuteSql,
+ v=>buildRamRehearsalVerificationSql({...v,phase:'reset'}),v=>buildRamRehearsalVerificationSql({...v,phase:'recovered'})];
+test('every SQL phase enforces the exact local socket and reviewed schema boundary',()=>{
+ const v=fixture();for(const build of builders){const sql=build(v);assert.match(sql,/session_user<>'postgres'/);assert.match(sql,/inet_server_addr\(\) IS NOT NULL/);
+ assert.match(sql,/current_setting\('data_directory'\)<>'\/db\/pg'/);assert.match(sql,/current_setting\('listen_addresses'\)<>''/);assert.match(sql,/20261027005615/);
+ assert.match(sql,/execution_schema_changed/);assert.match(sql,/COMMIT;$/)}
+});
+test('synthetic actor creation rejects collisions and never rewrites customer actors or step-up policy',()=>{
+ const sql=buildRamActorFixtureSql(fixture().fixture);assert.match(sql,/synthetic_actor_collision/);assert.match(sql,/@test\.invalid/);assert.match(sql,/step_up_policy_not_fixture_eligible/);
+ assert.doesNotMatch(sql,/UPDATE (auth\.|app_private.privileged)/);assert.match(sql,/'customerAuthImpersonated',false/);
+ assert.throws(()=>buildRamActorFixtureSql({...fixture().fixture,reviewer:id(1)}),/fixture_invalid/);
+ assert.throws(()=>buildRamActorFixtureSql({...fixture().fixture,maker:"'; SELECT 1; --"}),/fixture_invalid/);
+});
+test('marked RAM rehearsal creates one maker session and cannot manufacture reviewer approval',()=>{
+ const v=fixture(),setup=buildRamActorFixtureSql(v.fixture),prepare=buildRamResetPrepareSql(v),execute=buildRamResetExecuteSql(v);
+ assert.deepEqual(Object.keys(v.fixture).sort(),['maker','makerSession']);
+ assert.match(setup,/'actorCount',1,'sessionCount',1/);assert.match(setup,/'customerAuthImpersonated',false/);
+ assert.match(prepare,/'approval_policy','pilot-october-single-admin-v1'/);assert.match(prepare,/'reviewer_actor_id',NULL/);
+ assert.equal((execute.match(/PERFORM public\.approve_financial_reset_zero_plan\(/g)??[]).length,1);
+ for(const phase of ['reset','recovered']){const sql=buildRamRehearsalVerificationSql({...v,phase});
+  assert.match(sql,/s\.approval_kind<>'maker'/);assert.match(sql,/'syntheticActorCount',1/);
+  assert.match(sql,/"table_name":"app_private.financial_reset_zero_approvals","expected":1/);assert.match(sql,/"table_name":"app_private.financial_reset_zero_session_endorsements","expected":1/);}
+ for(const change of [p=>delete p.zeroPlan.approval_policy,p=>p.zeroPlan.approval_policy='other',p=>p.zeroPlan.reviewer_actor_id=id(92),p=>p.zeroPlan.maker_actor_id=id(93)]){
+  const changed=fixture();change(changed.phases);changed.phases.zeroPlanText=JSON.stringify(changed.phases.zeroPlan);
+  // Recomputed outer digest cannot replace the marked native policy or actor.
+  changed.phases.zeroReviewSha256=createHash('sha256').update(changed.phases.zeroPlanText).digest('hex');
+  assert.throws(()=>buildRamResetExecuteSql(changed));}
+ assert.throws(()=>buildRamActorFixtureSql({maker:v.fixture.maker,makerSession:v.fixture.maker}),/fixture_invalid/);
+ assert.throws(()=>buildRamActorFixtureSql({...v.fixture,reviewer:id(92),reviewerSession:id(93)}),/fixture_invalid/);
+});
+test('all plan builders reject unbranded or changed bindings',()=>{
+ for(const build of builders){const v=fixture();assert.throws(()=>build({...v,plan:structuredClone(v.plan)}),/provenance_missing/);
+ assert.throws(()=>build({...v,planBinding:{...v.planBinding,planSha256:'b'.repeat(64)}}),/binding_changed/)}
+});
+for(const [label,mutate]of[
+ ['canonical zero text',p=>p.zeroPlanText=p.zeroPlanText.replace('100','50')],['fixture actor image',p=>p.fixtureRows[0].rowText+=' '],
+ ['duplicate fixture actor',p=>p.fixtureRows[1]=p.fixtureRows[0]],['zero reviewer',p=>p.zeroPlan.reviewer_actor_id=id(91)],
+ ['unbound continuation',p=>p.continuationPlanText=p.continuationPlanText.replace('2026-10-27','2026-10-28')],['extra phase',p=>p.ignored=true],
+ ['invalid source revision',p=>p.reportRevisionBefore='1;drop table x'],
+ ['invalid fixture transaction',p=>p.fixtureTransactionId='1;drop table x']
+])test(`rejects ${label} before generating execution SQL`,()=>{const v=fixture();mutate(v.phases);assert.throws(()=>buildRamResetExecuteSql(v));});
+test('reset uses native consumed authority and phase commands with bounded checkpoint output',()=>{
+ const sql=buildRamResetExecuteSql(fixture());assert.match(sql,/SET SESSION AUTHORIZATION authenticator; SET LOCAL ROLE authenticated/);
+ for(const token of ['approve_financial_reset_zero_plan','consume_financial_reset_actor_authorization','apply_financial_reset_known_zero','apply_financial_reset_continuation','apply_financial_reset_reports','assert_financial_reset_empty_sources'])assert.ok(sql.includes(token));
+ assert.doesNotMatch(sql,/'checkpoint',\(SELECT result_json/);assert.match(sql,/'productionPermissionProven',false/);assert.match(sql,/9007199254740993\.1200/);
+ const timing=sql.slice(sql.indexOf("'authorityTiming'"),sql.lastIndexOf("'authorityKind'"));
+ assert.match(timing,/'consumedAgeSeconds',extract\(epoch FROM timing\.observed_at-a\.consumed_at\)/);
+ assert.match(timing,/'remainingSeconds',extract\(epoch FROM a\.expires_at-timing\.observed_at\)/);
+ assert.match(timing,/a\.action='execute' AND a\.consumed_at IS NOT NULL/);
+ assert.match(timing,/a\.backend_pid=pg_backend_pid\(\) AND a\.transaction_id=pg_current_xact_id\(\)/);
+ assert.equal((timing.match(/clock_timestamp\(\)/g)??[]).length,1);
+ assert.doesNotMatch(timing,/'(authorizationId|actorId|sessionId)'|greatest\(/);
+ assert.doesNotMatch(buildRamInverseExecuteSql(fixture()),/'authorityTiming'/);
+});
+test('preparation explicitly selects reviewed v4 scopes before a zero plan exists',()=>{
+ const sql=buildRamResetPrepareSql(fixture());
+ assert.match(sql,/jsonb_build_object\('version',4,'operation_id'/);
+ assert.match(sql,/financial_reset_empty_zero_scope_on_date\(/);
+ assert.match(sql,/prepare_financial_reset_empty_zero_plan\(/);
+ assert.doesNotMatch(sql,/financial_reset_known_zero_scope\(/);
+});
+
+test('execution matches production statement budgets and reports fixed cancellation stages',()=>{
+ const v=fixture(),sql=buildRamResetExecuteSql(v);
+ const blocks=[...sql.matchAll(/^[ \t]*DO (\$[a-zA-Z0-9_]+\$) ([\s\S]*?) \1;/gm)].map(m=>m[2]);
+ const sections=['endorsement','seal','authorize','native_start','native_arm','native_action','native_complete',
+  'known_zero','continuation','reports','readback_checks'];
+ for(const section of sections){
+  const selected=blocks.filter(b=>b.includes(`MESSAGE='local_ram_rehearsal_execute_${section}_failed'`));
+  assert.ok(selected.length,section);
+  for(const b of selected){
+   assert.match(b,/EXCEPTION WHEN query_canceled OR OTHERS THEN\s+(?:RAISE NOTICE '[^']+',[^;]+;\s+)?RAISE EXCEPTION USING ERRCODE=SQLSTATE,/);
+   assert.match(b,/DETAIL='', HINT=''/);
+   assert.doesNotMatch(b,/SQLERRM|GET STACKED DIAGNOSTICS|RAISE WARNING/);
+   const notices=[...b.matchAll(/RAISE NOTICE '([^']+)',([^;]+);/g)];
+   if(['known_zero','continuation','reports'].includes(section)){
+    assert.deepEqual(notices.map(m=>m[1]),[`local_ram_rehearsal_phase:${section}:success:%`,`local_ram_rehearsal_phase:${section}:failure:%`]);
+    for(const m of notices)assert.equal(m[2],"floor(extract(epoch FROM clock_timestamp()-ram_phase_started)*1000)::bigint");
+    assert.match(b,/DECLARE ram_phase_started timestamptz:=clock_timestamp\(\); BEGIN/);
+   }else assert.equal(notices.length,0);
+  }
+ }
+ for(const [section,call] of [['known_zero','apply_financial_reset_known_zero'],['continuation','prepare_financial_reset_continuation'],['reports','apply_financial_reset_reports']]){
+  const b=blocks.find(b=>b.includes(`MESSAGE='local_ram_rehearsal_execute_${section}_failed'`));
+  assert.ok(b.includes(call));
+  for(const other of ['apply_financial_reset_known_zero','prepare_financial_reset_continuation','apply_financial_reset_reports'])
+   if(other!==call)assert.ok(!b.includes(other),`${section} must have its own statement timeout`);
+ }
+ assert.equal((sql.match(/MESSAGE='local_ram_rehearsal_execute_native_action_failed'/g)??[]).length,v.plan.actions.length);
+ assert.equal((sql.match(/MESSAGE='local_ram_rehearsal_execute_native_arm_failed'/g)??[]).length,v.plan.actions.length);
+ assert.equal(blocks.filter(b=>b.includes("MESSAGE='local_ram_rehearsal_execute_native_action_failed'")).length,Math.ceil(v.plan.actions.length/64));
+ const nativeStart=sql.indexOf('start_financial_reset_actions');
+ assert.match(sql.slice(0,nativeStart),/SET LOCAL statement_timeout='60s'/);
+ const afterStart=sql.slice(nativeStart);
+ assert.deepEqual([...afterStart.matchAll(/SET LOCAL statement_timeout='([^']+)'/g)].map(m=>m[1]),['300s','60s']);
+ assert.match(afterStart,/SET LOCAL statement_timeout='300s';\s+DO (\$[a-zA-Z0-9_]+\$) DECLARE ram_phase_started timestamptz:=clock_timestamp\(\); BEGIN\s+PERFORM app_private\.apply_financial_reset_known_zero\([^\n]+\);\s+RAISE NOTICE 'local_ram_rehearsal_phase:known_zero:success:%',[^;]+;\s+EXCEPTION WHEN query_canceled OR OTHERS THEN\s+RAISE NOTICE 'local_ram_rehearsal_phase:known_zero:failure:%',[^;]+;\s+RAISE EXCEPTION USING ERRCODE=SQLSTATE, MESSAGE='local_ram_rehearsal_execute_known_zero_failed', DETAIL='', HINT='';\s+END \1;\s+SET LOCAL statement_timeout='60s';/);
+ assert.equal((sql.match(/^BEGIN ISOLATION LEVEL READ COMMITTED;/gm)??[]).length,1);
+ assert.equal((sql.match(/^ COMMIT;$/gm)??[]).length,1);
+ assert.match(sql,/SET CONSTRAINTS ALL IMMEDIATE/);
+});
+
+test('report revisions preserve weighted baseline and add only the fixture and executed transaction entries',()=>{
+ const v=fixture(),prepare=buildRamResetPrepareSql(v);
+ assert.match(prepare,/SELECT coalesce\(sum\(revision\),0\)::text FROM app_private.financial_report_source_revisions/);
+ assert.doesNotMatch(prepare,/SELECT revision::text FROM app_private.financial_report_source_revisions/);
+ assert.match(buildRamActorFixtureSql(v.fixture),/'fixtureTransactionId',txid_current\(\)::text/);
+ for(const phase of ['reset','recovered']){
+  const sql=buildRamRehearsalVerificationSql({...v,phase});
+  assert.match(sql,/sum\(\(row_text::jsonb->>'revision'\)::numeric\)/);
+  assert.ok(sql.includes(`'last_transaction_id','${v.phases.fixtureTransactionId}'::bigint`));
+  assert.match(sql,/'revision',1,'last_transaction_id',o.execution_xid::text::bigint/);
+  assert.match(sql,/actual::text IS DISTINCT FROM expected::text/);
+  assert.doesNotMatch(sql,/s\.revision=.*::bigint\+[12]/);
+  // Current revision rows cannot become expected rows through lifecycle adoption.
+  const adoption=sql.match(/FOR r IN SELECT \* FROM jsonb_to_recordset\('([^\n]+)'::jsonb\) x\(table_name text\) LOOP/);
+  assert.ok(adoption);
+  assert.ok(!JSON.parse(adoption[1]).some(r=>r.table_name==='app_private.financial_report_source_revisions'));
+ }
+ for(const fixtureTransactionId of [undefined,'0','01','-1','9223372036854775808','1; SELECT 1'])
+  assert.throws(()=>buildRamResetPrepareSql({...v,fixtureTransactionId}),/fixture_transaction_invalid/);
+});
+
+test('prepare diagnostics identify bounded sections including cancellation without changing statement budgets',()=>{
+ const sql=buildRamResetPrepareSql(fixture());
+ const sections=[['operation','prepare_financial_reset_operation'],['archive','archive_financial_reset_rows'],
+  ['actions','prepare_financial_reset_actions'],['zero_scope','financial_reset_empty_zero_scope_on_date'],
+  ['continuation','assert_financial_reset_empty_semantic'],['zero_plan','prepare_financial_reset_empty_zero_plan'],
+  ['readback','CREATE TEMP TABLE ram_prepare_readback']];
+ let previous=-1;
+ for(const [section,call]of sections){
+  const tag=`local_ram_rehearsal_prepare_${section}_failed`,start=sql.indexOf(call),end=sql.indexOf(`MESSAGE='${tag}'`);
+  assert.ok(start>previous&&end>start,section);
+  const block=sql.slice(start,end);
+  assert.match(block,/EXCEPTION WHEN query_canceled OR OTHERS THEN\s+RAISE NOTICE 'local_ram_rehearsal_prepare_phase:[a-z_]+:failure:%',floor\(extract\(epoch FROM clock_timestamp\(\)-ram_prepare_started\)\*1000\)::bigint;\s+RAISE EXCEPTION USING ERRCODE=SQLSTATE, $/);
+  assert.equal(sql.split(tag).length-1,1);previous=end;
+ }
+ assert.equal((sql.match(/DETAIL='', HINT=''/g)??[]).length,RAM_PREPARE_SECTIONS.length);
+ assert.doesNotMatch(sql,/SQLERRM|GET STACKED DIAGNOSTICS|RAISE WARNING|WHEN OTHERS THEN\s+NULL/);
+ for(const section of RAM_PREPARE_SECTIONS)for(const outcome of ['success','failure'])assert.equal(sql.split(`RAISE NOTICE 'local_ram_rehearsal_prepare_phase:${section}:${outcome}:%'`).length-1,1);
+ for(const notice of sql.matchAll(/RAISE NOTICE ([^;]+);/g))assert.match(notice[1],/^'local_ram_rehearsal_prepare_phase:[a-z_]+:(success|failure):%',floor\(extract\(epoch FROM clock_timestamp\(\)-ram_prepare_started\)\*1000\)::bigint$/);
+ assert.deepEqual([...sql.matchAll(/SET LOCAL statement_timeout='([^']+)'/g)].map(m=>m[1]),['120s']);
+ const prepareCalls=['prepare_financial_reset_operation','archive_financial_reset_rows','prepare_financial_reset_actions'];
+ const statementBlocks=[...sql.matchAll(/DO (\$[a-zA-Z0-9_]+\$) ([\s\S]*?) \1;/g)].map(m=>m[2]);
+ for(const call of prepareCalls){const blocks=statementBlocks.filter(b=>b.includes(`PERFORM app_private.${call}(`));assert.equal(blocks.length,1);for(const other of prepareCalls)if(other!==call)assert.ok(!blocks[0].includes(`PERFORM app_private.${other}(`));}
+ const hosted=readFileSync(new URL('./pilot-finance-reset-hosted-transport-protocol.mjs',import.meta.url),'utf8');
+ const hostedPrepare=hosted.slice(hosted.indexOf("if(action==='prepare')"),hosted.indexOf("if(action==='seal')"));
+ assert.deepEqual([...hostedPrepare.matchAll(/SELECT app_private\.([a-z_]+)\(/g)].map(m=>m[1]),prepareCalls);
+ assert.equal((sql.match(/^BEGIN ISOLATION LEVEL READ COMMITTED;/gm)??[]).length,1);
+ assert.equal((sql.match(/^ COMMIT;$/gm)??[]).length,1);
+ assert.match(sql,/SELECT result FROM ram_prepare_readback;\s+COMMIT;$/);
+ // Both phase expressions retain a shared SQL statement timestamp.
+ const phaseBlock=sql.slice(sql.indexOf('DECLARE zero_value'),sql.indexOf("MESSAGE='local_ram_rehearsal_prepare_zero_plan_failed'"));
+ assert.ok(phaseBlock.indexOf('zero_value:=')<phaseBlock.indexOf('continuation_value:='));
+ assert.match(phaseBlock,/rent_business_date\([^\n]+statement_timestamp\(\)\)/);
+});
+test('inverse conversion is bounded and preserves exact decimal lexemes',()=>{
+ const sql=buildRamInverseCanonicalSql(fixture());assert.match(sql,/FOR r IN SELECT value FROM jsonb_array_elements/);assert.doesNotMatch(sql.slice(sql.indexOf('CREATE TEMP TABLE ram_inverse_typed')),/UNION ALL/);
+ assert.match(sql,/9007199254740993\.1200/);assert.match(sql,/inverse_type_changed/);
+ const execute=buildRamInverseExecuteSql(fixture());assert.match(execute,/inverse_readback_changed/);assert.match(execute,/prepare_financial_reset_recovery/);
+});
+test('inverse failures retain fixed stages and SQLSTATE without changing native action boundaries',()=>{
+ const v=fixture(),sql=buildRamInverseExecuteSql(v);
+ const sections=['prepare_operation','prepare_sources','prepare_actions','seal','authorize','native_start','native_arm',
+  'native_action','native_complete','finalize','commit_checks'];
+ for(const section of sections){
+  const marker=`MESSAGE='local_ram_rehearsal_inverse_${section}_failed'`;
+  assert.ok(sql.includes(marker),section);
+  assert.ok(sql.includes(`RAISE EXCEPTION USING ERRCODE=SQLSTATE, ${marker}, DETAIL='', HINT='';`),section);
+ }
+ assert.doesNotMatch(sql,/SQLERRM|PG_EXCEPTION_DETAIL|PG_EXCEPTION_CONTEXT|RAISE WARNING/);
+ const nativeSources=['20261024013612_financial_reset_private_action_foundation.sql','20261024013617_financial_reset_phase_recovery_sources.sql',
+  '20261024013620_financial_reset_report_finalization_checkpoint.sql','20260810053145_owner_cash_reversal_and_held_cash_guards.sql',
+  '20260916020425_owner_contribution_transaction_correction.sql','20261009233921_deposit_rent_application.sql'].map(file=>readFileSync(new URL(`../supabase/migrations/${file}`,import.meta.url),'utf8')).join('\n');
+ assert.ok(Object.isFrozen(RAM_INVERSE_NATIVE_CAUSES));
+ assert.equal(new Set(RAM_INVERSE_NATIVE_CAUSES).size,RAM_INVERSE_NATIVE_CAUSES.length);
+ for(const cause of RAM_INVERSE_NATIVE_CAUSES)assert.ok(nativeSources.includes(`RAISE EXCEPTION '${cause}'`),cause);
+ const mapper=sql.match(/CREATE FUNCTION pg_temp\.ram_inverse_native_cause\(p_message text\) RETURNS text[\s\S]+?\$ram_inverse_mapper\$;/)?.[0];
+ assert.ok(mapper);assert.equal((sql.match(/CREATE FUNCTION pg_temp\.ram_inverse_native_cause/g)??[]).length,1);
+ assert.deepEqual([...mapper.matchAll(/WHEN '([^']+)' THEN '([^']+)'/g)].map(m=>[m[1],m[2]]),RAM_INVERSE_NATIVE_CAUSES.map(code=>[code,code]));
+ assert.match(mapper,/ELSE NULL::text END/);
+ assert.doesNotMatch(mapper,/LIKE|ILIKE|SECURITY DEFINER|RAISE|FROM /);
+ assert.ok(sql.indexOf(mapper)>sql.indexOf('execution_schema_changed'));
+ assert.ok(sql.indexOf(mapper)<sql.indexOf('SET SESSION AUTHORIZATION authenticator'));
+ const blocks=[...sql.matchAll(/^[ \t]*DO (\$[a-zA-Z0-9_]+\$) ([\s\S]*?) \1;/gm)].map(m=>m[2]);
+ for(const b of blocks.filter(b=>b.includes("MESSAGE='local_ram_rehearsal_inverse_"))){
+  assert.match(b,/EXCEPTION WHEN query_canceled OR OTHERS THEN\s+GET STACKED DIAGNOSTICS ram_inverse_message=MESSAGE_TEXT;/);
+  assert.match(b,/ram_inverse_cause:=pg_temp\.ram_inverse_native_cause\(ram_inverse_message\);\s+ram_inverse_message:=NULL;/);
+  for(const m of b.matchAll(/RAISE NOTICE ([^;]+);/g)){
+   if(m[1].startsWith("'local_ram_rehearsal_inverse_action:")){
+    const match=m[1].match(/^'local_ram_rehearsal_inverse_action:([1-9][0-9]*):([a-z_]+\.[a-z_]+):(restore|recovery-prune|recovery-repair):%',ram_inverse_constraint_index$/);
+    assert.ok(match);const a=v.canonicalInverse.actions[Number(match[1])-1];assert.equal(a.relation_name,match[2]);assert.equal(a.kind,match[3]);
+    assert.match(b,/GET STACKED DIAGNOSTICS ram_inverse_constraint=CONSTRAINT_NAME;/);
+    assert.match(b,/ram_inverse_constraint:=NULL;/);continue;
+   }
+   const expected=m[1].match(/^'local_ram_rehearsal_inverse_cause:([a-z_]+):%',ram_inverse_cause$/);
+   assert.ok(expected,'notice must contain only a fixed section and mapped enum');
+   assert.ok(sections.includes(expected[1]));
+   assert.ok(b.includes(`IF ram_inverse_cause IS NOT NULL THEN RAISE NOTICE ${m[1]}; END IF;`));
+  }
+  assert.doesNotMatch(b,/ram_inverse_message\s+(?:LIKE|ILIKE)|strpos\(ram_inverse_message|left\(ram_inverse_message/);
+ }
+ const preparation=blocks.filter(b=>b.includes("MESSAGE='local_ram_rehearsal_inverse_prepare_operation_failed'"));
+ assert.equal(preparation.length,1);
+ for(const section of sections.slice(0,4))assert.ok(preparation[0].includes(`MESSAGE='local_ram_rehearsal_inverse_${section}_failed'`));
+ for(const section of ['native_arm','native_action'])assert.equal((sql.match(new RegExp(`MESSAGE='local_ram_rehearsal_inverse_${section}_failed'`,'g'))??[]).length,v.canonicalInverse.actions.length);
+ assert.equal(blocks.filter(b=>b.includes("MESSAGE='local_ram_rehearsal_inverse_native_action_failed'")).length,Math.ceil(v.canonicalInverse.actions.length/64));
+ for(const action of v.canonicalInverse.actions)assert.ok(sql.includes(`arm_financial_reset_action('${v.recoveryId}'::uuid,'${action.action_id}'::uuid)`));
+ const calls=['prepare_financial_reset_operation','prepare_financial_reset_recovery','prepare_financial_reset_actions',
+  'seal_financial_reset_operation','authorize_financial_reset_hosted_action','consume_financial_reset_actor_authorization',
+  'start_financial_reset_actions','arm_financial_reset_action','complete_financial_reset_actions','finalize_financial_reset_recovery','SET CONSTRAINTS ALL IMMEDIATE'];
+ for(let i=1;i<calls.length;i++)assert.ok(sql.indexOf(calls[i-1])<sql.indexOf(calls[i]),calls[i]);
+ assert.deepEqual([...sql.matchAll(/SET LOCAL statement_timeout='([^']+)'/g)].map(m=>m[1]),['120s','60s']);
+ assert.equal((sql.match(/^BEGIN ISOLATION LEVEL READ COMMITTED;/gm)??[]).length,1);
+ assert.equal((sql.match(/^ COMMIT;$/gm)??[]).length,1);
+ assert.equal(blocks.filter(b=>b.includes("MESSAGE='local_ram_rehearsal_inverse_finalize_failed'")).length,1);
+ assert.equal(blocks.filter(b=>b.includes("MESSAGE='local_ram_rehearsal_inverse_commit_checks_failed'")).length,1);
+});
+test('inverse cannot adopt a surviving foreign key or altered candidate identity',()=>{
+ const v=fixture();v.inverseInputs.incomingEdges.push({source:{relation_name:'public.leases',primary_key:{id:id(80)}},target:{relation_name:'public.owner_opening_balance_entries',primary_key:{id:id(9)}}});
+ assert.throws(()=>buildRamInverseCanonicalSql(v),/surviving_phase_reference/);
+ const changed=fixture();changed.canonicalInverse.actions[0].primary_key={id:id(81)};assert.throws(()=>buildRamInverseExecuteSql(changed),/inverse_canonical_changed/);
+});
+test('incoming foreign key names remain schema qualified independent of search_path',()=>{
+ const sql=buildRamInverseReadbackSql(fixture());assert.match(sql,/n.nspname\|\|'\.'\|\|t.relname AS source_name/);assert.match(sql,/f.source_name,f.conrelid/);assert.match(sql,/%s::oid/);
+});
+test('verification has a complete table roster, explicit audit exceptions and no mutable-row adoption',()=>{
+ const sql=buildRamRehearsalVerificationSql({...fixture(),phase:'reset'});
+ for(const policy of LOCAL_CAPTURE_POLICY)assert.ok(sql.includes(policy.table),policy.table);
+ for(const condition of ['exact_projection_changed','audit_pair_changed','retired_intent_count_changed','lifecycle_count_changed','archive_changed','action_changed','source_revision_changed','foreign_key_unresolved'])assert.ok(sql.includes(condition));
+ assert.match(sql,/c.after_images->k.relation_name/);assert.match(sql,/actual::text IS DISTINCT FROM expected::text/);
+ assert.match(sql,/'productionForeignDataProven',false/);assert.match(sql,/'excludedCredentialTablesRestored',false/);
+});
+test('recovered verification uses persisted immutable sources and full original projection',()=>{
+ const v=fixture(),sql=buildRamRehearsalVerificationSql({...v,phase:'recovered'});
+ assert.doesNotMatch(sql,/financial_reset_recovery_candidates\(/);assert.match(sql,/FROM app_private.financial_reset_recovery_sources WHERE operation_id=/);
+ assert.match(sql,/9007199254740993\.1200/);assert.match(sql,/'generation',2/);assert.match(sql,/recovery_sources_changed/);
+ assert.throws(()=>buildRamRehearsalVerificationSql({...v,phase:'ignore'}),/verification_phase_invalid/);
+});
+
+test('inverse constraint names come only from the accepted execution catalog',async()=>{
+ const {createHash}=await import('node:crypto');const {ramInverseConstraintRoster}=await import('./local-backup-business-rehearsal-sql.mjs');
+ const hash=s=>createHash('sha256').update(s).digest('hex'),v=fixture(),m=structuredClone(v.materialization);
+ m.catalog_text=JSON.stringify([
+  {kind:'constraint',name:'public.ledger_entries.ledger_entries_amount_check',sha256:'a'.repeat(64)},
+  {kind:'constraint',name:'auth.users.private_constraint',sha256:'a'.repeat(64)},
+  {kind:'function',name:'public.ledger_entries.private_function',sha256:'a'.repeat(64)}]);
+ m.summary.catalog_snapshot_sha256=hash(m.catalog_text);m.summary_text=JSON.stringify(m.summary);
+ const p={...m.summary,summary_text:m.summary_text,manifest_sha256:hash(m.summary_text)};
+ const plan=v.planner.acceptMaterialization(p,m);
+ assert.deepEqual(ramInverseConstraintRoster(plan),['public.ledger_entries.ledger_entries_amount_check']);
+ assert.ok(Object.isFrozen(ramInverseConstraintRoster(plan)));
+ assert.throws(()=>ramInverseConstraintRoster(JSON.parse(JSON.stringify(plan))),/plan_provenance_missing/);
+});

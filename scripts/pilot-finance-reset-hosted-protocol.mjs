@@ -1,4 +1,5 @@
 // Fixed read-only reconciliation protocol. No SQL execution or reset authority.
+import {assertPilotSingleAdminOperation} from './pilot-finance-reset-single-admin-policy.mjs';
 import { assertOperatorPacket, canonicalJson, hashBytes, operationBusinessDate } from './pilot-finance-reset-operator-core.mjs';
 import { assertNoBackupPacket, assertNoBackupHostedBinding } from './pilot-finance-reset-no-backup-core.mjs';
 
@@ -21,6 +22,7 @@ export function approvalTimestampMicros(value) {
   return BigInt(instant) * 1000n + BigInt((match[2] ?? '').padEnd(6, '0'));
 }
 export const HOSTED_SOURCE_FILES = Object.freeze([
+  'scripts/pilot-finance-reset-single-admin-policy.mjs',
   'scripts/pilot-finance-reset-operator-core.mjs',
   'scripts/pilot-finance-reset-no-backup-core.mjs',
   'scripts/pilot-finance-reset-hosted-protocol.mjs',
@@ -53,6 +55,7 @@ SELECT jsonb_build_object(
   'organizationId',z.plan_json->>'organization_id','manifestSha256',z.plan_json->>'manifest_sha256',
   'planSha256',z.plan_json->>'reset_plan_sha256','effectiveDate',z.plan_json->>'effective_date',
   'makerActorId',z.plan_json->>'maker_actor_id','reviewerActorId',z.plan_json->>'reviewer_actor_id')
+  ||CASE WHEN z.plan_json ? 'approval_policy' THEN jsonb_build_object('approvalPolicy',z.plan_json->>'approval_policy','version',z.plan_json->'version') ELSE '{}'::jsonb END
   FROM app_private.financial_reset_zero_plans z JOIN requested r USING(operation_id)),
  'approvals',(SELECT coalesce(jsonb_agg(jsonb_build_object('operationId',a.operation_id,'organizationId',a.organization_id,
   'kind',a.approval_kind,'reviewSha256',a.review_sha256,'approvedBy',a.approved_by,'approvedAt',a.approved_at)
@@ -119,22 +122,27 @@ export function validateApprovalObservation(packet, rows, endorsementNumber = nu
     !Number.isSafeInteger(observation.capabilityCount) || observation.capabilityCount < 0 ||
     (!historical && (c.status !== 'frozen' || c.generation !== packet.operation.targetGeneration || c.cutoff !== packet.operation.cutoff ||
       c.timezone !== packet.operation.timezone || c.businessDate !== operationBusinessDate(packet.operation) || observation.capabilityCount !== 0))) fail('hosted_approval_frozen_context_changed');
-  if (!exactKeys(z, ['status', 'reviewSha256', 'canonicalSha256', 'operationId', 'organizationId', 'manifestSha256', 'planSha256', 'effectiveDate', 'makerActorId', 'reviewerActorId']) ||
+  const marked=z&&Object.hasOwn(z,'approvalPolicy');
+  const single=marked&&assertPilotSingleAdminOperation({approval_policy:z.approvalPolicy,version:z.version,operation_id:z.operationId,
+    organization_id:z.organizationId,effective_date:z.effectiveDate,maker_actor_id:z.makerActorId,reviewer_actor_id:z.reviewerActorId},packet.operation);
+  if(single&&noBackup)fail('hosted_approval_plan_changed');
+  const requiredKinds=single?['maker']:['maker','reviewer'];
+  if (!exactKeys(z, ['status', 'reviewSha256', 'canonicalSha256', 'operationId', 'organizationId', 'manifestSha256', 'planSha256', 'effectiveDate', 'makerActorId', 'reviewerActorId',...(marked?['approvalPolicy','version']:[])]) ||
     !(historical ? ['prepared', 'complete'] : ['prepared']).includes(z.status) || z.reviewSha256 !== packet.databaseBinding.zeroReviewSha256 || z.canonicalSha256 !== z.reviewSha256 ||
     z.operationId !== o.operationId || z.organizationId !== o.organizationId || z.manifestSha256 !== o.manifestSha256 || z.planSha256 !== o.planSha256 ||
-    z.effectiveDate !== packet.operation.cutoff || !uuid.test(z.makerActorId) || !uuid.test(z.reviewerActorId) || z.makerActorId === z.reviewerActorId) fail('hosted_approval_plan_changed');
-  if (!Array.isArray(observation.approvals) || observation.approvals.length > 2) fail('hosted_approval_rows_invalid');
+    z.effectiveDate !== packet.operation.cutoff || !uuid.test(z.makerActorId) || (!single&&!uuid.test(z.reviewerActorId)) || z.makerActorId === z.reviewerActorId) fail('hosted_approval_plan_changed');
+  if (!Array.isArray(observation.approvals) || observation.approvals.length > requiredKinds.length) fail('hosted_approval_rows_invalid');
   const kinds = new Set();
   for (const a of observation.approvals) {
     if (!exactKeys(a, ['operationId', 'organizationId', 'kind', 'reviewSha256', 'approvedBy', 'approvedAt']) ||
-      !['maker', 'reviewer'].includes(a.kind) || kinds.has(a.kind) || a.operationId !== o.operationId || a.organizationId !== o.organizationId ||
+      !requiredKinds.includes(a.kind) || kinds.has(a.kind) || a.operationId !== o.operationId || a.organizationId !== o.organizationId ||
       a.reviewSha256 !== z.reviewSha256 || a.approvedBy !== z[`${a.kind}ActorId`] || typeof a.approvedAt !== 'string' ||
       approvalTimestampMicros(a.approvedAt) === null) fail('hosted_approval_rows_invalid');
     kinds.add(a.kind);
   }
   const endorsementFields = ['endorsementId', 'operationId', 'organizationId', 'kind', 'number', 'reviewSha256', 'actorId', 'sessionId', 'credentialExpiresAt', 'endorsedAt'];
   for (const [field, latest] of [['endorsements', true], ['targetEndorsements', false]]) {
-    if (!Array.isArray(observation[field]) || observation[field].length > 2 || (!latest && endorsementNumber === null && observation[field].length)) fail('hosted_approval_endorsement_rows_invalid');
+    if (!Array.isArray(observation[field]) || observation[field].length > requiredKinds.length || (!latest && endorsementNumber === null && observation[field].length)) fail('hosted_approval_endorsement_rows_invalid');
     const seen = new Set();
     for (const e of observation[field]) {
       const approval = observation.approvals.find(a => a.kind === e?.kind);

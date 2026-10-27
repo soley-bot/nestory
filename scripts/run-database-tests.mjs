@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
@@ -13,6 +14,7 @@ export const SESSION_TESTS = Object.freeze([
   'financial_reset_archived_property_known_zero_test.sql',
   'financial_reset_checked_reopening_test.sql',
   'financial_reset_continuation_test.sql',
+  'financial_reset_empty_books_test.sql',
   'financial_reset_explicit_no_backup_binding_test.sql',
   'financial_reset_genuine_session_actor_bridge_test.sql',
   'financial_reset_held_deposit_forward_test.sql',
@@ -20,20 +22,31 @@ export const SESSION_TESTS = Object.freeze([
   'financial_reset_original_invoice_dates_test.sql',
   'financial_reset_reviewed_dispositions_test.sql',
   'financial_reset_scoped_session_commands_test.sql',
+  'financial_reset_single_admin_test.sql',
 ]);
 
 export function databaseTestPlan(files) {
   const ordinary = [], session = [];
+  const wrapperName='financial_reset_single_admin_test.sql';
+  const wrapper='-- Fixed single-admin variant of the complete rollback-only native fixture.\n\\set empty_books_single_admin true\n\\ir financial_reset_empty_books_test.sql\n';
   for (const file of files) {
+    let source=file.source;
+    if(file.name===wrapperName){
+      assert.equal(source.replaceAll('\r\n','\n'),wrapper,'Only the exact reviewed single-admin fixture include is allowed.');
+      const bases=files.filter(f=>f.name==='financial_reset_empty_books_test.sql');
+      assert.equal(bases.length,1,'The single-admin variant requires exactly one native base fixture.');
+      assert.doesNotMatch(bases[0].source,/^\s*\\(?:i|ir)\s/m,'The native base fixture cannot include other files.');
+      source='\\set empty_books_single_admin true\n'+bases[0].source;
+    }
     const privileged = SESSION_TESTS.includes(file.name);
-    assert.equal(/\bSET\s+SESSION\s+AUTHORIZATION\b/i.test(file.source), privileged,
+    assert.equal(/\bSET\s+SESSION\s+AUTHORIZATION\b/i.test(source), privileged,
       `Session-authorization fixture must have an explicit reviewed classification: ${file.name}`);
     if (privileged) {
-      assert.match(file.source, /\bBEGIN\s*;/i);
-      assert.match(file.source, /CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;/);
-      assert.match(file.source, /\bROLLBACK\s*;\s*$/i);
-      assert.doesNotMatch(file.source, /^\s*COMMIT\s*;/im);
-      session.push(file);
+      assert.match(source, /\bBEGIN\s*;/i);
+      assert.match(source, /CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;/);
+      assert.match(source, /\bROLLBACK\s*;\s*$/i);
+      assert.doesNotMatch(source, /^\s*COMMIT\s*;/im);
+      session.push({...file,source});
     } else ordinary.push(file);
   }
   assert.deepEqual(session.map(file => file.name).sort(), [...SESSION_TESTS].sort(),
@@ -55,6 +68,8 @@ export function verifyPgTapOutput(output, name) {
     const knownDateSkips = {
       'financial_reset_held_deposit_forward_test.sql': 'Forward original-date success is eligible only in October 2026; the real clock is not changed.',
       'financial_reset_original_invoice_dates_test.sql': 'Original-date success path is eligible only during October 2026; no clock override is used.',
+      'financial_reset_empty_books_test.sql': 'October-only success path is not executed with a fabricated database clock.',
+      'financial_reset_single_admin_test.sql': 'October-only success path is not executed with a fabricated database clock.',
     };
     const skip = line.match(/\s+#\s*SKIP\s+(.*)$/i);
     if (skip) assert.equal(skip[1], knownDateSkips[name], `${name}: only the existing date-bound skip is allowed`);
@@ -91,12 +106,59 @@ export async function localDatabaseTestTarget({ config, execute, env = process.e
   };
   assert.equal(run("SELECT session_user='supabase_admin' AND current_user=session_user AND inet_server_addr() IS NULL AND (SELECT rolsuper FROM pg_roles WHERE rolname=session_user);").trim(), 't',
     'Session tests require the existing local socket administrator; no role changes are permitted.');
-  return Object.freeze({ run });
+  const runSingleAdmin = (file) => {
+    assert.equal(file.name, 'financial_reset_single_admin_test.sql');
+    const database = `single_admin_test_${randomUUID().replaceAll('-', '')}`;
+    const checkedDocker = (arguments_, input) => { verify(inspect(), initial.id); return docker(arguments_, input); };
+    const cloneRun = (source) => checkedDocker(args.map((value, index) => args[index - 1] === '-d' ? database : value), source);
+    const dump = (extra) => checkedDocker(['exec', initial.id, 'pg_dump', '-h', '/var/run/postgresql', '-U', 'supabase_admin', '-d', 'postgres',
+      '--exclude-extension=pg_cron', '--exclude-extension=pg_net', '--exclude-schema=cron', '--exclude-schema=net', '--no-publications', '--no-subscriptions', ...extra]);
+    const relations = JSON.parse(run("SELECT coalesce(json_agg(n.nspname||'.'||c.relname ORDER BY n.nspname,c.relname),'[]') FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','app_private','auth') AND c.relkind='r';"));
+    assert.ok(relations.length > 0);
+    relations.forEach(name => assert.match(name, /^(?:public|app_private|auth)\.[a-z][a-z0-9_]*$/));
+    const census = `SELECT jsonb_build_object('rows',to_jsonb(ARRAY[${relations.map(name => `(SELECT count(*) FROM ${name})`).join(',')}]),'organizations',
+      (SELECT encode(extensions.digest(coalesce(jsonb_agg(to_jsonb(o) ORDER BY id),'[]')::text,'sha256'),'hex') FROM public.organizations o))::text;`;
+    const sourceBefore = run(census);
+    let created = false;
+    try {
+      run(`CREATE DATABASE ${database} TEMPLATE template0;`); created = true;
+      cloneRun(dump(['--schema-only', '--section=pre-data']));
+      // Only this immutable non-tenant policy roster is copied. Normal dump
+      // pre/data/post ordering creates its immutable guard after initial data.
+      cloneRun(dump(['--data-only', '--table=app_private.financial_reset_relation_rules']));
+      cloneRun(dump(['--schema-only', '--section=post-data']));
+      cloneRun(SINGLE_ADMIN_RUNTIME_BOOTSTRAP_SQL);
+      assert.equal(cloneRun("SELECT session_user='supabase_admin' AND current_user=session_user AND inet_server_addr() IS NULL AND (SELECT rolsuper FROM pg_roles WHERE rolname=session_user) AND NOT EXISTS(SELECT 1 FROM public.organizations) AND NOT EXISTS(SELECT 1 FROM auth.users) AND NOT EXISTS(SELECT 1 FROM auth.sessions) AND NOT EXISTS(SELECT 1 FROM public.organization_members);").trim(), 't');
+      const cleanBefore = cloneRun(census);
+      const output = cloneRun(file.source);
+      assert.equal(cloneRun(census), cleanBefore, 'Single-admin fixture must roll back its complete row census and organizations.');
+      return output;
+    } finally {
+      let cleanupFailed = false, absent = false, sourceUnchanged = false;
+      try { if (created) run(`DROP DATABASE ${database};`); } catch { cleanupFailed = true; }
+      try { absent = run(`SELECT count(*) FROM pg_database WHERE datname='${database}';`).trim() === '0'; } catch { cleanupFailed = true; }
+      try { sourceUnchanged = run(census) === sourceBefore; } catch { cleanupFailed = true; }
+      assert.ok(!cleanupFailed && absent && sourceUnchanged,
+        `Single-admin fixture cleanup verification failed (databaseAbsent=${absent}, sourceUnchanged=${sourceUnchanged}).`);
+    }
+  };
+  return Object.freeze({ run, runSingleAdmin });
 }
+
+// These are the existing migration bootstrap forms, with fresh synthetic secrets.
+// No source capability tokens, Auth sessions, members or tenant rows are copied.
+export const SINGLE_ADMIN_RUNTIME_BOOTSTRAP_SQL = [
+  ...['finance_settlement_context_capability', 'financial_projection_context_capability',
+    'tenant_invoice_settlement_context_capability', 'property_branch_assignment_context_capability',
+    'finance_branch_authority_capability', 'maintenance_branch_authority_capability']
+    .map(name => `INSERT INTO app_private.${name}(singleton,capability_token) VALUES(true,encode(extensions.gen_random_bytes(32),'hex'));`),
+  "INSERT INTO app_private.expense_transaction_capability(singleton,secret) VALUES(true,encode(extensions.gen_random_bytes(32),'hex'));",
+  'INSERT INTO app_private.financial_scheduler_capability(singleton) VALUES(true);',
+].join('\n');
 
 export function runSessionTest(file, target) {
   assert.ok(SESSION_TESTS.includes(file.name));
-  return verifyPgTapOutput(target.run(file.source), file.name);
+  return verifyPgTapOutput(file.name === 'financial_reset_single_admin_test.sql' ? target.runSingleAdmin(file) : target.run(file.source), file.name);
 }
 
 export async function main(repository = path.resolve(import.meta.dirname, '..')) {
@@ -120,7 +182,7 @@ export async function main(repository = path.resolve(import.meta.dirname, '..'))
   let assertions = 0;
   for (const file of plan.session) {
     const count = runSessionTest(file, target); assertions += count;
-    console.log(`${file.name}: ${count} pgTAP assertions verified (local session-authority fixture; only the two existing calendar-bound skips are permitted).`);
+    console.log(`${file.name}: ${count} pgTAP assertions verified (local session-authority fixture; only explicitly reviewed calendar-bound skips are permitted).`);
   }
   console.log(`${plan.session.length} session-authority files, ${assertions} assertions passed.`);
 }
