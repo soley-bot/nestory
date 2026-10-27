@@ -1,5 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {assertLocalCustodyEvidenceReference,assertLocalCustodyProofBindings,assertLocalDestinationEvidence} from './local-backup-custody-evidence.mjs';
+import {assertLocalCustodyEvidenceReference,assertLocalCustodyProofBindings,assertLocalDestinationEvidence,
+ createPreparedCustodyAdmission,assertPreparedLocalRecoveryEvidence,preparedCustodyArtifactReferences,assertPreparedCustodyArtifactBytes} from './local-backup-custody-evidence.mjs';
 import {backupHash} from './local-backup-crypto.mjs';
 const h='a'.repeat(64),id=n=>`11111111-1111-4111-8111-${String(n).padStart(12,'0')}`;
 const roles=['businessRestore','filesRestore','keyRecovery','destinationProtection'];
@@ -71,4 +72,65 @@ test('shape-only custody hashes do not satisfy saved proof semantics',()=>{
 test('successful business restore never substitutes for missing inverse or file-byte proof',()=>{
  const proofs=Object.fromEntries(roles.map(r=>[r,{}]));proofs.businessRestore={format:'nestory-local-business-ram-restore-proof-v1',canonicalRowsVerified:true,foreignKeysVerified:true,financialResetInverseProven:false};
  assert.throws(()=>assertLocalCustodyProofBindings({evidence,custody:{},packet:{operation:{operationId:id(9)},packetSha256:h},proofs}));
+});
+
+function closureFixture(){
+ const f=fixture(),reference=n=>({keyId:id(8),archiveId:id(n),archiveSha256:h,plaintextSha256:h,plaintextBytes:12});
+ f.evidence={...f.evidence,format:'nestory-local-dispatch-custody-evidence-v2',liveWitness:reference(13)};
+ Object.assign(f.proofs.businessRestore,{rehearsalInputs:reference(11),inverseInputs:reference(12)});
+ return {...f,request:{inputArchiveId:id(14),inputArchiveSha256:h,nonce:id(15)},
+  metadata:{publicKeySha256:h,wrappedKeySha256:h},metadataSha256:h,
+  manifest:{sourceSha256:h,planSha256:h,totalBytes:5,objects:[{archiveId:id(16),ciphertextBytes:9,ciphertextSha256:h}]}};
+}
+test('prepared closure includes every proof, encrypted input, key identity and attachment',()=>{
+ const closure=preparedCustodyArtifactReferences(closureFixture());
+ assert.deepEqual(closure.refs.map(r=>`${r.id}.${r.kind}`).sort(),[
+  ...[1,2,3,4,10].map(n=>`${id(n)}.proof.json`),...[2,7,11,12,13,14].map(n=>`${id(n)}.archive.pgp`),
+  `${id(3)}.synthetic.pgp`,...['metadata.json','public.asc','private.dpapi'].map(kind=>`${id(8)}.${kind}`),
+ ].sort());
+ assert.deepEqual(closure.objects,[{archiveId:id(16),ciphertextBytes:9,ciphertextSha256:h}]);
+});
+for(const field of ['rehearsalInputs','inverseInputs'])test(`prepared closure denies missing ${field}`,()=>{
+ const f=closureFixture();delete f.proofs.businessRestore[field];assert.throws(()=>preparedCustodyArtifactReferences(f));
+});
+test('prepared closure denies manifest omission and conflicting ciphertext identity',()=>{
+ const f=closureFixture();f.manifest.objects=[];assert.throws(()=>preparedCustodyArtifactReferences(f));
+ const g=closureFixture();g.request.inputArchiveId=g.evidence.businessArchive.id;g.request.inputArchiveSha256='b'.repeat(64);
+ assert.throws(()=>preparedCustodyArtifactReferences(g));
+});
+test('late artifact admission rejects same-size tampering, truncation and appended bytes',()=>{
+ const bytes=Buffer.from('reviewed'),ref={bytes:bytes.length,sha256:backupHash(bytes)};
+ assert.equal(assertPreparedCustodyArtifactBytes(ref,bytes),true);
+ for(const altered of [Buffer.from('ReviewEd'),bytes.subarray(1),Buffer.concat([bytes,Buffer.from('!')])])assert.throws(()=>assertPreparedCustodyArtifactBytes(ref,altered));
+});
+function admissionFixture(){
+ let valid=true,leaseValid=true,closed=0,verified=0,checked=0;
+ const api=createPreparedCustodyAdmission({hold:async()=>({check:async()=>{if(!leaseValid)throw Error('lease lost')},close:async()=>{closed++}}),
+  collect:async args=>structuredClone(args),verify:async()=>{verified++;return {operationalCustodyVerified:true}},
+  check:async()=>{checked++;if(!valid)throw Error('bytes or source changed')}});
+ return {api,args:{packet:{packetSha256:h},evidence:{proof:h}},request:{nonce:id(15)},
+  tamper:()=>{valid=false},loseLease:()=>{leaseValid=false},counts:()=>({closed,verified,checked})};
+}
+test('prepared receipt is private, order-independent bound, and never admits serialized or foreign-factory handles',async()=>{
+ const f=admissionFixture(),handle=await f.api.prepare(f.args,f.request);
+ const reordered={evidence:{proof:h},packet:{packetSha256:h}};
+ assert.equal(await f.api.assert(handle,reordered,f.request.nonce),true);
+ await assert.rejects(f.api.assert({...handle},f.args,f.request.nonce));
+ await assert.rejects(admissionFixture().api.assert(handle,f.args,f.request.nonce));
+ await assert.rejects(assertPreparedLocalRecoveryEvidence(handle,f.args,f.request.nonce));
+ await assert.rejects(f.api.assert(handle,{...f.args,packet:{packetSha256:'b'.repeat(64)}},f.request.nonce));
+ await assert.rejects(f.api.assert(handle,f.args,id(99)));
+ await f.api.close(handle);assert.equal(f.counts().closed,1);
+});
+test('preparation clones callers before async verification and finish consumes exactly once',async()=>{
+ const f=admissionFixture(),original=structuredClone(f.args),pending=f.api.prepare(f.args,f.request);f.args.packet.packetSha256='b'.repeat(64);
+ const handle=await pending;
+ const results=await Promise.allSettled([f.api.assert(handle,original,f.request.nonce,{consume:true}),f.api.assert(handle,original,f.request.nonce,{consume:true})]);
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(f.counts().verified,1);
+ await f.api.close(handle);await f.api.close(handle);assert.equal(f.counts().closed,1);
+});
+for(const method of ['tamper','loseLease'])test(`late ${method} stops admission and closes custody`,async()=>{
+ const f=admissionFixture(),handle=await f.api.prepare(f.args,f.request);f[method]();
+ await assert.rejects(f.api.assert(handle,f.args,f.request.nonce));assert.equal(f.counts().closed,1);
+ await assert.rejects(f.api.assert(handle,f.args,f.request.nonce));
 });

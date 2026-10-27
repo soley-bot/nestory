@@ -10,6 +10,9 @@ import {inspectWindowsResetJournal} from './pilot-finance-reset-windows-journal.
 import {openSavedPilotRehearsal,inspectSavedPilotRehearsal,assertSavedPilotRehearsalHeld,disposeSavedPilotRehearsal} from './local-backup-saved-rehearsal.mjs';
 import {openPilotLiveWitnessInputs} from './local-backup-live-input.mjs';
 import {assertPilotLivePacketBinding} from './local-backup-live-packet.mjs';
+import {holdBusinessSpillCustody} from './local-backup-business-runtime.mjs';
+import {verifyHostedPacketSources} from './pilot-finance-reset-hosted-transport.mjs';
+import {digestDatabaseJson} from './pilot-finance-reset-hosted-transport-protocol.mjs';
 const hash=/^[a-f0-9]{64}$/,uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const exact=(v,k)=>v&&Object.getPrototypeOf(v)===Object.prototype&&JSON.stringify(Object.keys(v).sort())===JSON.stringify([...k].sort());
 const fail=()=>{throw Error('local_custody_saved_evidence_unverified')};
@@ -121,3 +124,97 @@ export async function verifySavedLocalRecoveryEvidence({evidence,custody,packet,
   remainingProofs:context.nativeContinuationReadbackVerified===true?[]:['native-continuation-readback']});
  }finally{await disposeSavedPilotRehearsal(context)}
 }
+
+// Each factory has its own brands. A synthetic factory cannot mint a receipt
+// accepted by the fixed production instance below or by the signer.
+export function createPreparedCustodyAdmission({hold,collect,verify,check}){
+ const receipts=new WeakMap();
+ const binding=value=>digestDatabaseJson(value);
+ const get=handle=>{const state=receipts.get(handle);if(!state||state.closed)fail();return state;};
+ const close=async handle=>{const state=receipts.get(handle);if(!state||state.closed)return;state.closed=true;try{await state.lease.close()}finally{state.args=null;state.closure=null;}};
+ return Object.freeze({
+  async prepare(args,request){
+   args=structuredClone(args);request=structuredClone(request);const lease=await hold();let handle;
+   try{
+    const closure=await collect(args,request);
+    if((await verify(args)).operationalCustodyVerified!==true)fail();
+    await check(closure,args);await lease.check();
+    handle=Object.freeze({format:'nestory-prepared-custody-v1'});
+    receipts.set(handle,{args,closure,request,binding:binding(args),lease,closed:false,consumed:false});return handle;
+   }catch(error){await lease.close();throw error;}
+  },
+  async assert(handle,args,nonce,{consume=false}={}){
+   const state=get(handle);if(state.consumed||state.request.nonce!==nonce||state.binding!==binding(args))fail();
+   // Claim before the first await: concurrent finish/sign attempts cannot share it.
+   if(consume)state.consumed=true;
+   try{await state.lease.check();await check(state.closure,state.args);await state.lease.check();return true;}
+   catch(error){await close(handle);throw error;}
+  },
+  async held(handle){await get(handle).lease.check();return true;},
+  close,
+ });
+}
+
+async function boundedAll(items,work){
+ let next=0;
+ const results=await Promise.allSettled(Array.from({length:Math.min(4,items.length)},async()=>{
+  for(;;){const index=next++;if(index>=items.length)return;await work(items[index]);}
+ }));
+ if(results.some(result=>result.status==='rejected'))fail();
+}
+export function preparedCustodyArtifactReferences({evidence,request,proofs,manifest,metadata,metadataSha256}){
+ assertLocalCustodyEvidenceReference(evidence);
+ if(!exact(request,['inputArchiveId','inputArchiveSha256','nonce'])||!uuid.test(request.inputArchiveId)||!uuid.test(request.nonce)||!hash.test(request.inputArchiveSha256))fail();
+ const refs=new Map();
+ const add=(id,kind,sha256)=>{
+  if(!uuid.test(id)||!hash.test(sha256))fail();const name=id+'.'+kind,prior=refs.get(name);
+  if(prior&&prior.sha256!==sha256)fail();refs.set(name,{id,kind,sha256});
+ };
+ for(const role of roles)add(evidence[role].id,'proof.json',evidence[role].sha256);
+ const b=proofs.businessRestore,f=proofs.filesRestore,k=proofs.keyRecovery;
+ add(request.inputArchiveId,'archive.pgp',request.inputArchiveSha256);
+ add(b.childProofId,'proof.json',b.childProofSha256);
+ add(evidence.businessArchive.id,'archive.pgp',evidence.businessArchive.sha256);
+ for(const reference of [b.rehearsalInputs,b.inverseInputs,evidence.liveWitness]){
+  assertBusinessRehearsalInputReference(reference,evidence.keyId);add(reference.archiveId,'archive.pgp',reference.archiveSha256);
+ }
+ add(f.archiveId,'archive.pgp',f.ciphertextSha256);add(k.archiveId,'synthetic.pgp',k.ciphertextSha256);
+ add(evidence.keyId,'metadata.json',metadataSha256);add(evidence.keyId,'public.asc',metadata.publicKeySha256);add(evidence.keyId,'private.dpapi',metadata.wrappedKeySha256);
+ if(manifest.sourceSha256!==evidence.businessArchive.sourceSha256||manifest.planSha256!==f.planSha256||manifest.objects.length!==f.objects||manifest.totalBytes!==f.totalBytes)fail();
+ return {refs:[...refs.values()],objects:manifest.objects.map(({archiveId,ciphertextBytes,ciphertextSha256})=>({archiveId,ciphertextBytes,ciphertextSha256}))};
+}
+export function assertPreparedCustodyArtifactBytes(ref,bytes){
+ if(!(bytes instanceof Uint8Array)||bytes.length!==ref.bytes||backupHash(bytes)!==ref.sha256)fail();return true;
+}
+async function collectPreparedClosure(args,request){
+ const {evidence,packet}=args;assertLocalCustodyEvidenceReference(evidence);
+ if(!exact(request,['inputArchiveId','inputArchiveSha256','nonce'])||!uuid.test(request.inputArchiveId)||!uuid.test(request.nonce)||!hash.test(request.inputArchiveSha256))fail();
+ const proofs={};for(const role of roles){const bytes=await readPrivateBackupFile(evidence[role].id,'proof.json');
+  try{if(bytes.length>262144||backupHash(bytes)!==evidence[role].sha256)fail();proofs[role]=decode(bytes);}finally{bytes.fill(0);}}
+ const b=proofs.businessRestore,f=proofs.filesRestore,k=proofs.keyRecovery;
+ void k;
+ // Pin the key metadata before the unchanged full verifier proves it. All
+ // captured bytes are checked again after that verification and before signing.
+ const metadataBytes=await readPrivateBackupFile(evidence.keyId,'metadata.json');let metadata,metadataSha256;
+ try{metadata=decode(metadataBytes);metadataSha256=backupHash(metadataBytes);}
+ finally{metadataBytes.fill(0);}
+ const cipher=await readPrivateBackupFile(f.archiveId,'archive.pgp');let plain,manifest;
+ try{if(backupHash(cipher)!==f.ciphertextSha256)fail();plain=await decryptLocalBackup(evidence.keyId,cipher);manifest=assertStoredLocalFileManifest(decode(plain));}
+ finally{cipher.fill(0);plain?.fill(0);}
+ const closure=preparedCustodyArtifactReferences({evidence,request,proofs,manifest,metadata,metadataSha256});
+ await boundedAll(closure.refs,async ref=>{const bytes=await readPrivateBackupFile(ref.id,ref.kind);try{if(backupHash(bytes)!==ref.sha256)fail();ref.bytes=bytes.length;}finally{bytes.fill(0);}});
+ return {...closure,
+  sourcePins:structuredClone(b.sourcePins),packet:structuredClone(packet)};
+}
+async function checkPreparedClosure(closure){
+ const results=await Promise.allSettled([
+  boundedAll(closure.refs,async ref=>{const bytes=await readPrivateBackupFile(ref.id,ref.kind);try{assertPreparedCustodyArtifactBytes(ref,bytes);}finally{bytes.fill(0);}}),
+  verifyPrivateBackupCiphertexts(closure.objects),assertSourcePins(closure.sourcePins),verifyHostedPacketSources(closure.packet),
+ ]);
+ if(results.some(result=>result.status==='rejected'))fail();
+}
+const preparedCustody=createPreparedCustodyAdmission({hold:holdBusinessSpillCustody,collect:collectPreparedClosure,verify:verifySavedLocalRecoveryEvidence,check:checkPreparedClosure});
+export const prepareSavedLocalRecoveryEvidence=(args,request)=>preparedCustody.prepare(args,request);
+export const assertPreparedLocalRecoveryEvidence=(handle,args,nonce,options)=>preparedCustody.assert(handle,args,nonce,options);
+export const assertPreparedLocalRecoveryEvidenceHeld=handle=>preparedCustody.held(handle);
+export const disposePreparedLocalRecoveryEvidence=handle=>preparedCustody.close(handle);

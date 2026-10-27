@@ -9,14 +9,57 @@ import {approvalObservationQuery,validateApprovalObservation} from './pilot-fina
 import {hostedBinding} from './pilot-finance-reset-hosted-transport-protocol.mjs';
 import {localDispatchActorReadinessSql,prepareLocalDispatchSessionReview,prepareLocalDispatchReviewArtifacts,assertLocalDispatchReviewArtifacts,
  prepareLocalDispatchStageAuthority,assertLocalDispatchStageAuthority,assertLocalDispatchStageEvidenceRecord} from './local-backup-dispatch-review.mjs';
-import {bootstrapLocalDispatch,publishLocalDispatch,dispatchLocalReconciliation,discoverLocalDispatch,collectLocalDispatchReceipt,persistPreparedLocalDispatchInput,extractLocalCustodyReceipt,localCustodyRunTitle,localDispatchWorkerWaiting} from './local-backup-dispatch-local.mjs';
+import {bootstrapLocalDispatch,publishLocalDispatch,dispatchLocalReconciliation,discoverLocalDispatch,collectLocalDispatchReceipt,persistPreparedLocalDispatchInput,extractLocalCustodyReceipt,localCustodyRunTitle,localDispatchWorkerWaiting,
+ createLocalPublicationLifecycle,prepareLocalDispatchPublication,finishLocalDispatchPublication,checkLocalDispatchPublication} from './local-backup-dispatch-local.mjs';
 const locator={operationId:'11111111-1111-4111-8111-111111111111',action:'execute',nonce:'22222222-2222-4222-8222-222222222222'};
 const receipt={format:'nestory-local-custody-result-v1',operationId:locator.operationId,action:locator.action,runId:'123',runAttempt:1,intentSha256:'a'.repeat(64),
  outcome:'committed-and-verified',mutationRetried:false,observationSha256:'b'.repeat(64),checkpointSha256:'c'.repeat(64),normalWritesReopened:false};
 const expected={...locator,mode:'execute',originalRunId:123,actualRunId:123,intentSha256:receipt.intentSha256};
 const line=(value,step='Wait for exact run ticket and execute once')=>`Pilot reset local custody\t${step}\t2026-10-27T12:00:00Z ${JSON.stringify(value)}`;
 test('malformed operator requests reject before private inputs or provider requests',async()=>{
- for(const action of [()=>bootstrapLocalDispatch({}),()=>publishLocalDispatch({},''),()=>dispatchLocalReconciliation({}),()=>discoverLocalDispatch({}),()=>collectLocalDispatchReceipt({})])await assert.rejects(action(),/request_invalid/);
+ for(const action of [()=>bootstrapLocalDispatch({}),()=>publishLocalDispatch({},''),()=>prepareLocalDispatchPublication({}),()=>dispatchLocalReconciliation({}),()=>discoverLocalDispatch({}),()=>collectLocalDispatchReceipt({})])await assert.rejects(action(),/request_invalid/);
+});
+test('prepared publication rejects fabricated handles before custody, signer or transport',async()=>{
+ await assert.rejects(finishLocalDispatchPublication({format:'nestory-prepared-local-publication-v1'},locator.nonce),/prepared_publication_invalid/);
+ await assert.rejects(checkLocalDispatchPublication({}),/prepared_publication_invalid/);
+});
+function publicationFixture(checkFresh=()=>{}){
+ const request={inputArchiveId:locator.operationId,inputArchiveSha256:'a'.repeat(64),nonce:locator.nonce};
+ let rejectCheck=false,disposed=0,published=0,prepared=0;
+ const lifecycle=createLocalPublicationLifecycle({
+  prepare:async r=>{prepared++;return {input:{locator:{operationId:locator.operationId},action:'execute',payload:{packet:{packetSha256:'b'.repeat(64)}}},r};},
+  check:async(value,r)=>{assert.deepEqual(value.r,r);if(rejectCheck)throw Error('freshness failed');await checkFresh();},
+  publish:async(value,r,authorizationId)=>{published++;assert.deepEqual(value.r,r);return {authorizationId,nonce:r.nonce};},
+  dispose:async()=>{disposed++},
+ });
+ return {request,lifecycle,failCheck:()=>{rejectCheck=true},counts:()=>({disposed,published,prepared})};
+}
+test('publication prepares before authorization, passive check never publishes, and finish is single-use',async()=>{
+ const f=publicationFixture(),{handle,ready}=await f.lifecycle.prepare(f.request);
+ assert.deepEqual(Object.keys(ready).sort(),['action','nonce','operationId','packetSha256','status']);
+ assert.equal((await f.lifecycle.check(handle)).status,'prepared-integrity-verified');assert.equal(f.counts().published,0);
+ const results=await Promise.allSettled([f.lifecycle.finish(handle,locator.operationId),f.lifecycle.finish(handle,locator.operationId)]);
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.deepEqual(f.counts(),{disposed:1,published:1,prepared:1});
+ await f.lifecycle.dispose(handle);assert.equal(f.counts().disposed,1);
+});
+test('publication clones request and cannot transfer a synthetic handle into production or another lifecycle',async()=>{
+ const f=publicationFixture(),nonce=f.request.nonce,pending=f.lifecycle.prepare(f.request);f.request.nonce=locator.operationId;
+ const {handle}=await pending;assert.equal(f.lifecycle.inspect(handle).nonce,nonce);
+ await assert.rejects(finishLocalDispatchPublication(handle,locator.operationId),/prepared_publication_invalid/);
+ await assert.rejects(publicationFixture().lifecycle.finish(handle,locator.operationId),/prepared_publication_invalid/);
+ await assert.rejects(f.lifecycle.finish({...handle},locator.operationId),/prepared_publication_invalid/);
+ await f.lifecycle.dispose(handle);
+});
+test('late admission failure prevents signing/publication and disposes prepared state',async()=>{
+ const f=publicationFixture(),{handle}=await f.lifecycle.prepare(f.request);f.failCheck();
+ await assert.rejects(f.lifecycle.finish(handle,locator.operationId),/freshness failed/);
+ assert.deepEqual(f.counts(),{disposed:1,published:0,prepared:1});await assert.rejects(f.lifecycle.finish(handle,locator.operationId),/prepared_publication_invalid/);
+});
+test('real stage-evidence expiry after preparation prevents publication',async()=>{
+ const reviewed=reviewFixture(true),f=publicationFixture(()=>assertLocalDispatchStageAuthority(reviewed));
+ const {handle}=await f.lifecycle.prepare(f.request);reviewed.now=Date.parse(reviewed.authority.expiresAt);
+ await assert.rejects(f.lifecycle.finish(handle,locator.operationId),/review_unverified/);
+ assert.deepEqual(f.counts(),{disposed:1,published:0,prepared:1});
 });
 test('private input preparation rejects a caller custody claim before files, encryption or provider work',async()=>{
  await assert.rejects(persistPreparedLocalDispatchInput({context:{operationalCustodyVerified:true}}),/saved_rehearsal_unverified/);

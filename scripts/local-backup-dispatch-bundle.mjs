@@ -145,25 +145,29 @@ export async function openFixedLocalDispatchJournal(){
     reference.configuration?.directory!=='C:\\Users\\USer\\Nestory-Recovery\\pilot-october-2026\\local-journal')fail();
   return openWindowsResetJournal(reference.configuration);
 }
-async function verifyDurableDispatch(ticket,payload){
+async function verifyDurableDispatch(ticket,payload,preparedCustody){
   const store=await openFixedLocalDispatchJournal();
   const prefix=`financial-reset/${ticket.operationId}/manual-stage/${ticket.action}`;
   const [intentBytes,claimBytes,responseBytes,bootstrapClaimBytes,bootstrapResponseBytes,workflowPostBytes,evidenceRecordBytes]=await Promise.all(
     ['intent','dispatch-claim','dispatch-response',`bootstrap/${ticket.nonce}/claim`,`bootstrap/${ticket.nonce}/response`,`bootstrap/${ticket.nonce}/workflow-post`,'custody-evidence'].map(k=>store.read(`${prefix}/${k}`)));
   assertDispatchJournalRecords({ticket,payload,intentBytes,claimBytes,responseBytes,bootstrapClaimBytes,bootstrapResponseBytes,workflowPostBytes,evidenceRecordBytes});
   assertLocalDispatchStageEvidenceRecord({recordBytes:await store.read(`${prefix}/stage-evidence`),ticket,payload});
-  const {verifySavedLocalRecoveryEvidence}=await import('./local-backup-custody-evidence.mjs');
-  const verified=await verifySavedLocalRecoveryEvidence({evidence:JSON.parse(evidenceRecordBytes).evidence,custody:JSON.parse(intentBytes).custody,packet:payload.packet,artifacts:payload.artifacts,observation:payload.observation});
-  if(verified.operationalCustodyVerified!==true)fail();
+  const {verifySavedLocalRecoveryEvidence,assertPreparedLocalRecoveryEvidence}=await import('./local-backup-custody-evidence.mjs');
+  const args={evidence:JSON.parse(evidenceRecordBytes).evidence,custody:JSON.parse(intentBytes).custody,packet:payload.packet,artifacts:payload.artifacts,observation:payload.observation};
+  if(preparedCustody!==undefined){
+    await assertPreparedLocalRecoveryEvidence(preparedCustody,args,ticket.nonce,{consume:true});
+    assertLocalDispatchStageEvidenceRecord({recordBytes:await store.read(`${prefix}/stage-evidence`),ticket,payload});
+  }
+  else if((await verifySavedLocalRecoveryEvidence(args)).operationalCustodyVerified!==true)fail();
 }
-export async function signLocalDispatchBundle({keyId,ticket,payload}) {
+export async function signLocalDispatchBundle({keyId,ticket,payload,preparedCustody}) {
   // Freeze caller-owned objects before any asynchronous custody access.
   const copy=structuredClone({ticket,payload});const bytes=dispatchSigningBytes(copy.ticket,copy.payload);
   let wrapped,raw;
   try{
     // Actual fixed branded journal read, before public/private key custody.
     // No caller-provided path, mock store or Boolean can replace these records.
-    await verifyDurableDispatch(copy.ticket,copy.payload);
+    await verifyDurableDispatch(copy.ticket,copy.payload,preparedCustody);
     const {metadata,key}=await loadRecoveryPublicKey(keyId);
     wrapped=await readPrivateBackupFile(keyId,'private.dpapi');
     if(hashBytes(wrapped)!==metadata.wrappedKeySha256)fail();
