@@ -97,6 +97,19 @@ function stageReceiptMatches(action,packet,binding,artifacts,o,intent) {
  return action==='prepare'?s.zero===null:s.zero?.status==='prepared'&&s.zero.reviewSha256===binding.zero_review_sha256&&
   s.zero.planSha256===binding.zero_review_sha256&&sameDatabaseJson(s.zero.plan,artifacts.zeroPlan);
 }
+function emptyBooksCheckpointMatches(binding,o) {
+ const semantic=binding.continuation_semantic,continuation=o.continuation?.result,report=o.checkpoint?.result;
+ if(o.continuation?.unchanged!==true||o.emptyBooks?.tenantInvoices!==0||o.emptyBooks?.ownerInvoices!==0||
+   o.emptyBooks?.contractsSha256!==semantic.contracts_sha256||!digestPattern.test(continuation?.before_sha256)||
+   continuation.before_sha256!==continuation.after_sha256)return false;
+ if([continuation,report].some(result=>result?.empty_books!==true||result.billing_paused!==true||result.contracts_unchanged!==true||
+   result.contracts_sha256!==semantic.contracts_sha256||result.billing_complete!==false||result.close_ready!==false||
+   result.deferred_lease_count!==0||result.preserved_unbilled_lease_count!==semantic.leases.length))return false;
+ const expected=semantic.leases.map(lease=>({...lease,invoice_id:null,generated_rent_amount:0,generated_fee_amount:0,contract_changed:false}));
+ return Array.isArray(continuation.leases)&&sameDatabaseJson(
+  [...continuation.leases].sort((a,b)=>String(a?.lease_id).localeCompare(String(b?.lease_id))),
+  expected.sort((a,b)=>a.lease_id.localeCompare(b.lease_id)));
+}
 function phaseState(action,packet,binding,a,r,o) {
  const base={...binding};delete base.recovery;
  const isRecovery=action.endsWith('recovery'),expected=isRecovery?r?.review.operation:a.actions.operation;
@@ -115,10 +128,25 @@ function phaseState(action,packet,binding,a,r,o) {
    !c||c.kind!==(isRecovery?'phase-recovery':'checked-reports')||c.generation!==generation||c.hashValid!==true||
    c.currentImagesMatch!==true||!digestPattern.test(c.sha256)||!sameTransaction(c,execution)||!sameTransaction(c,o.authorization))return false;
  if(isRecovery)return c.result?.control_reopened===false;
+ if(binding.continuation_semantic.version===4&&!emptyBooksCheckpointMatches(binding,o))return false;
  return o.zero?.status==='complete'&&o.zero.reviewSha256===binding.zero_review_sha256&&sameDatabaseJson(o.zero.plan,a.zeroPlan)&&
    o.continuation?.status==='complete'&&same(o.continuation.semantic,a.continuationPlan)&&sameTransaction(o.zero,c)&&
-   Array.isArray(o.phaseFences)&&o.phaseFences.length===3&&o.phaseFences.every(f=>sameTransaction(f,c))&&
+   Array.isArray(o.phaseFences)&&same(o.phaseFences.map(f=>f.phase).sort(),['continuation','known-zero','reports'])&&o.phaseFences.every(f=>sameTransaction(f,c))&&
    c.result?.reports_persisted===true&&c.result?.control_reopened===false&&c.result?.close_published===false;
+}
+// Pure classification of supplied readback, not a database reader or permission
+// to execute. The transport obtains the observation independently; disposable
+// integration tests may pass actual database readback through this same check.
+export function verifyHostedResetExecutionReadback(request) {
+ if(!exactKeys(request,['packet','binding','artifacts','recovery','observation','authorizationId','action'])||
+   !['execute','execute-recovery'].includes(request.action)||!uuid.test(request.authorizationId))fail('execution_readback_invalid');
+ const {packet,binding,artifacts,recovery,observation:o,authorizationId,action}=request;
+ assertOperatorPacket(packet);validateArtifacts(packet,artifacts,recovery);
+ if(!same(binding,hostedBinding(packet,artifacts.continuationPlan,recovery))||
+   (action==='execute-recovery')!==(recovery!==null)||!o||
+   o.authorization?.status!=='consumed'||o.authorization.bindingMatches!==true||
+   o.authorization.authorizationId!==authorizationId||o.authorization.actorId!==binding.continuation_semantic.actor_id)return false;
+ return phaseState(action,packet,binding,artifacts,recovery,o);
 }
 function precondition(action,packet,binding,a,r,o) {
  const base={...binding};delete base.recovery;
@@ -183,13 +211,16 @@ export function createHostedResetTransport(options) {
    !['packetSha256','bindingSha256','authoritySha256','sourceObservationSha256','sqlSha256'].every(k=>digestPattern.test(intent[k]))) fail('original_intent_mismatch');
   const o=await observe(input,intent.authorizationId,action);
   const consumed=o.authorization?.status==='consumed'&&o.authorization.bindingMatches===true&&o.authorization.authorizationId===intent.authorizationId;
-  const complete=consumed&&(['prepare','seal'].includes(action)?
+  const complete=['execute','execute-recovery'].includes(action)?verifyHostedResetExecutionReadback({packet,binding:input.binding,
+   artifacts:input.artifacts,recovery:input.recovery,observation:o,authorizationId:intent.authorizationId,action}):consumed&&(['prepare','seal'].includes(action)?
    stageReceiptMatches(action,packet,input.binding,input.artifacts,o,intent):
    (action!=='checkpoint'||o.recoveryCheckpoint?.authoritySha256===intent.authoritySha256)&&phaseState(action,packet,input.binding,input.artifacts,input.recovery,o));
   return {format:'nestory-hosted-reset-action-reconciliation-v1',operationId:packet.operation.operationId,packetSha256:packet.packetSha256,action,
    outcome:complete?'committed-and-verified':'not-proven-do-not-retry',mutationRetried:false,normalWritesReopened:false,
    checkpointSha256:o.checkpoint?.sha256??null,billingComplete:o.checkpoint?.result?.billing_complete??null,
    deferredUnbilledLeaseCount:o.checkpoint?.result?.deferred_lease_count??null,
+   ...(action==='execute'&&input.binding.continuation_semantic.version===4?{emptyBooksVerified:complete,
+    billingPaused:complete?true:null,closeReady:complete?false:null,contractsUnchanged:complete?true:null}:{}),
    actionReceiptSha256:complete&&['prepare','seal'].includes(action)?o.actionReceipt.sha256:null,
    authoritySha256:intent.authoritySha256,observationSha256:digestDatabaseJson(o)};
  }

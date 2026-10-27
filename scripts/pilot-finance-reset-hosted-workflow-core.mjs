@@ -3,7 +3,8 @@
 import path from 'node:path';
 import { assertOperatorPacket, canonicalJson, hashBytes, hashSourceBytes } from './pilot-finance-reset-operator-core.mjs';
 import { assertNoBackupPacket, NO_BACKUP_POLICY, NO_BACKUP_EVIDENCE_ROLES } from './pilot-finance-reset-no-backup-core.mjs';
-import { timestampMicros } from './pilot-finance-reset-hosted-transport-protocol.mjs';
+import { timestampMicros, digestDatabaseJson } from './pilot-finance-reset-hosted-transport-protocol.mjs';
+import { ACTOR_SOURCE_FILES } from './pilot-finance-reset-hosted-actor.mjs';
 import { validateNoBackupCompletionHistory, validateNoBackupReopeningAudit, validateNoBackupReopeningAuthority }
   from './pilot-finance-reset-reopening-protocol.mjs';
 
@@ -24,6 +25,9 @@ export const HOSTED_RUNTIME_SOURCE_FILES = Object.freeze([
     'core', 'recovery-core', 'registry'].map(name => `scripts/pilot-finance-reset-${name}.mjs`),
   'scripts/local-recovery-docker.mjs', 'scripts/ips-readiness-recovery-core.mjs', 'scripts/hosted-migration-parity-core.mjs',
 ]);
+// Runtime imports and actor/transport SQL contracts are separate rosters. Both
+// must be pinned before reading private artifact/provider configuration.
+export const HOSTED_BOUND_SOURCE_FILES = Object.freeze([...new Set([...HOSTED_RUNTIME_SOURCE_FILES, ...ACTOR_SOURCE_FILES])].sort());
 export const RESET_ACTIONS = Object.freeze(['inspect', 'reconcile', 'freeze', 'checkpoint', 'prepare', 'seal', 'execute', 'prepare-recovery', 'execute-recovery', 'reopen', 'complete-receipt']);
 const actions = RESET_ACTIONS.filter(action => !['inspect', 'reconcile'].includes(action));
 const legacyActions = actions.filter(action => !['reopen', 'complete-receipt'].includes(action));
@@ -249,7 +253,15 @@ export function validateNoBackupRuntimeInputs(descriptors, input, packet, config
 }
 
 export function assertHostedSourceCoverage(packet) {
-  if (HOSTED_RUNTIME_SOURCE_FILES.some(name => !packet.sourceFiles.some(source => source.path === name))) fail('hosted_workflow_source_coverage_missing');
+  if (HOSTED_BOUND_SOURCE_FILES.some(name => !packet.sourceFiles.some(source => source.path === name))) fail('hosted_workflow_source_coverage_missing');
+}
+
+export function summarizeHostedInspection(packet, observation) {
+  assertOperatorPacket(packet);
+  // Observation numbers include fractional ownership and financial values.
+  // This is a summary digest, never a replacement for PostgreSQL row/plan hashes.
+  return { status: 'observed-read-only', operationId: packet.operation.operationId,
+    observationSha256: digestDatabaseJson(observation) };
 }
 
 export function requiresSupplementalRecovery(input) {

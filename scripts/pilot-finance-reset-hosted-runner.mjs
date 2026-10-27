@@ -17,7 +17,7 @@ import { createNoBackupReopeningPreparation } from './pilot-finance-reset-reopen
 import { RESET_REPOSITORY, RESET_CONFIGURATION_PATH, RESET_PERSISTENT_ROOT, RESET_WORKFLOW_PATH,
   parseHostedWorkflowArguments, assertHostedConfiguration, assertPrivatePathObservation, assertPersistentMount,
   assertWorkflowInvocation, assertRuntimeEvidence, validateHostedDescriptors, assertProtectedEnvironment,
-  assertHostedSourceCoverage, requiresSupplementalRecovery, assertSupplementalRecoveryEvidence, isNoBackupWorkflow } from './pilot-finance-reset-hosted-workflow-core.mjs';
+  assertHostedSourceCoverage, summarizeHostedInspection, requiresSupplementalRecovery, assertSupplementalRecoveryEvidence, isNoBackupWorkflow } from './pilot-finance-reset-hosted-workflow-core.mjs';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..');
 const executeFile = promisify(execFile);
@@ -281,7 +281,7 @@ async function runFixedWorkflow(args, historicalReadOnly) {
   if (input.action === 'inspect') {
     const observed = await transport.inspect();
     // Full DB observations contain definitions/row-hash census; never log them.
-    return { status: 'observed-read-only', operationId: packet.operation.operationId, observationSha256: hashBytes(canonicalJson(observed)) };
+    return summarizeHostedInspection(packet, observed);
   }
   if (input.action === 'reconcile') return transport.reconcile({ action: input['reconcile-action'] });
   return transport.dispatch({ action: input.action, authorization: input['authorization-id'] });

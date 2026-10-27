@@ -2,6 +2,10 @@
 
 This is local engineering, not approval to dispatch a customer reset. The genuine-session actor bridge, immutable same-transaction prepare/seal receipts, reservation checks and separate recovery-artifact reader are implemented after explicit approval. Renewal endorsements and a separate historical read-only reconciliation entrypoint are also implemented. These components do not establish that the complete protected path is ready.
 
+For the current GitHub inventory command and concrete host/archive prerequisites,
+see [execution readiness](pilot-reset-execution-readiness.md). That inventory never
+authorizes a reset or verifies private provisioning from GitHub metadata alone.
+
 Every mutating call to the transport and runner still fails with `hosted_transport_integration_incomplete` before opening private providers. Nothing in a packet, environment variable or workflow input can override this unconditional gate. The transport records `complete_hosted_path_review_and_database_proof_pending`; the operator packet retains its older `*_unimplemented` blocker labels after a proposed label change was denied. Those labels conservatively hold unresolved end-to-end gates; they are not an inventory of absent source files. Do not merge, deploy, enroll or dispatch this branch as a customer reset on the strength of local implementation or tests.
 
 ## Implemented boundaries
@@ -34,16 +38,40 @@ The real executor and private storage destination still need verification and se
 
 ## Business and recovery limits
 
-The selected treatment clears prior and October transactions and recorded held-deposit balances, while preserving properties, People, leases, contract terms and contractual deposit requirements. Five leases whose terms ended in September remain unchanged and unbilled. The owner selected original invoice dates: October 1 issue dates and October 7 due dates, preserving overdue status; the actual execution business date and audit time remain separately recorded. The scoped original-date path rejects contract renewal and has not run against customer data. Ordinary application execution-date behavior is unchanged.
+The current requested treatment is the version-4 `empty-books-no-invoices` mode:
+clear reviewed prior and October financial activity and recorded deposit cash,
+preserve properties, units, people, every lease and its complete terms/billing-rule
+history, and generate no invoices or renewals. Contractual deposit requirements
+remain separate from cash and require exact reviewed status dispositions. The
+October 1 boundary and actual execution business date are bound separately; this
+mode does not issue invoices. The earlier original-invoice-date rebuild mode is
+a different review and must not be substituted for empty books.
+
+V4 requires known-zero, no-op continuation and checked reports in one transaction.
+It remains frozen, with billing paused and billing/owner-close readiness explicitly
+false. A later restart needs separate supported review. The historical native
+clone runner rejects v4 before clone creation because it lacks consumed-session
+integration; pure SQL construction is not proof that this runner can execute it.
 
 Neither reset nor restore reopens normal writes automatically. A checked final report checkpoint, complete archive, actual customer file-byte recovery, foreign-organization preservation and prevention of later-entry loss must be proven for the exact operation. An inverse needs a separately approved post-reset checkpoint and exact generated row mapping; original reset consent is not inverse consent. Retained audit/provenance/generation/sequence state means restoration is not a byte-identical rewind of the entire database.
 
-The real customer database and 61 referenced files have not been exported/restored by this implementation. Existing local synthetic recovery evidence does not certify customer recovery. Staff notice text remains a draft; recipients and channel remain pending. No notice has been sent.
+The real customer database and referenced file bytes have not been exported or
+restored by this implementation. Existing synthetic evidence does not certify
+customer recovery. Encryption of a Windows workstation does not by itself prove
+the Linux runner's mount, archive retention, key recovery or writer ownership.
+Staff notice text remains a draft; recipients and channel remain pending. No
+notice has been sent.
 
 ## Verification
 
 Run the registered `npm run test:pilot-finance-reset` gate and applicable SQL suites in owned disposable fixtures only. Windows tests exercise actual exclusive file writes, AES envelopes, restart readback, missing/corrupt receipts, sanitized errors, closed workflow arguments and mutation refusal. Strict POSIX directory-fsync behavior is explicitly skipped on Windows; do not report it as passed unless separately executed and evidenced on Linux. Mock process tests prove protocol construction and refusal, not real TLS, authentication, hosted privileges or successful COMMIT recovery.
 
-At the October 24 local checkpoint, the full Node gate reported 497 tests: 494 passed, none failed and three Windows/sandbox skips. All five safety migrations compiled in the disposable database. SQL and actual local Auth/receipt integration checks remain under the sole runtime validator; compilation and synthetic tests are not a completed end-to-end result. No customer restore, real file-byte recovery, protected executor/provider verification or live action authority has been established by these counts.
+The v4 candidate's fresh synthetic database check compiled all repository
+migrations and passed its focused empty-books and legacy reset suites. Source
+hashes and TAP logs identify the exact tested files. Record the current command,
+revision, assertions, skips and remaining limits for each new integration run;
+older test totals are not evidence for changed code. No customer restore, real
+file-byte recovery, protected executor/provider verification or live action
+authority is established by synthetic counts.
 
 Do not remove the two retained synthetic Storage objects to make cleanup appear successful: the existing evidence-storage guard rejected that cleanup. Preserve their journals and owned volumes until a supported, separately reviewed cleanup is available. Do not inspect the other user's denied worktree path or alter that session.

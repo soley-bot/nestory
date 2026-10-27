@@ -27,7 +27,22 @@ Reviewed plaintext artifact shapes:
 - `reportPlan`: `{report_review_sha256}`.
 - `recoveryPlan`: before reset, a reviewed recovery policy/proof artifact. For an explicit inverse, the implemented supplemental reader exposes `readRecoveryReview()` returning a separately consented immutable `{review, artifactSha256}`. `review` is `{operation, actions, phaseBinding, phaseBindingSha256, executionBusinessDate}` bound to the original checked report checkpoint. `phaseBindingSha256` is the PostgreSQL canonical hash of `phaseBinding`. The reader authenticates the encrypted envelope, completion receipt, exact expected binding and current protected authority. The recovery action never mutates or replaces the original packet/artifacts; the runtime must authorize this exact new review digest and operation UUID. Exact generated row IDs cannot be assumed before the original checked transaction commits. The unconditional dispatch gate still blocks recovery execution.
 
-All packet source files are verified on disk. Inspection independently reads complete installed schema descriptors (including function bodies, ACLs and triggers) and migration statement descriptors; it does not trust the operation row's caller-supplied schema digest. The fixed mutation SQL rechecks the exact observed descriptors under the single writer lock. Its reset graph consumes the actor authorization, starts/actions/completes the private engine, applies zero, prepares/applies continuation and finalizes checked reports in one READ COMMITTED backend/top-level transaction. The selected scoped continuation uses October 1 issue dates and October 7 due dates, records the real execution business date/audit time separately, rejects renewal and leaves the five expired leases unchanged and unbilled. Recovery SQL similarly completes the checked inverse and immutable phase-recovery checkpoint. This describes the implemented graph, not permission or ability to pass the dispatch gate. Final results require fresh read-only inspection of the immutable checkpoint, operation, consumed authorization and frozen control state. Unknown outcomes retain intent/evidence and permit inspection only.
+All packet source files are verified on disk. Inspection independently reads
+complete installed schema descriptors (including function bodies, ACLs and
+triggers) and migration statement descriptors; it does not trust the operation
+row's caller-supplied schema digest. The fixed mutation SQL rechecks the exact
+observed descriptors under the single writer lock. Its reset graph consumes the
+actor authorization, starts/actions/completes the private engine, applies zero,
+prepares/applies continuation and finalizes checked reports in one READ COMMITTED
+backend/top-level transaction. Version 3 can rebuild reviewed original-date
+invoices. Version 4 instead preserves every contract, generates no invoices and
+remains frozen with billing paused. Both separately bind the actual execution
+business date. Recovery SQL similarly completes the checked inverse and immutable
+phase-recovery checkpoint. This describes the implemented graph, not permission
+or ability to pass the dispatch gate. Final results require fresh read-only
+inspection of the immutable checkpoint, operation, consumed authorization and
+frozen control state. Unknown outcomes retain intent/evidence and permit
+inspection only.
 
 The separate `pilot-finance-reset-hosted-reconcile.mjs` entrypoint uses the clean retained original checkout and existing stores opened read-only. It requires exact original packet, descriptors and authority binding, current original provisioning, and separate current read authority. It can inspect expired original action/recovery authority as historical evidence; it cannot consume an actor, initialize a store, dispatch an inverse, retry or reopen writes. Schema/ledger drift still fails closed. Ordinary workflow recovery continues to require unexpired original action authority and original provisioning, plus its separate current recovery authority. The proposed extension of the historical expiry exemption to inverse execution was rejected and is not applied.
 
@@ -35,4 +50,21 @@ A recovery refresh would need a separately reviewed mechanism preserving the ori
 
 The durable journal contains only identifiers and digests, including a canonical binding digest; it never stores the continuation lease roster or archived row images. `inspect()` returns private plan data for the trusted runner to assess. CLI output must project a fixed status/count/digest allowlist and must never serialize the complete observation.
 
-The October 24 local checkpoint records 494 passing Node tests out of 497, zero failures and three Windows/sandbox skips; five safety migrations compiled. Actual local SQL/Auth/receipt checks remain in progress under one runtime validator. These results do not prove the complete hosted path, a provisioned private executor/provider, live actor authority, customer database recovery or recovery of the 61 referenced files.
+For the v4 empty-books mode, read-only observation includes the current full
+contract hash, target tenant/owner invoice counts, continuation result and equality
+of its before/after images. Successful execution reconciliation additionally
+requires the exact preserved-unbilled result roster, zero generated rent/fees,
+unchanged contracts, zero invoices, the three named phase fences, and explicit
+paused/incomplete/not-close-ready results. A complete-looking operation status
+alone does not establish this outcome. Inspection digests preserve fractional
+database numbers such as ownership percentages; packet/source digests retain
+their existing canonical contract.
+
+Workflow source coverage includes the actor's transitive SQL dependencies as well
+as runtime scripts. Missing source files fail preflight before actor lookup. This
+coverage check cannot establish deployed migration parity or grant authority.
+
+Keep exact revision, source hashes and runtime evidence for the current tests.
+Synthetic SQL or genuine local Auth tests do not prove a provisioned protected
+executor, customer database/file recovery, off-host key recovery, or live action
+authority. The unconditional hosted dispatch gate remains in place.

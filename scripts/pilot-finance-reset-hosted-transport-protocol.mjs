@@ -230,6 +230,7 @@ export function validateArtifacts(packet,artifacts,recovery=null) {
 
 export function observationSql(packet,binding,authorizationId=null,action=null) {
  const id=binding.recovery?.operation_id??binding.operation_id,org=literal(binding.organization_id),op=literal(id),base=literal(binding.operation_id);
+ const emptyBooks=binding.continuation_semantic?.version===4;
  return `BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
 SET LOCAL standard_conforming_strings=on; SET LOCAL statement_timeout='30s'; SET LOCAL search_path=pg_catalog,public; SET LOCAL timezone='UTC';
 SELECT jsonb_build_object('catalog',${catalogExpression},'ledger',${ledgerExpression},
@@ -252,7 +253,11 @@ SELECT jsonb_build_object('catalog',${catalogExpression},'ledger',${ledgerExpres
  'actionCount',(SELECT count(*) FROM app_private.financial_reset_actions WHERE operation_id=${op}::uuid),
  'capabilityCount',(SELECT count(*) FROM app_private.financial_reset_transaction_capabilities WHERE organization_id=${org}::uuid),
  'zero',(SELECT jsonb_build_object('status',status,'reviewSha256',review_sha256,'planSha256',app_private.financial_reset_hash(plan_json),'plan',plan_json,'backendPid',execution_backend,'transactionId',execution_xid::text) FROM app_private.financial_reset_zero_plans WHERE operation_id=${base}::uuid),
- 'continuation',(SELECT jsonb_build_object('status',status,'semantic',plan_json-'source_sha256','reviewSha256',review_sha256) FROM app_private.financial_reset_continuation_plans WHERE operation_id=${base}::uuid),
+ 'continuation',(SELECT jsonb_build_object('status',status,'semantic',plan_json-'source_sha256','reviewSha256',review_sha256${emptyBooks?",'result',result_json,'unchanged',before_images=after_images":''}) FROM app_private.financial_reset_continuation_plans WHERE operation_id=${base}::uuid),
+ ${emptyBooks?`'emptyBooks',(SELECT jsonb_build_object('contractsSha256',app_private.financial_reset_hash(app_private.financial_reset_preserved_contracts(${org}::uuid)),
+  'tenantInvoices',(SELECT count(*) FROM public.tenant_invoices WHERE organization_id=${org}::uuid),
+  'ownerInvoices',(SELECT count(*) FROM public.owner_invoices WHERE organization_id=${org}::uuid))
+  FROM app_private.financial_reset_continuation_plans WHERE operation_id=${base}::uuid AND plan_json->'version'='4'::jsonb),`:''}
  'phaseFences',(SELECT coalesce(jsonb_agg(jsonb_build_object('phase',phase,'backendPid',backend_pid,'transactionId',transaction_id::text) ORDER BY phase),'[]'::jsonb) FROM app_private.financial_reset_phase_fences WHERE operation_id=${op}::uuid),
  'approvalCount',(SELECT count(*) FROM app_private.financial_reset_zero_approvals WHERE operation_id=${base}::uuid AND review_sha256=${literal(binding.zero_review_sha256)}),
  'checkpoint',(SELECT jsonb_build_object('kind',checkpoint_kind,'generation',generation,'sha256',checkpoint_sha256,
