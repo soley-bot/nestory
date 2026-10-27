@@ -337,8 +337,6 @@ jobs:
     permissions:
       contents: read
       packages: read
-    env:
-      NESTORY_DATABASE_DOCKER_CONFIG: ${{ runner.temp }}/nestory-database-docker-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
       - name: Check out repository
@@ -364,7 +362,7 @@ jobs:
         shell: bash
         env:
           GHCR_TOKEN: ${{ github.token }}
-          DOCKER_CONFIG: ${{ env.NESTORY_DATABASE_DOCKER_CONFIG }}
+          DOCKER_CONFIG: ${{ runner.temp }}/nestory-database-docker-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
           umask 077
@@ -374,7 +372,7 @@ jobs:
 
       - name: Start local Supabase
         env:
-          DOCKER_CONFIG: ${{ env.NESTORY_DATABASE_DOCKER_CONFIG }}
+          DOCKER_CONFIG: ${{ runner.temp }}/nestory-database-docker-${{ github.run_id }}-${{ github.run_attempt }}
         run: npm run supabase:start
 
       - name: Reset database
@@ -389,7 +387,7 @@ jobs:
       - name: Seed pinned postgres-meta image for type generation
         shell: bash
         env:
-          DOCKER_CONFIG: ${{ env.NESTORY_DATABASE_DOCKER_CONFIG }}
+          DOCKER_CONFIG: ${{ runner.temp }}/nestory-database-docker-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
           readonly source_digest="sha256:2559d20aaa50f2eb86a6cb2e5af4e847e87139673bc214b4655c126d96c160b2"
@@ -495,11 +493,13 @@ jobs:
       - name: Remove temporary registry authentication
         if: always()
         shell: bash
+        env:
+          DOCKER_CONFIG: ${{ runner.temp }}/nestory-database-docker-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
-          test "$NESTORY_DATABASE_DOCKER_CONFIG" = "${RUNNER_TEMP}/nestory-database-docker-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          test ! -L "$NESTORY_DATABASE_DOCKER_CONFIG"
-          rm -rf -- "$NESTORY_DATABASE_DOCKER_CONFIG"
+          test "$DOCKER_CONFIG" = "${RUNNER_TEMP}/nestory-database-docker-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test ! -L "$DOCKER_CONFIG"
+          rm -rf -- "$DOCKER_CONFIG"
 
   application_gate:
     name: Report Application deployment gate
