@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { TARGET, json, sha256 } from './pilot-finance-reset-core.mjs';
-import { patchRowText, materializeResetActions, materializeRestoreActions, assertCheckedPhaseReview, orderRecoverySources, historicalRestoreRemovalEdges } from './pilot-finance-reset-executor-plan.mjs';
+import { patchRowText, materializeResetActions, materializeRestoreActions, assertCheckedPhaseReview, orderRecoverySources, historicalRestoreRemovalEdges, ownerContributionRestoreRemovalEdges } from './pilot-finance-reset-executor-plan.mjs';
 
 const hash = 'a'.repeat(64), id = '00000000-0000-4000-8000-000000000099';
 const seal = (value, field) => { const body = { ...value }; delete body[field]; return { ...body, [field]: sha256(json(body)) }; };
@@ -148,7 +148,7 @@ function historicalOrderFixture(shape) {
   const rows = shape === 'opening' ? [
     make('public.owner_opening_balance_entries', 10, { ...scope, entry_kind: 'correction_replacement', reversal_of_entry_id: null }),
     make('public.owner_opening_balance_entries', 11, { ...scope, entry_kind: 'correction_reversal', reversal_of_entry_id: uuid(12) }),
-  ] : [
+  ] : shape === 'contribution' ? contributionRows().reverse() : [
     make('public.expense_customer_adjustments', 20, { responsibility: 'owner', responsibility_id: uuid(25) }),
     make('public.owner_charge_cash_allocations', 21, { owner_invoice_line_id: uuid(22), reversal_of_id: null }),
     make('public.owner_invoice_lines', 22, { source_type: 'owner_expense', source_id: uuid(25) }),
@@ -537,4 +537,33 @@ test('orphan, cross-scope and unsupported catalog findings cannot be treated as 
     input.review = seal(input.review, 'reviewSha256');
     assert.throws(() => materializeResetActions(input), /unsupported catalog, scope or orphan/);
   }
+});
+
+function contributionRows(){
+ const uuid=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+ return [1,2,3].map(n=>{const rowText=JSON.stringify({id:uuid(n),organization_id:TARGET.organization,property_id:uuid(10),owner_person_id:uuid(11),
+ currency:'USD',event_type:'owner_contribution',event_date:'2026-09-01',amount:n===2?-10:10,reversal_of_id:n===2?uuid(1):null,corrects_event_id:n===3?uuid(1):null});
+ return {table:'public.owner_cash_events',pk:[uuid(n)],rowText,sha256:sha256(rowText)};});
+}
+test('contribution correction adds only its exact reversal-before-correction inverse dependency',()=>{
+ const rows=contributionRows(),before=structuredClone(rows),edges=ownerContributionRestoreRemovalEdges(rows,rows,TARGET.organization);
+ assert.deepEqual(edges,[{kind:'historical-restore-order',rule:'contribution-reversal-before-correction',source:{table:rows[2].table,pk:rows[2].pk},target:{table:rows[1].table,pk:rows[1].pk}}]);
+ assert.deepEqual(historicalRestoreRemovalEdges(rows,rows),edges);assert.deepEqual(rows,before);
+ const removal=[rows[2],rows[1],rows[0]];const restore=[...removal].reverse();assert.deepEqual(restore,rows);
+});
+for(const kind of ['missing-original','missing-reversal','foreign','duplicate','scope','unremoved','changed-hash'])test(`contribution ordering rejects ${kind}`,()=>{
+ let rows=contributionRows(),removable=rows;
+ if(kind==='missing-original')rows=rows.slice(1);
+ if(kind==='missing-reversal')rows=rows.filter((_,i)=>i!==1);
+ if(kind==='duplicate')rows=[...rows,rows[1]];
+ if(kind==='unremoved')removable=rows.slice(1);
+ if(kind==='changed-hash')rows[1]={...rows[1],sha256:'f'.repeat(64)};
+ if(['foreign','scope'].includes(kind)){const value=JSON.parse(rows[1].rowText);value[kind==='foreign'?'organization_id':'currency']=kind==='foreign'?id:'KHR';const rowText=JSON.stringify(value);rows[1]={...rows[1],rowText,sha256:sha256(rowText)};}
+ assert.throws(()=>ownerContributionRestoreRemovalEdges(rows,removable,TARGET.organization),/Contribution restore/);
+});
+
+test('shared reset and restore retain exact cash images while enforcing correction reversal order',()=>{
+ const input=historicalOrderFixture('contribution'),reset=materializeResetActions(input),restore=materializeRestoreActions(reset,2);
+ assert.equal(restore.actions.length,3);assert.deepEqual(restore.actions.map(a=>a.allowedAfterRowText),contributionRows().map(r=>r.rowText));
+ const bad=structuredClone(reset);bad.actions.reverse();assert.throws(()=>materializeRestoreActions(seal(bad,'actionsSha256'),2),/historical restore sequence/);
 });

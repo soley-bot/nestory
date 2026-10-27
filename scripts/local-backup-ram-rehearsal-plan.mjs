@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { validateBusinessSnapshot } from './local-backup-business-restore.mjs';
 import { PILOT_BACKUP_ORGANIZATION } from './local-backup-capture.mjs';
 import { RESET_REGISTRY } from './pilot-finance-reset-registry.mjs';
-import { patchRowText } from './pilot-finance-reset-executor-plan.mjs';
+import { patchRowText, ownerContributionRestoreRemovalEdges } from './pilot-finance-reset-executor-plan.mjs';
 import { buildServerResetPreviewSql, buildServerResetMaintenanceCaptureSql, SERVER_MATERIALIZER_POLICY_SHA256 } from './pilot-finance-reset-server-materializer.mjs';
 import { digestDatabaseJson, catalogExpression, ledgerExpression } from './pilot-finance-reset-hosted-transport-protocol.mjs';
 
@@ -243,8 +243,13 @@ export function buildPilotRamInversePlan(plan, options) {
   }
   if (inverse.length !== generated.size) fail('phase_dependency_cycle');
   const generation = text => Object.hasOwn(JSON.parse(text), 'financial_generation') ? patchRowText(text, { financial_generation: 2 }) : text;
-  const pointers = [];
-  for (const removed of actions.filter(a => a.kind === 'archive-delete').reverse()) {
+  const pointers = [], removedRows = actions.filter(a => a.kind === 'archive-delete');
+  const asHistorical = row => ({ table: row.relation_name, pk: [row.primary_key.id], rowText: row.row_text, sha256: row.row_sha256 });
+  const contributionEdges = ownerContributionRestoreRemovalEdges([...archives.values()].filter(r=>r.relation_name==='public.owner_cash_events').map(asHistorical),
+    removedRows.map(r=>({table:r.relation_name,pk:[r.primary_key.id]})), PILOT_BACKUP_ORGANIZATION);
+  const removalIndexes = new Map(removedRows.map((r,i)=>[JSON.stringify([r.relation_name,[r.primary_key.id]]),i]));
+  for (const edge of contributionEdges) if (removalIndexes.get(JSON.stringify([edge.source.table,edge.source.pk])) >= removalIndexes.get(JSON.stringify([edge.target.table,edge.target.pk]))) fail('contribution_restore_order_invalid');
+  for (const removed of [...removedRows].reverse()) {
     const original = archives.get(identity(removed)), staged = generation(removed.before_row_text), final = generation(original.row_text);
     inverse.push({ relation_name: removed.relation_name, primary_key: structuredClone(removed.primary_key), kind: 'restore', before_row_text: null,
       before_sha256: null, candidate_after_row_text: staged, changed_columns: [] });

@@ -194,13 +194,49 @@ const cycleColumns = {
   'public.property_withdrawals': ['ledger_entry_id'],
 };
 
+// Additional deletion edge makes the inverse insert the reversal before its
+// correction. Scope and full archived images are checked; no row is rewritten.
+// Exact numeric lineage remains checked by the server blocker and native INSERT
+// guard; this helper deliberately does not compare parsed JavaScript amounts.
+export function ownerContributionRestoreRemovalEdges(archiveRows, removalRows, organizationId) {
+  if (!anyUuid.test(organizationId ?? '')) throw Error('Contribution restore organization is invalid.');
+  const rows = new Map(), removable = new Set(removalRows.map(key));
+  for (const row of archiveRows.filter(r => r.table === 'public.owner_cash_events')) {
+    const values = JSON.parse(row.rowText); patchRowText(row.rowText, {});
+    if (sha256(row.rowText) !== row.sha256 || !anyUuid.test(values.id ?? '') ||
+      values.organization_id !== organizationId || !equal(row.pk, [values.id]) || rows.has(values.id)) {
+      throw Error('Contribution restore archived identity is invalid.');
+    }
+    rows.set(values.id, { ...row, values });
+  }
+  const edges = [], scope = ['property_id','owner_person_id','currency','event_type'];
+  for (const correction of rows.values()) {
+    const c = correction.values; if (c.corrects_event_id == null) continue;
+    const original = rows.get(c.corrects_event_id);
+    const reversals = [...rows.values()].filter(r => r.values.reversal_of_id === c.corrects_event_id);
+    if (!anyUuid.test(c.corrects_event_id) || c.reversal_of_id !== null || !original || reversals.length !== 1) {
+      throw Error('Contribution restore requires one archived original and reversal.');
+    }
+    const reversal = reversals[0], o = original.values, r = reversal.values;
+    if (o.reversal_of_id !== null || o.event_type !== 'owner_contribution' || r.corrects_event_id !== null ||
+      scope.some(k => typeof o[k] !== 'string' || !o[k] || c[k] !== o[k] || r[k] !== o[k]) || r.event_date !== o.event_date) {
+      throw Error('Contribution restore lineage scope is invalid.');
+    }
+    if ([original, reversal, correction].some(row => !removable.has(key(row)))) throw Error('Contribution restore endpoint is not removable.');
+    edges.push({ kind: 'historical-restore-order', rule: 'contribution-reversal-before-correction',
+      source: { table: correction.table, pk: correction.pk }, target: { table: reversal.table, pk: reversal.pk } });
+  }
+  return edges;
+}
+
 // Immediate historical validators impose two row-specific restore sequences
 // beyond foreign keys. Express their inverse as extra removal-order edges;
 // these do not remove or reclassify any catalog dependency.
 export function historicalRestoreRemovalEdges(archiveRows, removalRows) {
   const relevant = new Set(['public.owner_opening_balance_entries', 'public.owner_charge_cash_allocations',
     'public.owner_invoice_lines', 'public.expense_customer_adjustments']);
-  const captured = new Map(), removable = new Set(removalRows.map(key)), edges = [];
+  const captured = new Map(), removable = new Set(removalRows.map(key)),
+    edges = ownerContributionRestoreRemovalEdges(archiveRows, removalRows, TARGET.organization);
   const identity = row => ({ table: row.table, pk: row.pk });
   for (const row of archiveRows) {
     if (!relevant.has(row.table)) continue;
