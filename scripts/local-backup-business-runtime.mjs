@@ -218,8 +218,10 @@ async function holdSpillCustody(){
 // Callers must acquire it before decryption and close it only after disposal.
 export const holdBusinessSpillCustody=holdSpillCustody;
 export function businessSqlTimeoutMs(action='default'){
- if(!['default','execute'].includes(action))fail('process_budget_invalid');
- return action==='execute'?600000:180000;
+ if(!['default','execute','inverse-execute'].includes(action))fail('process_budget_invalid');
+ // Both isolated execution phases need the execution process envelope. Native
+ // authorization expiry, statement limits and the parent deadline still apply.
+ return action==='default'?180000:600000;
 }
 async function createRuntime(existingBinding){
  const local=await localRecoveryDocker({execute:async(...a)=>(await execute(...a)).toString('utf8')});
@@ -457,7 +459,7 @@ async function rehearseRestoredBusiness({runtime,payload,snapshot,request,custod
  await custody.check();diagnosticStage='rehearsal-inverse-execute';
  diagnosticInverseActions=canonicalInverse.actions.map(a=>({ordinal:a.ordinal,relation_name:a.relation_name,kind:a.kind}));
  diagnosticInverseConstraints=rehearsalSql.ramInverseConstraintRoster(plan);
- const inverse=summarizeBusinessRehearsalExecution(await json(rehearsalSql.buildRamInverseExecuteSql({plan,planBinding,fixture,phases,inverseInputs,recoveryId,canonicalInverse})),'recovered',recoveryId);
+ const inverse=summarizeBusinessRehearsalExecution(await json(rehearsalSql.buildRamInverseExecuteSql({plan,planBinding,fixture,phases,inverseInputs,recoveryId,canonicalInverse}),'inverse-execute'),'recovered',recoveryId);
  diagnosticStage='rehearsal-verify';const recovered=await json(rehearsalSql.buildRamRehearsalVerificationSql({plan,planBinding,fixture,phases,inverseInputs,recoveryId,canonicalInverse,phase:'recovered'}));
  const recoveredStorage=await verifyRehearsalStorage(runtime,snapshot);
  for(const [value,phase]of [[resetVerification,'reset'],[recovered,'recovered']])assertBusinessRehearsalVerification(value,phase,phases.continuationPlan.contracts_sha256);

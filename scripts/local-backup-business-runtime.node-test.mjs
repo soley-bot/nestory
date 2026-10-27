@@ -54,8 +54,9 @@ test('execution proof projects aggregate status and refuses incomplete or stale 
   {consumedAgeSeconds:20,remainingSeconds:NaN},{consumedAgeSeconds:20,remainingSeconds:280,token:'private'}])
   assert.throws(()=>summarizeBusinessRehearsalExecution({...value,authorityTiming},'reset',id),/rehearsal_execution_invalid/);
 });
-test('only the fixed reset execution receives a longer process watchdog',()=>{
+test('only the two isolated execution phases receive the execution process watchdog',()=>{
  assert.equal(businessSqlTimeoutMs(),180000);assert.equal(businessSqlTimeoutMs('execute'),600000);
+ assert.equal(businessSqlTimeoutMs('inverse-execute'),600000);
  for(const value of ['observe','execute-recovery',null,600000,{}])assert.throws(()=>businessSqlTimeoutMs(value),/process_budget_invalid/);
 });
 test('phase diagnostics survive split chunks and discard native customer context',()=>{
