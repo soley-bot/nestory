@@ -7,7 +7,7 @@ import { chromium } from "playwright";
 import { validateLocalBaseUrl } from "./smoke-ui-redesign-policy.mjs";
 import {
   buildDeniedGlobalEntryChecks,
-  buildDiscoverabilityPlan,
+  buildLocalFixtureDiscoverabilityPlan,
   createPassedJourneyEvidence,
   createSessionStartEvidence,
   directDenialRoutes,
@@ -23,7 +23,7 @@ if (registry.issues.length > 0) {
   throw new Error(`Invalid route registry:\n${registry.issues.join("\n")}`);
 }
 const contract = registry.authenticated;
-const plan = buildDiscoverabilityPlan(contract);
+const { journeys: plan, outOfScope } = buildLocalFixtureDiscoverabilityPlan(contract);
 const baseUrl = validateLocalBaseUrl(
   process.env.NESTORY_BASE_URL ?? "http://localhost:3000",
 );
@@ -83,6 +83,8 @@ try {
 }
 
 const evidence = {
+  scope: "local-fixture",
+  outOfScope,
   baseUrl,
   denials,
   deniedGlobalAbsence,
@@ -93,7 +95,7 @@ const evidence = {
   total: plan.length,
 };
 
-const evidenceIssues = validateDiscoverabilityEvidence(contract, evidence);
+const evidenceIssues = validateDiscoverabilityEvidence(contract, evidence, { scope: "local-fixture" });
 if (evidenceIssues.length > 0) {
   throw new Error(`Invalid discoverability evidence:\n${evidenceIssues.join("\n")}`);
 }
@@ -101,7 +103,7 @@ if (evidenceIssues.length > 0) {
 await mkdir(dirname(evidencePath), { recursive: true });
 await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
 process.stdout.write(
-  `Authenticated route discoverability: ${journeys.length}/${plan.length} visible-link journeys pass; ${denials.length} direct denials pass.\n`,
+  `Local fixture discoverability: ${journeys.length}/${plan.length} visible-link journeys pass; ${outOfScope.length} production-only journeys remain out of scope; ${denials.length} direct denials pass.\n`,
 );
 
 async function authenticate(page, email) {
@@ -319,6 +321,11 @@ async function openContextJourney(page, journey, chain) {
     },
     "settings-organization": () =>
       openSettingsTab(page, chain, journey.route, "Organization"),
+    "settings-maintenance": async () => {
+      await openSettingsTab(page, chain, "/settings/organization", "Organization");
+      await clickAndWait(page, page.getByRole("link", { name: "Review October reset", exact: true }), journey.route);
+      chain.push("Review October reset");
+    },
     "settings-appearance": () =>
       openSettingsTab(page, chain, journey.route, "Appearance"),
     "settings-branches": () =>

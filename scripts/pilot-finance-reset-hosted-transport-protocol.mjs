@@ -15,11 +15,14 @@ export const TRANSPORT_SOURCE_FILES = Object.freeze([
  'scripts/pilot-finance-reset-executor-local.mjs','scripts/pilot-finance-reset-executor-plan.mjs',
  'scripts/pilot-finance-reset-retired-journal-core.mjs',
  'scripts/pilot-finance-reset-registry.mjs','scripts/ips-readiness-recovery-core.mjs','scripts/hosted-migration-parity-core.mjs',
+ 'scripts/pilot-finance-reset-migration-parity.mjs','supabase/migration-reconciliations/20260821-hosted-migration-canonical-hashes.json',
  'supabase/migrations/20261024013624_financial_reset_hosted_operation_reservation.sql',
  `supabase/migrations/${EMPTY_BOOKS_MIGRATION}`,
 ]);
 export const digestPattern = /^[a-f0-9]{64}$/;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+// Server action IDs are MD5 digests cast to uuid, with no RFC-v4 bit rewrite.
+const actionUuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 export const fail = code => { throw new Error(`hosted_transport_${code}`); };
 export const literal = value => value === null ? 'NULL' : `'${String(value).replace(/'/g,"''")}'`;
 export const jsonSql = value => `${literal(canonicalJson(value))}::jsonb`;
@@ -51,6 +54,18 @@ export function validateZeroPlanText(artifacts,expectedDigest) {
  let parsed;try{parsed=JSON.parse(raw);}catch{fail('zero_plan_text_invalid');}
  if(!parsed||Array.isArray(parsed)||typeof parsed!=='object'||!sameDatabaseJson(parsed,artifacts.zeroPlan)) fail('zero_plan_text_mismatch');
  return raw;
+}
+// The historical schema remains exact and unversioned. The new discriminator
+// opts into an independently reviewed empty-books roster, never ordinary billing.
+export function validateReviewedZeroPlanShape(z,continuation){
+ const versioned=z&&Object.hasOwn(z,'version'),base=['operation_id','organization_id','manifest_sha256','reset_plan_sha256',
+  'maker_actor_id','reviewer_actor_id','effective_date','currencies','scopes'];
+ if(!exactKeys(z,[...base,...(versioned?['version']:[])])||!Array.isArray(z.scopes))fail('zero_plan_shape_invalid');
+ if(versioned&&(z.version!==4||continuation?.version!==4||continuation.invoice_date_policy!=='empty-books-no-invoices'))fail('zero_plan_version_invalid');
+ const scope=['property_id','property_owner_id','owner_person_id','ownership_percent','ownership_roster_hash','currency','property_row_sha256','property_archived_at'];
+ for(const row of z.scopes)if(!exactKeys(row,[...scope,...(versioned?['owner_person_row_sha256']:[])])||
+  versioned&&!digestPattern.test(row.owner_person_row_sha256))fail('zero_scope_shape_invalid');
+ return z;
 }
 export const sortDescriptors = rows => [...rows].sort((a,b) => canonicalJson(a)<canonicalJson(b)?-1:canonicalJson(a)>canonicalJson(b)?1:0);
 // PostgreSQL timestamps carry up to six fractional digits. Parse only whole
@@ -151,7 +166,7 @@ function validateRows(actions,organization,recovery) {
   const ordinary=rule&&['archive-remove','normalize-reviewed','retire-intent'].includes(rule.disposition);
   const allowed=recovery?(a.kind==='restore'?ordinary:a.kind==='recovery-prune'?recoveryPruneRelations.has(a.relation_name):
    a.kind==='recovery-repair'&&a.relation_name==='public.lease_terms'):ordinary;
-  if(!allowed||!uuid.test(a.action_id)||a.ordinal!==index+1||
+  if(!allowed||!actionUuid.test(a.action_id)||a.ordinal!==index+1||
    (!recovery&&!['archive-delete','normalization'].includes(a.kind))||
    (recovery&&!['restore','recovery-prune','recovery-repair'].includes(a.kind))||
    (a.kind==='archive-delete'&&rule.disposition!=='archive-remove')) fail('action_outside_closed_registry');
@@ -185,6 +200,7 @@ function validateRows(actions,organization,recovery) {
 export function validateArtifacts(packet,artifacts,recovery=null) {
  const o=packet.operation,b=packet.databaseBinding;
  validateZeroPlanText(artifacts,b.zeroReviewSha256);
+ validateReviewedZeroPlanShape(artifacts.zeroPlan,artifacts.continuationPlan);
  if(!same(artifacts.manifest,{manifest_sha256:b.manifestSha256,source_snapshot_sha256:packet.sourceSnapshotSha256,
   schema_sha256:packet.schemaSha256,ledger_sha256:packet.ledgerSha256})||
   !exactKeys(artifacts.actions,['operation','actions'])||!same(artifacts.reportPlan,{report_review_sha256:b.reportReviewSha256})) fail('artifact_binding_invalid');
@@ -299,7 +315,9 @@ export function mutationSql({binding,action,authorizationId,authoritySha256,obse
    const inner=buildActionTransactionSql(id,isRecovery?recovery.review.actions:artifacts.actions.actions,null,null,isRecovery);
    if(!inner.startsWith('BEGIN;\n')||!inner.endsWith('\nCOMMIT;')) fail('action_builder_changed');
    statements.push(inner.slice(7,-8));
-   if(!isRecovery) statements.push(`SELECT app_private.apply_financial_reset_known_zero(${op}::uuid);`,
+   if(!isRecovery) statements.push(`SET LOCAL statement_timeout='${review.version===4?'300':'60'}s';`,
+    `SELECT app_private.apply_financial_reset_known_zero(${op}::uuid);`,
+    `SET LOCAL statement_timeout='60s';`,
     sqlDoBlock(`DECLARE reviewed jsonb; BEGIN
      IF app_private.financial_reset_hash(${jsonSql(review)})<>${literal(binding.continuation_semantic_sha256)} THEN RAISE EXCEPTION 'hosted_transport_semantic_changed'; END IF;
      reviewed:=${jsonSql(review)}||jsonb_build_object('source_sha256',app_private.financial_reset_hash(app_private.financial_reset_continuation_snapshot(${literal(binding.organization_id)}::uuid)));

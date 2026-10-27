@@ -192,6 +192,17 @@ test('exact action SQL names only changed fields and requires one matching full 
   assert.ok(sql.indexOf('arm_financial_reset_action') < sql.indexOf('UPDATE "public"'));
   assert.ok(sql.indexOf('complete_financial_reset_actions') < sql.indexOf('COMMIT'));
 });
+
+test('server deterministic UUID action identity is preserved without weakening operation identity or duplicate checks', () => {
+  const actionId='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',a={...action(),action_id:actionId};
+  const sql=buildActionTransactionSql(id,[a]);
+  assert.ok(sql.includes(`arm_financial_reset_action('${id}'::uuid,'${actionId}'::uuid)`));
+  assert.equal(a.action_id,actionId);
+  assert.throws(()=>buildActionTransactionSql(actionId,[a]),/Invalid action transaction/);
+  assert.throws(()=>buildActionTransactionSql(id,[a,{...a,ordinal:2}]),/Unsealed or unsupported row action/);
+  for(const invalid of [actionId.replaceAll('-',''),actionId.toUpperCase(),actionId+'x',"'; SELECT 1; --"])
+    assert.throws(()=>buildActionTransactionSql(id,[{...a,action_id:invalid}]),/Unsealed or unsupported row action/);
+});
 test('SQL builder rejects injection, unsupported verbs, noncontiguous actions and key mutation', () => {
   for (const mutate of [a => { a.relation_name = 'public.timeline_events;DROP TABLE people'; },
     a => { a.kind = 'arbitrary'; }, a => { a.ordinal = 2; }, a => { a.changed_columns = ['id']; },

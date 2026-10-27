@@ -7,11 +7,37 @@ import { PassThrough, Writable } from 'node:stream';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { REQUIRED_ARTIFACTS, SOURCE_ENTRYPOINTS, canonicalJson, hashBytes, hashSourceBytes, prepareOperatorPacket } from './pilot-finance-reset-operator-core.mjs';
-import { HOSTED_ACTIONS, TRANSPORT_SOURCE_FILES, hostedBinding, digestJson, digestDatabaseJson, mutationSql, observationSql, validateArtifacts, validateZeroPlanText, timestampMicros } from './pilot-finance-reset-hosted-transport-protocol.mjs';
-import { createHostedResetTransport, verifyHostedResetExecutionReadback, HOSTED_TRANSPORT_IMPLEMENTATION_GAPS, assertHostedTransportDispatchImplemented } from './pilot-finance-reset-hosted-transport.mjs';
+import { HOSTED_ACTIONS, TRANSPORT_SOURCE_FILES, hostedBinding, digestJson, digestDatabaseJson, mutationSql, observationSql, validateArtifacts, validateZeroPlanText, validateReviewedZeroPlanShape, timestampMicros } from './pilot-finance-reset-hosted-transport-protocol.mjs';
+import { createHostedResetTransport, verifyHostedResetExecutionReadback, HOSTED_TRANSPORT_IMPLEMENTATION_GAPS, assertHostedTransportDispatchImplemented,hostedPsqlTimeoutMs } from './pilot-finance-reset-hosted-transport.mjs';
 
 const root=path.resolve(import.meta.dirname,'..'),id=n=>`10000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const catalog=[{kind:'function',name:'app_private.synthetic_contract()',sha256:'b'.repeat(64)}];
+test('only execute has a longer watchdog and v4 known-zero has a bounded isolated statement budget',async()=>{
+ assert.equal(hostedPsqlTimeoutMs(),180000);
+ for(const action of HOSTED_ACTIONS)for(const version of [null,1,2,3,4])assert.equal(hostedPsqlTimeoutMs(action,version),action==='execute'&&version===4?600000:180000);
+ for(const action of [null,600000,'arbitrary',{}])assert.throws(()=>hostedPsqlTimeoutMs(action),/process_budget_invalid/);
+ for(const version of ['4',0,5,600000,{}])assert.throws(()=>hostedPsqlTimeoutMs('execute',version),/process_budget_invalid/);
+ const f=await fixture(null,'empty-books-no-invoices');
+ const sql=mutationSql({...f,action:'execute',authorizationId:id(99),authoritySha256:'f'.repeat(64)});
+ assert.match(sql,/SET LOCAL statement_timeout='300s';\nSELECT app_private\.apply_financial_reset_known_zero\([^\n]+\);\nSET LOCAL statement_timeout='60s';/);
+ const legacy=await fixture();
+ assert.ok(!mutationSql({...legacy,action:'execute',authorizationId:id(99),authoritySha256:'f'.repeat(64)}).includes("statement_timeout='300s'"));
+});
+test('server MD5 action UUID remains exact through validation and SQL; authority IDs remain v4',async()=>{
+ const f=await fixture(),actionId='123a1f51-1234-2abc-cdef-0123456789ab';
+ f.artifacts.actions.actions[0].action_id=actionId;
+ assert.equal(validateArtifacts(f.packet,f.artifacts).actions.actions[0].action_id,actionId);
+ const sql=mutationSql({...f,action:'execute',authorizationId:id(99),authoritySha256:'f'.repeat(64)});
+ assert.ok(sql.includes(`'${actionId}'::uuid`));
+ assert.throws(()=>mutationSql({...f,action:'execute',authorizationId:actionId,authoritySha256:'f'.repeat(64)}),/dispatch_descriptor_invalid/);
+ for(const invalid of [actionId.toUpperCase(),actionId.replaceAll('-',''),actionId+'x',"'; SELECT 1; --",null]){
+  const a=structuredClone(f.artifacts);a.actions.actions[0].action_id=invalid;
+  assert.throws(()=>validateArtifacts(f.packet,a),/action_outside_closed_registry/);
+ }
+ const a=structuredClone(f.artifacts),p=structuredClone(f.packet);p.actionCount=2;a.actions.operation.action_count=2;
+ a.actions.actions.push({...a.actions.actions[0],ordinal:2});
+ assert.throws(()=>validateArtifacts(p,a),/Unsealed or unsupported row action/);
+});
 async function fixture(rawOwnership=null,invoiceDatePolicy='original-reviewed-october') {
  const names=[...new Set([...SOURCE_ENTRYPOINTS,...TRANSPORT_SOURCE_FILES])].sort();
  const files=await Promise.all(names.map(async name=>[name,await readFile(path.join(root,name))]));
@@ -30,7 +56,9 @@ async function fixture(rawOwnership=null,invoiceDatePolicy='original-reviewed-oc
  const zeroPlanBase={operation_id:review.operation.operationId,organization_id:review.operation.organizationId,
   manifest_sha256:review.databaseBinding.manifestSha256,reset_plan_sha256:review.databaseBinding.planSha256,
   effective_date:review.operation.cutoff,maker_actor_id:id(1),reviewer_actor_id:id(2),currencies:['USD'],scopes:[]};
- const zeroPlanText=rawOwnership===null?JSON.stringify(zeroPlanBase):JSON.stringify(zeroPlanBase).replace('"scopes":[]',`"scopes":[{"ownership_percent":${rawOwnership}}]`);
+ const scope={property_id:id(51),property_owner_id:id(52),owner_person_id:id(53),ownership_percent:100,ownership_roster_hash:'a'.repeat(64),
+  currency:'USD',property_row_sha256:'b'.repeat(64),property_archived_at:null};
+ const zeroPlanText=rawOwnership===null?JSON.stringify(zeroPlanBase):JSON.stringify({...zeroPlanBase,scopes:[scope]}).replace('"ownership_percent":100',`"ownership_percent":${rawOwnership}`);
  review.databaseBinding.zeroReviewSha256=hashBytes(zeroPlanText);
  const packet=prepareOperatorPacket({review,artifacts:ciphertext,candidateHead:review.operation.mainSha,sources:files.map(([name,bytes])=>({path:name,sha256:hashSourceBytes(bytes)}))});
  const o=packet.operation,b=packet.databaseBinding;
@@ -56,6 +84,18 @@ async function fixture(rawOwnership=null,invoiceDatePolicy='original-reviewed-oc
   capabilityCount:0,zero:null,continuation:null,phaseFences:[],approvalCount:0,checkpoint:null,authorization:null,actionReceipt:null};
  return {packet,artifacts,binding,observation};
 }
+test('strict zero schema preserves legacy input and admits marker4 only with empty-books continuation4',async()=>{
+ const f=await fixture('25.50','empty-books-no-invoices'),z=structuredClone(f.artifacts.zeroPlan),c=f.artifacts.continuationPlan;
+ assert.equal(validateReviewedZeroPlanShape(z,c),z);const marked={...z,version:4,scopes:z.scopes.map(s=>({...s,owner_person_row_sha256:'a'.repeat(64)}))};
+ assert.equal(validateReviewedZeroPlanShape(marked,c),marked);
+ for(const change of [p=>p.version=2,p=>p.version='4',p=>delete p.scopes[0].owner_person_row_sha256,p=>p.extra=true]){
+  const bad=structuredClone(marked);change(bad);assert.throws(()=>validateReviewedZeroPlanShape(bad,c),/zero_/);
+ }
+ assert.throws(()=>validateReviewedZeroPlanShape(marked,{...c,version:3}),/zero_plan_version_invalid/);
+ assert.throws(()=>validateReviewedZeroPlanShape(marked,{...c,invoice_date_policy:'original-reviewed-october'}),/zero_plan_version_invalid/);
+ assert.throws(()=>validateReviewedZeroPlanShape({...marked,version:undefined},c),/zero_plan_version_invalid/);
+ assert.throws(()=>validateReviewedZeroPlanShape({...z,scopes:marked.scopes},c),/zero_scope_shape_invalid/);
+});
 
 test('recovery-backed transport preserves explicit v4 no-op semantic and exact phase/checkpoint sequence', async () => {
  const f=await fixture(null,'empty-books-no-invoices');

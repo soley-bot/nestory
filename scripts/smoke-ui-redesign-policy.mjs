@@ -1,4 +1,34 @@
+import { assertPilotFixtureApplicability } from "./smoke-authenticated-route-discoverability-core.mjs";
 const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
+
+export function createPilotFixtureBlock(entry, role, baseUrl) {
+  if (entry.applicability === undefined) return null;
+  assertPilotFixtureApplicability(entry.route, entry.applicability);
+  const origin = validateLocalBaseUrl(baseUrl);
+  if (role === "anonymous") return null;
+  if (!["super_admin", "finance_manager", "finance_member", "operations_manager", "operations_member"].includes(role)) {
+    throw new Error("unsupported Pilot fixture role");
+  }
+  return { scope: "local-fixture", route: entry.route, baseUrl: origin, expectedStatus: 404,
+    requiredEnvironment: entry.applicability.environment, reason: entry.applicability.reason, productionUiProven: false };
+}
+
+export function getPilotFixtureBlockFailures(result) {
+  const b = result.fixtureBlock, failures = [];
+  try {
+    const expected = createPilotFixtureBlock({ route: result.manifestRoute,
+      applicability: { environment: b?.requiredEnvironment, reason: b?.reason } }, result.role ?? "super_admin", b?.baseUrl);
+    if (!expected || JSON.stringify(b) !== JSON.stringify(expected)) throw new Error("invalid metadata");
+    const final = new URL(result.finalUrl);
+    if (final.origin !== b.baseUrl || final.pathname !== b.route || final.search || final.hash ||
+      result.route !== b.route || result.finalPath !== b.route || result.responseStatus !== 404 ||
+      result.accessResult !== "fixture-blocked" || result.navigationError) throw new Error("expected local 404 missing");
+  } catch {
+    failures.push(`${result.manifestRoute}: invalid Pilot blocked-fixture evidence`);
+  }
+  if ((result.consoleErrors ?? []).length || (result.pageErrors ?? []).length) failures.push(`${result.manifestRoute}: blocked fixture has application errors`);
+  return failures;
+}
 
 export const MAIN_CAPTURE_VIEWPORTS = Object.freeze([
   { height: 900, name: "desktop", width: 1440 },
@@ -184,6 +214,10 @@ export function collectSmokeFailures(
   }
 
   for (const audit of accessAudits) {
+    if (audit.fixtureBlock) {
+      failures.push(...getPilotFixtureBlockFailures(audit));
+      continue;
+    }
     if (audit.accessResult !== audit.expectedAccess) {
       failures.push(
         `${audit.role} ${audit.manifestRoute}: expected ${audit.expectedAccess}, received ${audit.accessResult}`,
@@ -209,6 +243,10 @@ export function collectRouteSubsetFailures(
   const failures = routeResults.flatMap(getRouteResultFailures);
 
   for (const audit of accessAudits) {
+    if (audit.fixtureBlock) {
+      failures.push(...getPilotFixtureBlockFailures(audit));
+      continue;
+    }
     if (audit.accessResult !== audit.expectedAccess) {
       failures.push(
         `${audit.role} ${audit.manifestRoute}: expected ${audit.expectedAccess}, received ${audit.accessResult}`,
@@ -259,9 +297,12 @@ export function formatViewportSummary(viewports) {
 }
 
 export function formatViewportPass(results, viewports) {
+  if (results.length === viewports.length && results.every((result) => result.fixtureBlock && getRouteResultFailures(result).length === 0)) {
+    return `${results.length}/${viewports.length} blocked fixture (expected local 404); production UI unverified`;
+  }
   const passingViewportNames = new Set(
     results
-      .filter((result) => getRouteResultFailures(result).length === 0)
+      .filter((result) => !result.fixtureBlock && getRouteResultFailures(result).length === 0)
       .map((result) => result.viewport),
   );
   const passingCount = viewports.filter((viewport) =>
@@ -334,8 +375,8 @@ export function validateEvidenceSummary(summary, manifest) {
   }
 
   validateViewportMatrix(arrays.viewports, failures);
-  validateMainResults(arrays.results, manifest, failures);
-  validateRoleAudits(arrays.roleAudits, manifest, failures);
+  validateMainResults(arrays.results, manifest, failures, summary.baseUrl);
+  validateRoleAudits(arrays.roleAudits, manifest, failures, summary.baseUrl);
   validateMaintenanceBoardResults(
     arrays.maintenanceBoardResults,
     manifest,
@@ -584,6 +625,7 @@ export function renderKeyboardZoomEvidence(audits = []) {
 }
 
 export function getRouteResultFailures(result) {
+  if (result.fixtureBlock) return [...getPilotFixtureBlockFailures(result), ...getScreenshotFailures(result)];
   const failures = [];
   const prefix = `${result.viewport} ${result.route}`;
 
@@ -694,7 +736,7 @@ function validateViewportMatrix(viewports, failures) {
   }
 }
 
-function validateMainResults(results, manifest, failures) {
+function validateMainResults(results, manifest, failures, baseUrl) {
   const expected = new Map();
   for (const entry of manifest) {
     for (const viewport of MAIN_CAPTURE_VIEWPORTS) {
@@ -724,7 +766,13 @@ function validateMainResults(results, manifest, failures) {
     ) {
       failures.push(`main result ${key} does not match its manifest contract`);
     }
-    validateAxeResult(result, `main result ${key}`, failures);
+    let fixtureBlock;
+    try { fixtureBlock = createPilotFixtureBlock(contract.entry, "super_admin", baseUrl); }
+    catch { failures.push(`main result ${key}: invalid fixture applicability`); }
+    if (JSON.stringify(result.fixtureBlock ?? null) !== JSON.stringify(fixtureBlock ?? null)) {
+      failures.push(`main result ${key}: blocked-fixture metadata does not match its contract`);
+    }
+    if (!fixtureBlock) validateAxeResult(result, `main result ${key}`, failures);
     validateCleanRouteResult(result, `main result ${key}`, failures);
   }
 
@@ -738,7 +786,7 @@ function validateMainResults(results, manifest, failures) {
   }
 }
 
-function validateRoleAudits(audits, manifest, failures) {
+function validateRoleAudits(audits, manifest, failures, baseUrl) {
   const roles = [
     "finance_manager",
     "finance_member",
@@ -768,10 +816,14 @@ function validateRoleAudits(audits, manifest, failures) {
       failures.push(`unknown role audit ${key}`);
       continue;
     }
-    if (
-      audit.expectedAccess !== contract.access ||
-      audit.accessResult !== contract.access
-    ) {
+    let fixtureBlock;
+    try { fixtureBlock = createPilotFixtureBlock(contract.entry, contract.role, baseUrl); }
+    catch { failures.push(`role audit ${key}: invalid fixture applicability`); }
+    if (JSON.stringify(audit.fixtureBlock ?? null) !== JSON.stringify(fixtureBlock ?? null)) {
+      failures.push(`role audit ${key}: blocked-fixture metadata does not match its contract`);
+    }
+    if (fixtureBlock) failures.push(...getPilotFixtureBlockFailures(audit));
+    if (audit.expectedAccess !== contract.access || !fixtureBlock && audit.accessResult !== contract.access) {
       failures.push(`role audit ${key} does not match expected access`);
     }
   }

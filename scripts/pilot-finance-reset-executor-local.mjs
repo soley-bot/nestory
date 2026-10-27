@@ -17,6 +17,9 @@ const projectRoot = path.join(os.tmpdir(), 'nestory-pilot-reset-db-20261023');
 const evidenceRoot = path.resolve(root, '..', 'technical-readiness', 'pilot-reset-20261023', 'implementation', 'rehearsals');
 const hash = /^[a-f0-9]{64}$/;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+// Server materialization uses md5(... )::uuid for immutable action identities;
+// those canonical PostgreSQL UUIDs do not promise UUIDv4 version/variant bits.
+const actionUuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const literal = value => `'${String(value).replaceAll("'", "''")}'`;
 const identifier = value => {
   if (!/^[a-z][a-z0-9_]*$/.test(value ?? '')) throw Error('Invalid catalog identifier.');
@@ -219,7 +222,7 @@ export function buildActionTransactionSql(operationId, actions, faultAfterAction
   }
   const seen = new Set();
   for (const [index, action] of actions.entries()) {
-    if (!uuid.test(action.action_id ?? '') || seen.has(action.action_id) || action.ordinal !== index + 1 ||
+    if (!actionUuid.test(action.action_id ?? '') || seen.has(action.action_id) || action.ordinal !== index + 1 ||
         !['normalization', 'archive-delete', 'restore', 'recovery-prune', 'recovery-repair'].includes(action.kind) || !action.primary_key ||
         !Object.keys(action.primary_key).length || (action.before_row_text !== null && !hash.test(action.before_sha256 ?? ''))) throw Error('Unsealed or unsupported row action.');
     seen.add(action.action_id);

@@ -1,0 +1,140 @@
+name: Pilot financial reset (local custody)
+run-name: Pilot reset ${{ inputs.operation_id }} ${{ inputs.action }} ${{ inputs.nonce }} ${{ inputs.mode }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Probe, provision the fixed handoff bucket, execute once, or reconcile
+        type: choice
+        required: true
+        default: capability-probe
+        options: [capability-probe, tls-probe, provision-handoff, execute, reconcile]
+      original_run_id:
+        description: Original run ID for reconciliation; none for execute
+        type: string
+        required: true
+        default: none
+      operation_id:
+        description: Original reviewed operation UUID
+        type: string
+        required: false
+        default: none
+      nonce:
+        description: Fresh local dispatch nonce; no secrets
+        type: string
+        required: false
+        default: none
+      action:
+        description: One reviewed stage; never automatically retry
+        type: choice
+        required: true
+        default: freeze
+        options: [freeze, checkpoint, prepare, seal, execute, prepare-recovery, execute-recovery]
+
+permissions: {}
+
+jobs:
+  operation:
+    name: Pilot reset local custody
+    if: github.ref == 'refs/heads/main' && github.workflow_sha == github.sha && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production-database
+    concurrency:
+      group: production-supabase
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+    env:
+      NODE_OPTIONS: ''
+      NODE_PATH: ''
+      BASH_ENV: ''
+      ENV: ''
+    steps:
+      - name: Check protected activation setting
+        shell: bash
+        env:
+          PILOT_RESET_LOCAL_CUSTODY_ENABLED: ${{ vars.PILOT_RESET_LOCAL_CUSTODY_ENABLED }}
+        run: |
+          set -euo pipefail
+          test "$PILOT_RESET_LOCAL_CUSTODY_ENABLED" = reviewed-operation-only
+      - name: Check out exact main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Use reviewed Node major
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+      - name: Enforce implementation hold before private inputs
+        shell: bash
+        env:
+          RESET_MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain --untracked-files=all)"
+          git ls-files --error-unmatch .github/workflows/pilot-financial-reset-local-custody.yml scripts/pilot-finance-reset-local-custody-runner.mjs scripts/local-backup-dispatch-bundle.mjs >/dev/null
+          case "$RESET_MODE" in
+            execute) node --input-type=module -e 'import { assertHostedTransportDispatchImplemented } from "./scripts/pilot-finance-reset-hosted-transport.mjs"; assertHostedTransportDispatchImplemented();' ;;
+            reconcile|capability-probe|tls-probe|provision-handoff) ;;
+            *) exit 1 ;;
+          esac
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Wait for exact run ticket and execute once
+        if: inputs.mode == 'execute' || inputs.mode == 'reconcile'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESET_OPERATION_ID: ${{ inputs.operation_id }}
+          RESET_NONCE: ${{ inputs.nonce }}
+          RESET_ACTION: ${{ inputs.action }}
+          RESET_MODE: ${{ inputs.mode }}
+          RESET_ORIGINAL_RUN_ID: ${{ inputs.original_run_id }}
+          PILOT_RESET_HANDOFF_SIGNED_URL: ${{ secrets.PILOT_RESET_HANDOFF_SIGNED_URL }}
+          PILOT_RESET_HANDOFF_KEY: ${{ secrets.PILOT_RESET_HANDOFF_KEY }}
+          PILOT_RESET_SIGNING_PUBLIC_KEY: ${{ vars.PILOT_RESET_SIGNING_PUBLIC_KEY }}
+          PILOT_RESET_SIGNING_PUBLIC_KEY_SHA256: ${{ vars.PILOT_RESET_SIGNING_PUBLIC_KEY_SHA256 }}
+          PILOT_RESET_PSQL_SHA256: ${{ vars.PILOT_RESET_PSQL_SHA256 }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          ulimit -c 0
+          node scripts/pilot-finance-reset-local-custody-runner.mjs
+      - name: Read-only protected job capability probe
+        if: inputs.mode == 'capability-probe'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESET_MODE: capability-probe
+        run: node scripts/pilot-finance-reset-local-custody-runner.mjs
+      - name: Create fixed private handoff bucket if absent
+        if: inputs.mode == 'provision-handoff'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESET_MODE: provision-handoff
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          ulimit -c 0
+          node scripts/pilot-finance-reset-local-custody-runner.mjs
+      - name: Read-only pinned session-pooler TLS probe
+        if: inputs.mode == 'tls-probe'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESET_MODE: tls-probe
+          PILOT_RESET_PSQL_SHA256: ${{ vars.PILOT_RESET_PSQL_SHA256 }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          ulimit -c 0
+          node scripts/pilot-finance-reset-local-custody-runner.mjs
+      # No caches, ordinary artifacts, payload logs or automatic reruns.
+      # The immutable intent and recovery archive remain in protected C: custody.

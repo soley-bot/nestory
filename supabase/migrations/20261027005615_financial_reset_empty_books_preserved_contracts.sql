@@ -357,6 +357,173 @@ $b$ from strpos(d,a) for length(a));
 END;
 $restart$;
 
+-- A reviewed empty-books opening may retain an archived owner's historical
+-- identity only for an already archived property. Ordinary ownership readers,
+-- owner roles, cutoff dates and conservation checks are unchanged.
+DO $empty_zero_readers$
+DECLARE d text; a text; b text; r record;
+BEGIN
+ FOR r IN SELECT * FROM (VALUES
+  ('app_private.financial_reset_zero_roster_on_date(uuid,uuid,date)','994c22e47e7548f9eac1cc4d7dc3c2fa34f3785fd07fcad77d331921bf27b483'),
+  ('app_private.financial_reset_zero_scope_on_date(uuid,date)','9a699bcb7580fb82d6f813e2eaab87d65934f5fb1f9fa8e2b59a4cffdc592e9c'),
+  ('app_private.prepare_financial_reset_zero_plan(uuid,jsonb,text)','4ec5ef11cd6e4413478c3a8567ab3c16d3e947b40aba8b2c5ccec4204de1a168'),
+  ('app_private.financial_reset_known_zero_scope(uuid)','8c60e17f6a3c0aea25a5596ecc393b9abe553a42c5fb19cca543e0e19412887d'),
+  ('app_private.assert_financial_reset_archived_zero_context(app_private.financial_reset_archived_zero_command_context)','143f107669b05d4ffea74dab4146ec734ae3fb8db4e5ca5486ac7f3f2cc34b66'),
+  ('app_private.apply_financial_reset_known_zero(uuid)','8c3e25728955170a3345d0a8f5cff66cffa6fd74e361b66f7632a7d9c1f17036'),
+  ('app_private.financial_reset_scoped_submit_opening(uuid,uuid,uuid,public.currency_code,date,public.owner_balance_component,numeric,text,text,uuid,text,uuid,text)','1c70b0ec666b8fdb27c7dd0e098169a417babd35e11217ba3ffa3eba2c14c928'),
+  ('app_private.financial_reset_scoped_review_opening(uuid,uuid,text,text,text)','330ab58011bb69a5c6bc372eb9f68e9aefdac31b4ac0830070158a8e515a085a')
+ ) p(signature,sha256) LOOP
+  IF encode(extensions.digest(replace(pg_get_functiondef(r.signature::regprocedure),E'\r\n',E'\n'),'sha256'),'hex')<>r.sha256 THEN
+   RAISE EXCEPTION 'financial_reset_empty_zero_predecessor_changed: %',r.signature;
+  END IF;
+ END LOOP;
+ d:=replace(pg_get_functiondef('app_private.financial_reset_zero_roster_on_date(uuid,uuid,date)'::regprocedure),E'\r\n',E'\n');
+ d:=replace(d,'FUNCTION app_private.financial_reset_zero_roster_on_date(','FUNCTION app_private.financial_reset_empty_zero_roster_on_date(');
+ a:='pe.archived_at IS NOT NULL OR NOT EXISTS (';
+ b:='(pe.archived_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.properties p WHERE p.id=p_property_id AND p.organization_id=p_organization_id AND p.archived_at IS NOT NULL)) OR NOT EXISTS (';
+ IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'financial_reset_empty_zero_owner_anchor_changed'; END IF;
+ EXECUTE replace(d,a,b);
+ d:=replace(pg_get_functiondef('app_private.financial_reset_zero_scope_on_date(uuid,date)'::regprocedure),E'\r\n',E'\n');
+ d:=replace(d,'FUNCTION app_private.financial_reset_zero_scope_on_date(','FUNCTION app_private.financial_reset_empty_zero_scope_on_date(');
+ a:='app_private.financial_reset_zero_roster_on_date(';
+ IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'financial_reset_empty_zero_scope_anchor_changed'; END IF;
+ d:=replace(d,a,'app_private.financial_reset_empty_zero_roster_on_date(');
+ a:=$a$'property_archived_at',v_property.row_json->'archived_at'$a$;
+ b:=a||$b$,'owner_person_row_sha256',(SELECT app_private.financial_reset_hash(to_jsonb(pe)) FROM public.people pe WHERE pe.organization_id=p_organization_id AND pe.id=v_owner.owner_person_id)$b$;
+ IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'financial_reset_empty_zero_person_anchor_changed'; END IF;
+ EXECUTE replace(d,a,b);
+ -- This explicit preparation entry needs no continuation row or execution
+ -- context: both real actors subsequently endorse its entire immutable plan.
+ d:=replace(pg_get_functiondef('app_private.prepare_financial_reset_zero_plan(uuid,jsonb,text)'::regprocedure),E'\r\n',E'\n');
+ d:=replace(d,'FUNCTION app_private.prepare_financial_reset_zero_plan(','FUNCTION app_private.prepare_financial_reset_empty_zero_plan(');
+ a:=$a$ IF v_op.operation_kind<>'reset' OR p_review_sha256$a$;
+ b:=$b$ IF p_plan->'version' IS DISTINCT FROM '4'::jsonb OR v_op.operation_kind<>'reset' OR p_review_sha256$b$;
+ IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'financial_reset_empty_zero_prepare_anchor_changed'; END IF;
+ d:=replace(d,a,b);
+ a:='app_private.financial_reset_known_zero_scope(p_operation_id)';
+ IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'financial_reset_empty_zero_prepare_scope_anchor_changed'; END IF;
+ d:=replace(d,a,'app_private.financial_reset_empty_zero_scope_on_date(v_op.organization_id,v_date)');
+ a:=$a$'reviewer_actor_id','scopes']::text[]$a$;
+ IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'financial_reset_empty_zero_prepare_keys_anchor_changed'; END IF;
+ EXECUTE replace(d,a,$b$'reviewer_actor_id','scopes','version']::text[]$b$);
+ d:=replace(pg_get_functiondef('app_private.prepare_financial_reset_zero_plan(uuid,jsonb,text)'::regprocedure),E'\r\n',E'\n');
+ a:=E'BEGIN\n';
+ IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'financial_reset_empty_zero_prepare_dispatch_anchor_changed'; END IF;
+ EXECUTE replace(d,a,a||$b$ IF p_plan->'version'='4'::jsonb THEN
+  PERFORM app_private.prepare_financial_reset_empty_zero_plan(p_operation_id,p_plan,p_review_sha256); RETURN;
+ END IF;
+$b$);
+ d:=replace(pg_get_functiondef('app_private.financial_reset_known_zero_scope(uuid)'::regprocedure),E'\r\n',E'\n');
+ a:=' RETURN app_private.financial_reset_zero_scope_on_date(v_org,v_date);';
+ IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'financial_reset_empty_zero_scope_dispatch_anchor_changed'; END IF;
+ EXECUTE replace(d,a,$b$ IF EXISTS(SELECT 1 FROM app_private.financial_reset_zero_plans WHERE operation_id=p_operation_id AND plan_json->'version'='4'::jsonb) THEN
+  RETURN app_private.financial_reset_empty_zero_scope_on_date(v_org,v_date);
+ END IF;
+$b$||a);
+END;
+$empty_zero_readers$;
+
+CREATE FUNCTION app_private.assert_financial_reset_empty_zero_operator(p_operation uuid) RETURNS void
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE a app_private.financial_reset_actor_authorizations%ROWTYPE;
+BEGIN
+ PERFORM app_private.assert_financial_reset_scoped_operator(p_operation);
+ SELECT * INTO STRICT a FROM app_private.financial_reset_actor_authorizations
+ WHERE operation_id=p_operation AND action='execute' AND consumed_at IS NOT NULL
+  AND backend_pid=pg_backend_pid() AND transaction_id=pg_current_xact_id();
+ IF a.binding->'continuation_semantic'->'version' IS DISTINCT FROM '4'::jsonb
+  OR a.binding->>'invoice_date_policy' IS DISTINCT FROM 'empty-books-no-invoices'
+  OR a.binding->'continuation_semantic'->>'invoice_date_policy' IS DISTINCT FROM 'empty-books-no-invoices'
+  OR NOT EXISTS(SELECT 1 FROM app_private.financial_reset_zero_plans WHERE operation_id=p_operation AND plan_json->'version'='4'::jsonb
+   AND review_sha256=a.binding->>'zero_review_sha256' AND review_sha256=app_private.financial_reset_hash(plan_json)) THEN
+  RAISE EXCEPTION 'financial_reset_empty_zero_consumed_review_required' USING ERRCODE='42501';
+ END IF;
+ PERFORM app_private.assert_financial_reset_empty_semantic(a.binding->'continuation_semantic');
+END;
+$$;
+
+CREATE FUNCTION app_private.financial_reset_reviewed_zero_roster_on_date(p_operation uuid,p_organization_id uuid,p_property_id uuid,p_effective_date date)
+RETURNS TABLE(property_owner_id uuid,owner_person_id uuid,ownership_percent numeric(6,3),started_on date,ended_on date,ownership_roster_hash text)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $$
+DECLARE z app_private.financial_reset_zero_plans%ROWTYPE; s jsonb; person_image jsonb; property_image jsonb; n integer:=0;
+BEGIN
+ SELECT * INTO STRICT z FROM app_private.financial_reset_zero_plans WHERE operation_id=p_operation;
+ IF z.plan_json->'version'='4'::jsonb THEN
+  PERFORM app_private.assert_financial_reset_empty_zero_operator(p_operation);
+  IF z.organization_id IS DISTINCT FROM p_organization_id OR z.plan_json->>'effective_date' IS DISTINCT FROM p_effective_date::text THEN
+   RAISE EXCEPTION 'financial_reset_empty_zero_roster_context_invalid' USING ERRCODE='42501';
+  END IF;
+  SELECT to_jsonb(p) INTO property_image FROM public.properties p WHERE p.organization_id=p_organization_id AND p.id=p_property_id FOR SHARE;
+  FOR s IN SELECT value FROM jsonb_array_elements(z.plan_json->'scopes') WHERE value->>'property_id'=p_property_id::text LOOP
+   n:=n+1;
+   SELECT to_jsonb(p) INTO person_image FROM public.people p WHERE p.organization_id=p_organization_id AND p.id=(s->>'owner_person_id')::uuid FOR SHARE;
+   IF person_image IS NULL OR property_image IS NULL OR app_private.financial_reset_hash(person_image) IS DISTINCT FROM s->>'owner_person_row_sha256'
+    OR app_private.financial_reset_hash(property_image) IS DISTINCT FROM s->>'property_row_sha256'
+    OR property_image->'archived_at' IS DISTINCT FROM s->'property_archived_at' THEN
+    RAISE EXCEPTION 'financial_reset_empty_zero_identity_changed' USING ERRCODE='40001';
+   END IF;
+  END LOOP;
+  IF n=0 THEN RAISE EXCEPTION 'financial_reset_empty_zero_roster_context_invalid' USING ERRCODE='42501'; END IF;
+  RETURN QUERY SELECT * FROM app_private.financial_reset_empty_zero_roster_on_date(p_organization_id,p_property_id,p_effective_date);
+ ELSE
+  RETURN QUERY SELECT * FROM app_private.financial_reset_zero_roster_on_date(p_organization_id,p_property_id,p_effective_date);
+ END IF;
+END;
+$$;
+
+CREATE FUNCTION app_private.financial_reset_empty_command_roster_on_date(p_organization_id uuid,p_property_id uuid,p_effective_date date)
+RETURNS TABLE(property_owner_id uuid,owner_person_id uuid,ownership_percent numeric(6,3),started_on date,ended_on date,ownership_roster_hash text)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $$
+DECLARE c app_private.financial_reset_zero_command_context%ROWTYPE;
+BEGIN
+ SELECT x.* INTO c FROM app_private.financial_reset_zero_command_context x JOIN app_private.financial_reset_zero_plans z USING(operation_id)
+ WHERE x.backend_pid=pg_backend_pid() AND x.transaction_id=pg_current_xact_id_if_assigned() AND z.plan_json->'version'='4'::jsonb;
+ IF FOUND THEN
+  IF app_private.financial_reset_archived_zero_scope_allowed(p_organization_id,p_property_id,p_effective_date) THEN
+   RETURN QUERY SELECT * FROM app_private.financial_reset_reviewed_zero_roster_on_date(c.operation_id,p_organization_id,p_property_id,p_effective_date);
+   RETURN;
+  END IF;
+ END IF;
+ RETURN QUERY SELECT * FROM app_private.owner_opening_command_roster_on_date(p_organization_id,p_property_id,p_effective_date);
+END;
+$$;
+
+DO $empty_zero_commands$
+DECLARE d text; a text; b text; r record;
+BEGIN
+ d:=replace(pg_get_functiondef('app_private.assert_financial_reset_archived_zero_context(app_private.financial_reset_archived_zero_command_context)'::regprocedure),E'\r\n',E'\n');
+ a:='app_private.financial_reset_zero_roster_on_date(v_op.organization_id,';
+ IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'financial_reset_empty_zero_archived_context_anchor_changed'; END IF;
+ EXECUTE replace(d,a,'app_private.financial_reset_reviewed_zero_roster_on_date(p_context.operation_id,v_op.organization_id,');
+ FOR r IN SELECT signature FROM (VALUES
+  ('app_private.financial_reset_scoped_submit_opening(uuid,uuid,uuid,public.currency_code,date,public.owner_balance_component,numeric,text,text,uuid,text,uuid,text)'),
+  ('app_private.financial_reset_scoped_review_opening(uuid,uuid,text,text,text)')) p(signature) LOOP
+  d:=replace(pg_get_functiondef(r.signature::regprocedure),E'\r\n',E'\n');
+  a:='app_private.owner_opening_command_roster_on_date(';
+  IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'financial_reset_empty_zero_scoped_command_anchor_changed'; END IF;
+  d:=replace(d,a,'app_private.financial_reset_empty_command_roster_on_date(');
+  IF r.signature LIKE 'app_private.financial_reset_scoped_submit_opening(%' THEN
+   a:='AND owner_person.archived_at IS NULL';
+   IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'financial_reset_empty_zero_submit_person_anchor_changed'; END IF;
+   d:=replace(d,a,$b$AND (owner_person.archived_at IS NULL OR EXISTS (
+    SELECT 1 FROM app_private.financial_reset_empty_command_roster_on_date(p_organization_id,p_property_id,p_effective_date) historical_owner
+    WHERE historical_owner.owner_person_id=p_owner_person_id))$b$);
+  END IF;
+  EXECUTE d;
+ END LOOP;
+ d:=replace(pg_get_functiondef('app_private.apply_financial_reset_known_zero(uuid)'::regprocedure),E'\r\n',E'\n');
+ a:=' SELECT * INTO STRICT v_plan FROM app_private.financial_reset_zero_plans WHERE operation_id=p_operation_id FOR UPDATE;';
+ IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'financial_reset_empty_zero_execution_anchor_changed'; END IF;
+ b:=a||E'\n IF v_plan.plan_json->''version''=''4''::jsonb THEN PERFORM app_private.assert_financial_reset_empty_zero_operator(p_operation_id); END IF;';
+ EXECUTE replace(d,a,b);
+END;
+$empty_zero_commands$;
+
+REVOKE ALL ON FUNCTION app_private.financial_reset_empty_zero_roster_on_date(uuid,uuid,date),app_private.financial_reset_empty_zero_scope_on_date(uuid,date),
+ app_private.prepare_financial_reset_empty_zero_plan(uuid,jsonb,text),app_private.assert_financial_reset_empty_zero_operator(uuid),
+ app_private.financial_reset_reviewed_zero_roster_on_date(uuid,uuid,uuid,date),app_private.financial_reset_empty_command_roster_on_date(uuid,uuid,date)
+ FROM PUBLIC,anon,authenticated,service_role;
+
 REVOKE ALL ON FUNCTION app_private.financial_reset_preserved_contracts(uuid),app_private.financial_reset_preserved_lease_source(uuid,uuid),
  app_private.assert_financial_reset_empty_semantic(jsonb),app_private.assert_financial_reset_empty_contracts(uuid,jsonb),
  app_private.assert_financial_reset_empty_sources(uuid,boolean),app_private.assert_financial_reset_empty_plan(uuid,jsonb),

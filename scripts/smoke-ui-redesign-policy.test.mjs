@@ -55,6 +55,53 @@ describe("validateLocalBaseUrl", () => {
   });
 });
 
+describe("Pilot production-only route on local fixtures", () => {
+  const entry = routeManifest.find(({ route }) => route === "/settings/maintenance");
+  it("keeps production access expectations and records all authenticated roles as blocked fixtures", () => {
+    expect(entry.smoke.expectedAccess.super_admin).toBe("accessible");
+    const summary = createValidSummary();
+    expect(validateSummary(summary)).toEqual([]);
+    const records = [...summary.results, ...summary.roleAudits].filter((result) => result.manifestRoute === entry.route);
+    expect(records.filter((result) => result.fixtureBlock)).toHaveLength(smokePolicy.MAIN_CAPTURE_VIEWPORTS.length + 4);
+    for (const result of records.filter((result) => result.fixtureBlock)) {
+      expect(smokePolicy.getPilotFixtureBlockFailures(result)).toEqual([]);
+      expect(result.fixtureBlock.productionUiProven).toBe(false);
+      expect(result.expectedAccess).toBe(entry.smoke.expectedAccess[result.role ?? "super_admin"]);
+    }
+    const anonymous = records.find((result) => result.role === "anonymous");
+    expect(anonymous.fixtureBlock).toBeUndefined();
+    expect(anonymous.accessResult).toBe("login-required");
+    expect(smokePolicy.formatViewportPass(summary.results.filter((r) => r.manifestRoute === entry.route), summary.viewports)).toContain("blocked fixture");
+  });
+  it.each([200, 401, 403, 500, null])("rejects status %s instead of the exact expected 404", (status) => {
+    const summary = createValidSummary();
+    summary.results.find((result) => result.fixtureBlock).responseStatus = status;
+    expect(validateSummary(summary).join("\n")).toContain("invalid Pilot blocked-fixture evidence");
+  });
+  it("rejects redirects, nonlocal origins, missing observations, application errors and copied exemptions", () => {
+    for (const mutate of [
+      (result) => { result.finalUrl = "http://localhost:3000/login"; },
+      (result) => { result.finalUrl = "https://pilot.nestory-kh.com/settings/maintenance"; },
+      (result) => { result.fixtureBlock = undefined; },
+      (result) => { result.consoleErrors = ["unexpected error"]; },
+      (result) => { result.pageErrors = ["unexpected error"]; },
+      (result) => { result.fixtureBlock.reason = "arbitrary skip"; },
+    ]) {
+      const summary = createValidSummary(); mutate(summary.results.find((result) => result.fixtureBlock));
+      expect(validateSummary(summary).length).toBeGreaterThan(0);
+    }
+    const summary = createValidSummary();
+    summary.results[0].fixtureBlock = summary.results.find((result) => result.fixtureBlock).fixtureBlock;
+    expect(validateSummary(summary).length).toBeGreaterThan(0);
+    expect(() => smokePolicy.createPilotFixtureBlock({ ...entry, route: "/overview" }, "super_admin", "http://localhost:3000")).toThrow();
+    expect(() => smokePolicy.createPilotFixtureBlock(entry, "super_admin", "https://pilot.nestory-kh.com")).toThrow();
+  });
+  it("continues rejecting generic HTTP errors even when they are called expected", () => {
+    const result = { ...passingRouteResult("desktop"), accessResult: "http-error", expectedAccess: "http-error", responseStatus: 404 };
+    expect(smokePolicy.getRouteResultFailures(result).join("\n")).toContain("http-error");
+  });
+});
+
 describe("createReadOnlyRequestPolicy", () => {
   it("blocks an arbitrary same-origin POST before authentication", () => {
     const policy = createPolicy();
@@ -771,7 +818,15 @@ function createValidSummary() {
       };
     });
 
+  for (const result of [...results, ...roleAudits]) {
+    const entry = routeManifest.find((entry) => entry.route === result.manifestRoute);
+    const fixtureBlock = smokePolicy.createPilotFixtureBlock(entry, result.role ?? "super_admin", "http://localhost:3000");
+    if (fixtureBlock) Object.assign(result, { fixtureBlock, accessResult: "fixture-blocked", responseStatus: 404,
+      finalUrl: `http://localhost:3000${entry.route}`, finalPath: entry.route, route: entry.route });
+  }
+
   return {
+    baseUrl: "http://localhost:3000",
     axeEnabled: true,
     blockedMutationRequests: [],
     keyboardZoomAudits,

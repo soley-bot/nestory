@@ -3823,5 +3823,82 @@
       ],
       "limitations": []
     }
+  },
+  {
+    "route": "/settings/maintenance",
+    "applicability": {"environment":"pilot-production","reason":"Requires the production Pilot host and project; local fixture hosts deliberately return not found."},
+    "source": "src/app/(dashboard)/settings/maintenance/page.tsx",
+    "phase": 5,
+    "surface": "settings",
+    "roles": [
+      "super_admin"
+    ],
+    "states": [
+      "populated",
+      "draft",
+      "saving",
+      "success",
+      "error",
+      "permission-blocked"
+    ],
+    "evidence": {
+      "populated": [
+        "src/app/(dashboard)/settings/maintenance/page.tsx",
+        "src/features/reset-maintenance/maintenance-form.tsx",
+        "src/features/reset-maintenance/maintenance-form.test.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/settings/maintenance/page.tsx",
+        "src/features/reset-maintenance/maintenance-form.tsx",
+        "src/features/reset-maintenance/maintenance-form.test.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/settings/maintenance/page.tsx",
+        "src/features/reset-maintenance/maintenance-form.tsx",
+        "src/features/reset-maintenance/maintenance-form.test.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/settings/maintenance/page.tsx",
+        "src/features/reset-maintenance/maintenance-form.tsx",
+        "src/features/reset-maintenance/maintenance-form.test.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/settings/maintenance/page.tsx",
+        "src/features/reset-maintenance/maintenance-form.tsx",
+        "src/features/reset-maintenance/maintenance-form.test.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/settings/maintenance/page.tsx",
+        "src/features/reset-maintenance/maintenance-form.tsx",
+        "src/features/reset-maintenance/maintenance-form.test.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/features/reset-maintenance/context.test.ts"
+      ]
+    },
+    "smoke": {
+      "path": "/settings/maintenance",
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/settings/maintenance/page.tsx",
+        "src/features/reset-maintenance/maintenance-form.test.tsx",
+        "src/features/reset-maintenance/actions.test.ts"
+      ],
+      "limitations": [
+        "Positive access requires the production Pilot host, project and unscoped Super Admin with all reset permissions. Local fixture hosts deliberately receive not found.",
+        "Unit, permission and form tests passed; no deployed browser or real approval evidence is claimed."
+      ]
+    }
   }
 ]

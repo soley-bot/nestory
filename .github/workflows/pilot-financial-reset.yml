@@ -85,6 +85,8 @@ jobs:
             scripts/pilot-finance-reset-hosted-workflow-core.mjs \
             scripts/pilot-finance-reset-hosted-actor.mjs \
             scripts/pilot-finance-reset-hosted-transport.mjs \
+            scripts/pilot-finance-reset-migration-parity.mjs \
+            supabase/migration-reconciliations/20260821-hosted-migration-canonical-hashes.json \
             scripts/pilot-finance-reset-hosted-transport-protocol.mjs \
             scripts/pilot-finance-reset-hosted-protocol.mjs \
             scripts/pilot-finance-reset-operator-core.mjs \

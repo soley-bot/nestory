@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { headers } from "next/headers";
 import { SettingsShell } from "@/components/layout/settings-shell";
 import {
   SettingsWorkspace,
@@ -6,6 +8,8 @@ import {
 import { getOrganizationSettingsData } from "@/features/organization/data";
 import { requireSuperAdminContext } from "@/lib/auth/context";
 import { getOrganizationWorkspaceUrl } from "@/lib/auth/tenant";
+import { canViewPilotResetContext } from "@/features/reset-maintenance/context";
+import { PILOT_RESET_ORGANIZATION } from "@/features/reset-maintenance/review";
 
 export async function OrganizationSettingsRoute({
   section,
@@ -15,6 +19,8 @@ export async function OrganizationSettingsRoute({
   const context = await requireSuperAdminContext();
   const data = await getOrganizationSettingsData(context.organizationId);
   const activeHref = `/settings/${section}`;
+  const showResetReview = section === "organization" && context.organizationId === PILOT_RESET_ORGANIZATION &&
+    canViewPilotResetContext(context, (await headers()).get("host"));
 
   return (
     <SettingsShell activeHref={activeHref} role={context.role}>
@@ -35,6 +41,10 @@ export async function OrganizationSettingsRoute({
           "/",
         )}
       />
+      {showResetReview && <Link href="/settings/maintenance" prefetch={false}
+        className="text-sm font-medium text-primary underline underline-offset-4">
+        Review October reset
+      </Link>}
     </SettingsShell>
   );
 }

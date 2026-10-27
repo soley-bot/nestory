@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   buildDeniedGlobalEntryChecks,
+  buildLocalFixtureDiscoverabilityPlan,
   validateDiscoverabilityEvidence,
 } from "./smoke-authenticated-route-discoverability-core.mjs";
 import { loadRouteRegistry } from "./route-registry-core.mjs";
@@ -66,7 +67,9 @@ if (process.argv.includes("--write-report")) {
     ? JSON.parse(await readFile(evidencePath, "utf8"))
     : undefined;
   if (evidence) {
-    const evidenceIssues = validateDiscoverabilityEvidence(contract, evidence);
+    const scopeArgument = process.argv.find((argument) => argument.startsWith("--evidence-scope="));
+    const scope = scopeArgument?.slice("--evidence-scope=".length) ?? "full";
+    const evidenceIssues = validateDiscoverabilityEvidence(contract, evidence, { scope });
     if (evidenceIssues.length > 0) {
       throw new Error(
         `Refusing invalid discoverability evidence:\n${evidenceIssues.join("\n")}`,
@@ -78,6 +81,11 @@ if (process.argv.includes("--write-report")) {
 
 const issues = [];
 issues.push(...registry.issues);
+try {
+  buildLocalFixtureDiscoverabilityPlan(contract);
+} catch (error) {
+  issues.push(error.message);
+}
 const pageSources = await findPageSources(dashboardRoot);
 const dashboardRoutes = new Map(
   pageSources.map((source) => [normalizeDashboardRoute(source), source]),
@@ -186,6 +194,9 @@ for (const routeContract of contract.routes) {
   if (!uiEntry) {
     issues.push(`${routeContract.route}: missing from config/ui-route-coverage.json`);
   } else {
+    if (JSON.stringify(uiEntry.applicability) !== JSON.stringify(routeContract.applicability)) {
+      issues.push(`${routeContract.route}: fixture applicability differs between route contracts`);
+    }
     if (!sameSet(uiEntry.roles, allowedFromContract)) {
       issues.push(`${routeContract.route}: UI coverage roles differ from the discoverability contract`);
     }

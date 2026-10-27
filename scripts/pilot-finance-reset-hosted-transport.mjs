@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { assertOperatorPacket, canonicalJson, hashSourceBytes, REQUIRED_ARTIFACTS } from './pilot-finance-reset-operator-core.mjs';
 import { exactKeys, same } from './pilot-finance-reset-hosted-protocol.mjs';
-import { reconstructLocalMigrationDescriptors } from './hosted-migration-parity-core.mjs';
+import {verifyResetMigrationLedgerDescriptors} from './pilot-finance-reset-migration-parity.mjs';
 import { HOSTED_ACTIONS, TRANSPORT_SOURCE_FILES, digestPattern, fail, digestJson, hostedBinding,
  validateArtifacts, sortDescriptors, observationSql, mutationSql, timestampMicros, sameDatabaseJson, digestDatabaseJson } from './pilot-finance-reset-hosted-transport-protocol.mjs';
 
@@ -31,7 +31,12 @@ function validateConnection(packet,c) {
 }
 function uncertain() {const error=new Error('hosted_transport_outcome_uncertain_reconcile_original');error.requiresReconciliation=true;throw error;}
 
-function runPsql(connection,input,spawnProcess) {
+export function hostedPsqlTimeoutMs(action='observe',continuationVersion=null) {
+ if((action!=='observe'&&!HOSTED_ACTIONS.includes(action))||![null,1,2,3,4].includes(continuationVersion))fail('process_budget_invalid');
+ return action==='execute'&&continuationVersion===4?600000:180000;
+}
+function runPsql(connection,input,spawnProcess,action='observe',continuationVersion=null) {
+ const timeoutMs=hostedPsqlTimeoutMs(action,continuationVersion);
  return new Promise((resolve,reject)=>{
   let child,done=false,timer,total=0,stderr=0;const chunks=[];
   const stop=()=>{if(done)return;done=true;clearTimeout(timer);try{child?.kill('SIGKILL');}catch{}reject(new Error('hosted_transport_process_failed'));};
@@ -42,7 +47,7 @@ function runPsql(connection,input,spawnProcess) {
      PGCONNECT_TIMEOUT:'10',PGAPPNAME:'nestory_financial_reset_fixed_transport'}});
    if(!child||typeof child.once!=='function'||typeof child.kill!=='function'||typeof child.stdin?.end!=='function'||
     typeof child.stdin?.on!=='function'||typeof child.stdout?.on!=='function'||typeof child.stderr?.on!=='function') {stop();return;}
-   timer=setTimeout(stop,180000);
+   timer=setTimeout(stop,timeoutMs);
    child.once('error',stop);child.stdin.on('error',stop);child.stdout.on('error',stop);child.stderr.on('error',stop);
    child.stdout.on('data',bytes=>{if(done)return;total+=Buffer.byteLength(bytes);if(total>16*1024*1024){stop();return;}chunks.push(Buffer.from(bytes));});
    child.stderr.on('data',bytes=>{stderr+=Buffer.byteLength(bytes);if(stderr>8192)stop();});
@@ -71,8 +76,11 @@ function assertObserved(packet,observation,files) {
  if(migrations.length!==observation.ledger.length) fail('migration_roster_changed');
  for(const [i,name] of migrations.entries()) {
   const m=observation.ledger[i],base=name.split('/').at(-1);
-  if(m.version!==base.slice(0,14)||m.name!==base.slice(15,-4)||reconstructLocalMigrationDescriptors(files.get(name),m.statements).issue) fail('installed_migration_content_changed');
+  if(m.version!==base.slice(0,14)||m.name!==base.slice(15,-4)) fail('installed_migration_content_changed');
  }
+ try{verifyResetMigrationLedgerDescriptors(observation.ledger,migrations.map(name=>({name:name.split('/').at(-1),sql:files.get(name)})),
+  Buffer.from(files.get('supabase/migration-reconciliations/20260821-hosted-migration-canonical-hashes.json')??''));}
+ catch{fail('installed_migration_content_changed')}
  if(observation.timezone!==packet.operation.timezone||observation.capabilityCount!==0||!digestPattern.test(observation.sourceSha256)||
   !digestPattern.test(observation.foreignSha256)) fail('observation_invalid');
 }
@@ -170,6 +178,12 @@ function precondition(action,packet,binding,a,r,o) {
  if(action==='execute-recovery'&&(!o.recoveryReservation||!same(o.recoveryReservation.binding,binding))) fail('recovery_reservation_required');
 }
 
+// Shared process, validation and receipt helpers for the fixed local-custody
+// worker. These provide no authorization and do not remove the dispatch hold.
+export { runPsql as runHostedPsql, sources as verifyHostedPacketSources,
+ assertObserved as assertHostedObservation, precondition as assertHostedPrecondition,
+ stageReceiptMatches as hostedStageReceiptMatches, phaseState as hostedPhaseState };
+
 export function createHostedResetTransport(options) {
  if(!exactKeys(options,allowedOptions)&&!exactKeys(options,[...allowedOptions,'spawnProcess'])) fail('options_invalid');
  const packet=structuredClone(options.packet),connection=structuredClone(options.connection);
@@ -251,7 +265,7 @@ export function createHostedResetTransport(options) {
     action,bindingSha256:digestJson(input.binding),authorizationId:authorization.authorizationId,authoritySha256:authority.authoritySha256,
     sourceObservationSha256:digestDatabaseJson(observation),sqlSha256:digestJson(sql)};
    await save(`${key}/intent`,intent);
-   try{await runPsql(connection,sql,spawnProcess);}catch{/* Lost reply never authorizes a retry; inspect durable original state. */}
+   try{await runPsql(connection,sql,spawnProcess,action,input.artifacts.continuationPlan.version);}catch{/* Lost reply never authorizes a retry; inspect durable original state. */}
    let result;try{result=await reconcileAction(action,input,intent);}catch{uncertain();}
    if(result.outcome!=='committed-and-verified')uncertain();
    await save(`${key}/receipt`,result);return result;

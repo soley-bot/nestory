@@ -60,6 +60,40 @@ INSERT INTO public.person_roles(organization_id,person_id,role)
 SELECT org,person,kind FROM empty_books_state CROSS JOIN LATERAL (VALUES(tenant,'tenant'),(owner,'owner')) roles(person,kind);
 INSERT INTO public.property_owners(organization_id,property_id,person_id,ownership_label,ownership_percent,is_primary,started_on,created_by,updated_by)
 SELECT org,property,owner,'Primary owner',100,true,'2025-01-01',maker,maker FROM empty_books_state;
+-- Historical identities are retained; no role assignment or unarchiving is
+-- permitted merely to manufacture the reset's zero opening authority.
+INSERT INTO public.properties(id,organization_id,name,code,property_type,rental_structure,status)
+SELECT pg_temp.empty_books_id(9010),org,'Archived empty books property','ODA','apartment','multi_unit','active' FROM empty_books_state;
+INSERT INTO public.people(id,organization_id,display_name,party_type)
+SELECT pg_temp.empty_books_id(9011),org,'Archived empty books owner','company' FROM empty_books_state;
+INSERT INTO public.person_roles(organization_id,person_id,role)
+SELECT org,pg_temp.empty_books_id(9011),'owner' FROM empty_books_state;
+INSERT INTO public.property_owners(organization_id,property_id,person_id,ownership_label,ownership_percent,is_primary,started_on,created_by,updated_by)
+SELECT org,pg_temp.empty_books_id(9010),pg_temp.empty_books_id(9011),'Historical owner',100,true,'2025-01-01',maker,maker FROM empty_books_state;
+UPDATE public.properties SET archived_at=clock_timestamp(),archived_by=(SELECT maker FROM empty_books_state) WHERE id=pg_temp.empty_books_id(9010);
+SELECT pg_temp.reset_fixture_claims(maker) FROM empty_books_state;
+SELECT public.archive_person(org,pg_temp.empty_books_id(9011)) FROM empty_books_state;
+SELECT throws_ok($$SELECT * FROM app_private.financial_reset_zero_roster_on_date((SELECT org FROM empty_books_state),pg_temp.empty_books_id(9010),'2026-10-01')$$,
+ '23514','owner_person_inactive','legacy reset roster still rejects an archived owner');
+SELECT throws_ok($$SELECT * FROM app_private.validate_owner_roster_on_date((SELECT org FROM empty_books_state),pg_temp.empty_books_id(9010),'2026-10-01')$$,
+ '23503','owner_roster_property_not_found','ordinary owner roster still rejects an archived property');
+SELECT throws_ok($$SELECT * FROM app_private.financial_reset_empty_command_roster_on_date((SELECT org FROM empty_books_state),pg_temp.empty_books_id(9010),'2026-10-01')$$,
+ '23503','owner_roster_property_not_found','historical command path requires the consumed exact transaction context');
+SELECT throws_ok($$SELECT app_private.financial_reset_scoped_submit_opening((SELECT org FROM empty_books_state),pg_temp.empty_books_id(9010),pg_temp.empty_books_id(9011),
+ 'USD','2026-10-01',(enum_range(NULL::public.owner_balance_component))[1],0,'Synthetic context denial','synthetic',NULL,NULL,NULL,'synthetic-no-context')$$,
+ '42501','financial_reset_zero_command_context_required','direct scoped submit cannot admit a historical owner without the native command context');
+SELECT is((SELECT count(*) FROM app_private.financial_reset_empty_zero_roster_on_date((SELECT org FROM empty_books_state),pg_temp.empty_books_id(9010),'2026-10-01')),1::bigint,
+ 'private v4 preparation reader retains a complete historical owner roster');
+SAVEPOINT active_property_archived_owner;
+UPDATE public.properties SET archived_at=NULL,archived_by=NULL WHERE id=pg_temp.empty_books_id(9010);
+SELECT throws_ok($$SELECT * FROM app_private.financial_reset_empty_zero_roster_on_date((SELECT org FROM empty_books_state),pg_temp.empty_books_id(9010),'2026-10-01')$$,
+ '23514','owner_person_inactive','v4 still rejects archived owners of active properties');
+ROLLBACK TO SAVEPOINT active_property_archived_owner;
+SAVEPOINT inactive_owner_role;
+UPDATE public.person_roles SET status='inactive' WHERE person_id=pg_temp.empty_books_id(9011) AND role='owner';
+SELECT throws_ok($$SELECT * FROM app_private.financial_reset_empty_zero_roster_on_date((SELECT org FROM empty_books_state),pg_temp.empty_books_id(9010),'2026-10-01')$$,
+ '23514','owner_person_inactive','v4 still requires an active owner role for historical identities');
+ROLLBACK TO SAVEPOINT inactive_owner_role;
 CREATE TEMP TABLE empty_books_contract_fixture AS
 SELECT n,pg_temp.empty_books_id(n) AS lease,pg_temp.empty_books_id(100+n) AS term,
  pg_temp.empty_books_id(200+n) AS rule,pg_temp.empty_books_id(300+n) AS unit,
@@ -178,10 +212,15 @@ SELECT app_private.prepare_financial_reset_operation(jsonb_build_object('operati
 SELECT app_private.archive_financial_reset_rows(operation,(SELECT jsonb_agg(jsonb_build_object('relation_name',relation_name,'primary_key',pk,
  'row_text',image::text,'row_sha256',hash) ORDER BY ordinal) FROM empty_books_archive)) FROM empty_books_state;
 SELECT app_private.prepare_financial_reset_actions(operation,value) FROM empty_books_state CROSS JOIN empty_books_actions;
-WITH review AS(SELECT operation,jsonb_build_object('operation_id',operation,'organization_id',org,'manifest_sha256',repeat('a',64),
+CREATE TEMP TABLE empty_books_zero_review AS SELECT operation,jsonb_build_object('version',4,'operation_id',operation,'organization_id',org,'manifest_sha256',repeat('a',64),
  'reset_plan_sha256',repeat('b',64),'maker_actor_id',maker,'reviewer_actor_id',reviewer,'effective_date','2026-10-01','currencies','["USD"]'::jsonb,
- 'scopes',app_private.financial_reset_known_zero_scope(operation)) AS value FROM empty_books_state)
-SELECT app_private.prepare_financial_reset_zero_plan(operation,value,app_private.financial_reset_hash(value)) FROM review;
+ 'scopes',app_private.financial_reset_empty_zero_scope_on_date(org,'2026-10-01')) AS value FROM empty_books_state;
+SELECT throws_ok($$SELECT app_private.prepare_financial_reset_empty_zero_plan(operation,value-'version',app_private.financial_reset_hash(value-'version')) FROM empty_books_zero_review$$,
+ '23514','financial_reset_zero_review_scope_invalid','historical preparation requires the explicit reviewed version4 marker');
+SELECT throws_ok($$SELECT app_private.prepare_financial_reset_empty_zero_plan(operation,jsonb_set(value,'{scopes,0,owner_person_row_sha256}',to_jsonb(repeat('d',64))),
+ app_private.financial_reset_hash(jsonb_set(value,'{scopes,0,owner_person_row_sha256}',to_jsonb(repeat('d',64))))) FROM empty_books_zero_review$$,
+ '23514','financial_reset_zero_review_scope_invalid','zero review binds exact person row bytes as well as property and ownership roster');
+SELECT app_private.prepare_financial_reset_zero_plan(operation,value,app_private.financial_reset_hash(value)) FROM empty_books_zero_review;
 SELECT pg_temp.reset_fixture_claims(maker) FROM empty_books_state;
 SELECT set_config('empty_books.operation',operation::text,true),set_config('empty_books.zero_review',review_sha256,true)
 FROM empty_books_state JOIN app_private.financial_reset_zero_plans ON operation_id=operation;
@@ -234,6 +273,11 @@ RESET SESSION AUTHORIZATION;
 SELECT app_private.consume_financial_reset_actor_authorization(authorization_id,binding,'execute') FROM reset_operator_fixture;
 SELECT set_config('request.jwt.claim.sub','',true),set_config('request.jwt.claims','{}',true);
 SELECT app_private.apply_financial_reset_known_zero(operation) FROM empty_books_state;
+SELECT ok((SELECT count(*)=4 AND bool_and(proposed_amount=0 AND status='approved') FROM public.owner_opening_balance_requests WHERE property_id=pg_temp.empty_books_id(9010)),
+ 'consumed v4 session authorizes only four checked zero components for the archived property');
+SELECT ok((SELECT archived_at IS NOT NULL FROM public.people WHERE id=pg_temp.empty_books_id(9011)) AND
+ (SELECT archived_at IS NOT NULL FROM public.properties WHERE id=pg_temp.empty_books_id(9010)),
+ 'known zero leaves the historical property and owner archived');
 UPDATE empty_books_plan SET value=jsonb_set(value,'{source_sha256}',to_jsonb(app_private.financial_reset_hash(
  app_private.financial_reset_continuation_snapshot((SELECT org FROM empty_books_state)))));
 SELECT set_config('request.headers','{"x-nestory-financial-generation":"1"}',true);
@@ -244,7 +288,10 @@ $$;
 SELECT ok(NOT EXISTS(SELECT 1 FROM (VALUES('anon'),('authenticated'),('service_role')) roles(name)
  CROSS JOIN (VALUES('app_private.prepare_financial_reset_empty_continuation(uuid,jsonb,text)'),
   ('app_private.apply_financial_reset_empty_continuation(uuid)'),('app_private.assert_financial_reset_empty_plan(uuid,jsonb)'),
-  ('app_private.financial_reset_preserved_contracts(uuid)'),('app_private.financial_reset_preserved_lease_source(uuid,uuid)')) f(signature)
+  ('app_private.financial_reset_preserved_contracts(uuid)'),('app_private.financial_reset_preserved_lease_source(uuid,uuid)'),
+  ('app_private.financial_reset_empty_zero_roster_on_date(uuid,uuid,date)'),('app_private.financial_reset_empty_zero_scope_on_date(uuid,date)'),
+  ('app_private.prepare_financial_reset_empty_zero_plan(uuid,jsonb,text)'),('app_private.assert_financial_reset_empty_zero_operator(uuid)'),
+  ('app_private.financial_reset_reviewed_zero_roster_on_date(uuid,uuid,uuid,date)'),('app_private.financial_reset_empty_command_roster_on_date(uuid,uuid,date)')) f(signature)
  WHERE has_function_privilege(name,signature,'EXECUTE')),'empty-books helpers expose no application reset or private snapshot access');
 SELECT lives_ok($$SELECT app_private.assert_financial_reset_empty_semantic((value-'source_sha256')||jsonb_build_object('leases','[]'::jsonb)) FROM empty_books_plan$$,
  'empty semantic roster is structurally allowed; source verification still requires every actual lease');

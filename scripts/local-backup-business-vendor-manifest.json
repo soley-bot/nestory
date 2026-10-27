@@ -1,0 +1,902 @@
+{
+  "format": "nestory-local-business-vendor-sources-v1",
+  "image": "sha256:f6cdd6bf9b556934e8a761d92d082488db206deeec9349c4e938a72d65677e80",
+  "imageSources": [
+    {
+      "name": "/docker-entrypoint-initdb.d/init-scripts/00-schema.sql",
+      "sha256": "494270a846feefa9a9e1462496b1bb707e617341a12344cbe9f3d2e8d8a0aac8"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/init-scripts/00000000000000-initial-schema.sql",
+      "sha256": "84588fff60ff3cadcd361c820fe502052f4c5fd5aa273740e0690c5ee59ec813"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/init-scripts/00000000000001-auth-schema.sql",
+      "sha256": "65a4a55ba3248716eb4946a8677be41c94bc90eafaa22c0eb95b09908f96fa4f"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/init-scripts/00000000000002-storage-schema.sql",
+      "sha256": "1071677a0f0a57e35dc7cb62aeae4fd5417b2e9b7e58be5fd212749dff357f02"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/init-scripts/00000000000003-post-setup.sql",
+      "sha256": "f38552008ac577b3e65fbcab784a612b72d079f6695871c84b045a1a921f7096"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/00-extension.sql",
+      "sha256": "a12e0eb4192d188e0dc5058e888ec981c1fd619d5542235d5b692ea0a1d751b2"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/10000000000000_demote-postgres.sql",
+      "sha256": "581edb76cba2aaf848585be462d07bff7182aa6c638f9365f08dd0c1fb1142ab"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20211115181400_update-auth-permissions.sql",
+      "sha256": "bbaa44bc707538e6c67ae8c71a386c41e136cd30fcde563db39c9d0fbde9bdcb"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20211118015519_create-realtime-schema.sql",
+      "sha256": "1d6cd4858a0fa50bf910bfd6c11a3436941a5fecdc4bdc02b9b067e8e0b7f566"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20211122051245_update-realtime-permissions.sql",
+      "sha256": "9fd431e8f1a3fc0f2e1e427d4f526562c1fe8627e12302974215373885b5254b"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20211124212715_update-auth-owner.sql",
+      "sha256": "9698f481ad9cb159df6cefd5cc4b94f4b9db0eda475317aaa057b1e9a54409e0"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20211130151719_update-realtime-permissions.sql",
+      "sha256": "6b5d190c93b35a2f804703ed7872946b51fded3272bed0ef9a6585187b0dc2b4"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20220118070449_enable-safeupdate-postgrest.sql",
+      "sha256": "2bffffbf1e5a677ef8c8cbba9afc5a66bc77113ee9b2e2b4d2a56629a381cea4"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20220126121436_finer-postgrest-triggers.sql",
+      "sha256": "85dc26173d7254490d0c20389bc7e3ac7f7752b872c99bb714167cb01b231312"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20220224211803_fix-postgrest-supautils.sql",
+      "sha256": "744ed5c5ae1527c6c73ad4214c11d903eafdc5803eb69183b3b3325b7a65c5bc"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20220317095840_pg_graphql.sql",
+      "sha256": "31f5b997cba8d74936203a78613b5bda9b51e339c6c14f80c203440f82e95cf9"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20220321174452_fix-postgrest-alter-type-event-trigger.sql",
+      "sha256": "674bfe11a9cb828c55ca7c9e00d4f4edcbcb0003d956d8866c9563810e7f0f0e"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20220322085208_gotrue-session-limit.sql",
+      "sha256": "ab2f834addee3115c96edddda927ef9f5d8641c3939d2be82b8ce1e890cf4921"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20220404205710_pg_graphql-on-by-default.sql",
+      "sha256": "02ef3e3e6c03032a6ccb828ef1e1b297d9b34ad1947a673756c3c95dd86a01d1"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20220609081115_grant-supabase-auth-admin-and-supabase-storage-admin-to-postgres.sql",
+      "sha256": "ff540703d411416925a21553bead344a9cebdec4cb0e53fb93f99973874f1e59"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20220613123923_pg_graphql-pg-dump-perms.sql",
+      "sha256": "ab244687d0123859d9d9c6a79b34897e8cdd8f1698bdccd1bef7f7e0ced82334"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20220713082019_pg_cron-pg_net-temp-perms-fix.sql",
+      "sha256": "143d6e664f2f508f76964fbaaa018c6ee262464c8c7a881201ae56e025787c94"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20221028101028_set_authenticator_timeout.sql",
+      "sha256": "393dd66aee71a99d3956c6c6655e3c010afe9bd3f9a819b03746850ba70f9680"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20221103090837_revoke_admin.sql",
+      "sha256": "8fff945cd6f11ab68b2f300c64d43a38ef69d61987aaf596a1d00bfa225234e8"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20221207154255_create_pgsodium_and_vault.sql",
+      "sha256": "cb8877c69b6913153776b865093e85768053daed283dec6835fdac728978d76c"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20230201083204_grant_auth_roles_to_postgres.sql",
+      "sha256": "b06d2bdfe4d60e9e2183c2296511a4b83d97cebb71cb2d714cd863081990857e"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20230224042246_grant_extensions_perms_for_postgres.sql",
+      "sha256": "9e1e777fb8317dcccdb88ead19201a5670c890fa69dfc51c8d7b369229c3ca8d"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20230306081037_grant_pg_monitor_to_postgres.sql",
+      "sha256": "5d80fb49faaf96712ecb23896a36a03122ca352b5046ab8480fee914a054cdec"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20230327032006_grant_auth_roles_to_supabase_storage_admin.sql",
+      "sha256": "9f8985b3676ff2c3709b3193736e17fcfd20264953eba7dcbc94056ea26bac0e"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20230529180330_alter_api_roles_for_inherit.sql",
+      "sha256": "e78a67f8e6ae847765a80898824d404ab370daa3d6f6dbf61ea6d9e0a69144f3"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20231013070755_grant_authenticator_to_supabase_storage_admin.sql",
+      "sha256": "48d9feb2734125f79eb67bd0522fee9ad3916888172c7023a84241260687620f"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20231017062225_grant_pg_graphql_permissions_for_custom_roles.sql",
+      "sha256": "1833af7170c97bc444cfe9f823be73d3ff3f9b18e47c2ee1181ff33a1fbbb673"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20231020085357_revoke_writes_on_cron_job_from_postgres.sql",
+      "sha256": "6c37208218a84c3ab40e5e0369b86d31a6ddc56fbfe95c03800776b3fa9ce4b7"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20231130133139_set_lock_timeout_to_authenticator_role.sql",
+      "sha256": "5d2cc80fdb26cbda32d8398bf8486cccc4e2f6b911b5719f146d0167551f6a00"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20240124080435_alter_lo_export_lo_import_owner.sql",
+      "sha256": "1060763d9f69d39c5027c632aa634b3b8d9d021dd7150f6efdbe1d9d7679e655"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20240606060239_grant_predefined_roles_to_postgres.sql",
+      "sha256": "11b87064890ffe3f3d14336b712c310966d09458c5eef7203e7251cc9156f59e"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20241031003909_create_orioledb.sql",
+      "sha256": "119405b66ee3c57cb81849e0cb20423ca059d9f54a4ef8607313ff4db48c8082"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20241215003910_backfill_pgmq_metadata.sql",
+      "sha256": "4220830feda72a98a2ec804a6ef9250507ca22cd4ccf4f17a0036c4d771e6adf"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20250205060043_disable_log_statement_on_internal_roles.sql",
+      "sha256": "720d2ecb3ae5d43eb8d0e071fa489dec472d54ff27e4fa46f8d17c8070cbb13f"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20250205144616_move_orioledb_to_extensions_schema.sql",
+      "sha256": "9ea55607791aa8c8b55982cee9f006129149e3f4e10bd320bfedcbeb945e5230"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20250218031949_pgsodium_mask_role.sql",
+      "sha256": "24cf783d3c039d90a67225eef1fbfe688fda8b3fd88610bea59abc6590db3382"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20250220051611_pg_net_perms_fix.sql",
+      "sha256": "7e700959a7583b857a5738c71777682e509f4414272390f20ac5d86f999ae6c1"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20250312095419_pgbouncer_ownership.sql",
+      "sha256": "fd95765def92461de68b550eb65587babd9944cee142cac0bec4df3c277adec8"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20250402065937_alter_internal_event_triggers_owner_to_supabase_admin.sql",
+      "sha256": "1197d727fb7a8ddf8a61c992ff5698d81a5e908e677cc3a4d835b079aeacb8f1"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20250402093753_grant_subscription_to_postgres_16_and_above.sql",
+      "sha256": "8232eb5b1d0d9e0e45dd58d18083f3dd03f0bd792cfa16ee0ec5e05ae2cb2a97"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20250417190610_update_pgbouncer_get_auth.sql",
+      "sha256": "c7a26bdcb8b48941bbe5ead7c347a06b9261f7a461abeeea0bfe129f20625745"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20250421084701_revoke_admin_roles_from_postgres.sql",
+      "sha256": "77679a5c54d2baccc445d79d3b66429181d37937c1c05627742d205e580441f6"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20250605172253_grant_with_admin_to_postgres_16_and_above.sql",
+      "sha256": "1daa645828b02f85325a563c6a0b3d81e15e729fa3de442c8cdf9e43c174acf8"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20250623125453_tmp_grant_storage_tables_to_postgres_with_grant_option.sql",
+      "sha256": "1289f81f7111147fc334fa44ec00c31c871f5ba325c16cc205646ff07507cf04"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20250709135250_grant_storage_schema_to_postgres_with_grant_option.sql",
+      "sha256": "b0b7091cb8bddfb3c9c6794f3b2a70ecf3b51b1827d79bdbc4f34d4331937641"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20250710151649_supabase_read_only_user_default_transaction_read_only.sql",
+      "sha256": "7d2d0e770b5198f5bbc571210a1afaf03ed6421d3cfeee85c694832f2582dc19"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20251001204436_predefined_role_grants.sql",
+      "sha256": "46b35cd58c43d73d58242a3dfeb8a8c31b0a4981a7a609b043361dd304cfe886"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20251105172723_grant_pg_reload_conf_to_postgres.sql",
+      "sha256": "d46bb05f79fc895f0a50b8a42e8507136c367bb67c03d7080ae7fd21680abc38"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20251121132723_correct_search_path_pgbouncer.sql",
+      "sha256": "27293b64d94e42e3d4f2410c914c38a059f9df7bc5e287cf76c055e3bf822119"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20260211120934_supabase_privileged_role.sql",
+      "sha256": "ebbb7a055ecf767568d6e9035f32f93397922e43ecabd0c588593ec3f8c5974f"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20260413000000_fix-authenticator-session-preload-libraries.sql",
+      "sha256": "eee2f692ec9b1b9fea425b616761d5f6369b9c70148e58eaa186d3638d6efcbe"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20260421000000_pg_graphql-off-by-default.sql",
+      "sha256": "17e120888bec3a4131959e39012c2a68b0eb0206805f4aa624cca8d9b6c1fb0b"
+    },
+    {
+      "name": "/docker-entrypoint-initdb.d/migrations/20260421000001_rescope_pg_graphql_access_trigger.sql",
+      "sha256": "c9c3986d040d8f2545c5faf97ce57804408bf2465105cb8c7c6a6dcea8ec6535"
+    }
+  ],
+  "vendors": [
+    {
+      "group": "auth-migrations",
+      "name": "00_init_auth_schema.up.sql",
+      "sha256": "4c3ab2565f2836d8fa0a54fd9d153facaee0c4c6258fa0a794c93446ddc10f71"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20210710035447_alter_users.up.sql",
+      "sha256": "b87f889d4839b7e092f186ad244f3f5294ab5c0f50ef2feb40cab1307be8c9cd"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20210722035447_adds_confirmed_at.up.sql",
+      "sha256": "32499502e5d57594d2373e6f00d7b436a9b275c85b889680913f00d6ebc3ae73"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20210730183235_add_email_change_confirmed.up.sql",
+      "sha256": "88da41a1dbae8077a26a4811c4d80b925162e5423c803467d3bff78407b4d995"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20210909172000_create_identities_table.up.sql",
+      "sha256": "4c2d6a94d34d34f98f1fa83537a0068f4813e49a19cfc2fd4e9199e5a941cc84"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20210927181326_add_refresh_token_parent.up.sql",
+      "sha256": "73fb1d320fb85e231e322d0da6184adcda838c755a2b3f1e0894c249a59ba4e3"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20211122151130_create_user_id_idx.up.sql",
+      "sha256": "0fbc4d8b62329aa444ea5820eef86e32a57a709964a2c65bc0463083b7130b02"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20211124214934_update_auth_functions.up.sql",
+      "sha256": "abf8d29849e04db2b6a84ea9c8c58daafdabdd3e3520051efb9ec362f4679992"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20211202183645_update_auth_uid.up.sql",
+      "sha256": "a70a3afa97c67fbb31aacbea496da0d01b9a809dc4b861f3187cb7e3ba5fda2d"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20220114185221_update_user_idx.up.sql",
+      "sha256": "89eb7cb7f44efcbf48ed854faca0347dea80cebff1693a8dc532d581729de0cd"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20220114185340_add_banned_until.up.sql",
+      "sha256": "8aea70090fdeeafc4bbf206a799551e3f7bce0e6749d8c7cc8033e983e750e38"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20220224000811_update_auth_functions.up.sql",
+      "sha256": "5b72022d73e64a8e474d2122ac42f299bb7ce4d59755cdcc78e72abfe5d47dc0"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20220323170000_add_user_reauthentication.up.sql",
+      "sha256": "5fb66f473dd37e7141c5165254a6706cae3d2cab3632b92fb0f8f7cb58f7655d"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20220429102000_add_unique_idx.up.sql",
+      "sha256": "4f9ce72459f72a601c4901eed0d4f5b9e9731c31f8d643736a118739c29538ee"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20220531120530_add_auth_jwt_function.up.sql",
+      "sha256": "91d2d5e47f19e65a63ec411f6cbb18755ec1792cb4249694dc261ef59cc78a10"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20220614074223_add_ip_address_to_audit_log.postgres.up.sql",
+      "sha256": "0e2cbe2fc509b97f27803c04e723215c3944a7f84c043dd8f7cd7118c199a5dc"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20220811173540_add_sessions_table.up.sql",
+      "sha256": "840c19639d972143bc3fc05a16e77da45c076edcba229c94b019a2db1f0eb192"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20221003041349_add_mfa_schema.up.sql",
+      "sha256": "c8c52b388e13c77062d54036884b1e2e1716a6712ea1f1d0cdd07de5451cb605"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20221003041400_add_aal_and_factor_id_to_sessions.up.sql",
+      "sha256": "3ed43e2a1392b28d4295265199265b2d9be22d005c597367db5613f95b304ab1"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20221011041400_add_mfa_indexes.up.sql",
+      "sha256": "32ab5cd482674c98fd5926e7c0995fc216d2cc2b1ff77554b6c45b4bd758dd6f"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20221020193600_add_sessions_user_id_index.up.sql",
+      "sha256": "7b33e11e8092ea07d2f4e899558b46e0a5573f0c43a56532f1f640c2c7eb7802"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20221021073300_add_refresh_tokens_session_id_revoked_index.up.sql",
+      "sha256": "63887b7bd3045561c4930575d4fa324fc9090630193989a9736dd84328d1ec55"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20221021082433_add_saml.up.sql",
+      "sha256": "af0bbfdb64dd32f512712f45b44e0dce4e9af8ce7874e01c3a804f95eeb3a387"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20221027105023_add_identities_user_id_idx.up.sql",
+      "sha256": "1e7c07b825b2ee8bdfe8fee06588525b97f3771efc6c365c7057c0f7abfbd30a"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20221114143122_add_session_not_after_column.up.sql",
+      "sha256": "7bf30a94308028f0c8140166e9a6f3d77356daa1147e5740a27cc983e39b854c"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20221114143410_remove_parent_foreign_key_refresh_tokens.up.sql",
+      "sha256": "5e804d7c82e0e6dca6f72e2350951e87714f6890fe63c2388dcbfa9aea687f2f"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20221125140132_backfill_email_identity.up.sql",
+      "sha256": "60cfea2750a2c79c0d69bb3a08edee0efb830c12212cac0ffdb5d44937c2839d"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20221208132122_backfill_email_last_sign_in_at.up.sql",
+      "sha256": "c8487fa68eac6f0b4133f1a3fec950b3d8f9782a6c4be52e3b3155646b2a70bf"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20221215195500_modify_users_email_unique_index.up.sql",
+      "sha256": "0a2cdcd4101a418ec7b482800327fc90238b498db01a657dbbeefdba8b8f3866"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20221215195800_add_identities_email_column.up.sql",
+      "sha256": "3ddff50750549b790eecbeac2194966ca98354564f4fba537cda70d96b575d39"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20221215195900_remove_sso_sessions.up.sql",
+      "sha256": "f79ad2aaaa4f748836595a9ef10b3df0234e53032c339f0c74e3181271af1801"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20230116124310_alter_phone_type.up.sql",
+      "sha256": "4f01441b120a5c06a1bd844fcdb77094ee428987418f4c3b68bcbd36b3e6d345"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20230116124412_add_deleted_at.up.sql",
+      "sha256": "144a735e50373686e04d0cd3d46b997262162dda14965870342f65cd0b5a7845"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20230131181311_backfill_invite_identities.up.sql",
+      "sha256": "f88443609f6d15d3d1bff00e69a6c7a455fa331cb30747c8448d5e219729a2df"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20230322519590_add_flow_state_table.up.sql",
+      "sha256": "cc19edd9bf9dc333381a5843c440a28cca3f492eba3ed77f0bc052df371d15f6"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20230402418590_add_authentication_method_to_flow_state_table.up.sql",
+      "sha256": "8f10e836a25f85ccdac620c36f871effc84e7d6020bd38fd002ddd119847fd84"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20230411005111_remove_duplicate_idx.up.sql",
+      "sha256": "cc1b7b8a172693abafa64d0273240fa8181fdf5dde565e15b94adb38ec40c2e9"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20230508135423_add_cleanup_indexes.up.sql",
+      "sha256": "89d4747491836d2bc33cc340029624d88ed9cf7e32574c3a9fbbe2431a27b5c8"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20230523124323_add_mfa_challenge_cleanup_index.up.sql",
+      "sha256": "af534c2184d12d00bef8fbd8b593f5a4c8b3297854bd205fb4e3bcdba9d6ca56"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20230818113222_add_flow_state_to_relay_state.up.sql",
+      "sha256": "cc6587385b84deba61c31e0749eb8064f9cdf5aa6db5239713fa31966de4f2dd"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20230914180801_add_mfa_factors_user_id_idx.up.sql",
+      "sha256": "844c575a40f9609987638bb29716deaaad3b9c1c1e8c399204d870018f867684"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20231027141322_add_session_refresh_columns.up.sql",
+      "sha256": "d4aa51107599c755003464121d4c0d99e617543bfee9a816fd76df0b399aafe0"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20231114161723_add_sessions_tag.up.sql",
+      "sha256": "e32711d98cd7c3f5920ca2a79df9c597433dac1b7e8b56df7b0becb96319d147"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20231117164230_add_id_pkey_identities.up.sql",
+      "sha256": "8822b2807b672d38b212618193efdb6fc2cf787e564a495940c1a8844155d7b0"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20240115144230_remove_ip_address_from_saml_relay_state.up.sql",
+      "sha256": "9e104ca8b63695f6427ff057b5b7801ef7e4cc3baf32d4289e61b0015128d651"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20240214120130_add_is_anonymous_column.up.sql",
+      "sha256": "e36f403a8aad16ccbcc44e1d4198cf21451a906b45ceaedb74bfcd28e79caf21"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20240306115329_add_issued_at_to_flow_state.up.sql",
+      "sha256": "bf1f44b3cb07768436f31c74baabfd2f39c738609aff8b21cfa5a432abcc8a99"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20240314092811_add_saml_name_id_format.up.sql",
+      "sha256": "282677b538df87612bef2780d25b08508980648e3e33e6a90f8602d35d4e96bf"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20240427152123_add_one_time_tokens_table.up.sql",
+      "sha256": "bfc4d6e779ce15c0e9170d1ab149b431108f2085a5aa4663d4288158348f3693"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20240612123726_enable_rls_update_grants.up.sql",
+      "sha256": "4339a09e7c90d7a46d2527097bc47c382300d72faaec901a8792319bd9a28f10"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20240729123726_add_mfa_phone_config.up.sql",
+      "sha256": "b273758317267b6b4d126489ba93550c8d0e0584e52c08b3cc101de6fe1b857c"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20240802193726_add_mfa_factors_column_last_challenged_at.up.sql",
+      "sha256": "0e5aa195cf80e377cdca00b4e01e2c82769c03dc9ffb487dce8891944bc014dd"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20240806073726_drop_uniqueness_constraint_on_phone.up.sql",
+      "sha256": "41b86596488620d17e513354fa9ffda041214d9014dc34e46f68d42019d1c2ee"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20241009103726_add_web_authn.up.sql",
+      "sha256": "4efc5df9a393ce28ef639f1523a1dbc018066daddca7fb58d2bf02214e532bd0"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20250717082212_add_disabled_to_sso_providers.up.sql",
+      "sha256": "4b3b6073f80799f41370cbba6706a1ea8770803746f7662ee0f82e72740af4bb"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20250731150234_add_oauth_clients_table.up.sql",
+      "sha256": "33651d28b6ea6aa1cd84b5d50cdf8181cfb9fb314b76670554bef58dbf69c168"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20250804100000_add_oauth_authorizations_consents.up.sql",
+      "sha256": "64b4730434c00864a069404a636bc2281c3920fab451517b138e6f6f056d986f"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20250901200500_add_oauth_client_type.up.sql",
+      "sha256": "e986446884eb9b5b0f26dd667385a31da8291f8748a543669cd960c405835d1b"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20250903112500_remove_oauth_client_id_column.up.sql",
+      "sha256": "fb2df11538de2c165560c3b6bdae3d4da543a3ac136f8a0e6dc4fbd56d223c30"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20250904133000_add_oauth_client_id_to_session.up.sql",
+      "sha256": "3c4b49f787b54d4e09b48b4500226b59edc73e3f60826538e9e3552db9542faf"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20250925093508_add_last_webauthn_challenge_data.up.sql",
+      "sha256": "0d1df54678aadbd03777c82e3d9e4a917717d806e884a6c69f3c0206c1963017"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20251007112900_add_session_refresh_token_columns.up.sql",
+      "sha256": "030486cbfbd1b3cc95f029eb45d33270c22706fe33249a04240dccffc656ce2e"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20251104100000_add_nonce_to_oauth_authorizations.up.sql",
+      "sha256": "830c36f9e0fd02a278e361be02fb1121ff472f3f3514f108b55ff3bc52ed122d"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20251111201300_add_scopes_to_sessions.up.sql",
+      "sha256": "ed17a54ec423ca409b384e26805ec7e10b346a22573f5729f9580126b9715271"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20251201000000_add_oauth_client_states_table.up.sql",
+      "sha256": "c0d1ef106dfc6b6aaf7d2ef3a7f0f723fb5b416d3e7ca5c2bc2f69e998ec8547"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20260115000000_add_flow_state_oauth_context.up.sql",
+      "sha256": "d32bfb5fd5add82dbb72b8b4007aee6ba75950392399ea659cea295328e3d01d"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20260121000000_add_token_endpoint_auth_method.up.sql",
+      "sha256": "835b50dd682d8f5ffdadedf178d4d77ddf2b03597743f7c07df48389bc61dacf"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20260219120000_add_custom_oauth_providers.up.sql",
+      "sha256": "94deeedce0822faac2c6f36c00591da9c2b8ad9530ba7b51ad75c083e9c77deb"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20260302000000_add_passkeys.up.sql",
+      "sha256": "b86a89a447ea91d77fe452b3c0584783f533a0cb7e23f85e62fb1ea12c23031e"
+    },
+    {
+      "group": "auth-migrations",
+      "name": "20260625000000_add_custom_claims_allowlist.up.sql",
+      "sha256": "6fe5c9be092ce6d4c577d137b58b04d00dbbfa71462636d8d6f7b91b1ca440f2"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0001-initialmigration.sql",
+      "sha256": "822ae07d4783158bc1912bb623e5107cc9002d519e1143a9c200ed6ee18b6d0f"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "00010-search-files-search-function.sql",
+      "sha256": "41d2b264437766b360ad421c4b1b80e5bb34c1503779408eefe5827238b2a098"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0002-storage-schema.sql",
+      "sha256": "19562682ff1b77cda9ba096671b873e7e226b10f0b0564bd4823e6c1754393b6"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0003-pathtoken-column.sql",
+      "sha256": "db57ad79bd7ecf1ea6a8099b38bf376886d6b2181ba65b9e9c0556ed245dea8b"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0004-add-migrations-rls.sql",
+      "sha256": "05b32aad858e4644202e6ac43413cfee30e61d7e9ad51c42b082cfb21235c7bd"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0005-add-size-functions.sql",
+      "sha256": "ce7f8b2e360f49df2a0f7d8ed0fd4bc63c6907f2890e84cfc377d9050118fb06"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0006-change-column-name-in-get-size.sql",
+      "sha256": "d4acac148b3a952336a9f739cdbdee22a573bca5cda247a8272beacd0b6a1aa0"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0007-add-rls-to-buckets.sql",
+      "sha256": "c87aa8ea3c6509171728880538cc26e7233896a8f927af3bc5b351a1706610e3"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0008-add-public-to-buckets.sql",
+      "sha256": "1d881092aea62e83493f1a9c4cb4f101f3035a08d62be84a7e7970ee0c6f0f48"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0009-fix-search-function.sql",
+      "sha256": "841c3ee6ed4885bc59f55db8d6eec293c6188a670d049737552c03a0ba714dc9"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0011-add-trigger-to-auto-update-updated_at-column.sql",
+      "sha256": "922302d623209192a5a85c6bdd0bf21b64cc3bded6e1d048c66d98c7dfdd83eb"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0012-add-automatic-avif-detection-flag.sql",
+      "sha256": "55ba2318864bfc0cc1f4db871d0874c70d445fa8f2b12e4543960403bd88ee9a"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0013-add-bucket-custom-limits.sql",
+      "sha256": "07d0b1e8299b70eeeda0841969772aecdbd0788eda9dbada7806afdc8ed9d06e"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0014-use-bytes-for-max-size.sql",
+      "sha256": "9e34ab4fc380e1cdd4748bcac368cd628c247962bdd58f8311a44f1b29e918ec"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0015-add-can-insert-object-function.sql",
+      "sha256": "572c4c802fce193ed5d63eba166922b5469d863d1eae460dd06cdcb1594bab9a"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0016-add-version.sql",
+      "sha256": "a4c7a068bb3212a015879859f3c7b8e1ed92998a671fbf3a9bdfd827cf5e0e67"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0017-drop-owner-foreign-key.sql",
+      "sha256": "00edfd4aefba445959c977fd1a510bd7900dcf9679bbc24615d43ad9768dd0da"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0018-add_owner_id_column_deprecate_owner.sql",
+      "sha256": "c895bce18e7900b793a61a8bac57e02d18a51ac3683ddcf6e169919164025c8f"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0019-alter-default-value-objects-id.sql",
+      "sha256": "97345b8589da8fc5af940ffc6675b8616d21431f7e8bc5a9287d861e8b51e526"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0020-list-objects-with-delimiter.sql",
+      "sha256": "aaab6b1331cd5a0a9172982dfc7c4951a4e7a2b5b063417c4ab8d67d0ff1d0fe"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0021-s3-multipart-uploads.sql",
+      "sha256": "d8f5094ea9696065da7764479ff5cee29a8575404a05f31342495f98d1685319"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0022-s3-multipart-uploads-big-ints.sql",
+      "sha256": "700352759f3d889c23046b7bba351138d6e10bd8791768c504f68c7ffd98d8f4"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0023-optimize-search-function.sql",
+      "sha256": "d7ac7494c872ebecb7fa23f28519e4d39f12a078589bea279baec3c1b5b2625e"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0024-operation-function.sql",
+      "sha256": "698fe461ed74e3aad76cbde00cfaad164d8e42ee3a09b3ae78206383131e4be7"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0025-custom-metadata.sql",
+      "sha256": "76fd2bf4d248c2fb0de10d37e0053416cb0ff4527eceed7e517768895a8eb78e"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0026-objects-prefixes.sql",
+      "sha256": "7bc1859424c6a3365652c0a515029a74611db34e9c4c15815dc9184e630ce3c0"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0027-search-v2.sql",
+      "sha256": "94f974e15beb7cd31a488b5ba7b93e77cba814a886906d3ac31a288b4274e95a"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0028-object-bucket-name-sorting.sql",
+      "sha256": "489fb03c0f0ab5a840159862293be426509551d01e3116d4d8d344ac346a8cde"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0029-create-prefixes.sql",
+      "sha256": "f4322a848c2594de79f5d23138c4f4535fe6c42c470d1f36c1ddf7d1908e0472"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0030-update-object-levels.sql",
+      "sha256": "9db4e414c38eeafb74f064e01041b830ac65381335b6a924c6bbadb0c2d6ce68"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0031-objects-level-index.sql",
+      "sha256": "1774c6f25b4f901dc9658a4ada698e5044baef436d65bbeccba39f3ec39f371a"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0032-backward-compatible-index-on-objects.sql",
+      "sha256": "4dce2ff86cf07dcb246ab26d2126d46b91a209aa6a9a8bdb8c7d94e3b6836a70"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0033-backward-compatible-index-on-prefixes.sql",
+      "sha256": "911a2e28d8a6b4556b19067902f0d98db40e9609f052484de614a81c824637be"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0034-optimize-search-function-v1.sql",
+      "sha256": "c96dac7648248e7be31ad6e62a84810564f8e22d331013e541e111e62adeab44"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0035-add-insert-trigger-prefixes.sql",
+      "sha256": "ae70ba3d823686797d98577d47a6439fbbc68ed7d3faf2b6877805b1ad9b0079"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0036-optimise-existing-functions.sql",
+      "sha256": "07cdc57294abdec92dc795963f819ee821a81b966be86d87033a7d425f5cfeb8"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0037-add-bucket-name-length-trigger.sql",
+      "sha256": "87302c6579e5d6fca31e665ba1496471e2b9b61bc76dd95979ec57d1fa1bf58f"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0038-iceberg-catalog-flag-on-buckets.sql",
+      "sha256": "1990ef579540844e013580a03bf87ea5d37c37686dcad11e81503d8e443805b9"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0039-add-search-v2-sort-support.sql",
+      "sha256": "2291cbc6a9b993f13b199bea3466c2ba7d9355ff71c20ecb8d705b063a899cfd"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0040-fix-prefix-race-conditions-optimized.sql",
+      "sha256": "41f89116ea7e5613ebf7d8dde5901615c61b51193651b6c74638136eb7efc18e"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0041-add-object-level-update-trigger.sql",
+      "sha256": "38660947af9046b085c4f118ef618bb89ebc4b60ab1fec2095326bc023f09c6f"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0042-rollback-prefix-triggers.sql",
+      "sha256": "24679c76007dc978f323e197f71f83e2b6733814c348c4b6d60e4db06163f89f"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0043-fix-object-level.sql",
+      "sha256": "e5544d66aa7142d51dfe9cfc9eaf5008bc91eb8e59ea603e8f2d6e99a82ce800"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0044-vector-bucket-type.sql",
+      "sha256": "a6d094603db7e2c7403b7af40356cbf8559842566d9fbdd78befa7c152633d3f"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0045-vector-buckets.sql",
+      "sha256": "e0c697bd27b5362d0cca5140b195253f1e683aa1975f67261d43988fc2b89b44"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0046-buckets-objects-grants.sql",
+      "sha256": "17cb1614d8028d3a17b234ca50e0677f2c0d094706f9e16e9a3d25ba74b4ac2c"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0047-iceberg-table-metadata.sql",
+      "sha256": "0d13ec23e5e11b9a5d916129e6d40cf1b043a742f49147fd507f5b7b8e2945cf"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0048-iceberg-catalog-ids.sql",
+      "sha256": "e4f553f2a6751fe16956d18ec1b0e3aeac6b0d320c8aa00778c19dca7920bb8a"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0049-buckets-objects-grants-postgres.sql",
+      "sha256": "6491c61da34e9d37b06b9a48849cec131720b363ba10aed47d4c6e7caa25a136"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0050-search-v2-optimised.sql",
+      "sha256": "669dc711aad19b0208449279725868dcf0a2ebb9fd784e21709fe04346f254ee"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0051-index-backward-compatible-search.sql",
+      "sha256": "986b49c9afd56b26cc988340ea8232cd97010db8633187a80420297985abf91b"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0052-drop-not-used-indexes-and-functions.sql",
+      "sha256": "430124dff4889f43c2104dcad14d2516ac0ddb5fc6280d81536b5e8f6954960a"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0053-drop-index-lower-name.sql",
+      "sha256": "05c90c28b853c0d4eab3ace7a71f001a50acb40b21643ecb759e593bf5b79aa7"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0054-drop-index-object-level.sql",
+      "sha256": "6fe0a0cf45cc1b55a8eec3224dc78c38c0ba68436a6760ea6230771668e3e14d"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0055-prevent-direct-deletes.sql",
+      "sha256": "ec334dd0d3533b6ea53de3ed5fef2160fedb786a4555881d8f7bf6b84ee4d30d"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0056-fix-optimized-search-function.sql",
+      "sha256": "ea67346e94fbd5098568aa20c95425da27d3ab60c7a02d1f036e3df47cd887c3"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0057-s3-multipart-uploads-metadata.sql",
+      "sha256": "46005bc435e5ec8fc5a55a73cfae7ead29d63a7cfd3e0a2fce922fe6939f8482"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0058-operation-ergonomics.sql",
+      "sha256": "ccf8810a70bf78f3fff0f8601596dba221197fb81d572cd8119bea164771382a"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0059-drop-unused-functions.sql",
+      "sha256": "499f0d892dcfd4b791a7e84300fd14132424a84047df1eb7848896bace224816"
+    },
+    {
+      "group": "storage-migrations/tenant",
+      "name": "0060-optimize-existing-functions-again.sql",
+      "sha256": "afa17616e4b842690f51227d5890f1ef7d00f8f8e7035eb6173ec7793e53a3a6"
+    }
+  ],
+  "imageReference": "public.ecr.aws/supabase/postgres@sha256:f6cdd6bf9b556934e8a761d92d082488db206deeec9349c4e938a72d65677e80",
+  "vendorProvenance": {
+    "originalFetchGitCommitsRecorded": false,
+    "description": "Exact previously reviewed bootstrap SQL bytes; upstream fetch commits were not recorded. Recover from the pinned private encrypted bundle. Runtime performs no network retrieval."
+  },
+  "recoveryBundle": {
+    "keyId": "62ff0255-db38-43a4-b794-4194753f6a7b",
+    "archiveId": "d6c886f1-5759-480e-b0f0-537e1da03c4b",
+    "ciphertextSha256": "045ae33e552770c08ca59cd46260531d45addd0994dac6141fac5179978748b9",
+    "plaintextSha256": "f46e41d57d7297a5227e59e35898cd94dd2951017c4fd6c738eede8033d46d79",
+    "plaintextBytes": 236676
+  }
+}
