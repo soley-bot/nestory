@@ -10,11 +10,13 @@ import { assertNoBackupPacket, assertNoBackupHostedBinding, NO_BACKUP_REQUIRED_S
 import { assertReopeningHostedBinding } from './pilot-finance-reset-reopening-protocol.mjs';
 
 export const ACTOR_SOURCE_FILES = Object.freeze([...new Set([...TRANSPORT_SOURCE_FILES,
+  'package.json', 'package-lock.json',
   'scripts/pilot-finance-reset-hosted-actor.mjs',
   'scripts/pilot-finance-reset-no-backup-core.mjs',
   'scripts/pilot-finance-reset-reopening-protocol.mjs',
   'scripts/pilot-finance-reset-encrypted-artifacts.mjs',
   'scripts/pilot-finance-reset-durable-store.mjs',
+  'scripts/pilot-finance-reset-external-store.mjs',
   'scripts/pilot-finance-reset-retired-journal-core.mjs',
   'scripts/pilot-finance-reset-core.mjs',
   'scripts/pilot-finance-reset-recovery-core.mjs',

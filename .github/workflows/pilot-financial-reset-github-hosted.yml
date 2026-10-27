@@ -1,0 +1,161 @@
+name: Pilot financial reset (GitHub-hosted)
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: One reviewed fixed action; never automatically retry
+        type: choice
+        options: [inspect, reconcile, freeze, checkpoint, prepare, seal, execute, prepare-recovery, execute-recovery]
+        default: inspect
+        required: true
+      operation_id:
+        description: Original reviewed operation UUID
+        required: true
+        type: string
+      packet_sha256:
+        description: Reviewed packet digest
+        required: true
+        type: string
+      descriptors_sha256:
+        description: Reviewed input descriptor digest
+        required: true
+        type: string
+      authority_sha256:
+        description: Independently approved exact operation authority digest
+        required: true
+        type: string
+      authorization_id:
+        description: Existing DB authorization UUID, or none for reads
+        required: true
+        default: none
+        type: string
+      reconcile_action:
+        description: Original action for reconciliation, otherwise none
+        required: true
+        default: none
+        type: choice
+        options: [none, freeze, checkpoint, prepare, seal, execute, prepare-recovery, execute-recovery]
+
+permissions: {}
+
+jobs:
+  operation:
+    name: Pilot financial reset (GitHub-hosted)
+    if: github.ref == 'refs/heads/main' && github.workflow_sha == github.sha && vars.PILOT_RESET_GITHUB_HOSTED_ENABLED == 'reviewed-operation-only'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production-database
+    # Same repository and writer lock as the production migration workflow.
+    concurrency:
+      group: production-supabase
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      NODE_OPTIONS: ''
+      NODE_PATH: ''
+      BASH_ENV: ''
+      ENV: ''
+
+    steps:
+      - name: Check out exact reviewed main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Use reviewed Node major
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+
+      - name: Verify tracked source and execution hold before private inputs
+        shell: bash
+        env:
+          RESET_ACTION: ${{ inputs.action }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain --untracked-files=all)"
+          git ls-files --error-unmatch \
+            .github/workflows/pilot-financial-reset-github-hosted.yml \
+            scripts/pilot-finance-reset-github-hosted-core.mjs \
+            scripts/pilot-finance-reset-github-hosted-runner.mjs \
+            scripts/pilot-finance-reset-github-hosted-bootstrap.mjs \
+            scripts/pilot-finance-reset-external-store.mjs >/dev/null
+          case "$RESET_ACTION" in
+            inspect|reconcile) ;;
+            freeze|checkpoint|prepare|seal|execute|prepare-recovery|execute-recovery)
+              node --input-type=module -e 'import { assertHostedTransportDispatchImplemented } from "./scripts/pilot-finance-reset-hosted-transport.mjs"; assertHostedTransportDispatchImplemented();'
+              ;;
+            *) exit 1 ;;
+          esac
+
+      - name: Install locked runtime dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prepare private transient inputs
+        shell: bash
+        env:
+          PILOT_RESET_GITHUB_HOSTED_CONFIG_SHA256: ${{ vars.PILOT_RESET_GITHUB_HOSTED_CONFIG_SHA256 }}
+          PILOT_RESET_GITHUB_HOSTED_CONFIG_JSON: ${{ secrets.PILOT_RESET_GITHUB_HOSTED_CONFIG_JSON }}
+          PILOT_RESET_EXTERNAL_STORES_JSON: ${{ secrets.PILOT_RESET_EXTERNAL_STORES_JSON }}
+          PILOT_RESET_DATABASE_CA_PEM: ${{ secrets.PILOT_RESET_DATABASE_CA_PEM }}
+          PILOT_RESET_DATABASE_PASSWORD: ${{ secrets.PILOT_RESET_DATABASE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test ! -e /etc/nestory-reset
+          test ! -L /etc/nestory-reset
+          sudo install -d -m 0700 -o "$(id -u)" -g "$(id -g)" /etc/nestory-reset
+          node scripts/pilot-finance-reset-github-hosted-bootstrap.mjs
+
+      - name: Obtain temporary recovery-store credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.PILOT_RESET_AWS_ROLE_ARN }}
+          aws-region: ${{ vars.PILOT_RESET_AWS_REGION }}
+          allowed-account-ids: ${{ vars.PILOT_RESET_AWS_ACCOUNT_ID }}
+          audience: sts.amazonaws.com
+          role-session-name: reset-${{ github.run_id }}-${{ github.run_attempt }}
+          role-duration-seconds: 1800
+          mask-aws-account-id: true
+          unset-current-credentials: true
+          use-existing-credentials: false
+          output-credentials: false
+          output-env-credentials: true
+          translate-env-variables: false
+          disable-retry: true
+          action-timeout-s: 60
+
+      - name: Run one action through verified external recovery stores
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PILOT_RESET_GITHUB_HOSTED_CONFIG_SHA256: ${{ vars.PILOT_RESET_GITHUB_HOSTED_CONFIG_SHA256 }}
+          PILOT_RESET_ENCRYPTION_KEY: ${{ secrets.PILOT_RESET_ENCRYPTION_KEY }}
+          RESET_ACTION: ${{ inputs.action }}
+          RESET_OPERATION_ID: ${{ inputs.operation_id }}
+          RESET_PACKET_SHA256: ${{ inputs.packet_sha256 }}
+          RESET_DESCRIPTORS_SHA256: ${{ inputs.descriptors_sha256 }}
+          RESET_AUTHORITY_SHA256: ${{ inputs.authority_sha256 }}
+          RESET_AUTHORIZATION_ID: ${{ inputs.authorization_id }}
+          RESET_RECONCILE_ACTION: ${{ inputs.reconcile_action }}
+        run: |
+          set -euo pipefail
+          node scripts/pilot-finance-reset-github-hosted-runner.mjs \
+            --action "$RESET_ACTION" \
+            --operation-id "$RESET_OPERATION_ID" \
+            --packet-sha256 "$RESET_PACKET_SHA256" \
+            --descriptors-sha256 "$RESET_DESCRIPTORS_SHA256" \
+            --authority-sha256 "$RESET_AUTHORITY_SHA256" \
+            --authorization-id "$RESET_AUTHORIZATION_ID" \
+            --reconcile-action "$RESET_RECONCILE_ACTION"
+
+      # No cache or upload-artifact step: recovery is durable only in the
+      # independently verified external stores. Runner files die with the VM.

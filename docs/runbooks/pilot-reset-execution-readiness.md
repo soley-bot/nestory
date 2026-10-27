@@ -1,6 +1,9 @@
 # Protected reset execution readiness
 
-The October empty-books implementation does not supply a production executor.
+The October empty-books implementation is not enabled for production execution.
+The selected [GitHub-hosted route](pilot-reset-github-hosted-execution.md) now has
+a separate workflow and fixed external recovery-store adapter. Its infrastructure
+and recovery evidence must be provisioned and verified before activation.
 Before provisioning or dispatch, collect a bounded GitHub inventory for the exact
 candidate commit:
 
@@ -26,13 +29,15 @@ protected branches and had no required-reviewer rule. The required-reviewer resu
 is an observation, not a request to weaken or add protection. Recheck the current
 main-only policy before any operation.
 
-The implemented route requires a Linux x64 runner labelled
+The original self-hosted route requires a Linux x64 runner labelled
 `nestory-reset-protected`, Node 24, fixed `/etc/nestory-reset/runner.json`, and a
 separately mounted private `/var/lib/nestory-reset` filesystem. The workflow does
-not create these. It has no implemented GitHub-hosted fallback. Changing a runner
-label, setting the enable variable or choosing `inspect` does not establish a
-usable executor. Local Docker alone does not participate in the protected GitHub
-writer lock.
+not create these. The selected GitHub-hosted route instead uses a fresh Ubuntu
+runner and independent AWS S3 recovery storage; it does not depend on this local
+host or its shared Docker disk. Changing a runner label, setting an enable
+variable or choosing `inspect` does not establish a usable executor. Both routes
+retain the unconditional write hold. Local Docker alone does not participate in
+the protected GitHub writer lock.
 
 ## Concrete next work and ownership
 
@@ -45,11 +50,12 @@ writer lock.
 | Exact reviewed operation and current human actor authority | Named maker/reviewer and operator | Prepare source/manifest/action hashes and the recovery plan. Obtain genuine current sessions through the approved flow only when the runtime is ready. |
 | Complete protected path and database proof | Engineering and independent review | Finish the contained Auth/PostgREST rehearsal, failure/ambiguous-commit reconciliation and source review. Keep unconditional dispatch refusal until the complete path is reviewed. |
 
-The owner should choose or authorize an available execution host and the private
-archive custody arrangement; the owner does not need to design the configuration
-or transmit credentials. Engineering can prepare and review the concrete host and
-archive plan before those decisions. Existing reset authorization does not create
-infrastructure or establish a recovery checkpoint.
+The owner selected preparation of the GitHub-hosted route. The remaining external
+decisions are the authorized cloud account, archive custody and retention period;
+the owner does not need to design the configuration or transmit credentials in
+chat. Existing reset authorization does not create infrastructure or establish a
+recovery checkpoint. The S3 configuration and policy generator describe the
+concrete storage boundary for review before provisioning.
 
 The separate no-backup route explicitly requires its own reviewed waiver and
 offers no backup/restore/export. Its existence does not waive recovery for this

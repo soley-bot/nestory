@@ -19,7 +19,7 @@ export const RESET_PERSISTENT_ROOT = '/var/lib/nestory-reset';
 export const HOSTED_RUNTIME_SOURCE_FILES = Object.freeze([
   RESET_WORKFLOW_PATH, 'scripts/pilot-finance-reset-hosted-reconcile.mjs',
   ...['hosted-runner', 'hosted-workflow-core', 'hosted-actor', 'hosted-transport', 'hosted-transport-protocol',
-    'hosted-protocol', 'operator-core', 'durable-store', 'encrypted-artifacts', 'recovery-artifact-reader',
+    'hosted-protocol', 'operator-core', 'durable-store', 'encrypted-artifacts', 'external-store', 'recovery-artifact-reader',
     'executor-local', 'executor-plan', 'retired-journal-core', 'no-backup-core', 'no-backup-runtime', 'no-backup-transport',
     'no-backup-reader', 'current-session', 'reopening-protocol',
     'core', 'recovery-core', 'registry'].map(name => `scripts/pilot-finance-reset-${name}.mjs`),
@@ -27,7 +27,8 @@ export const HOSTED_RUNTIME_SOURCE_FILES = Object.freeze([
 ]);
 // Runtime imports and actor/transport SQL contracts are separate rosters. Both
 // must be pinned before reading private artifact/provider configuration.
-export const HOSTED_BOUND_SOURCE_FILES = Object.freeze([...new Set([...HOSTED_RUNTIME_SOURCE_FILES, ...ACTOR_SOURCE_FILES])].sort());
+export const HOSTED_BOUND_SOURCE_FILES = Object.freeze([...new Set([...HOSTED_RUNTIME_SOURCE_FILES, ...ACTOR_SOURCE_FILES,
+  'package.json', 'package-lock.json'])].sort());
 export const RESET_ACTIONS = Object.freeze(['inspect', 'reconcile', 'freeze', 'checkpoint', 'prepare', 'seal', 'execute', 'prepare-recovery', 'execute-recovery', 'reopen', 'complete-receipt']);
 const actions = RESET_ACTIONS.filter(action => !['inspect', 'reconcile'].includes(action));
 const legacyActions = actions.filter(action => !['reopen', 'complete-receipt'].includes(action));

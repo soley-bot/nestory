@@ -2,6 +2,8 @@
 
 Read-only assessment, 27 October 2026. **The existing Docker Desktop engine is not a provision-ready protected executor.** Linux capability and encrypted host storage are available, but the current mount, runner identity, workflow isolation and private-access requirements are not jointly satisfied. No runner, account, volume, key, grant or customer archive was created for this assessment. The unconditional hosted mutation hold remains unchanged.
 
+The owner subsequently selected preparation of the [GitHub-hosted route](pilot-reset-github-hosted-execution.md), which uses independent external recovery storage. This local-host assessment remains evidence for that decision; it is not a request to encrypt D: or register the shared Docker host.
+
 ## Observed constraints
 
 | Requirement | Evidence and consequence |
