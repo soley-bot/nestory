@@ -30,6 +30,7 @@ const fail=code=>{throw Error(`local_business_runtime_${code}`)};
 const exact=(o,k)=>o&&JSON.stringify(Object.keys(o).sort())===JSON.stringify([...k].sort());
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 let diagnosticStage='request';
+let diagnosticResetExecution=null,diagnosticResetVerificationComplete=false;
 const childEnvironment=()=>({SystemRoot:'C:\\Windows',WINDIR:'C:\\Windows',SystemDrive:'C:',ComSpec:'C:\\Windows\\System32\\cmd.exe',PATHEXT:'.COM;.EXE;.BAT;.CMD',PATH:'C:\\Windows\\System32;C:\\Program Files\\Docker\\Docker\\resources\\bin',
  USERPROFILE:'C:\\Users\\USer',APPDATA:'C:\\Users\\USer\\AppData\\Roaming',LOCALAPPDATA:'C:\\Users\\USer\\AppData\\Local',
  TEMP:'C:\\Users\\USer\\AppData\\Local\\Temp',TMP:'C:\\Users\\USer\\AppData\\Local\\Temp'});
@@ -119,6 +120,13 @@ for(const section of ['operation','archive','actions','zero_scope','continuation
  preparationDatabaseCodes.add(`local_ram_rehearsal_prepare_${section}_failed`);
 for(const section of ['endorsement','seal','authorize','native_start','native_arm','native_action','native_complete','known_zero','continuation','reports','readback_checks'])
  preparationDatabaseCodes.add(`local_ram_rehearsal_execute_${section}_failed`);
+const inverseDiagnosticSections=['prepare_operation','prepare_sources','prepare_actions','seal','authorize','native_start','native_arm','native_action','native_complete','finalize','commit_checks'];
+for(const section of inverseDiagnosticSections)
+ preparationDatabaseCodes.add(`local_ram_rehearsal_inverse_${section}_failed`);
+export function safeBusinessInverseCause(value){
+ return exact(value,['phase','cause'])&&inverseDiagnosticSections.includes(value.phase)&&rehearsalSql.RAM_INVERSE_NATIVE_CAUSES.includes(value.cause)?
+  {phase:value.phase,cause:value.cause}:null;
+}
 export function parseBusinessDatabaseFailure(stderr){
  if(typeof stderr!=='string')return{};
  const line=/(?:^|\n)(?:psql:<stdin>:\d+:\s*)?(?:ERROR|FATAL):\s+([0-9A-Z]{5})(?::\s*([^\r\n]*))?(?:\r?\n|$)/.exec(stderr.slice(0,2048));
@@ -128,18 +136,20 @@ export function parseBusinessDatabaseFailure(stderr){
 // Retain only fixed diagnostic names and bounded numeric timing observations.
 // Native query/context lines are discarded, including oversized lines.
 export function createBusinessDatabaseDiagnostics(){
- let line='',dropping=false,failure={},phaseTimings=[];
+ let line='',dropping=false,failure={},phaseTimings=[],inverseCause=null;
  const consume=()=>{
   if(!dropping){
    const error=parseBusinessDatabaseFailure(line+'\n');if(error.sqlState&&!failure.sqlState)failure=error;
    const match=/^(?:psql:<stdin>:\d+:\s*)?NOTICE:\s+(?:00000:\s*)?local_ram_rehearsal_phase:(known_zero|continuation|reports):(success|failure):(0|[1-9][0-9]{0,5})\r?$/.exec(line);
    if(match&&Number(match[3])<=600000&&phaseTimings.length<3&&!phaseTimings.some(p=>p.phase===match[1]))
     phaseTimings.push({phase:match[1],outcome:match[2],elapsedMilliseconds:Number(match[3])});
+   const cause=/^(?:psql:<stdin>:\d+:\s*)?NOTICE:\s+(?:00000:\s*)?local_ram_rehearsal_inverse_cause:([a-z_]+):([a-z_]+)\r?$/.exec(line);
+   if(cause&&!inverseCause)inverseCause=safeBusinessInverseCause({phase:cause[1],cause:cause[2]});
   }
   line='';dropping=false;
  };
  return{push(chunk){for(const character of String(chunk)){if(character==='\n')consume();else if(!dropping){if(line.length>=2048){line='';dropping=true}else line+=character}}},
-  finish(){if(line||dropping)consume();return{...failure,phaseTimings:phaseTimings.map(p=>({...p}))}}};
+  finish(){if(line||dropping)consume();return{...failure,phaseTimings:phaseTimings.map(p=>({...p})),...(inverseCause?{inverseCause:{...inverseCause}}:{})}}};
 }
 export function safeBusinessRehearsalFailureCode(message){
  if(typeof message!=='string')return null;
@@ -392,8 +402,10 @@ async function rehearseRestoredBusiness({runtime,payload,snapshot,request,custod
  const rehearsal=bindPilotRehearsalSemantics(plan,{zeroPlan:phases.zeroPlan,zeroPlanText:phases.zeroPlanText,continuationPlan:phases.continuationPlan,reportPlan:phases.reportPlan});
  await custody.check();diagnosticStage='rehearsal-execute';
  const reset=summarizeBusinessRehearsalExecution(await json(rehearsalSql.buildRamResetExecuteSql({plan,planBinding,fixture,phases}),'execute'),'reset',operationId);
+ diagnosticResetExecution=reset;
  const resetVerification=assertBusinessRehearsalVerification(await json(rehearsalSql.buildRamRehearsalVerificationSql({plan,planBinding,fixture,phases,phase:'reset'})),'reset',phases.continuationPlan.contracts_sha256);
  const resetStorage=await verifyRehearsalStorage(runtime,snapshot);
+ diagnosticResetVerificationComplete=true;
  diagnosticStage='rehearsal-sources';const inverseInputs=await json(rehearsalSql.buildRamInverseReadbackSql({plan,planBinding}));
  diagnosticStage='rehearsal-inverse-plan';const canonicalInverse=await json(rehearsalSql.buildRamInverseCanonicalSql({plan,planBinding,inverseInputs,recoveryId}));
  await custody.check();diagnosticStage='rehearsal-inverse-execute';
@@ -417,7 +429,7 @@ async function rehearseRestoredBusiness({runtime,payload,snapshot,request,custod
 }
 async function restoreChild(internal,rehearse=false){
  const {request,binding}=assertBusinessChildRequest(internal);
- assertBusinessRestoreRequest(request);diagnosticStage='spill';const initialPins=await sourcePins();
+ assertBusinessRestoreRequest(request);diagnosticStage='spill';diagnosticResetExecution=null;diagnosticResetVerificationComplete=false;const initialPins=await sourcePins();
  await localRecoveryDocker({execute:async(...a)=>(await execute(...a)).toString('utf8')});
  const custody=await holdSpillCustody(),before=custody.initial;let encrypted,envelopeBytes,payload,runtime,removed=false;
  try{
@@ -488,7 +500,9 @@ async function restoreChild(internal,rehearse=false){
    format:'nestory-local-business-rehearsal-failure-v1',sourceSha256:request.sourceSha256,stage:diagnosticStage,financialResetInverseProven:false,
    sqlState:/^[0-9A-Z]{5}$/.test(error?.sqlState)?error.sqlState:null,processTimedOut:error?.processTimedOut===true,
    databaseCode:preparationDatabaseCodes.has(error?.databaseCode)?error.databaseCode:null,
-   phaseTimings:Array.isArray(error?.phaseTimings)?error.phaseTimings:[],
+   inverseCause:safeBusinessInverseCause(error?.inverseCause),
+   phaseTimings:Array.isArray(error?.phaseTimings)&&error.phaseTimings.length?error.phaseTimings:runtime?.phaseTimings()??[],
+   successfulResetExecution:diagnosticResetExecution,resetVerificationCompleted:diagnosticResetVerificationComplete,
    knownFailure:safeBusinessRehearsalFailureCode(error?.message)})));
   throw error;
  }finally{encrypted?.fill(0);envelopeBytes?.fill(0);payload?.fill(0);try{if(runtime&&!removed)await runtime.remove()}finally{await custody.close()}}

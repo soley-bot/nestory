@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { assertBusinessRestoreRequest,assertBusinessChildRequest,assertBusinessRamContainer,assertBusinessSpillObservation,verifyBusinessVendorBundle,assertBusinessRehearsalInputReference,assertBusinessRehearsalVerification,summarizeBusinessRehearsalExecution,parseBusinessDatabaseFailure,safeBusinessRehearsalFailureCode,businessSqlTimeoutMs,createBusinessDatabaseDiagnostics,buildBusinessRestoreAnalyzeSql } from './local-backup-business-runtime.mjs';
+import { assertBusinessRestoreRequest,assertBusinessChildRequest,assertBusinessRamContainer,assertBusinessSpillObservation,verifyBusinessVendorBundle,assertBusinessRehearsalInputReference,assertBusinessRehearsalVerification,summarizeBusinessRehearsalExecution,parseBusinessDatabaseFailure,safeBusinessRehearsalFailureCode,businessSqlTimeoutMs,createBusinessDatabaseDiagnostics,buildBusinessRestoreAnalyzeSql,safeBusinessInverseCause } from './local-backup-business-runtime.mjs';
+import {RAM_INVERSE_NATIVE_CAUSES} from './local-backup-business-rehearsal-sql.mjs';
 import {LOCAL_CAPTURE_POLICY} from './local-backup-capture.mjs';
 import { RAM_POSTGRES_IMAGE } from './local-backup-restore.mjs';
 import { verifyBusinessMigrationReplay,buildSelectedBusinessRestoreSql } from './local-backup-business-restore.mjs';
@@ -69,6 +70,27 @@ test('phase diagnostics survive split chunks and discard native customer context
  assert.deepEqual(d.finish(),{sqlState:'57014',databaseCode:'local_ram_rehearsal_execute_reports_failed',phaseTimings:[
   {phase:'known_zero',outcome:'success',elapsedMilliseconds:12345},{phase:'continuation',outcome:'success',elapsedMilliseconds:700},
   {phase:'reports',outcome:'failure',elapsedMilliseconds:60000}]});
+});
+test('inverse diagnostics retain only reviewed static section names and SQLSTATE',()=>{
+ for(const section of ['prepare_operation','prepare_sources','prepare_actions','seal','authorize','native_start','native_arm','native_action','native_complete','finalize','commit_checks']){
+  const code=`local_ram_rehearsal_inverse_${section}_failed`;
+  assert.deepEqual(parseBusinessDatabaseFailure(`psql:<stdin>:10: ERROR:  23514: ${code}\nCONTEXT: private row`),{sqlState:'23514',databaseCode:code});
+ }
+ assert.deepEqual(parseBusinessDatabaseFailure('ERROR: 23514: local_ram_rehearsal_inverse_private_customer_failed\n'),{sqlState:'23514'});
+});
+test('inverse causes accept only finite reviewed native constants without appended private text',()=>{
+ for(const cause of RAM_INVERSE_NATIVE_CAUSES){
+  const d=createBusinessDatabaseDiagnostics();
+  const line=`psql:<stdin>:24: NOTICE: 00000: local_ram_rehearsal_inverse_cause:seal:${cause}\n`;
+  d.push(line.slice(0,35));d.push(line.slice(35));
+  assert.deepEqual(d.finish(),{phaseTimings:[],inverseCause:{phase:'seal',cause}});
+ }
+ const known='financial_reset_action_chain_mismatch';
+ for(const cause of [known+' private customer',known+':private',known+'_private',known+';SELECT',known+'\rprivate','financial_reset_new_unreviewed_cause']){
+  const d=createBusinessDatabaseDiagnostics();d.push(`NOTICE: 00000: local_ram_rehearsal_inverse_cause:seal:${cause}\n`);
+  assert.deepEqual(d.finish(),{phaseTimings:[]});assert.equal(safeBusinessInverseCause({phase:'seal',cause}),null);
+ }
+ for(const value of [null,{phase:'private',cause:known},{phase:'seal',cause:known,detail:'private'},known])assert.equal(safeBusinessInverseCause(value),null);
 });
 test('timing observations reject arbitrary phases, payloads, overflow and duplicate notices',()=>{
  const d=createBusinessDatabaseDiagnostics();

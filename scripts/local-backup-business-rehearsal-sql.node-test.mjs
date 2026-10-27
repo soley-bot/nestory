@@ -1,9 +1,10 @@
 import {rehearsalSqlFixture as fixture} from './fixtures/local-backup-rehearsal-sql-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {LOCAL_CAPTURE_POLICY} from './local-backup-capture.mjs';
 import {buildRamActorFixtureSql,buildRamResetPrepareSql,buildRamResetExecuteSql,buildRamInverseReadbackSql,
- buildRamInverseCanonicalSql,buildRamInverseExecuteSql,buildRamRehearsalVerificationSql} from './local-backup-business-rehearsal-sql.mjs';
+ buildRamInverseCanonicalSql,buildRamInverseExecuteSql,buildRamRehearsalVerificationSql,RAM_INVERSE_NATIVE_CAUSES} from './local-backup-business-rehearsal-sql.mjs';
 const id=n=>`11111111-1111-4111-8111-${String(n).padStart(12,'0')}`;
 const builders=[buildRamResetPrepareSql,buildRamResetExecuteSql,buildRamInverseReadbackSql,buildRamInverseCanonicalSql,buildRamInverseExecuteSql,
  v=>buildRamRehearsalVerificationSql({...v,phase:'reset'}),v=>buildRamRehearsalVerificationSql({...v,phase:'recovered'})];
@@ -137,6 +138,55 @@ test('inverse conversion is bounded and preserves exact decimal lexemes',()=>{
  const sql=buildRamInverseCanonicalSql(fixture());assert.match(sql,/FOR r IN SELECT value FROM jsonb_array_elements/);assert.doesNotMatch(sql.slice(sql.indexOf('CREATE TEMP TABLE ram_inverse_typed')),/UNION ALL/);
  assert.match(sql,/9007199254740993\.1200/);assert.match(sql,/inverse_type_changed/);
  const execute=buildRamInverseExecuteSql(fixture());assert.match(execute,/inverse_readback_changed/);assert.match(execute,/prepare_financial_reset_recovery/);
+});
+test('inverse failures retain fixed stages and SQLSTATE without changing native action boundaries',()=>{
+ const v=fixture(),sql=buildRamInverseExecuteSql(v);
+ const sections=['prepare_operation','prepare_sources','prepare_actions','seal','authorize','native_start','native_arm',
+  'native_action','native_complete','finalize','commit_checks'];
+ for(const section of sections){
+  const marker=`MESSAGE='local_ram_rehearsal_inverse_${section}_failed'`;
+  assert.ok(sql.includes(marker),section);
+  assert.ok(sql.includes(`RAISE EXCEPTION USING ERRCODE=SQLSTATE, ${marker}, DETAIL='', HINT='';`),section);
+ }
+ assert.doesNotMatch(sql,/SQLERRM|PG_EXCEPTION_DETAIL|PG_EXCEPTION_CONTEXT|RAISE WARNING/);
+ const nativeSources=['20261024013612_financial_reset_private_action_foundation.sql','20261024013617_financial_reset_phase_recovery_sources.sql',
+  '20261024013620_financial_reset_report_finalization_checkpoint.sql'].map(file=>readFileSync(new URL(`../supabase/migrations/${file}`,import.meta.url),'utf8')).join('\n');
+ assert.ok(Object.isFrozen(RAM_INVERSE_NATIVE_CAUSES));
+ assert.equal(new Set(RAM_INVERSE_NATIVE_CAUSES).size,RAM_INVERSE_NATIVE_CAUSES.length);
+ for(const cause of RAM_INVERSE_NATIVE_CAUSES)assert.ok(nativeSources.includes(`RAISE EXCEPTION '${cause}'`),cause);
+ const mapper=sql.match(/CREATE FUNCTION pg_temp\.ram_inverse_native_cause\(p_message text\) RETURNS text[\s\S]+?\$ram_inverse_mapper\$;/)?.[0];
+ assert.ok(mapper);assert.equal((sql.match(/CREATE FUNCTION pg_temp\.ram_inverse_native_cause/g)??[]).length,1);
+ assert.deepEqual([...mapper.matchAll(/WHEN '([^']+)' THEN '([^']+)'/g)].map(m=>[m[1],m[2]]),RAM_INVERSE_NATIVE_CAUSES.map(code=>[code,code]));
+ assert.match(mapper,/ELSE NULL::text END/);
+ assert.doesNotMatch(mapper,/LIKE|ILIKE|SECURITY DEFINER|RAISE|FROM /);
+ assert.ok(sql.indexOf(mapper)>sql.indexOf('execution_schema_changed'));
+ assert.ok(sql.indexOf(mapper)<sql.indexOf('SET SESSION AUTHORIZATION authenticator'));
+ const blocks=[...sql.matchAll(/^[ \t]*DO (\$[a-zA-Z0-9_]+\$) ([\s\S]*?) \1;/gm)].map(m=>m[2]);
+ for(const b of blocks.filter(b=>b.includes("MESSAGE='local_ram_rehearsal_inverse_"))){
+  assert.match(b,/EXCEPTION WHEN query_canceled OR OTHERS THEN\s+GET STACKED DIAGNOSTICS ram_inverse_message=MESSAGE_TEXT;/);
+  assert.match(b,/ram_inverse_cause:=pg_temp\.ram_inverse_native_cause\(ram_inverse_message\);\s+ram_inverse_message:=NULL;/);
+  for(const m of b.matchAll(/RAISE NOTICE ([^;]+);/g)){
+   const expected=m[1].match(/^'local_ram_rehearsal_inverse_cause:([a-z_]+):%',ram_inverse_cause$/);
+   assert.ok(expected,'notice must contain only a fixed section and mapped enum');
+   assert.ok(sections.includes(expected[1]));
+   assert.ok(b.includes(`IF ram_inverse_cause IS NOT NULL THEN RAISE NOTICE ${m[1]}; END IF;`));
+  }
+  assert.doesNotMatch(b,/ram_inverse_message\s+(?:LIKE|ILIKE)|strpos\(ram_inverse_message|left\(ram_inverse_message/);
+ }
+ const preparation=blocks.filter(b=>b.includes("MESSAGE='local_ram_rehearsal_inverse_prepare_operation_failed'"));
+ assert.equal(preparation.length,1);
+ for(const section of sections.slice(0,4))assert.ok(preparation[0].includes(`MESSAGE='local_ram_rehearsal_inverse_${section}_failed'`));
+ for(const section of ['native_arm','native_action'])assert.equal(blocks.filter(b=>b.includes(`MESSAGE='local_ram_rehearsal_inverse_${section}_failed'`)).length,v.canonicalInverse.actions.length);
+ for(const action of v.canonicalInverse.actions)assert.ok(sql.includes(`arm_financial_reset_action('${v.recoveryId}'::uuid,'${action.action_id}'::uuid)`));
+ const calls=['prepare_financial_reset_operation','prepare_financial_reset_recovery','prepare_financial_reset_actions',
+  'seal_financial_reset_operation','authorize_financial_reset_hosted_action','consume_financial_reset_actor_authorization',
+  'start_financial_reset_actions','arm_financial_reset_action','complete_financial_reset_actions','finalize_financial_reset_recovery','SET CONSTRAINTS ALL IMMEDIATE'];
+ for(let i=1;i<calls.length;i++)assert.ok(sql.indexOf(calls[i-1])<sql.indexOf(calls[i]),calls[i]);
+ assert.deepEqual([...sql.matchAll(/SET LOCAL statement_timeout='([^']+)'/g)].map(m=>m[1]),['120s','60s']);
+ assert.equal((sql.match(/^BEGIN ISOLATION LEVEL READ COMMITTED;/gm)??[]).length,1);
+ assert.equal((sql.match(/^ COMMIT;$/gm)??[]).length,1);
+ assert.equal(blocks.filter(b=>b.includes("MESSAGE='local_ram_rehearsal_inverse_finalize_failed'")).length,1);
+ assert.equal(blocks.filter(b=>b.includes("MESSAGE='local_ram_rehearsal_inverse_commit_checks_failed'")).length,1);
 });
 test('inverse cannot adopt a surviving foreign key or altered candidate identity',()=>{
  const v=fixture();v.inverseInputs.incomingEdges.push({source:{relation_name:'public.leases',primary_key:{id:id(80)}},target:{relation_name:'public.owner_opening_balance_entries',primary_key:{id:id(9)}}});

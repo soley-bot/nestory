@@ -266,24 +266,58 @@ function executionDiagnostic(section,sql){
  RAISE EXCEPTION USING ERRCODE=SQLSTATE, MESSAGE='local_ram_rehearsal_execute_${section}_failed', DETAIL='', HINT='';
 END`;}
 const executionBlock=(section,sql)=>sqlDoBlock(executionDiagnostic(section,sql),`ram_execute_${section}`);
+// Only complete literal messages from the pinned native action/recovery guards
+// may leave the SQL exception handler. Native row/constraint/context text does not.
+export const RAM_INVERSE_NATIVE_CAUSES=Object.freeze([
+ 'financial_reset_primary_key_required','financial_reset_relation_not_allowed','financial_reset_full_typed_row_required',
+ 'financial_reset_evidence_immutable','financial_reset_initial_binding_invalid','financial_reset_binding_immutable',
+ 'financial_reset_status_transition_invalid','financial_reset_operation_id_reused','financial_reset_restore_binding_invalid',
+ 'financial_reset_action_immutable','financial_reset_action_scope_invalid','financial_reset_action_not_preparable',
+ 'financial_reset_action_archive_required','financial_reset_action_before_invalid','financial_reset_action_after_invalid',
+ 'financial_reset_restore_image_invalid','financial_reset_canonical_action_text_required',
+ 'financial_reset_manifest_counts_or_digest_mismatch','financial_reset_action_chain_mismatch','financial_reset_restore_final_image_not_original',
+ 'financial_reset_next_action_required','financial_reset_capability_removal_invalid','financial_reset_capability_scope_invalid',
+ 'financial_reset_capability_transaction_invalid','financial_reset_capability_entry_invalid','financial_reset_exact_row_action_mismatch',
+ 'financial_reset_action_event_reused','financial_reset_final_stored_image_mismatch','financial_reset_transaction_incomplete',
+ 'financial_reset_recovery_phase_binding_invalid','financial_reset_recovery_plan_id_reused','financial_reset_recovery_action_source_mismatch',
+ 'financial_reset_phase_recovery_plan_required','financial_reset_recovery_sources_not_exactly_covered','financial_reset_recovery_original_archive_not_covered',
+ 'financial_reset_checkpoint_transaction_sealed','financial_reset_phase_must_commit_frozen',
+ 'financial_reset_checkpoint_must_commit','financial_reset_checkpoint_changed_before_commit',
+]);
+const inverseCauseMapperSql=`CREATE FUNCTION pg_temp.ram_inverse_native_cause(p_message text) RETURNS text
+ LANGUAGE sql IMMUTABLE SET search_path='' AS $ram_inverse_mapper$
+ SELECT CASE p_message
+ ${RAM_INVERSE_NATIVE_CAUSES.map(code=>`WHEN '${code}' THEN '${code}'`).join('\n ')}
+ ELSE NULL::text END
+ $ram_inverse_mapper$;`;
+const inverseDiagnostic=(section,sql)=>`DECLARE ram_inverse_message text; ram_inverse_cause text; BEGIN\n${sql}\nEXCEPTION WHEN query_canceled OR OTHERS THEN
+ GET STACKED DIAGNOSTICS ram_inverse_message=MESSAGE_TEXT;
+ ram_inverse_cause:=pg_temp.ram_inverse_native_cause(ram_inverse_message);
+ ram_inverse_message:=NULL;
+ IF ram_inverse_cause IS NOT NULL THEN RAISE NOTICE 'local_ram_rehearsal_inverse_cause:${section}:%',ram_inverse_cause; END IF;
+ RAISE EXCEPTION USING ERRCODE=SQLSTATE, MESSAGE='local_ram_rehearsal_inverse_${section}_failed', DETAIL='', HINT='';
+END`;
+const inverseBlock=(section,sql)=>sqlDoBlock(inverseDiagnostic(section,sql),`ram_inverse_${section}`);
 function nativeActions(operationId,actions,finalize=false,diagnostics=false){
  const inner=buildActionTransactionSql(operationId,actions,null,null,finalize);
  if(!inner.startsWith('BEGIN;\n')||!inner.endsWith('\nCOMMIT;'))fail('native_action_builder_changed');
  // Native action functions return void except recovery finalization. Suppress
  // every intermediate result so the last SELECT is the only JSON readback.
  let body=inner.slice(7,-8);
+ const diagnosticBlock=diagnostics==='inverse'?inverseBlock:executionBlock;
  if(diagnostics){
   let count=0;
-  body=body.replace(/^DO (\$[a-zA-Z0-9_]+\$) ([\s\S]*?) \1;/gm,(_,tag,block)=>{count++;return executionBlock('native_action',`${block};`)});
+  body=body.replace(/^DO (\$[a-zA-Z0-9_]+\$) ([\s\S]*?) \1;/gm,(_,tag,block)=>{count++;return diagnosticBlock('native_action',`${block};`)});
   if(count!==actions.length)fail('native_action_builder_changed');
  }
  return body.replace(/^SELECT (app_private\.[^\n]+);$/gm,(_,call)=>{
   if(!diagnostics)return sqlDoBlock(`BEGIN PERFORM ${call}; END`,'ram_native');
   const section=call.startsWith('app_private.start_financial_reset_actions(')?'native_start':
    call.startsWith('app_private.arm_financial_reset_action(')?'native_arm':
-   call.startsWith('app_private.complete_financial_reset_actions(')?'native_complete':null;
+   call.startsWith('app_private.complete_financial_reset_actions(')?'native_complete':
+   diagnostics==='inverse'&&call.startsWith('app_private.finalize_financial_reset_recovery(')?'finalize':null;
   if(!section)fail('native_action_builder_changed');
-  return executionBlock(section,`PERFORM ${call};`);
+  return diagnosticBlock(section,`PERFORM ${call};`);
  });
 }
 function actorBinding(b,p){return{version:1,operation_id:b.operationId,project_ref:'syntheticprojectrefa',organization_id:b.organizationId,
@@ -294,15 +328,16 @@ function actorBinding(b,p){return{version:1,operation_id:b.operationId,project_r
  archive_artifact_sha256:b.materialization.archiveSha256,archive_count:b.materialization.archiveRows,action_count:b.materialization.actionCount,
  zero_review_sha256:p.zeroReviewSha256,continuation_semantic_sha256:hash(p.continuationPlanText),report_review_sha256:p.reportPlan.report_review_sha256,continuation_semantic:p.continuationPlan}}
 function authorizationSql(f,binding,action,diagnostics=false){
+ const diagnosticBlock=diagnostics==='inverse'?inverseBlock:executionBlock;
  const authorize=`UPDATE ram_actor_authorization SET authorization_id=public.authorize_financial_reset_hosted_action(binding,${literal(action)});`;
  const consume=`DECLARE r record; BEGIN SELECT * INTO STRICT r FROM ram_actor_authorization; PERFORM app_private.consume_financial_reset_actor_authorization(r.authorization_id,r.binding,${literal(action)}); END`;
  return `CREATE TEMP TABLE ram_actor_authorization(binding jsonb,authorization_id uuid) ON COMMIT DROP;
  INSERT INTO ram_actor_authorization(binding) VALUES(${json(binding)});GRANT SELECT,UPDATE ON ram_actor_authorization TO authenticated;
  ${claims(f.maker,f.makerSession)}
  SET SESSION AUTHORIZATION authenticator; SET LOCAL ROLE authenticated;
- ${diagnostics?executionBlock('authorize',authorize):authorize}
+ ${diagnostics?diagnosticBlock('authorize',authorize):authorize}
  RESET ROLE; RESET SESSION AUTHORIZATION;
- ${diagnostics?executionBlock('authorize',`${consume};`):sqlDoBlock(consume,'ram_consume')}
+ ${diagnostics?diagnosticBlock('authorize',`${consume};`):sqlDoBlock(consume,'ram_consume')}
  ${clearClaims}`}
 export function buildRamResetExecuteSql({plan,planBinding,fixture,phases}){
  const b=accepted(plan,planBinding),f=fixtureChecked(fixture),p=phaseChecked(plan,f,phases),op=`${literal(b.operationId)}::uuid`,binding=actorBinding(b,p);
@@ -438,19 +473,20 @@ export function buildRamInverseExecuteSql({plan,planBinding,fixture,phases,inver
  const typedProof=candidates.map((c,i)=>sqlDoBlock(`BEGIN IF ${canonicalInverse.actions[i].after_row_text===null?'NULL::jsonb':`${literal(canonicalInverse.actions[i].after_row_text)}::jsonb`} IS DISTINCT FROM
  ${c.candidate_after_row_text===null?'NULL::jsonb':`to_jsonb(jsonb_populate_record(NULL::${relation(c.relation_name)},${literal(c.candidate_after_row_text)}::jsonb))`} THEN RAISE EXCEPTION 'local_ram_rehearsal_inverse_readback_changed'; END IF; END`,'ram_typed_proof')).join('\n');
  return `${begin()}\n${catalogGuard(plan)}\n${actorGuard(f)}
+ ${inverseCauseMapperSql}
  SELECT pg_advisory_xact_lock(hashtextextended('financial_write_lifecycle_v1:'||${org}::text,0));
  ${typedProof}
- ${sqlDoBlock(`BEGIN IF NOT EXISTS(SELECT 1 FROM app_private.financial_write_controls WHERE organization_id=${org} AND generation=1 AND status='frozen') THEN RAISE EXCEPTION 'local_ram_rehearsal_recovery_generation_changed'; END IF;
+ ${sqlDoBlock(`BEGIN ${inverseDiagnostic('prepare_operation',`IF NOT EXISTS(SELECT 1 FROM app_private.financial_write_controls WHERE organization_id=${org} AND generation=1 AND status='frozen') THEN RAISE EXCEPTION 'local_ram_rehearsal_recovery_generation_changed'; END IF;
  UPDATE app_private.financial_write_controls SET generation=2 WHERE organization_id=${org};
- PERFORM app_private.prepare_financial_reset_operation(${json(op)});
- PERFORM app_private.prepare_financial_reset_recovery(${rop},${literal(inverseInputs.phaseBindingText)}::jsonb);
- PERFORM app_private.prepare_financial_reset_actions(${rop},${json(canonicalInverse.actions)});
- PERFORM app_private.seal_financial_reset_operation(${rop}); END`,'ram_recovery_prepare')}
- ${authorizationSql(f,binding,'execute-recovery')}
+ PERFORM app_private.prepare_financial_reset_operation(${json(op)});`)};
+ ${inverseDiagnostic('prepare_sources',`PERFORM app_private.prepare_financial_reset_recovery(${rop},${literal(inverseInputs.phaseBindingText)}::jsonb);`)};
+ ${inverseDiagnostic('prepare_actions',`PERFORM app_private.prepare_financial_reset_actions(${rop},${json(canonicalInverse.actions)});`)};
+ ${inverseDiagnostic('seal',`PERFORM app_private.seal_financial_reset_operation(${rop});`)}; END`,'ram_recovery_prepare')}
+ ${authorizationSql(f,binding,'execute-recovery','inverse')}
  SET LOCAL ROLE postgres;
- ${nativeActions(recoveryId,canonicalInverse.actions,true)}
+ ${nativeActions(recoveryId,canonicalInverse.actions,true,'inverse')}
  RESET ROLE;
- SET CONSTRAINTS ALL IMMEDIATE;
+ ${inverseBlock('commit_checks','SET CONSTRAINTS ALL IMMEDIATE;')}
  SELECT jsonb_build_object('format','nestory-local-ram-inverse-execution-v1','operation',app_private.financial_reset_operation_status(${rop}),
  'checkpoint',(SELECT jsonb_build_object('kind',checkpoint_kind,'sha256',checkpoint_sha256,'generation',generation,'resultSha256',app_private.financial_reset_hash(result_json)) FROM app_private.financial_reset_verification_checkpoints WHERE operation_id=${rop}),
  'authorityKind','local-sql-session-fixture','productionPermissionProven',false,'productionForeignDataProven',false,'controlReopened',false);
