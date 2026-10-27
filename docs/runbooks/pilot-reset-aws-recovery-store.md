@@ -1,5 +1,10 @@
 # AWS recovery storage for the GitHub-hosted reset route
 
+This optional route is inactive. The owner has no AWS account and selected a
+[simpler local recovery custody direction](pilot-reset-simple-local-custody.md).
+Do not require AWS signup or provision this specification for the October reset
+without a new explicit choice to use it.
+
 This is a prepared adapter and provisioning specification. No AWS account, role,
 bucket, trust policy, retention setting, key escrow, or customer copy has been
 created or approved by this change. A successful synthetic test is not hosted

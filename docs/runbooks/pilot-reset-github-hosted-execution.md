@@ -1,5 +1,10 @@
 # GitHub-hosted reset execution preparation
 
+The owner subsequently declined adding AWS and requested a simpler one-off route.
+The [local recovery custody plan](pilot-reset-simple-local-custody.md) now describes
+the selected direction. The AWS-backed implementation below remains inactive;
+its provisioning steps are not the owner's next task.
+
 This route is prepared code, **not an activated customer reset**. The unconditional `hosted_transport_integration_incomplete` hold remains in the transport, runner and workflow before any mutating action opens private inputs or obtains AWS credentials. No configuration or workflow input bypasses it. No cloud resources, credentials, grants, keys or customer archives were provisioned by this change.
 
 The October empty-books contract remains unchanged: preserve all leases and contract history, erase the reviewed financial scope, establish known-zero openings and reports, issue no invoices, and keep billing paused and the organization frozen. Billing and close readiness remain false.
