@@ -13,7 +13,8 @@ import {decryptLocalBackup,encryptLocalBackup,readPrivateBackupFile,writePrivate
 import {openFixedLocalDispatchJournal,buildDispatchTicket,signLocalDispatchBundle,inspectDispatchPayloadBudget,LOCAL_DISPATCH_REPOSITORY,LOCAL_DISPATCH_WORKFLOW} from './local-backup-dispatch-bundle.mjs';
 import {localCustodyObjectPath,assertLocalCustodySignedUrl,encryptLocalCustodyTransfer,decryptLocalCustodyTransfer,localCustodyMutationSql,assertLocalCustodyResetScope,LOCAL_CUSTODY_BUCKET,LOCAL_CUSTODY_SOURCES} from './pilot-finance-reset-local-custody-runner.mjs';
 import {readPilotHostedServiceCredential} from './local-backup-file-credential.mjs';
-import {verifySavedLocalRecoveryEvidence} from './local-backup-custody-evidence.mjs';
+import {verifySavedLocalRecoveryEvidence,prepareSavedLocalRecoveryEvidence,assertPreparedLocalRecoveryEvidence,
+ assertPreparedLocalRecoveryEvidenceHeld,disposePreparedLocalRecoveryEvidence} from './local-backup-custody-evidence.mjs';
 import {inspectSavedPilotRehearsal,assertSavedPilotRehearsalHeld} from './local-backup-saved-rehearsal.mjs';
 import {assertLocalDispatchStageAuthority} from './local-backup-dispatch-review.mjs';
 const root=path.resolve(import.meta.dirname,'..'),origin='https://pfvmztxktkwyewvxfgot.supabase.co';
@@ -178,9 +179,9 @@ export function localDispatchWorkerWaiting(jobs,run,mainSha){
  return jobs.jobs.filter(j=>j.name==='Pilot reset local custody'&&j.status==='in_progress'&&j.run_id===run.id&&j.run_attempt===1&&
    j.head_sha===mainSha&&Array.isArray(j.steps)&&j.steps.some(s=>s.name==='Wait for exact run ticket and execute once'&&s.status==='in_progress')).length===1;
 }
-async function publishLocalDispatchHeld(r,authorizationId){
+async function publishLocalDispatchHeld(r,authorizationId,prepared){
  if(!uuid.test(authorizationId))fail('authorization_invalid');
- const input=await load(r),{locator,payload}=input,store=await openFixedLocalDispatchJournal(),coordinator=createManualResetCoordinator({store});
+ const input=prepared?.input??await load(r),{locator,payload}=input,store=await openFixedLocalDispatchJournal(),coordinator=createManualResetCoordinator({store});
  const enrolled=await required(store,`${prefix(locator)}/response`),run=await findOriginalRun(input,'execute');
  if(!run||run.id!==enrolled.runId||run.status!=='in_progress')fail('original_run_not_active');
  const jobs=await api(`actions/runs/${run.id}/attempts/1/jobs?per_page=100`);
@@ -188,6 +189,15 @@ async function publishLocalDispatchHeld(r,authorizationId){
  const secret=await transfer(store,locator);
  try{
   if(secret.data.inputArchiveId!==r.inputArchiveId||secret.data.inputArchiveSha256!==r.inputArchiveSha256||secret.claim.payloadSha256!==digestDatabaseJson(payload))fail('original_input_changed');
+  // Prepared execution proves remote containment before any signing-key unwrap,
+  // then repeats the original placeholder check immediately before publication.
+  let credential;
+  const object=`object/${LOCAL_CUSTODY_BUCKET}/${localCustodyObjectPath(locator)}`;
+  if(prepared){
+   credential=await serviceCredential();await privateBucket(credential);
+   const waiting=decryptLocalCustodyTransfer(await storage('GET',object,credential),secret.key,locator);
+   if(canonicalJson(waiting)!==canonicalJson({format:'nestory-local-custody-waiting-v1',...locator}))fail('placeholder_changed');
+  }
   const sql=localCustodyMutationSql({binding:payload.binding,action:locator.action,authorizationId,authoritySha256:input.authoritySha256,observation:payload.observation,artifacts:payload.artifacts,recovery:payload.recovery});
   const transportIntent={format:'nestory-hosted-reset-action-intent-v1',operationId:locator.operationId,packetSha256:payload.packet.packetSha256,action:locator.action,
    bindingSha256:digestJson(payload.binding),authorizationId,authoritySha256:input.authoritySha256,sourceObservationSha256:digestDatabaseJson(payload.observation),sqlSha256:digestJson(sql)};
@@ -200,18 +210,86 @@ async function publishLocalDispatchHeld(r,authorizationId){
   const issuedAt=new Date(),{format:ignored,...transport}=transportIntent;void ignored;
   const ticket=buildDispatchTicket({...transport,mainSha:document.mainSha,runId:String(run.id),nonce:locator.nonce,
    issuedAt:issuedAt.toISOString(),expiresAt:new Date(issuedAt.getTime()+300000).toISOString(),intentSha256,claimSha256,custodySha256:digestJson(input.custody),custodyEvidenceSha256:input.custody.evidenceRecordSha256},payload);
-  const bundle=await signLocalDispatchBundle({keyId,ticket,payload}),cipher=encryptLocalCustodyTransfer(bundle,secret.key,locator);
-  const credential=await serviceCredential();await privateBucket(credential);const object=`object/${LOCAL_CUSTODY_BUCKET}/${localCustodyObjectPath(locator)}`;
+  const bundle=await signLocalDispatchBundle({keyId,ticket,payload,...(prepared?{preparedCustody:prepared.custodyReceipt}:{})}),cipher=encryptLocalCustodyTransfer(bundle,secret.key,locator);
+  credential??=await serviceCredential();await privateBucket(credential);
   const previous=decryptLocalCustodyTransfer(await storage('GET',object,credential),secret.key,locator);
   if(canonicalJson(previous)!==canonicalJson({format:'nestory-local-custody-waiting-v1',...locator}))fail('placeholder_changed');
   const publicationArchiveId=randomUUID(),sealed=await encryptLocalBackup(keyId,cipher);await writePrivateBackupFile(publicationArchiveId,'archive.pgp',sealed);
   await record(store,`${prefix(locator)}/publish-claim`,{format:'nestory-local-ticket-publication-v1',runId:run.id,intentSha256,
    publicationArchiveId,publicationArchiveSha256:hashBytes(sealed),ciphertextSha256:hashBytes(cipher)});
+  if(prepared){await prepared.lease.check();await assertPreparedLocalRecoveryEvidenceHeld(prepared.custodyReceipt);}
   try{await storage('PUT',object,credential,cipher,{'Content-Type':'application/octet-stream','cache-control':'max-age=0'});}catch{/* Read original outcome only. */}
   if(hashBytes(await storage('GET',object,credential))!==hashBytes(cipher))fail('publication_unknown_do_not_retry');
   return {status:'exact-run-ticket-published',...locator,runId:run.id,intentSha256,ciphertextSha256:hashBytes(cipher),automaticRetryAllowed:false};
  }finally{secret.key.fill(0);}
 }
+
+// Separate instances cannot mint handles for the fixed production lifecycle.
+// Ports support synthetic lifecycle tests, never caller-supplied production I/O.
+export function createLocalPublicationLifecycle({prepare,check,publish,dispose}){
+ const handles=new WeakMap();
+ const get=handle=>{const state=handles.get(handle);if(!state||state.closed||state.busy||state.used)fail('prepared_publication_invalid');return state;};
+ const close=async(handle)=>{const state=handles.get(handle);if(!state||state.closed)return;state.closed=true;try{await dispose(state.value)}finally{state.value=null;}};
+ return Object.freeze({
+  async prepare(r){
+   request(r);r=structuredClone(r);const value=await prepare(r);
+   const handle=Object.freeze({format:'nestory-prepared-local-publication-v1'});
+   const ready=Object.freeze({status:'prepared-awaiting-authorization',operationId:value.input.locator.operationId,action:value.input.action,
+    nonce:r.nonce,packetSha256:value.input.payload.packet.packetSha256});
+   handles.set(handle,{value,request:r,ready,used:false,busy:false,closed:false});return {handle,ready};
+  },
+  inspect(handle){return {...get(handle).ready};},
+  async check(handle){
+   const state=get(handle);state.busy=true;const start=performance.now();
+   try{await check(state.value,state.request);return {status:'prepared-integrity-verified',elapsedMs:Math.round(performance.now()-start)};}
+   catch(error){await close(handle);throw error;}finally{state.busy=false;}
+  },
+  async finish(handle,authorizationId){
+   const state=get(handle);state.used=true;
+   try{
+    if(!uuid.test(authorizationId))fail('authorization_invalid');
+    await check(state.value,state.request);
+    return await publish(state.value,state.request,authorizationId);
+   }finally{await close(handle);}
+  },
+  dispose:close,
+ });
+}
+const custodyArgs=input=>({evidence:input.custodyEvidence,custody:input.custody,packet:input.payload.packet,artifacts:input.payload.artifacts,observation:input.payload.observation});
+async function preparePublication(r){
+ const {holdBusinessSpillCustody}=await import('./local-backup-business-runtime.mjs');const lease=await holdBusinessSpillCustody();let custodyReceipt;
+ try{
+  const input=await load(r); // Existing first full semantic verification.
+  custodyReceipt=await prepareSavedLocalRecoveryEvidence(custodyArgs(input),r); // Existing signer's full verification, now before authorization.
+  const value={input,custodyReceipt,lease};await checkPublication(value,r);return value;
+ }catch(error){try{if(custodyReceipt)await disposePreparedLocalRecoveryEvidence(custodyReceipt)}finally{await lease.close();}throw error;}
+}
+async function checkPublication(value,r){
+ const {input,custodyReceipt,lease}=value,{payload,locator}=input;
+ await lease.check();
+ if(locator.nonce!==r.nonce||assertLocalDispatchStageAuthority({packet:payload.packet,artifacts:payload.artifacts,reviews:input.reviewArtifacts,
+  action:input.action,observation:payload.observation,authority:input.stageAuthority})!==input.authoritySha256)fail('stage_evidence_changed');
+ const checks=await Promise.allSettled([
+  assertPreparedLocalRecoveryEvidence(custodyReceipt,custodyArgs(input),r.nonce),
+  (async()=>{
+   if((await api('commits/main')).sha!==payload.packet.operation.mainSha)fail('main_changed');
+   const store=await openFixedLocalDispatchJournal(),enrolled=await required(store,`${prefix(locator)}/response`),run=await findOriginalRun(input,'execute');
+   if(!run||run.id!==enrolled.runId||run.status!=='in_progress')fail('original_run_not_active');
+   if(!localDispatchWorkerWaiting(await api(`actions/runs/${run.id}/attempts/1/jobs?per_page=100`),run,payload.packet.operation.mainSha))fail('waiting_worker_not_ready');
+  })(),
+ ]);
+ const failed=checks.find(result=>result.status==='rejected');if(failed)throw failed.reason;
+ await lease.check();
+}
+const publications=createLocalPublicationLifecycle({prepare:preparePublication,check:checkPublication,
+ publish:(value,r,authorizationId)=>publishLocalDispatchHeld(r,authorizationId,value),
+ dispose:async value=>{try{await disposePreparedLocalRecoveryEvidence(value.custodyReceipt)}finally{await value.lease.close();}}
+});
+export const prepareLocalDispatchPublication=r=>publications.prepare(r);
+export const inspectLocalDispatchPublication=handle=>publications.inspect(handle);
+export const checkLocalDispatchPublication=handle=>publications.check(handle);
+export const finishLocalDispatchPublication=(handle,authorizationId)=>publications.finish(handle,authorizationId);
+export const disposeLocalDispatchPublication=handle=>publications.dispose(handle);
 
 async function dispatchLocalReconciliationHeld(r){
  // This POST creates only a fixed read-only worker; it cannot publish a new
