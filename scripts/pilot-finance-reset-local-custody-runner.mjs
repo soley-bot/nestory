@@ -59,6 +59,12 @@ const publicFailureCodes=new Set(['local_custody_database_inputs_invalid','local
  'local_custody_tls_certificate_failed','local_custody_database_authentication_failed',
  'local_custody_database_endpoint_failed','local_custody_database_network_failed',
  'local_custody_database_identity_failed','local_custody_database_bucket_failed',
+ 'local_custody_provision_inputs_invalid','local_custody_provision_credential_unavailable','local_custody_provision_authority_changed',
+ 'local_custody_read_unavailable','local_custody_read_limit',
+ 'local_custody_bucket_request_unknown','local_custody_bucket_request_invalid','local_custody_bucket_response_limit',
+ 'local_custody_bucket_read_unavailable','local_custody_bucket_mismatch','local_custody_bucket_create_outcome_unknown',
+ 'local_backup_files_cli_credential_response_invalid','local_backup_files_cli_credential_ambiguous',
+ 'local_backup_files_cli_credential_missing','local_backup_files_cli_credential_key_invalid',
  'hosted_transport_process_failed']);
 export function localCustodyFailureCode(error){
  return publicFailureCodes.has(error?.message)?error.message:'local_custody_worker_stopped';
@@ -201,6 +207,13 @@ export function assertLocalCustodyBucketMetadata(bucket){
   bucket.file_size_limit!==limit||!same(bucket.allowed_mime_types,['application/octet-stream']))fail('bucket_mismatch');
  return true;
 }
+export function localCustodyBucketReadValue({status,value}){
+ if(status===404&&value?.message==='Bucket not found'&&(value.code==='NoSuchBucket'||value.error==='Bucket not found'))return null;
+ if(status===400&&exact(value,['statusCode','code','error','message'])&&value.statusCode==='404'&&
+  value.code==='NoSuchBucket'&&value.error==='Bucket not found'&&value.message==='Bucket not found')return null;
+ if(status!==200)fail('bucket_read_unavailable');
+ return value;
+}
 // Offline protocol port only. Production supplies fixed endpoints below and
 // cannot accept injected providers, URLs, bucket settings or request bodies.
 export async function exerciseLocalCustodyBucketProvision({read,create,refresh}){
@@ -231,9 +244,7 @@ async function provisionLocalCustodyBucket(env,invocation){
  }
  try{
   const result=await exerciseLocalCustodyBucketProvision({
-   read:async()=>{const r=await request('GET',`${origin}/${LOCAL_CUSTODY_BUCKET}`);
-    if(r.status===404&&r.value?.message==='Bucket not found'&&(r.value.code==='NoSuchBucket'||r.value.error==='Bucket not found'))return null;
-    if(r.status!==200)fail('bucket_read_unavailable');return r.value;},
+   read:async()=>localCustodyBucketReadValue(await request('GET',`${origin}/${LOCAL_CUSTODY_BUCKET}`)),
    create:async()=>{const r=await request('POST',origin,{id:LOCAL_CUSTODY_BUCKET,name:LOCAL_CUSTODY_BUCKET,public:false,file_size_limit:limit,allowed_mime_types:['application/octet-stream']});
     if(r.status<200||r.status>=300)fail('bucket_create_outcome_unknown');},
    refresh:async()=>{if(!same(invocation,await job(env,env.GH_TOKEN)))fail('provision_authority_changed');},

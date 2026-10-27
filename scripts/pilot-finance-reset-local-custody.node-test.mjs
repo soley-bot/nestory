@@ -6,6 +6,7 @@ import path from 'node:path';
 import {LOCAL_CUSTODY_BUCKET,LOCAL_CUSTODY_JOB,localCustodyObjectPath,assertLocalCustodySignedUrl,encryptLocalCustodyTransfer,
  decryptLocalCustodyTransfer,assertLocalCustodyJob,createLocalCustodySingleAttempt,readLocalCustodyAfterRefresh,runLocalCustodyWorker,localCustodyMutationSql,assertLocalCustodyBucketMetadata,exerciseLocalCustodyBucketProvision,LOCAL_CUSTODY_CA_SHA256,LOCAL_CUSTODY_SOURCES,assertLocalCustodyResetScope,localCustodyFailureCode,classifyLocalCustodyDatabaseFailure} from './pilot-finance-reset-local-custody-runner.mjs';
 import {createHash} from 'node:crypto';
+import {localCustodyBucketReadValue} from './pilot-finance-reset-local-custody-runner.mjs';
 import {LOCAL_DISPATCH_WORKFLOW,LOCAL_DISPATCH_REPOSITORY} from './local-backup-dispatch-bundle.mjs';
 const locator={operationId:'11111111-1111-4111-8111-111111111111',nonce:'22222222-2222-4222-8222-222222222222',action:'freeze'};
 const url=`https://pfvmztxktkwyewvxfgot.supabase.co/storage/v1/object/sign/${LOCAL_CUSTODY_BUCKET}/${localCustodyObjectPath(locator)}?token=${'a'.repeat(30)}`;
@@ -31,6 +32,40 @@ test('failure diagnostics expose only exact fixed codes, never private error tex
 test('existing matching handoff bucket is accepted without a write',async()=>{
  const r=await exerciseLocalCustodyBucketProvision({read:async()=>bucket(),create:async()=>assert.fail('unexpected create'),refresh:async()=>assert.fail('unexpected refresh')});
  assert.deepEqual(r,{outcome:'existing-matching',createAttempted:false});
+});
+test('exact Storage HTTP400 NoSuchBucket response permits one verified creation',async()=>{
+ const missing={status:400,value:{statusCode:'404',code:'NoSuchBucket',error:'Bucket not found',message:'Bucket not found'}};
+ let response=missing;const calls=[];
+ const result=await exerciseLocalCustodyBucketProvision({read:async()=>{calls.push('read');return localCustodyBucketReadValue(response)},
+  refresh:async()=>calls.push('refresh'),create:async()=>{calls.push('create');response={status:200,value:bucket()}}});
+ assert.deepEqual(calls,['read','refresh','create','read']);assert.equal(result.outcome,'created-and-verified');
+});
+test('legacy HTTP404 missing bucket handling is preserved',()=>{
+ for(const extra of [{code:'NoSuchBucket'},{error:'Bucket not found'}])
+  assert.equal(localCustodyBucketReadValue({status:404,value:{message:'Bucket not found',...extra}}),null);
+});
+test('other bad requests and denied reads never permit creation',async()=>{
+ const missing={statusCode:'404',code:'NoSuchBucket',error:'Bucket not found',message:'Bucket not found'};
+ const responses=[401,403,500].map(status=>({status,value:missing}));
+ for(const field of Object.keys(missing)){
+  responses.push({status:400,value:{...missing,[field]:'different'}});
+  const value={...missing};delete value[field];responses.push({status:400,value});
+ }
+ responses.push({status:400,value:{...missing,statusCode:404}},{status:400,value:{...missing,extra:'unexpected'}},
+  {status:400,value:null},{status:404,value:{message:'denied'}});
+ for(const response of responses)await assert.rejects(exerciseLocalCustodyBucketProvision({
+  read:async()=>localCustodyBucketReadValue(response),refresh:async()=>assert.fail('unexpected refresh'),create:async()=>assert.fail('unexpected create'),
+ }),/local_custody_bucket_read_unavailable/);
+});
+test('provision diagnostic categories remain exact and redact appended private values',()=>{
+ const codes=['local_custody_provision_inputs_invalid','local_custody_provision_credential_unavailable','local_custody_provision_authority_changed',
+  'local_custody_read_unavailable','local_custody_read_limit','local_custody_bucket_request_unknown','local_custody_bucket_request_invalid',
+  'local_custody_bucket_response_limit','local_custody_bucket_read_unavailable','local_custody_bucket_mismatch','local_custody_bucket_create_outcome_unknown',
+  'local_backup_files_cli_credential_response_invalid','local_backup_files_cli_credential_ambiguous','local_backup_files_cli_credential_missing','local_backup_files_cli_credential_key_invalid'];
+ for(const code of codes){
+  assert.equal(localCustodyFailureCode(Error(code)),code);
+  assert.equal(localCustodyFailureCode(Error(code+' PRIVATE_VALUE')),'local_custody_worker_stopped');
+ }
 });
 for(const [name,change]of[['public',b=>b.public=true],['name',b=>b.name='other'],['id',b=>b.id='other'],['size',b=>b.file_size_limit++],['mime',b=>b.allowed_mime_types.push('application/pdf')],['missing limit',b=>delete b.file_size_limit]])
  test(`existing ${name} mismatch never updates or creates`,async()=>{
