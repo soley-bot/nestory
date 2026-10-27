@@ -220,16 +220,19 @@ $$;
 -- precisely reviewed missing-rent blocker, and labels the entire mode paused.
 CREATE FUNCTION app_private.financial_reset_empty_report_blocker(p_operation uuid,p_property uuid,p_currency public.currency_code,p_blocker jsonb)
  RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
-DECLARE p app_private.financial_reset_continuation_plans%ROWTYPE; s jsonb;
+DECLARE p app_private.financial_reset_continuation_plans%ROWTYPE; s jsonb; i jsonb;
 BEGIN
  IF p_blocker->>'code' IS DISTINCT FROM 'monthly_rent_invoice_missing'
   OR (SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(p_blocker) k) IS DISTINCT FROM ARRAY['code','lease_id','property_id','unit_id']::text[] THEN RETURN false; END IF;
  SELECT * INTO p FROM app_private.financial_reset_continuation_plans WHERE operation_id=p_operation AND status='complete';
  IF NOT FOUND OR p.plan_json->'version' IS DISTINCT FROM '4'::jsonb OR p_currency<>'USD' THEN RETURN false; END IF;
- PERFORM app_private.assert_financial_reset_empty_contracts(p.organization_id,p.plan_json-'source_sha256');
- IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(p.plan_json->'leases') i WHERE i->'lease_id'=p_blocker->'lease_id'
-   AND i->>'disposition'='preserve-unbilled') THEN RETURN false; END IF;
+ SELECT value INTO i FROM jsonb_array_elements(p.plan_json->'leases') WHERE value->'lease_id'=p_blocker->'lease_id'
+   AND value->>'disposition'='preserve-unbilled';
+ IF NOT FOUND THEN RETURN false; END IF;
  s:=app_private.financial_reset_preserved_lease_source(p.organization_id,(p_blocker->>'lease_id')::uuid);
+ IF app_private.financial_reset_hash(s) IS DISTINCT FROM i->>'source_sha256' THEN
+  RAISE EXCEPTION 'financial_reset_empty_contracts_changed' USING ERRCODE='40001';
+ END IF;
  RETURN p_blocker->>'property_id'=p_property::text AND p_blocker->'property_id'=s->'lease'->'property_id'
   AND p_blocker->'unit_id'=s->'lease'->'unit_id';
 END;
@@ -290,7 +293,12 @@ $b$;
   -- Nested report commands run under the existing exclusive lifecycle lock
   -- during the checked temporary-open window. The outer phase alone requires
   -- frozen here; common checks above still bind this exact execution transaction.
-  PERFORM app_private.assert_financial_reset_empty_contracts(o.organization_id,p.plan_json-'source_sha256');
+  -- Reports check the complete contract image before and after their commands
+  -- under the exclusive lifecycle lock. Nested commands retain current actor,
+  -- session, transaction, semantic and scope checks without rereading every lease.
+  IF p_phase<>'reports' THEN
+   PERFORM app_private.assert_financial_reset_empty_contracts(o.organization_id,p.plan_json-'source_sha256');
+  END IF;
   IF a.binding->>'invoice_date_policy' IS DISTINCT FROM 'empty-books-no-invoices'
    OR p.plan_json->>'execution_business_date' IS DISTINCT FROM a.binding->>'execution_business_date'
    OR p.plan_json->>'execution_business_date' IS DISTINCT FROM app_private.rent_business_date(o.organization_id,statement_timestamp())::text

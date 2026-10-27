@@ -498,6 +498,46 @@ SELECT throws_ok($$SELECT app_private.financial_reset_scoped_rent(operation,org,
  '42501','financial_reset_scoped_rent_scope_invalid','even the scoped generator cannot turn preserve-unbilled into rent');
 SELECT throws_ok($$SET CONSTRAINTS ALL IMMEDIATE$$,'23514','financial_reset_checkpoint_must_commit',
  'no-op continuation still cannot commit without the report checkpoint');
+CREATE FUNCTION pg_temp.changed_empty_contract(p_blocker boolean) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE s record; f record;
+BEGIN
+ SELECT * INTO STRICT s FROM empty_books_state;
+ SELECT * INTO STRICT f FROM empty_books_contract_fixture WHERE n=1;
+ UPDATE app_private.financial_write_controls SET status='open' WHERE organization_id=s.org;
+ UPDATE public.leases SET deposit_amount=deposit_amount+0.01 WHERE id=f.lease;
+ IF p_blocker THEN
+  PERFORM app_private.financial_reset_empty_report_blocker(s.operation,s.property,'USD',
+   jsonb_build_object('code','monthly_rent_invoice_missing','lease_id',f.lease,'property_id',s.property,'unit_id',f.unit));
+ ELSE
+  UPDATE app_private.financial_write_controls SET status='frozen' WHERE organization_id=s.org;
+  PERFORM app_private.apply_financial_reset_reports(s.operation);
+ END IF;
+END;
+$$;
+SELECT throws_ok($$SELECT pg_temp.changed_empty_contract(true)$$,'40001','financial_reset_empty_contracts_changed',
+ 'a missing-rent blocker still checks the fresh complete source of its reviewed lease');
+SELECT throws_ok($$SELECT pg_temp.changed_empty_contract(false)$$,'40001','financial_reset_empty_contracts_changed',
+ 'the outer report boundary rejects contract drift before producing reports');
+CREATE FUNCTION pg_temp.drift_during_empty_report() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ -- This archived lease has no missing-rent blocker. Only the complete final
+ -- contract assertion can catch the deliberately injected same-transaction write.
+ UPDATE public.leases SET deposit_amount=deposit_amount+0.01
+  WHERE id=(SELECT lease FROM empty_books_contract_fixture WHERE n=8);
+ RETURN NEW;
+END;
+$$;
+CREATE TRIGGER synthetic_empty_report_contract_drift AFTER INSERT ON public.owner_balance_periods
+ FOR EACH ROW EXECUTE FUNCTION pg_temp.drift_during_empty_report();
+SELECT throws_ok($$SELECT app_private.apply_financial_reset_reports(operation) FROM empty_books_state$$,
+ '40001','financial_reset_empty_contracts_changed','unplanned contract writes during reports reject the whole report statement');
+SELECT ok((SELECT app_private.financial_reset_hash(app_private.financial_reset_preserved_contracts(org))=value->>'contracts_sha256'
+ FROM empty_books_state CROSS JOIN empty_books_plan)
+ AND NOT EXISTS(SELECT 1 FROM public.owner_balance_periods WHERE organization_id=(SELECT org FROM empty_books_state))
+ AND NOT EXISTS(SELECT 1 FROM app_private.financial_reset_verification_checkpoints WHERE operation_id=(SELECT operation FROM empty_books_state))
+ AND (SELECT status='frozen' FROM app_private.financial_write_controls WHERE organization_id=(SELECT org FROM empty_books_state)),
+ 'failed report work rolls back the contract edit, periods, checkpoint and temporary-open state');
+DROP TRIGGER synthetic_empty_report_contract_drift ON public.owner_balance_periods;
 SELECT lives_ok($$SELECT app_private.apply_financial_reset_reports(operation) FROM empty_books_state$$,
  'zero reports persist while missing-rent blockers stay visible');
 SELECT is((SELECT count(*) FROM public.tenant_invoices WHERE organization_id=(SELECT org FROM empty_books_state)),0::bigint,'no tenant invoices regenerated');
