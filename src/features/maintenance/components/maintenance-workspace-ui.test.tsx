@@ -456,7 +456,7 @@ describe("maintenance workspace redesign contract", () => {
     expect(failedDraft.get("description")).toBe("Keep these unsaved notes");
     expect(failedDraft.get("costEstimateAmount")).toBe("125");
     expect(failedDraft.get("vendorPersonId")).toBe("vendor-1");
-    expect(document.activeElement?.getAttribute("name")).toBe("category");
+    await waitFor(() => expect(document.activeElement?.getAttribute("name")).toBe("category"));
     expect(onClose).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -508,8 +508,10 @@ describe("maintenance workspace redesign contract", () => {
     fireEvent.submit(form);
 
     await waitFor(() => expect(screen.getByText("Keep the checklist within 2,000 characters.")).toBeTruthy());
-    expect(details.open).toBe(true);
-    expect(document.activeElement).toBe(checklistItem);
+    await waitFor(() => {
+      expect(details.open).toBe(true);
+      expect(document.activeElement).toBe(checklistItem);
+    });
     expect(checklistItem.value).toBe("X".repeat(2001));
     expect(new FormData(form).get("checklistText")).toBe("[ ] " + "X".repeat(2001));
     expect(onClose).not.toHaveBeenCalled();
