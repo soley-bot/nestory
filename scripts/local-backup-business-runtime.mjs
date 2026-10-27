@@ -119,7 +119,7 @@ const preparationDatabaseCodes=new Set(['operation_id_reused','restore_binding_i
  'delete_not_allowed','normalization_not_allowed','restore_image_invalid','canonical_action_text_required','zero_scope_empty','zero_plan_binding_invalid',
  'zero_plan_initial_status','zero_review_scope_invalid','zero_plan_id_reused','empty_review_invalid','empty_lease_invalid',
  'primary_key_required','relation_not_allowed','full_typed_row_required','evidence_immutable','initial_binding_invalid'].map(v=>`financial_reset_${v}`));
-for(const section of ['operation','archive','actions','zero_scope','continuation','zero_plan','readback'])
+for(const section of rehearsalSql.RAM_PREPARE_SECTIONS)
  preparationDatabaseCodes.add(`local_ram_rehearsal_prepare_${section}_failed`);
 for(const section of ['endorsement','seal','authorize','native_start','native_arm','native_action','native_complete','known_zero','continuation','reports','readback_checks'])
  preparationDatabaseCodes.add(`local_ram_rehearsal_execute_${section}_failed`);
@@ -151,14 +151,17 @@ export function parseBusinessDatabaseFailure(stderr){
 // Retain only fixed diagnostic names and bounded numeric timing observations.
 // Native query/context lines are discarded, including oversized lines.
 export function createBusinessDatabaseDiagnostics(){
- let line='',dropping=false,failure={},phaseTimings=[],inverseCause=null,inverseAction=null;
+ let line='',dropping=false,failure={},phaseTimings=[],preparationTimings=[],inverseCause=null,inverseAction=null;
  const consume=()=>{
   if(!dropping){
    const error=parseBusinessDatabaseFailure(line+'\n');if(error.sqlState&&!failure.sqlState)failure=error;
    const match=/^(?:psql:<stdin>:\d+:\s*)?NOTICE:\s+(?:00000:\s*)?local_ram_rehearsal_phase:(known_zero|continuation|reports):(success|failure):(0|[1-9][0-9]{0,5})\r?$/.exec(line);
    if(match&&Number(match[3])<=600000&&phaseTimings.length<3&&!phaseTimings.some(p=>p.phase===match[1]))
     phaseTimings.push({phase:match[1],outcome:match[2],elapsedMilliseconds:Number(match[3])});
-   const cause=/^(?:psql:<stdin>:\d+:\s*)?NOTICE:\s+(?:00000:\s*)?local_ram_rehearsal_inverse_cause:([a-z_]+):([a-z_]+)\r?$/.exec(line);
+   const prep=/^(?:psql:<stdin>:\d+:\s*)?NOTICE:\s+(?:00000:\s*)?local_ram_rehearsal_prepare_phase:([a-z_]+):(success|failure):(0|[1-9][0-9]{0,5})\r?$/.exec(line);
+   if(prep&&rehearsalSql.RAM_PREPARE_SECTIONS.includes(prep[1])&&Number(prep[3])<=600000&&preparationTimings.length<rehearsalSql.RAM_PREPARE_SECTIONS.length&&!preparationTimings.some(p=>p.phase===prep[1]))
+    preparationTimings.push({phase:prep[1],outcome:prep[2],elapsedMilliseconds:Number(prep[3])});
+   const cause=/^(?:psql:<stdin>:\d+:\s*)?NOTICE:\s+(?:00000:\s*)?local_ram_rehearsal_inverse_cause:([a-z_]+):([A-Za-z_ ]+)\r?$/.exec(line);
    if(cause&&!inverseCause)inverseCause=safeBusinessInverseCause({phase:cause[1],cause:cause[2]});
    const action=/^(?:psql:<stdin>:\d+:\s*)?NOTICE:\s+(?:00000:\s*)?local_ram_rehearsal_inverse_action:([1-9][0-9]{0,6}):([a-z_]+\.[a-z_]+):([a-z-]+):(0|[1-9][0-9]{0,6})\r?$/.exec(line);
    if(action&&!inverseAction)inverseAction=safeBusinessInverseAction({ordinal:Number(action[1]),relation:action[2],kind:action[3],constraintIndex:Number(action[4])});
@@ -166,7 +169,7 @@ export function createBusinessDatabaseDiagnostics(){
   line='';dropping=false;
  };
  return{push(chunk){for(const character of String(chunk)){if(character==='\n')consume();else if(!dropping){if(line.length>=2048){line='';dropping=true}else line+=character}}},
-  finish(){if(line||dropping)consume();return{...failure,phaseTimings:phaseTimings.map(p=>({...p})),...(inverseCause?{inverseCause:{...inverseCause}}:{}),...(inverseAction?{inverseAction:{...inverseAction}}:{})}}};
+  finish(){if(line||dropping)consume();return{...failure,phaseTimings:phaseTimings.map(p=>({...p})),...(preparationTimings.length?{preparationTimings:preparationTimings.map(p=>({...p}))}:{}),...(inverseCause?{inverseCause:{...inverseCause}}:{}),...(inverseAction?{inverseAction:{...inverseAction}}:{})}}};
 }
 export function safeBusinessRehearsalFailureCode(message){
  if(typeof message!=='string')return null;
@@ -233,9 +236,10 @@ async function createRuntime(existingBinding){
  const binding={runId,id};
  const inspect=async()=>{const rows=JSON.parse(await docker(['inspect',id]));if(rows.length!==1)fail('runtime_unavailable');assertBusinessRamContainer(binding,rows[0]);};
  const exec=async(args,input,options)=>{await inspect();const out=await docker(['exec','-i',id,...args],input,options);try{await inspect();return out}catch(e){out.fill(0);throw e}};
- let phaseTimings=[];
+ let phaseTimings=[],preparationTimings=[];
  const sql=async(input,user='postgres',action='default')=>{const out=await exec(['psql','-X','-qAt','-h','/db','-U',user,'-d','postgres','-v','ON_ERROR_STOP=1','-v','VERBOSITY=verbose'],input,{timeoutMs:businessSqlTimeoutMs(action)});
   if(action==='execute')phaseTimings=out.businessDiagnostics.phaseTimings;
+  if(out.businessDiagnostics.preparationTimings?.length)preparationTimings=out.businessDiagnostics.preparationTimings;
   try{return out.toString('utf8').trim()}finally{out.fill(0)}};
  const remove=async()=>{const rows=JSON.parse(await docker(['inspect',id]));if(rows.length!==1)fail('cleanup_unconfirmed');assertBusinessRamContainer(binding,rows[0],rows[0].State?.Running===true);await docker(['rm','-f',id]);if((await docker(['ps','-aq','--no-trunc','--filter',`id=${id}`])).toString('utf8').trim())fail('cleanup_unconfirmed')};
  const exists=async()=>{const ids=(await docker(['ps','-aq','--no-trunc','--filter',`id=${id}`])).toString('utf8').trim();if(ids&&ids!==id)fail('cleanup_identity_changed');return Boolean(ids)};
@@ -244,7 +248,7 @@ async function createRuntime(existingBinding){
   let ready=false;for(let i=0;i<50;i++){try{if(await sql('SELECT 1','supabase_admin')==='1'){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}
   if(!ready)fail('startup_failed');
   if((await exec(['/bin/sh','-c','cat /sys/fs/cgroup/memory.max /sys/fs/cgroup/memory.swap.max'])).toString('utf8').trim()!==`${memory}\n0`)fail('container_swap_enabled');
-  return {binding,exec,sql,remove,exists,cleanup,phaseTimings:()=>phaseTimings.map(p=>({...p}))};
+  return {binding,exec,sql,remove,exists,cleanup,phaseTimings:()=>phaseTimings.map(p=>({...p})),preparationTimings:()=>preparationTimings.map(p=>({...p}))};
  }catch(e){try{await remove()}catch{fail('failure_cleanup_unconfirmed')}throw e}
 }
 async function bootstrap(runtime,replay){
@@ -413,7 +417,7 @@ export function buildBusinessRestoreAnalyzeSql(){
  SELECT jsonb_build_object('format','nestory-local-restore-planner-statistics-v1','relationCount',${tables.length},'previouslyUninitializedRelations',(SELECT uninitialized_relations FROM ram_analyze_catalog),'catalogUnchanged',true,'statisticsInitialized',true);
  COMMIT;`;
 }
-async function rehearseRestoredBusiness({runtime,payload,snapshot,request,custody,replay}){
+async function rehearseRestoredBusiness({runtime,payload,snapshot,request,custody,replay,diagnosticInputs}){
  const json=async(sql,action='default')=>JSON.parse(await runtime.sql(sql,'postgres',action));
  diagnosticStage='rehearsal-migration';
  const transition=(await readFile(path.join(root,'supabase/migrations',transitionName),'utf8')).replaceAll('\r\n','\n'),transitionSha256=backupHash(transition);
@@ -425,6 +429,7 @@ async function rehearseRestoredBusiness({runtime,payload,snapshot,request,custod
  const operationId=randomUUID(),recoveryId=randomUUID(),planner=createPilotRamRehearsalPlanner({manifestBytes:payload,expectedSourceSha256:request.sourceSha256,operationId});
  diagnosticStage='rehearsal-preview';const preview=await json(planner.previewSql());
  diagnosticStage='rehearsal-materialize';const materialization=await json(planner.materializeSql(preview)),plan=planner.acceptMaterialization(preview,materialization),planBinding=buildPilotRehearsalBinding(plan);
+ Object.assign(diagnosticInputs,{operationId,recoveryId,preview,materialization,planBinding});
  const beforeContractsSha256=await runtime.sql(`BEGIN READ ONLY;SELECT app_private.financial_reset_hash(app_private.financial_reset_preserved_contracts(${literal(planBinding.organizationId)}::uuid));COMMIT;`);
  if(!digest.test(beforeContractsSha256))fail('rehearsal_contracts_changed');
  const fixture={maker:randomUUID(),makerSession:randomUUID()};
@@ -433,7 +438,9 @@ async function rehearseRestoredBusiness({runtime,payload,snapshot,request,custod
   fixtureResult.format!=='nestory-local-synthetic-actor-fixture-v1'||fixtureResult.actorCount!==1||fixtureResult.sessionCount!==1||
   fixtureResult.authorityKind!=='local-sql-session-fixture'||fixtureResult.productionPermissionProven!==false||fixtureResult.customerAuthImpersonated!==false||
   typeof fixtureResult.fixtureTransactionId!=='string'||!/^[1-9][0-9]*$/.test(fixtureResult.fixtureTransactionId))fail('rehearsal_fixture_invalid');
+ diagnosticInputs.fixture=fixture;
  diagnosticStage='rehearsal-prepare';const phases=await json(rehearsalSql.buildRamResetPrepareSql({plan,planBinding,fixture,fixtureTransactionId:fixtureResult.fixtureTransactionId}));
+ diagnosticInputs.phases=phases;
  if(phases.fixtureTransactionId!==fixtureResult.fixtureTransactionId)fail('rehearsal_fixture_invalid');
  if(phases.continuationPlan.contracts_sha256!==beforeContractsSha256)fail('rehearsal_contracts_changed');
  const rehearsal=bindPilotRehearsalSemantics(plan,{zeroPlan:phases.zeroPlan,zeroPlanText:phases.zeroPlanText,continuationPlan:phases.continuationPlan,reportPlan:phases.reportPlan});
@@ -444,7 +451,9 @@ async function rehearseRestoredBusiness({runtime,payload,snapshot,request,custod
  const resetStorage=await verifyRehearsalStorage(runtime,snapshot);
  diagnosticResetVerificationComplete=true;
  diagnosticStage='rehearsal-sources';const inverseInputs=await json(rehearsalSql.buildRamInverseReadbackSql({plan,planBinding}));
+ diagnosticInputs.inverseInputs=inverseInputs;
  diagnosticStage='rehearsal-inverse-plan';const canonicalInverse=await json(rehearsalSql.buildRamInverseCanonicalSql({plan,planBinding,inverseInputs,recoveryId}));
+ diagnosticInputs.canonicalInverse=canonicalInverse;
  await custody.check();diagnosticStage='rehearsal-inverse-execute';
  diagnosticInverseActions=canonicalInverse.actions.map(a=>({ordinal:a.ordinal,relation_name:a.relation_name,kind:a.kind}));
  diagnosticInverseConstraints=rehearsalSql.ramInverseConstraintRoster(plan);
@@ -470,7 +479,7 @@ async function restoreChild(internal,rehearse=false){
  const {request,binding}=assertBusinessChildRequest(internal);
  assertBusinessRestoreRequest(request);diagnosticStage='spill';diagnosticResetExecution=null;diagnosticResetVerificationComplete=false;diagnosticInverseActions=[];diagnosticInverseConstraints=[];const initialPins=await sourcePins();
  await localRecoveryDocker({execute:async(...a)=>(await execute(...a)).toString('utf8')});
- const custody=await holdSpillCustody(),before=custody.initial;let encrypted,envelopeBytes,payload,runtime,removed=false;
+ const custody=await holdSpillCustody(),before=custody.initial,diagnosticInputs={};let encrypted,envelopeBytes,payload,runtime,removed=false;
  try{
   runtime=await createRuntime(binding);
   encrypted=await readPrivateBackupFile(request.archiveId,'archive.pgp');if(backupHash(encrypted)!==request.archiveSha256)fail('archive_changed');
@@ -543,27 +552,38 @@ async function restoreChild(internal,rehearse=false){
   if(!exact(plannerStatistics,['format','relationCount','previouslyUninitializedRelations','catalogUnchanged','statisticsInitialized'])||plannerStatistics.format!=='nestory-local-restore-planner-statistics-v1'||
    plannerStatistics.relationCount!==LOCAL_CAPTURE_POLICY.filter(p=>p.capture==='full-row-image').length+3||plannerStatistics.catalogUnchanged!==true||plannerStatistics.statisticsInitialized!==true||
    !Number.isSafeInteger(plannerStatistics.previouslyUninitializedRelations)||plannerStatistics.previouslyUninitializedRelations<0||plannerStatistics.previouslyUninitializedRelations>plannerStatistics.relationCount)fail('statistics_unproven');
-  const rehearsalResult=rehearse?await rehearseRestoredBusiness({runtime,payload,snapshot:checked.snapshot,request,custody,replay}):{financialResetInverseProven:false};
+  const rehearsalResult=rehearse?await rehearseRestoredBusiness({runtime,payload,snapshot:checked.snapshot,request,custody,replay,diagnosticInputs}):{financialResetInverseProven:false};
   const after=await custody.check();await runtime.remove();removed=true;
   if(!same(initialPins,await sourcePins()))fail('source_changed');
   for(const source of replay.sources)if(backupHash((await readFile(path.join(root,'supabase/migrations',source.name),'utf8')).replaceAll('\r\n','\n'))!==source.sha256)fail('source_changed');
   const proofId=randomUUID(),proof={...request,...result,format:'nestory-local-business-ram-restore-proof-v1',proofId,
    childPid:process.pid,freshProcessDecryption:true,ownedContainerRemoved:true,containerId:runtime.binding.id,image:RAM_POSTGRES_IMAGE,
    spillBefore:before,spillAfter:after,migrationReplay:replay.contract,schemaReconstruction,sourcePins:initialPins,plannerStatistics,
-   ...(rehearse?{rehearsalPhaseTimings:runtime.phaseTimings()}:{}),physicalFileBytesVerified:false,...rehearsalResult};
+   ...(rehearse?{rehearsalPhaseTimings:runtime.phaseTimings(),rehearsalPreparationTimings:runtime.preparationTimings()}:{}),physicalFileBytesVerified:false,...rehearsalResult};
   await writePrivateBackupFile(proofId,'proof.json',Buffer.from(JSON.stringify(proof)));return proof;
  }catch(error){
+  let diagnosticCapsule=null,diagnosticCapsuleUnavailable=false;
+  if(rehearse&&diagnosticInputs.materialization){
+   try{
+    await custody.check();
+    diagnosticCapsule=await saveRehearsalInputs(request.keyId,{
+     format:'nestory-local-business-failure-diagnostic-v1',diagnosticOnly:true,financialResetInverseProven:false,
+     businessArchive:request,sourcePins:initialPins,stage:diagnosticStage,...diagnosticInputs});
+   }catch{diagnosticCapsuleUnavailable=true}
+  }
   if(rehearse&&/^rehearsal-[a-z-]+$/.test(diagnosticStage))await writePrivateBackupFile(randomUUID(),'proof.json',Buffer.from(JSON.stringify({
    format:'nestory-local-business-rehearsal-failure-v1',sourceSha256:request.sourceSha256,stage:diagnosticStage,financialResetInverseProven:false,
+   diagnosticCapsule,diagnosticCapsuleUnavailable,
    sqlState:/^[0-9A-Z]{5}$/.test(error?.sqlState)?error.sqlState:null,processTimedOut:error?.processTimedOut===true,
    databaseCode:preparationDatabaseCodes.has(error?.databaseCode)?error.databaseCode:null,
    inverseCause:safeBusinessInverseCause(error?.inverseCause),
    inverseAction:resolveBusinessInverseAction(error?.inverseAction,diagnosticInverseActions,diagnosticInverseConstraints),
    phaseTimings:Array.isArray(error?.phaseTimings)&&error.phaseTimings.length?error.phaseTimings:runtime?.phaseTimings()??[],
+   preparationTimings:Array.isArray(error?.preparationTimings)&&error.preparationTimings.length?error.preparationTimings:runtime?.preparationTimings()??[],
    successfulResetExecution:diagnosticResetExecution,resetVerificationCompleted:diagnosticResetVerificationComplete,
    knownFailure:safeBusinessRehearsalFailureCode(error?.message)})));
   throw error;
- }finally{encrypted?.fill(0);envelopeBytes?.fill(0);payload?.fill(0);try{if(runtime&&!removed)await runtime.remove()}finally{await custody.close()}}
+ }finally{for(const key of Object.keys(diagnosticInputs))delete diagnosticInputs[key];encrypted?.fill(0);envelopeBytes?.fill(0);payload?.fill(0);try{if(runtime&&!removed)await runtime.remove()}finally{await custody.close()}}
 }
 async function runBusinessArchive(request,rehearse){
  assertBusinessRestoreRequest(request);

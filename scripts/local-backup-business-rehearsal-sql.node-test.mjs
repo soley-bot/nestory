@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {LOCAL_CAPTURE_POLICY} from './local-backup-capture.mjs';
 import {buildRamActorFixtureSql,buildRamResetPrepareSql,buildRamResetExecuteSql,buildRamInverseReadbackSql,
- buildRamInverseCanonicalSql,buildRamInverseExecuteSql,buildRamRehearsalVerificationSql,RAM_INVERSE_NATIVE_CAUSES} from './local-backup-business-rehearsal-sql.mjs';
+ buildRamInverseCanonicalSql,buildRamInverseExecuteSql,buildRamRehearsalVerificationSql,RAM_INVERSE_NATIVE_CAUSES,RAM_PREPARE_SECTIONS} from './local-backup-business-rehearsal-sql.mjs';
 const id=n=>`11111111-1111-4111-8111-${String(n).padStart(12,'0')}`;
 const builders=[buildRamResetPrepareSql,buildRamResetExecuteSql,buildRamInverseReadbackSql,buildRamInverseCanonicalSql,buildRamInverseExecuteSql,
  v=>buildRamRehearsalVerificationSql({...v,phase:'reset'}),v=>buildRamRehearsalVerificationSql({...v,phase:'recovered'})];
@@ -129,7 +129,7 @@ test('report revisions preserve weighted baseline and add only the fixture and e
   assert.throws(()=>buildRamResetPrepareSql({...v,fixtureTransactionId}),/fixture_transaction_invalid/);
 });
 
-test('prepare diagnostics identify seven fixed sections without changing error state or exposing native details',()=>{
+test('prepare diagnostics identify bounded sections including cancellation without changing statement budgets',()=>{
  const sql=buildRamResetPrepareSql(fixture());
  const sections=[['operation','prepare_financial_reset_operation'],['archive','archive_financial_reset_rows'],
   ['actions','prepare_financial_reset_actions'],['zero_scope','financial_reset_empty_zero_scope_on_date'],
@@ -140,11 +140,20 @@ test('prepare diagnostics identify seven fixed sections without changing error s
   const tag=`local_ram_rehearsal_prepare_${section}_failed`,start=sql.indexOf(call),end=sql.indexOf(`MESSAGE='${tag}'`);
   assert.ok(start>previous&&end>start,section);
   const block=sql.slice(start,end);
-  assert.match(block,/EXCEPTION WHEN OTHERS THEN\s+RAISE EXCEPTION USING ERRCODE=SQLSTATE, $/);
+  assert.match(block,/EXCEPTION WHEN query_canceled OR OTHERS THEN\s+RAISE NOTICE 'local_ram_rehearsal_prepare_phase:[a-z_]+:failure:%',floor\(extract\(epoch FROM clock_timestamp\(\)-ram_prepare_started\)\*1000\)::bigint;\s+RAISE EXCEPTION USING ERRCODE=SQLSTATE, $/);
   assert.equal(sql.split(tag).length-1,1);previous=end;
  }
- assert.equal((sql.match(/DETAIL='', HINT=''/g)??[]).length,7);
- assert.doesNotMatch(sql,/SQLERRM|GET STACKED DIAGNOSTICS|RAISE (NOTICE|WARNING)|WHEN OTHERS THEN\s+NULL/);
+ assert.equal((sql.match(/DETAIL='', HINT=''/g)??[]).length,RAM_PREPARE_SECTIONS.length);
+ assert.doesNotMatch(sql,/SQLERRM|GET STACKED DIAGNOSTICS|RAISE WARNING|WHEN OTHERS THEN\s+NULL/);
+ for(const section of RAM_PREPARE_SECTIONS)for(const outcome of ['success','failure'])assert.equal(sql.split(`RAISE NOTICE 'local_ram_rehearsal_prepare_phase:${section}:${outcome}:%'`).length-1,1);
+ for(const notice of sql.matchAll(/RAISE NOTICE ([^;]+);/g))assert.match(notice[1],/^'local_ram_rehearsal_prepare_phase:[a-z_]+:(success|failure):%',floor\(extract\(epoch FROM clock_timestamp\(\)-ram_prepare_started\)\*1000\)::bigint$/);
+ assert.deepEqual([...sql.matchAll(/SET LOCAL statement_timeout='([^']+)'/g)].map(m=>m[1]),['120s']);
+ const prepareCalls=['prepare_financial_reset_operation','archive_financial_reset_rows','prepare_financial_reset_actions'];
+ const statementBlocks=[...sql.matchAll(/DO (\$[a-zA-Z0-9_]+\$) ([\s\S]*?) \1;/g)].map(m=>m[2]);
+ for(const call of prepareCalls){const blocks=statementBlocks.filter(b=>b.includes(`PERFORM app_private.${call}(`));assert.equal(blocks.length,1);for(const other of prepareCalls)if(other!==call)assert.ok(!blocks[0].includes(`PERFORM app_private.${other}(`));}
+ const hosted=readFileSync(new URL('./pilot-finance-reset-hosted-transport-protocol.mjs',import.meta.url),'utf8');
+ const hostedPrepare=hosted.slice(hosted.indexOf("if(action==='prepare')"),hosted.indexOf("if(action==='seal')"));
+ assert.deepEqual([...hostedPrepare.matchAll(/SELECT app_private\.([a-z_]+)\(/g)].map(m=>m[1]),prepareCalls);
  assert.equal((sql.match(/^BEGIN ISOLATION LEVEL READ COMMITTED;/gm)??[]).length,1);
  assert.equal((sql.match(/^ COMMIT;$/gm)??[]).length,1);
  assert.match(sql,/SELECT result FROM ram_prepare_readback;\s+COMMIT;$/);
@@ -169,7 +178,8 @@ test('inverse failures retain fixed stages and SQLSTATE without changing native 
  }
  assert.doesNotMatch(sql,/SQLERRM|PG_EXCEPTION_DETAIL|PG_EXCEPTION_CONTEXT|RAISE WARNING/);
  const nativeSources=['20261024013612_financial_reset_private_action_foundation.sql','20261024013617_financial_reset_phase_recovery_sources.sql',
-  '20261024013620_financial_reset_report_finalization_checkpoint.sql'].map(file=>readFileSync(new URL(`../supabase/migrations/${file}`,import.meta.url),'utf8')).join('\n');
+  '20261024013620_financial_reset_report_finalization_checkpoint.sql','20260810053145_owner_cash_reversal_and_held_cash_guards.sql',
+  '20260916020425_owner_contribution_transaction_correction.sql','20261009233921_deposit_rent_application.sql'].map(file=>readFileSync(new URL(`../supabase/migrations/${file}`,import.meta.url),'utf8')).join('\n');
  assert.ok(Object.isFrozen(RAM_INVERSE_NATIVE_CAUSES));
  assert.equal(new Set(RAM_INVERSE_NATIVE_CAUSES).size,RAM_INVERSE_NATIVE_CAUSES.length);
  for(const cause of RAM_INVERSE_NATIVE_CAUSES)assert.ok(nativeSources.includes(`RAISE EXCEPTION '${cause}'`),cause);

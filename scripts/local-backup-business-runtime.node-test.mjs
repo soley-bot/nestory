@@ -197,3 +197,16 @@ test('inverse action diagnostics expose only bound ordinal registry relation kin
   const rejected=createBusinessDatabaseDiagnostics();rejected.push(line+'\n');assert.deepEqual(rejected.finish(),{phaseTimings:[]});
  }
 });
+
+test('preparation timing accepts only fixed sections bounded integers and exact notice lines',async()=>{
+ const {RAM_PREPARE_SECTIONS}=await import('./local-backup-business-rehearsal-sql.mjs');
+ const d=createBusinessDatabaseDiagnostics();
+ for(const phase of RAM_PREPARE_SECTIONS){const line=`NOTICE: 00000: local_ram_rehearsal_prepare_phase:${phase}:success:12\n`;d.push(line.slice(0,13));d.push(line.slice(13));}
+ assert.deepEqual(d.finish().preparationTimings,RAM_PREPARE_SECTIONS.map(phase=>({phase,outcome:'success',elapsedMilliseconds:12})));
+ for(const value of ['actions:failure:120001','archive:success:0']){const p=createBusinessDatabaseDiagnostics();p.push(`NOTICE: local_ram_rehearsal_prepare_phase:${value}\n`);assert.equal(p.finish().preparationTimings.length,1);}
+ for(const value of ['private_customer:failure:1','actions:failure:600001','actions:failure:-1','actions:success:1.2','actions:success:1 private-row','actions:success:01','actions:unknown:1']){
+  const p=createBusinessDatabaseDiagnostics();p.push(`NOTICE: local_ram_rehearsal_prepare_phase:${value}\n`);assert.deepEqual(p.finish(),{phaseTimings:[]});
+ }
+ const p=createBusinessDatabaseDiagnostics();p.push("NOTICE: local_ram_rehearsal_prepare_phase:actions:failure:120000\nERROR: 57014: local_ram_rehearsal_prepare_actions_failed\nCONTEXT: private-row\n");
+ assert.deepEqual(p.finish(),{sqlState:'57014',databaseCode:'local_ram_rehearsal_prepare_actions_failed',phaseTimings:[],preparationTimings:[{phase:'actions',outcome:'failure',elapsedMilliseconds:120000}]});
+});

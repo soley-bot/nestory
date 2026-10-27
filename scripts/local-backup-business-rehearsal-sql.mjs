@@ -213,23 +213,32 @@ function operation(b,extra={}){return{operation_id:b.operationId,organization_id
  archive_sha256:b.materialization.archiveSha256,action_sha256:b.materialization.actionSha256,archive_count:b.materialization.archiveRows,action_count:b.materialization.actionCount,audit_actor:null,...extra}}
 // Replace native error text with a fixed phase label; preserve its SQLSTATE and
 // abort the enclosing transaction. Never copy customer-bearing error details.
-function prepareDiagnostic(section,sql){return `BEGIN\n${sql}\nEXCEPTION WHEN OTHERS THEN
+export const RAM_PREPARE_SECTIONS=Object.freeze(['catalog','actors','lock','eligibility','reservation','operation','archive','actions','zero_scope','continuation','phase_storage','zero_plan','readback']);
+function prepareDiagnostic(section,sql){
+ if(!RAM_PREPARE_SECTIONS.includes(section))fail('prepare_diagnostic_invalid');
+ const elapsed="floor(extract(epoch FROM clock_timestamp()-ram_prepare_started)*1000)::bigint";
+ return `DECLARE ram_prepare_started timestamptz:=clock_timestamp(); BEGIN\n${sql}
+ RAISE NOTICE 'local_ram_rehearsal_prepare_phase:${section}:success:%',${elapsed};
+ EXCEPTION WHEN query_canceled OR OTHERS THEN
+ RAISE NOTICE 'local_ram_rehearsal_prepare_phase:${section}:failure:%',${elapsed};
  RAISE EXCEPTION USING ERRCODE=SQLSTATE, MESSAGE='local_ram_rehearsal_prepare_${section}_failed', DETAIL='', HINT='';
 END;`}
+function prepareGuard(section,statement){
+ const m=/^DO (\$[a-zA-Z0-9_]+\$) ([\s\S]*) \1;$/.exec(statement);if(!m)fail('prepare_guard_changed');
+ return sqlDoBlock(prepareDiagnostic(section,`${m[2]};`),`ram_prepare_${section}`);
+}
 const transactionIdValid=v=>typeof v==='string'&&/^[1-9][0-9]{0,18}$/.test(v)&&BigInt(v)<=9223372036854775807n;
 export function buildRamResetPrepareSql({plan,planBinding,fixture,fixtureTransactionId}){
  const b=accepted(plan,planBinding),f=fixtureChecked(fixture),op=`${literal(b.operationId)}::uuid`;
  if(!transactionIdValid(fixtureTransactionId))fail('fixture_transaction_invalid');
- return `${begin()}\n${catalogGuard(plan)}\n${actorGuard(f)}
- SELECT pg_advisory_xact_lock(hashtextextended('financial_write_lifecycle_v1:'||${org}::text,0));
- ${sqlDoBlock(`BEGIN IF EXISTS(SELECT 1 FROM app_private.financial_write_controls WHERE organization_id=${org}) OR EXISTS(SELECT 1 FROM app_private.financial_reset_operations WHERE organization_id=${org}) THEN
- RAISE EXCEPTION 'local_ram_rehearsal_not_unenrolled'; END IF; END`,'ram_unenrolled')}
- INSERT INTO app_private.financial_write_controls(organization_id,generation,status,financial_start_date) VALUES(${org},1,'frozen','2026-10-01');
- ${sqlDoBlock(`BEGIN
- ${prepareDiagnostic('operation',`PERFORM app_private.prepare_financial_reset_operation(${json(operation(b))}||jsonb_build_object('audit_timestamp',clock_timestamp()));`)}
- ${prepareDiagnostic('archive',`PERFORM app_private.archive_financial_reset_rows(${op},${json(plan.archiveRows)});`)}
- ${prepareDiagnostic('actions',`PERFORM app_private.prepare_financial_reset_actions(${op},${json(plan.actions)});`)}
-END`,'ram_prepare')}
+ return `${begin()}\n${prepareGuard('catalog',catalogGuard(plan))}\n${prepareGuard('actors',actorGuard(f))}
+ ${sqlDoBlock(prepareDiagnostic('lock',`PERFORM pg_advisory_xact_lock(hashtextextended('financial_write_lifecycle_v1:'||${org}::text,0));`),'ram_prepare_lock')}
+ ${prepareGuard('eligibility',sqlDoBlock(`BEGIN IF EXISTS(SELECT 1 FROM app_private.financial_write_controls WHERE organization_id=${org}) OR EXISTS(SELECT 1 FROM app_private.financial_reset_operations WHERE organization_id=${org}) THEN
+ RAISE EXCEPTION 'local_ram_rehearsal_not_unenrolled'; END IF; END`,'ram_unenrolled'))}
+ ${sqlDoBlock(prepareDiagnostic('reservation',`INSERT INTO app_private.financial_write_controls(organization_id,generation,status,financial_start_date) VALUES(${org},1,'frozen','2026-10-01');`),'ram_prepare_reservation')}
+ ${sqlDoBlock(prepareDiagnostic('operation',`PERFORM app_private.prepare_financial_reset_operation(${json(operation(b))}||jsonb_build_object('audit_timestamp',clock_timestamp()));`),'ram_prepare_operation')}
+ ${sqlDoBlock(prepareDiagnostic('archive',`PERFORM app_private.archive_financial_reset_rows(${op},${json(plan.archiveRows)});`),'ram_prepare_archive')}
+ ${sqlDoBlock(prepareDiagnostic('actions',`PERFORM app_private.prepare_financial_reset_actions(${op},${json(plan.actions)});`),'ram_prepare_actions')}
  ${sqlDoBlock(`DECLARE zero_value jsonb; continuation_value jsonb; BEGIN
  ${prepareDiagnostic('zero_scope',`zero_value:=jsonb_build_object('version',4,'operation_id',${op},'organization_id',${org},'manifest_sha256',${literal(b.materialization.manifestSha256)},'reset_plan_sha256',${literal(b.planSha256)},
  'approval_policy',${literal(PILOT_SINGLE_ADMIN_POLICY)},'maker_actor_id',${literal(f.maker)},'reviewer_actor_id',NULL,'effective_date','2026-10-01','currencies','["USD"]'::jsonb,
@@ -240,7 +249,7 @@ END`,'ram_prepare')}
  'leases',(SELECT coalesce(jsonb_agg(jsonb_build_object('lease_id',l.id,'disposition','preserve-unbilled','source_sha256',app_private.financial_reset_hash(app_private.financial_reset_preserved_lease_source(${org},l.id))) ORDER BY l.id),'[]'::jsonb)
  FROM public.leases l WHERE l.organization_id=${org}));
  PERFORM app_private.assert_financial_reset_empty_semantic(continuation_value);`)}
- CREATE TEMP TABLE ram_phases ON COMMIT DROP AS SELECT zero_value AS zero_plan,continuation_value AS continuation_plan;
+ ${prepareDiagnostic('phase_storage','CREATE TEMP TABLE ram_phases ON COMMIT DROP AS SELECT zero_value AS zero_plan,continuation_value AS continuation_plan;')}
  END`,'ram_phase_build')}
  ${sqlDoBlock(`DECLARE r record; BEGIN ${prepareDiagnostic('zero_plan',`SELECT * INTO STRICT r FROM ram_phases;
  PERFORM app_private.prepare_financial_reset_empty_zero_plan(${op},r.zero_plan,app_private.financial_reset_hash(r.zero_plan));`)} END`,'ram_zero_prepare')}
@@ -284,6 +293,7 @@ export const RAM_INVERSE_NATIVE_CAUSES=Object.freeze([
  'financial_reset_phase_recovery_plan_required','financial_reset_recovery_sources_not_exactly_covered','financial_reset_recovery_original_archive_not_covered',
  'financial_reset_checkpoint_transaction_sealed','financial_reset_phase_must_commit_frozen',
  'financial_reset_checkpoint_must_commit','financial_reset_checkpoint_changed_before_commit',
+ 'owner_contribution_correction_lineage_invalid','owner_payment_reversal_allocation_mismatch','Combined rent settlements exceed outstanding',
 ]);
 const inverseCauseMapperSql=`CREATE FUNCTION pg_temp.ram_inverse_native_cause(p_message text) RETURNS text
  LANGUAGE sql IMMUTABLE SET search_path='' AS $ram_inverse_mapper$

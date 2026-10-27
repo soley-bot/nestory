@@ -85,3 +85,9 @@ test('saved live witness rebinds the same business archive and requires actual h
  await assert.rejects(openPilotLiveWitnessInputs({context,reference:{}}),/saved_rehearsal_unverified/);
  await disposeSavedPilotRehearsal(context);
 });
+
+// Diagnostic archives are intentionally not a successful input or proof format.
+for(const field of ['proof','rehearsalInputs','inverseInputs'])test(`failure-only diagnostic capsule cannot substitute ${field}`,()=>{
+ const f=fixture();f[field]={...f[field],format:'nestory-local-business-failure-diagnostic-v1',diagnosticOnly:true,financialResetInverseProven:false};
+ assert.throws(()=>rehydrateSavedPilotRehearsal(f));
+});
