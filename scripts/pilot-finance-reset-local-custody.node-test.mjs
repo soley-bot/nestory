@@ -6,7 +6,7 @@ import path from 'node:path';
 import {LOCAL_CUSTODY_BUCKET,LOCAL_CUSTODY_JOB,localCustodyObjectPath,assertLocalCustodySignedUrl,encryptLocalCustodyTransfer,
  decryptLocalCustodyTransfer,assertLocalCustodyJob,createLocalCustodySingleAttempt,readLocalCustodyAfterRefresh,runLocalCustodyWorker,localCustodyMutationSql,assertLocalCustodyBucketMetadata,exerciseLocalCustodyBucketProvision,LOCAL_CUSTODY_CA_SHA256,LOCAL_CUSTODY_SOURCES,assertLocalCustodyResetScope,localCustodyFailureCode,classifyLocalCustodyDatabaseFailure} from './pilot-finance-reset-local-custody-runner.mjs';
 import {createHash} from 'node:crypto';
-import {localCustodyBucketReadValue} from './pilot-finance-reset-local-custody-runner.mjs';
+import {localCustodyBucketReadValue,withLocalCustodyProvisionPhase} from './pilot-finance-reset-local-custody-runner.mjs';
 import {LOCAL_DISPATCH_WORKFLOW,LOCAL_DISPATCH_REPOSITORY} from './local-backup-dispatch-bundle.mjs';
 const locator={operationId:'11111111-1111-4111-8111-111111111111',nonce:'22222222-2222-4222-8222-222222222222',action:'freeze'};
 const url=`https://pfvmztxktkwyewvxfgot.supabase.co/storage/v1/object/sign/${LOCAL_CUSTODY_BUCKET}/${localCustodyObjectPath(locator)}?token=${'a'.repeat(30)}`;
@@ -67,7 +67,32 @@ test('provision diagnostic categories remain exact and redact appended private v
   assert.equal(localCustodyFailureCode(Error(code+' PRIVATE_VALUE')),'local_custody_worker_stopped');
  }
 });
-for(const [name,change]of[['public',b=>b.public=true],['name',b=>b.name='other'],['id',b=>b.id='other'],['size',b=>b.file_size_limit++],['mime',b=>b.allowed_mime_types.push('application/pdf')],['missing limit',b=>delete b.file_size_limit]])
+test('unknown provision failures report only their fixed phase without retaining private causes',async()=>{
+ for(const phase of ['admission','credential_read','credential_select','bucket_read','authority_refresh','bucket_create','bucket_readback']){
+  for(const error of [Error('PRIVATE_TOKEN'),SyntaxError('PRIVATE_JSON'),TypeError('PRIVATE_STREAM'),Error('local_custody_read_unavailable'),Error('local_custody_job_invalid')]){
+   await assert.rejects(withLocalCustodyProvisionPhase(phase,async()=>{throw error}),failure=>{
+    assert.equal(failure.message,`local_custody_provision_${phase}_failed`);
+    assert.equal(localCustodyFailureCode(failure),failure.message);assert.equal(failure.cause,undefined);
+    assert.doesNotMatch(failure.stack,/PRIVATE_/);return true;
+   });
+  }
+ }
+ await assert.rejects(withLocalCustodyProvisionPhase('PRIVATE_PHASE',async()=>assert.fail('must not run')),failure=>{
+  assert.equal(localCustodyFailureCode(failure),'local_custody_worker_stopped');assert.doesNotMatch(failure.message,/PRIVATE/);return true;
+ });
+});
+test('provision phases preserve exact actionable failures and sanitize appended text',async()=>{
+ for(const code of ['local_custody_provision_credential_http_denied','local_custody_provision_credential_http_failed',
+  'local_backup_files_cli_credential_response_invalid','local_custody_bucket_mismatch']){
+  await assert.rejects(withLocalCustodyProvisionPhase('credential_read',async()=>{throw Error(code)}),failure=>{
+   assert.equal(localCustodyFailureCode(failure),code);return true;
+  });
+  await assert.rejects(withLocalCustodyProvisionPhase('credential_read',async()=>{throw Error(code+' PRIVATE_TOKEN')}),
+   {message:'local_custody_provision_credential_read_failed'});
+ }
+ assert.equal(await withLocalCustodyProvisionPhase('admission',async()=>true),true);
+});
+for(const [name,change]of[['public',b=>b.public=true],['name',b=>b.name='other'],['id',b=>b.id='other'],['size',b=>b.file_size_limit++],['mime',b=>b.allowed_mime_types.push('application/pdf')],['missing limit',b=>delete b.file_size_limit],['missing mime',b=>delete b.allowed_mime_types],['null mime',b=>b.allowed_mime_types=null],['object mime',b=>b.allowed_mime_types={}],['undefined mime member',b=>b.allowed_mime_types=[undefined]]])
  test(`existing ${name} mismatch never updates or creates`,async()=>{
   const b=bucket();change(b);assert.throws(()=>assertLocalCustodyBucketMetadata(b),/bucket_mismatch/);
   await assert.rejects(exerciseLocalCustodyBucketProvision({read:async()=>b,create:async()=>assert.fail('unexpected create')}),/bucket_mismatch/);
@@ -87,8 +112,17 @@ test('unknown failed create remains unknown and never retries',async()=>{
  assert.equal(posts,1);
 });
 test('denied initial read or changed protected authority cannot create a bucket',async()=>{
- for(const ports of [{read:async()=>{throw Error('denied')},refresh:async()=>{}},{read:async()=>null,refresh:async()=>{throw Error('changed')}}])
-  await assert.rejects(exerciseLocalCustodyBucketProvision({...ports,create:async()=>assert.fail('unexpected create')}),/denied|changed/);
+ for(const [phase,ports]of [['bucket_read',{read:async()=>{throw Error('PRIVATE_READ')},refresh:async()=>{}}],
+  ['authority_refresh',{read:async()=>null,refresh:async()=>{throw Error('PRIVATE_AUTHORITY')}}]])
+  await assert.rejects(exerciseLocalCustodyBucketProvision({...ports,create:async()=>assert.fail('unexpected create')}),
+   {message:`local_custody_provision_${phase}_failed`});
+});
+test('failed readback is distinguished after exactly one unknown create, never retried',async()=>{
+ const calls=[];await assert.rejects(exerciseLocalCustodyBucketProvision({
+  read:async()=>{calls.push('read');if(calls.length===1)return null;throw SyntaxError('PRIVATE_RESPONSE')},
+  refresh:async()=>calls.push('refresh'),create:async()=>{calls.push('create');throw Error('PRIVATE_LOST_REPLY')},
+ }),{message:'local_custody_provision_bucket_readback_failed'});
+ assert.deepEqual(calls,['read','refresh','create','read']);
 });
 test('only fixed owned private handoff object URL is accepted',()=>assert.equal(assertLocalCustodySignedUrl(url,locator),url));
 for(const [name,change]of[['host',s=>s.replace('pfvmztxktkwyewvxfgot','other')],['bucket',s=>s.replace('pilot-reset-handoff','organization-assets')],
@@ -109,6 +143,19 @@ function jobFixture(){const main='a'.repeat(40);return {environment:{GITHUB_ACTI
  jobs:{total_count:1,jobs:[{id:9,runner_id:8,run_id:123,run_attempt:1,head_sha:main,runner_name:'GitHub Actions 1',labels:['ubuntu-24.04'],name:LOCAL_CUSTODY_JOB,status:'in_progress'}]},
  protectedEnvironment:{name:'production-database',protection_rules:[{type:'branch_policy'}],deployment_branch_policy:{protected_branches:true,custom_branch_policies:false}},protectedBranchNames:['main'],deploymentPolicies:null};}
 test('actual-shaped GitHub run and protected-main job binding accepted',()=>assert.equal(assertLocalCustodyJob(jobFixture()).runId,'123'));
+test('admission diagnostics distinguish fixed main, run, active-job and runner failures without values',async()=>{
+ for(const [kind,change]of [['current_main',f=>f.currentMain='b'.repeat(40)],
+  ['run_metadata',f=>f.run.status='queued'],['run_metadata',f=>f.environment.GITHUB_RUN_ATTEMPT='2'],
+  ['active_job',f=>f.jobs.jobs[0].status='queued'],['active_job',f=>f.jobs.total_count=2],['active_job',f=>f.jobs.jobs[0]=null],
+  ['runner_context',f=>f.jobs.jobs[0].runner_name='PRIVATE_RUNNER'],['runner_context',f=>delete f.jobs.jobs[0].labels],
+  ['runner_context',f=>f.environment.RUNNER_ENVIRONMENT='self-hosted']]){
+  const f=jobFixture();change(f);const expected=`local_custody_job_invalid_${kind}`;
+  await assert.rejects(withLocalCustodyProvisionPhase('admission',()=>assertLocalCustodyJob(f)),error=>{
+   assert.equal(error.message,expected);assert.equal(localCustodyFailureCode(error),expected);assert.doesNotMatch(error.stack,/PRIVATE_RUNNER/);return true;
+  });
+  assert.equal(localCustodyFailureCode(Error(expected+' PRIVATE_VALUE')),'local_custody_worker_stopped');
+ }
+});
 for(const [name,change]of[['rerun',f=>f.environment.GITHUB_RUN_ATTEMPT='2'],['main drift',f=>f.currentMain='b'.repeat(40)],
  ['different runner',f=>f.jobs.jobs[0].runner_name='other'],['two jobs',f=>{f.jobs.jobs.push({...f.jobs.jobs[0]});f.jobs.total_count++;}],
  ['unprotected environment',f=>f.protectedEnvironment.protection_rules=[]],['truncated jobs',f=>f.jobs.total_count=2],['workflow mismatch',f=>f.run.path='.github/workflows/ci.yml']])
