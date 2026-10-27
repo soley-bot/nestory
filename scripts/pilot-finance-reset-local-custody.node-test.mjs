@@ -4,7 +4,7 @@ import {randomBytes} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {LOCAL_CUSTODY_BUCKET,LOCAL_CUSTODY_JOB,localCustodyObjectPath,assertLocalCustodySignedUrl,encryptLocalCustodyTransfer,
- decryptLocalCustodyTransfer,assertLocalCustodyJob,createLocalCustodySingleAttempt,readLocalCustodyAfterRefresh,runLocalCustodyWorker,localCustodyMutationSql,assertLocalCustodyBucketMetadata,exerciseLocalCustodyBucketProvision,LOCAL_CUSTODY_CA_SHA256,LOCAL_CUSTODY_SOURCES} from './pilot-finance-reset-local-custody-runner.mjs';
+ decryptLocalCustodyTransfer,assertLocalCustodyJob,createLocalCustodySingleAttempt,readLocalCustodyAfterRefresh,runLocalCustodyWorker,localCustodyMutationSql,assertLocalCustodyBucketMetadata,exerciseLocalCustodyBucketProvision,LOCAL_CUSTODY_CA_SHA256,LOCAL_CUSTODY_SOURCES,assertLocalCustodyResetScope} from './pilot-finance-reset-local-custody-runner.mjs';
 import {createHash} from 'node:crypto';
 import {LOCAL_DISPATCH_WORKFLOW,LOCAL_DISPATCH_REPOSITORY} from './local-backup-dispatch-bundle.mjs';
 const locator={operationId:'11111111-1111-4111-8111-111111111111',nonce:'22222222-2222-4222-8222-222222222222',action:'freeze'};
@@ -77,13 +77,40 @@ test('historical read refreshes admission after waiting and denies changed main 
  await assert.rejects(readLocalCustodyAfterRefresh({expected,refresh:async()=>{refreshes++;return {...expected,mainSha:'f'.repeat(40)}},read:()=>{reads++}}),/read_authority_changed/);
  assert.equal(refreshes,1);assert.equal(reads,0);
 });
-test('unconditional production hold precedes environment/credential/network work',async()=>{
- const original=globalThis.fetch;let reads=0;globalThis.fetch=()=>{reads++;throw Error('must not run')};
- try{await assert.rejects(runLocalCustodyWorker(),/integration_incomplete/);assert.equal(reads,0);}finally{globalThis.fetch=original;}
+function resetOptions(){const operationId=locator.operationId,org='752a87b8-bd04-4a45-9cb8-00687af66e73';return {action:'freeze',recovery:null,
+ binding:{operation_id:operationId,organization_id:org,project_ref:'pfvmztxktkwyewvxfgot',source_generation:0,target_generation:1,cutoff:'2026-10-01',issue_date:'2026-10-01',invoice_date_policy:'empty-books-no-invoices'},
+ artifacts:{zeroPlan:{operation_id:operationId,organization_id:org,version:4,approval_policy:'pilot-october-single-admin-v1',maker_actor_id:locator.nonce,reviewer_actor_id:null,effective_date:'2026-10-01'},continuationPlan:{version:4}}};}
+test('only five marked reset stages reach existing SQL admission',()=>{
+ for(const action of ['freeze','checkpoint','prepare','seal','execute'])assert.equal(assertLocalCustodyResetScope({...resetOptions(),action}),true);
+ for(const change of [f=>f.action='prepare-recovery',f=>f.action='execute-recovery',f=>f.action='reopen',f=>f.action='inspect',
+  f=>f.recovery={},f=>delete f.recovery,f=>delete f.artifacts.zeroPlan.approval_policy,f=>f.artifacts.zeroPlan.reviewer_actor_id=locator.operationId,
+  f=>f.artifacts.zeroPlan.approval_policy='other',f=>f.artifacts.continuationPlan.version=3,f=>f.binding.organization_id=locator.nonce,
+  f=>f.binding.project_ref='other',f=>f.binding.source_generation=1,f=>f.binding.target_generation=2,f=>f.binding.cutoff='2026-11-01',
+  f=>f.binding.issue_date='2026-11-01',f=>f.binding.invoice_date_policy='other']){
+  const f=resetOptions();change(f);assert.throws(()=>assertLocalCustodyResetScope(f));assert.throws(()=>localCustodyMutationSql(f));
+ }
 });
+test('invalid worker mode and recovery stage reject before provider or database work',async()=>{
+ const original=globalThis.fetch,mode=process.env.RESET_MODE,action=process.env.RESET_ACTION;let reads=0;globalThis.fetch=()=>{reads++;throw Error('must not run')};
+ try{for(const m of ['execute','reconcile'])for(const a of ['prepare-recovery','execute-recovery','reopen','unknown']){
+  process.env.RESET_MODE=m;process.env.RESET_ACTION=a;await assert.rejects(runLocalCustodyWorker(),/reset_scope_invalid/);
+ }process.env.RESET_MODE='unknown';await assert.rejects(runLocalCustodyWorker(),/mode_invalid/);assert.equal(reads,0);
+ }finally{globalThis.fetch=original;if(mode===undefined)delete process.env.RESET_MODE;else process.env.RESET_MODE=mode;if(action===undefined)delete process.env.RESET_ACTION;else process.env.RESET_ACTION=action;}
+});
+test('payload scope precedes database credentials while generic routes remain held',async()=>{
+ const source=await readFile(new URL('./pilot-finance-reset-local-custody-runner.mjs',import.meta.url),'utf8');
+ assert.ok(source.indexOf('sql=verifyLocalCustodyPayload(verified)')<source.indexOf('privateDb=await privateConnection(env)'));
+ assert.ok(source.lastIndexOf('assertLocalCustodyResetScope(')<source.indexOf('return await createLocalCustodySingleAttempt('));
+ const {assertHostedTransportDispatchImplemented}=await import('./pilot-finance-reset-hosted-transport.mjs');
+ const {assertNoBackupTransportDispatchImplemented}=await import('./pilot-finance-reset-no-backup-transport.mjs');
+ const {dispatchManualReset}=await import('./pilot-finance-reset-manual-coordinator.mjs');
+ for(const held of [assertHostedTransportDispatchImplemented,assertNoBackupTransportDispatchImplemented,dispatchManualReset])assert.throws(held,/integration_incomplete/);
+ for(const name of ['pilot-finance-reset-github-hosted-runner.mjs','pilot-finance-reset-hosted-runner.mjs'])assert.match(await readFile(new URL('./'+name,import.meta.url),'utf8'),/assertHostedTransportDispatchImplemented()/);
+});
+
 test('fixed session identity is checked inside the only mutation transaction before actor consumption',()=>{
- const options={binding:{operation_id:locator.operationId,organization_id:'752a87b8-bd04-4a45-9cb8-00687af66e73'},action:'freeze',authorizationId:locator.nonce,
-  authoritySha256:'a'.repeat(64),observation:{catalog:[],ledger:[],foreignSha256:'b'.repeat(64)},artifacts:{},recovery:null};
+ const options={...resetOptions(),authorizationId:locator.nonce,
+  authoritySha256:'a'.repeat(64),observation:{catalog:[],ledger:[],foreignSha256:'b'.repeat(64)}};
  const sql=localCustodyMutationSql(options);
  assert.match(sql,/^BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED;\nDO /);
  assert.ok(sql.indexOf("session_user<>'postgres'")<sql.indexOf('consume_financial_reset_actor_authorization'));
@@ -95,7 +122,7 @@ test('fixed session identity is checked inside the only mutation transaction bef
  assert.match(sql,/financial_reset_hosted_foreign_census\('752a87b8-bd04-4a45-9cb8-00687af66e73'::uuid\)/);
  assert.notEqual(localCustodyMutationSql({...options,observation:{...options.observation,foreignSha256:'c'.repeat(64)}}),sql);
  assert.throws(()=>localCustodyMutationSql({...options,observation:{catalog:[],ledger:[]}}),/foreign_baseline_invalid/);
- assert.throws(()=>localCustodyMutationSql({...options,binding:{...options.binding,organization_id:locator.nonce}}),/foreign_baseline_invalid/);
+ assert.throws(()=>localCustodyMutationSql({...options,binding:{...options.binding,organization_id:locator.nonce}}),/policy_invalid/);
 });
 test('tracked public CA exactly matches reviewed SHA',async()=>{
  const ca=await readFile(new URL('./certificates/supabase-prod-ca-2021.crt',import.meta.url));
@@ -116,7 +143,8 @@ test('workflow keeps serialized protected writer, pinned actions and no ordinary
  assert.match(text,/environment: production-database/);assert.match(text,/group: production-supabase/);assert.match(text,/cancel-in-progress: false/);
  assert.match(text,/github.run_attempt == 1/);assert.match(text,/SUPABASE_DB_PASSWORD: \$\{\{ secrets.SUPABASE_DB_PASSWORD \}\}/);
  assert.doesNotMatch(text,/uses: .*@(main|v\d)\b|upload-artifact|actions\/cache|id-token: write/);
- assert.ok(text.indexOf('assertHostedTransportDispatchImplemented();')<text.indexOf('SUPABASE_DB_PASSWORD:'));
+ assert.ok(text.indexOf('case "$RESET_ACTION" in')<text.indexOf('SUPABASE_DB_PASSWORD:'));
+ assert.match(text,/options: \[freeze, checkpoint, prepare, seal, execute\]/);assert.doesNotMatch(text,/prepare-recovery|execute-recovery|assertHostedTransportDispatchImplemented/);
  assert.match(text,/default: capability-probe/);assert.match(text,/if: inputs.mode == 'provision-handoff'/);
  assert.match(text,/SUPABASE_ACCESS_TOKEN: \$\{\{ secrets.SUPABASE_ACCESS_TOKEN \}\}/);
  assert.match(text,/SUPABASE_PROJECT_ID: \$\{\{ secrets.SUPABASE_PROJECT_ID \}\}/);

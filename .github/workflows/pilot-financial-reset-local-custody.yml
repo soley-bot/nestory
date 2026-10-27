@@ -30,7 +30,7 @@ on:
         type: choice
         required: true
         default: freeze
-        options: [freeze, checkpoint, prepare, seal, execute, prepare-recovery, execute-recovery]
+        options: [freeze, checkpoint, prepare, seal, execute]
 
 permissions: {}
 
@@ -70,10 +70,11 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
-      - name: Enforce implementation hold before private inputs
+      - name: Enforce reviewed reset scope before private inputs
         shell: bash
         env:
           RESET_MODE: ${{ inputs.mode }}
+          RESET_ACTION: ${{ inputs.action }}
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = refs/heads/main
@@ -83,8 +84,12 @@ jobs:
           test -z "$(git status --porcelain --untracked-files=all)"
           git ls-files --error-unmatch .github/workflows/pilot-financial-reset-local-custody.yml scripts/pilot-finance-reset-local-custody-runner.mjs scripts/local-backup-dispatch-bundle.mjs >/dev/null
           case "$RESET_MODE" in
-            execute) node --input-type=module -e 'import { assertHostedTransportDispatchImplemented } from "./scripts/pilot-finance-reset-hosted-transport.mjs"; assertHostedTransportDispatchImplemented();' ;;
-            reconcile|capability-probe|tls-probe|provision-handoff) ;;
+            execute|reconcile)
+              case "$RESET_ACTION" in
+                freeze|checkpoint|prepare|seal|execute) ;;
+                *) exit 1 ;;
+              esac ;;
+            capability-probe|tls-probe|provision-handoff) ;;
             *) exit 1 ;;
           esac
       - name: Install locked dependencies without lifecycle scripts

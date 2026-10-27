@@ -1,8 +1,11 @@
 # Pilot reset with local recovery custody
 
-This candidate is held by `assertHostedTransportDispatchImplemented()`. The
-workflow and worker cannot dispatch a mutation while that unconditional function
-throws. Tests below prove components, not a live protected execution path.
+The local workflow admits only the explicitly marked sole-administrator Pilot
+October reset: freeze, checkpoint, prepare, seal, and execute. Live recovery and
+reopening are excluded. The generic hosted, AWS, and no-backup routes retain
+their unconditional holds. Local execution still requires verified saved recovery
+evidence, current source and protected job identity, and genuine session authority.
+Preparing this code does not establish enrollment or a completed customer reset.
 
 The separate synthetic HTTP rehearsal has completed all seven reset and recovery
 stages with real local Auth sessions, the private Windows journal, detached
@@ -94,8 +97,8 @@ custody,custodyEvidence,authoritySha256,stageAuthority,reviewArtifacts,action}`.
 `reconcile`, `collect`, and `collect-reconciliation`. `publish` alone accepts
 `{request,authorizationId}` so a genuine fresh authorization can be obtained
 after the inert job starts. No CLI accepts an arbitrary path, SQL, endpoint or
-credential value. Remote mutations are held; discovery/receipt reads preserve
-the original immutable operation.
+credential value. Every local entrypoint admits only the marked reset scope;
+discovery/receipt reads preserve the original immutable operation.
 
 `capability-probe` workflow mode receives only the current job's GitHub token. It
 verifies live protected-environment/job reads and reports the fixed PostgreSQL
@@ -239,7 +242,7 @@ SHA plus `PILOT_RESET_LOCAL_CUSTODY_ENABLED=reviewed-operation-only` in
 `production-database`. The default `capability-probe` reads actual GitHub
 protection and reports the installed psql hash. Review and enroll that hash as
 `PILOT_RESET_PSQL_SHA256`, then run `tls-probe` with the existing protected
-database password. These steps do not remove the unconditional execution hold.
+database password. These steps do not supply recovery evidence or stage authority.
 The activation setting is checked in the first runner step, before checkout or
 private inputs. It is intentionally absent from the job-level condition because
 [environment-level variables become available after the runner starts](https://docs.github.com/en/actions/reference/workflows-and-actions/variables#configuration-variable-precedence).

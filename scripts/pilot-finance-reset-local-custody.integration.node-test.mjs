@@ -18,3 +18,14 @@ test('owned fixture has exactly one committed setup and a correctly terminated d
  assert.match(sql,/current_setting\('nestory\.synthetic_local_custody_run',true\).*\$' AS receipt_disposable_database/);
  assert.equal(sql.split('CREATE TEMP TABLE http_empty_books_fixture').length,2);
 });
+
+test('HTTP integration uses one genuine maker and all five marked reset stages without recovery',async()=>{
+ const [sql,driver]=await Promise.all(['fixtures/pilot-finance-reset-local-custody-http-setup.sql','pilot-finance-reset-local-custody.integration.mjs'].map(f=>readFile(new URL('./'+f,import.meta.url),'utf8')));
+ assert.ok(!sql.includes('http_reviewer'));assert.ok(!driver.includes("signIn('reviewer')"));
+ assert.ok(sql.includes("'approval_policy','pilot-october-single-admin-v1'"));assert.ok(sql.includes("'reviewer_actor_id',NULL"));
+ assert.ok(sql.includes('financial_reset_empty_zero_scope_on_date'));
+ assert.ok(driver.includes("['freeze','checkpoint','prepare','seal','execute']"));
+ assert.ok(driver.indexOf('const deniedAuthorization')<driver.indexOf("await rpc('approve_financial_reset_zero_plan'"));
+ assert.ok(!driver.includes("perform('prepare-recovery'"));assert.ok(!driver.includes("perform('execute-recovery'"));
+ assert.ok(driver.includes('syntheticInverseCommitted:false'));
+});

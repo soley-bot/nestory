@@ -1,3 +1,4 @@
+import {localCustodyMutationSql} from './pilot-finance-reset-local-custody-runner.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as pgp from 'openpgp';
@@ -14,8 +15,8 @@ const receipt={format:'nestory-local-custody-result-v1',operationId:locator.oper
  outcome:'committed-and-verified',mutationRetried:false,observationSha256:'b'.repeat(64),checkpointSha256:'c'.repeat(64),normalWritesReopened:false};
 const expected={...locator,mode:'execute',originalRunId:123,actualRunId:123,intentSha256:receipt.intentSha256};
 const line=(value,step='Wait for exact run ticket and execute once')=>`Pilot reset local custody\t${step}\t2026-10-27T12:00:00Z ${JSON.stringify(value)}`;
-test('operator remote entrypoints remain held before private inputs or provider requests',async()=>{
- for(const action of [()=>bootstrapLocalDispatch({}),()=>publishLocalDispatch({},''),()=>dispatchLocalReconciliation({}),()=>discoverLocalDispatch({}),()=>collectLocalDispatchReceipt({})])await assert.rejects(action(),/integration_incomplete/);
+test('malformed operator requests reject before private inputs or provider requests',async()=>{
+ for(const action of [()=>bootstrapLocalDispatch({}),()=>publishLocalDispatch({},''),()=>dispatchLocalReconciliation({}),()=>discoverLocalDispatch({}),()=>collectLocalDispatchReceipt({})])await assert.rejects(action(),/request_invalid/);
 });
 test('private input preparation rejects a caller custody claim before files, encryption or provider work',async()=>{
  await assert.rejects(persistPreparedLocalDispatchInput({context:{operationalCustodyVerified:true}}),/saved_rehearsal_unverified/);
@@ -254,4 +255,19 @@ test('both v4 UI review policies always carry exact digest-bound raw plan text',
   assert.equal(doc.bindingSha256,hashBytes(canonicalJson(doc.binding)));
   assert.throws(()=>prepareLocalDispatchSessionReview({...f,action:'execute-recovery'}));
  }
+});
+
+test('marked five-stage integration builds exact local SQL and excludes recovery before transport',()=>{
+ const f=reviewFixture(true),binding=hostedBinding(f.packet,f.artifacts.continuationPlan);
+ const options={binding,artifacts:f.artifacts,recovery:null,observation:f.observation,authorizationId:f.fixture.makerSession,authoritySha256:'a'.repeat(64)};
+ for(const action of ['freeze','checkpoint','prepare','seal','execute']){
+  const sql=localCustodyMutationSql({...options,action});
+  assert.ok(sql.includes('consume_financial_reset_actor_authorization'));
+  assert.ok(sql.includes("'"+action+"'"));
+  assert.equal((sql.match(/COMMIT;/g)??[]).length,1);
+  assert.ok(!sql.includes('reserve_financial_reset_hosted_recovery'));
+ }
+ const seal=localCustodyMutationSql({...options,action:'seal'});
+ assert.ok(seal.includes('pilot-october-single-admin-v1'));assert.ok(seal.includes('"reviewer_actor_id":null'));
+ for(const action of ['prepare-recovery','execute-recovery'])assert.throws(()=>localCustodyMutationSql({...options,action}),/reset_scope_invalid/);
 });

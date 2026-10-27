@@ -1,4 +1,4 @@
-// Fixed operator-side handoff. All remote mutations remain globally held.
+// Fixed operator-side handoff for the reviewed sole-admin reset stages only.
 // Private inputs are encrypted archive UUIDs, never paths, SQL or credentials.
 import {spawn} from 'node:child_process';
 import {randomBytes,randomUUID} from 'node:crypto';
@@ -7,11 +7,11 @@ import {fileURLToPath} from 'node:url';
 import {readFile,readdir} from 'node:fs/promises';
 import {canonicalJson,hashBytes,assertOperatorPacket} from './pilot-finance-reset-operator-core.mjs';
 import {digestJson,digestDatabaseJson,validateArtifacts,hostedBinding,HOSTED_ACTIONS} from './pilot-finance-reset-hosted-transport-protocol.mjs';
-import {assertHostedTransportDispatchImplemented,verifyHostedPacketSources} from './pilot-finance-reset-hosted-transport.mjs';
+import {verifyHostedPacketSources} from './pilot-finance-reset-hosted-transport.mjs';
 import {createManualResetCoordinator} from './pilot-finance-reset-manual-coordinator.mjs';
 import {decryptLocalBackup,encryptLocalBackup,readPrivateBackupFile,writePrivateBackupFile,loadRecoveryPublicKey} from './local-backup-crypto.mjs';
 import {openFixedLocalDispatchJournal,buildDispatchTicket,signLocalDispatchBundle,inspectDispatchPayloadBudget,LOCAL_DISPATCH_REPOSITORY,LOCAL_DISPATCH_WORKFLOW} from './local-backup-dispatch-bundle.mjs';
-import {localCustodyObjectPath,assertLocalCustodySignedUrl,encryptLocalCustodyTransfer,decryptLocalCustodyTransfer,localCustodyMutationSql,LOCAL_CUSTODY_BUCKET,LOCAL_CUSTODY_SOURCES} from './pilot-finance-reset-local-custody-runner.mjs';
+import {localCustodyObjectPath,assertLocalCustodySignedUrl,encryptLocalCustodyTransfer,decryptLocalCustodyTransfer,localCustodyMutationSql,assertLocalCustodyResetScope,LOCAL_CUSTODY_BUCKET,LOCAL_CUSTODY_SOURCES} from './pilot-finance-reset-local-custody-runner.mjs';
 import {readPilotHostedServiceCredential} from './local-backup-file-credential.mjs';
 import {verifySavedLocalRecoveryEvidence} from './local-backup-custody-evidence.mjs';
 import {inspectSavedPilotRehearsal,assertSavedPilotRehearsalHeld} from './local-backup-saved-rehearsal.mjs';
@@ -41,6 +41,7 @@ export async function persistPreparedLocalDispatchInput({context,prepared,custod
  if(saved.request.keyId!==keyId||!HOSTED_ACTIONS.includes(action)||!custodyEvidence?.liveWitness||
   custodyEvidence.businessRestore.id!==saved.proof.proofId||custodyEvidence.businessArchive.id!==saved.request.archiveId)fail('input_invalid');
  const{packet,artifacts}=prepared;assertOperatorPacket(packet);validateArtifacts(packet,artifacts);
+ assertLocalCustodyResetScope({action,binding:hostedBinding(packet,artifacts.continuationPlan),artifacts,recovery:null});
  const authoritySha256=assertLocalDispatchStageAuthority({packet,artifacts,reviews:reviewArtifacts,action,observation,authority:stageAuthority});
  if(packet.evidenceBlockers.length||!LOCAL_CUSTODY_SOURCES.every(p=>packet.sourceFiles.some(s=>s.path===p)))fail('input_incomplete');
  await verifyHostedPacketSources(packet);
@@ -82,6 +83,7 @@ async function load(r,{historical=false}={}){
  if(!exact(input,['format','payload','custody','custodyEvidence','authoritySha256','stageAuthority','reviewArtifacts','action'])||input.format!=='nestory-local-dispatch-input-v1'||!hash.test(input.authoritySha256)||!HOSTED_ACTIONS.includes(input.action))fail('input_invalid');
  const {payload}=input;if(!exact(payload,['packet','binding','artifacts','recovery','observation']))fail('payload_invalid');
  inspectDispatchPayloadBudget(payload);
+ assertLocalCustodyResetScope({action:input.action,binding:payload.binding,artifacts:payload.artifacts,recovery:payload.recovery});
  assertOperatorPacket(payload.packet);validateArtifacts(payload.packet,payload.artifacts,payload.recovery);
  if(assertLocalDispatchStageAuthority({packet:payload.packet,artifacts:payload.artifacts,reviews:input.reviewArtifacts,action:input.action,
   observation:payload.observation,authority:input.stageAuthority,historical})!==input.authoritySha256)fail('stage_evidence_changed');
@@ -141,7 +143,7 @@ async function findOriginalRun(input,mode){
 }
 
 async function bootstrapLocalDispatchHeld(r){
- assertHostedTransportDispatchImplemented();const input=await load(r),{locator,payload}=input,store=await openFixedLocalDispatchJournal(),coordinator=createManualResetCoordinator({store});
+ const input=await load(r),{locator,payload}=input,store=await openFixedLocalDispatchJournal(),coordinator=createManualResetCoordinator({store});
  await enrollmentReady();
  const key=randomBytes(32),archiveId=randomUUID();
  try{
@@ -177,7 +179,7 @@ export function localDispatchWorkerWaiting(jobs,run,mainSha){
    j.head_sha===mainSha&&Array.isArray(j.steps)&&j.steps.some(s=>s.name==='Wait for exact run ticket and execute once'&&s.status==='in_progress')).length===1;
 }
 async function publishLocalDispatchHeld(r,authorizationId){
- assertHostedTransportDispatchImplemented();if(!uuid.test(authorizationId))fail('authorization_invalid');
+ if(!uuid.test(authorizationId))fail('authorization_invalid');
  const input=await load(r),{locator,payload}=input,store=await openFixedLocalDispatchJournal(),coordinator=createManualResetCoordinator({store});
  const enrolled=await required(store,`${prefix(locator)}/response`),run=await findOriginalRun(input,'execute');
  if(!run||run.id!==enrolled.runId||run.status!=='in_progress')fail('original_run_not_active');
@@ -214,7 +216,7 @@ async function publishLocalDispatchHeld(r,authorizationId){
 async function dispatchLocalReconciliationHeld(r){
  // This POST creates only a fixed read-only worker; it cannot publish a new
  // ticket or issue SQL. It still requires review of the complete route.
- assertHostedTransportDispatchImplemented();
+
  const input=await load(r,{historical:true}),{locator}=input,store=await openFixedLocalDispatchJournal();
  const original=await required(store,`${prefix(locator)}/response`),published=await required(store,`${prefix(locator)}/publish-claim`),secret=await transfer(store,locator);
  try{
@@ -271,11 +273,11 @@ async function collectLocalDispatchReceiptHeld(r,mode='execute'){
  return {status:'authenticated-worker-receipt-retained',...receipt,receiptSha256};
 }
 
-export async function bootstrapLocalDispatch(r){assertHostedTransportDispatchImplemented();return held(()=>bootstrapLocalDispatchHeld(r));}
-export async function discoverLocalDispatch(r){assertHostedTransportDispatchImplemented();return held(()=>discoverLocalDispatchHeld(r));}
-export async function publishLocalDispatch(r,authorizationId){assertHostedTransportDispatchImplemented();return held(()=>publishLocalDispatchHeld(r,authorizationId));}
-export async function dispatchLocalReconciliation(r){assertHostedTransportDispatchImplemented();return held(()=>dispatchLocalReconciliationHeld(r));}
-export async function collectLocalDispatchReceipt(r,mode='execute'){assertHostedTransportDispatchImplemented();return held(()=>collectLocalDispatchReceiptHeld(r,mode));}
+export async function bootstrapLocalDispatch(r){request(r);return held(()=>bootstrapLocalDispatchHeld(r));}
+export async function discoverLocalDispatch(r){request(r);return held(()=>discoverLocalDispatchHeld(r));}
+export async function publishLocalDispatch(r,authorizationId){request(r);if(!uuid.test(authorizationId))fail('authorization_invalid');return held(()=>publishLocalDispatchHeld(r,authorizationId));}
+export async function dispatchLocalReconciliation(r){request(r);return held(()=>dispatchLocalReconciliationHeld(r));}
+export async function collectLocalDispatchReceipt(r,mode='execute'){request(r);if(!['execute','reconcile'].includes(mode))fail('mode_invalid');return held(()=>collectLocalDispatchReceiptHeld(r,mode));}
 
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  try{

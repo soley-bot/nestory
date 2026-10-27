@@ -14,11 +14,6 @@ SELECT current_database()='postgres' AND current_setting('nestory.synthetic_loca
 \echo 'Actual synthetic HTTP maker UUID is required.'
 \quit 3
 \endif
-\if :{?http_reviewer}
-\else
-\echo 'Actual synthetic HTTP reviewer UUID is required.'
-\quit 3
-\endif
 \if :{?http_session}
 \else
 \echo 'Actual synthetic HTTP maker session UUID is required.'
@@ -29,18 +24,17 @@ BEGIN;
 SET LOCAL statement_timeout='30s';
 SET LOCAL lock_timeout='5s';
 CREATE TEMP TABLE http_empty_books_fixture(
- organization uuid,foreign_organization uuid,operation uuid,maker uuid,reviewer uuid,session_id uuid,
+ organization uuid,foreign_organization uuid,operation uuid,maker uuid,session_id uuid,
  source_row jsonb,operation_binding jsonb,archive_rows jsonb,actions jsonb,zero_plan jsonb,binding jsonb,foreign_before jsonb
 );
-INSERT INTO http_empty_books_fixture(organization,foreign_organization,operation,maker,reviewer,session_id) VALUES
+INSERT INTO http_empty_books_fixture(organization,foreign_organization,operation,maker,session_id) VALUES
  ('752a87b8-bd04-4a45-9cb8-00687af66e73','eb270057-0000-4000-8000-000000000009','eb270057-0000-4000-8000-000000000100',
-  :'http_maker'::uuid,:'http_reviewer'::uuid,:'http_session'::uuid);
+  :'http_maker'::uuid,:'http_session'::uuid);
 DO $$ DECLARE f record; BEGIN
  SELECT * INTO STRICT f FROM http_empty_books_fixture;
- IF f.maker=f.reviewer OR NOT EXISTS(SELECT 1 FROM auth.users u JOIN auth.sessions s ON s.user_id=u.id
+ IF NOT EXISTS(SELECT 1 FROM auth.users u JOIN auth.sessions s ON s.user_id=u.id
    WHERE u.id=f.maker AND s.id=f.session_id AND u.deleted_at IS NULL AND NOT coalesce(u.is_anonymous,false)
-    AND (s.not_after IS NULL OR s.not_after>clock_timestamp())) OR
-   NOT EXISTS(SELECT 1 FROM auth.users WHERE id=f.reviewer AND deleted_at IS NULL AND NOT coalesce(is_anonymous,false)) THEN
+    AND (s.not_after IS NULL OR s.not_after>clock_timestamp())) THEN
   RAISE EXCEPTION 'synthetic_receipt_actual_auth_users_and_session_required';
  END IF;
 END $$;
@@ -48,7 +42,7 @@ INSERT INTO public.organizations(id,name,slug,operational_timezone)
  SELECT organization,'Synthetic HTTP empty books proof','synthetic-http-empty-books-proof','Asia/Phnom_Penh' FROM http_empty_books_fixture
  UNION ALL SELECT foreign_organization,'Synthetic HTTP empty books foreign sentinel','synthetic-http-empty-books-foreign','Asia/Phnom_Penh' FROM http_empty_books_fixture;
 INSERT INTO public.organization_members(organization_id,user_id,role)
- SELECT organization,maker,'super_admin' FROM http_empty_books_fixture UNION ALL SELECT organization,reviewer,'super_admin' FROM http_empty_books_fixture;
+ SELECT organization,maker,'super_admin' FROM http_empty_books_fixture;
 INSERT INTO public.organization_branches(id,organization_id,name,code,status)
  SELECT 'eb270057-0000-4000-8000-000000000020',organization,'HTTP receipt branch','HRCP','active' FROM http_empty_books_fixture;
 DO $$ DECLARE v_token text; BEGIN
@@ -82,10 +76,10 @@ UPDATE http_empty_books_fixture SET operation_binding=jsonb_build_object('operat
   'primary_key',jsonb_build_object('id',source_row->'id'),'row_sha256',app_private.financial_reset_hash(source_row)))),
  'action_sha256',(SELECT app_private.financial_reset_hash(jsonb_agg(a-ARRAY['before_row_text','after_row_text','changed_columns'] ORDER BY (a->>'ordinal')::integer))
   FROM jsonb_array_elements(actions) a),'archive_count',1,'action_count',1,'audit_timestamp',clock_timestamp(),'audit_actor',NULL);
-UPDATE http_empty_books_fixture f SET zero_plan=jsonb_build_object('operation_id',operation,'organization_id',organization,
- 'manifest_sha256',repeat('a',64),'reset_plan_sha256',repeat('b',64),'maker_actor_id',maker,'reviewer_actor_id',reviewer,
+UPDATE http_empty_books_fixture f SET zero_plan=jsonb_build_object('version',4,'approval_policy','pilot-october-single-admin-v1','operation_id',operation,'organization_id',organization,
+ 'manifest_sha256',repeat('a',64),'reset_plan_sha256',repeat('b',64),'maker_actor_id',maker,'reviewer_actor_id',NULL,
  'effective_date','2026-10-01','currencies','["USD"]'::jsonb,
- 'scopes',app_private.financial_reset_zero_scope_on_date(f.organization,DATE '2026-10-01'));
+ 'scopes',app_private.financial_reset_empty_zero_scope_on_date(f.organization,DATE '2026-10-01'));
 UPDATE http_empty_books_fixture SET binding=jsonb_build_object('version',1,'operation_id',operation,'project_ref','pfvmztxktkwyewvxfgot','organization_id',organization,
  'packet_sha256',repeat('1',64),'main_sha',repeat('2',40),'sources_sha256',repeat('3',64),'schema_sha256',operation_binding->>'schema_sha256',
  'ledger_sha256',repeat('4',64),'source_snapshot_sha256',app_private.financial_reset_hash(app_private.financial_reset_continuation_snapshot(organization)),

@@ -3,13 +3,13 @@
 import assert from 'node:assert/strict';
 import {createSyntheticDispatchChain} from './local-backup-dispatch-synthetic.mjs';
 import {LOCAL_CUSTODY_SOURCES} from './pilot-finance-reset-local-custody-runner.mjs';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { REQUIRED_ARTIFACTS, SOURCE_ENTRYPOINTS, prepareOperatorPacket, hashBytes, hashSourceBytes } from './pilot-finance-reset-operator-core.mjs';
-import { TRANSPORT_SOURCE_FILES, ledgerExpression, digestJson, sortDescriptors, hostedBinding, observationSql, mutationSql, jsonSql, literal, validateArtifacts } from './pilot-finance-reset-hosted-transport-protocol.mjs';
+import { TRANSPORT_SOURCE_FILES, ledgerExpression, digestJson, sortDescriptors, hostedBinding, observationSql, mutationSql, validateArtifacts } from './pilot-finance-reset-hosted-transport-protocol.mjs';
 import { verifyHostedResetExecutionReadback } from './pilot-finance-reset-hosted-transport.mjs';
 import { localRecoveryDocker } from './local-recovery-docker.mjs';
 
@@ -19,6 +19,7 @@ const dockerId = /^[a-f0-9]{64}$/;
 const label = 'nestory.empty-books.run';
 const databaseFailureNames = new Set([
   'financial_reset_actor_authorization_consumed','financial_reset_zero_independent_approval_required',
+  'financial_reset_single_admin_approval_required',
   'financial_reset_zero_session_endorsement_required','financial_reset_actor_session_required',
   'financial_reset_actor_authority_required','financial_reset_actor_binding_invalid','financial_reset_hosted_binding_invalid',
   'financial_reset_hosted_source_changed','financial_reset_recovery_phase_binding_invalid',
@@ -133,56 +134,6 @@ function preparedArtifacts(f, observation, head) {
   return {packet,artifacts,binding:hostedBinding(packet,artifacts.continuationPlan)};
 }
 
-function recoveryReview(io, context, fixture) {
-  const {packet,artifacts} = context;
-  const op = literal(fixture.operation);
-  const captured = io.sql(`BEGIN READ ONLY; SET LOCAL timezone='UTC';
-    WITH candidates AS (SELECT app_private.financial_reset_recovery_candidates(${op}::uuid) AS value)
-    SELECT jsonb_build_object('phaseBinding',jsonb_build_object('schema_sha256',${literal(packet.schemaSha256)},
-      'zero_review_sha256',z.review_sha256,'zero_authority_sha256',z.result_json->>'authority_sha256',
-      'continuation_review_sha256',c.review_sha256,'continuation_before_sha256',c.result_json->>'before_sha256',
-      'continuation_after_sha256',c.result_json->>'after_sha256','report_checkpoint_sha256',r.checkpoint_sha256,
-      'source_sha256',app_private.financial_reset_hash(app_private.financial_reset_continuation_snapshot(z.organization_id)),
-      'sources_sha256',app_private.financial_reset_hash(candidates.value)),
-      'sources',(SELECT jsonb_agg(jsonb_build_object('relation_name',s->>'relation_name','primary_key',s->'primary_key',
-        'kind',s->>'kind','before_row_text',(s->'before_row')::text,'before_sha256',s->>'before_sha256',
-        'after_row_text',nullif(s->'after_row','null'::jsonb)::text,'after_sha256',s->>'after_sha256','changed_columns','[]'::jsonb)
-        ORDER BY s->>'relation_name',(s->'primary_key')::text) FROM jsonb_array_elements(candidates.value) s),
-      'archive',(SELECT CASE WHEN row_json ? 'financial_generation' THEN jsonb_set(row_json,'{financial_generation}','2') ELSE row_json END::text
-        FROM app_private.financial_reset_archive_rows WHERE operation_id=${op}::uuid))
-    FROM candidates,app_private.financial_reset_zero_plans z JOIN app_private.financial_reset_continuation_plans c USING(operation_id,organization_id)
-      JOIN app_private.financial_reset_verification_checkpoints r USING(operation_id,organization_id)
-    WHERE z.operation_id=${op}::uuid; COMMIT;`).at(-1);
-  // This small fixture has only zero authority and a zero owner period. Refuse
-  // any additional relation rather than guess a recovery order for new data.
-  const order = ['public.owner_balance_period_components','public.owner_balance_periods',
-    'public.owner_opening_balance_entries','public.owner_opening_balance_requests'];
-  assert.ok(captured.sources.length > 0);
-  for (const source of captured.sources) {
-    assert.ok(order.includes(source.relation_name)); assert.equal(source.kind,'recovery-prune');
-    assert.equal(source.after_row_text,null); assert.equal(source.after_sha256,null);
-  }
-  const actions = captured.sources.sort((a,b)=>order.indexOf(a.relation_name)-order.indexOf(b.relation_name))
-    .map((source,index)=>({...source,action_id:randomUUID(),ordinal:index+1}));
-  const archived = fixture.archive_rows[0];
-  const columns = io.sql(`SELECT jsonb_build_object('columns',jsonb_agg(attname ORDER BY attnum)) FROM pg_attribute
-    WHERE attrelid='public.financial_month_locks'::regclass AND attnum>0 AND NOT attisdropped AND attgenerated='';`).at(-1).columns;
-  actions.push({action_id:randomUUID(),ordinal:actions.length+1,relation_name:archived.relation_name,primary_key:archived.primary_key,
-    kind:'restore',before_row_text:null,before_sha256:null,after_row_text:captured.archive,after_sha256:hashBytes(captured.archive),
-    changed_columns:[],insert_columns:columns});
-  const digests = io.sql(`SELECT jsonb_build_object('phase',app_private.financial_reset_hash(${jsonSql(captured.phaseBinding)}),
-    'actions',(SELECT app_private.financial_reset_hash(jsonb_agg(jsonb_build_object('action_id',a->'action_id','ordinal',a->'ordinal',
-      'relation_name',a->'relation_name','primary_key',a->'primary_key','kind',a->'kind','before_sha256',a->'before_sha256',
-      'after_sha256',a->'after_sha256') ORDER BY (a->>'ordinal')::integer)) FROM jsonb_array_elements(${jsonSql(actions)}) a),
-    'timestamp',clock_timestamp(),'businessDate',app_private.rent_business_date(${literal(fixture.organization)}::uuid,statement_timestamp()));`).at(-1);
-  const operation = {...artifacts.actions.operation,operation_id:randomUUID(),operation_kind:'restore',restore_of:fixture.operation,
-    source_generation:1,target_generation:2,plan_sha256:digestJson(actions),action_sha256:digests.actions,action_count:actions.length,audit_timestamp:digests.timestamp};
-  const review = {operation,actions,phaseBinding:captured.phaseBinding,phaseBindingSha256:digests.phase,executionBusinessDate:digests.businessDate};
-  const recovery = {review,artifactSha256:digestJson(review)};
-  validateArtifacts(packet,artifacts,recovery);
-  return recovery;
-}
-
 export async function runSyntheticLocalCustody(d) {
   assertSyntheticDescriptor(d);
   const io = await adapter(d); io.inspect();
@@ -204,11 +155,11 @@ export async function runSyntheticLocalCustody(d) {
     assert.equal(claims.sub,user.id); assert.match(claims.session_id,uuid);
     return {id:user.id,sessionId:claims.session_id,token:session.access_token};
   };
-  const maker = await signIn('maker'), reviewer = await signIn('reviewer');
+  const maker = await signIn('maker');
   io.sql(`ALTER DATABASE postgres SET nestory.synthetic_local_custody_run='${d.runId}'; INSERT INTO storage.buckets(id,name,public,file_size_limit,allowed_mime_types) VALUES('pilot-reset-handoff','pilot-reset-handoff',false,33554432,ARRAY['application/octet-stream']);`);
   const chain=await createSyntheticDispatchChain(d.runId);
   const f = io.sql(readFileSync(path.join(root,'scripts/fixtures/pilot-finance-reset-local-custody-http-setup.sql'),'utf8'),
-    {http_maker:maker.id,http_reviewer:reviewer.id,http_session:maker.sessionId}).at(-1);
+    {http_maker:maker.id,http_session:maker.sessionId}).at(-1);
   const initial = io.sql(observationSql(null,f.binding)).at(-1);
   const head = spawnSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8',windowsHide:true}).stdout.trim();
   assert.match(head,/^[a-f0-9]{40}$/);
@@ -230,41 +181,35 @@ export async function runSyntheticLocalCustody(d) {
     assert.equal(after.control.status,'frozen');
     if (action==='freeze') assert.throws(()=>io.sql(mutationSql({binding:currentBinding,action,authorizationId,authoritySha256,observation,artifacts,recovery})),
       /financial_reset_actor_authorization_consumed/,'A real consumed authorization cannot be replayed.');
-    if (action==='execute' || action==='execute-recovery') assert.equal(verifyHostedResetExecutionReadback({packet,binding:currentBinding,artifacts,recovery,
+    if (action==='execute') assert.equal(verifyHostedResetExecutionReadback({packet,binding:currentBinding,artifacts,recovery,
       observation:after,authorizationId,action}),true,'Production readback verifier must accept real committed state.');
     receipts.push({action,authorizationConsumed:true,frozen:true,foreignUnchanged:true});
     return after;
   };
   for (const action of ['freeze','checkpoint','prepare','seal']) await perform(action);
-  await rpc('approve_financial_reset_zero_plan',{p_operation_id:f.operation,p_review_sha256:binding.zero_review_sha256});
   const deniedAuthorization = await rpc('authorize_financial_reset_hosted_action',{p_binding:binding,p_action:'execute'});
   const deniedBefore = io.sql(observationSql(packet,binding,deniedAuthorization,'execute')).at(-1);
   assert.throws(()=>io.sql(mutationSql({binding,action:'execute',authorizationId:deniedAuthorization,authoritySha256,
-    observation:deniedBefore,artifacts,recovery:null})),/financial_reset_zero_(?:independent_approval|session_endorsement)_required/);
+    observation:deniedBefore,artifacts,recovery:null})),/financial_reset_(?:single_admin_approval|zero_session_endorsement)_required/);
   const deniedAfter = io.sql(observationSql(packet,binding,deniedAuthorization,'execute')).at(-1);
   assert.equal(deniedAfter.authorization.status,'pending'); assert.equal(deniedAfter.operation.status,'sealed');
   assert.equal(deniedAfter.appliedCount,0); assert.equal(deniedAfter.sourceSha256,deniedBefore.sourceSha256);
-  await rpc('approve_financial_reset_zero_plan',{p_operation_id:f.operation,p_review_sha256:binding.zero_review_sha256},reviewer);
+  await rpc('approve_financial_reset_zero_plan',{p_operation_id:f.operation,p_review_sha256:binding.zero_review_sha256});
   const executed = await perform('execute');
   assert.equal(executed.emptyBooks.tenantInvoices,0); assert.equal(executed.emptyBooks.ownerInvoices,0);
   assert.equal(executed.continuation.unchanged,true); assert.equal(executed.checkpoint.result.close_ready,false);
   assert.equal(executed.checkpoint.result.billing_complete,false);
-  const recovery = recoveryReview(io,context,f);
-  const recoveryBinding = hostedBinding(packet,artifacts.continuationPlan,recovery);
-  await perform('prepare-recovery',recoveryBinding,recovery);
-  const restored = await perform('execute-recovery',recoveryBinding,recovery);
-  assert.equal(restored.checkpoint.kind,'phase-recovery'); assert.equal(restored.control.generation,2);
-  assert.equal(restored.checkpoint.result.archive_rows_verified,true); assert.equal(restored.checkpoint.result.phase_rows_verified,true);
-  assert.equal(restored.checkpoint.result.control_reopened,false);
+  assert.equal(executed.control.generation,1);
+  assert.deepEqual(receipts.map(r=>r.action),['freeze','checkpoint','prepare','seal','execute']);
   return {dispatchChain:chain.proof(),format:'nestory-synthetic-local-custody-http-proof-v1',syntheticOnly:true,hostedReadiness:false,
     actualResetRecoveryProven:false,sourceKind:'synthetic-month-lock-and-owner-scope',contractRoster:0,
     mainSha:head,sourcesSha256:packet.sourcesSha256,packetSha256:packet.packetSha256,schemaSha256:packet.schemaSha256,
     ledgerSha256:packet.ledgerSha256,migrationCount:preflight.ledger.length,
     harnessSha256:hashSourceBytes(readFileSync(fileURLToPath(import.meta.url))),
     fixtureSha256:hashSourceBytes(readFileSync(path.join(root,'scripts/fixtures/pilot-finance-reset-local-custody-http-setup.sql'))),
-    genuineHttpActors:2,resetCommitted:true,syntheticInverseCommitted:true,productionReadbackVerified:true,
-    consumedReplayDenied:true,independentApprovalRollbackVerified:true,receipts,
-    reportCheckpointSha256:executed.checkpoint.sha256,recoveryCheckpointSha256:restored.checkpoint.sha256,
+    genuineHttpActors:1,approvalPolicy:'pilot-october-single-admin-v1',resetCommitted:true,syntheticInverseCommitted:false,productionReadbackVerified:true,
+    consumedReplayDenied:true,missingMakerApprovalRollbackVerified:true,receipts,
+    reportCheckpointSha256:executed.checkpoint.sha256,recoveryCheckpointSha256:null,
     remainingBoundary:'hosted-provider-custody-customer-recovery-and-native-adapter-not-certified'};
 }
 

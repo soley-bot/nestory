@@ -1,5 +1,5 @@
 // Fixed no-AWS worker. Durable history stays in the protected Windows journal.
-// This candidate remains behind the unconditional shared execution hold.
+// Only the reviewed sole-admin reset route is admitted; other transports stay held.
 import {spawn,execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {createCipheriv,createDecipheriv,randomBytes} from 'node:crypto';
@@ -9,12 +9,26 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {assertOperatorPacket,canonicalJson,hashBytes,REQUIRED_ARTIFACTS} from './pilot-finance-reset-operator-core.mjs';
 import {RESET_PROJECT,RESET_ORGANIZATION,HOSTED_BOUND_SOURCE_FILES,assertProtectedEnvironment} from './pilot-finance-reset-hosted-workflow-core.mjs';
-import {HOSTED_ACTIONS,hostedBinding,validateArtifacts,observationSql,mutationSql,digestJson,digestDatabaseJson} from './pilot-finance-reset-hosted-transport-protocol.mjs';
-import {assertHostedTransportDispatchImplemented,runHostedPsql,verifyHostedPacketSources,assertHostedObservation,
+import {hostedBinding,validateArtifacts,observationSql,mutationSql,digestJson,digestDatabaseJson} from './pilot-finance-reset-hosted-transport-protocol.mjs';
+import {runHostedPsql,verifyHostedPacketSources,assertHostedObservation,
  assertHostedPrecondition,hostedStageReceiptMatches,hostedPhaseState,verifyHostedResetExecutionReadback} from './pilot-finance-reset-hosted-transport.mjs';
 import {verifySignedDispatchBundle,verifyHistoricalDispatchBundle,LOCAL_DISPATCH_REPOSITORY,LOCAL_DISPATCH_WORKFLOW,LOCAL_DISPATCH_TRANSFER_LIMIT} from './local-backup-dispatch-bundle.mjs';
+import {assertPilotSingleAdminOperation} from './pilot-finance-reset-single-admin-policy.mjs';
 import {selectPilotHostedCredential} from './local-backup-file-credential.mjs';
 
+export const LOCAL_CUSTODY_RESET_ACTIONS=Object.freeze(['freeze','checkpoint','prepare','seal','execute']);
+export function assertLocalCustodyResetAction(action){
+ if(!LOCAL_CUSTODY_RESET_ACTIONS.includes(action))throw Error('local_custody_reset_scope_invalid');
+ return action;
+}
+export function assertLocalCustodyResetScope({action,binding,artifacts,recovery}){
+ assertLocalCustodyResetAction(action);
+ if(recovery!==null||artifacts?.continuationPlan?.version!==4||!binding||
+  !assertPilotSingleAdminOperation(artifacts?.zeroPlan,{operationId:binding.operation_id,organizationId:binding.organization_id,projectRef:binding.project_ref,
+   sourceGeneration:binding.source_generation,targetGeneration:binding.target_generation,cutoff:binding.cutoff,issueDate:binding.issue_date,invoiceDatePolicy:binding.invoice_date_policy}))
+  throw Error('local_custody_reset_scope_invalid');
+ return true;
+}
 export const LOCAL_CUSTODY_BUCKET='pilot-reset-handoff';
 export const LOCAL_CUSTODY_JOB='Pilot reset local custody';
 export const LOCAL_CUSTODY_CA_SHA256='700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7';
@@ -50,6 +64,7 @@ function guardedSql(sql,checkBucket=true,extraGuard=''){
  return `${sql.slice(0,boundary)}\n${sessionGuard}\n${checkBucket?bucketGuard+'\n':''}${extraGuard}${sql.slice(boundary+1)}`;
 }
 export function localCustodyMutationSql(options){
+ assertLocalCustodyResetScope(options);
  const foreign=options?.observation?.foreignSha256;
  if(!digest.test(foreign)||options?.binding?.organization_id!==RESET_ORGANIZATION)fail('foreign_baseline_invalid');
  const guard=`DO $local_custody_foreign$ BEGIN IF app_private.financial_reset_hash(app_private.financial_reset_hosted_foreign_census('${RESET_ORGANIZATION}'::uuid)) IS DISTINCT FROM '${foreign}' THEN RAISE EXCEPTION 'local_custody_foreign_baseline_changed'; END IF; END $local_custody_foreign$;\n`;
@@ -57,7 +72,7 @@ export function localCustodyMutationSql(options){
 }
 
 export function assertLocalCustodyLocator(v){
- if(!exact(v,['operationId','action','nonce'])||!uuid.test(v.operationId)||!uuid.test(v.nonce)||!HOSTED_ACTIONS.includes(v.action))fail('locator_invalid');
+ if(!exact(v,['operationId','action','nonce'])||!uuid.test(v.operationId)||!uuid.test(v.nonce)||!LOCAL_CUSTODY_RESET_ACTIONS.includes(v.action))fail('locator_invalid');
  return v;
 }
 export function localCustodyObjectPath(locator){
@@ -101,6 +116,7 @@ export function assertLocalCustodyJob({environment:e,gitHead,currentMain,run,job
 
 export function verifyLocalCustodyPayload({ticket,payload}){
  const {packet,binding,artifacts,recovery,observation}=payload;
+ assertLocalCustodyResetScope({action:ticket.action,binding,artifacts,recovery});
  assertOperatorPacket(packet);validateArtifacts(packet,artifacts,recovery);
  if(packet.evidenceBlockers.length||!REQUIRED_ARTIFACTS.every(r=>packet.artifacts[r])||packet.operation.mainSha!==ticket.mainSha||
    packet.operation.invoiceDatePolicy!=='empty-books-no-invoices'||artifacts.continuationPlan?.version!==4||
@@ -226,11 +242,10 @@ async function privateConnection(environment){
 }
 
 export async function runLocalCustodyWorker(){
- // Before credentials, reads, transient files, polling or any mutation. There
- // is no environment flag, injected callback or CLI argument to bypass this.
+ // Fixed reset-stage admission precedes credentials, reads, transient files or polling.
  const mode=process.env.RESET_MODE??'execute';
- if(mode==='execute')assertHostedTransportDispatchImplemented();
- else if(!['reconcile','capability-probe','tls-probe','provision-handoff'].includes(mode))fail('mode_invalid');
+ if(['execute','reconcile'].includes(mode))assertLocalCustodyResetAction(process.env.RESET_ACTION);
+ else if(!['capability-probe','tls-probe','provision-handoff'].includes(mode))fail('mode_invalid');
  if(process.platform!=='linux'||Number(process.versions.node.split('.')[0])!==24)fail('runtime_invalid');
  if(mode==='provision-handoff'){
   const env={...process.env};delete process.env.SUPABASE_ACCESS_TOKEN;if(!env.GH_TOKEN)fail('origin_invalid');
@@ -266,9 +281,6 @@ export async function runLocalCustodyWorker(){
       run.head_sha!==first.mainSha||run.head_branch!=='main'||run.event!=='workflow_dispatch'||!['completed','in_progress','waiting','queued'].includes(run.status))fail('original_run_invalid');
    original={...first,runId:env.RESET_ORIGINAL_RUN_ID};
   }
-  privateDb=await privateConnection(env);env.SUPABASE_DB_PASSWORD=undefined;
-  const connectionProbe=guardedSql('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;\nSELECT 1;\nCOMMIT;');
-  if((await runHostedPsql(privateDb.connection,connectionProbe,spawn)).trim()!=='1')fail('database_connection_unverified');
   const until=Date.now()+20*60*1000;
   while(Date.now()<until){
    const cipher=await boundedGet(url,{},limit);let doc;try{doc=decryptLocalCustodyTransfer(cipher,key,locator);}finally{cipher.fill(0);}
@@ -279,6 +291,9 @@ export async function runLocalCustodyWorker(){
   }
   if(!verified)fail('ticket_missing');
   const {ticket,payload}=verified,sql=verifyLocalCustodyPayload(verified),files=await verifyHostedPacketSources(payload.packet);
+  privateDb=await privateConnection(env);env.SUPABASE_DB_PASSWORD=undefined;
+  const connectionProbe=guardedSql('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;\nSELECT 1;\nCOMMIT;');
+  if((await runHostedPsql(privateDb.connection,connectionProbe,spawn)).trim()!=='1')fail('database_connection_unverified');
   async function observe(){let o;try{o=JSON.parse((await runHostedPsql(privateDb.connection,guardedSql(observationSql(payload.packet,payload.binding,ticket.authorizationId,ticket.action)),spawn)).trim());}catch{fail('observation_failed');}
    assertHostedObservation(payload.packet,o,files);return o;}
   if(mode==='reconcile'){
@@ -292,7 +307,7 @@ export async function runLocalCustodyWorker(){
   if(!same(first,current)||Date.now()>=Date.parse(ticket.expiresAt)||
    localCustodyMutationSql({binding:payload.binding,action:ticket.action,authorizationId:ticket.authorizationId,authoritySha256:ticket.authoritySha256,
     observation:before,artifacts:payload.artifacts,recovery:payload.recovery})!==sql)fail('preflight_changed');
-  assertHostedTransportDispatchImplemented();
+  assertLocalCustodyResetScope({action:ticket.action,binding:payload.binding,artifacts:payload.artifacts,recovery:payload.recovery});
   // Exactly one write call. A lost/failed reply goes only to read-only reconcile.
   return await createLocalCustodySingleAttempt({write:()=>runHostedPsql(privateDb.connection,sql,spawn,ticket.action,payload.artifacts.continuationPlan.version),readback:observe,
    reconcile:observation=>reconcileLocalCustodyObservation({...verified,observation})})();
