@@ -52,6 +52,7 @@ const root=path.resolve(import.meta.dirname,'..'),exec=promisify(execFile);
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const digest=/^[a-f0-9]{64}$/,sha=/^[a-f0-9]{40}$/;
 const fail=code=>{throw Error(`local_custody_${code}`);};
+const provisionPhases=new Set(['admission','credential_read','credential_select','bucket_read','authority_refresh','bucket_create','bucket_readback']);
 const publicFailureCodes=new Set(['local_custody_database_inputs_invalid','local_custody_private_path_invalid',
  'local_custody_swap_present','local_custody_binary_unavailable','local_custody_ca_changed',
  'local_custody_database_connection_unverified','local_custody_private_file_invalid',
@@ -65,9 +66,23 @@ const publicFailureCodes=new Set(['local_custody_database_inputs_invalid','local
  'local_custody_bucket_read_unavailable','local_custody_bucket_mismatch','local_custody_bucket_create_outcome_unknown',
  'local_backup_files_cli_credential_response_invalid','local_backup_files_cli_credential_ambiguous',
  'local_backup_files_cli_credential_missing','local_backup_files_cli_credential_key_invalid',
+ 'local_custody_provision_credential_http_denied','local_custody_provision_credential_http_failed',
+ 'local_custody_job_invalid_current_main','local_custody_job_invalid_run_metadata',
+ 'local_custody_job_invalid_active_job','local_custody_job_invalid_runner_context',
+ ...[...provisionPhases].map(phase=>`local_custody_provision_${phase}_failed`),
  'hosted_transport_process_failed']);
 export function localCustodyFailureCode(error){
  return publicFailureCodes.has(error?.message)?error.message:'local_custody_worker_stopped';
+}
+// Fixed diagnostic boundaries only; no error text, cause, stack or response body
+// is copied. The callback supplies no authority or production transport port.
+export async function withLocalCustodyProvisionPhase(phase,action){
+ if(!provisionPhases.has(phase)||typeof action!=='function')fail('provision_phase_invalid');
+ try{return await action();}catch(error){
+  const code=localCustodyFailureCode(error);
+  if(!['local_custody_worker_stopped','local_custody_read_unavailable','local_custody_read_limit'].includes(code))throw Error(code);
+  fail(`provision_${phase}_failed`);
+ }
 }
 export function classifyLocalCustodyDatabaseFailure(bytes){
  // Fixed categories only; raw libpq/SQL output may contain private values.
@@ -138,17 +153,20 @@ export function decryptLocalCustodyTransfer(bytes,key,locator){
 }
 export function assertLocalCustodyJob({environment:e,gitHead,currentMain,run,jobs,protectedEnvironment,protectedBranchNames,deploymentPolicies}){
  assertProtectedEnvironment(protectedEnvironment,protectedBranchNames,deploymentPolicies);
- if(e.GITHUB_ACTIONS!=='true'||e.RUNNER_ENVIRONMENT!=='github-hosted'||e.RUNNER_OS!=='Linux'||e.RUNNER_ARCH!=='X64'||
+ if(currentMain!==gitHead)fail('job_invalid_current_main');
+ if(e.GITHUB_ACTIONS!=='true'||
   e.GITHUB_EVENT_NAME!=='workflow_dispatch'||e.GITHUB_REPOSITORY!==LOCAL_DISPATCH_REPOSITORY||e.GITHUB_REF!=='refs/heads/main'||
   e.GITHUB_WORKFLOW_REF!==`${LOCAL_DISPATCH_REPOSITORY}/${LOCAL_DISPATCH_WORKFLOW}@refs/heads/main`||e.GITHUB_WORKFLOW_SHA!==e.GITHUB_SHA||
-  !sha.test(gitHead)||gitHead!==e.GITHUB_SHA||currentMain!==gitHead||e.GITHUB_RUN_ATTEMPT!=='1'||
+  !sha.test(gitHead)||gitHead!==e.GITHUB_SHA||e.GITHUB_RUN_ATTEMPT!=='1'||
   !/^[1-9][0-9]*$/.test(e.GITHUB_RUN_ID??'')||!Number.isSafeInteger(run?.id)||String(run.id)!==e.GITHUB_RUN_ID||run.run_attempt!==1||
   run.path!==LOCAL_DISPATCH_WORKFLOW||run.repository?.full_name!==LOCAL_DISPATCH_REPOSITORY||run.head_sha!==gitHead||run.head_branch!=='main'||
-  run.event!=='workflow_dispatch'||run.status!=='in_progress'||!Array.isArray(jobs?.jobs)||jobs.total_count!==jobs.jobs.length)fail('job_invalid');
+  run.event!=='workflow_dispatch'||run.status!=='in_progress')fail('job_invalid_run_metadata');
+ if(!Array.isArray(jobs?.jobs)||jobs.total_count!==jobs.jobs.length||jobs.jobs.some(j=>!j||typeof j!=='object'))fail('job_invalid_active_job');
  const active=jobs.jobs.filter(j=>j.name===LOCAL_CUSTODY_JOB&&j.status==='in_progress');
- if(active.length!==1)fail('job_invalid');const j=active[0];
- if(!Number.isSafeInteger(j.id)||j.id<1||!Number.isSafeInteger(j.runner_id)||j.runner_id<1||j.run_id!==run.id||j.run_attempt!==1||j.head_sha!==gitHead||
-  typeof e.RUNNER_NAME!=='string'||!e.RUNNER_NAME||j.runner_name!==e.RUNNER_NAME||!same(j.labels,['ubuntu-24.04']))fail('job_invalid');
+ if(active.length!==1)fail('job_invalid_active_job');const j=active[0];
+ if(e.RUNNER_ENVIRONMENT!=='github-hosted'||e.RUNNER_OS!=='Linux'||e.RUNNER_ARCH!=='X64'||
+  !Number.isSafeInteger(j.id)||j.id<1||!Number.isSafeInteger(j.runner_id)||j.runner_id<1||j.run_id!==run.id||j.run_attempt!==1||j.head_sha!==gitHead||
+  typeof e.RUNNER_NAME!=='string'||!e.RUNNER_NAME||j.runner_name!==e.RUNNER_NAME||!Array.isArray(j.labels)||j.labels.length!==1||j.labels[0]!=='ubuntu-24.04')fail('job_invalid_runner_context');
  return {repository:LOCAL_DISPATCH_REPOSITORY,workflow:LOCAL_DISPATCH_WORKFLOW,mainSha:gitHead,runId:e.GITHUB_RUN_ID,runAttempt:1};
 }
 
@@ -192,8 +210,9 @@ export async function readLocalCustodyAfterRefresh({expected,refresh,read}){
  if(!same(expected,await refresh()))fail('read_authority_changed');return read();
 }
 
-async function boundedGet(url,headers,max=2*1024*1024){
+async function boundedGet(url,headers,max=2*1024*1024,credentialRead=false){
  let r;try{r=await fetch(url,{method:'GET',headers,redirect:'error',cache:'no-store',signal:AbortSignal.timeout(15000)});}catch{fail('read_unavailable');}
+ if(credentialRead&&!r.ok)fail(r.status===401||r.status===403?'provision_credential_http_denied':'provision_credential_http_failed');
  if(!r.ok||r.redirected||r.url!==url||!r.body)fail('read_unavailable');
  const chunks=[];let size=0;const reader=r.body.getReader();
  for(;;){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>max){await reader.cancel();fail('read_limit');}chunks.push(value);}
@@ -204,7 +223,8 @@ async function github(resource,token){return parse(await boundedGet(`https://api
 
 export function assertLocalCustodyBucketMetadata(bucket){
  if(!bucket||bucket.id!==LOCAL_CUSTODY_BUCKET||bucket.name!==LOCAL_CUSTODY_BUCKET||bucket.public!==false||
-  bucket.file_size_limit!==limit||!same(bucket.allowed_mime_types,['application/octet-stream']))fail('bucket_mismatch');
+  bucket.file_size_limit!==limit||!Array.isArray(bucket.allowed_mime_types)||bucket.allowed_mime_types.length!==1||
+  bucket.allowed_mime_types[0]!=='application/octet-stream')fail('bucket_mismatch');
  return true;
 }
 export function localCustodyBucketReadValue({status,value}){
@@ -217,10 +237,10 @@ export function localCustodyBucketReadValue({status,value}){
 // Offline protocol port only. Production supplies fixed endpoints below and
 // cannot accept injected providers, URLs, bucket settings or request bodies.
 export async function exerciseLocalCustodyBucketProvision({read,create,refresh}){
- const before=await read();if(before!==null){assertLocalCustodyBucketMetadata(before);return {outcome:'existing-matching',createAttempted:false};}
- await refresh();let acknowledged=false;
- try{await create();acknowledged=true;}catch{/* Never retry an ambiguous POST. Read its outcome once. */}
- const after=await read();if(after===null)fail('bucket_create_outcome_unknown');assertLocalCustodyBucketMetadata(after);
+ const before=await withLocalCustodyProvisionPhase('bucket_read',read);if(before!==null){assertLocalCustodyBucketMetadata(before);return {outcome:'existing-matching',createAttempted:false};}
+ await withLocalCustodyProvisionPhase('authority_refresh',refresh);let acknowledged=false;
+ try{await withLocalCustodyProvisionPhase('bucket_create',create);acknowledged=true;}catch{/* Never retry an ambiguous POST. Read its outcome once. */}
+ const after=await withLocalCustodyProvisionPhase('bucket_readback',read);if(after===null)fail('bucket_create_outcome_unknown');assertLocalCustodyBucketMetadata(after);
  return {outcome:acknowledged?'created-and-verified':'matching-after-unknown-create',createAttempted:true};
 }
 async function provisionLocalCustodyBucket(env,invocation){
@@ -229,9 +249,10 @@ async function provisionLocalCustodyBucket(env,invocation){
  delete process.env.SUPABASE_ACCESS_TOKEN;
  let credential,bytes;
  try{
-  bytes=await boundedGet(`https://api.supabase.com/v1/projects/${RESET_PROJECT}/api-keys?reveal=true`,
-   {Authorization:`Bearer ${env.SUPABASE_ACCESS_TOKEN}`},131072);
-  const selected=selectPilotHostedCredential(bytes);if(selected.redacted)fail('provision_credential_unavailable');credential=selected.key;
+  bytes=await withLocalCustodyProvisionPhase('credential_read',()=>boundedGet(`https://api.supabase.com/v1/projects/${RESET_PROJECT}/api-keys?reveal=true`,
+   {Authorization:`Bearer ${env.SUPABASE_ACCESS_TOKEN}`},131072,true));
+  const selected=await withLocalCustodyProvisionPhase('credential_select',()=>selectPilotHostedCredential(bytes));
+  if(selected.redacted)fail('provision_credential_unavailable');credential=selected.key;
  }finally{bytes?.fill(0);env.SUPABASE_ACCESS_TOKEN=undefined;}
  const origin=`https://${RESET_PROJECT}.supabase.co/storage/v1/bucket`,headers={Authorization:`Bearer ${credential}`,apikey:credential,'Content-Type':'application/json'};
  async function request(method,url,body){
@@ -292,7 +313,7 @@ export async function runLocalCustodyWorker(){
  if(process.platform!=='linux'||Number(process.versions.node.split('.')[0])!==24)fail('runtime_invalid');
  if(mode==='provision-handoff'){
   const env={...process.env};delete process.env.SUPABASE_ACCESS_TOKEN;if(!env.GH_TOKEN)fail('origin_invalid');
-  const invocation=await job(env,env.GH_TOKEN);return provisionLocalCustodyBucket(env,invocation);
+  const invocation=await withLocalCustodyProvisionPhase('admission',()=>job(env,env.GH_TOKEN));return provisionLocalCustodyBucket(env,invocation);
  }
  if(['capability-probe','tls-probe'].includes(mode)){
   const env={...process.env};if(!env.GH_TOKEN)fail('origin_invalid');
