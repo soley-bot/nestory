@@ -1,4 +1,5 @@
 import test from 'node:test';
+import './pilot-finance-reset-direct-once.node-test.mjs';
 import './pilot-finance-reset-worker-readiness.node-test.mjs';
 import './local-backup-execute-transition.node-test.mjs';
 import './local-backup-execute-adapter.node-test.mjs';
