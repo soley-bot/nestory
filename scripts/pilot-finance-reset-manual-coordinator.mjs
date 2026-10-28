@@ -4,6 +4,8 @@ import { canonicalJson, hashBytes } from './pilot-finance-reset-operator-core.mj
 import { inspectWindowsResetJournal } from './pilot-finance-reset-windows-journal.mjs';
 import { createJsonJournal } from './pilot-finance-reset-durable-store.mjs';
 import { assertHostedTransportDispatchImplemented } from './pilot-finance-reset-hosted-transport.mjs';
+import {assertPrepareRepairRecord,assertPrepareRepairOriginalJournal,localPrepareRepairStagePrefix,
+  assertPrepareRepairObservation,assertPrepareRepairOriginalRun} from './local-backup-dispatch-repair.mjs';
 
 const digest = /^[a-f0-9]{64}$/;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
@@ -29,15 +31,23 @@ export function assertManualResetIntent(document) {
   return document;
 }
 
-export function createManualResetCoordinator({ store }) {
+export function createManualResetCoordinator({ store, prepareRepair }) {
   const mechanism = inspectWindowsResetJournal(store);
   if (mechanism.kind !== 'windows-create-new-write-through-flush-readback') fail('windows_journal_required');
   const journal = createJsonJournal({ store });
+  const repair=prepareRepair===undefined?null:structuredClone(assertPrepareRepairRecord(prepareRepair));
+  const originalPrefix=(operationId,action)=>`financial-reset/${operationId}/manual-stage/${action}`;
+  const repairSlot=repair?`${originalPrefix(repair.operationId,'prepare')}/repair-once`:null;
+  async function assertRetainedRepair(){
+    if(repair&&await journal.read(repairSlot)!==canonicalJson(repair))fail('original_repair_record_required');
+  }
   const prefix = (operationId, action) => {
     if (!uuid.test(operationId) || !stages.includes(action)) fail('scope_invalid');
+    if(repair){if(operationId!==repair.operationId)fail('repair_scope_changed');return localPrepareRepairStagePrefix(action,repair);}
     return `financial-reset/${operationId}/manual-stage/${action}`;
   };
   async function persist(slot, value) {
+    await assertRetainedRepair();
     const bytes = canonicalJson(value);
     if (await journal.putIfAbsent(slot, bytes) !== 'created' || await journal.read(slot) !== bytes) fail('existing_or_uncertain_record');
     return hashBytes(bytes);
@@ -57,9 +67,39 @@ export function createManualResetCoordinator({ store }) {
     if (bytes !== expected) fail('original_dispatch_claim_required');
   }
   const bootstrapPrefix=(operationId,action,nonce)=>{
-    if(!uuid.test(nonce))fail('bootstrap_nonce_invalid');return `${prefix(operationId,action)}/bootstrap/${nonce}`;
+    if(!uuid.test(nonce))fail('bootstrap_nonce_invalid');
+    prefix(operationId,action);
+    if(repair&&action==='prepare'&&nonce!==repair.replacement.nonce)fail('repair_nonce_changed');
+    // Inert enrollment precedes the repair record. Preserve ordinary nonce
+    // history; only prepare's new intent/claim/response use the repair subtree.
+    return `${originalPrefix(operationId,action)}/bootstrap/${nonce}`;
   };
   return Object.freeze({
+    async recordPrepareRepair(document,evidence){
+      if(repair)fail('repair_already_scoped');
+      const value=structuredClone(assertPrepareRepairRecord(document)),base=originalPrefix(value.operationId,'prepare');
+      if(!exact(evidence,['binding','eligibility','originalRun']))fail('repair_evidence_required');
+      const observed=structuredClone(evidence);
+      if(hashBytes(canonicalJson(observed.binding))!==value.bindingSha256||hashBytes(canonicalJson(observed.eligibility))!==value.eligibilitySha256)fail('repair_evidence_changed');
+      assertPrepareRepairObservation(observed.eligibility,{binding:observed.binding,originalAuthorizationId:value.originalAttempt.authorizationId});
+      assertPrepareRepairOriginalRun(observed.originalRun,value);
+      const newPrefix=`bootstrap/${value.replacement.nonce}`;
+      const names=['intent','dispatch-claim','dispatch-response',`bootstrap/${value.originalAttempt.nonce}/publish-claim`,
+        `${newPrefix}/claim`,`${newPrefix}/response`,`${newPrefix}/workflow-post`];
+      const bytes=await Promise.all(names.map(async name=>{const text=await journal.read(`${base}/${name}`);return text===null?null:Buffer.from(text)}));
+      assertPrepareRepairOriginalJournal({repair:value,intentBytes:bytes[0],claimBytes:bytes[1],responseBytes:bytes[2],publicationBytes:bytes[3]});
+      assertManualResetIntent(JSON.parse(bytes[0]));
+      if(bytes.slice(4).some(b=>b===null))fail('repair_bootstrap_missing');
+      const bootstrap=JSON.parse(bytes[4]),response=JSON.parse(bytes[5]),post=JSON.parse(bytes[6]);
+      if(bootstrap.format!=='nestory-manual-reset-bootstrap-claim-v1'||bootstrap.operationId!==value.operationId||bootstrap.action!=='prepare'||
+        bootstrap.nonce!==value.replacement.nonce||bootstrap.mainSha!==value.executorMainSha||bootstrap.packetSha256!==value.packetSha256||
+        response.format!=='nestory-manual-reset-bootstrap-response-v1'||response.bootstrapClaimSha256!==hashBytes(bytes[4])||
+        response.operationId!==value.operationId||response.action!=='prepare'||response.nonce!==value.replacement.nonce||
+        String(response.runId)!==value.replacement.runId||response.runAttempt!==1||
+        canonicalJson(post)!==canonicalJson({format:'nestory-local-workflow-post-v1',operationId:value.operationId,action:'prepare',
+          nonce:value.replacement.nonce,mainSha:value.executorMainSha}))fail('repair_bootstrap_changed');
+      return {repairSha256:await persist(`${base}/repair-once`,value),executionSupported:false};
+    },
     async recordBootstrapClaim(document){
       if(!exact(document,['format','operationId','action','nonce','mainSha','packetSha256','payloadSha256','transferArchiveId','transferArchiveSha256'])||
        document.format!=='nestory-manual-reset-bootstrap-claim-v1'||!/^[a-f0-9]{40}$/.test(document.mainSha)||!uuid.test(document.transferArchiveId)||
@@ -74,6 +114,8 @@ export function createManualResetCoordinator({ store }) {
     },
     async recordIntent(value) {
       const document = structuredClone(assertManualResetIntent(value)), t = document.transportIntent;
+      if(repair&&(document.mainSha!==repair.executorMainSha||t.packetSha256!==repair.packetSha256||t.bindingSha256!==repair.bindingSha256||
+        t.authorizationId===repair.originalAttempt.authorizationId))fail('repair_intent_changed');
       return Object.freeze({ intentSha256: await persist(`${prefix(t.operationId, t.action)}/intent`, document), executionSupported: false });
     },
     async claimDispatch({ operationId, action, intentSha256 }) {
@@ -85,6 +127,7 @@ export function createManualResetCoordinator({ store }) {
     },
     async recordDispatchResponse({ operationId, action, intentSha256, runId, runAttempt }) {
       if (!Number.isSafeInteger(runId) || runId < 1 || runAttempt !== 1) fail('dispatch_response_invalid');
+      if(repair&&action==='prepare'&&String(runId)!==repair.replacement.runId)fail('repair_run_changed');
       await dispatchClaim(operationId, action, intentSha256);
       return persist(`${prefix(operationId, action)}/dispatch-response`, { format: 'nestory-manual-reset-dispatch-response-v1',
         operationId, action, intentSha256, runId, runAttempt });

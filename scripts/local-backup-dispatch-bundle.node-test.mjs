@@ -1,13 +1,56 @@
 import test from 'node:test';
+import './local-backup-dispatch-repair.node-test.mjs';
+import './local-backup-dispatch-staging.node-test.mjs';
 import assert from 'node:assert/strict';
 import * as pgp from 'openpgp';
 import {hashBytes,canonicalJson} from './pilot-finance-reset-operator-core.mjs';
 import {digestJson,digestDatabaseJson} from './pilot-finance-reset-hosted-transport-protocol.mjs';
+import {PREPARE_REPAIR_ORIGINAL_MAIN,PREPARE_REPAIR_OPERATION} from './local-backup-dispatch-repair.mjs';
 import {buildDispatchTicket,dispatchSigningBytes,verifySignedDispatchBundle,verifyHistoricalDispatchBundle,assertDispatchJournalRecords,inspectDispatchPayloadBudget,LOCAL_DISPATCH_TRANSFER_LIMIT,LOCAL_DISPATCH_WORKFLOW,LOCAL_DISPATCH_REPOSITORY} from './local-backup-dispatch-bundle.mjs';
 const key=await pgp.generateKey({type:'rsa',rsaBits:3072,userIDs:[{name:'Synthetic dispatch only'}],format:'object',config:{v6Keys:false}});
 const publicKeyArmored=key.publicKey.armor(), expectedPublicKeySha256=hashBytes(publicKeyArmored);
 const id=n=>`11111111-1111-4111-8111-${String(n).padStart(12,'0')}`;
 const now=Date.now(), h='a'.repeat(64);
+
+async function repairFixture(){
+ const f=await fixture(),payload=structuredClone(f.bundle.payload);
+ payload.packet.operation={operationId:PREPARE_REPAIR_OPERATION,mainSha:PREPARE_REPAIR_ORIGINAL_MAIN};
+ payload.binding={operation_id:PREPARE_REPAIR_OPERATION,main_sha:PREPARE_REPAIR_ORIGINAL_MAIN};
+ const repair={format:'nestory-local-prepare-repair-v1',operationId:PREPARE_REPAIR_OPERATION,packetSha256:h,
+  bindingSha256:digestJson(payload.binding),originalMainSha:PREPARE_REPAIR_ORIGINAL_MAIN,executorMainSha:'b'.repeat(40),
+  manifestSha256:h,executorSourceSha256:h,eligibilitySha256:h,originalRunSha256:h,createdAt:new Date(now-2000).toISOString(),
+  originalAttempt:{authorizationId:id(10),nonce:id(11),runId:'123455',runAttempt:1,intentSha256:h,claimSha256:h,publicationSha256:h},
+  replacement:{nonce:id(3),runId:'123456',runAttempt:1}};
+ payload.repair=repair;
+ const computed=new Set(['format','repository','workflow','runAttempt','artifactHashes','payloadSha256']);
+ const input=Object.fromEntries(Object.entries(f.bundle.ticket).filter(([k])=>!computed.has(k)));
+ Object.assign(input,{operationId:PREPARE_REPAIR_OPERATION,action:'prepare',bindingSha256:digestJson(payload.binding)});
+ const ticket=buildDispatchTicket(input,payload);
+ const signature=await pgp.sign({message:await pgp.createMessage({binary:dispatchSigningBytes(ticket,payload)}),signingKeys:key.privateKey,detached:true,format:'binary'});
+ return {...f,bundle:{format:'nestory-local-custody-dispatch-bundle-v2',ticket,payload,signingPublicKeySha256:expectedPublicKeySha256,signatureBase64:Buffer.from(signature).toString('base64')},
+  invocation:{...f.invocation,operationId:PREPARE_REPAIR_OPERATION,action:'prepare'}};
+}
+test('repair signature preserves original native binding while authenticating reviewed executor and replacement run',async()=>{
+ const f=await repairFixture(),result=await verifySignedDispatchBundle(f);
+ assert.equal(result.ticket.format,'nestory-local-custody-dispatch-ticket-v2');
+ assert.equal(result.payload.binding.main_sha,PREPARE_REPAIR_ORIGINAL_MAIN);
+ assert.equal(result.ticket.repairSha256,digestJson(result.payload.repair));
+ assert.notEqual(result.ticket.mainSha,result.payload.packet.operation.mainSha);
+});
+for(const [name,change]of[
+ ['legacy bundle downgrade',f=>f.bundle.format='nestory-local-custody-dispatch-bundle-v1'],
+ ['legacy ticket downgrade',f=>f.bundle.ticket.format='nestory-local-custody-dispatch-ticket-v1'],
+ ['missing repair',f=>delete f.bundle.payload.repair],
+ ['changed repair digest',f=>f.bundle.ticket.repairSha256='f'.repeat(64)],
+ ['original expired authorization',f=>f.bundle.ticket.authorizationId=f.bundle.payload.repair.originalAttempt.authorizationId],
+ ['different replacement run',f=>{f.bundle.ticket.runId='123457';f.invocation.runId='123457'}],
+ ['different replacement nonce',f=>{f.bundle.ticket.nonce=id(42);f.invocation.nonce=id(42)}],
+ ['reopening freeze action',f=>{f.bundle.ticket.action='freeze';f.invocation.action='freeze'}],
+ ['repinned native binding',f=>f.bundle.payload.binding.main_sha=f.bundle.ticket.mainSha],
+ ['repinned packet',f=>f.bundle.payload.packet.operation.mainSha=f.bundle.ticket.mainSha],
+])test(`repair rejects ${name}`,async()=>{
+ const f=await repairFixture();change(f);await assert.rejects(verifySignedDispatchBundle(f),/invalid|unverified/);
+});
 test('handoff budget measures UTF-8, JSON escaping and full signed envelope before intent',()=>{
  const payload={packet:{},binding:{},artifacts:{'odd"key':{rowText:'"\n水😀'}},recovery:null,observation:{}};
  const budget=inspectDispatchPayloadBudget(payload);
@@ -68,8 +111,8 @@ test('payload packet/binding/operation mismatch cannot be signed',async()=>{
  const f=await fixture();f.bundle.payload.binding.operation_id=id(8);f.bundle.ticket.payloadSha256=digestDatabaseJson(f.bundle.payload);
  f.bundle.ticket.bindingSha256=digestJson(f.bundle.payload.binding);assert.throws(()=>dispatchSigningBytes(f.bundle.ticket,f.bundle.payload),/invalid/);
 });
-async function journalFixture(){
- const {bundle:{ticket,payload}}=await fixture();
+async function journalFixture(base){
+ const {bundle:{ticket,payload}}=base??await fixture();
  const evidenceRecordBytes=Buffer.from(canonicalJson({format:'nestory-local-dispatch-evidence-record-v1',operationId:ticket.operationId,packetSha256:ticket.packetSha256,evidence:{syntheticOnly:true}}));
  ticket.custodyEvidenceSha256=hashBytes(evidenceRecordBytes);
  const custody={format:'nestory-local-reset-custody-reference-v1',operationId:ticket.operationId,packetSha256:ticket.packetSha256,
@@ -84,7 +127,8 @@ async function journalFixture(){
  ticket.claimSha256=hashBytes(claimBytes);
  const responseBytes=Buffer.from(canonicalJson({format:'nestory-manual-reset-dispatch-response-v1',operationId:ticket.operationId,action:ticket.action,intentSha256:ticket.intentSha256,runId:Number(ticket.runId),runAttempt:1}));
  const bootstrapClaimBytes=Buffer.from(canonicalJson({format:'nestory-manual-reset-bootstrap-claim-v1',operationId:ticket.operationId,action:ticket.action,nonce:ticket.nonce,
-  mainSha:ticket.mainSha,packetSha256:ticket.packetSha256,payloadSha256:ticket.payloadSha256,transferArchiveId:id(9),transferArchiveSha256:h}));
+  mainSha:ticket.mainSha,packetSha256:ticket.packetSha256,payloadSha256:payload.repair&&ticket.action==='prepare'
+   ?digestDatabaseJson(Object.fromEntries(Object.entries(payload).filter(([k])=>k!=='repair'))):ticket.payloadSha256,transferArchiveId:id(9),transferArchiveSha256:h}));
  const bootstrapResponseBytes=Buffer.from(canonicalJson({format:'nestory-manual-reset-bootstrap-response-v1',operationId:ticket.operationId,action:ticket.action,nonce:ticket.nonce,
   bootstrapClaimSha256:hashBytes(bootstrapClaimBytes),runId:Number(ticket.runId),runAttempt:1}));
  const workflowPostBytes=Buffer.from(canonicalJson({format:'nestory-local-workflow-post-v1',operationId:ticket.operationId,action:ticket.action,nonce:ticket.nonce,mainSha:ticket.mainSha}));
@@ -92,6 +136,21 @@ async function journalFixture(){
 }
 test('durable records bind payload, custody, original intent, claim and exact enrolled run',async()=>{
  const f=await journalFixture();assert.doesNotThrow(()=>assertDispatchJournalRecords(f));
+});
+test('repair prepare bootstrap binds only unchanged pre-enrollment payload; signed intent binds complete repaired payload',async()=>{
+ const f=await journalFixture(await repairFixture());assert.doesNotThrow(()=>assertDispatchJournalRecords(f));
+ const bootstrap=JSON.parse(f.bootstrapClaimBytes);
+ assert.notEqual(bootstrap.payloadSha256,f.ticket.payloadSha256);
+ bootstrap.payloadSha256=f.ticket.payloadSha256;
+ f.bootstrapClaimBytes=Buffer.from(canonicalJson(bootstrap));
+ const enrolled=JSON.parse(f.bootstrapResponseBytes);enrolled.bootstrapClaimSha256=hashBytes(f.bootstrapClaimBytes);
+ f.bootstrapResponseBytes=Buffer.from(canonicalJson(enrolled));
+ assert.throws(()=>assertDispatchJournalRecords(f),/invalid/);
+});
+test('subsequent seal bootstrap includes the existing immutable repair record',async()=>{
+ const base=await repairFixture();base.bundle.ticket.action='seal';
+ const f=await journalFixture(base);assert.doesNotThrow(()=>assertDispatchJournalRecords(f));
+ assert.equal(JSON.parse(f.bootstrapClaimBytes).payloadSha256,f.ticket.payloadSha256);
 });
 for(const [name,change]of[['missing intent',f=>f.intentBytes=null],['missing claim',f=>f.claimBytes=null],['missing run enrollment',f=>f.responseBytes=null],
  ['missing inert dispatch claim',f=>f.bootstrapClaimBytes=null],['missing inert run enrollment',f=>f.bootstrapResponseBytes=null],
