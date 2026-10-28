@@ -7,7 +7,7 @@ const { context, stepUp, rpc, createClient, serviceRpc } = vi.hoisted(() => ({
 vi.mock("./context", () => ({ requirePilotResetContext: context }));
 vi.mock("@/lib/auth/privileged-step-up-guard", () => ({ requirePrivilegedStepUp: stepUp }));
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: createClient }));
-import { submitMaintenanceReviewAction } from "./actions";
+import { restartPilotManualBillingAction, submitMaintenanceReviewAction } from "./actions";
 function form(review = reviewFixture()) {
   const data = new FormData(); data.set("review", JSON.stringify(review)); data.set("confirm", "reviewed"); return data;
 }
@@ -101,4 +101,47 @@ it("rejects omitted plan text or altered legacy plan bytes before any approval R
   expect((await submit(form({...review,zeroPlanText:zeroPlanText+" "}))).kind).toBe("invalid");
  }
  expect(createClient).not.toHaveBeenCalled();expect(rpc).not.toHaveBeenCalled();
+});
+
+describe("Pilot manual billing restart", () => {
+  const operationId = "7c70e27f-ba37-48cc-8f93-d32badcb2fb7";
+  const checkpoint = "a".repeat(64);
+  const restartForm = () => {
+    const data = new FormData(); data.set("confirm", "manual-billing");
+    data.set("expectedGeneration", "1"); data.set("checkpointSha256", checkpoint); return data;
+  };
+  const restart = (data = restartForm()) => restartPilotManualBillingAction({ kind: "idle" }, data);
+  it("binds the reviewed checkpoint and fixed Pilot operation to one genuine-session restart", async () => {
+    rpc.mockResolvedValue({ data: { status: "open", billing_mode: "manual", generation: 1,
+      operation_id: operationId, financial_start_date: "2026-10-01", checkpoint_sha256: checkpoint,
+      receipt_recorded_at: "2026-10-29T00:00:00+00:00" }, error: null });
+    const data = restartForm(); data.set("$ACTION_REF_0", "framework");
+    expect((await restart(data)).kind).toBe("reopened");
+    expect(stepUp).toHaveBeenCalledWith(expect.objectContaining({ userId: fixtureActor }), { rpc });
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("restart_pilot_manual_billing", {
+      p_operation_id: operationId, p_expected_generation: 1, p_expected_checkpoint_sha256: checkpoint,
+    });
+    expect(serviceRpc).not.toHaveBeenCalled();
+  });
+  it("rejects missing consent, duplicate checkpoint and client-supplied scope before obtaining a client", async () => {
+    const missing = restartForm(); missing.delete("confirm");
+    const duplicate = restartForm(); duplicate.append("checkpointSha256", checkpoint);
+    const foreign = restartForm(); foreign.set("organizationId", "foreign");
+    const wrongGeneration = restartForm(); wrongGeneration.set("expectedGeneration", "2");
+    for (const form of [missing, duplicate, foreign, wrongGeneration]) expect((await restart(form)).kind).toBe("invalid");
+    expect(createClient).not.toHaveBeenCalled(); expect(rpc).not.toHaveBeenCalled();
+  });
+  it("requires current authority and step-up, preserving framework redirects", async () => {
+    stepUp.mockRejectedValue(Error("Privileged email verification required."));
+    expect((await restart()).kind).toBe("invalid"); expect(rpc).not.toHaveBeenCalled();
+    context.mockRejectedValue(Error("NEXT_REDIRECT")); await expect(restart()).rejects.toThrow("NEXT_REDIRECT");
+  });
+  it("does not claim completion from a refused, uncertain or mismatched native result", async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: "23514", message: "private details" } });
+    expect(await restart()).toMatchObject({ kind: "invalid", message: expect.not.stringContaining("private details") });
+    rpc.mockRejectedValueOnce(Error("network details")); expect((await restart()).kind).toBe("uncertain");
+    rpc.mockResolvedValue({ data: { status: "open", billing_mode: "automatic" }, error: null });
+    expect((await restart()).kind).toBe("uncertain");
+    expect(rpc).toHaveBeenCalledTimes(3);
+  });
 });

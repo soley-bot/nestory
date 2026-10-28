@@ -3,16 +3,33 @@ import test from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { SESSION_TESTS, SINGLE_ADMIN_RUNTIME_BOOTSTRAP_SQL, databaseTestPlan, localDatabaseTestTarget, runSessionTest, verifyPgTapOutput } from './run-database-tests.mjs';
 
-test('all thirteen privileged tests stay classified and every other SQL test remains ordinary', () => {
+test('all fourteen privileged tests stay classified and every other SQL test remains ordinary', () => {
   const root = new URL('../supabase/tests/', import.meta.url);
   const files = readdirSync(root).filter(name => name.endsWith('.sql')).map(name => ({ name, source: readFileSync(new URL(name, root), 'utf8') }));
   const plan = databaseTestPlan(files);
-  assert.equal(plan.session.length, 13);
+  assert.equal(plan.session.length, 14);
   assert.ok(plan.session.some(file => file.name === 'financial_reset_empty_books_test.sql'));
   assert.equal(plan.ordinary.length + plan.session.length, files.length);
   assert.throws(() => databaseTestPlan(files.filter(file => file.name !== SESSION_TESTS[0])), /exactly once/);
   assert.throws(() => databaseTestPlan([...files, { name: 'unexpected.sql', source: 'SET SESSION AUTHORIZATION authenticator;' }]), /classification/);
   assert.throws(() => databaseTestPlan([...files, files.find(file => file.name === SESSION_TESTS[0])]), /exactly once/);
+});
+
+test('committed restart composes only the fixed native fixture and stays in the owned clone lane',()=>{
+ const root=new URL('../supabase/tests/',import.meta.url);
+ const files=readdirSync(root).filter(name=>name.endsWith('.sql')).map(name=>({name,source:readFileSync(new URL(name,root),'utf8')}));
+ const selected=databaseTestPlan(files).session.find(f=>f.name==='financial_reset_manual_restart_test.sql');
+ assert.match(selected.source,/'7c70e27f-ba37-48cc-8f93-d32badcb2fb7'::uuid AS operation/);
+ assert.equal((selected.source.match(/^COMMIT;$/gm)??[]).length,2);
+ assert.equal((selected.source.match(/SELECT \* FROM finish\(\);/g)??[]).length,1);
+ assert.doesNotMatch(selected.source,/^\s*\\(?:i|ir)\s/m);
+ assert.equal(runSessionTest(selected,{run:()=>{throw Error('committed fixture must not reach source database');},
+  runSingleAdmin:file=>{assert.equal(file,selected);return 'ok 1 - native committed reset and restart\n1..1\n';}}),1);
+ for(const edit of [source=>source.replace('pg_temp.empty_books_id(700) AS operation','changed AS operation'),
+   source=>source.replace('SELECT * FROM finish();\nROLLBACK;','COMMIT;')]) {
+  assert.throws(()=>databaseTestPlan(files.map(f=>f.name==='financial_reset_empty_books_test.sql'?{...f,source:edit(f.source.replaceAll('\r\n','\n'))}:f)));
+ }
+ assert.throws(()=>databaseTestPlan(files.map(f=>f.name==='financial_reset_manual_restart_test.sql'?{...f,source:f.source+'\\ir secret.sql\n'}:f)),/cannot include/);
 });
 
 test('fixed execute-resume fixture uses the existing clean-schema lane', () => {
@@ -129,4 +146,30 @@ test('single-admin cleanup still checks absence and source after a failed drop',
   const target = await localDatabaseTestTarget(f.options);
   assert.throws(() => target.runSingleAdmin({name:'financial_reset_single_admin_test.sql',source:'ROLLBACK;'}), /databaseAbsent=false, sourceUnchanged=true/);
   assert.ok(f.calls.at(-1).input.startsWith("SELECT jsonb_build_object('rows'"));
+});
+
+test('committed restart retains only synthetic clone rows and still fails if source census changes', async () => {
+  for(const sourceChanged of [false,true]) {
+    const f=fixture(); const execute=f.options.execute; let committed=false;
+    f.options.execute=(command,args,input)=>{
+      const result=execute(command,args,input);
+      if(args.includes('pg_dump')) return '-- synthetic schema';
+      if(input?.startsWith('SELECT coalesce(json_agg')) return '["public.organizations"]';
+      if(input?.startsWith("SELECT jsonb_build_object('rows'")) {
+        const source=args[args.indexOf('-d')+1]==='postgres';
+        return committed && (!source || sourceChanged) ? 'synthetic rows changed' : 'empty census';
+      }
+      if(input?.startsWith('SELECT count(*) FROM pg_database')) return '0';
+      if(input==='COMMIT;') { committed=true; return 'ok 1 - committed synthetic restart\n1..1\n'; }
+      return result;
+    };
+    const target=await localDatabaseTestTarget(f.options);
+    const file={name:'financial_reset_manual_restart_test.sql',source:'COMMIT;'};
+    if(sourceChanged) assert.throws(()=>runSessionTest(file,target),/sourceUnchanged=false/);
+    else assert.equal(runSessionTest(file,target),1);
+    const run=f.calls.find(call=>call.input==='COMMIT;');
+    assert.match(run.args[run.args.indexOf('-d')+1],/^single_admin_test_[a-f0-9]{32}$/);
+    assert.ok(f.calls.some(call=>call.input?.startsWith('DROP DATABASE single_admin_test_')));
+    assert.ok(f.calls.at(-1).input.startsWith("SELECT jsonb_build_object('rows'"));
+  }
 });

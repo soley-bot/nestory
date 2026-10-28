@@ -2,12 +2,13 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { fixtureActor, reviewFixture, soleAdministratorReviewFixture } from "./review.test-fixtures";
-const { submit, context, stepUp, rpc, serviceRpc } = vi.hoisted(() => ({ submit: vi.fn(), context: vi.fn(), stepUp: vi.fn(), rpc: vi.fn(), serviceRpc: vi.fn() }));
-vi.mock("./actions", () => ({ submitMaintenanceReviewAction: submit }));
+const { submit, restart, context, stepUp, rpc, serviceRpc } = vi.hoisted(() => ({ submit: vi.fn(), restart: vi.fn(), context: vi.fn(), stepUp: vi.fn(), rpc: vi.fn(), serviceRpc: vi.fn() }));
+vi.mock("./actions", () => ({ submitMaintenanceReviewAction: submit, restartPilotManualBillingAction: restart }));
 vi.mock("./context", () => ({ requirePilotResetContext: context }));
 vi.mock("@/lib/auth/privileged-step-up-guard", () => ({ requirePrivilegedStepUp: stepUp }));
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: async () => ({ rpc }) }));
-import { MaintenanceForm } from "./maintenance-form";
+import { MaintenanceForm, ManualRestartPanel } from "./maintenance-form";
+import type { PilotManualRestartStatus } from "./review";
 const choose = (source: string | Promise<string>) => fireEvent.change(screen.getByLabelText("Reviewed authorization file"), {
   target: { files: [{ size: 4096, text: () => Promise.resolve(source) }] },
 });
@@ -78,4 +79,40 @@ it("shows sole-administrator consent without claiming an independent reviewer",a
  await screen.findByText(/No independent reviewer is claimed/);
  expect(screen.queryByText(/Each person must use their own signed-in session/)).toBeNull();
  expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(false);expect(submit).not.toHaveBeenCalled();
+});
+
+const readyRestart: PilotManualRestartStatus = {
+  eligible: true, status: "ready", operation_id: "7c70e27f-ba37-48cc-8f93-d32badcb2fb7", generation: 1,
+  checkpoint_sha256: "a".repeat(64), financial_start_date: "2026-10-01", billing_mode: "paused", reason: null,
+  preserved_counts: { properties: 77, units: 94, people: 164, leases: 60 },
+};
+it("renders a verified restart snapshot without submitting and pins it to explicit consent", async () => {
+  restart.mockResolvedValue({ kind: "reopened", message: "Pilot is open for manual entry." });
+  render(<ManualRestartPanel status={readyRestart} />);
+  expect(restart).not.toHaveBeenCalled();
+  const consent = screen.getByRole("checkbox") as HTMLInputElement;
+  expect(consent.checked).toBe(false); expect(consent.required).toBe(true);
+  const form = screen.getByRole("button", { name: "Reopen Pilot for manual billing" }).closest("form")!;
+  expect(new FormData(form).get("checkpointSha256")).toBe(readyRestart.checkpoint_sha256);
+  expect(new FormData(form).get("expectedGeneration")).toBe("1");
+  fireEvent.click(consent); fireEvent.submit(form);
+  await screen.findByRole("link", { name: "Open Pilot" });
+  expect(screen.getByRole("link", { name: "Open Pilot" }).getAttribute("href")).toBe("/properties");
+  expect(restart).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("button", { name: "Reopen Pilot for manual billing" })).toBeNull();
+});
+it("does not offer a restart for unavailable or ineligible status", () => {
+  const view = render(<ManualRestartPanel status={null} />);
+  expect(screen.queryByRole("checkbox")).toBeNull();
+  view.rerender(<ManualRestartPanel status={{ ...readyRestart, eligible: false, status: "not_ready" }} />);
+  expect(screen.queryByRole("checkbox")).toBeNull(); expect(restart).not.toHaveBeenCalled();
+});
+it("locks an uncertain restart instead of automatically retrying it", async () => {
+  restart.mockResolvedValue({ kind: "uncertain", message: "Refresh to reconcile." });
+  render(<ManualRestartPanel status={readyRestart} />);
+  fireEvent.click(screen.getByRole("checkbox"));
+  fireEvent.submit(screen.getByRole("button", { name: "Reopen Pilot for manual billing" }).closest("form")!);
+  await screen.findByRole("alert");
+  expect(screen.getByRole("button", { name: "Reopen Pilot for manual billing" })).toHaveProperty("disabled", true);
+  expect(screen.getByRole("checkbox")).toHaveProperty("disabled", true); expect(restart).toHaveBeenCalledOnce();
 });

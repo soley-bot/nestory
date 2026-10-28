@@ -1,6 +1,8 @@
 "use server";
-import { financialFormValues } from "@/lib/finance/financial-write-context";
+import { financialFormValues, financialGenerationHeaders, FINANCIAL_GENERATION_HEADER } from "@/lib/finance/financial-write-context";
 import { financialWriteError } from "@/lib/finance/financial-write-context";
+import { getFinancialWriteContext } from "@/lib/finance/financial-write-context.server";
+import { getBusinessMonthValue } from "@/lib/dates/business-date";
 
 import { retainExpenseEvidence } from "./retain-expense-evidence";
 import { revalidatePath } from "next/cache";
@@ -439,7 +441,18 @@ export async function recoverLeaseRentPeriodAction(
   );
   if (!parsed.success) return validationError(parsed.error);
 
-  const context = await requireHistoricalRentRecoveryContext();
+  const currentContext = await requireCurrentRentRetryContext();
+  const currentMonth = getBusinessMonthValue(new Date(), currentContext.operationalTimezone);
+  const currentManualMonth = parsed.data.billingPeriod === currentMonth;
+  if (parsed.data.billingPeriod > currentMonth) return actionError("Choose the current month or an earlier month.");
+  const context = currentManualMonth ? currentContext : await requireHistoricalRentRecoveryContext();
+  if (currentManualMonth) {
+    const financial = await getFinancialWriteContext(context.organizationId);
+    if (financial.status !== "open" || financial.automatic_rent_enabled !== false ||
+      financialGenerationHeaders(formData)[FINANCIAL_GENERATION_HEADER] !== String(financial.generation)) {
+      return actionError("Reload the workspace. Current-month generation requires an open session with automatic rent invoices off.");
+    }
+  }
   const supabase = await createSupabaseServerClient(formData);
   const { data, error } = await supabase.rpc("recover_lease_rent_period", {
     p_billing_period_start: `${parsed.data.billingPeriod}-01`,
@@ -460,7 +473,7 @@ export async function recoverLeaseRentPeriodAction(
   }
 
   revalidateFinance();
-  return { message: "Historical rent month generated.", status: "success" };
+  return { message: currentManualMonth ? "Selected rent month generated." : "Historical rent month generated.", status: "success" };
 }
 
 export async function createManualTenantChargeAction(

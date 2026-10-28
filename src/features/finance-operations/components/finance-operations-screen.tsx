@@ -1,6 +1,6 @@
 "use client";
 
-import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
+import { FinancialForm, FinancialReportBoundary, useFinancialWriteContext } from "@/lib/finance/financial-write-provider";
 
 import { SearchCombo } from "@/components/ui/search-combo";
 import { matchesSearchText } from "@/lib/search/text";
@@ -89,7 +89,7 @@ type ModalState =
       invoice?: TenantInvoiceSummary;
       mode: "payment";
     }
-  | { mode: "rent-recovery" }
+  | { mode: "rent-recovery"; lease?: FinanceLease }
   | { invoice: OwnerInvoiceSummary; mode: "owner-payment" }
   | {
       decision: "approve" | "reject";
@@ -165,6 +165,8 @@ const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
+  const financialSession = useFinancialWriteContext();
+  const manualRent = financialSession?.context.status === "open" && financialSession.context.automatic_rent_enabled === false && !financialSession.invalid;
   const returnTo = useSearchParams().get("returnTo");
   const propertyReturnLinks = propertyFinanceReturnLinks(input.scope?.propertyId ?? "", returnTo);
   const props = {
@@ -247,6 +249,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
     { ...props, organizationName },
     openModal,
     openDrawer,
+    manualRent,
   );
   const visibleDrawer =
     drawer &&
@@ -268,7 +271,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
     ? currentModalInvoice ? { ...modal, invoice: currentModalInvoice } as ModalState : null
     : modal;
   const visibleModal =
-    currentModal && canRenderFinanceModal(currentModal, props) ? currentModal : null;
+    currentModal && canRenderFinanceModal(currentModal, props, manualRent) ? currentModal : null;
   const visibleDetailDrawer =
     visibleModal && isFinanceDetailSurface(visibleModal) ? visibleModal : null;
   const visibleActionModal = visibleDetailDrawer ? null : visibleModal;
@@ -556,7 +559,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
         <Modal
           onClose={closeModal}
           open
-          title={getModalTitle(visibleActionModal)}
+          title={visibleActionModal.mode === "rent-recovery" && manualRent ? "Generate rent invoice" : getModalTitle(visibleActionModal)}
         >
           {visibleActionModal.mode === "manual-charge" ? (
             <ManualTenantChargeForm
@@ -571,8 +574,11 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
             />
           ) : visibleActionModal.mode === "rent-recovery" ? (
             <HistoricalRentRecoveryForm
+              fixedLease={visibleActionModal.lease}
               leases={props.leases}
               onSuccess={onActionSuccess}
+              manualRent={manualRent}
+              canRecoverHistorical={props.canRecoverRent}
             />
           ) : visibleActionModal.mode === "payment" ? (
             visibleActionModal.invoice ? (
@@ -708,6 +714,7 @@ function getScreen(
   props: FinanceOperationsScreenProps,
   openModal: (modal: ModalState) => void,
   openDrawer: (drawer: DrawerState) => void,
+  manualRent: boolean,
 ) {
   const canConfigureRent = props.canConfigureRent;
 
@@ -781,6 +788,7 @@ function getScreen(
       activeRoute: "/rent-income" as const,
       actions: props.canRecordPayments ? (
           <>
+            {manualRent && props.canRetryCurrentRent && (!props.initialRentLeaseId || focusedLease) ? <Button variant="outline" onClick={() => openModal({ mode: "rent-recovery", lease: focusedLease ?? scopedLease })}>Generate rent invoice</Button> : null}
             {!props.initialRentLeaseId ? (
               <Button
                 onClick={() =>
@@ -825,6 +833,8 @@ function getScreen(
         ) : undefined,
       body: (
         <RentView
+          manualRent={manualRent}
+          canGenerateRent={props.canRecordPayments && props.canRetryCurrentRent && (!props.initialRentLeaseId || Boolean(focusedLease))}
           page={props.tenantInvoicePage}
           positions={props.positions}
           invoices={invoices}
@@ -1692,14 +1702,20 @@ function RentGenerationRetry({
 }
 
 function HistoricalRentRecoveryForm({
+  fixedLease,
   leases,
   onSuccess,
+  manualRent = false,
+  canRecoverHistorical = false,
 }: {
+  fixedLease?: FinanceLease;
   leases: FinanceLease[];
   onSuccess: (message: string) => void;
+  manualRent?: boolean;
+  canRecoverHistorical?: boolean;
 }) {
   const { getBusinessMonthValue } = useBusinessDate();
-  const eligibleLeases = leases.filter(
+  const eligibleLeases = (fixedLease ? [fixedLease] : leases).filter(
     (lease) =>
       lease.status === "active" ||
       lease.status === "notice_given" ||
@@ -1726,7 +1742,10 @@ function HistoricalRentRecoveryForm({
   return (
     <FinancialForm action={action} className="space-y-4 p-4">
       <Field label="Lease">
-        <SelectControl
+        {fixedLease ? <>
+          <input type="hidden" name="leaseId" value={fixedLease.id} />
+          <p className="text-sm">{fixedLease.tenantLabel} · {fixedLease.unitLabel}</p>
+        </> : <SelectControl
           defaultValue={eligibleLeases[0]?.id}
           name="leaseId"
           options={eligibleLeases.map((lease) => ({
@@ -1734,15 +1753,16 @@ function HistoricalRentRecoveryForm({
             value: lease.id,
           }))}
           required
-        />
+        />}
       </Field>
-      <Field label="Missed rent month">
+      <Field label={manualRent ? "Billing month" : "Missed rent month"}>
+        {manualRent && !canRecoverHistorical ? <><input type="hidden" name="billingPeriod" value={getBusinessMonthValue()} /><p className="text-sm">{formatLeaseMonth(`${getBusinessMonthValue()}-01`)}. A Super Admin can generate earlier months.</p></> :
         <MonthPickerField
-          ariaLabel="Missed rent month"
-          defaultValue={getPreviousBusinessMonthValue(getBusinessMonthValue())}
+          ariaLabel={manualRent ? "Billing month" : "Missed rent month"}
+          defaultValue={manualRent ? getBusinessMonthValue() : getPreviousBusinessMonthValue(getBusinessMonthValue())}
           name="billingPeriod"
           required
-        />
+        />}
       </Field>
       <ActionMessage state={state} />
       <FormFooter>
@@ -1756,6 +1776,8 @@ function HistoricalRentRecoveryForm({
 }
 
 function RentView({
+  manualRent,
+  canGenerateRent,
   page,
   positions,
   invoices,
@@ -1763,6 +1785,8 @@ function RentView({
   organizationName,
   scoped,
 }: {
+  manualRent: boolean;
+  canGenerateRent: boolean;
   page?: FinanceOperationsData["tenantInvoicePage"];
   positions: FinanceOperationsData["positions"];
   invoices: TenantInvoiceSummary[];
@@ -1807,7 +1831,11 @@ function RentView({
           <EmptyState
             body={
               (page?.totalVisibleCount ?? invoices.length) === 0
-                ? "Rent charges are generated automatically from each active Lease."
+                ? manualRent
+                  ? canGenerateRent
+                    ? "Use Generate rent invoice to create this month’s rent from the lease terms."
+                    : "A finance administrator can generate rent invoices from the lease terms."
+                  : "Use Bill tenant to create a charge for a lease and billing month."
                 : "Clear or change the filters to see more invoices. Only tenant charges appear here; cash already recorded as income is in Transactions and cannot be received again."
             }
             className="flex-1 rounded-xl border border-border/80 bg-card shadow-sm"
@@ -3980,12 +4008,14 @@ function canRenderFinanceModal(
     | "canRecordOwnerCash"
     | "canRecordPayments"
     | "canRecoverRent"
+    | "canRetryCurrentRent"
     | "canReviewExpense"
     | "canReverseExpense"
     | "canSubmitExpense"
     | "canApproveOwnExpense"
     | "currentUserId"
   >,
+  manualRent: boolean,
 ) {
   if (
     modal.mode === "invoice-details" ||
@@ -3994,7 +4024,7 @@ function canRenderFinanceModal(
   ) {
     return true;
   }
-  if (modal.mode === "rent-recovery") return capabilities.canRecoverRent;
+  if (modal.mode === "rent-recovery") return capabilities.canRecoverRent || (manualRent && capabilities.canRetryCurrentRent);
   if (modal.mode === "expense-cancel") return modal.submission.status === "submitted" && canReplaceExpense(modal.submission, capabilities);
   if (modal.mode === "manual-charge") return capabilities.canRecordPayments;
   if (modal.mode === "payment") return capabilities.canRecordPayments;

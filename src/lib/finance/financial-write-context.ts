@@ -8,6 +8,7 @@ export const financialWriteContextSchema = z.object({
   status: z.enum(["open", "frozen"]),
   financial_start_date: z.iso.date().nullable(),
   enforced: z.boolean(),
+  automatic_rent_enabled: z.boolean().optional(),
 }).refine((value) => value.enforced
   ? value.generation > 0 && value.financial_start_date !== null
   : value.generation === 0 && value.status === "open" && value.financial_start_date === null,
@@ -16,7 +17,7 @@ export const financialWriteContextSchema = z.object({
 export type FinancialWriteContext = z.infer<typeof financialWriteContextSchema>;
 
 export function financialContextKey(value: FinancialWriteContext) {
-  return `${value.generation}:${value.status}:${value.financial_start_date ?? ""}:${value.enforced}`;
+  return `${value.generation}:${value.status}:${value.financial_start_date ?? ""}:${value.enforced}:${value.automatic_rent_enabled ?? true}`;
 }
 
 // Only carry the generation captured when the operator opened the form. Never
