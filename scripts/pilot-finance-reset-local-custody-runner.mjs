@@ -15,6 +15,10 @@ import {runHostedPsql,verifyHostedPacketSources,assertHostedObservation,
 import {verifySignedDispatchBundle,verifyHistoricalDispatchBundle,LOCAL_DISPATCH_REPOSITORY,LOCAL_DISPATCH_WORKFLOW,LOCAL_DISPATCH_TRANSFER_LIMIT} from './local-backup-dispatch-bundle.mjs';
 import {assertPilotSingleAdminOperation} from './pilot-finance-reset-single-admin-policy.mjs';
 import {selectPilotHostedCredential} from './local-backup-file-credential.mjs';
+import {verifyLocalDispatchCompatibility,assertLocalDispatchCompatibilityCurrent,readLocalDispatchCompatibleSources,
+ assertPrepareRepairCompatibility,assertPrepareRepairRecord,buildPrepareRepairGuardSql,assertPrepareRepairOriginalRun} from './local-backup-dispatch-repair.mjs';
+import {assertStagedWaiting,assertStagedPayloadReference,hydrateStagedDispatchTicket,decryptStagedPayload,freshStorageReadUrl,
+ writeStagedPayloadCache,readStagedPayloadCache,removeStagedPayloadCache,STAGED_TICKET_LIMIT} from './local-backup-dispatch-staging.mjs';
 
 export const LOCAL_CUSTODY_RESET_ACTIONS=Object.freeze(['freeze','checkpoint','prepare','seal','execute']);
 export function assertLocalCustodyResetAction(action){
@@ -37,6 +41,8 @@ const caSource='scripts/certificates/supabase-prod-ca-2021.crt';
 export const LOCAL_CUSTODY_SOURCES=Object.freeze([...new Set([...HOSTED_BOUND_SOURCE_FILES,LOCAL_DISPATCH_WORKFLOW,
  'scripts/pilot-finance-reset-local-custody-runner.mjs','scripts/local-backup-dispatch-bundle.mjs',
  'scripts/local-backup-dispatch-local.mjs','scripts/local-backup-file-credential.mjs',
+ 'scripts/local-backup-dispatch-staging.mjs',
+ 'scripts/local-backup-dispatch-repair.mjs','scripts/local-backup-dispatch-repair-manifest.json',
  'scripts/local-backup-dispatch-review.mjs','scripts/local-backup-dispatch-observation.mjs',
  'scripts/local-backup-custody-evidence.mjs','scripts/local-backup-files.mjs','scripts/local-backup-capture.mjs','scripts/local-backup-restore.mjs',
  'scripts/local-backup-packet-bridge.mjs','scripts/local-backup-ram-rehearsal-plan.mjs','scripts/pilot-finance-reset-server-materializer.mjs',
@@ -65,7 +71,7 @@ const publicFailureCodes=new Set(['local_custody_database_inputs_invalid','local
  'local_custody_bucket_read_unavailable','local_custody_bucket_mismatch','local_custody_bucket_create_outcome_unknown',
  'local_backup_files_cli_credential_response_invalid','local_backup_files_cli_credential_ambiguous',
  'local_backup_files_cli_credential_missing','local_backup_files_cli_credential_key_invalid',
- 'hosted_transport_process_failed']);
+ 'hosted_transport_process_failed','local_dispatch_staging_invalid','local_custody_staged_payload_changed','local_prepare_repair_unverified']);
 export function localCustodyFailureCode(error){
  return publicFailureCodes.has(error?.message)?error.message:'local_custody_worker_stopped';
 }
@@ -106,7 +112,17 @@ export function localCustodyMutationSql(options){
  const foreign=options?.observation?.foreignSha256;
  if(!digest.test(foreign)||options?.binding?.organization_id!==RESET_ORGANIZATION)fail('foreign_baseline_invalid');
  const guard=`DO $local_custody_foreign$ BEGIN IF app_private.financial_reset_hash(app_private.financial_reset_hosted_foreign_census('${RESET_ORGANIZATION}'::uuid)) IS DISTINCT FROM '${foreign}' THEN RAISE EXCEPTION 'local_custody_foreign_baseline_changed'; END IF; END $local_custody_foreign$;\n`;
- return guardedSql(mutationSql(options),true,guard);
+ let sql=mutationSql(options);
+ if(options.repair){
+  const repair=assertPrepareRepairRecord(options.repair);
+  if(!['prepare','seal','execute'].includes(options.action)||repair.operationId!==options.binding.operation_id||repair.bindingSha256!==digestJson(options.binding)||options.authorizationId===repair.originalAttempt.authorizationId)fail('repair_binding_invalid');
+  if(options.action==='prepare'){
+   const anchor='SELECT app_private.consume_financial_reset_actor_authorization(';
+   if(sql.split(anchor).length!==2)fail('sql_prefix_changed');
+   sql=sql.replace(anchor,buildPrepareRepairGuardSql({binding:options.binding,originalAuthorizationId:repair.originalAttempt.authorizationId})+'\n'+anchor);
+  }
+ }
+ return guardedSql(sql,true,guard);
 }
 
 export function assertLocalCustodyLocator(v){
@@ -152,17 +168,18 @@ export function assertLocalCustodyJob({environment:e,gitHead,currentMain,run,job
  return {repository:LOCAL_DISPATCH_REPOSITORY,workflow:LOCAL_DISPATCH_WORKFLOW,mainSha:gitHead,runId:e.GITHUB_RUN_ID,runAttempt:1};
 }
 
-export function verifyLocalCustodyPayload({ticket,payload}){
+export function verifyLocalCustodyPayload({ticket,payload,compatibility}){
  const {packet,binding,artifacts,recovery,observation}=payload;
  assertLocalCustodyResetScope({action:ticket.action,binding,artifacts,recovery});
  assertOperatorPacket(packet);validateArtifacts(packet,artifacts,recovery);
- if(packet.evidenceBlockers.length||!REQUIRED_ARTIFACTS.every(r=>packet.artifacts[r])||packet.operation.mainSha!==ticket.mainSha||
+ if(payload.repair)assertPrepareRepairCompatibility(payload.repair,compatibility);
+ if(packet.evidenceBlockers.length||!REQUIRED_ARTIFACTS.every(r=>packet.artifacts[r])||(!payload.repair&&packet.operation.mainSha!==ticket.mainSha)||
    packet.operation.invoiceDatePolicy!=='empty-books-no-invoices'||artifacts.continuationPlan?.version!==4||
    packet.operation.projectRef!==RESET_PROJECT||packet.operation.organizationId!==RESET_ORGANIZATION||
-   !LOCAL_CUSTODY_SOURCES.every(p=>packet.sourceFiles.some(f=>f.path===p))||
+   (!payload.repair&&!LOCAL_CUSTODY_SOURCES.every(p=>packet.sourceFiles.some(f=>f.path===p)))||
    !same(binding,hostedBinding(packet,artifacts.continuationPlan,recovery))||
    ticket.sourceObservationSha256!==digestDatabaseJson(observation))fail('payload_invalid');
- const sql=localCustodyMutationSql({binding,action:ticket.action,authorizationId:ticket.authorizationId,authoritySha256:ticket.authoritySha256,observation,artifacts,recovery});
+ const sql=localCustodyMutationSql({binding,action:ticket.action,authorizationId:ticket.authorizationId,authoritySha256:ticket.authoritySha256,observation,artifacts,recovery,repair:payload.repair});
  if(digestJson(sql)!==ticket.sqlSha256)fail('sql_changed');return sql;
 }
 export function reconcileLocalCustodyObservation({ticket,payload,observation:o}){
@@ -284,6 +301,33 @@ async function privateConnection(environment){
   cleanup:async()=>{for(const name of Object.keys(files))await unlink(`${directory}/${name}`);await rmdir(directory);}};
 }
 
+export async function prefetchLocalCustodyPayload(){
+ const env={...process.env};if(process.platform!=='linux'||Number(process.versions.node.split('.')[0])!==24||!['execute','reconcile'].includes(env.RESET_MODE))fail('runtime_invalid');
+ const locator=assertLocalCustodyLocator({operationId:env.RESET_OPERATION_ID,action:env.RESET_ACTION,nonce:env.RESET_NONCE});
+ await job(env,env.GH_TOKEN);
+ if((await readFile('/proc/swaps','utf8')).trim().split(/\r?\n/).length!==1)fail('swap_present');
+ const url=assertLocalCustodySignedUrl(env.PILOT_RESET_HANDOFF_SIGNED_URL,locator);
+ if(!/^[A-Za-z0-9+/]{43}=$/.test(env.PILOT_RESET_HANDOFF_KEY??''))fail('key_invalid');
+ const key=Buffer.from(env.PILOT_RESET_HANDOFF_KEY,'base64');let cipher,created=false;
+ try{
+  const until=Date.now()+20*60*1000;let doc;
+  while(Date.now()<until){
+   const waitingCipher=await boundedGet(freshStorageReadUrl(url),{},STAGED_TICKET_LIMIT);
+   try{doc=decryptLocalCustodyTransfer(waitingCipher,key,locator);}finally{waitingCipher.fill(0);}
+   if(exact(doc,['format','operationId','action','nonce'])&&doc.format==='nestory-local-custody-waiting-v1'&&same({...locator,format:doc.format},doc)){
+    await new Promise(r=>setTimeout(r,5000));continue;
+   }
+   break;
+  }
+  const ref=doc?.format==='nestory-local-custody-staged-ticket-v1'?assertStagedPayloadReference(doc.staged,locator):assertStagedWaiting(doc,locator);
+  cipher=await boundedGet(freshStorageReadUrl(ref.signedUrl),{},limit);
+  decryptStagedPayload(cipher,key,locator,ref); // Verify authentication and full payload digest before reporting readiness.
+  await writeStagedPayloadCache(env,cipher,ref,locator);
+  created=true;
+  const readback=await readStagedPayloadCache(env,ref,locator);readback.fill(0);
+  return {format:'nestory-local-staged-prefetch-v1',ciphertextSha256:ref.cipherSha256,bytes:ref.bytes,verified:true};
+ }catch(error){if(created)await removeStagedPayloadCache(env);throw error;}finally{key.fill(0);cipher?.fill(0);}
+}
 export async function runLocalCustodyWorker(){
  // Fixed reset-stage admission precedes credentials, reads, transient files or polling.
  const mode=process.env.RESET_MODE??'execute';
@@ -313,7 +357,7 @@ export async function runLocalCustodyWorker(){
  if(!/^[A-Za-z0-9+/]{43}=$/.test(env.PILOT_RESET_HANDOFF_KEY??''))fail('key_invalid');
  const key=Buffer.from(env.PILOT_RESET_HANDOFF_KEY,'base64');if(key.toString('base64')!==env.PILOT_RESET_HANDOFF_KEY)fail('key_invalid');
  for(const name of ['PILOT_RESET_HANDOFF_KEY','PILOT_RESET_HANDOFF_SIGNED_URL','SUPABASE_DB_PASSWORD'])delete process.env[name];
- let privateDb,verified;
+ let privateDb,verified,stagedCipher,stagedReference;
  try{
   const first=await job(env,env.GH_TOKEN);
   let original=first;
@@ -326,14 +370,26 @@ export async function runLocalCustodyWorker(){
   }
   const until=Date.now()+20*60*1000;
   while(Date.now()<until){
-   const cipher=await boundedGet(url,{},limit);let doc;try{doc=decryptLocalCustodyTransfer(cipher,key,locator);}finally{cipher.fill(0);}
+   const cipher=await boundedGet(freshStorageReadUrl(url),{},limit);let doc;try{doc=decryptLocalCustodyTransfer(cipher,key,locator);}finally{cipher.fill(0);}
+   if(doc?.format==='nestory-local-custody-waiting-v2'){
+    const ref=assertStagedWaiting(doc,locator);
+    if(stagedReference&&!same(stagedReference,ref))fail('staged_payload_changed');
+    if(!stagedCipher){stagedCipher=await readStagedPayloadCache(env,ref,locator);decryptStagedPayload(stagedCipher,key,locator,ref);stagedReference=ref;}
+    await new Promise(r=>setTimeout(r,5000));continue;
+   }
    if(exact(doc,['format','operationId','action','nonce'])&&doc.format==='nestory-local-custody-waiting-v1'&&
       doc.operationId===locator.operationId&&doc.action===locator.action&&doc.nonce===locator.nonce){await new Promise(r=>setTimeout(r,5000));continue;}
+   if(doc?.format==='nestory-local-custody-staged-ticket-v1'){
+    if(stagedReference&&!same(stagedReference,doc.staged))fail('staged_payload_changed');
+    stagedCipher??=await readStagedPayloadCache(env,assertStagedPayloadReference(doc.staged,locator),locator);
+    doc=hydrateStagedDispatchTicket(doc,stagedCipher,key,locator);
+   }
    verified=await(mode==='reconcile'?verifyHistoricalDispatchBundle:verifySignedDispatchBundle)({bundle:doc,publicKeyArmored:env.PILOT_RESET_SIGNING_PUBLIC_KEY,
     expectedPublicKeySha256:env.PILOT_RESET_SIGNING_PUBLIC_KEY_SHA256,invocation:{...original,...locator}});break;
   }
   if(!verified)fail('ticket_missing');
-  const {ticket,payload}=verified,sql=verifyLocalCustodyPayload(verified),files=await verifyHostedPacketSources(payload.packet);
+  const {ticket,payload}=verified,compatibility=payload.repair?await verifyLocalDispatchCompatibility({packet:payload.packet,executorMainSha:first.mainSha}):null;
+  const sql=verifyLocalCustodyPayload({...verified,compatibility}),files=compatibility?readLocalDispatchCompatibleSources(compatibility):await verifyHostedPacketSources(payload.packet);
   privateDb=await privateConnection(env);env.SUPABASE_DB_PASSWORD=undefined;
   const connectionProbe=guardedSql('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;\nSELECT 1;\nCOMMIT;');
   if((await localCustodyPsql(privateDb.connection,connectionProbe)).trim()!=='1')fail('database_connection_unverified');
@@ -344,19 +400,27 @@ export async function runLocalCustodyWorker(){
    return {...reconcileLocalCustodyObservation({...verified,observation}),reconciledByRunId:first.runId,historicalReadOnly:true};
   }
   const before=await observe();assertHostedPrecondition(ticket.action,payload.packet,payload.binding,payload.artifacts,payload.recovery,before);
+  if(payload.repair&&ticket.action==='prepare')assertPrepareRepairOriginalRun(await github(`actions/runs/${payload.repair.originalAttempt.runId}`,env.GH_TOKEN),payload.repair);
   if(before.authorization?.status!=='pending'||before.authorization.bindingMatches!==true||before.authorization.authorizationId!==ticket.authorizationId||
    before.authorization.actorId!==payload.binding.continuation_semantic.actor_id||!Number.isFinite(Date.parse(before.authorization.expiresAt))||Date.parse(before.authorization.expiresAt)<=Date.now())fail('authorization_invalid');
-  await verifyHostedPacketSources(payload.packet);const current=await job(env,env.GH_TOKEN);
+  if(compatibility)await assertLocalDispatchCompatibilityCurrent(compatibility,payload.packet);else await verifyHostedPacketSources(payload.packet);
+  const current=await job(env,env.GH_TOKEN);
   if(!same(first,current)||Date.now()>=Date.parse(ticket.expiresAt)||
    localCustodyMutationSql({binding:payload.binding,action:ticket.action,authorizationId:ticket.authorizationId,authoritySha256:ticket.authoritySha256,
-    observation:before,artifacts:payload.artifacts,recovery:payload.recovery})!==sql)fail('preflight_changed');
+    observation:before,artifacts:payload.artifacts,recovery:payload.recovery,repair:payload.repair})!==sql)fail('preflight_changed');
   assertLocalCustodyResetScope({action:ticket.action,binding:payload.binding,artifacts:payload.artifacts,recovery:payload.recovery});
   // Exactly one write call. A lost/failed reply goes only to read-only reconcile.
   return await createLocalCustodySingleAttempt({write:()=>localCustodyPsql(privateDb.connection,sql,ticket.action,payload.artifacts.continuationPlan.version),readback:observe,
    reconcile:observation=>reconcileLocalCustodyObservation({...verified,observation})})();
- }finally{key.fill(0);if(privateDb)await privateDb.cleanup();}
+ }finally{key.fill(0);stagedCipher?.fill(0);try{if(privateDb)await privateDb.cleanup();}finally{await removeStagedPayloadCache(env);}}
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
- try{console.log(JSON.stringify(await runLocalCustodyWorker()));}
+ try{
+  if(process.argv.length>3||process.argv[2]&&!['--prefetch','--cleanup-prefetch'].includes(process.argv[2]))fail('mode_invalid');
+  let result;
+  if(process.argv[2]==='--cleanup-prefetch'){await removeStagedPayloadCache(process.env);result={status:'owned-staged-ciphertext-absent'};}
+  else result=process.argv[2]==='--prefetch'?await prefetchLocalCustodyPayload():await runLocalCustodyWorker();
+  console.log(JSON.stringify(result));
+ }
  catch(error){console.error(JSON.stringify({status:'stopped',code:localCustodyFailureCode(error),automaticRetryAllowed:false}));process.exitCode=1;}
 }

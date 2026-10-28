@@ -5,7 +5,8 @@ import { mkdtemp, readFile, writeFile, rm, realpath, readdir } from 'node:fs/pro
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { hashBytes } from './pilot-finance-reset-operator-core.mjs';
+import { hashBytes, canonicalJson } from './pilot-finance-reset-operator-core.mjs';
+import {PREPARE_REPAIR_OPERATION,PREPARE_REPAIR_ORIGINAL_MAIN,prepareRepairOriginalRunEvidence} from './local-backup-dispatch-repair.mjs';
 import { initializeWindowsResetJournal, openWindowsResetJournal, inspectWindowsResetJournal } from './pilot-finance-reset-windows-journal.mjs';
 import { createManualResetCoordinator, dispatchManualReset } from './pilot-finance-reset-manual-coordinator.mjs';
 
@@ -148,4 +149,60 @@ test('manual coordinator rejects mock stores and a recreated directory identity'
   assert.throws(() => createManualResetCoordinator({ store: { read() {}, putIfAbsent() {} } }), /unrecognized_provider/);
   const first = await fixture(t), second = await fixture(t);
   await assert.rejects(openWindowsResetJournal({ ...first, directory: second.directory }), /verification_failed/);
+});
+
+test('one prepare repair preserves original Windows history and cannot be claimed twice after reopen', {skip:!windows},async t=>{
+ const options=await fixture(t),store=await openWindowsResetJournal(options),original=createManualResetCoordinator({store});
+ const operationId=PREPARE_REPAIR_OPERATION,action='prepare',oldNonce=randomUUID(),newNonce=randomUUID(),oldAuthorization=randomUUID(),h='a'.repeat(64);
+ const binding={version:1,operation_id:operationId,organization_id:'752a87b8-bd04-4a45-9cb8-00687af66e73',project_ref:'pfvmztxktkwyewvxfgot',
+  main_sha:PREPARE_REPAIR_ORIGINAL_MAIN,source_generation:0,target_generation:1,cutoff:'2026-10-01',issue_date:'2026-10-01',
+  invoice_date_policy:'empty-books-no-invoices',continuation_semantic:{version:4},source_snapshot_sha256:h};
+ const bindingSha256=hashBytes(canonicalJson(binding));
+ const doc={format:'nestory-manual-reset-intent-v1',mainSha:PREPARE_REPAIR_ORIGINAL_MAIN,inputBundleSha256:h,
+  transportIntent:{format:'nestory-hosted-reset-action-intent-v1',operationId,action,authorizationId:oldAuthorization,
+   packetSha256:h,bindingSha256,authoritySha256:h,sourceObservationSha256:h,sqlSha256:h},
+  custody:{format:'nestory-local-reset-custody-reference-v1',operationId,packetSha256:h,
+   ...Object.fromEntries(['evidenceRecordSha256','archiveEnvelopeSha256','archivePlaintextSha256','filesArchiveSha256','restoreEvidenceSha256',
+    'keyRecoveryEvidenceSha256','privateDestinationReviewSha256','foreignBaselineSha256'].map(k=>[k,h]))}};
+ const {intentSha256}=await original.recordIntent(doc),{claimSha256}=await original.claimDispatch({operationId,action,intentSha256});
+ await original.recordDispatchResponse({operationId,action,intentSha256,runId:100,runAttempt:1});
+ const base=`financial-reset/${operationId}/manual-stage/prepare`,saved=await store.read(`${base}/intent`);
+ await store.putIfAbsent(`${base}/bootstrap/${oldNonce}/publish-claim`,Buffer.from(canonicalJson({format:'nestory-local-ticket-publication-v1',
+  runId:100,intentSha256,ciphertextSha256:h,publicationArchiveId:randomUUID(),publicationArchiveSha256:h})));
+ const repair={format:'nestory-local-prepare-repair-v1',operationId,packetSha256:h,bindingSha256,originalMainSha:PREPARE_REPAIR_ORIGINAL_MAIN,
+  executorMainSha:'b'.repeat(40),manifestSha256:h,executorSourceSha256:h,
+  originalAttempt:{authorizationId:oldAuthorization,nonce:oldNonce,runId:'100',runAttempt:1,intentSha256,claimSha256,publicationSha256:h},
+  replacement:{nonce:newNonce,runId:'101',runAttempt:1},eligibilitySha256:h,originalRunSha256:h,createdAt:'2026-10-28T01:30:00.000Z'};
+ const eligibility={format:'nestory-local-prepare-repair-observation-v1',operationId,originalAuthorizationId:oldAuthorization,
+  observedAt:new Date(Date.now()-1000).toISOString(),authorizationExpiresAt:new Date(Date.now()-10000).toISOString(),authorizationExpiredUnused:true,
+  nativePrepareAbsent:true,reservationMatches:true,checkpointMatches:true,controlMatches:true,sourceMatches:true,foreignMatches:true};
+ const originalRun={id:100,run_attempt:1,status:'completed',conclusion:'failure',head_sha:PREPARE_REPAIR_ORIGINAL_MAIN,head_branch:'main',event:'workflow_dispatch',
+  path:'.github/workflows/pilot-financial-reset-local-custody.yml',repository:{full_name:'soley-bot/nestory'},display_title:`Pilot reset ${operationId} prepare ${oldNonce} execute`};
+ repair.eligibilitySha256=hashBytes(canonicalJson(eligibility));
+ repair.originalRunSha256=prepareRepairOriginalRunEvidence(originalRun,{operationId,nonce:oldNonce}).sha256;
+ const evidence={binding,eligibility,originalRun};
+ const nextDoc=structuredClone(doc);nextDoc.mainSha=repair.executorMainSha;nextDoc.transportIntent.authorizationId=randomUUID();
+ await assert.rejects(createManualResetCoordinator({store,prepareRepair:repair}).recordIntent(nextDoc),/original_repair_record_required/);
+ await assert.rejects(original.recordPrepareRepair(repair),/repair_evidence_required/);
+ await assert.rejects(original.recordPrepareRepair(repair,{...evidence,eligibility:{...eligibility,nativePrepareAbsent:false}}),/repair_evidence_changed/);
+ await assert.rejects(original.recordPrepareRepair(repair,evidence),/repair_bootstrap_missing/);
+ const {bootstrapClaimSha256}=await original.recordBootstrapClaim({format:'nestory-manual-reset-bootstrap-claim-v1',operationId,action,nonce:newNonce,
+  mainSha:repair.executorMainSha,packetSha256:h,payloadSha256:h,transferArchiveId:randomUUID(),transferArchiveSha256:h});
+ await original.recordBootstrapResponse({operationId,action,nonce:newNonce,bootstrapClaimSha256,runId:101,runAttempt:1});
+ await store.putIfAbsent(`${base}/bootstrap/${newNonce}/workflow-post`,Buffer.from(canonicalJson({format:'nestory-local-workflow-post-v1',
+  operationId,action,nonce:newNonce,mainSha:repair.executorMainSha})));
+ await original.recordPrepareRepair(repair,evidence);
+ // Same-process store refuses a second attempt before invoking the helper.
+ await assert.rejects(original.recordPrepareRepair(repair,evidence),/journal_write_unknown/);
+ const scoped=createManualResetCoordinator({store,prepareRepair:repair});
+ const wrong=structuredClone(nextDoc);wrong.transportIntent.authorizationId=oldAuthorization;
+ await assert.rejects(scoped.recordIntent(wrong),/repair_intent_changed/);
+ const next=await scoped.recordIntent(nextDoc);await scoped.claimDispatch({operationId,action,intentSha256:next.intentSha256});
+ await assert.rejects(scoped.recordDispatchResponse({operationId,action,intentSha256:next.intentSha256,runId:102,runAttempt:1}),/repair_run_changed/);
+ await scoped.recordDispatchResponse({operationId,action,intentSha256:next.intentSha256,runId:101,runAttempt:1});
+ const reopened=await openWindowsResetJournal(options),again=createManualResetCoordinator({store:reopened,prepareRepair:repair});
+ await assert.rejects(again.claimDispatch({operationId,action,intentSha256:next.intentSha256}),/existing_or_uncertain_record/);
+ assert.deepEqual(await reopened.read(`${base}/intent`),saved);
+ assert.ok(await reopened.read(`${base}/repair-once/attempt/intent`));
+ assert.ok(await reopened.read(`${base}/bootstrap/${newNonce}/response`));
 });

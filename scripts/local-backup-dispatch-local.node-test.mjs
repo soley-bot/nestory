@@ -10,14 +10,22 @@ import {hostedBinding} from './pilot-finance-reset-hosted-transport-protocol.mjs
 import {localDispatchActorReadinessSql,prepareLocalDispatchSessionReview,prepareLocalDispatchReviewArtifacts,assertLocalDispatchReviewArtifacts,
  prepareLocalDispatchStageAuthority,assertLocalDispatchStageAuthority,assertLocalDispatchStageEvidenceRecord} from './local-backup-dispatch-review.mjs';
 import {bootstrapLocalDispatch,publishLocalDispatch,dispatchLocalReconciliation,discoverLocalDispatch,collectLocalDispatchReceipt,persistPreparedLocalDispatchInput,extractLocalCustodyReceipt,localCustodyRunTitle,localDispatchWorkerWaiting,
- createLocalPublicationLifecycle,prepareLocalDispatchPublication,finishLocalDispatchPublication,checkLocalDispatchPublication} from './local-backup-dispatch-local.mjs';
+ createLocalPublicationLifecycle,prepareLocalDispatchPublication,finishLocalDispatchPublication,checkLocalDispatchPublication,
+ stageLocalDispatchPayload,recordLocalPrepareRepair,localDispatchFailureCode} from './local-backup-dispatch-local.mjs';
 const locator={operationId:'11111111-1111-4111-8111-111111111111',action:'execute',nonce:'22222222-2222-4222-8222-222222222222'};
 const receipt={format:'nestory-local-custody-result-v1',operationId:locator.operationId,action:locator.action,runId:'123',runAttempt:1,intentSha256:'a'.repeat(64),
  outcome:'committed-and-verified',mutationRetried:false,observationSha256:'b'.repeat(64),checkpointSha256:'c'.repeat(64),normalWritesReopened:false};
 const expected={...locator,mode:'execute',originalRunId:123,actualRunId:123,intentSha256:receipt.intentSha256};
 const line=(value,step='Wait for exact run ticket and execute once')=>`Pilot reset local custody\t${step}\t2026-10-27T12:00:00Z ${JSON.stringify(value)}`;
 test('malformed operator requests reject before private inputs or provider requests',async()=>{
- for(const action of [()=>bootstrapLocalDispatch({}),()=>publishLocalDispatch({},''),()=>prepareLocalDispatchPublication({}),()=>dispatchLocalReconciliation({}),()=>discoverLocalDispatch({}),()=>collectLocalDispatchReceipt({})])await assert.rejects(action(),/request_invalid/);
+ for(const action of [()=>bootstrapLocalDispatch({}),()=>publishLocalDispatch({},''),()=>prepareLocalDispatchPublication({}),()=>dispatchLocalReconciliation({}),()=>discoverLocalDispatch({}),()=>collectLocalDispatchReceipt({}),()=>stageLocalDispatchPayload({}),()=>recordLocalPrepareRepair({})])await assert.rejects(action(),/request_invalid/);
+});
+test('upload failures retain only closed actionable codes and never append provider or private content',()=>{
+ for(const code of ['local_dispatch_storage_forbidden','local_dispatch_storage_rate_limited','local_dispatch_storage_outcome_unknown','local_dispatch_staging_invalid']){
+  assert.equal(localDispatchFailureCode(Error(code)),code);
+  assert.equal(localDispatchFailureCode(Error(code+' PRIVATE_VALUE')),'local_dispatch_stopped');
+ }
+ assert.equal(localDispatchFailureCode(Error('PRIVATE_VALUE')),'local_dispatch_stopped');
 });
 test('prepared publication rejects fabricated handles before custody, signer or transport',async()=>{
  await assert.rejects(finishLocalDispatchPublication({format:'nestory-prepared-local-publication-v1'},locator.nonce),/prepared_publication_invalid/);
@@ -247,10 +255,12 @@ test('observation custody APIs require the real held saved context before any fi
 test('discover readiness means the single exact original worker is polling, not merely running',()=>{
  const run={id:123},mainSha='a'.repeat(40);
  const job={name:'Pilot reset local custody',status:'in_progress',run_id:123,run_attempt:1,head_sha:mainSha,
-  steps:[{name:'Wait for exact run ticket and execute once',status:'in_progress'}]};
+  steps:[{name:'Prefetch immutable staged payload',status:'completed',conclusion:'success'},{name:'Wait for exact run ticket and execute once',status:'in_progress'}]};
  assert.equal(localDispatchWorkerWaiting({jobs:[job],total_count:1},run,mainSha),true);
  for(const changed of [{...job,status:'queued'},{...job,run_id:124},{...job,run_attempt:2},{...job,head_sha:'b'.repeat(40)},
-  {...job,steps:[{name:'Check out exact main',status:'in_progress'}]},{...job,steps:[{name:'Wait for exact run ticket and execute once',status:'completed'}]}])
+  {...job,steps:[{name:'Check out exact main',status:'in_progress'}]},{...job,steps:[{name:'Wait for exact run ticket and execute once',status:'completed'}]},
+  {...job,steps:[{name:'Wait for exact run ticket and execute once',status:'in_progress'}]},
+  {...job,steps:[{name:'Prefetch immutable staged payload',status:'completed',conclusion:'failure'},job.steps[1]]}])
   assert.equal(localDispatchWorkerWaiting({jobs:[changed],total_count:1},run,mainSha),false);
  assert.equal(localDispatchWorkerWaiting({jobs:[job,job],total_count:2},run,mainSha),false);
  assert.throws(()=>localDispatchWorkerWaiting({jobs:[job],total_count:2},run,mainSha));

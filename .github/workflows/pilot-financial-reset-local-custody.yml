@@ -64,6 +64,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
           clean: true
       - name: Use reviewed Node major
@@ -103,6 +104,21 @@ jobs:
           sudo swapoff -a
           awk 'END { exit (NR != 1) }' /proc/swaps
           printf '{"format":"nestory-local-custody-memory-v1","activeSwapDevicesBefore":%s,"activeSwapDevicesAfter":0}\n' "$active_before"
+      - name: Prefetch immutable staged payload
+        if: inputs.mode == 'execute' || inputs.mode == 'reconcile'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESET_OPERATION_ID: ${{ inputs.operation_id }}
+          RESET_NONCE: ${{ inputs.nonce }}
+          RESET_ACTION: ${{ inputs.action }}
+          RESET_MODE: ${{ inputs.mode }}
+          PILOT_RESET_HANDOFF_SIGNED_URL: ${{ secrets.PILOT_RESET_HANDOFF_SIGNED_URL }}
+          PILOT_RESET_HANDOFF_KEY: ${{ secrets.PILOT_RESET_HANDOFF_KEY }}
+        run: |
+          set -euo pipefail
+          ulimit -c 0
+          node scripts/pilot-finance-reset-local-custody-runner.mjs --prefetch
       - name: Wait for exact run ticket and execute once
         if: inputs.mode == 'execute' || inputs.mode == 'reconcile'
         shell: bash
@@ -150,5 +166,8 @@ jobs:
         run: |
           ulimit -c 0
           node scripts/pilot-finance-reset-local-custody-runner.mjs
-      # No caches, ordinary artifacts, payload logs or automatic reruns.
+      - name: Remove owned staged ciphertext
+        if: always() && (inputs.mode == 'execute' || inputs.mode == 'reconcile')
+        run: node scripts/pilot-finance-reset-local-custody-runner.mjs --cleanup-prefetch
+      # No dependency caches, ordinary artifacts, payload logs or automatic reruns.
       # The immutable intent and recovery archive remain in protected C: custody.

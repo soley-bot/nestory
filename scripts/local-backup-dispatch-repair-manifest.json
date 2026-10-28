@@ -1,0 +1,77 @@
+{
+  "format": "nestory-local-prepare-repair-manifest-v1",
+  "originalMainSha": "9a08df0181d391a9bc8e6c28319c6678485f4c59",
+  "operationId": "7c70e27f-ba37-48cc-8f93-d32badcb2fb7",
+  "allowedStages": [
+    "prepare",
+    "seal",
+    "execute"
+  ],
+  "changes": [
+    {
+      "path": ".github/workflows/pilot-financial-reset-local-custody.yml",
+      "originalSha256": "9a97fd4186b8f16c09145a0c7d96a966d8d145a49623d93a0c4c13619d0d2640",
+      "replacementSha256": "22f4a523f0fbf0f3206cd16cff2af5d2e9e64ccbb0d3f798407ab0ef44dd5f15"
+    },
+    {
+      "path": "scripts/local-backup-custody-evidence.mjs",
+      "originalSha256": "c074746b4e4118fa2ed080c6600bdac4d81f9d0166828520d6d1c1f74969c34f",
+      "replacementSha256": "ed0e9dd83069a1cd67b1c2dfe2930a201d2908e96a6392c607950c0285c71ff8"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-bundle.mjs",
+      "originalSha256": "9c4e6a1ed31e9c23f8a6b2007aaa7f0369d5f6d84576710f3677581e46f7ba84",
+      "replacementSha256": "e7678cacddf4031c4a7f5c78514bb1bcd450826e2cc18b346800fd02611d8111"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-bundle.node-test.mjs",
+      "originalSha256": "d0b389e1f392a55b91b1befd205a406df6fe911ea5c5cf138c72bdb59cca18e1",
+      "replacementSha256": "439ea1e4a9b37b9230b05c3297640e2336913f8a90aeb18ac9cc2b7d38cd6983"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-local.mjs",
+      "originalSha256": "45f79af3758227efb294cb8d1b25d82bed6f925dbbe9bd731c3ebd3be5102ce5",
+      "replacementSha256": "3329890cd151ddf55ae072d93d5c76aea064a37e5fc256aac2a9ff4c7aea3ec7"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-local.node-test.mjs",
+      "originalSha256": "335675eeb9cfb9ec5b828e2d65a5cc778f19689021d2922aa3a14e26796506eb",
+      "replacementSha256": "a72ba535dfff56593f3d050991b9b6d6b9d91e2673689e4581a2eafa6fa79950"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-repair.mjs",
+      "originalSha256": null,
+      "replacementSha256": "e590388c6860ca7425a0701ddc283f00d5604ee43102ea8dbb11c2a140365386"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-repair.node-test.mjs",
+      "originalSha256": null,
+      "replacementSha256": "221b047066efd87d66f97517787779b8a84eca92e2478c50454d0e7a28412629"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-staging.mjs",
+      "originalSha256": null,
+      "replacementSha256": "43a4fbbaab89a297bd4752c64d4b01e3045945e9fd993f605c605e1f2a35c04b"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-staging.node-test.mjs",
+      "originalSha256": null,
+      "replacementSha256": "12c47b362f6cf538c8888f644acab5ef1e606f9ff030b90fb41bd1f77ec71957"
+    },
+    {
+      "path": "scripts/pilot-finance-reset-local-custody-runner.mjs",
+      "originalSha256": "86679ff4983920100829047d5ffa1ab405499b060d81d39141ea064abce5a50f",
+      "replacementSha256": "45a44beac6d1b5aeaa8ed67c0256c07f50ea3fd93777ada2408fff587a67548b"
+    },
+    {
+      "path": "scripts/pilot-finance-reset-manual-coordinator.mjs",
+      "originalSha256": "b033ba9df680f9e48d6f65490a6f7fbeb3e593e2d39857306c824cf3fe5ea38c",
+      "replacementSha256": "114fb3744106648f0e43b797b31db30177b046b9dd03b15d7e6649d331fa6cc4"
+    },
+    {
+      "path": "scripts/pilot-finance-reset-windows-journal.node-test.mjs",
+      "originalSha256": "1161e2debb2805f53aec47f1da8fcabd7a1658230a01f5470b0185612d582edc",
+      "replacementSha256": "fae98a31f7b40d5b1a34c8f8095537a416694737b829b54a64d7f629c78bd9d6"
+    }
+  ]
+}

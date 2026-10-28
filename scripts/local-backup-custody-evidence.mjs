@@ -12,6 +12,7 @@ import {openPilotLiveWitnessInputs} from './local-backup-live-input.mjs';
 import {assertPilotLivePacketBinding} from './local-backup-live-packet.mjs';
 import {holdBusinessSpillCustody} from './local-backup-business-runtime.mjs';
 import {verifyHostedPacketSources} from './pilot-finance-reset-hosted-transport.mjs';
+import {inspectLocalDispatchCompatibility,assertLocalDispatchCompatibilityCurrent} from './local-backup-dispatch-repair.mjs';
 import {digestDatabaseJson} from './pilot-finance-reset-hosted-transport-protocol.mjs';
 const hash=/^[a-f0-9]{64}$/,uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const exact=(v,k)=>v&&Object.getPrototypeOf(v)===Object.prototype&&JSON.stringify(Object.keys(v).sort())===JSON.stringify([...k].sort());
@@ -133,10 +134,10 @@ export function createPreparedCustodyAdmission({hold,collect,verify,check}){
  const get=handle=>{const state=receipts.get(handle);if(!state||state.closed)fail();return state;};
  const close=async handle=>{const state=receipts.get(handle);if(!state||state.closed)return;state.closed=true;try{await state.lease.close()}finally{state.args=null;state.closure=null;}};
  return Object.freeze({
-  async prepare(args,request){
+  async prepare(args,request,context){
    args=structuredClone(args);request=structuredClone(request);const lease=await hold();let handle;
    try{
-    const closure=await collect(args,request);
+    const closure=await collect(args,request,context);
     if((await verify(args)).operationalCustodyVerified!==true)fail();
     await check(closure,args);await lease.check();
     handle=Object.freeze({format:'nestory-prepared-custody-v1'});
@@ -186,8 +187,9 @@ export function preparedCustodyArtifactReferences({evidence,request,proofs,manif
 export function assertPreparedCustodyArtifactBytes(ref,bytes){
  if(!(bytes instanceof Uint8Array)||bytes.length!==ref.bytes||backupHash(bytes)!==ref.sha256)fail();return true;
 }
-async function collectPreparedClosure(args,request){
+async function collectPreparedClosure(args,request,{compatibility}={}){
  const {evidence,packet}=args;assertLocalCustodyEvidenceReference(evidence);
+ if(compatibility!==undefined)await assertLocalDispatchCompatibilityCurrent(compatibility,packet);
  if(!exact(request,['inputArchiveId','inputArchiveSha256','nonce'])||!uuid.test(request.inputArchiveId)||!uuid.test(request.nonce)||!hash.test(request.inputArchiveSha256))fail();
  const proofs={};for(const role of roles){const bytes=await readPrivateBackupFile(evidence[role].id,'proof.json');
   try{if(bytes.length>262144||backupHash(bytes)!==evidence[role].sha256)fail();proofs[role]=decode(bytes);}finally{bytes.fill(0);}}
@@ -204,17 +206,24 @@ async function collectPreparedClosure(args,request){
  const closure=preparedCustodyArtifactReferences({evidence,request,proofs,manifest,metadata,metadataSha256});
  await boundedAll(closure.refs,async ref=>{const bytes=await readPrivateBackupFile(ref.id,ref.kind);try{if(backupHash(bytes)!==ref.sha256)fail();ref.bytes=bytes.length;}finally{bytes.fill(0);}});
  return {...closure,
-  sourcePins:structuredClone(b.sourcePins),packet:structuredClone(packet)};
+  sourcePins:structuredClone(b.sourcePins),packet:structuredClone(packet),compatibility};
 }
 async function checkPreparedClosure(closure){
  const results=await Promise.allSettled([
   boundedAll(closure.refs,async ref=>{const bytes=await readPrivateBackupFile(ref.id,ref.kind);try{assertPreparedCustodyArtifactBytes(ref,bytes);}finally{bytes.fill(0);}}),
-  verifyPrivateBackupCiphertexts(closure.objects),assertSourcePins(closure.sourcePins),verifyHostedPacketSources(closure.packet),
+  verifyPrivateBackupCiphertexts(closure.objects),assertSourcePins(closure.sourcePins),
+  closure.compatibility===undefined?verifyHostedPacketSources(closure.packet):assertLocalDispatchCompatibilityCurrent(closure.compatibility,closure.packet),
  ]);
  if(results.some(result=>result.status==='rejected'))fail();
 }
 const preparedCustody=createPreparedCustodyAdmission({hold:holdBusinessSpillCustody,collect:collectPreparedClosure,verify:verifySavedLocalRecoveryEvidence,check:checkPreparedClosure});
-export const prepareSavedLocalRecoveryEvidence=(args,request)=>preparedCustody.prepare(args,request);
+export const prepareSavedLocalRecoveryEvidence=async(args,request,options)=>{
+ if(options!==undefined){
+  if(!exact(options,['compatibility']))fail();const info=inspectLocalDispatchCompatibility(options.compatibility);
+  if(info.packetSha256!==args?.packet?.packetSha256||info.operationId!==args?.packet?.operation?.operationId)fail();
+ }
+ return preparedCustody.prepare(args,request,options);
+};
 export const assertPreparedLocalRecoveryEvidence=(handle,args,nonce,options)=>preparedCustody.assert(handle,args,nonce,options);
 export const assertPreparedLocalRecoveryEvidenceHeld=handle=>preparedCustody.held(handle);
 export const disposePreparedLocalRecoveryEvidence=handle=>preparedCustody.close(handle);
