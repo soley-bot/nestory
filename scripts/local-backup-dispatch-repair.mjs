@@ -41,6 +41,8 @@ export const EXECUTE_RESUME_ALLOWED_FILES=Object.freeze([...PREPARE_REPAIR_ALLOW
  PREPARE_REPAIR_MANIFEST,
  'scripts/local-backup-live-input.mjs','scripts/local-backup-live-witness.node-test.mjs',
  'scripts/local-backup-execute-resume.mjs','scripts/local-backup-execute-resume.node-test.mjs',
+ 'scripts/local-backup-prepublication-recovery.mjs','scripts/local-backup-prepublication-recovery.node-test.mjs',
+ 'scripts/fixtures/local-backup-prepublication-fixture.mjs',
  'scripts/local-backup-execute-transition.mjs','scripts/local-backup-execute-transition.node-test.mjs',
  'scripts/local-backup-execute-transition-manifest.json',
  'scripts/local-backup-execute-adapter.mjs','scripts/local-backup-execute-adapter.node-test.mjs',

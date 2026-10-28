@@ -4,6 +4,7 @@ import {digestJson,jsonSql,literal,observationSql} from './pilot-finance-reset-h
 import {rehearsalSqlFixture} from './fixtures/local-backup-rehearsal-sql-fixture.mjs';
 import {localCustodyMutationSql} from './pilot-finance-reset-local-custody-runner.mjs';
 import {EXECUTE_RESUME_ORIGINAL as original} from './local-backup-execute-resume.mjs';
+import {PREPUBLICATION_STOPPED as stopped} from './local-backup-prepublication-recovery.mjs';
 import {assertExecuteResumeAudit,executeResumeMutationSql,executeResumeObservationSql,projectExecuteResumeObservation} from './local-backup-execute-adapter.mjs';
 const h='a'.repeat(64),id=n=>`10000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 function fixture(){
@@ -78,4 +79,34 @@ test('observation adds only bounded audit metadata to existing read-only query',
 });
 test('projection cannot admit arbitrary schema by supplying a success Boolean',async()=>{
  await assert.rejects(projectExecuteResumeObservation({payload:{transitionVerified:true},observation:{},phase:'after'}));
+});
+
+function childFixture(completedState=false){
+ const f=completedState?completed():fixture();
+ f.prepublicationRecovery={format:'nestory-local-prepublication-recovery-v1',operationId:original.operationId,
+  packetSha256:h,bindingSha256:digestJson(f.binding),originalMainSha:f.binding.main_sha,executorMainSha:'d'.repeat(40),
+  manifestSha256:h,executorSourceSha256:h,parentResumeSha256:stopped.parentResumeSha256,
+  stopped:{...Object.fromEntries(['authorizationId','nonce','runId','runAttempt','mainSha','intentSha256','claimSha256','responseSha256'].map(k=>[k,stopped[k]])),bootstrapSha256:stopped.bootstrapSha256,stagedSha256:stopped.stagedSha256},
+  replacement:{nonce:id(20),runId:'8888888',runAttempt:1},eligibilitySha256:h,originalRunSha256:h,freshForeignSha256:'f'.repeat(64),createdAt:'2026-10-28T09:00:00.000Z'};
+ f.observation.foreignSha256=f.prepublicationRecovery.freshForeignSha256;
+ if(completedState)f.observation.executeResume.foreignSha256=f.prepublicationRecovery.freshForeignSha256;
+ return f;
+}
+test('pure child audit uses reviewed child census while preserving original native failed authorization and original reservation',()=>{
+ const before=childFixture(),after=childFixture(true);
+ assert.equal(assertExecuteResumeAudit(before),true);assert.equal(assertExecuteResumeAudit(after),true);
+ assert.notEqual(after.observation.foreignSha256,after.record.freshForeignSha256);
+ assert.equal(after.observation.executeResume.failedAuthorizationId,original.authorizationId);
+ assert.equal(after.observation.reservation.foreignSha256,h);
+});
+for(const [label,change]of[
+ ['stopped authorization reused',f=>f.authorizationId=stopped.authorizationId],
+ ['child census drift',f=>f.observation.foreignSha256=f.record.freshForeignSha256],
+ ['child binding changed',f=>f.prepublicationRecovery.bindingSha256='f'.repeat(64)],
+ ['amendment points to stopped signer rather than original failed execute',f=>f.observation.executeResume.failedAuthorizationId=stopped.authorizationId],
+ ['unknown child field',f=>f.prepublicationRecovery.extra=true],
+])test(`child audit rejects ${label}`,()=>{const f=childFixture(true);change(f);assert.throws(()=>assertExecuteResumeAudit(f));});
+test('SQL child refuses fabricated parent even when record and audit shape are valid',()=>{
+ const f=childFixture();assert.equal(assertExecuteResumeAudit(f),true);
+ assert.throws(()=>executeResumeMutationSql({...f,action:'execute',authoritySha256:h,recovery:null,resume:{record:f.record,observation:f.observation}}),/prepublication_recovery_unverified/);
 });

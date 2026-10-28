@@ -4,10 +4,11 @@ import {readLocalCustodyParallel,assertLocalCustodyPayloadPreflight,verifyLocalC
 
 const deferred=()=>{let resolve;const promise=new Promise(r=>{resolve=r});return{promise,resolve}};
 test('resume failures and actor expiry diagnostics reveal only closed static categories',()=>{
- for(const code of ['local_custody_actor_context_required','local_execute_adapter_unverified','local_execute_transition_unverified','local_execute_resume_unverified']){
+ for(const code of ['local_custody_actor_context_required','local_execute_adapter_unverified','local_execute_transition_unverified','local_execute_resume_unverified','local_prepublication_recovery_unverified']){
   assert.equal(localCustodyFailureCode(Error(code)),code);assert.equal(localCustodyFailureCode(Error(code+' PRIVATE')),'local_custody_worker_stopped');
  }
  assert.equal(classifyLocalCustodyDatabaseFailure(Buffer.from('ERROR financial_reset_actor_context_required PRIVATE SQL')),'local_custody_actor_context_required');
+ assert.equal(classifyLocalCustodyDatabaseFailure(Buffer.from('ERROR local_prepublication_authorization_changed PRIVATE SQL')),'local_prepublication_recovery_unverified');
 });
 
 test('independent fresh reads overlap and preserve result identities regardless of completion order',async()=>{

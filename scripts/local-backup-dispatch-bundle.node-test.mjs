@@ -6,9 +6,12 @@ import * as pgp from 'openpgp';
 import {hashBytes,canonicalJson} from './pilot-finance-reset-operator-core.mjs';
 import {digestJson,digestDatabaseJson} from './pilot-finance-reset-hosted-transport-protocol.mjs';
 import {PREPARE_REPAIR_ORIGINAL_MAIN,PREPARE_REPAIR_OPERATION} from './local-backup-dispatch-repair.mjs';
+import {stoppedResume} from './fixtures/local-backup-prepublication-fixture.mjs';
+import {PREPUBLICATION_STOPPED} from './local-backup-prepublication-recovery.mjs';
 import {EXECUTE_RESUME_ORIGINAL} from './local-backup-execute-resume.mjs';
 import {buildDispatchTicket,dispatchSigningBytes,verifySignedDispatchBundle,verifyHistoricalDispatchBundle,assertDispatchJournalRecords,inspectDispatchPayloadBudget,LOCAL_DISPATCH_TRANSFER_LIMIT,LOCAL_DISPATCH_WORKFLOW,LOCAL_DISPATCH_REPOSITORY,
- createPreparedDispatchSigning,assertPreparedDispatchSigningBinding,signLocalDispatchBundle,prepareLocalDispatchSigning} from './local-backup-dispatch-bundle.mjs';
+ assertDispatchPrepublicationBinding,createPreparedDispatchSigning,assertPreparedDispatchSigningBinding,signLocalDispatchBundle,prepareLocalDispatchSigning,
+ parseDispatchSigningMaterial,disposeDispatchSigningMaterial,assertDispatchSigningMaterialUsable} from './local-backup-dispatch-bundle.mjs';
 const key=await pgp.generateKey({type:'rsa',rsaBits:3072,userIDs:[{name:'Synthetic dispatch only'}],format:'object',config:{v6Keys:false}});
 const publicKeyArmored=key.publicKey.armor(), expectedPublicKeySha256=hashBytes(publicKeyArmored);
 const id=n=>`11111111-1111-4111-8111-${String(n).padStart(12,'0')}`;
@@ -30,36 +33,58 @@ test('prepared signer binds exact payload, key, custody handle, executor, run an
  }
 });
 test('signing setup completes before authorization and real detached signing clears key parameters after one use',async t=>{
- const f=await fixture(),{state,options}=preparedFixture(f),events=[];let params,closed=0;
+ const f=await fixture(),{state,options}=preparedFixture(f),events=[];let params,raw,closed=0;
  const service=createPreparedDispatchSigning({
   prepare:async()=>{events.push('public-key','private-read','unwrap','parse');await new Promise(resolve=>setTimeout(resolve,40));
-   const signingKey=await pgp.readPrivateKey({binaryKey:key.privateKey.write(),config:{v6Keys:false}});
-   params=Object.values(signingKey.keyPacket.privateParams);return {...state,signingKey};},
+   raw=Buffer.from(key.privateKey.write());
+   const material=await parseDispatchSigningMaterial(raw,{fingerprint:key.publicKey.getFingerprint(),publicKeySha256:expectedPublicKeySha256});
+   params=Object.values(material.signingKey.keyPacket.privateParams);assert.equal(material.rawKeyBytes,raw);
+   await assertDispatchSigningMaterialUsable(material,key.publicKey);return {...state,material};},
   check:async(s,o)=>{events.push('fresh-journal-custody');assertPreparedDispatchSigningBinding(s,o);},
   sign:async(s,o)=>{events.push('sign');return pgp.sign({message:await pgp.createMessage({binary:dispatchSigningBytes(o.ticket,o.payload)}),
-   signingKeys:s.signingKey,detached:true,format:'binary'});},
-  dispose:s=>{closed++;s.signingKey.clearPrivateParams();},
+   signingKeys:s.material.signingKey,detached:true,format:'binary'});},
+  dispose:s=>{closed++;disposeDispatchSigningMaterial(s.material);},
  });
  const start=performance.now(),handle=await service.prepare({}),preparedAt=performance.now();assert.deepEqual(events,['public-key','private-read','unwrap','parse']);
+ assert.ok(raw.some(b=>b!==0));assert.ok(params.every(p=>p.some(b=>b!==0)));
  const results=await Promise.allSettled([service.finish(handle,options),service.finish(handle,options)]);
  assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(closed,1);
  const signature=results.find(r=>r.status==='fulfilled').value;
  await verifySignedDispatchBundle({...f,bundle:{...f.bundle,signatureBase64:Buffer.from(signature).toString('base64')}});
- assert.deepEqual(events.slice(4),['fresh-journal-custody','sign']);assert.ok(params.every(p=>p.every(b=>b===0)));
+ assert.deepEqual(events.slice(4),['fresh-journal-custody','sign']);assert.ok(params.every(p=>p.every(b=>b===0)));assert.ok(raw.every(b=>b===0));
  t.diagnostic(JSON.stringify({syntheticSetupDelayMs:40,preauthorizationMs:Math.round(preparedAt-start),postauthorizationMs:Math.round(performance.now()-preparedAt),postauthorizationSetupCalls:0}));
  await service.close(handle);assert.equal(closed,1);
  await assert.rejects(signLocalDispatchBundle({...options,preparedSigning:handle}),/signing_failed/);
 });
 test('prepared signer failure and explicit abandonment clear secrets without signing',async()=>{
  for(const mode of ['check','sign','abandon']){
-  const secret=Buffer.from('synthetic secret');let signs=0,closed=0;
-  const service=createPreparedDispatchSigning({prepare:async()=>({secret}),check:async()=>{if(mode==='check')throw Error('changed');},
-   sign:async()=>{signs++;throw Error('sign failed');},dispose:s=>{closed++;s.secret.fill(0);}});
+  const raw=Buffer.from(key.privateKey.write());let signs=0,closed=0,params;
+  const service=createPreparedDispatchSigning({prepare:async()=>{const material=await parseDispatchSigningMaterial(raw,{fingerprint:key.publicKey.getFingerprint(),publicKeySha256:expectedPublicKeySha256});
+   params=Object.values(material.signingKey.keyPacket.privateParams);return material;},check:async()=>{if(mode==='check')throw Error('changed');},
+   sign:async()=>{signs++;throw Error('sign failed');},dispose:s=>{closed++;disposeDispatchSigningMaterial(s);}});
   const handle=await service.prepare({});
   if(mode==='abandon')await service.close(handle);else await assert.rejects(service.finish(handle,{}));
-  assert.equal(closed,1);assert.ok(secret.every(b=>b===0));assert.equal(signs,mode==='sign'?1:0);
+  assert.equal(closed,1);assert.ok(raw.every(b=>b===0));assert.ok(params.every(p=>p.every(b=>b===0)));assert.equal(signs,mode==='sign'?1:0);
   await assert.rejects(service.finish(handle,{}));assert.equal(closed,1);
  }
+});
+test('binary key parsing and identity failures zero the owned buffer before returning',async()=>{
+ for(const raw of [Buffer.from('invalid synthetic key'),Buffer.from(key.privateKey.write())]){
+  await assert.rejects(parseDispatchSigningMaterial(raw,{fingerprint:'0'.repeat(40),publicKeySha256:expectedPublicKeySha256}));
+  assert.ok(raw.every(b=>b===0));
+ }
+});
+test('whole owned buffer is cleared even if parsed-key cleanup throws',()=>{
+ const raw=Buffer.from('synthetic cleanup failure'),material={rawKeyBytes:raw,signingKey:{clearPrivateParams(){throw Error('synthetic');}}};
+ assert.throws(()=>disposeDispatchSigningMaterial(material),/synthetic/);assert.ok(raw.every(b=>b===0));assert.equal(material.rawKeyBytes,null);
+});
+test('preauthorization challenge detects the original aliased-buffer destruction before a handle or dispatch can exist',async()=>{
+ const raw=Buffer.from(key.privateKey.write()),material=await parseDispatchSigningMaterial(raw,{fingerprint:key.publicKey.getFingerprint(),publicKeySha256:expectedPublicKeySha256});
+ assert.equal(await assertDispatchSigningMaterialUsable(material,key.publicKey),true);
+ // Reproduce the previous loader's premature cleanup exactly.
+ raw.fill(0);assert.ok(Object.values(material.signingKey.keyPacket.privateParams).every(p=>p.every(b=>b===0)));
+ await assert.rejects(assertDispatchSigningMaterialUsable(material,key.publicKey));disposeDispatchSigningMaterial(material);
+ assert.equal(material.rawKeyBytes,null);
 });
 test('fabricated custody cannot pre-unlock the production signing key',async()=>{
  const f=await fixture(),{state,options}=preparedFixture(f);
@@ -259,4 +284,32 @@ for(const [name,change]of[['missing intent',f=>f.intentBytes=null],['missing cla
  ['wrong run',f=>{const r=JSON.parse(f.responseBytes);r.runId++;f.responseBytes=Buffer.from(canonicalJson(r))}],
  ['rerun',f=>{const r=JSON.parse(f.responseBytes);r.runAttempt=2;f.responseBytes=Buffer.from(canonicalJson(r))}]])test(`journal ${name} prevents signing`,async()=>{
  const f=await journalFixture();change(f);assert.throws(()=>assertDispatchJournalRecords(f));
+});
+
+// Public hashes/IDs only; the original binding includes private scope IDs and
+// is deliberately exercised only by the separate held-custody integration.
+function childBindingFixture(){
+ const parent=structuredClone(stoppedResume),s=PREPUBLICATION_STOPPED;
+ const child={format:'nestory-local-prepublication-recovery-v1',operationId:parent.operationId,packetSha256:parent.packetSha256,
+  bindingSha256:parent.bindingSha256,originalMainSha:parent.originalMainSha,executorMainSha:'d'.repeat(40),manifestSha256:h,executorSourceSha256:h,
+  parentResumeSha256:s.parentResumeSha256,stopped:Object.fromEntries(['authorizationId','nonce','runId','runAttempt','mainSha','intentSha256','claimSha256','responseSha256','bootstrapSha256','stagedSha256'].map(k=>[k,s[k]])),
+  replacement:{nonce:id(77),runId:'987654',runAttempt:1},eligibilitySha256:h,originalRunSha256:h,freshForeignSha256:'e'.repeat(64),createdAt:new Date(now).toISOString()};
+ const payload={packet:{operation:{mainSha:parent.originalMainSha}},binding:{main_sha:parent.originalMainSha},recovery:null,
+  repair:parent.prepareRepair,resume:{record:parent,observation:{foreignSha256:child.freshForeignSha256}},prepublicationRecovery:child};
+ const ticket={action:'execute',operationId:child.operationId,packetSha256:child.packetSha256,bindingSha256:child.bindingSha256,mainSha:child.executorMainSha,
+  ...child.replacement,authorizationId:id(78),prepublicationRecoverySha256:digestJson(child),resumeSha256:digestJson(payload.resume),repairSha256:digestJson(payload.repair)};
+ return {ticket,payload};
+}
+test('child signing identity retains the exact parent and binds current executor, new run and fresh baseline',()=>{
+ const f=childBindingFixture();assert.equal(assertDispatchPrepublicationBinding(f),f.payload.prepublicationRecovery);
+ assert.equal(digestJson(f.payload.resume.record),PREPUBLICATION_STOPPED.parentResumeSha256);
+ assert.notEqual(f.payload.resume.record.freshForeignSha256,f.payload.resume.observation.foreignSha256);
+ for(const mutate of [f=>f.ticket.authorizationId=PREPUBLICATION_STOPPED.authorizationId,
+  f=>f.ticket.authorizationId=EXECUTE_RESUME_ORIGINAL.authorizationId,f=>f.ticket.authorizationId=stoppedResume.prepareRepair.originalAttempt.authorizationId,
+  f=>f.ticket.action='seal',f=>f.ticket.mainSha=PREPUBLICATION_STOPPED.mainSha,f=>f.ticket.runId=PREPUBLICATION_STOPPED.runId,
+  f=>f.ticket.nonce=PREPUBLICATION_STOPPED.nonce,f=>f.ticket.prepublicationRecoverySha256=h,
+  f=>f.payload.resume.record.freshForeignSha256=h,f=>f.payload.resume.observation.foreignSha256=h,
+  f=>f.payload.repair.executorMainSha='a'.repeat(40),f=>f.payload.recovery={}]){
+  const bad=childBindingFixture();mutate(bad);assert.throws(()=>assertDispatchPrepublicationBinding(bad));
+ }
 });
