@@ -23,6 +23,7 @@ test('committed restart composes only the fixed native fixture and stays in the 
  assert.match(selected.source,/WHERE operation_id='7c70e27f-ba37-48cc-8f93-d32badcb2fb7' ORDER BY ordinal LOOP/);
  assert.doesNotMatch(selected.source,/eb270056-0000-4000-8000-000000000700|pg_temp\.empty_books_id\(700\)/);
  assert.equal((selected.source.match(/^COMMIT;$/gm)??[]).length,2);
+ assert.match(selected.source,/\\endif\n\\if :empty_month\nCOMMIT;\nBEGIN;/);
  assert.equal((selected.source.match(/SELECT \* FROM finish\(\);/g)??[]).length,1);
  assert.doesNotMatch(selected.source,/^\s*\\(?:i|ir)\s/m);
  assert.equal(runSessionTest(selected,{run:()=>{throw Error('committed fixture must not reach source database');},

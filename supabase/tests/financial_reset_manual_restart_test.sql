@@ -2,9 +2,9 @@
 -- Expanded by scripts/run-database-tests.mjs; never run directly.
 \set empty_books_single_admin true
 \ir financial_reset_empty_books_test.sql
+\if :empty_month
 COMMIT;
 BEGIN;
-\if :empty_month
 -- The complete native fixture above has really committed its frozen checkpoint.
 -- No customer rows are copied. Session claims below emulate the SQL gateway;
 -- genuine HTTP authorization remains a separate production acceptance check.
