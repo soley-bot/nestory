@@ -51,8 +51,14 @@ export function databaseTestPlan(files) {
       assert.doesNotMatch(base,/^\s*\\(?:i|ir)\s/m,'The native base fixture cannot include other files.');
       const operation='pg_temp.empty_books_id(700) AS operation';
       assert.equal(base.split(operation).length,2,'The committed restart operation anchor must occur exactly once.');
+      const actionOperation="WHERE operation_id='eb270056-0000-4000-8000-000000000700' ORDER BY ordinal LOOP";
+      assert.equal(base.split(actionOperation).length,2,'The committed restart action operation anchor must occur exactly once.');
       assert.ok(base.endsWith('SELECT * FROM finish();\nROLLBACK;\n'),'The committed restart requires the exact native rollback ending.');
-      base=base.replace(operation,"'7c70e27f-ba37-48cc-8f93-d32badcb2fb7'::uuid AS operation").slice(0,-'SELECT * FROM finish();\nROLLBACK;\n'.length);
+      base=base.replace(operation,"'7c70e27f-ba37-48cc-8f93-d32badcb2fb7'::uuid AS operation")
+        .replace(actionOperation,"WHERE operation_id='7c70e27f-ba37-48cc-8f93-d32badcb2fb7' ORDER BY ordinal LOOP")
+        .slice(0,-'SELECT * FROM finish();\nROLLBACK;\n'.length);
+      assert.doesNotMatch(base,/eb270056-0000-4000-8000-000000000700|pg_temp\.empty_books_id\(700\)/,
+        'The committed restart cannot retain another operation identity.');
       const tail=source.slice(restartPrefix.length);
       assert.doesNotMatch(tail,/^\s*\\(?:i|ir)\s/m,'The committed restart cannot include other files.');
       source='\\set empty_books_single_admin true\n'+base+tail;
@@ -75,9 +81,17 @@ export function databaseTestPlan(files) {
   return { ordinary, session };
 }
 
+export function syntheticFixtureDiagnostics(output, name) {
+  if(!['financial_reset_single_admin_test.sql','financial_reset_execute_resume_test.sql','financial_reset_manual_restart_test.sql'].includes(name)) return '';
+  // Streamed synthetic fixtures also SELECT binding documents. Print only TAP
+  // results/diagnostics on failure, never those raw values, dumps or credentials.
+  const tap=String(output??'').split(/\r?\n/).filter(line=>/^(?:ok [0-9]+\b|not ok [0-9]+\b|#|Bail out!)/.test(line));
+  return `Synthetic fixture ${name}, bounded TAP tail:\n${tap.slice(-100).join('\n').slice(-16000)}`;
+}
+
 export function verifyPgTapOutput(output, name) {
   const lines = output.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-  assert.ok(!lines.some(line => /^(?:not ok\b|Bail out!)/i.test(line)), `${name}: pgTAP failure or bailout`);
+  assert.ok(!lines.some(line => /^(?:not ok\b|Bail out!)/i.test(line)), `${name}: pgTAP failure or bailout\n${syntheticFixtureDiagnostics(output,name)}`);
   const plans = lines.filter(line => /^1\.\./.test(line));
   assert.equal(plans.length, 1, `${name}: exactly one pgTAP plan is required`);
   assert.match(plans[0], /^1\.\.[1-9][0-9]*$/, `${name}: an unskipped positive plan is required`);
@@ -130,8 +144,8 @@ export async function localDatabaseTestTarget({ config, execute, env = process.e
   const runSingleAdmin = (file) => {
     assert.ok(['financial_reset_single_admin_test.sql', 'financial_reset_execute_resume_test.sql', 'financial_reset_manual_restart_test.sql'].includes(file.name));
     const database = `single_admin_test_${randomUUID().replaceAll('-', '')}`;
-    const checkedDocker = (arguments_, input) => { verify(inspect(), initial.id); return docker(arguments_, input); };
-    const cloneRun = (source) => checkedDocker(args.map((value, index) => args[index - 1] === '-d' ? database : value), source);
+    const checkedDocker = (arguments_, input, options) => { verify(inspect(), initial.id); return docker(arguments_, input, options); };
+    const cloneRun = (source, options) => checkedDocker(args.map((value, index) => args[index - 1] === '-d' ? database : value), source, options);
     const dump = (extra) => checkedDocker(['exec', initial.id, 'pg_dump', '-h', '/var/run/postgresql', '-U', 'supabase_admin', '-d', 'postgres',
       '--exclude-extension=pg_cron', '--exclude-extension=pg_net', '--exclude-schema=cron', '--exclude-schema=net', '--no-publications', '--no-subscriptions', ...extra]);
     const relations = JSON.parse(run("SELECT coalesce(json_agg(n.nspname||'.'||c.relname ORDER BY n.nspname,c.relname),'[]') FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','app_private','auth') AND c.relkind='r';"));
@@ -151,7 +165,7 @@ export async function localDatabaseTestTarget({ config, execute, env = process.e
       cloneRun(SINGLE_ADMIN_RUNTIME_BOOTSTRAP_SQL);
       assert.equal(cloneRun("SELECT session_user='supabase_admin' AND current_user=session_user AND inet_server_addr() IS NULL AND (SELECT rolsuper FROM pg_roles WHERE rolname=session_user) AND NOT EXISTS(SELECT 1 FROM public.organizations) AND NOT EXISTS(SELECT 1 FROM auth.users) AND NOT EXISTS(SELECT 1 FROM auth.sessions) AND NOT EXISTS(SELECT 1 FROM public.organization_members);").trim(), 't');
       const cleanBefore = cloneRun(census);
-      const output = cloneRun(file.source);
+      const output = cloneRun(file.source,{syntheticFixtureName:file.name});
       if(file.name!=='financial_reset_manual_restart_test.sql') {
         assert.equal(cloneRun(census), cleanBefore, 'Single-admin fixture must roll back its complete row census and organizations.');
       }
@@ -188,9 +202,10 @@ export function runSessionTest(file, target) {
 
 export async function main(repository = path.resolve(import.meta.dirname, '..')) {
   const execute = (command, args, input, options = {}) => {
+    const {syntheticFixtureName,...spawnOptions}=options;
     const result = spawnSync(command, args, { cwd: repository, input, encoding: 'utf8',
-      windowsHide: true, shell: false, timeout: 600_000, maxBuffer: 32 * 1024 * 1024, ...options });
-    if (result.error || result.status !== 0) throw Error(`${command} failed: ${result.stderr || result.error?.message || result.status}`);
+      windowsHide: true, shell: false, timeout: 600_000, maxBuffer: 32 * 1024 * 1024, ...spawnOptions });
+    if (result.error || result.status !== 0) throw Error(`${command} failed: ${result.stderr || result.error?.message || result.status}\n${syntheticFixtureDiagnostics(result.stdout,syntheticFixtureName)}`);
     return result.stdout;
   };
   const directory = path.join(repository, 'supabase/tests');

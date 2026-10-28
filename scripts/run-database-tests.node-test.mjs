@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
-import { SESSION_TESTS, SINGLE_ADMIN_RUNTIME_BOOTSTRAP_SQL, databaseTestPlan, localDatabaseTestTarget, runSessionTest, verifyPgTapOutput } from './run-database-tests.mjs';
+import { SESSION_TESTS, SINGLE_ADMIN_RUNTIME_BOOTSTRAP_SQL, databaseTestPlan, localDatabaseTestTarget, runSessionTest, syntheticFixtureDiagnostics, verifyPgTapOutput } from './run-database-tests.mjs';
 
 test('all fourteen privileged tests stay classified and every other SQL test remains ordinary', () => {
   const root = new URL('../supabase/tests/', import.meta.url);
@@ -20,16 +20,30 @@ test('committed restart composes only the fixed native fixture and stays in the 
  const files=readdirSync(root).filter(name=>name.endsWith('.sql')).map(name=>({name,source:readFileSync(new URL(name,root),'utf8')}));
  const selected=databaseTestPlan(files).session.find(f=>f.name==='financial_reset_manual_restart_test.sql');
  assert.match(selected.source,/'7c70e27f-ba37-48cc-8f93-d32badcb2fb7'::uuid AS operation/);
+ assert.match(selected.source,/WHERE operation_id='7c70e27f-ba37-48cc-8f93-d32badcb2fb7' ORDER BY ordinal LOOP/);
+ assert.doesNotMatch(selected.source,/eb270056-0000-4000-8000-000000000700|pg_temp\.empty_books_id\(700\)/);
  assert.equal((selected.source.match(/^COMMIT;$/gm)??[]).length,2);
  assert.equal((selected.source.match(/SELECT \* FROM finish\(\);/g)??[]).length,1);
  assert.doesNotMatch(selected.source,/^\s*\\(?:i|ir)\s/m);
  assert.equal(runSessionTest(selected,{run:()=>{throw Error('committed fixture must not reach source database');},
   runSingleAdmin:file=>{assert.equal(file,selected);return 'ok 1 - native committed reset and restart\n1..1\n';}}),1);
  for(const edit of [source=>source.replace('pg_temp.empty_books_id(700) AS operation','changed AS operation'),
+   source=>source.replace("WHERE operation_id='eb270056-0000-4000-8000-000000000700' ORDER BY ordinal LOOP",'WHERE true ORDER BY ordinal LOOP'),
    source=>source.replace('SELECT * FROM finish();\nROLLBACK;','COMMIT;')]) {
   assert.throws(()=>databaseTestPlan(files.map(f=>f.name==='financial_reset_empty_books_test.sql'?{...f,source:edit(f.source.replaceAll('\r\n','\n'))}:f)));
  }
  assert.throws(()=>databaseTestPlan(files.map(f=>f.name==='financial_reset_manual_restart_test.sql'?{...f,source:f.source+'\\ir secret.sql\n'}:f)),/cannot include/);
+});
+
+test('owned synthetic fixture failures retain bounded TAP evidence without raw selected documents',()=>{
+ const source='{"binding":"not-for-output","token":"secret"}\nok 1 - prepared\nnot ok 2 - expected checked action\n# caught: rejected\n';
+ const diagnostic=syntheticFixtureDiagnostics(source,'financial_reset_manual_restart_test.sql');
+ assert.match(diagnostic,/not ok 2 - expected checked action/);
+ assert.match(diagnostic,/# caught: rejected/);
+ assert.doesNotMatch(diagnostic,/not-for-output|secret|token/);
+ assert.equal(syntheticFixtureDiagnostics(source,'ordinary.sql'),'');
+ assert.ok(syntheticFixtureDiagnostics('#'.repeat(50000),'financial_reset_manual_restart_test.sql').length<16200);
+ assert.throws(()=>verifyPgTapOutput(source+'1..2\n','financial_reset_manual_restart_test.sql'),/caught: rejected/);
 });
 
 test('fixed execute-resume fixture uses the existing clean-schema lane', () => {
