@@ -3,17 +3,19 @@
 import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { submitMaintenanceReviewAction } from "./actions";
-import { MAX_REVIEW_BYTES, parseSessionReview, reviewUsesSoleAdministrator, RESET_STAGE_LABELS, type MaintenanceActionState, type SessionReview } from "./review";
+import { restartPilotManualBillingAction, submitMaintenanceReviewAction } from "./actions";
+import { MAX_REVIEW_BYTES, parseSessionReview, reviewUsesSoleAdministrator, RESET_STAGE_LABELS, type MaintenanceActionState, type ManualRestartActionState, type PilotManualRestartStatus, type SessionReview } from "./review";
 
-export function MaintenanceForm() {
+export function MaintenanceForm({ manualRestart }: { manualRestart?: PilotManualRestartStatus | null } = {}) {
   const [source, setSource] = useState("");
   const [review, setReview] = useState<SessionReview | null>(null);
   const [fileError, setFileError] = useState("");
   const fileRead = useRef(0);
   const [state, action, pending] = useActionState(submitMaintenanceReviewAction, { kind: "idle" } as MaintenanceActionState);
   const locked = pending || ["issued", "endorsed", "uncertain"].includes(state.kind);
-  return <section className="max-w-3xl space-y-5 rounded-xl border bg-card p-5">
+  return <div className="max-w-3xl space-y-5">
+    {manualRestart !== undefined && <ManualRestartPanel status={manualRestart} />}
+    <section className="space-y-5 rounded-xl border bg-card p-5">
     <div className="space-y-2">
       <h1 className="text-lg font-semibold">Pilot October reset approvals</h1>
       <p className="text-sm text-muted-foreground">Review one stage of the prepared reset or recovery packet. October starts with zero balances and no rental invoices. Properties, people, leases and all contract terms stay intact; billing stays paused.</p>
@@ -66,5 +68,30 @@ export function MaintenanceForm() {
         {state.authorizationId && <p>Authorization locator: <code className="break-all">{state.authorizationId}</code></p>}
       </div>}
     </form>
+  </section></div>;
+}
+
+export function ManualRestartPanel({ status }: { status: PilotManualRestartStatus | null }) {
+  const [state, action, pending] = useActionState(restartPilotManualBillingAction, { kind: "idle" } as ManualRestartActionState);
+  const reopened = status?.status === "already_open" && status.billing_mode === "manual" || state.kind === "reopened";
+  const locked = pending || reopened || state.kind === "uncertain";
+  return <section className="space-y-4 rounded-xl border bg-card p-5">
+    <h2 className="text-lg font-semibold">{reopened ? "Pilot is open for manual billing" : "Resume Pilot after the October reset"}</h2>
+    <p className="text-sm text-muted-foreground">Reopen financial entry with automatic rent invoices off. Users choose when to generate rent or enter charges, payments, expenses and deposits. This does not run the reset again or generate invoices.</p>
+    {status && <p className="text-sm">Retained records: {status.preserved_counts.properties} properties, {status.preserved_counts.units} units, {status.preserved_counts.people} people and {status.preserved_counts.leases} leases. The financial period starts on 1 October 2026.</p>}
+    {reopened ? <Button asChild>
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- A full navigation replaces the frozen financial session after restart. */}
+      <a href="/properties">Open Pilot</a>
+    </Button> : status?.eligible && status.checkpoint_sha256 ?
+      <form action={action} className="space-y-4">
+        <input type="hidden" name="expectedGeneration" value={status.generation} />
+        <input type="hidden" name="checkpointSha256" value={status.checkpoint_sha256} />
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" name="confirm" value="manual-billing" required disabled={locked} className="mt-1" />
+          <span>I approve reopening Pilot for manual financial entry. Automatic rent invoices remain off.</span>
+        </label>
+        <Button type="submit" disabled={locked}>{pending ? "Reopening Pilot…" : "Reopen Pilot for manual billing"}</Button>
+      </form> : <p role="status" className="text-sm">The completed reset is not ready to reopen, or this session could not verify it. Refresh after checking your administrator session.</p>}
+    {state.message && <p role={state.kind === "invalid" || state.kind === "uncertain" ? "alert" : "status"} className="text-sm">{state.message}</p>}
   </section>;
 }

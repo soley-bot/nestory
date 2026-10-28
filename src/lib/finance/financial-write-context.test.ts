@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { copyFinancialGeneration, financialFormValues, financialGenerationHeaders, financialWriteContextSchema, financialWriteError, FINANCIAL_GENERATION_FIELD, FINANCIAL_GENERATION_HEADER } from "./financial-write-context";
+import { copyFinancialGeneration, financialContextKey, financialFormValues, financialGenerationHeaders, financialWriteContextSchema, financialWriteError, FINANCIAL_GENERATION_FIELD, FINANCIAL_GENERATION_HEADER } from "./financial-write-context";
 
 describe("financial session transport", () => {
+  it("retains manual billing policy and invalidates a session when that policy changes", () => {
+    const original = { generation: 1, status: "open" as const, financial_start_date: "2026-10-01", enforced: true };
+    const manual = financialWriteContextSchema.parse({ ...original, automatic_rent_enabled: false });
+    expect(manual.automatic_rent_enabled).toBe(false);
+    expect(financialContextKey(manual)).not.toBe(financialContextKey(original));
+    expect(financialContextKey({ ...original, automatic_rent_enabled: true })).toBe(financialContextKey(original));
+    expect(financialWriteContextSchema.safeParse({ ...original, automatic_rent_enabled: "false" }).success).toBe(false);
+  });
   it("keeps hidden lifecycle metadata out of strict business validation without ignoring other fields", () => {
     const data = new FormData(); data.set("__financialGeneration", "2"); data.set("$ACTION_ID", "internal"); data.set("unexpected", "must still be validated");
     expect(financialFormValues(data)).toEqual({ unexpected: "must still be validated" });

@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { configuredDepositContainer } from './deposit-candidate-target.mjs';
 import { localRecoveryDocker } from './local-recovery-docker.mjs';
 
-// Only these rollback-only fixtures need an authentic session_user transition.
+// These fixtures need a SQL-emulated session_user transition. The one committed
+// restart fixture runs only in an owned schema-only clone which is then dropped.
 // Ordinary tests retain the CLI's postgres connection. No role is granted or
 // altered, and the application session checks remain enabled.
 export const SESSION_TESTS = Object.freeze([
@@ -20,6 +21,7 @@ export const SESSION_TESTS = Object.freeze([
   'financial_reset_genuine_session_actor_bridge_test.sql',
   'financial_reset_held_deposit_forward_test.sql',
   'financial_reset_known_zero_checked_phase_test.sql',
+  'financial_reset_manual_restart_test.sql',
   'financial_reset_original_invoice_dates_test.sql',
   'financial_reset_reviewed_dispositions_test.sql',
   'financial_reset_scoped_session_commands_test.sql',
@@ -30,6 +32,7 @@ export function databaseTestPlan(files) {
   const ordinary = [], session = [];
   const wrapperName='financial_reset_single_admin_test.sql';
   const wrapper='-- Fixed single-admin variant of the complete rollback-only native fixture.\n\\set empty_books_single_admin true\n\\ir financial_reset_empty_books_test.sql\n';
+  const restartPrefix='-- Owned-schema-only committed restart variant.\n-- Expanded by scripts/run-database-tests.mjs; never run directly.\n\\set empty_books_single_admin true\n\\ir financial_reset_empty_books_test.sql\n';
   for (const file of files) {
     let source=file.source;
     if(file.name===wrapperName){
@@ -39,6 +42,28 @@ export function databaseTestPlan(files) {
       assert.doesNotMatch(bases[0].source,/^\s*\\(?:i|ir)\s/m,'The native base fixture cannot include other files.');
       source='\\set empty_books_single_admin true\n'+bases[0].source;
     }
+    if(file.name==='financial_reset_manual_restart_test.sql'){
+      source=source.replaceAll('\r\n','\n');
+      assert.ok(source.startsWith(restartPrefix),'Only the exact reviewed committed restart fixture include is allowed.');
+      const bases=files.filter(f=>f.name==='financial_reset_empty_books_test.sql');
+      assert.equal(bases.length,1,'The committed restart requires exactly one native base fixture.');
+      let base=bases[0].source.replaceAll('\r\n','\n');
+      assert.doesNotMatch(base,/^\s*\\(?:i|ir)\s/m,'The native base fixture cannot include other files.');
+      const operation='pg_temp.empty_books_id(700) AS operation';
+      assert.equal(base.split(operation).length,2,'The committed restart operation anchor must occur exactly once.');
+      const actionOperation="WHERE operation_id='eb270056-0000-4000-8000-000000000700' ORDER BY ordinal LOOP";
+      assert.equal(base.split(actionOperation).length,2,'The committed restart action operation anchor must occur exactly once.');
+      assert.ok(base.endsWith('SELECT * FROM finish();\nROLLBACK;\n'),'The committed restart requires the exact native rollback ending.');
+      base=base.replace(operation,"'7c70e27f-ba37-48cc-8f93-d32badcb2fb7'::uuid AS operation")
+        .replace(actionOperation,"WHERE operation_id='7c70e27f-ba37-48cc-8f93-d32badcb2fb7' ORDER BY ordinal LOOP")
+        .slice(0,-'SELECT * FROM finish();\nROLLBACK;\n'.length);
+      assert.doesNotMatch(base,/eb270056-0000-4000-8000-000000000700|pg_temp\.empty_books_id\(700\)/,
+        'The committed restart cannot retain another operation identity.');
+      const tail=source.slice(restartPrefix.length);
+      assert.doesNotMatch(tail,/^\s*\\(?:i|ir)\s/m,'The committed restart cannot include other files.');
+      source='\\set empty_books_single_admin true\n'+base+tail;
+      assert.equal((source.match(/^COMMIT;$/gm)??[]).length,2,'The committed restart requires separate native reset and restart commits.');
+    }
     const privileged = SESSION_TESTS.includes(file.name);
     assert.equal(/\bSET\s+SESSION\s+AUTHORIZATION\b/i.test(source), privileged,
       `Session-authorization fixture must have an explicit reviewed classification: ${file.name}`);
@@ -46,7 +71,7 @@ export function databaseTestPlan(files) {
       assert.match(source, /\bBEGIN\s*;/i);
       assert.match(source, /CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;/);
       assert.match(source, /\bROLLBACK\s*;\s*$/i);
-      assert.doesNotMatch(source, /^\s*COMMIT\s*;/im);
+      if(file.name!=='financial_reset_manual_restart_test.sql') assert.doesNotMatch(source, /^\s*COMMIT\s*;/im);
       session.push({...file,source});
     } else ordinary.push(file);
   }
@@ -56,9 +81,17 @@ export function databaseTestPlan(files) {
   return { ordinary, session };
 }
 
+export function syntheticFixtureDiagnostics(output, name) {
+  if(!['financial_reset_single_admin_test.sql','financial_reset_execute_resume_test.sql','financial_reset_manual_restart_test.sql'].includes(name)) return '';
+  // Streamed synthetic fixtures also SELECT binding documents. Print only TAP
+  // results/diagnostics on failure, never those raw values, dumps or credentials.
+  const tap=String(output??'').split(/\r?\n/).filter(line=>/^(?:ok [0-9]+\b|not ok [0-9]+\b|#|Bail out!)/.test(line));
+  return `Synthetic fixture ${name}, bounded TAP tail:\n${tap.slice(-100).join('\n').slice(-16000)}`;
+}
+
 export function verifyPgTapOutput(output, name) {
   const lines = output.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-  assert.ok(!lines.some(line => /^(?:not ok\b|Bail out!)/i.test(line)), `${name}: pgTAP failure or bailout`);
+  assert.ok(!lines.some(line => /^(?:not ok\b|Bail out!)/i.test(line)), `${name}: pgTAP failure or bailout\n${syntheticFixtureDiagnostics(output,name)}`);
   const plans = lines.filter(line => /^1\.\./.test(line));
   assert.equal(plans.length, 1, `${name}: exactly one pgTAP plan is required`);
   assert.match(plans[0], /^1\.\.[1-9][0-9]*$/, `${name}: an unskipped positive plan is required`);
@@ -71,6 +104,7 @@ export function verifyPgTapOutput(output, name) {
       'financial_reset_original_invoice_dates_test.sql': 'Original-date success path is eligible only during October 2026; no clock override is used.',
       'financial_reset_empty_books_test.sql': 'October-only success path is not executed with a fabricated database clock.',
       'financial_reset_single_admin_test.sql': 'October-only success path is not executed with a fabricated database clock.',
+      'financial_reset_manual_restart_test.sql': 'October-only success path is not executed with a fabricated database clock.',
     };
     const skip = line.match(/\s+#\s*SKIP\s+(.*)$/i);
     if (skip) assert.equal(skip[1], knownDateSkips[name], `${name}: only the existing date-bound skip is allowed`);
@@ -108,10 +142,10 @@ export async function localDatabaseTestTarget({ config, execute, env = process.e
   assert.equal(run("SELECT session_user='supabase_admin' AND current_user=session_user AND inet_server_addr() IS NULL AND (SELECT rolsuper FROM pg_roles WHERE rolname=session_user);").trim(), 't',
     'Session tests require the existing local socket administrator; no role changes are permitted.');
   const runSingleAdmin = (file) => {
-    assert.ok(['financial_reset_single_admin_test.sql', 'financial_reset_execute_resume_test.sql'].includes(file.name));
+    assert.ok(['financial_reset_single_admin_test.sql', 'financial_reset_execute_resume_test.sql', 'financial_reset_manual_restart_test.sql'].includes(file.name));
     const database = `single_admin_test_${randomUUID().replaceAll('-', '')}`;
-    const checkedDocker = (arguments_, input) => { verify(inspect(), initial.id); return docker(arguments_, input); };
-    const cloneRun = (source) => checkedDocker(args.map((value, index) => args[index - 1] === '-d' ? database : value), source);
+    const checkedDocker = (arguments_, input, options) => { verify(inspect(), initial.id); return docker(arguments_, input, options); };
+    const cloneRun = (source, options) => checkedDocker(args.map((value, index) => args[index - 1] === '-d' ? database : value), source, options);
     const dump = (extra) => checkedDocker(['exec', initial.id, 'pg_dump', '-h', '/var/run/postgresql', '-U', 'supabase_admin', '-d', 'postgres',
       '--exclude-extension=pg_cron', '--exclude-extension=pg_net', '--exclude-schema=cron', '--exclude-schema=net', '--no-publications', '--no-subscriptions', ...extra]);
     const relations = JSON.parse(run("SELECT coalesce(json_agg(n.nspname||'.'||c.relname ORDER BY n.nspname,c.relname),'[]') FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','app_private','auth') AND c.relkind='r';"));
@@ -131,8 +165,12 @@ export async function localDatabaseTestTarget({ config, execute, env = process.e
       cloneRun(SINGLE_ADMIN_RUNTIME_BOOTSTRAP_SQL);
       assert.equal(cloneRun("SELECT session_user='supabase_admin' AND current_user=session_user AND inet_server_addr() IS NULL AND (SELECT rolsuper FROM pg_roles WHERE rolname=session_user) AND NOT EXISTS(SELECT 1 FROM public.organizations) AND NOT EXISTS(SELECT 1 FROM auth.users) AND NOT EXISTS(SELECT 1 FROM auth.sessions) AND NOT EXISTS(SELECT 1 FROM public.organization_members);").trim(), 't');
       const cleanBefore = cloneRun(census);
-      const output = cloneRun(file.source);
-      assert.equal(cloneRun(census), cleanBefore, 'Single-admin fixture must roll back its complete row census and organizations.');
+      const output = cloneRun(file.source,{syntheticFixtureName:file.name});
+      if(file.name!=='financial_reset_manual_restart_test.sql') {
+        assert.equal(cloneRun(census), cleanBefore, 'Single-admin fixture must roll back its complete row census and organizations.');
+      }
+      // Only the fixed committed restart keeps synthetic rows until DROP below.
+      // The source census, owned database identity and verified cleanup remain mandatory.
       return output;
     } finally {
       let cleanupFailed = false, absent = false, sourceUnchanged = false;
@@ -159,14 +197,15 @@ export const SINGLE_ADMIN_RUNTIME_BOOTSTRAP_SQL = [
 
 export function runSessionTest(file, target) {
   assert.ok(SESSION_TESTS.includes(file.name));
-  return verifyPgTapOutput(['financial_reset_single_admin_test.sql', 'financial_reset_execute_resume_test.sql'].includes(file.name) ? target.runSingleAdmin(file) : target.run(file.source), file.name);
+  return verifyPgTapOutput(['financial_reset_single_admin_test.sql', 'financial_reset_execute_resume_test.sql', 'financial_reset_manual_restart_test.sql'].includes(file.name) ? target.runSingleAdmin(file) : target.run(file.source), file.name);
 }
 
 export async function main(repository = path.resolve(import.meta.dirname, '..')) {
   const execute = (command, args, input, options = {}) => {
+    const {syntheticFixtureName,...spawnOptions}=options;
     const result = spawnSync(command, args, { cwd: repository, input, encoding: 'utf8',
-      windowsHide: true, shell: false, timeout: 600_000, maxBuffer: 32 * 1024 * 1024, ...options });
-    if (result.error || result.status !== 0) throw Error(`${command} failed: ${result.stderr || result.error?.message || result.status}`);
+      windowsHide: true, shell: false, timeout: 600_000, maxBuffer: 32 * 1024 * 1024, ...spawnOptions });
+    if (result.error || result.status !== 0) throw Error(`${command} failed: ${result.stderr || result.error?.message || result.status}\n${syntheticFixtureDiagnostics(result.stdout,syntheticFixtureName)}`);
     return result.stdout;
   };
   const directory = path.join(repository, 'supabase/tests');

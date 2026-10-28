@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PILOT_RESET_ORGANIZATION, PILOT_RESET_PROJECT } from "./review";
-const { workspace, requestHeaders, permission, environment, notFound } = vi.hoisted(() => ({
+const { workspace, requestHeaders, permission, environment, notFound, rpc } = vi.hoisted(() => ({
   workspace: vi.fn(), requestHeaders: vi.fn(), permission: vi.fn(), environment: vi.fn(),
+  rpc: vi.fn(),
   notFound: vi.fn(() => { throw Error("not-found"); }),
 }));
 vi.mock("next/headers", () => ({ headers: requestHeaders }));
@@ -9,7 +10,8 @@ vi.mock("next/navigation", () => ({ notFound }));
 vi.mock("@/lib/auth/context", () => ({ requireWorkspaceContext: workspace }));
 vi.mock("@/lib/auth/permission-context", () => ({ hasPermission: permission }));
 vi.mock("@/lib/db/env", () => ({ getSupabaseEnv: environment }));
-import { requirePilotResetContext } from "./context";
+vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: async () => ({ rpc }) }));
+import { getPilotManualRestartStatus, requirePilotResetContext } from "./context";
 const approved = { organizationId: PILOT_RESET_ORGANIZATION, organizationSlug: "pilot", role: "super_admin", roleKind: "super_admin",
   isSuperAdmin: true, branchId: undefined, personId: undefined, permissionContext: {} };
 beforeEach(() => {
@@ -34,5 +36,10 @@ describe("Pilot maintenance tenant and membership boundary", () => {
     environment.mockReturnValue({ supabaseUrl: "https://other.supabase.co" }); await expect(requirePilotResetContext()).rejects.toThrow("not-found");
     environment.mockReturnValue({ supabaseUrl: `https://${PILOT_RESET_PROJECT}.supabase.co` }); permission.mockReturnValue(false);
     await expect(requirePilotResetContext()).rejects.toThrow("not-found");
+  });
+  it("never presents malformed or refused native status as permission to restart", async () => {
+    rpc.mockResolvedValue({ error: { code: "42501" }, data: null }); expect(await getPilotManualRestartStatus()).toBeNull();
+    rpc.mockResolvedValue({ error: null, data: { eligible: true, status: "ready" } }); expect(await getPilotManualRestartStatus()).toBeNull();
+    expect(rpc).toHaveBeenCalledWith("get_pilot_manual_restart_status");
   });
 });

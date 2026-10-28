@@ -1,6 +1,7 @@
 "use server";
-import { financialFormValues } from "@/lib/finance/financial-write-context";
+import { financialFormValues, financialGenerationHeaders, FINANCIAL_GENERATION_HEADER } from "@/lib/finance/financial-write-context";
 import { financialWriteError } from "@/lib/finance/financial-write-context";
+import { getFinancialWriteContext } from "@/lib/finance/financial-write-context.server";
 
 import { retainExpenseEvidence } from "./retain-expense-evidence";
 import { revalidatePath } from "next/cache";
@@ -107,7 +108,7 @@ const recoverRentSchema = z.object({ exceptionId: uuid });
 const recoverLeaseRentPeriodSchema = z.object({
   billingPeriod: z
     .string()
-    .regex(/^\d{4}-\d{2}$/, "Choose a historical rent month."),
+    .regex(/^(current|\d{4}-\d{2})$/, "Choose a historical rent month."),
   leaseId: uuid,
 });
 
@@ -439,9 +440,24 @@ export async function recoverLeaseRentPeriodAction(
   );
   if (!parsed.success) return validationError(parsed.error);
 
-  const context = await requireHistoricalRentRecoveryContext();
+  // The database resolves the selected lease's billing clock at execution time.
+  // An organization calendar date cannot determine current-month authority.
+  const currentManualMonth = parsed.data.billingPeriod === "current";
+  const context = currentManualMonth
+    ? await requireCurrentRentRetryContext()
+    : await requireHistoricalRentRecoveryContext();
+  if (currentManualMonth) {
+    const financial = await getFinancialWriteContext(context.organizationId);
+    if (financial.status !== "open" || financial.automatic_rent_enabled !== false ||
+      financialGenerationHeaders(formData)[FINANCIAL_GENERATION_HEADER] !== String(financial.generation)) {
+      return actionError("Reload the workspace. Current-month generation requires an open session with automatic rent invoices off.");
+    }
+  }
   const supabase = await createSupabaseServerClient(formData);
-  const { data, error } = await supabase.rpc("recover_lease_rent_period", {
+  const { data, error } = currentManualMonth ? await supabase.rpc("generate_current_lease_rent", {
+    p_lease_id: parsed.data.leaseId,
+    p_organization_id: context.organizationId,
+  }) : await supabase.rpc("recover_lease_rent_period", {
     p_billing_period_start: `${parsed.data.billingPeriod}-01`,
     p_lease_id: parsed.data.leaseId,
     p_organization_id: context.organizationId,
@@ -460,7 +476,7 @@ export async function recoverLeaseRentPeriodAction(
   }
 
   revalidateFinance();
-  return { message: "Historical rent month generated.", status: "success" };
+  return { message: currentManualMonth ? "Selected rent month generated." : "Historical rent month generated.", status: "success" };
 }
 
 export async function createManualTenantChargeAction(

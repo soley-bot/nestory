@@ -12217,6 +12217,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      generate_current_lease_rent: {
+        Args: { p_lease_id: string; p_organization_id: string }
+        Returns: Json
+      }
       generate_owner_balance_period: {
         Args: {
           p_currency: Database["public"]["Enums"]["currency_code"]
@@ -12799,6 +12803,7 @@ export type Database = {
           submission_id: string
         }[]
       }
+      get_pilot_manual_restart_status: { Args: never; Returns: Json }
       get_privileged_email_step_up_status: {
         Args: {
           p_organization_id: string
@@ -13631,6 +13636,14 @@ export type Database = {
           term_id: string
           unit_id: string
         }[]
+      }
+      restart_pilot_manual_billing: {
+        Args: {
+          p_expected_checkpoint_sha256: string
+          p_expected_generation: number
+          p_operation_id: string
+        }
+        Returns: Json
       }
       restore_document: {
         Args: { p_document_id: string; p_organization_id: string }

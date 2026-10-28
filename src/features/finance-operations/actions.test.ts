@@ -28,6 +28,7 @@ const {
   revalidatePath,
   rpc,
   unstableRethrow,
+  financialContext,
 } = vi.hoisted(() => ({
   adminDownload: vi.fn(),
   adminFrom: vi.fn(),
@@ -54,6 +55,7 @@ const {
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
   unstableRethrow: vi.fn(),
+  financialContext: vi.fn(),
 }));
 
 vi.mock("./retain-expense-evidence", () => ({ retainExpenseEvidence: vi.fn().mockResolvedValue(null) }));
@@ -79,6 +81,7 @@ vi.mock("@/lib/auth/privileged-step-up-guard", () => ({
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: async () => ({ rpc }),
 }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ getFinancialWriteContext: financialContext }));
 vi.mock("@/lib/db/admin", () => ({
   createSupabaseAdminClient: () => ({
     rpc: adminRpc,
@@ -281,6 +284,39 @@ describe("rent generation recovery action", () => {
       p_organization_id: organizationId,
     });
     expect(revalidatePath).toHaveBeenCalledWith("/rent-income");
+  });
+
+  it.each(["Asia/Phnom_Penh", "America/Los_Angeles"])("leaves the selected lease's current month to the database when the organization uses %s", async (operationalTimezone) => {
+    requireCurrentRentRetryContext.mockResolvedValue({ organizationId, operationalTimezone });
+    financialContext.mockResolvedValue({ generation: 1, status: "open", automatic_rent_enabled: false });
+    rpc.mockResolvedValue({ data: { status: "generated" }, error: null });
+    const form = new FormData(); form.set("billingPeriod", "current"); form.set("leaseId", leaseId); form.set("__financialGeneration", "1");
+    expect(await recoverLeaseRentPeriodAction({}, form)).toMatchObject({ status: "success", message: "Selected rent month generated." });
+    expect(requireHistoricalRentRecoveryContext).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("generate_current_lease_rent", {
+      p_organization_id: organizationId, p_lease_id: leaseId,
+    });
+  });
+
+  it("does not use current-month permission for automatic billing, stale forms or historical months", async () => {
+    requireCurrentRentRetryContext.mockResolvedValue({ organizationId, operationalTimezone: "Asia/Phnom_Penh" });
+    const form = new FormData(); form.set("billingPeriod", "current"); form.set("leaseId", leaseId); form.set("__financialGeneration", "1");
+    for (const latest of [{ generation: 1, status: "open", automatic_rent_enabled: true }, { generation: 2, status: "open", automatic_rent_enabled: false }, { generation: 1, status: "frozen", automatic_rent_enabled: false }]) {
+      financialContext.mockResolvedValue(latest);
+      expect((await recoverLeaseRentPeriodAction({}, form)).status).toBe("error");
+    }
+    expect(rpc).not.toHaveBeenCalled();
+    form.set("billingPeriod", "2026-01"); requireHistoricalRentRecoveryContext.mockRejectedValueOnce(Error("historical authority required"));
+    await expect(recoverLeaseRentPeriodAction({}, form)).rejects.toThrow("historical authority required");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("requires historical authority for an explicit month even when it matches the organization calendar", async () => {
+    const form = new FormData(); form.set("billingPeriod", new Date().toISOString().slice(0, 7)); form.set("leaseId", leaseId);
+    requireHistoricalRentRecoveryContext.mockRejectedValueOnce(Error("historical authority required"));
+    await expect(recoverLeaseRentPeriodAction({}, form)).rejects.toThrow("historical authority required");
+    expect(requireCurrentRentRetryContext).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("rejects an invalid recovery month before authorization", async () => {

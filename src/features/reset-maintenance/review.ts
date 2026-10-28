@@ -4,6 +4,7 @@ import { z } from "zod";
 // SQL, credentials, row archives, endpoint URLs or arbitrary RPC names.
 export const PILOT_RESET_ORGANIZATION = "752a87b8-bd04-4a45-9cb8-00687af66e73";
 export const PILOT_RESET_PROJECT = "pfvmztxktkwyewvxfgot";
+export const PILOT_RESET_OPERATION = "7c70e27f-ba37-48cc-8f93-d32badcb2fb7";
 export const MAX_REVIEW_BYTES = 256 * 1024;
 export const RESET_STAGE_LABELS = {
   freeze: "Authorize the financial write freeze",
@@ -97,6 +98,22 @@ export type MaintenanceActionState = {
   message?: string;
   authorizationId?: string;
 };
+
+export const pilotManualRestartStatusSchema = z.object({
+  eligible: z.boolean(), status: z.enum(["ready", "already_open", "not_ready"]),
+  operation_id: z.literal(PILOT_RESET_OPERATION), generation: z.literal(1),
+  checkpoint_sha256: sha.nullable(), financial_start_date: z.literal("2026-10-01"),
+  billing_mode: z.enum(["manual", "paused"]),
+  preserved_counts: z.object({ properties: count, units: count, people: count, leases: count }),
+  reason: z.string().nullable(),
+}).refine(value => !value.eligible || value.status === "ready" && value.checkpoint_sha256 !== null && value.billing_mode === "paused");
+export type PilotManualRestartStatus = z.infer<typeof pilotManualRestartStatusSchema>;
+export type ManualRestartActionState = { kind: "idle" | "invalid" | "uncertain" | "reopened"; message?: string };
+export const pilotManualRestartReceiptSchema = z.object({
+  status: z.enum(["open", "already_open"]), billing_mode: z.literal("manual"), generation: z.literal(1),
+  operation_id: z.literal(PILOT_RESET_OPERATION), financial_start_date: z.literal("2026-10-01"),
+  checkpoint_sha256: sha, receipt_recorded_at: z.iso.datetime({ offset: true }),
+});
 
 export function parseSessionReview(source: string): SessionReview | null {
   if (typeof source !== "string" || new TextEncoder().encode(source).length > MAX_REVIEW_BYTES) return null;
