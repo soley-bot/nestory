@@ -12799,10 +12799,7 @@ export type Database = {
           submission_id: string
         }[]
       }
-      get_pilot_manual_restart_status: {
-        Args: never
-        Returns: Json
-      }
+      get_pilot_manual_restart_status: { Args: never; Returns: Json }
       get_privileged_email_step_up_status: {
         Args: {
           p_organization_id: string
