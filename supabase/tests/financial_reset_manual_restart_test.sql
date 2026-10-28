@@ -127,8 +127,8 @@ SELECT is((SELECT count(*) FROM public.tenant_invoices WHERE organization_id=(SE
  'manual current-month generation creates exactly one canonical invoice');
 SELECT is((SELECT sum(amount) FROM public.tenant_invoice_lines WHERE organization_id=(SELECT org FROM manual_restart_review) AND line_type='rent'),400::numeric,
  'the canonical rent line uses the retained contract amount');
-SELECT is((SELECT sum(amount) FROM public.management_fee_occurrences WHERE organization_id=(SELECT org FROM manual_restart_review)),40::numeric,
- 'the retained ten-percent management fee is generated with the manual invoice');
+SELECT is((SELECT count(*) FROM public.management_fee_occurrences WHERE organization_id=(SELECT org FROM manual_restart_review)),0::bigint,
+ 'manual rent preserves the retained contract setting that disables management fees');
 SELECT pg_temp.reset_fixture_claims(maker) FROM manual_restart_review;
 SET SESSION AUTHORIZATION authenticator;
 SET LOCAL ROLE authenticated;
