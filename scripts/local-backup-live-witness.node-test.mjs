@@ -6,19 +6,39 @@ import {buildPilotRehearsalBinding,bindPilotRehearsalSemantics} from './local-ba
 import {preparePilotLivePacket,assertPilotLivePacketBinding} from './local-backup-live-packet.mjs';
 import {SOURCE_ENTRYPOINTS} from './pilot-finance-reset-operator-core.mjs';
 import {digestJson} from './pilot-finance-reset-hosted-transport-protocol.mjs';
+import {createPilotRamRehearsalPlanner} from './local-backup-ram-rehearsal-plan.mjs';
 const hash=v=>createHash('sha256').update(v).digest('hex');
 const manifestPath='supabase/migration-reconciliations/20260821-hosted-migration-canonical-hashes.json',manifest=await readFile(new URL('../'+manifestPath,import.meta.url),'utf8');
 const files=()=>new Map([[manifestPath,manifest],['supabase/migrations/20261026000100_fixture.sql','SELECT 1;'],['supabase/migrations/20261027005615_financial_reset_empty_books_preserved_contracts.sql','SELECT 2;']]);
 function refreshSummary(value){const{manifest_sha256,summary_text,...summary}=value.preview;void manifest_sha256;void summary_text;value.preview.summary_text=JSON.stringify(summary);value.preview.manifest_sha256=hash(value.preview.summary_text);}
-function fixture(){
- const f=pilotRamPlanFixture(),plan=f.planner.acceptMaterialization(f.preview,f.materialization),builder=createPilotLiveWitnessBuilder({manifestBytes:f.manifestBytes,expectedSourceSha256:f.expectedSourceSha256,operationId:f.operationId});
+function fixture(baseCount=1){
+ const f=pilotRamPlanFixture(),sourceFiles=files();
+ if(baseCount>1){
+  const earlier=Array.from({length:baseCount-1},(_,i)=>{const version=String(20260101000000n+BigInt(i)),name=`fixture_${i}`,sql=`SELECT ${i};`;
+   sourceFiles.set(`supabase/migrations/${version}_${name}.sql`,sql);return {version,name,statements:[{byteLength:Buffer.byteLength(sql),sha256:hash(sql)}]};});
+  f.snapshot.ledger=[...earlier,...f.snapshot.ledger];f.manifestBytes=Buffer.from(JSON.stringify(f.snapshot));f.expectedSourceSha256=hash(f.manifestBytes);
+  f.planner=createPilotRamRehearsalPlanner({manifestBytes:f.manifestBytes,expectedSourceSha256:f.expectedSourceSha256,operationId:f.operationId});
+  f.materialization.ledger_text=JSON.stringify([...f.snapshot.ledger,JSON.parse(f.materialization.ledger_text).at(-1)]);
+  f.materialization.summary={...f.materialization.summary,source_sha256:f.expectedSourceSha256,ledger_snapshot_sha256:hash(f.materialization.ledger_text)};
+  f.materialization.summary_text=JSON.stringify(f.materialization.summary);f.preview={...f.materialization.summary,summary_text:f.materialization.summary_text,manifest_sha256:hash(f.materialization.summary_text)};
+ }
+ const plan=f.planner.acceptMaterialization(f.preview,f.materialization),builder=createPilotLiveWitnessBuilder({manifestBytes:f.manifestBytes,expectedSourceSha256:f.expectedSourceSha256,operationId:f.operationId});
  const census=full=>f.snapshot.tables.filter(t=>(t.capture==='full-row-image')===full).map(t=>({table_name:t.table_name,row_count:t.row_count,rows_sha256:t.rows_sha256})).sort((a,b)=>a.table_name.localeCompare(b.table_name));
  const summary={...f.materialization.summary,source_snapshot_sha256:'8'.repeat(64),foreign_snapshot_sha256:'9'.repeat(64)},summary_text=JSON.stringify(summary,null,2);
  const value={format:'nestory-local-pilot-live-witness-v1',status:'ready',operationId:f.operationId,archiveSourceSha256:f.expectedSourceSha256,observedCaptureSha256:'7'.repeat(64),
   businessCensus:census(true),securityCensus:census(false),storageObjectCount:0,storageBucketCount:0,storageClosureSha256:hash(':'),foreignOrganizationCount:4,foreignCensusSha256:summary.foreign_snapshot_sha256,
   preview:{...summary,summary_text,manifest_sha256:hash(summary_text)}};
- return{...f,plan,builder,value};
+ return{...f,plan,builder,value,sourceFiles};
 }
+test('historical 260-entry witness requires its exact original sources; current 261 and changed historical bytes remain rejected',()=>{
+ const f=fixture(259),witness=f.builder.accept(f.value,f.plan),args={plan:f.plan,witness,hostedLedgerText:f.materialization.ledger_text,sourceFiles:f.sourceFiles};
+ const bound=bindPilotLiveRehearsal(args);assert.equal(bound.executionBaseline.migrationCount,260);
+ const current=new Map(f.sourceFiles);current.set('supabase/migrations/20261028053520_financial_reset_execute_attempt_foreign_baseline.sql','SELECT 3;');
+ assert.throws(()=>bindPilotLiveRehearsal({...args,sourceFiles:current}),/local_live_witness_unverified/);
+ const altered=new Map(f.sourceFiles);altered.set('supabase/migrations/20261026000100_fixture.sql','SELECT 9;');
+ assert.throws(()=>bindPilotLiveRehearsal({...args,sourceFiles:altered}));
+ assert.deepEqual(bindPilotLiveRehearsal(args),bound);
+});
 test('aggregate SQL reuses fixed scoped capture and same-transaction materializer without selecting row payloads',()=>{
  const f=fixture(),sql=f.builder.sql();assert.match(sql,/^BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;/);
  assert.match(sql,/live_plan AS MATERIALIZED \(WITH RECURSIVE/);assert.match(sql,/'businessCensus'/);assert.match(sql,/'storageClosureSha256'/);

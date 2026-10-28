@@ -7,6 +7,7 @@ import {inspectSavedPilotRehearsal,assertSavedPilotRehearsalHeld,readPilotLiveMi
 import {assertBusinessRehearsalInputReference} from './local-backup-business-runtime.mjs';
 import {createPilotLiveWitnessBuilder,bindPilotLiveRehearsal} from './local-backup-live-witness.mjs';
 import {digestDatabaseJson} from './pilot-finance-reset-hosted-transport-protocol.mjs';
+import {assertLocalDispatchCompatibilityCurrent,readLocalDispatchCompatibleSources} from './local-backup-dispatch-repair.mjs';
 const exact=(v,k)=>v&&Object.getPrototypeOf(v)===Object.prototype&&Object.keys(v).sort().join(',')===[...k].sort().join(',');
 const fail=()=>{throw Error('local_saved_live_witness_unverified')};
 export function bindSavedPilotLiveWitness({context,value,sourceFiles}){
@@ -33,13 +34,24 @@ export async function persistPilotLiveWitnessInputs({context,witness,hostedLedge
   return Object.freeze({keyId,archiveId,archiveSha256:backupHash(cipher),plaintextSha256:backupHash(bytes),plaintextBytes:bytes.length});
  }finally{bytes.fill(0);cipher?.fill(0)}
 }
-export async function openPilotLiveWitnessInputs({context,reference}){
+export async function openPilotLiveWitnessInputs({context,reference},options){
+ if(options!==undefined){
+  if(!exact(options,['compatibility','packet']))fail();
+  options={compatibility:options.compatibility,packet:structuredClone(options.packet)};
+  await assertLocalDispatchCompatibilityCurrent(options.compatibility,options.packet);
+ }
  reference=structuredClone(reference);
  await assertSavedPilotRehearsalHeld(context);const saved=inspectSavedPilotRehearsal(context);saved.manifestBytes.fill(0);
  assertBusinessRehearsalInputReference(reference,saved.request.keyId);if(reference.plaintextBytes>4*1024*1024)fail();let cipher,plain;
  try{
   cipher=await readPrivateBackupFile(reference.archiveId,'archive.pgp');if(backupHash(cipher)!==reference.archiveSha256)fail();plain=await decryptLocalBackup(reference.keyId,cipher);
   if(plain.length!==reference.plaintextBytes||backupHash(plain)!==reference.plaintextSha256)fail();const value=JSON.parse(new TextDecoder('utf8',{fatal:true}).decode(plain));
-  const binding=bindSavedPilotLiveWitness({context,value,sourceFiles:await readPilotLiveMigrationSources()});await assertSavedPilotRehearsalHeld(context);return binding;
+  // An archived witness keeps its original ledger. Only the authenticated
+  // compatibility receipt can supply that ledger's original source bytes;
+  // current-schema admission remains a separate execution-transition check.
+  const sourceFiles=options===undefined?await readPilotLiveMigrationSources():readLocalDispatchCompatibleSources(options.compatibility);
+  const binding=bindSavedPilotLiveWitness({context,value,sourceFiles});
+  if(options!==undefined)await assertLocalDispatchCompatibilityCurrent(options.compatibility,options.packet);
+  await assertSavedPilotRehearsalHeld(context);return binding;
  }finally{cipher?.fill(0);plain?.fill(0)}
 }

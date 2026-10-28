@@ -14,12 +14,17 @@
     {
       "path": "scripts/local-backup-custody-evidence.mjs",
       "originalSha256": "c074746b4e4118fa2ed080c6600bdac4d81f9d0166828520d6d1c1f74969c34f",
-      "replacementSha256": "ed0e9dd83069a1cd67b1c2dfe2930a201d2908e96a6392c607950c0285c71ff8"
+      "replacementSha256": "a2fe69aff6209c8d5a1bf232be3644d552743f331cfeb27201109b6876bd7c9d"
+    },
+    {
+      "path": "scripts/local-backup-custody-evidence.node-test.mjs",
+      "originalSha256": "d89190850ddc4c83da43e88603cf9ff9b2d0626b6a4e42b21907e2a821ced6f1",
+      "replacementSha256": "5e5b970ea4ec481c51004362aff39c69b54a3c56a842c0dee56401283320ce42"
     },
     {
       "path": "scripts/local-backup-dispatch-bundle.mjs",
       "originalSha256": "9c4e6a1ed31e9c23f8a6b2007aaa7f0369d5f6d84576710f3677581e46f7ba84",
-      "replacementSha256": "1e6a869b9f90514064331004b11752f813d79990a3df9520947dcee3bd8ba064"
+      "replacementSha256": "24eb4d461ba2510b916e8a5eb1e266dce295e26cc489a7df4ff980e80c9c88fb"
     },
     {
       "path": "scripts/local-backup-dispatch-bundle.node-test.mjs",
@@ -29,7 +34,7 @@
     {
       "path": "scripts/local-backup-dispatch-local.mjs",
       "originalSha256": "45f79af3758227efb294cb8d1b25d82bed6f925dbbe9bd731c3ebd3be5102ce5",
-      "replacementSha256": "4d7b01494d7b7aad187e5ca75af9129324c0fbaa5207fe2e90f57b3fde16140f"
+      "replacementSha256": "178db446c6706861638a185e4259ee52a461b46032ab0fc4db6578876e449ae3"
     },
     {
       "path": "scripts/local-backup-dispatch-local.node-test.mjs",
@@ -44,12 +49,12 @@
     {
       "path": "scripts/local-backup-dispatch-repair.mjs",
       "originalSha256": null,
-      "replacementSha256": "1fd94705e9a4f10e2e89870c7616398543d4d2e8ef86502773555c481677fefb"
+      "replacementSha256": "639549274bac29ed804b20968ace204417d825c5689a6bfc67774bc28c0685ce"
     },
     {
       "path": "scripts/local-backup-dispatch-repair.node-test.mjs",
       "originalSha256": null,
-      "replacementSha256": "98a8db02492e5a402fd9a869774aa63b2db2cbb07cf2869b83c68cfc0702c0ee"
+      "replacementSha256": "b3cd653b9ec5c40b9f7c34542b0b564447cb44bc0487bfc4602f2d44b988181a"
     },
     {
       "path": "scripts/local-backup-dispatch-staging.mjs",
@@ -95,6 +100,16 @@
       "path": "scripts/local-backup-execute-transition.node-test.mjs",
       "originalSha256": null,
       "replacementSha256": "2a9b890e3c77f2528b936d7e296ea073ba1c108e9b0c6c79a3f5b26218dc6a3a"
+    },
+    {
+      "path": "scripts/local-backup-live-input.mjs",
+      "originalSha256": "3c766156454261d337af575bd4326d775d7f6107a74dc0ca2bd200cf5873e9f6",
+      "replacementSha256": "f59f9d02502c2078398a31a84570a40fd91f94d85187b3feb8f9cce29fc972b9"
+    },
+    {
+      "path": "scripts/local-backup-live-witness.node-test.mjs",
+      "originalSha256": "78b8fb1195144a9e3b88887eb124182f6494f8d58713878250190dbc19d80fb4",
+      "replacementSha256": "a53569a536864caa7f721fa3e78baf9af5019d51d489d7deabb9e39fd7859835"
     },
     {
       "path": "scripts/pilot-finance-reset-local-custody-runner.mjs",

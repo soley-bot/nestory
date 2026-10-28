@@ -82,7 +82,12 @@ async function assertSourcePins(pins){
  const actual=await readBusinessRuntimeSourcePins();
  if(!pins||!exact(pins,Object.keys(actual))||Object.keys(actual).some(name=>pins[name]!==actual[name]))fail();
 }
-export async function verifySavedLocalRecoveryEvidence({evidence,custody,packet,artifacts,observation}){
+export async function verifySavedLocalRecoveryEvidence({evidence,custody,packet,artifacts,observation},options){
+ if(options!==undefined){
+  if(!exact(options,['compatibility']))fail();
+  options={compatibility:options.compatibility};
+  await assertLocalDispatchCompatibilityCurrent(options.compatibility,packet);
+ }
  assertLocalCustodyEvidenceReference(evidence);const keyId=evidence.keyId,{id:archiveId,sha256:archiveSha256,sourceSha256}=evidence.businessArchive;const proofs={};
  let destinationBytes;
  for(const role of roles){const bytes=await readPrivateBackupFile(evidence[role].id,'proof.json');
@@ -107,7 +112,7 @@ export async function verifySavedLocalRecoveryEvidence({evidence,custody,packet,
  const context=await openSavedPilotRehearsal({proofId:evidence.businessRestore.id,proofSha256:evidence.businessRestore.sha256,keyId});
  try{
  const saved=inspectSavedPilotRehearsal(context);saved.manifestBytes.fill(0);
- const liveBinding=await openPilotLiveWitnessInputs({context,reference:evidence.liveWitness});
+ const liveBinding=await openPilotLiveWitnessInputs({context,reference:evidence.liveWitness},options===undefined?undefined:{compatibility:options.compatibility,packet});
  assertPilotLivePacketBinding({plan:saved.plan,liveBinding,rehearsal:saved.rehearsal,packet,artifacts});
  if(custody.foreignBaselineSha256!==liveBinding.materialization.foreignSnapshotSha256||observation?.foreignSha256!==custody.foreignBaselineSha256||
   packet.artifacts.restoreProof?.sha256!==evidence.businessRestore.sha256||packet.artifacts.rehearsalProof?.sha256!==evidence.businessRestore.sha256||
@@ -135,10 +140,10 @@ export function createPreparedCustodyAdmission({hold,collect,verify,check}){
  const close=async handle=>{const state=receipts.get(handle);if(!state||state.closed)return;state.closed=true;try{await state.lease.close()}finally{state.args=null;state.closure=null;}};
  return Object.freeze({
   async prepare(args,request,context){
-   args=structuredClone(args);request=structuredClone(request);const lease=await hold();let handle;
+   args=structuredClone(args);request=structuredClone(request);context=context===undefined?undefined:{...context};const lease=await hold();let handle;
    try{
     const closure=await collect(args,request,context);
-    if((await verify(args)).operationalCustodyVerified!==true)fail();
+    if((await verify(args,context)).operationalCustodyVerified!==true)fail();
     await check(closure,args);await lease.check();
     handle=Object.freeze({format:'nestory-prepared-custody-v1'});
     receipts.set(handle,{args,closure,request,binding:binding(args),lease,closed:false,consumed:false});return handle;

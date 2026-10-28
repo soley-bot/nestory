@@ -80,7 +80,7 @@ export async function persistPreparedLocalDispatchInput({context,prepared,custod
   archiveEnvelopeSha256:saved.request.archiveSha256,archivePlaintextSha256:saved.request.sourceSha256,filesArchiveSha256:fileProof.ciphertextSha256,
   restoreEvidenceSha256:custodyEvidence.businessRestore.sha256,keyRecoveryEvidenceSha256:custodyEvidence.keyRecovery.sha256,
   privateDestinationReviewSha256:custodyEvidence.destinationProtection.sha256,foreignBaselineSha256:observation?.foreignSha256,evidenceRecordSha256:hashBytes(canonicalJson(record))};
- if((await verifySavedLocalRecoveryEvidence({evidence:custodyEvidence,custody,packet,artifacts,observation})).operationalCustodyVerified!==true)fail('custody_incomplete');
+ if((await verifySavedLocalRecoveryEvidence({evidence:custodyEvidence,custody,packet,artifacts,observation},admission.compatibility?{compatibility:admission.compatibility}:undefined)).operationalCustodyVerified!==true)fail('custody_incomplete');
  const payload={packet,binding:hostedBinding(packet,artifacts.continuationPlan),artifacts,recovery:null,observation};
  inspectDispatchPayloadBudget(payload);
  const input={format:'nestory-local-dispatch-input-v1',payload,custody,custodyEvidence,authoritySha256,stageAuthority,reviewArtifacts,action};
@@ -123,7 +123,7 @@ async function load(r,{historical=false,executeResumeSource=false}={}){
   !sourceRosterAdmitted(payload.packet,admission.compatibility)||canonicalJson(payload.binding)!==canonicalJson(hostedBinding(payload.packet,payload.artifacts.continuationPlan,payload.recovery)))fail('payload_invalid');
  const record={format:'nestory-local-dispatch-evidence-record-v1',operationId:payload.packet.operation.operationId,packetSha256:payload.packet.packetSha256,evidence:input.custodyEvidence};
  if(hashBytes(canonicalJson(record))!==input.custody.evidenceRecordSha256)fail('custody_record_changed');
- if((await verifySavedLocalRecoveryEvidence({evidence:input.custodyEvidence,custody:input.custody,packet:payload.packet,artifacts:payload.artifacts,observation:payload.observation})).operationalCustodyVerified!==true)fail('custody_incomplete');
+ if((await verifySavedLocalRecoveryEvidence({evidence:input.custodyEvidence,custody:input.custody,packet:payload.packet,artifacts:payload.artifacts,observation:payload.observation},admission.compatibility?{compatibility:admission.compatibility}:undefined)).operationalCustodyVerified!==true)fail('custody_incomplete');
  if(admission.compatibility){
   if(!['prepare','seal','execute'].includes(input.action))fail('repair_stage_invalid');
   const store=await openFixedLocalDispatchJournal(),bytes=await store.read(`financial-reset/${payload.packet.operation.operationId}/manual-stage/prepare/repair-once`);
