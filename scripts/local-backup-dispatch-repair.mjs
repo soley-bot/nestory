@@ -39,6 +39,7 @@ export const PREPARE_REPAIR_ALLOWED_FILES=Object.freeze([
 // Original migrations and financial action producers remain immutable.
 export const EXECUTE_RESUME_ALLOWED_FILES=Object.freeze([...PREPARE_REPAIR_ALLOWED_FILES,
  PREPARE_REPAIR_MANIFEST,
+ 'scripts/local-backup-live-input.mjs','scripts/local-backup-live-witness.node-test.mjs',
  'scripts/local-backup-execute-resume.mjs','scripts/local-backup-execute-resume.node-test.mjs',
  'scripts/local-backup-execute-transition.mjs','scripts/local-backup-execute-transition.node-test.mjs',
  'scripts/local-backup-execute-transition-manifest.json',

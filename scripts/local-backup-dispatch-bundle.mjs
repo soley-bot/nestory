@@ -228,7 +228,7 @@ async function verifyDurableDispatch(ticket,payload,preparedCustody,preparedSign
     await assertPreparedLocalRecoveryEvidence(preparedCustody,args,ticket.nonce,{consume:true});
     assertLocalDispatchStageEvidenceRecord({recordBytes:await store.read(`${prefix}/stage-evidence`),ticket,payload});
   }
-  else if((await verifySavedLocalRecoveryEvidence(args)).operationalCustodyVerified!==true)fail();
+  else if((await verifySavedLocalRecoveryEvidence(args,compatibility?{compatibility}:undefined)).operationalCustodyVerified!==true)fail();
 }
 // Each instance owns its handles. Synthetic ports cannot mint a production
 // signer. The binding excludes authorization, which must arrive only at finish.

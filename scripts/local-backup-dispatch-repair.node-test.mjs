@@ -72,11 +72,16 @@ test('pure comparison cannot mint a branded operational source receipt',()=>{
  assert.throws(()=>readLocalDispatchCompatibleSources(sourceFixture()));
 });
 test('fabricated/serialized compatibility never reaches custody reads or acquires an operational lease',async()=>{
- const {prepareSavedLocalRecoveryEvidence}=await import('./local-backup-custody-evidence.mjs');
+ const {prepareSavedLocalRecoveryEvidence,verifySavedLocalRecoveryEvidence}=await import('./local-backup-custody-evidence.mjs');
+ const {openPilotLiveWitnessInputs}=await import('./local-backup-live-input.mjs');
  const handle={format:'nestory-local-prepare-repair-compatibility-v1'};
  await assert.rejects(assertLocalDispatchCompatibilityCurrent(handle,{}));
  await assert.rejects(prepareSavedLocalRecoveryEvidence({}, {}, {compatibility:handle}));
  await assert.rejects(prepareSavedLocalRecoveryEvidence({}, {}, {compatibility:handle,approved:true}));
+ await assert.rejects(verifySavedLocalRecoveryEvidence({}, {compatibility:handle}),/local_prepare_repair_unverified/);
+ await assert.rejects(verifySavedLocalRecoveryEvidence({}, {compatibility:handle,sourceFiles:new Map()}),/local_custody_saved_evidence_unverified/);
+ await assert.rejects(openPilotLiveWitnessInputs({}, {compatibility:handle,packet:{}}),/local_prepare_repair_unverified/);
+ await assert.rejects(openPilotLiveWitnessInputs({}, {compatibility:handle,packet:{},sourceFiles:new Map()}),/local_saved_live_witness_unverified/);
 });
 test('one-off record and stage prefixes preserve original history and reject other modes/reuse',()=>{
  const r=record();assertPrepareRepairRecord(r);

@@ -129,6 +129,16 @@ test('preparation clones callers before async verification and finish consumes e
  assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(f.counts().verified,1);
  await f.api.close(handle);await f.api.close(handle);assert.equal(f.counts().closed,1);
 });
+test('prepared custody carries the same private source context into collection and full witness verification',async()=>{
+ const compatibility=Object.freeze({}),known=new WeakSet([compatibility]),events=[];let closed=0;
+ const api=createPreparedCustodyAdmission({hold:async()=>({check:async()=>{},close:async()=>{closed++;}}),
+  collect:async(args,request,context)=>{assert.equal(context.compatibility,compatibility);events.push('collect');return {context};},
+  verify:async(args,context)=>{assert.ok(known.has(context?.compatibility));events.push('verify');return {operationalCustodyVerified:true};},
+  check:async closure=>{assert.ok(known.has(closure.context.compatibility));events.push('check');}});
+ const options={compatibility},pending=api.prepare({packet:{}},{nonce:id(15)},options);options.compatibility={};
+ const handle=await pending;assert.deepEqual(events,['collect','verify','check']);await api.close(handle);assert.equal(closed,1);
+ await assert.rejects(api.prepare({packet:{}},{nonce:id(15)},{compatibility:{}}));assert.equal(closed,2);
+});
 for(const method of ['tamper','loseLease'])test(`late ${method} stops admission and closes custody`,async()=>{
  const f=admissionFixture(),handle=await f.api.prepare(f.args,f.request);f[method]();
  await assert.rejects(f.api.assert(handle,f.args,f.request.nonce));assert.equal(f.counts().closed,1);
