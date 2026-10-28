@@ -9,7 +9,7 @@ on:
         type: choice
         required: true
         default: capability-probe
-        options: [capability-probe, tls-probe, provision-handoff, execute, reconcile]
+        options: [capability-probe, tls-probe, provision-handoff, execute, reconcile, direct-execute-once]
       original_run_id:
         description: Original run ID for reconciliation; none for execute
         type: string
@@ -31,6 +31,16 @@ on:
         required: true
         default: freeze
         options: [freeze, checkpoint, prepare, seal, execute]
+      authorization_id:
+        description: Genuine current Pilot execute authorization UUID for direct-execute-once
+        type: string
+        required: false
+        default: none
+      foreign_sha256:
+        description: Current verified non-Pilot census digest for direct-execute-once
+        type: string
+        required: false
+        default: none
 
 permissions: {}
 
@@ -90,10 +100,12 @@ jobs:
                 freeze|checkpoint|prepare|seal|execute) ;;
                 *) exit 1 ;;
               esac ;;
+            direct-execute-once) test "$RESET_ACTION" = execute ;;
             capability-probe|tls-probe|provision-handoff) ;;
             *) exit 1 ;;
           esac
       - name: Install locked dependencies without lifecycle scripts
+        if: inputs.mode != 'direct-execute-once'
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Prepare ephemeral runner memory before private inputs
         shell: bash
@@ -104,6 +116,23 @@ jobs:
           sudo swapoff -a
           awk 'END { exit (NR != 1) }' /proc/swaps
           printf '{"format":"nestory-local-custody-memory-v1","activeSwapDevicesBefore":%s,"activeSwapDevicesAfter":0}\n' "$active_before"
+      - name: Execute the fixed reviewed Pilot transaction through PostgreSQL once
+        if: inputs.mode == 'direct-execute-once'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESET_MODE: direct-execute-once
+          RESET_OPERATION_ID: ${{ inputs.operation_id }}
+          RESET_ACTION: ${{ inputs.action }}
+          RESET_AUTHORIZATION_ID: ${{ inputs.authorization_id }}
+          RESET_FOREIGN_SHA256: ${{ inputs.foreign_sha256 }}
+          PILOT_RESET_REVIEWED_SQL_GZIP: ${{ secrets.PILOT_RESET_REVIEWED_SQL_GZIP }}
+          PILOT_RESET_PSQL_SHA256: ${{ vars.PILOT_RESET_PSQL_SHA256 }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          ulimit -c 0
+          node scripts/pilot-finance-reset-local-custody-runner.mjs
       - name: Prefetch immutable staged payload
         if: inputs.mode == 'execute' || inputs.mode == 'reconcile'
         shell: bash

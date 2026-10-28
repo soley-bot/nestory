@@ -23,6 +23,7 @@ import {assertExecuteResumeBinding,assertExecuteResumeEnvelope,projectExecuteRes
 import {verifyExecuteTransitionObservation} from './local-backup-execute-transition.mjs';
 import {assertPrepublicationRecoveryOriginalRun} from './local-backup-prepublication-recovery.mjs';
 import {assertExecuteResumeOriginalRun} from './local-backup-execute-resume.mjs';
+import {compileDirectOnceSql,directOnceStateSql,DIRECT_ONCE_OPERATION,DIRECT_ONCE_TEMPLATE_SHA256} from './pilot-finance-reset-direct-once.mjs';
 
 export const LOCAL_CUSTODY_RESET_ACTIONS=Object.freeze(['freeze','checkpoint','prepare','seal','execute']);
 export function assertLocalCustodyResetAction(action){
@@ -44,6 +45,7 @@ export const LOCAL_CUSTODY_DATABASE_HOST='aws-1-ap-southeast-1.pooler.supabase.c
 const caSource='scripts/certificates/supabase-prod-ca-2021.crt';
 export const LOCAL_CUSTODY_SOURCES=Object.freeze([...new Set([...HOSTED_BOUND_SOURCE_FILES,LOCAL_DISPATCH_WORKFLOW,
  'scripts/pilot-finance-reset-local-custody-runner.mjs','scripts/local-backup-dispatch-bundle.mjs',
+ 'scripts/pilot-finance-reset-direct-once.mjs',
  'scripts/local-backup-dispatch-local.mjs','scripts/local-backup-file-credential.mjs',
  'scripts/local-backup-dispatch-staging.mjs',
  'scripts/local-backup-prepublication-recovery.mjs','scripts/local-backup-execute-adapter.mjs','scripts/local-backup-execute-transition.mjs','scripts/local-backup-execute-transition-manifest.json','scripts/local-backup-execute-resume.mjs',
@@ -65,6 +67,7 @@ const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const digest=/^[a-f0-9]{64}$/,sha=/^[a-f0-9]{40}$/;
 const fail=code=>{throw Error(`local_custody_${code}`);};
 const publicFailureCodes=new Set(['local_custody_database_inputs_invalid','local_custody_private_path_invalid',
+ 'local_custody_direct_input_invalid','local_custody_direct_reconciliation_required',
  'local_custody_swap_present','local_custody_binary_unavailable','local_custody_ca_changed',
  'local_custody_database_connection_unverified','local_custody_private_file_invalid',
  'local_custody_checkout_invalid','local_custody_origin_invalid','local_custody_sql_prefix_changed',
@@ -372,12 +375,45 @@ async function preflightPayloadSources(payload,action,mainSha){
 async function probePrivateConnection(db){
  if((await localCustodyPsql(db.connection,guardedSql('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;\nSELECT 1;\nCOMMIT;'))).trim()!=='1')fail('database_connection_unverified');
 }
+// The owner's approved direct-connection exception. The old dispatch journals
+// remain immutable. Only a fixed reviewed SQL template is admitted here; native
+// authorization, catalog, row, contract and foreign-organization guards remain.
+async function runDirectOnce(env){
+ const sql=compileDirectOnceSql({encoded:env.PILOT_RESET_REVIEWED_SQL_GZIP,
+  authorizationId:env.RESET_AUTHORIZATION_ID,foreignSha256:env.RESET_FOREIGN_SHA256,
+  operationId:env.RESET_OPERATION_ID,action:env.RESET_ACTION});
+ delete process.env.PILOT_RESET_REVIEWED_SQL_GZIP;env.PILOT_RESET_REVIEWED_SQL_GZIP=undefined;
+ if(!env.GH_TOKEN)fail('origin_invalid');
+ const invocation=await job(env,env.GH_TOKEN);let db,dispatched=false,writeReturned=false,writeCode=null;
+ try{
+  db=await privateConnection(env);env.SUPABASE_DB_PASSWORD=undefined;delete process.env.SUPABASE_DB_PASSWORD;
+  await probePrivateConnection(db);
+  if(!same(invocation,await job(env,env.GH_TOKEN)))fail('origin_invalid');
+  console.log(JSON.stringify({format:'nestory-direct-once-dispatch-v1',...invocation,
+   operationId:DIRECT_ONCE_OPERATION,authorizationId:env.RESET_AUTHORIZATION_ID,
+   templateSha256:DIRECT_ONCE_TEMPLATE_SHA256,sqlSha256:hashBytes(sql),
+   foreignSha256:env.RESET_FOREIGN_SHA256,automaticRetryAllowed:false}));
+  dispatched=true;
+  try{await localCustodyPsql(db.connection,sql,'execute',4);writeReturned=true;}
+  catch(error){writeCode=localCustodyFailureCode(error);}
+  // Read once after any reply. Root also reconciles independently; never resend.
+  const state=JSON.parse((await localCustodyPsql(db.connection,directOnceStateSql(env.RESET_AUTHORIZATION_ID))).trim());
+  const verified=state.authorizationConsumed===true&&state.operationComplete===true&&
+   state.actionsTotal===4169&&state.actionsApplied===4169&&state.emptyBooks===true&&
+   state.billingPaused===true&&state.contractsPreserved===true&&state.leasesPreservedUnbilled===true&&state.frozen===true;
+  console.log(JSON.stringify({format:'nestory-direct-once-readback-v1',...invocation,
+   operationId:DIRECT_ONCE_OPERATION,dispatched,writeReturned,writeCode,state,verified,automaticRetryAllowed:false}));
+  if(!verified)fail('direct_reconciliation_required');
+  return {status:'committed-and-readback-verified',operationId:DIRECT_ONCE_OPERATION,automaticRetryAllowed:false};
+ }finally{if(db)await db.cleanup();}
+}
 export async function runLocalCustodyWorker(){
  // Fixed reset-stage admission precedes credentials, reads, transient files or polling.
  const mode=process.env.RESET_MODE??'execute';
  if(['execute','reconcile'].includes(mode))assertLocalCustodyResetAction(process.env.RESET_ACTION);
- else if(!['capability-probe','tls-probe','provision-handoff'].includes(mode))fail('mode_invalid');
+ else if(!['capability-probe','tls-probe','provision-handoff','direct-execute-once'].includes(mode))fail('mode_invalid');
  if(process.platform!=='linux'||Number(process.versions.node.split('.')[0])!==24)fail('runtime_invalid');
+ if(mode==='direct-execute-once')return runDirectOnce({...process.env});
  if(mode==='provision-handoff'){
   const env={...process.env};delete process.env.SUPABASE_ACCESS_TOKEN;if(!env.GH_TOKEN)fail('origin_invalid');
   const invocation=await job(env,env.GH_TOKEN);return provisionLocalCustodyBucket(env,invocation);
