@@ -20,8 +20,12 @@ The two mutation calls are fixed:
 
 - `authorize_financial_reset_hosted_action`: uses the cookie-session Supabase
   client and returns a locator for exactly one reviewed stage. The database
-  verifies the actual session and actor, limits validity to at most five minutes
-  and rechecks authority when the protected executor consumes the locator.
+  verifies the actual session and actor and rechecks authority when the operator
+  consumes the locator. The default limit is five minutes. The specifically
+  approved Pilot execute operation `7c70e27f-ba37-48cc-8f93-d32badcb2fb7` permits
+  at most fifteen minutes when its binding exactly matches the original
+  reservation. JWT and session expiry can shorten either limit. Existing
+  authorizations are never extended; the administrator must issue a new one.
 - `approve_financial_reset_zero_plan`: uses that same cookie-session client for
   the operation and zero-plan digest. Unmarked plans require the separately named
   maker and reviewer, each using their own signed-in session. The explicit

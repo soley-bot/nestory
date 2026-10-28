@@ -94,6 +94,48 @@ UPDATE resume_fixture SET current_auth=public.authorize_financial_reset_hosted_a
 RESET ROLE;
 RESET SESSION AUTHORIZATION;
 SELECT set_config('request.jwt.claims','{}',true);
+SELECT is((SELECT expires_at-issued_at FROM app_private.financial_reset_actor_authorizations WHERE authorization_id=(SELECT current_auth FROM resume_fixture)),
+ interval '15 minutes','only exact reserved Pilot execute receives fifteen minutes');
+-- Fresh gateway issuances prove shorter credentials/sessions remain decisive,
+-- and unrelated actions/operations/bindings retain the ordinary limit.
+SAVEPOINT authorization_window_cases;
+CREATE TEMP TABLE window_cases(label text PRIMARY KEY,authorization_id uuid);
+GRANT SELECT,INSERT ON window_cases TO authenticated;
+SELECT set_config('request.jwt.claims',jsonb_build_object('sub',actor,'session_id',session,'role','authenticated','aud','authenticated','is_anonymous',false,
+ 'exp',extract(epoch FROM clock_timestamp()+interval '1 hour')::bigint)::text,true) FROM resume_fixture;
+SET SESSION AUTHORIZATION authenticator;
+SET LOCAL ROLE authenticated;
+INSERT INTO window_cases SELECT 'other action',public.authorize_financial_reset_hosted_action(binding,'seal') FROM resume_fixture;
+INSERT INTO window_cases SELECT 'other operation',public.authorize_financial_reset_hosted_action(jsonb_set(binding,'{operation_id}',to_jsonb('ee280535-0000-4000-8000-000000000099'::text)),'execute') FROM resume_fixture;
+INSERT INTO window_cases SELECT 'different reservation binding',public.authorize_financial_reset_hosted_action(jsonb_set(binding,'{packet_sha256}',to_jsonb(repeat('f',64))),'execute') FROM resume_fixture;
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
+SELECT ok(NOT EXISTS(SELECT 1 FROM window_cases w JOIN app_private.financial_reset_actor_authorizations a USING(authorization_id)
+ WHERE a.expires_at-a.issued_at<>interval '5 minutes'),'other action, operation and non-reserved binding stay at five minutes');
+UPDATE auth.sessions SET not_after=clock_timestamp()+interval '2 minutes' WHERE id=(SELECT session FROM resume_fixture);
+SET SESSION AUTHORIZATION authenticator;
+SET LOCAL ROLE authenticated;
+INSERT INTO window_cases SELECT 'session cap',public.authorize_financial_reset_hosted_action(binding,'execute') FROM resume_fixture;
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
+SELECT is((SELECT a.expires_at FROM app_private.financial_reset_actor_authorizations a JOIN window_cases w USING(authorization_id) WHERE w.label='session cap'),
+ (SELECT not_after FROM auth.sessions WHERE id=(SELECT session FROM resume_fixture)),'two-minute live session caps the scoped window');
+UPDATE auth.sessions SET not_after=NULL WHERE id=(SELECT session FROM resume_fixture);
+SELECT set_config('request.jwt.claims',jsonb_build_object('sub',actor,'session_id',session,'role','authenticated','aud','authenticated','is_anonymous',false,
+ 'exp',extract(epoch FROM clock_timestamp()+interval '2 minutes')::bigint)::text,true) FROM resume_fixture;
+SET SESSION AUTHORIZATION authenticator;
+SET LOCAL ROLE authenticated;
+INSERT INTO window_cases SELECT 'credential cap',public.authorize_financial_reset_hosted_action(binding,'execute') FROM resume_fixture;
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
+SELECT ok((SELECT a.expires_at=a.credential_expires_at AND a.expires_at-a.issued_at<interval '3 minutes'
+ FROM app_private.financial_reset_actor_authorizations a JOIN window_cases w USING(authorization_id) WHERE w.label='credential cap'),
+ 'two-minute genuine credential caps the scoped window');
+SELECT throws_ok($$INSERT INTO app_private.financial_reset_actor_authorizations(organization_id,operation_id,action,binding,binding_sha256,actor_id,session_id,credential_expires_at,issued_at,expires_at)
+ SELECT organization_id,operation_id,action,binding,binding_sha256,actor_id,session_id,credential_expires_at,issued_at,issued_at+interval '15 minutes 1 second'
+ FROM app_private.financial_reset_actor_authorizations WHERE authorization_id=(SELECT current_auth FROM resume_fixture)$$,
+ '23514',NULL,'table constraint refuses exceeding the fixed fifteen-minute ceiling');
+ROLLBACK TO SAVEPOINT authorization_window_cases;
 SAVEPOINT short_authority;
 SELECT set_config('request.jwt.claims',jsonb_build_object('sub',actor,'session_id',session,'role','authenticated','aud','authenticated','is_anonymous',false,
  'exp',extract(epoch FROM clock_timestamp()+interval '3 seconds')::bigint)::text,true) FROM resume_fixture;
@@ -155,6 +197,6 @@ SELECT is((SELECT app_private.financial_reset_execute_foreign_sha256(binding) FR
  (SELECT original_reservation->>'foreign_sha256' FROM resume_fixture),'rolled-back activation falls back to the original baseline');
 SELECT is((SELECT count(*) FROM app_private.financial_reset_actions WHERE applied_at IS NOT NULL),0::bigint,'activation never applies a financial action');
 SELECT is((SELECT count(*) FROM public.financial_month_locks WHERE organization_id=(SELECT org FROM resume_fixture)),4898::bigint,'all synthetic Pilot financial rows remain intact');
-SELECT ok((SELECT expires_at<=issued_at+interval '5 minutes' FROM app_private.financial_reset_actor_authorizations WHERE authorization_id=(SELECT current_auth FROM resume_fixture)), 'fresh authorization retains the original five-minute deadline');
+SELECT ok((SELECT expires_at<=issued_at+interval '15 minutes' AND expires_at<=credential_expires_at FROM app_private.financial_reset_actor_authorizations WHERE authorization_id=(SELECT current_auth FROM resume_fixture)), 'exact scoped authorization retains its bounded credential-capped deadline');
 SELECT * FROM finish();
 ROLLBACK;
