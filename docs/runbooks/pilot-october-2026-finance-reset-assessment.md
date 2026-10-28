@@ -57,6 +57,25 @@ This is a dependency inventory, **not an executable deletion order or exhaustive
 7. **Old request replay can revive or break data.** Keep evidence/tombstones or use a reset generation boundary; reconcile pending commands. A retry must not return a deleted result or recreate historical transactions. Preserve master-workflow replay protection and avoid reusing historical document numbers.
 8. **The release lane currently forbids the expected changes.** Normal production CI requires identical target organization counts before/after, including transaction history. A reviewed one-time operation needs exact permitted differences plus master/non-target equality checks. Preserve the ordinary release gate; do not merely remove it.
 
+## Approved one-time transport exception, 28 October 2026
+
+The owner explicitly approved direct execution through the authenticated Supabase
+connection for Pilot operation `7c70e27f-ba37-48cc-8f93-d32badcb2fb7`, and requested
+an authorization window longer than five minutes. This exception supersedes only
+the connector restriction in step 6 for this operation. Production schema changes
+still require exact merged-main protected CI. Other organizations remain outside
+the reset scope.
+
+Use the existing reviewed transaction with genuine administrator authorization,
+the original binding and action plan, a verified current catalog and foreign
+baseline, and one serialized writer. Retain previous failed attempt evidence;
+do not replay its ticket or overwrite its journal. Execute once, inspect the live
+database even after a transport timeout, and never automatically retry. Preserve
+properties, units, people and contracts; leave Pilot billing paused and restore
+the temporarily paused shared schedules. The owner accepts permanent loss of
+Pilot test financial data; no additional recovery rehearsal is required solely
+to protect that data.
+
 ## Proposed execution sequence
 
 1. **Prepare the concrete operation.** Pin project, organization, schema/function hashes, cutoff and all authorized row identities/counts/hashes. Produce a preservation manifest for retained master/configuration records, contracts, permissions and non-target data. Include every incoming reference and archive/storage disposition. Fail on unknown schema or cross-organization dependencies.

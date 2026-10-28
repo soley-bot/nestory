@@ -57,6 +57,6 @@ export async function submitMaintenanceReviewAction(
       : uncertain;
     if (typeof result.data !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(result.data)) return uncertain;
     return { kind: "issued", authorizationId: result.data,
-      message: "Authorization issued for this stage only. It expires within five minutes, may expire sooner with your session, and is consumed once by the protected operator." };
+      message: "Authorization issued for this stage only. It expires automatically, may expire sooner with your session, and can be used once by the protected operator." };
   } catch { return uncertain; }
 }
