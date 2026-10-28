@@ -6,22 +6,24 @@ import {buildLocalDispatchObservationSql,verifyLocalDispatchObservationChunk,ver
 import {rehearsalSqlFixture} from './fixtures/local-backup-rehearsal-sql-fixture.mjs';
 import {prepareOperatorPacket,REQUIRED_ARTIFACTS,SOURCE_ENTRYPOINTS,hashBytes,canonicalJson} from './pilot-finance-reset-operator-core.mjs';
 import {approvalObservationQuery,validateApprovalObservation} from './pilot-finance-reset-hosted-protocol.mjs';
-import {hostedBinding} from './pilot-finance-reset-hosted-transport-protocol.mjs';
+import {hostedBinding,digestDatabaseJson} from './pilot-finance-reset-hosted-transport-protocol.mjs';
 import {localDispatchActorReadinessSql,prepareLocalDispatchSessionReview,prepareLocalDispatchReviewArtifacts,assertLocalDispatchReviewArtifacts,
  prepareLocalDispatchStageAuthority,assertLocalDispatchStageAuthority,assertLocalDispatchStageEvidenceRecord} from './local-backup-dispatch-review.mjs';
 import {bootstrapLocalDispatch,publishLocalDispatch,dispatchLocalReconciliation,discoverLocalDispatch,collectLocalDispatchReceipt,persistPreparedLocalDispatchInput,extractLocalCustodyReceipt,localCustodyRunTitle,localDispatchWorkerWaiting,
  createLocalPublicationLifecycle,prepareLocalDispatchPublication,finishLocalDispatchPublication,checkLocalDispatchPublication,
- stageLocalDispatchPayload,recordLocalPrepareRepair,localDispatchFailureCode} from './local-backup-dispatch-local.mjs';
+ stageLocalDispatchPayload,recordLocalPrepareRepair,persistLocalExecuteResumeInput,recordLocalExecuteResume,localDispatchBootstrapPayload,localDispatchFailureCode,retainPublicationEvidence} from './local-backup-dispatch-local.mjs';
 const locator={operationId:'11111111-1111-4111-8111-111111111111',action:'execute',nonce:'22222222-2222-4222-8222-222222222222'};
 const receipt={format:'nestory-local-custody-result-v1',operationId:locator.operationId,action:locator.action,runId:'123',runAttempt:1,intentSha256:'a'.repeat(64),
  outcome:'committed-and-verified',mutationRetried:false,observationSha256:'b'.repeat(64),checkpointSha256:'c'.repeat(64),normalWritesReopened:false};
 const expected={...locator,mode:'execute',originalRunId:123,actualRunId:123,intentSha256:receipt.intentSha256};
 const line=(value,step='Wait for exact run ticket and execute once')=>`Pilot reset local custody\t${step}\t2026-10-27T12:00:00Z ${JSON.stringify(value)}`;
 test('malformed operator requests reject before private inputs or provider requests',async()=>{
- for(const action of [()=>bootstrapLocalDispatch({}),()=>publishLocalDispatch({},''),()=>prepareLocalDispatchPublication({}),()=>dispatchLocalReconciliation({}),()=>discoverLocalDispatch({}),()=>collectLocalDispatchReceipt({}),()=>stageLocalDispatchPayload({}),()=>recordLocalPrepareRepair({})])await assert.rejects(action(),/request_invalid/);
+ for(const action of [()=>bootstrapLocalDispatch({}),()=>publishLocalDispatch({},''),()=>prepareLocalDispatchPublication({}),()=>dispatchLocalReconciliation({}),()=>discoverLocalDispatch({}),()=>collectLocalDispatchReceipt({}),()=>stageLocalDispatchPayload({}),()=>recordLocalPrepareRepair({}),()=>persistLocalExecuteResumeInput({}),()=>recordLocalExecuteResume({})])await assert.rejects(action(),/request_invalid/);
 });
 test('upload failures retain only closed actionable codes and never append provider or private content',()=>{
- for(const code of ['local_dispatch_storage_forbidden','local_dispatch_storage_rate_limited','local_dispatch_storage_outcome_unknown','local_dispatch_staging_invalid']){
+ for(const code of ['local_dispatch_storage_forbidden','local_dispatch_storage_rate_limited','local_dispatch_storage_outcome_unknown','local_dispatch_staging_invalid',
+  'local_execute_resume_unverified','local_execute_adapter_unverified','local_execute_transition_unverified','local_dispatch_resume_record_missing',
+  'local_dispatch_resume_request_invalid','local_dispatch_resume_input_invalid','local_dispatch_resume_history_changed','local_dispatch_resume_binding_changed']){
   assert.equal(localDispatchFailureCode(Error(code)),code);
   assert.equal(localDispatchFailureCode(Error(code+' PRIVATE_VALUE')),'local_dispatch_stopped');
  }
@@ -30,6 +32,19 @@ test('upload failures retain only closed actionable codes and never append provi
 test('prepared publication rejects fabricated handles before custody, signer or transport',async()=>{
  await assert.rejects(finishLocalDispatchPublication({format:'nestory-prepared-local-publication-v1'},locator.nonce),/prepared_publication_invalid/);
  await assert.rejects(checkLocalDispatchPublication({}),/prepared_publication_invalid/);
+});
+test('bootstrap enrollment digest survives resume-record append through staging and publication, retaining all original fields',()=>{
+ const original={packet:{original:true},binding:{original:true},artifacts:{original:true},recovery:null,observation:{historical:true},repair:{immutable:true}},
+  input={action:'execute',payload:structuredClone(original)},enrolled=digestDatabaseJson(localDispatchBootstrapPayload(input));
+ input.payload.resume={record:{newRun:true},observation:{fresh:true}};
+ assert.equal(digestDatabaseJson(localDispatchBootstrapPayload(input)),enrolled);
+ assert.notEqual(digestDatabaseJson(input.payload),enrolled);
+ for(const name of Object.keys(original)){
+  const changed=structuredClone(input);changed.payload[name]={changed:true};
+  assert.notEqual(digestDatabaseJson(localDispatchBootstrapPayload(changed)),enrolled);
+ }
+ const prepare={action:'prepare',payload:structuredClone(original)};
+ assert.deepEqual(Object.keys(localDispatchBootstrapPayload(prepare)).sort(),['artifacts','binding','observation','packet','recovery']);
 });
 function publicationFixture(checkFresh=()=>{}){
  const request={inputArchiveId:locator.operationId,inputArchiveSha256:'a'.repeat(64),nonce:locator.nonce};
@@ -62,6 +77,28 @@ test('late admission failure prevents signing/publication and disposes prepared 
  const f=publicationFixture(),{handle}=await f.lifecycle.prepare(f.request);f.failCheck();
  await assert.rejects(f.lifecycle.finish(handle,locator.operationId),/freshness failed/);
  assert.deepEqual(f.counts(),{disposed:1,published:0,prepared:1});await assert.rejects(f.lifecycle.finish(handle,locator.operationId),/prepared_publication_invalid/);
+});
+test('preauthorization evidence is create-once, exact-readback and may only reopen identical bytes',async()=>{
+ const slots=new Map();let writes=0;
+ const store={read:async k=>slots.get(k)??null,putIfAbsent:async(k,b)=>{writes++;if(slots.has(k))return 'exists';slots.set(k,Buffer.from(b));return 'created';}};
+ const value={format:'synthetic-evidence',digest:'a'.repeat(64)};
+ await retainPublicationEvidence(store,'stage-evidence',value);await retainPublicationEvidence(store,'stage-evidence',value);
+ assert.equal(writes,1);assert.equal(slots.size,1);
+ await assert.rejects(retainPublicationEvidence(store,'stage-evidence',{...value,digest:'b'.repeat(64)}),/journal_uncertain/);
+ assert.equal(writes,1);
+ for(const behavior of ['collision','readback']){
+  let stored=null;
+  const bad={read:async()=>stored,putIfAbsent:async()=>{stored=Buffer.from('{}');return behavior==='collision'?'exists':'created';}};
+  await assert.rejects(retainPublicationEvidence(bad,'stage-evidence',value),/journal_uncertain/);
+ }
+});
+test('prepared resources are disposed after a publication failure, not just a failed late check',async()=>{
+ const secret=Buffer.from('synthetic transfer'),request={inputArchiveId:locator.operationId,inputArchiveSha256:'a'.repeat(64),nonce:locator.nonce};
+ let disposed=0;
+ const service=createLocalPublicationLifecycle({prepare:async()=>({secret,input:{locator,payload:{packet:{packetSha256:'b'.repeat(64)}}}}),
+  check:async()=>{},publish:async()=>{throw Error('publication failed');},dispose:v=>{disposed++;v.secret.fill(0);}});
+ const {handle}=await service.prepare(request);await assert.rejects(service.finish(handle,locator.operationId),/publication failed/);
+ assert.equal(disposed,1);assert.ok(secret.every(b=>b===0));await assert.rejects(service.finish(handle,locator.operationId));
 });
 test('real stage-evidence expiry after preparation prevents publication',async()=>{
  const reviewed=reviewFixture(true),f=publicationFixture(()=>assertLocalDispatchStageAuthority(reviewed));

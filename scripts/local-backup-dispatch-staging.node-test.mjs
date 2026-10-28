@@ -76,6 +76,16 @@ test('ticket publication never retries: definite rejection surfaces, ambiguous a
  }
  let writes=0;await assert.rejects(publishStagedTicketOnce({write:async()=>{writes++;throw Error('local_dispatch_storage_outcome_unknown');},verify:async()=>{throw Error('local_dispatch_staging_invalid');}}),/staging_invalid/);assert.equal(writes,1);
 });
+test('seven-field execute resume stays byte-bound; other actions, missing history and extra fields reject',()=>{
+ const f=fixture(),loc={...locator,action:'execute'},payload={...f.payload,repair:{historical:true},resume:{record:{synthetic:true},observation:{foreignSha256:'b'.repeat(64)}}};
+ const pack=(p,l)=>{const cipher=encryptStagedPayload(p,f.key,l),ref=stagedPayloadReference(p,cipher,f.ref.signedUrl,l);return {cipher,ref};};
+ const {cipher,ref}=pack(payload,loc),bundle={...f.bundle,format:'nestory-local-custody-dispatch-bundle-v3',payload,
+  ticket:{payloadSha256:digestDatabaseJson(payload),repairSha256:'a'.repeat(64),resumeSha256:'b'.repeat(64)}};
+ assert.deepEqual(hydrateStagedDispatchTicket(stagedDispatchTicket(bundle,ref,loc),cipher,f.key,loc),bundle);
+ for(const [p,l]of [[payload,locator],[Object.fromEntries(Object.entries(payload).filter(([k])=>k!=='repair')),loc],[{...payload,sql:'SELECT 1'},loc]]){
+  const v=pack(p,l);assert.throws(()=>decryptStagedPayload(v.cipher,f.key,l,v.ref),/staging_invalid/);
+ }
+});
 test('Linux prefetch cache is exclusive ciphertext only, private, no-follow and checked on read', {skip:process.platform!=='linux'},async()=>{
  const dir=await mkdtemp(path.join(os.tmpdir(),'nestory-staging-test-')),env={RUNNER_TEMP:dir,GITHUB_RUN_ID:'123',GITHUB_RUN_ATTEMPT:'1'};
  const file=path.join(dir,'nestory-staged-123-1.bin'),f=fixture();

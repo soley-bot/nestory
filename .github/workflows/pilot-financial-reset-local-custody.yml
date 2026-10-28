@@ -115,6 +115,8 @@ jobs:
           RESET_MODE: ${{ inputs.mode }}
           PILOT_RESET_HANDOFF_SIGNED_URL: ${{ secrets.PILOT_RESET_HANDOFF_SIGNED_URL }}
           PILOT_RESET_HANDOFF_KEY: ${{ secrets.PILOT_RESET_HANDOFF_KEY }}
+          PILOT_RESET_PSQL_SHA256: ${{ vars.PILOT_RESET_PSQL_SHA256 }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           set -euo pipefail
           ulimit -c 0

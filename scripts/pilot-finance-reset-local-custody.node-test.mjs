@@ -1,4 +1,8 @@
 import test from 'node:test';
+import './pilot-finance-reset-worker-readiness.node-test.mjs';
+import './local-backup-execute-transition.node-test.mjs';
+import './local-backup-execute-adapter.node-test.mjs';
+import './local-backup-execute-resume.node-test.mjs';
 import assert from 'node:assert/strict';
 import {randomBytes} from 'node:crypto';
 import {readFile} from 'node:fs/promises';

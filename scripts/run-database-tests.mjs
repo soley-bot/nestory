@@ -15,6 +15,7 @@ export const SESSION_TESTS = Object.freeze([
   'financial_reset_checked_reopening_test.sql',
   'financial_reset_continuation_test.sql',
   'financial_reset_empty_books_test.sql',
+  'financial_reset_execute_resume_test.sql',
   'financial_reset_explicit_no_backup_binding_test.sql',
   'financial_reset_genuine_session_actor_bridge_test.sql',
   'financial_reset_held_deposit_forward_test.sql',
@@ -107,7 +108,7 @@ export async function localDatabaseTestTarget({ config, execute, env = process.e
   assert.equal(run("SELECT session_user='supabase_admin' AND current_user=session_user AND inet_server_addr() IS NULL AND (SELECT rolsuper FROM pg_roles WHERE rolname=session_user);").trim(), 't',
     'Session tests require the existing local socket administrator; no role changes are permitted.');
   const runSingleAdmin = (file) => {
-    assert.equal(file.name, 'financial_reset_single_admin_test.sql');
+    assert.ok(['financial_reset_single_admin_test.sql', 'financial_reset_execute_resume_test.sql'].includes(file.name));
     const database = `single_admin_test_${randomUUID().replaceAll('-', '')}`;
     const checkedDocker = (arguments_, input) => { verify(inspect(), initial.id); return docker(arguments_, input); };
     const cloneRun = (source) => checkedDocker(args.map((value, index) => args[index - 1] === '-d' ? database : value), source);
@@ -158,7 +159,7 @@ export const SINGLE_ADMIN_RUNTIME_BOOTSTRAP_SQL = [
 
 export function runSessionTest(file, target) {
   assert.ok(SESSION_TESTS.includes(file.name));
-  return verifyPgTapOutput(file.name === 'financial_reset_single_admin_test.sql' ? target.runSingleAdmin(file) : target.run(file.source), file.name);
+  return verifyPgTapOutput(['financial_reset_single_admin_test.sql', 'financial_reset_execute_resume_test.sql'].includes(file.name) ? target.runSingleAdmin(file) : target.run(file.source), file.name);
 }
 
 export async function main(repository = path.resolve(import.meta.dirname, '..')) {
