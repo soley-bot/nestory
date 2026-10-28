@@ -1673,7 +1673,7 @@ describe("FinanceOperationsScreen", () => {
     const dialog = screen.getByRole("dialog", { name: "Generate rent invoice" });
     const form = within(dialog).getByRole("button", { name: "Generate selected month" }).closest("form")!;
     expect(new FormData(form).get("__financialGeneration")).toBe("1");
-    expect(new FormData(form).get("billingPeriod")).toBe(getBusinessDateValue().slice(0, 7));
+    expect(new FormData(form).get("billingPeriod")).toBe("current");
     expect(within(dialog).queryByRole("button", { name: "Billing month" })).toBeNull();
     expect(within(dialog).getByText(/A Super Admin can generate earlier months/)).not.toBeNull();
   });
@@ -1693,6 +1693,35 @@ describe("FinanceOperationsScreen", () => {
     expect(new FormData(form).get("leaseId")).toBe("lease-1");
     expect(within(dialog).queryByRole("combobox")).toBeNull();
     expect(within(dialog).queryByText(/Other Tenant/)).toBeNull();
+  });
+
+  it("keeps current-month intent when changing leases with different billing calendars", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
+    const user = userEvent.setup();
+    const input = data(); input.tenantInvoices = [];
+    const firstLease = input.leases[0];
+    input.leases = [
+      { ...firstLease, billing: { ...firstLease.billing!, rentCalculationTimezone: "Asia/Phnom_Penh" } },
+      { ...firstLease, id: "lease-2", tenantLabel: "Other Tenant", billing: { ...firstLease.billing!, rentCalculationTimezone: "America/Los_Angeles" } },
+    ];
+    render(<FinancialWriteProvider organizationId="org" context={{ generation: 1, status: "open", financial_start_date: "2026-10-01", enforced: true, automatic_rent_enabled: false }}>
+      <FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordPayments: true, canRetryCurrentRent: true, canRecoverRent: true })}
+        financialGeneration={1} organizationName="Pilot" view="rent" />
+    </FinancialWriteProvider>);
+    await user.click(screen.getByRole("button", { name: "Generate rent invoice" }));
+    const dialog = screen.getByRole("dialog", { name: "Generate rent invoice" });
+    const form = within(dialog).getByRole("button", { name: "Generate selected month" }).closest("form")!;
+    expect(new FormData(form).get("billingPeriod")).toBe("current");
+    await user.click(within(dialog).getByRole("combobox"));
+    await user.click(screen.getByRole("option", { name: /Other Tenant/ }));
+    expect(new FormData(form).get("leaseId")).toBe("lease-2");
+    expect(new FormData(form).get("billingPeriod")).toBe("current");
+    expect(within(dialog).getByText("Current billing month for the selected lease.")).not.toBeNull();
+    await user.click(within(dialog).getByRole("checkbox", { name: "Choose an earlier month" }));
+    expect(within(dialog).getByRole("button", { name: "Billing month" })).not.toBeNull();
+    expect(new FormData(form).get("billingPeriod")).not.toBe("current");
+    await user.click(within(dialog).getByRole("checkbox", { name: "Choose an earlier month" }));
+    expect(new FormData(form).get("billingPeriod")).toBe("current");
   });
 
   it("keeps manual tenant charges behind payment-recording authority", async () => {

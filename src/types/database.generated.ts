@@ -12217,6 +12217,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      generate_current_lease_rent: {
+        Args: { p_lease_id: string; p_organization_id: string }
+        Returns: Json
+      }
       generate_owner_balance_period: {
         Args: {
           p_currency: Database["public"]["Enums"]["currency_code"]

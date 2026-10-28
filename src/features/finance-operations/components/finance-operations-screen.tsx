@@ -1715,6 +1715,8 @@ function HistoricalRentRecoveryForm({
   canRecoverHistorical?: boolean;
 }) {
   const { getBusinessMonthValue } = useBusinessDate();
+  const [chooseEarlierMonth, setChooseEarlierMonth] = useState(false);
+  const currentBillingMonth = manualRent && (!canRecoverHistorical || !chooseEarlierMonth);
   const eligibleLeases = (fixedLease ? [fixedLease] : leases).filter(
     (lease) =>
       lease.status === "active" ||
@@ -1755,15 +1757,20 @@ function HistoricalRentRecoveryForm({
           required
         />}
       </Field>
-      <Field label={manualRent ? "Billing month" : "Missed rent month"}>
-        {manualRent && !canRecoverHistorical ? <><input type="hidden" name="billingPeriod" value={getBusinessMonthValue()} /><p className="text-sm">{formatLeaseMonth(`${getBusinessMonthValue()}-01`)}. A Super Admin can generate earlier months.</p></> :
+      <fieldset className="space-y-1.5 text-sm">
+        <legend className="font-medium">{manualRent ? "Billing month" : "Missed rent month"}</legend>
+        {manualRent && canRecoverHistorical ? <label className="mb-2 flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={chooseEarlierMonth} onChange={event => setChooseEarlierMonth(event.target.checked)} />
+          Choose an earlier month
+        </label> : null}
+        {currentBillingMonth ? <><input type="hidden" name="billingPeriod" value="current" /><p className="text-sm">Current billing month for the selected lease.{!canRecoverHistorical ? " A Super Admin can generate earlier months." : ""}</p></> :
         <MonthPickerField
           ariaLabel={manualRent ? "Billing month" : "Missed rent month"}
-          defaultValue={manualRent ? getBusinessMonthValue() : getPreviousBusinessMonthValue(getBusinessMonthValue())}
+          defaultValue={manualRent ? undefined : getPreviousBusinessMonthValue(getBusinessMonthValue())}
           name="billingPeriod"
           required
         />}
-      </Field>
+      </fieldset>
       <ActionMessage state={state} />
       <FormFooter>
         <span className="text-xs text-muted-foreground">

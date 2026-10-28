@@ -16,7 +16,7 @@ The two maintenance RPCs have a 30-second function-specific query budget. The pr
 
 - Properties, units, people, leases and financial entry become available after a full page refresh.
 - Rent cron and lease, term, billing-rule and rent-policy catch-up skip automatic rent generation for Pilot.
-- Authorized finance users explicitly select **Generate rent invoice** for the current month. This uses the existing canonical rent and fee calculation and its idempotency checks.
+- Authorized finance users explicitly select **Generate rent invoice** for the current billing month. The database resolves that month from the selected lease's billing rule when submitted, including timezone and scheduled-rule transitions. This uses the existing canonical rent and fee calculation and its idempotency checks.
 - Earlier-month recovery keeps its existing administrator restriction. Future months and dates before the financial cutoff remain rejected.
 - Other organizations retain their existing billing behavior. Lease activation and deferred owner-cash settlement keep their existing schedules.
 - Old financial forms and retired idempotency keys remain rejected. Reopening does not declare missing rent complete or bypass report/close checks.

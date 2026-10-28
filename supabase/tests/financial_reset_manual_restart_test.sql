@@ -113,7 +113,7 @@ SELECT throws_ok($$SELECT public.recover_lease_rent_period(org,pg_temp.empty_boo
  '42501','Not authorized','ordinary finance users cannot generate historical rent');
 SELECT throws_ok($$SELECT public.recover_lease_rent_period(org,pg_temp.empty_books_id(1),'2026-11-01') FROM manual_restart_review$$,
  '42501','Not authorized','ordinary finance users cannot generate future rent');
-INSERT INTO manual_restart_rent_results SELECT 1,public.recover_lease_rent_period(org,pg_temp.empty_books_id(1),'2026-10-01') FROM manual_restart_review;
+INSERT INTO manual_restart_rent_results SELECT 1,public.generate_current_lease_rent(org,pg_temp.empty_books_id(1)) FROM manual_restart_review;
 SELECT is((SELECT result->>'status' FROM manual_restart_rent_results WHERE attempt=1),'generated',
  'the first authorized finance request generates canonical rent immediately');
 INSERT INTO manual_restart_rent_results SELECT 2,public.recover_lease_rent_period(org,pg_temp.empty_books_id(1),'2026-10-01') FROM manual_restart_review;
@@ -132,11 +132,40 @@ SELECT is((SELECT count(*) FROM public.management_fee_occurrences WHERE organiza
 SELECT pg_temp.reset_fixture_claims(maker) FROM manual_restart_review;
 SET SESSION AUTHORIZATION authenticator;
 SET LOCAL ROLE authenticated;
+SELECT is((SELECT public.generate_current_lease_rent(org,pg_temp.empty_books_id(1)) FROM manual_restart_review),
+ (SELECT result FROM manual_restart_rent_results WHERE attempt=1),
+ 'Super Admin current-month generation uses the same selected rule and returns the same invoice');
 SELECT is((SELECT public.restart_pilot_manual_billing(operation,1,checkpoint_sha256)->>'status' FROM manual_restart_review),
  'already_open','idempotent restart replay preserves legitimate financial entries after opening');
 RESET ROLE;
 RESET SESSION AUTHORIZATION;
 SELECT is((SELECT count(*) FROM app_private.financial_reset_manual_restart_receipts),1::bigint,'restart replay never creates a second receipt');
+-- Only synthetic organization metadata changes inside this rollback block.
+-- The retained UTC Lease rule stays untouched; explicit resolver instants test
+-- both directions of month disagreement without changing the database clock.
+SAVEPOINT manual_rent_month_boundaries;
+UPDATE public.organizations SET operational_timezone='Asia/Phnom_Penh' WHERE id=(SELECT org FROM manual_restart_review);
+SELECT is((SELECT jsonb_build_array(app_private.rent_business_date(org,'2026-10-31T18:00:00Z'),r.business_date,
+ date_trunc('month',r.business_date)::date) FROM manual_restart_review
+ CROSS JOIN LATERAL app_private.resolve_lease_billing_clock(org,pg_temp.empty_books_id(1),'2026-10-31T18:00:00Z') r),
+ '["2026-11-01","2026-10-31","2026-10-01"]'::jsonb,
+ 'the selected Lease stays in October when organization time has entered November');
+UPDATE public.organizations SET operational_timezone='America/New_York' WHERE id=(SELECT org FROM manual_restart_review);
+SELECT is((SELECT jsonb_build_array(app_private.rent_business_date(org,'2026-11-01T02:00:00Z'),r.business_date,
+ date_trunc('month',r.business_date)::date) FROM manual_restart_review
+ CROSS JOIN LATERAL app_private.resolve_lease_billing_clock(org,pg_temp.empty_books_id(1),'2026-11-01T02:00:00Z') r),
+ '["2026-10-31","2026-11-01","2026-11-01"]'::jsonb,
+ 'the selected Lease enters November while organization time is still October');
+ROLLBACK TO SAVEPOINT manual_rent_month_boundaries;
+SELECT ok((SELECT strpos(d,'SELECT billing_term_id,business_date INTO v_rule_id,v_business_date')>0
+ AND strpos(d,'SELECT billing_term_id,business_date INTO v_rule_id,v_business_date')<strpos(d,'v_current_period :=')
+ FROM (SELECT pg_get_functiondef('public.recover_lease_rent_period(uuid,uuid,date)'::regprocedure) d) source),
+ 'manual month authorization consumes the selected Lease clock before classifying the requested period');
+SELECT is((SELECT pronargs::integer FROM pg_proc WHERE oid='public.generate_current_lease_rent(uuid,uuid)'::regprocedure),2,
+ 'the current-rent intent accepts only organization and Lease, never a browser-derived month');
+SELECT ok(NOT EXISTS(SELECT 1 FROM pg_proc p CROSS JOIN LATERAL unnest(p.proconfig) setting
+ WHERE p.oid='public.generate_current_lease_rent(uuid,uuid)'::regprocedure AND setting LIKE 'statement_timeout=%'),
+ 'ordinary manual invoice generation inherits the normal gateway timeout');
 SELECT is((SELECT jsonb_agg(to_jsonb(f) ORDER BY id) FROM public.financial_month_locks f
  WHERE id IN (SELECT pg_temp.empty_books_id(9501+n*10) FROM generate_series(0,3) n)),
  (SELECT image FROM empty_books_foreign),'all four other organizations remain byte-identical');

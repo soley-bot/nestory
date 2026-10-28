@@ -229,6 +229,24 @@ $b$;
       SELECT 1 FROM app_private.financial_write_controls WHERE organization_id=p_organization_id AND NOT automatic_rent_enabled)) THEN$b$;
  IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'pilot_manual_rent_actor_anchor_changed'; END IF;
  d:=replace(d,a,b);
+ a:=$a$  v_business_date := app_private.rent_business_date(
+    p_organization_id,
+    now()
+  );$a$;
+ b:=$b$  IF EXISTS(SELECT 1 FROM app_private.financial_write_controls
+    WHERE organization_id=p_organization_id AND NOT automatic_rent_enabled) THEN
+    -- The selected Lease clock determines both the permitted month and issue
+    -- date. Organization time may be in an adjacent month at the same instant.
+    SELECT billing_term_id,business_date INTO v_rule_id,v_business_date
+    FROM app_private.resolve_lease_billing_clock(p_organization_id,p_lease_id,pg_catalog.now());
+    IF v_business_date IS NULL THEN
+      RAISE EXCEPTION 'Complete the Lease billing setup before generating rent' USING ERRCODE='22023';
+    END IF;
+  ELSE
+    v_business_date := app_private.rent_business_date(p_organization_id,now());
+  END IF;$b$;
+ IF (length(d)-length(replace(d,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'pilot_manual_rent_clock_anchor_changed'; END IF;
+ d:=replace(d,a,b);
  a:='  IF p_billing_period_start >= v_current_period THEN';
  b:=$b$  IF NOT app_private.is_super_admin(p_organization_id) AND p_billing_period_start<>v_current_period THEN
     RAISE EXCEPTION 'Not authorized' USING ERRCODE='42501';
@@ -240,15 +258,14 @@ $b$;
  a:='  -- The private generator locks and keys by lease plus billing month. Repeating';
  b:=$b$  -- Current-month manual entry uses the same property-bound delegated
   -- authority and selected billing rule as the existing exception retry.
-  IF NOT app_private.is_super_admin(p_organization_id) THEN
+  IF p_billing_period_start=v_current_period AND EXISTS(SELECT 1 FROM app_private.financial_write_controls
+    WHERE organization_id=p_organization_id AND NOT automatic_rent_enabled) THEN
     SELECT property_id INTO v_property_id FROM public.leases WHERE organization_id=p_organization_id AND id=p_lease_id;
     IF v_property_id IS NULL OR app_private.can_access_property(p_organization_id,v_property_id,'finance.record_payments') IS DISTINCT FROM true THEN
       RAISE EXCEPTION 'Not authorized' USING ERRCODE='42501';
     END IF;
     PERFORM app_private.begin_finance_property_authority(p_organization_id,v_property_id,'finance.record_payments');
     BEGIN
-      SELECT billing_term_id,business_date INTO v_rule_id,v_business_date
-      FROM app_private.resolve_lease_billing_clock(p_organization_id,p_lease_id,pg_catalog.now());
       IF v_business_date IS NULL OR date_trunc('month',v_business_date)::date IS DISTINCT FROM p_billing_period_start THEN
         RAISE EXCEPTION 'Not authorized' USING ERRCODE='42501';
       END IF;
@@ -295,6 +312,29 @@ $b$||a;
  EXECUTE replace(d,a,b);
 END;
 $manual_rent$;
+
+-- Current billing is an intent, not a browser-selected calendar month. The
+-- existing checked mutation revalidates the selected Lease clock and authority.
+CREATE FUNCTION public.generate_current_lease_rent(p_organization_id uuid,p_lease_id uuid) RETURNS jsonb
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE v_property uuid; v_business_date date;
+BEGIN
+ PERFORM app_private.assert_financial_write_allowed(p_organization_id);
+ SELECT property_id INTO v_property FROM public.leases WHERE organization_id=p_organization_id AND id=p_lease_id;
+ IF (SELECT auth.uid()) IS NULL OR v_property IS NULL
+  OR app_private.can_access_property(p_organization_id,v_property,'finance.record_payments') IS DISTINCT FROM true
+  OR NOT EXISTS(SELECT 1 FROM app_private.financial_write_controls WHERE organization_id=p_organization_id AND NOT automatic_rent_enabled) THEN
+  RAISE EXCEPTION 'Not authorized' USING ERRCODE='42501';
+ END IF;
+ SELECT business_date INTO v_business_date FROM app_private.resolve_lease_billing_clock(p_organization_id,p_lease_id,pg_catalog.now());
+ IF v_business_date IS NULL THEN
+  RAISE EXCEPTION 'Complete the Lease billing setup before generating rent' USING ERRCODE='22023';
+ END IF;
+ RETURN public.recover_lease_rent_period(p_organization_id,p_lease_id,date_trunc('month',v_business_date)::date);
+END;
+$$;
+REVOKE ALL ON FUNCTION public.generate_current_lease_rent(uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.generate_current_lease_rent(uuid,uuid) TO authenticated;
 
 CREATE FUNCTION public.get_pilot_manual_restart_status() RETURNS jsonb
  LANGUAGE plpgsql SECURITY DEFINER SET search_path='' SET statement_timeout='30s' SET lock_timeout='8s' AS $$
