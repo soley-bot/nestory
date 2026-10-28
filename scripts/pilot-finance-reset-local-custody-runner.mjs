@@ -21,6 +21,7 @@ import {assertStagedWaiting,assertStagedPayloadReference,hydrateStagedDispatchTi
  writeStagedPayloadCache,readStagedPayloadCache,removeStagedPayloadCache,STAGED_TICKET_LIMIT} from './local-backup-dispatch-staging.mjs';
 import {assertExecuteResumeBinding,assertExecuteResumeEnvelope,projectExecuteResumeObservation,executeResumeMutationSql,executeResumeObservationSql} from './local-backup-execute-adapter.mjs';
 import {verifyExecuteTransitionObservation} from './local-backup-execute-transition.mjs';
+import {assertPrepublicationRecoveryOriginalRun} from './local-backup-prepublication-recovery.mjs';
 import {assertExecuteResumeOriginalRun} from './local-backup-execute-resume.mjs';
 
 export const LOCAL_CUSTODY_RESET_ACTIONS=Object.freeze(['freeze','checkpoint','prepare','seal','execute']);
@@ -45,7 +46,7 @@ export const LOCAL_CUSTODY_SOURCES=Object.freeze([...new Set([...HOSTED_BOUND_SO
  'scripts/pilot-finance-reset-local-custody-runner.mjs','scripts/local-backup-dispatch-bundle.mjs',
  'scripts/local-backup-dispatch-local.mjs','scripts/local-backup-file-credential.mjs',
  'scripts/local-backup-dispatch-staging.mjs',
- 'scripts/local-backup-execute-adapter.mjs','scripts/local-backup-execute-transition.mjs','scripts/local-backup-execute-transition-manifest.json','scripts/local-backup-execute-resume.mjs',
+ 'scripts/local-backup-prepublication-recovery.mjs','scripts/local-backup-execute-adapter.mjs','scripts/local-backup-execute-transition.mjs','scripts/local-backup-execute-transition-manifest.json','scripts/local-backup-execute-resume.mjs',
  'supabase/migrations/20261028053520_financial_reset_execute_attempt_foreign_baseline.sql',
  'scripts/local-backup-dispatch-repair.mjs','scripts/local-backup-dispatch-repair-manifest.json',
  'scripts/local-backup-dispatch-review.mjs','scripts/local-backup-dispatch-observation.mjs',
@@ -70,7 +71,7 @@ const publicFailureCodes=new Set(['local_custody_database_inputs_invalid','local
  'local_custody_tls_certificate_failed','local_custody_database_authentication_failed',
  'local_custody_database_endpoint_failed','local_custody_database_network_failed',
  'local_custody_database_identity_failed','local_custody_database_bucket_failed',
- 'local_custody_actor_context_required','local_execute_adapter_unverified','local_execute_transition_unverified','local_execute_resume_unverified',
+ 'local_custody_actor_context_required','local_execute_adapter_unverified','local_execute_transition_unverified','local_execute_resume_unverified','local_prepublication_recovery_unverified',
  'local_custody_provision_inputs_invalid','local_custody_provision_credential_unavailable','local_custody_provision_authority_changed',
  'local_custody_read_unavailable','local_custody_read_limit',
  'local_custody_bucket_request_unknown','local_custody_bucket_request_invalid','local_custody_bucket_response_limit',
@@ -91,6 +92,7 @@ export function classifyLocalCustodyDatabaseFailure(bytes){
  if(/local_custody_database_identity/.test(value))return 'local_custody_database_identity_failed';
  if(/local_custody_private_bucket_changed/.test(value))return 'local_custody_database_bucket_failed';
  if(/financial_reset_actor_context_required/.test(value))return 'local_custody_actor_context_required';
+ if(/local_prepublication_authorization_changed/.test(value))return 'local_prepublication_recovery_unverified';
  return 'hosted_transport_process_failed';
 }
 async function localCustodyPsql(connection,sql,action='observe',version=null){
@@ -193,7 +195,7 @@ export function assertLocalCustodyPayloadPreflight({action,mainSha,payload,compa
 export function verifyLocalCustodyPayload({ticket,payload,compatibility}){
  const {binding,artifacts,recovery,observation}=payload;
  if(ticket.sourceObservationSha256!==assertLocalCustodyPayloadPreflight({action:ticket.action,mainSha:ticket.mainSha,payload,compatibility}))fail('payload_invalid');
- const sql=localCustodyMutationSql({binding,action:ticket.action,authorizationId:ticket.authorizationId,authoritySha256:ticket.authoritySha256,observation:payload.resume?.observation??observation,artifacts,recovery,repair:payload.repair,resume:payload.resume});
+ const sql=localCustodyMutationSql({binding,action:ticket.action,authorizationId:ticket.authorizationId,authoritySha256:ticket.authoritySha256,observation:payload.resume?.observation??observation,artifacts,recovery,repair:payload.repair,resume:payload.resume,prepublicationRecovery:payload.prepublicationRecovery});
  if(digestJson(sql)!==ticket.sqlSha256)fail('sql_changed');return sql;
 }
 
@@ -465,7 +467,8 @@ export async function runLocalCustodyWorker(){
    observe,
    ()=>job(env,env.GH_TOKEN),
    ()=>compatibility?assertLocalDispatchCompatibilityCurrent(compatibility,payload.packet):verifyHostedPacketSources(payload.packet),
-   async()=>{if(payload.resume)assertExecuteResumeOriginalRun(await github(`actions/runs/${payload.resume.record.originalAttempt.runId}`,env.GH_TOKEN),payload.resume.record);
+   async()=>{if(payload.prepublicationRecovery)assertPrepublicationRecoveryOriginalRun(await github(`actions/runs/${payload.prepublicationRecovery.stopped.runId}`,env.GH_TOKEN),payload.prepublicationRecovery);
+    if(payload.resume)assertExecuteResumeOriginalRun(await github(`actions/runs/${payload.resume.record.originalAttempt.runId}`,env.GH_TOKEN),payload.resume.record);
     else if(payload.repair&&ticket.action==='prepare')assertPrepareRepairOriginalRun(await github(`actions/runs/${payload.repair.originalAttempt.runId}`,env.GH_TOKEN),payload.repair);},
   ]);
   const beforeView=payload.resume?await projectExecuteResumeObservation({payload,observation:before,authorizationId:ticket.authorizationId,phase:'before'}):before;
@@ -474,7 +477,7 @@ export async function runLocalCustodyWorker(){
    before.authorization.actorId!==payload.binding.continuation_semantic.actor_id||!Number.isFinite(Date.parse(before.authorization.expiresAt))||Date.parse(before.authorization.expiresAt)<=Date.now())fail('authorization_invalid');
   if(!same(first,current)||Date.now()>=Date.parse(ticket.expiresAt)||
    localCustodyMutationSql({binding:payload.binding,action:ticket.action,authorizationId:ticket.authorizationId,authoritySha256:ticket.authoritySha256,
-    observation:before,artifacts:payload.artifacts,recovery:payload.recovery,repair:payload.repair,resume:payload.resume})!==sql)fail('preflight_changed');
+    observation:before,artifacts:payload.artifacts,recovery:payload.recovery,repair:payload.repair,resume:payload.resume,prepublicationRecovery:payload.prepublicationRecovery})!==sql)fail('preflight_changed');
   assertLocalCustodyResetScope({action:ticket.action,binding:payload.binding,artifacts:payload.artifacts,recovery:payload.recovery});
   console.log(JSON.stringify({format:'nestory-local-worker-preflight-timing-v1',
    warmMilliseconds:warmed.milliseconds,remainingWarmMilliseconds,postTicketMilliseconds:Math.round(performance.now()-afterTicketStarted)}));

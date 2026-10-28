@@ -22,6 +22,9 @@ import {verifyLocalDispatchCompatibility,assertLocalDispatchCompatibilityCurrent
 import {EXECUTE_RESUME_ORIGINAL,assertExecuteResumeRecord,assertExecuteResumeCompatibility,localExecuteResumeStagePrefix,
  assertExecuteResumeObservation,assertExecuteResumeOriginalRun} from './local-backup-execute-resume.mjs';
 import {assertExecuteResumeEnvelope,projectExecuteResumeReviewObservation} from './local-backup-execute-adapter.mjs';
+import {PREPUBLICATION_STOPPED,assertPrepublicationRecoveryRecord,assertPrepublicationRecoveryParent,assertPrepublicationRecoveryCompatibility,
+ assertPrepublicationRecoveryPayload,assertPrepublicationRecoveryObservation,assertPrepublicationRecoveryOriginalRun,
+ localPrepublicationRecoveryStagePrefix,prepublicationRecoveryRecordSlot} from './local-backup-prepublication-recovery.mjs';
 import {stagedPayloadPath,assertStagedPayloadUrl,encryptStagedPayload,stagedPayloadReference,decryptStagedPayload,
  stagedWaiting,assertStagedWaiting,stagedDispatchTicket,freshStorageReadUrl,storageHttpFailureCode,verifyStagedCipherReadback,publishStagedTicketOnce} from './local-backup-dispatch-staging.mjs';
 const root=path.resolve(import.meta.dirname,'..'),origin='https://pfvmztxktkwyewvxfgot.supabase.co';
@@ -34,7 +37,7 @@ const safeFailureCodes=new Set(['local_dispatch_storage_outcome_unknown','local_
  'local_dispatch_staging_invalid','local_dispatch_ciphertext_readback_failed','local_dispatch_placeholder_changed','local_dispatch_journal_uncertain',
  'local_dispatch_prepared_publication_required','local_dispatch_staged_payload_changed','local_dispatch_repair_record_missing',
  'local_dispatch_original_run_not_active','local_dispatch_waiting_worker_not_ready','local_prepare_repair_unverified',
- 'local_execute_resume_unverified','local_execute_adapter_unverified','local_execute_transition_unverified',
+ 'local_execute_resume_unverified','local_prepublication_recovery_unverified','local_execute_adapter_unverified','local_execute_transition_unverified',
  'local_dispatch_resume_request_invalid','local_dispatch_resume_input_invalid','local_dispatch_resume_history_changed',
  'local_dispatch_resume_binding_changed','local_dispatch_resume_record_missing']);
 export const localDispatchFailureCode=error=>safeFailureCodes.has(error?.message)?error.message:'local_dispatch_stopped';
@@ -44,9 +47,9 @@ async function sourceAdmission(packet){
  const compatibility=await verifyLocalDispatchCompatibility({packet,executorMainSha});return {executorMainSha,compatibility};
 }
 function sourceRosterAdmitted(packet,compatibility){return compatibility||LOCAL_CUSTODY_SOURCES.every(p=>packet.sourceFiles.some(s=>s.path===p));}
-const stagePrefix=input=>input.payload.resume?localExecuteResumeStagePrefix(input.action,input.payload.resume.record):input.payload.repair?localPrepareRepairStagePrefix(input.action,input.payload.repair):`financial-reset/${input.locator.operationId}/manual-stage/${input.action}`;
-const coordinatorFor=(store,payload)=>createManualResetCoordinator({store,...(payload.repair?{prepareRepair:payload.repair}:{}),...(payload.resume?{executeResume:payload.resume.record}:{})});
-export const localDispatchBootstrapPayload=input=>input.payload.resume?Object.fromEntries(Object.entries(input.payload).filter(([k])=>k!=='resume')):
+const stagePrefix=input=>input.payload.prepublicationRecovery?localPrepublicationRecoveryStagePrefix(input.action,input.payload.prepublicationRecovery):input.payload.resume?localExecuteResumeStagePrefix(input.action,input.payload.resume.record):input.payload.repair?localPrepareRepairStagePrefix(input.action,input.payload.repair):`financial-reset/${input.locator.operationId}/manual-stage/${input.action}`;
+const coordinatorFor=(store,payload)=>createManualResetCoordinator({store,...(payload.repair?{prepareRepair:payload.repair}:{}),...(payload.resume?{executeResume:payload.resume.record}:{}),...(payload.prepublicationRecovery?{prepublicationRecovery:payload.prepublicationRecovery}:{})});
+export const localDispatchBootstrapPayload=input=>input.payload.resume?Object.fromEntries(Object.entries(input.payload).filter(([k])=>!['resume','prepublicationRecovery'].includes(k))):
  input.action==='prepare'&&input.payload.repair?Object.fromEntries(Object.entries(input.payload).filter(([k])=>k!=='repair')):input.payload;
 async function held(work){
  const{holdBusinessSpillCustody}=await import('./local-backup-business-runtime.mjs');if(typeof holdBusinessSpillCustody!=='function')fail('custody_unavailable');
@@ -105,12 +108,14 @@ const api=async(resource,body)=>{
  return bytes.length?JSON.parse(bytes):null;
 };
 function request(r){if(!exact(r,['inputArchiveId','inputArchiveSha256','nonce'])||!uuid.test(r.inputArchiveId)||!uuid.test(r.nonce)||!hash.test(r.inputArchiveSha256))fail('request_invalid');return r;}
-async function load(r,{historical=false,executeResumeSource=false}={}){
+async function load(r,{historical=false,executeResumeSource=false,prepublicationSource=false}={}){
  request(r);const cipher=await readPrivateBackupFile(r.inputArchiveId,'archive.pgp');if(hashBytes(cipher)!==r.inputArchiveSha256)fail('input_changed');
  const plain=await decryptLocalBackup(keyId,cipher);let input;try{input=JSON.parse(new TextDecoder('utf8',{fatal:true}).decode(plain));}finally{plain.fill(0);cipher.fill(0);}
- const resumeInput=Object.hasOwn(input??{},'resume');
- if(!exact(input,['format','payload','custody','custodyEvidence','authoritySha256','stageAuthority','reviewArtifacts','action',...(resumeInput?['resume']:[])])||input.format!=='nestory-local-dispatch-input-v1'||!hash.test(input.authoritySha256)||!HOSTED_ACTIONS.includes(input.action))fail('input_invalid');
+ const resumeInput=Object.hasOwn(input??{},'resume'),publicationInput=Object.hasOwn(input??{},'prepublicationRecovery');
+ if(!exact(input,['format','payload','custody','custodyEvidence','authoritySha256','stageAuthority','reviewArtifacts','action',...(resumeInput?['resume']:[]),...(publicationInput?['prepublicationRecovery']:[])])||input.format!=='nestory-local-dispatch-input-v1'||!hash.test(input.authoritySha256)||!HOSTED_ACTIONS.includes(input.action))fail('input_invalid');
  if(resumeInput&&(!exact(input.resume,['observation'])||input.action!=='execute')||executeResumeSource&&(!historical||resumeInput||input.action!=='execute'||r.nonce!==EXECUTE_RESUME_ORIGINAL.nonce))fail('resume_input_invalid');
+ if(publicationInput&&(!resumeInput||!exact(input.prepublicationRecovery,['parentResumeSha256'])||input.prepublicationRecovery.parentResumeSha256!==PREPUBLICATION_STOPPED.parentResumeSha256)||
+  prepublicationSource&&(!historical||publicationInput||!resumeInput||r.inputArchiveId!==PREPUBLICATION_STOPPED.inputArchiveId||r.inputArchiveSha256!==PREPUBLICATION_STOPPED.inputArchiveSha256||r.nonce!==PREPUBLICATION_STOPPED.nonce))fail('prepublication_input_invalid');
  const {payload}=input;if(!exact(payload,['packet','binding','artifacts','recovery','observation']))fail('payload_invalid');
  const admission=await sourceAdmission(payload.packet);
  inspectDispatchPayloadBudget(payload);
@@ -137,9 +142,17 @@ async function load(r,{historical=false,executeResumeSource=false}={}){
   if(!admission.compatibility||!payload.repair)fail('resume_history_changed');
   await projectExecuteResumeReviewObservation({packet:payload.packet,binding:payload.binding,historicalObservation:payload.observation,observation:input.resume.observation});
   const store=await openFixedLocalDispatchJournal(),bytes=await store.read(`financial-reset/${payload.binding.operation_id}/manual-stage/execute/resume-once`);
-  if(bytes){const record=assertExecuteResumeRecord(JSON.parse(bytes));assertExecuteResumeCompatibility(record,admission.compatibility);
-   if(record.replacement.nonce!==r.nonce||canonicalJson(record.prepareRepair)!==canonicalJson(payload.repair))fail('resume_binding_changed');
-   payload.resume={record,observation:input.resume.observation};await assertExecuteResumeEnvelope({payload,compatibility:admission.compatibility});}
+  if(bytes){const record=assertExecuteResumeRecord(JSON.parse(bytes));
+   if(publicationInput||prepublicationSource)assertPrepublicationRecoveryParent(record);else assertExecuteResumeCompatibility(record,admission.compatibility);
+   if(!publicationInput&&record.replacement.nonce!==r.nonce||canonicalJson(record.prepareRepair)!==canonicalJson(payload.repair))fail('resume_binding_changed');
+   if(publicationInput){
+    const childBytes=await store.read(prepublicationRecoveryRecordSlot());
+    if(childBytes){const child=assertPrepublicationRecoveryRecord(JSON.parse(childBytes));
+     if(child.replacement.nonce!==r.nonce)fail('prepublication_binding_changed');
+     payload.resume={record,observation:input.resume.observation};payload.prepublicationRecovery=child;
+     assertPrepublicationRecoveryPayload({payload,compatibility:admission.compatibility});await assertExecuteResumeEnvelope({payload,compatibility:admission.compatibility});}
+   }else{payload.resume={record,observation:input.resume.observation};if(!prepublicationSource)await assertExecuteResumeEnvelope({payload,compatibility:admission.compatibility});}
+  }else if(publicationInput||prepublicationSource)fail('resume_record_missing');
  }
  return {...input,...admission,locator:{operationId:payload.packet.operation.operationId,action:input.action,nonce:r.nonce}};
 }
@@ -227,6 +240,7 @@ async function discoverLocalDispatchHeld(r){
 }
 async function stageLocalDispatchPayloadHeld(r){
  const input=await load(r),{locator,payload}=input,store=await openFixedLocalDispatchJournal();
+ if(input.prepublicationRecovery&&!payload.prepublicationRecovery)fail('prepublication_record_missing');
  if(input.resume&&!payload.resume)fail('resume_record_missing');
  if(input.compatibility&&!payload.repair)fail('repair_record_missing');
  const enrolled=await required(store,`${prefix(locator)}/response`),run=await findOriginalRun(input,'execute');
@@ -318,6 +332,52 @@ export async function recordLocalExecuteResume(value){
   return {status:'execute-resume-recorded-before-authorization',operationId:resume.operationId,resumeSha256:digestJson(resume),nativeAuthorizationCreated:false};
  });
 }
+export async function persistLocalPrepublicationRecoveryInput(value){
+ if(!exact(value,['originalRequest','observation','nativeApprovals','issuedAt','expiresAt']))fail('prepublication_request_invalid');request(value.originalRequest);
+ const copy=structuredClone(value);
+ return held(async()=>{
+  const original=await load(copy.originalRequest,{historical:true,prepublicationSource:true}),{payload}=original;
+  assertPrepublicationRecoveryParent(payload.resume?.record);
+  const store=await openFixedLocalDispatchJournal();
+  if(await store.read(`${prefix(original.locator)}/publish-claim`)!==null||await store.read(prepublicationRecoveryRecordSlot())!==null)fail('prepublication_already_claimed');
+  await projectExecuteResumeReviewObservation({packet:payload.packet,binding:payload.binding,historicalObservation:payload.observation,observation:copy.observation});
+  const stageAuthority=prepareLocalDispatchStageAuthority({packet:payload.packet,artifacts:payload.artifacts,reviews:original.reviewArtifacts,action:'execute',
+   observation:payload.observation,nativeApprovals:copy.nativeApprovals,issuedAt:copy.issuedAt,expiresAt:copy.expiresAt});
+  const basePayload=Object.fromEntries(Object.entries(payload).filter(([k])=>!['repair','resume'].includes(k)));
+  const input={format:original.format,payload:basePayload,custody:original.custody,custodyEvidence:original.custodyEvidence,
+   authoritySha256:hashBytes(canonicalJson(stageAuthority)),stageAuthority,reviewArtifacts:original.reviewArtifacts,action:'execute',
+   resume:{observation:copy.observation},prepublicationRecovery:{parentResumeSha256:PREPUBLICATION_STOPPED.parentResumeSha256}};
+  const plain=Buffer.from(JSON.stringify(input)),inputArchiveId=randomUUID();let cipher;
+  try{if(plain.length>32*1024*1024)fail('input_limit');cipher=await encryptLocalBackup(keyId,plain);await writePrivateBackupFile(inputArchiveId,'archive.pgp',cipher);
+   const readback=await readPrivateBackupFile(inputArchiveId,'archive.pgp');try{if(!readback.equals(cipher))fail('input_readback_changed')}finally{readback.fill(0)}
+   return {inputArchiveId,inputArchiveSha256:hashBytes(cipher),nonce:randomUUID()};
+  }finally{plain.fill(0);cipher?.fill(0)}
+ });
+}
+export async function recordLocalPrepublicationRecovery(value){
+ if(!exact(value,['request','recovery','eligibility']))fail('prepublication_request_invalid');request(value.request);const copy=structuredClone(value);
+ return held(async()=>{
+  const input=await load(copy.request),record=assertPrepublicationRecoveryRecord(copy.recovery),eligibility=copy.eligibility;
+  if(!input.prepublicationRecovery||input.payload.prepublicationRecovery||input.action!=='execute'||!input.compatibility)fail('prepublication_binding_changed');
+  assertPrepublicationRecoveryCompatibility(record,input.compatibility);
+  if(record.replacement.nonce!==input.locator.nonce||record.bindingSha256!==digestJson(input.payload.binding)||record.packetSha256!==input.payload.packet.packetSha256||
+   record.freshForeignSha256!==input.resume.observation.foreignSha256||record.eligibilitySha256!==digestJson(eligibility))fail('prepublication_binding_changed');
+  assertPrepublicationRecoveryObservation(eligibility,{binding:input.payload.binding});
+  const originalRun=await api(`actions/runs/${record.stopped.runId}`);assertPrepublicationRecoveryOriginalRun(originalRun,record);
+  const run=await findOriginalRun(input,'execute');if(!run||String(run.id)!==record.replacement.runId||run.status!=='in_progress')fail('original_run_not_active');
+  const store=await openFixedLocalDispatchJournal(),oldLocator={operationId:record.operationId,action:'execute',nonce:record.stopped.nonce};
+  if(await store.read(`${prefix(oldLocator)}/publish-claim`)!==null)fail('prepublication_publication_present');
+  const secret=await transfer(store,oldLocator);
+  try{
+   if(secret.data.inputArchiveId!==PREPUBLICATION_STOPPED.inputArchiveId||secret.data.inputArchiveSha256!==PREPUBLICATION_STOPPED.inputArchiveSha256)fail('original_input_changed');
+   const credential=await serviceCredential();await privateBucket(credential);
+   const cipher=await storage('GET',`object/${LOCAL_CUSTODY_BUCKET}/${localCustodyObjectPath(oldLocator)}`,credential);let remoteWaiting;
+   try{remoteWaiting=decryptLocalCustodyTransfer(cipher,secret.key,oldLocator);assertStagedWaiting(remoteWaiting,oldLocator);}finally{cipher.fill(0)}
+   await createManualResetCoordinator({store}).recordPrepublicationRecovery(record,{binding:input.payload.binding,eligibility,originalRun,remoteWaiting});
+  }finally{secret.key.fill(0)}
+  return {status:'prepublication-recovery-recorded-before-authorization',operationId:record.operationId,prepublicationRecoverySha256:digestJson(record),nativeAuthorizationCreated:false};
+ });
+}
 export function localDispatchWorkerWaiting(jobs,run,mainSha){
  if(!Array.isArray(jobs?.jobs)||jobs.total_count!==jobs.jobs.length)fail('waiting_worker_not_ready');
  return jobs.jobs.filter(j=>j.name==='Pilot reset local custody'&&j.status==='in_progress'&&j.run_id===run.id&&j.run_attempt===1&&
@@ -343,7 +403,7 @@ async function publishLocalDispatchHeld(r,authorizationId,prepared){
    const waiting=decryptLocalCustodyTransfer(await storage('GET',object,credential),secret.key,locator);
    if(canonicalJson(assertStagedWaiting(waiting,locator))!==canonicalJson(prepared.staged))fail('placeholder_changed');
   }
-  const sql=localCustodyMutationSql({binding:payload.binding,action:locator.action,authorizationId,authoritySha256:input.authoritySha256,observation:payload.resume?.observation??payload.observation,artifacts:payload.artifacts,recovery:payload.recovery,repair:payload.repair,...(payload.resume?{resume:payload.resume}:{})});
+  const sql=localCustodyMutationSql({binding:payload.binding,action:locator.action,authorizationId,authoritySha256:input.authoritySha256,observation:payload.resume?.observation??payload.observation,artifacts:payload.artifacts,recovery:payload.recovery,repair:payload.repair,...(payload.resume?{resume:payload.resume}:{}),...(payload.prepublicationRecovery?{prepublicationRecovery:payload.prepublicationRecovery}:{})});
   const transportIntent={format:'nestory-hosted-reset-action-intent-v1',operationId:locator.operationId,packetSha256:payload.packet.packetSha256,action:locator.action,
    bindingSha256:digestJson(payload.binding),authorizationId,authoritySha256:input.authoritySha256,sourceObservationSha256:digestDatabaseJson(payload.resume?.observation??payload.observation),sqlSha256:digestJson(sql)};
   const document={format:'nestory-manual-reset-intent-v1',mainSha:input.executorMainSha,inputBundleSha256:digestDatabaseJson(payload),custody:input.custody,transportIntent};
@@ -403,6 +463,7 @@ async function preparePublication(r){
  const {holdBusinessSpillCustody}=await import('./local-backup-business-runtime.mjs');const lease=await holdBusinessSpillCustody();let custodyReceipt,secret,signing,credential;
  try{
   const input=await load(r); // Existing first full semantic verification.
+  if(input.prepublicationRecovery&&!input.payload.prepublicationRecovery)fail('prepublication_record_missing');
   if(input.resume&&!input.payload.resume)fail('resume_record_missing');
   custodyReceipt=await prepareSavedLocalRecoveryEvidence(custodyArgs(input),r,input.compatibility?{compatibility:input.compatibility}:undefined); // Full verifier before authorization.
   const store=await openFixedLocalDispatchJournal();secret=await transfer(store,input.locator);let staged;

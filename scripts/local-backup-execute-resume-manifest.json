@@ -12,6 +12,11 @@
       "replacementSha256": "cc3019038a32eb436d76019a302878d9f7187405b92b927ca13c6b82e7261c0b"
     },
     {
+      "path": "scripts/fixtures/local-backup-prepublication-fixture.mjs",
+      "originalSha256": null,
+      "replacementSha256": "5195b952a2f9bf135f30026cc6318f9c63e2ccd00e69d00bf3d15744923c7d97"
+    },
+    {
       "path": "scripts/local-backup-custody-evidence.mjs",
       "originalSha256": "c074746b4e4118fa2ed080c6600bdac4d81f9d0166828520d6d1c1f74969c34f",
       "replacementSha256": "a2fe69aff6209c8d5a1bf232be3644d552743f331cfeb27201109b6876bd7c9d"
@@ -24,17 +29,17 @@
     {
       "path": "scripts/local-backup-dispatch-bundle.mjs",
       "originalSha256": "9c4e6a1ed31e9c23f8a6b2007aaa7f0369d5f6d84576710f3677581e46f7ba84",
-      "replacementSha256": "24eb4d461ba2510b916e8a5eb1e266dce295e26cc489a7df4ff980e80c9c88fb"
+      "replacementSha256": "dc7a29e92168c03683bb8f94f6bcd4c8e92df5b319093a7cfa264295813761ae"
     },
     {
       "path": "scripts/local-backup-dispatch-bundle.node-test.mjs",
       "originalSha256": "d0b389e1f392a55b91b1befd205a406df6fe911ea5c5cf138c72bdb59cca18e1",
-      "replacementSha256": "a2746486448828687424361c740bde24779568b76e26c5e1b8077d76915c1a33"
+      "replacementSha256": "c36c85b264319803ae60c8a3f6db1c455831453c2aaa48b525393d6c7da19ea3"
     },
     {
       "path": "scripts/local-backup-dispatch-local.mjs",
       "originalSha256": "45f79af3758227efb294cb8d1b25d82bed6f925dbbe9bd731c3ebd3be5102ce5",
-      "replacementSha256": "178db446c6706861638a185e4259ee52a461b46032ab0fc4db6578876e449ae3"
+      "replacementSha256": "a4db578cc70d27a1c4cf637cb9db99bde71f86a0d200760a12b2e915ce8eed5d"
     },
     {
       "path": "scripts/local-backup-dispatch-local.node-test.mjs",
@@ -49,7 +54,7 @@
     {
       "path": "scripts/local-backup-dispatch-repair.mjs",
       "originalSha256": null,
-      "replacementSha256": "639549274bac29ed804b20968ace204417d825c5689a6bfc67774bc28c0685ce"
+      "replacementSha256": "daf6005143e13ef3e3bc0770d00c2933b6326fff7ebfd83ad83518a536b5c91b"
     },
     {
       "path": "scripts/local-backup-dispatch-repair.node-test.mjs",
@@ -59,22 +64,22 @@
     {
       "path": "scripts/local-backup-dispatch-staging.mjs",
       "originalSha256": null,
-      "replacementSha256": "85d78b12bdd5121eaf5287e0544e1225edd3dca62b4cd421c0809162601a00d5"
+      "replacementSha256": "f7434e1676f74588624512d93ca78077e2d74d584d06f94f9774540b1ace7cbf"
     },
     {
       "path": "scripts/local-backup-dispatch-staging.node-test.mjs",
       "originalSha256": null,
-      "replacementSha256": "1cfc01042a4b82ca36652184fac125178a598a75385ed6df8012af593e314bd2"
+      "replacementSha256": "170f2adad1d6deaa548e8731802fe48c04f4efc29f7ee4cdc1f8f4200598e096"
     },
     {
       "path": "scripts/local-backup-execute-adapter.mjs",
       "originalSha256": null,
-      "replacementSha256": "4a40e8d92be4fb29a6ccb7e15df11dad7293e20b6230d628879fbcc8567a2272"
+      "replacementSha256": "0d9fafdc3c915165158714bd3b7516cbe5a227f12f7d047bc56d911e6fb5f0df"
     },
     {
       "path": "scripts/local-backup-execute-adapter.node-test.mjs",
       "originalSha256": null,
-      "replacementSha256": "f735a02fd00516509b90fa215f1a1633350a232cf01c9f9fb98f42a0d00319fc"
+      "replacementSha256": "ef6f7118891dece1ab3a16769ceef3d9147dd484ce1a30dd5013d34b3b006ee9"
     },
     {
       "path": "scripts/local-backup-execute-resume.mjs",
@@ -112,9 +117,19 @@
       "replacementSha256": "a53569a536864caa7f721fa3e78baf9af5019d51d489d7deabb9e39fd7859835"
     },
     {
+      "path": "scripts/local-backup-prepublication-recovery.mjs",
+      "originalSha256": null,
+      "replacementSha256": "36c467090c9fd7d7b08beacc232c549726fe65bd872360f1f655d46ecaec7948"
+    },
+    {
+      "path": "scripts/local-backup-prepublication-recovery.node-test.mjs",
+      "originalSha256": null,
+      "replacementSha256": "0e92d8924273d402fa8fb7c73b3e924eff32d30a56c08bf023466aead439de44"
+    },
+    {
       "path": "scripts/pilot-finance-reset-local-custody-runner.mjs",
       "originalSha256": "86679ff4983920100829047d5ffa1ab405499b060d81d39141ea064abce5a50f",
-      "replacementSha256": "a4d05dc3cc124d08cdbee184506cd8be5610b64c8e1471b63800c55994a3ffd9"
+      "replacementSha256": "1f900223f3568f741f6e97f36cf2121055fa653ad452ab7b0010a0442bf1206d"
     },
     {
       "path": "scripts/pilot-finance-reset-local-custody.node-test.mjs",
@@ -124,7 +139,7 @@
     {
       "path": "scripts/pilot-finance-reset-manual-coordinator.mjs",
       "originalSha256": "b033ba9df680f9e48d6f65490a6f7fbeb3e593e2d39857306c824cf3fe5ea38c",
-      "replacementSha256": "dab39514ad915accfbb40d775043daa855b94da337c670cd74e1252648cdfb20"
+      "replacementSha256": "a739af4b9f1e8db50629e64b1f3824168b06bac63f52f7988a4277c9fa53a009"
     },
     {
       "path": "scripts/pilot-finance-reset-windows-journal.node-test.mjs",
@@ -134,7 +149,7 @@
     {
       "path": "scripts/pilot-finance-reset-worker-readiness.node-test.mjs",
       "originalSha256": null,
-      "replacementSha256": "75abb4f464dff77ad74eb0349e5d4243c6541d74ccc246bc1f09c57bcb3176f7"
+      "replacementSha256": "d6a9bc8fcd4bbba466650fbd63873dccb97f44d0fdc34de60b66feac2c0976b4"
     },
     {
       "path": "scripts/run-database-tests.mjs",

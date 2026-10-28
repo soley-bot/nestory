@@ -2,6 +2,7 @@
 // The worker must rebuild mutationSql, check its digest and live preconditions,
 // and retain the global transport hold until the complete path is reviewed.
 import { spawn } from 'node:child_process';
+import {randomBytes} from 'node:crypto';
 import path from 'node:path';
 import {readFile} from 'node:fs/promises';
 import * as pgp from 'openpgp';
@@ -15,6 +16,8 @@ import {assertPrepareRepairRecord,assertPrepareRepairOriginalJournal,assertPrepa
   verifyLocalDispatchCompatibility,assertLocalDispatchCompatibilityCurrent,localPrepareRepairStagePrefix} from './local-backup-dispatch-repair.mjs';
 import {assertExecuteResumeRecord,assertExecuteResumeOriginalJournal,assertExecuteResumeCompatibility,localExecuteResumeStagePrefix} from './local-backup-execute-resume.mjs';
 
+import {assertPrepublicationRecoveryRecord,assertPrepublicationRecoveryParent,assertPrepublicationRecoveryPayload,assertPrepublicationRecoveryOriginalJournal,prepublicationRecoveryRecordSlot,prepublicationRecoveryParentPrefix,localPrepublicationRecoveryStagePrefix} from './local-backup-prepublication-recovery.mjs';
+
 export const LOCAL_DISPATCH_WORKFLOW = '.github/workflows/pilot-financial-reset-local-custody.yml';
 export const LOCAL_DISPATCH_REPOSITORY = 'soley-bot/nestory';
 const domain = 'nestory-local-custody-dispatch-signature-v1\n';
@@ -23,6 +26,8 @@ const repairDomain = 'nestory-local-custody-dispatch-signature-v2\n';
 const repairFormat = 'nestory-local-custody-dispatch-ticket-v2';
 const resumeDomain = 'nestory-local-custody-dispatch-signature-v3\n';
 const resumeFormat = 'nestory-local-custody-dispatch-ticket-v3';
+const prepublicationDomain = 'nestory-local-custody-dispatch-signature-v4\n';
+const prepublicationFormat = 'nestory-local-custody-dispatch-ticket-v4';
 const hash = /^[a-f0-9]{64}$/;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const fail = () => { throw Error('local_dispatch_bundle_invalid'); };
@@ -36,10 +41,11 @@ const fields = ['format','repository','workflow','mainSha','runId','runAttempt',
 const payloadFields = ['packet','binding','artifacts','recovery','observation'];
 const hasRepair = payload => payload && Object.prototype.hasOwnProperty.call(payload,'repair');
 const hasResume = payload => payload && Object.prototype.hasOwnProperty.call(payload,'resume');
-const expectedPayloadFields = payload => hasResume(payload)?[...payloadFields,'repair','resume']:hasRepair(payload)?[...payloadFields,'repair']:payloadFields;
-const expectedTicketFields = payload => hasResume(payload)?[...fields,'repairSha256','resumeSha256']:hasRepair(payload)?[...fields,'repairSha256']:fields;
-const ticketFormat=payload=>hasResume(payload)?resumeFormat:hasRepair(payload)?repairFormat:format;
-const bundleFormat=payload=>`nestory-local-custody-dispatch-bundle-v${hasResume(payload)?3:hasRepair(payload)?2:1}`;
+const hasPrepublication = payload => payload && Object.prototype.hasOwnProperty.call(payload,'prepublicationRecovery');
+const expectedPayloadFields = payload => hasPrepublication(payload)?[...payloadFields,'repair','resume','prepublicationRecovery']: hasResume(payload)?[...payloadFields,'repair','resume']:hasRepair(payload)?[...payloadFields,'repair']:payloadFields;
+const expectedTicketFields = payload => hasPrepublication(payload)?[...fields,'repairSha256','resumeSha256','prepublicationRecoverySha256']: hasResume(payload)?[...fields,'repairSha256','resumeSha256']:hasRepair(payload)?[...fields,'repairSha256']:fields;
+const ticketFormat=payload=>hasPrepublication(payload)?prepublicationFormat:hasResume(payload)?resumeFormat:hasRepair(payload)?repairFormat:format;
+const bundleFormat=payload=>`nestory-local-custody-dispatch-bundle-v${hasPrepublication(payload)?4:hasResume(payload)?3:hasRepair(payload)?2:1}`;
 export const LOCAL_DISPATCH_TRANSFER_LIMIT = 32*1024*1024;
 const signatureLimit=8192, transferOverhead=32, documentReserve=64;
 // Bound the complete future signed envelope before any durable intent exists.
@@ -48,13 +54,14 @@ export function inspectDispatchPayloadBudget(payload){
   if(!exact(payload,expectedPayloadFields(payload))||!payload.artifacts||Object.getPrototypeOf(payload.artifacts)!==Object.prototype)fail();
   if(hasRepair(payload))assertPrepareRepairRecord(payload.repair);
   if(hasResume(payload)){if(!exact(payload.resume,['record','observation']))fail();assertExecuteResumeRecord(payload.resume.record);}
+  if(hasPrepublication(payload)){assertPrepublicationRecoveryRecord(payload.prepublicationRecovery);assertPrepublicationRecoveryParent(payload.resume.record);}
   const h='a'.repeat(64),u='11111111-1111-4111-8111-111111111111';
   const ticket={format:ticketFormat(payload),repository:LOCAL_DISPATCH_REPOSITORY,workflow:LOCAL_DISPATCH_WORKFLOW,
     mainSha:'a'.repeat(40),runId:'9'.repeat(20),runAttempt:1,operationId:u,
     action:HOSTED_ACTIONS.reduce((a,b)=>a.length>=b.length?a:b),authorizationId:u,nonce:u,
     issuedAt:'+010000-01-01T00:00:00.000Z',expiresAt:'+010000-01-01T00:05:00.000Z',
     artifactHashes:Object.fromEntries(Object.keys(payload.artifacts).map(k=>[k,h])),
-    ...Object.fromEntries(digestFields.map(k=>[k,h])),...(hasRepair(payload)?{repairSha256:h}:{}),...(hasResume(payload)?{resumeSha256:h}:{})};
+    ...Object.fromEntries(digestFields.map(k=>[k,h])),...(hasRepair(payload)?{repairSha256:h}:{}),...(hasResume(payload)?{resumeSha256:h}:{}),...(hasPrepublication(payload)?{prepublicationRecoverySha256:h}:{})};
   const maximumDocumentBytes=Buffer.byteLength(JSON.stringify({format:bundleFormat(payload),ticket,payload,
     signingPublicKeySha256:h,signatureBase64:'A'.repeat(signatureLimit)}));
   if(maximumDocumentBytes>LOCAL_DISPATCH_TRANSFER_LIMIT-documentReserve)throw Error('local_dispatch_transfer_limit');
@@ -100,6 +107,7 @@ export function assertDispatchRepairBinding({ticket,payload}){
   return repair;
 }
 export function assertDispatchResumeBinding({ticket,payload}){
+  if(hasPrepublication(payload))return assertDispatchPrepublicationBinding({ticket,payload});
   if(!exact(payload.resume,['record','observation']))fail();
   const r=assertExecuteResumeRecord(payload.resume.record),o=payload.resume.observation;
   if(ticket.action!=='execute'||ticket.resumeSha256!==digestJson(payload.resume)||ticket.repairSha256!==digestJson(payload.repair)||
@@ -110,17 +118,30 @@ export function assertDispatchResumeBinding({ticket,payload}){
   return r;
 }
 
+export function assertDispatchPrepublicationBinding({ticket,payload}){
+  const r=assertPrepublicationRecoveryRecord(payload.prepublicationRecovery),parent=assertPrepublicationRecoveryParent(payload.resume.record);
+  if(ticket.action!=='execute'||ticket.prepublicationRecoverySha256!==digestJson(r)||ticket.resumeSha256!==digestJson(payload.resume)||
+    ticket.repairSha256!==digestJson(payload.repair)||canonicalJson(payload.repair)!==canonicalJson(parent.prepareRepair)||
+    ticket.mainSha!==r.executorMainSha||ticket.operationId!==r.operationId||ticket.packetSha256!==r.packetSha256||ticket.bindingSha256!==r.bindingSha256||
+    parent.operationId!==r.operationId||parent.packetSha256!==r.packetSha256||parent.bindingSha256!==r.bindingSha256||
+    ticket.runId!==r.replacement.runId||ticket.nonce!==r.replacement.nonce||ticket.runAttempt!==1||
+    [r.stopped.authorizationId,parent.originalAttempt.authorizationId,parent.prepareRepair.originalAttempt.authorizationId].includes(ticket.authorizationId)||
+    payload.packet?.operation?.mainSha!==r.originalMainSha||payload.binding?.main_sha!==r.originalMainSha||
+    payload.recovery!==null||payload.resume.observation?.foreignSha256!==r.freshForeignSha256)fail();
+  return r;
+}
+
 export function buildDispatchTicket(input,payload) {
   const supplied=fields.filter(k=>!['format','repository','workflow','runAttempt','artifactHashes','payloadSha256'].includes(k));
   if(!exact(input,supplied)||!exact(payload,expectedPayloadFields(payload))||!payload.artifacts)fail();
   const ticket={...structuredClone(input),format:ticketFormat(payload),repository:LOCAL_DISPATCH_REPOSITORY,workflow:LOCAL_DISPATCH_WORKFLOW,runAttempt:1,
     artifactHashes:Object.fromEntries(Object.entries(payload.artifacts).map(([k,v])=>[k,digestDatabaseJson(v)])),payloadSha256:digestDatabaseJson(payload),
-    ...(hasRepair(payload)?{repairSha256:digestJson(payload.repair)}:{}),...(hasResume(payload)?{resumeSha256:digestJson(payload.resume)}:{})};
+    ...(hasRepair(payload)?{repairSha256:digestJson(payload.repair)}:{}),...(hasResume(payload)?{resumeSha256:digestJson(payload.resume)}:{}),...(hasPrepublication(payload)?{prepublicationRecoverySha256:digestJson(payload.prepublicationRecovery)}:{})};
   validate(ticket,payload); return ticket;
 }
 export function dispatchSigningBytes(ticket,payload) {
   validate(ticket,payload);
-  return Buffer.from((hasResume(payload)?resumeDomain:hasRepair(payload)?repairDomain:domain)+canonicalJson(ticket),'utf8');
+  return Buffer.from((hasPrepublication(payload)?prepublicationDomain:hasResume(payload)?resumeDomain:hasRepair(payload)?repairDomain:domain)+canonicalJson(ticket),'utf8');
 }
 
 // Fixed existing custody helper, anonymous pipes only; private bytes never leave
@@ -158,7 +179,7 @@ export function assertDispatchJournalRecords({ticket,payload,intentBytes,claimBy
   const decode=b=>JSON.parse(new TextDecoder('utf8',{fatal:true}).decode(b));
   const intent=assertManualResetIntent(decode(intentBytes)),claim=decode(claimBytes),response=decode(responseBytes),t=intent.transportIntent;
   const bootstrap=decode(bootstrapClaimBytes),enrollment=decode(bootstrapResponseBytes);
-  const bootstrapPayload=hasResume(payload)?Object.fromEntries(Object.entries(payload).filter(([key])=>key!=='resume')):hasRepair(payload)&&ticket.action==='prepare'
+  const bootstrapPayload=hasResume(payload)?Object.fromEntries(Object.entries(payload).filter(([key])=>!['resume','prepublicationRecovery'].includes(key))):hasRepair(payload)&&ticket.action==='prepare'
     ?Object.fromEntries(Object.entries(payload).filter(([key])=>key!=='repair')):payload;
   const evidence=decode(evidenceRecordBytes);
   if(hashBytes(evidenceRecordBytes)!==ticket.custodyEvidenceSha256||intent.custody.evidenceRecordSha256!==ticket.custodyEvidenceSha256||
@@ -189,19 +210,17 @@ export async function openFixedLocalDispatchJournal(){
     reference.configuration?.directory!=='C:\\Users\\USer\\Nestory-Recovery\\pilot-october-2026\\local-journal')fail();
   return openWindowsResetJournal(reference.configuration);
 }
-async function verifyDurableDispatch(ticket,payload,preparedCustody,preparedSigning){
-  const store=preparedSigning?.store??await openFixedLocalDispatchJournal();
-  const basePrefix=`financial-reset/${ticket.operationId}/manual-stage/${ticket.action}`;
-  let prefix=basePrefix,compatibility;
+async function verifyRetainedDispatchHistory({store,payload,action,compatibility}){
+  const basePrefix=`financial-reset/${payload.packet.operation.operationId}/manual-stage/${action}`;
+  let prefix=basePrefix;
   if(hasRepair(payload)){
-    assertDispatchRepairBinding({ticket,payload});const repair=assertPrepareRepairRecord(payload.repair);
-    const repairBytes=await store.read(`financial-reset/${ticket.operationId}/manual-stage/prepare/repair-once`);
+    const repair=assertPrepareRepairRecord(payload.repair);
+    const repairBytes=await store.read(`financial-reset/${payload.packet.operation.operationId}/manual-stage/prepare/repair-once`);
     if(!(repairBytes instanceof Uint8Array)||repairBytes.length<1||repairBytes.length>262144||
       Buffer.from(repairBytes).toString('utf8')!==canonicalJson(repair))fail();
-    compatibility=preparedSigning?.compatibility??await verifyLocalDispatchCompatibility({packet:payload.packet,executorMainSha:ticket.mainSha});
-    if(preparedSigning)await assertLocalDispatchCompatibilityCurrent(compatibility,payload.packet);
-    if(hasResume(payload))assertExecuteResumeCompatibility(payload.resume.record,compatibility);else assertPrepareRepairCompatibility(repair,compatibility);
-    const originalPrefix=`financial-reset/${ticket.operationId}/manual-stage/prepare`;
+    if(hasPrepublication(payload))assertPrepublicationRecoveryPayload({payload,compatibility});
+    else if(hasResume(payload))assertExecuteResumeCompatibility(payload.resume.record,compatibility);else assertPrepareRepairCompatibility(repair,compatibility);
+    const originalPrefix=`financial-reset/${payload.packet.operation.operationId}/manual-stage/prepare`;
     const [intentBytes,claimBytes,responseBytes,publicationBytes]=await Promise.all(
       ['intent','dispatch-claim','dispatch-response',`bootstrap/${repair.originalAttempt.nonce}/publish-claim`].map(k=>store.read(`${originalPrefix}/${k}`)));
     assertPrepareRepairOriginalJournal({repair,intentBytes,claimBytes,responseBytes,publicationBytes});
@@ -213,9 +232,28 @@ async function verifyDurableDispatch(ticket,payload,preparedCustody,preparedSign
       assertExecuteResumeOriginalJournal({resume,intentBytes:old[0],claimBytes:old[1],responseBytes:old[2],publicationBytes:old[3],
         receiptBytes:old[4],reconciliationBytes:old[5],prepareRepairBytes:repairBytes});
       const {assertExecuteResumeEnvelope}=await import('./local-backup-execute-adapter.mjs');await assertExecuteResumeEnvelope({payload,compatibility});
-      prefix=localExecuteResumeStagePrefix(ticket.action,resume);
-    }else prefix=localPrepareRepairStagePrefix(ticket.action,repair);
+      prefix=localExecuteResumeStagePrefix(action,resume);
+      if(hasPrepublication(payload)){
+        const child=payload.prepublicationRecovery,childBytes=await store.read(prepublicationRecoveryRecordSlot());
+        if(!(childBytes instanceof Uint8Array)||childBytes.length>262144||Buffer.from(childBytes).toString('utf8')!==canonicalJson(child))fail();
+        const stoppedPrefix=prepublicationRecoveryParentPrefix(),boot=`${basePrefix}/bootstrap/${child.stopped.nonce}`;
+        const stopped=await Promise.all(['intent','dispatch-claim','dispatch-response'].map(k=>store.read(`${stoppedPrefix}/${k}`))
+          .concat(['claim','staged-payload','publish-claim'].map(k=>store.read(`${boot}/${k}`))));
+        assertPrepublicationRecoveryOriginalJournal({record:child,resumeBytes:parent,intentBytes:stopped[0],claimBytes:stopped[1],responseBytes:stopped[2],
+          bootstrapBytes:stopped[3],stagedBytes:stopped[4],publicationBytes:stopped[5]});
+        prefix=localPrepublicationRecoveryStagePrefix(action,child);
+      }
+    }else prefix=localPrepareRepairStagePrefix(action,repair);
   }
+  return prefix;
+}
+async function verifyDurableDispatch(ticket,payload,preparedCustody,preparedSigning){
+  const store=preparedSigning?.store??await openFixedLocalDispatchJournal();
+  const basePrefix=`financial-reset/${ticket.operationId}/manual-stage/${ticket.action}`;
+  const compatibility=hasRepair(payload)?preparedSigning?.compatibility??await verifyLocalDispatchCompatibility({packet:payload.packet,executorMainSha:ticket.mainSha}):null;
+  if(compatibility&&preparedSigning)await assertLocalDispatchCompatibilityCurrent(compatibility,payload.packet);
+  if(hasRepair(payload))assertDispatchRepairBinding({ticket,payload});
+  const prefix=await verifyRetainedDispatchHistory({store,payload,action:ticket.action,compatibility});
   const [intentBytes,claimBytes,responseBytes,bootstrapClaimBytes,bootstrapResponseBytes,workflowPostBytes,evidenceRecordBytes]=await Promise.all(
     ['intent','dispatch-claim','dispatch-response'].map(k=>store.read(`${prefix}/${k}`)).concat(
       ['claim','response','workflow-post'].map(k=>store.read(`${basePrefix}/bootstrap/${ticket.nonce}/${k}`)),
@@ -246,17 +284,46 @@ export function createPreparedDispatchSigning({prepare,check,sign,dispose}){
     close,
   });
 }
+// OpenPGP parameter arrays alias binaryKey. Ownership of raw transfers to the
+// material; zeroing it after parsing would destroy the still-prepared key.
+export async function parseDispatchSigningMaterial(raw,expected){
+  let signingKey;
+  try{
+    if(!(raw instanceof Uint8Array)||raw.length<1||raw.length>65536||!exact(expected,['fingerprint','publicKeySha256'])||
+      !/^[a-f0-9]{40}$/.test(expected.fingerprint)||!hash.test(expected.publicKeySha256))fail();
+    signingKey=await pgp.readPrivateKey({binaryKey:raw,config});
+    if(signingKey.getFingerprint()!==expected.fingerprint||signingKey.keyPacket.version!==4||signingKey.getAlgorithmInfo().bits!==3072)fail();
+    return {signingKey,rawKeyBytes:raw,publicKeySha256:expected.publicKeySha256};
+  }catch(error){disposeDispatchSigningMaterial({signingKey,rawKeyBytes:raw});throw error;}
+}
+export function disposeDispatchSigningMaterial(material){
+  if(!material)return;
+  try{material.signingKey?.clearPrivateParams();}
+  finally{if(material.rawKeyBytes instanceof Uint8Array)material.rawKeyBytes.fill(0);material.rawKeyBytes=null;}
+}
+// This domain is not a dispatch signature. Nothing is persisted or returned;
+// a broken key fails before preparation can expose a ready signing handle.
+export async function assertDispatchSigningMaterialUsable(material,verificationKey){
+  const bytes=Buffer.concat([Buffer.from('nestory-local-dispatch-key-self-test-v1\n'),randomBytes(32)]);let signature;
+  try{
+    signature=await pgp.sign({message:await pgp.createMessage({binary:bytes}),signingKeys:material.signingKey,detached:true,format:'binary',config});
+    const result=await pgp.verify({message:await pgp.createMessage({binary:bytes}),verificationKeys:verificationKey,
+      signature:await pgp.readSignature({binarySignature:signature,config}),config});
+    if(result.signatures.length!==1)fail();await result.signatures[0].verified;return true;
+  }finally{bytes.fill(0);signature?.fill(0);}
+}
 async function loadSigningMaterial(keyId){
-  let wrapped,raw,signingKey;
+  let wrapped,material;
   try{
     const {metadata,key}=await loadRecoveryPublicKey(keyId);
     wrapped=await readPrivateBackupFile(keyId,'private.dpapi');
     if(hashBytes(wrapped)!==metadata.wrappedKeySha256)fail();
-    raw=await unwrap(wrapped);signingKey=await pgp.readPrivateKey({binaryKey:raw,config});
-    if(signingKey.getFingerprint()!==key.getFingerprint()||signingKey.keyPacket.version!==4||signingKey.getAlgorithmInfo().bits!==3072)fail();
-    return {signingKey,publicKeySha256:metadata.publicKeySha256};
-  }catch(error){signingKey?.clearPrivateParams();throw error;}
-  finally{wrapped?.fill(0);raw?.fill(0);}
+    const expected={fingerprint:key.getFingerprint(),publicKeySha256:metadata.publicKeySha256};
+    material=await parseDispatchSigningMaterial(await unwrap(wrapped),expected);
+    await assertDispatchSigningMaterialUsable(material,key);
+    return material;
+  }catch(error){disposeDispatchSigningMaterial(material);throw error;}
+  finally{wrapped?.fill(0);}
 }
 async function signWithMaterial(material,{ticket,payload}){
   const copy=structuredClone({ticket,payload}),bytes=dispatchSigningBytes(copy.ticket,copy.payload);
@@ -277,11 +344,11 @@ const preparedSigners=createPreparedDispatchSigning({
     await assertPreparedLocalRecoveryEvidenceHeld(preparedCustody);
     const store=await openFixedLocalDispatchJournal();
     const compatibility=hasRepair(payload)?await verifyLocalDispatchCompatibility({packet:payload.packet,executorMainSha:mainSha}):null;
-    if(compatibility){if(hasResume(payload))assertExecuteResumeCompatibility(payload.resume.record,compatibility);else assertPrepareRepairCompatibility(payload.repair,compatibility);}
+    if(compatibility)await verifyRetainedDispatchHistory({store,payload,action:locator.action,compatibility});
     let material;
     try{material=await loadSigningMaterial(keyId);await assertPreparedLocalRecoveryEvidenceHeld(preparedCustody);
       return {material,store,compatibility,preparedCustody,keyId,payloadSha256:digestDatabaseJson(payload),mainSha,runId,locator:structuredClone(locator)};
-    }catch(error){material?.signingKey.clearPrivateParams();throw error;}
+    }catch(error){disposeDispatchSigningMaterial(material);throw error;}
   },
   check:async(state,options)=>{
     assertPreparedDispatchSigningBinding(state,options);
@@ -289,7 +356,7 @@ const preparedSigners=createPreparedDispatchSigning({
     await verifyDurableDispatch(ticket,payload,preparedCustody,state);
   },
   sign:(state,options)=>signWithMaterial(state.material,options),
-  dispose:state=>{state.material.signingKey.clearPrivateParams();state.material=null;state.preparedCustody=null;state.compatibility=null;state.store=null;},
+  dispose:state=>{try{disposeDispatchSigningMaterial(state.material);}finally{state.material=null;state.preparedCustody=null;state.compatibility=null;state.store=null;}},
 });
 export function assertPreparedDispatchSigningBinding(state,{keyId,ticket,payload,preparedCustody}){
   validate(ticket,payload);
@@ -310,7 +377,7 @@ export async function signLocalDispatchBundle({keyId,ticket,payload,preparedCust
     await verifyDurableDispatch(copy.ticket,copy.payload,preparedCustody);
     material=await loadSigningMaterial(keyId);return await signWithMaterial(material,copy);
   }catch{throw Error('local_dispatch_signing_failed');}
-  finally{material?.signingKey.clearPrivateParams();if(preparedSigning!==undefined)await preparedSigners.close(preparedSigning);}
+  finally{try{disposeDispatchSigningMaterial(material);}finally{if(preparedSigning!==undefined)await preparedSigners.close(preparedSigning);}}
 }
 
 async function verifyDispatchBundle({bundle,publicKeyArmored,expectedPublicKeySha256,invocation,now=Date.now()},historical) {

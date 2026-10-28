@@ -9,6 +9,10 @@ import {assertPrepareRepairRecord,assertPrepareRepairOriginalJournal,localPrepar
 import {assertExecuteResumeRecord,localExecuteResumeStagePrefix,assertExecuteResumeOriginalJournal,
   assertExecuteResumeObservation,assertExecuteResumeOriginalRun} from './local-backup-execute-resume.mjs';
 
+import {assertPrepublicationRecoveryRecord,assertPrepublicationRecoveryParent,assertPrepublicationRecoveryOriginalJournal,
+ assertPrepublicationRecoveryOriginalRun,assertPrepublicationRecoveryObservation,prepublicationRecoveryParentPrefix,
+ prepublicationRecoveryRecordSlot,localPrepublicationRecoveryStagePrefix} from './local-backup-prepublication-recovery.mjs';
+
 const digest = /^[a-f0-9]{64}$/;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const stages = ['freeze', 'checkpoint', 'prepare', 'seal', 'execute', 'prepare-recovery', 'execute-recovery'];
@@ -33,21 +37,25 @@ export function assertManualResetIntent(document) {
   return document;
 }
 
-export function createManualResetCoordinator({ store, prepareRepair, executeResume }) {
+export function createManualResetCoordinator({ store, prepareRepair, executeResume, prepublicationRecovery }) {
   const mechanism = inspectWindowsResetJournal(store);
   if (mechanism.kind !== 'windows-create-new-write-through-flush-readback') fail('windows_journal_required');
   const journal = createJsonJournal({ store });
   const repair=prepareRepair===undefined?null:structuredClone(assertPrepareRepairRecord(prepareRepair));
   const resume=executeResume===undefined?null:structuredClone(assertExecuteResumeRecord(executeResume));
   if(resume&&(!repair||canonicalJson(resume.prepareRepair)!==canonicalJson(repair)))fail('resume_prepare_history_changed');
+  const publication=prepublicationRecovery===undefined?null:structuredClone(assertPrepublicationRecoveryRecord(prepublicationRecovery));
+  if(publication){assertPrepublicationRecoveryParent(resume);if(publication.packetSha256!==resume.packetSha256||publication.bindingSha256!==resume.bindingSha256)fail('prepublication_parent_changed');}
   const originalPrefix=(operationId,action)=>`financial-reset/${operationId}/manual-stage/${action}`;
   const repairSlot=repair?`${originalPrefix(repair.operationId,'prepare')}/repair-once`:null;
   async function assertRetainedRepair(){
     if(repair&&await journal.read(repairSlot)!==canonicalJson(repair))fail('original_repair_record_required');
+    if(publication&&await journal.read(prepublicationRecoveryRecordSlot())!==canonicalJson(publication))fail('original_prepublication_record_required');
     if(resume&&await journal.read(`${originalPrefix(resume.operationId,'execute')}/resume-once`)!==canonicalJson(resume))fail('original_resume_record_required');
   }
   const prefix = (operationId, action) => {
     if (!uuid.test(operationId) || !stages.includes(action)) fail('scope_invalid');
+    if(publication){if(operationId!==publication.operationId)fail('prepublication_scope_changed');return localPrepublicationRecoveryStagePrefix(action,publication);}
     if(resume){if(operationId!==resume.operationId)fail('resume_scope_changed');return localExecuteResumeStagePrefix(action,resume);}
     if(repair){if(operationId!==repair.operationId)fail('repair_scope_changed');return localPrepareRepairStagePrefix(action,repair);}
     return `financial-reset/${operationId}/manual-stage/${action}`;
@@ -76,12 +84,39 @@ export function createManualResetCoordinator({ store, prepareRepair, executeResu
     if(!uuid.test(nonce))fail('bootstrap_nonce_invalid');
     prefix(operationId,action);
     if(repair&&action==='prepare'&&nonce!==repair.replacement.nonce)fail('repair_nonce_changed');
-    if(resume&&nonce!==resume.replacement.nonce)fail('resume_nonce_changed');
+    if(publication&&nonce!==publication.replacement.nonce)fail('prepublication_nonce_changed');
+    if(resume&&!publication&&nonce!==resume.replacement.nonce)fail('resume_nonce_changed');
     // Inert enrollment precedes the repair record. Preserve ordinary nonce
     // history; only prepare's new intent/claim/response use the repair subtree.
     return `${originalPrefix(operationId,action)}/bootstrap/${nonce}`;
   };
   return Object.freeze({
+    async recordPrepublicationRecovery(document,evidence){
+      if(repair||resume||publication)fail('prepublication_already_scoped');
+      const value=structuredClone(assertPrepublicationRecoveryRecord(document));
+      if(!exact(evidence,['binding','eligibility','originalRun','remoteWaiting']))fail('prepublication_evidence_required');
+      const observed=structuredClone(evidence),base=originalPrefix(value.operationId,'execute'),old=prepublicationRecoveryParentPrefix();
+      if(hashBytes(canonicalJson(observed.binding))!==value.bindingSha256||hashBytes(canonicalJson(observed.eligibility))!==value.eligibilitySha256||
+        observed.eligibility.freshForeignSha256!==value.freshForeignSha256)fail('prepublication_evidence_changed');
+      assertPrepublicationRecoveryObservation(observed.eligibility,{binding:observed.binding});
+      assertPrepublicationRecoveryOriginalRun(observed.originalRun,value);
+      const oldBoot=`${base}/bootstrap/${value.stopped.nonce}`,newBoot=`${base}/bootstrap/${value.replacement.nonce}`;
+      const names=[`${base}/resume-once`,`${old}/intent`,`${old}/dispatch-claim`,`${old}/dispatch-response`,`${oldBoot}/claim`,`${oldBoot}/staged-payload`,`${oldBoot}/publish-claim`,
+        ...['claim','response','workflow-post'].map(k=>`${newBoot}/${k}`)];
+      const bytes=await Promise.all(names.map(async name=>{const text=await journal.read(name);return text===null?null:Buffer.from(text)}));
+      assertPrepublicationRecoveryOriginalJournal({record:value,resumeBytes:bytes[0],intentBytes:bytes[1],claimBytes:bytes[2],responseBytes:bytes[3],
+        bootstrapBytes:bytes[4],stagedBytes:bytes[5],publicationBytes:bytes[6]});
+      if(canonicalJson(observed.remoteWaiting)!==canonicalJson({format:'nestory-local-custody-waiting-v2',operationId:value.operationId,action:'execute',nonce:value.stopped.nonce,staged:JSON.parse(bytes[5])}))fail('prepublication_remote_changed');
+      if(bytes.slice(7).some(b=>b===null))fail('prepublication_bootstrap_missing');
+      const bootstrap=JSON.parse(bytes[7]),response=JSON.parse(bytes[8]),post=JSON.parse(bytes[9]);
+      if(bootstrap.format!=='nestory-manual-reset-bootstrap-claim-v1'||bootstrap.operationId!==value.operationId||bootstrap.action!=='execute'||bootstrap.nonce!==value.replacement.nonce||
+        bootstrap.mainSha!==value.executorMainSha||bootstrap.packetSha256!==value.packetSha256||response.format!=='nestory-manual-reset-bootstrap-response-v1'||
+        response.bootstrapClaimSha256!==hashBytes(bytes[7])||response.operationId!==value.operationId||response.action!=='execute'||response.nonce!==value.replacement.nonce||
+        String(response.runId)!==value.replacement.runId||response.runAttempt!==1||canonicalJson(post)!==canonicalJson({format:'nestory-local-workflow-post-v1',operationId:value.operationId,action:'execute',nonce:value.replacement.nonce,mainSha:value.executorMainSha}))fail('prepublication_bootstrap_changed');
+      // A second observation of absence closes local accidental concurrent publication.
+      if(await journal.read(`${oldBoot}/publish-claim`)!==null)fail('prepublication_publication_present');
+      return {prepublicationRecoverySha256:await persist(prepublicationRecoveryRecordSlot(),value),executionSupported:false};
+    },
     async recordExecuteResume(document,evidence){
       if(repair||resume)fail('resume_already_scoped');
       const value=structuredClone(assertExecuteResumeRecord(document)),base=originalPrefix(value.operationId,'execute');
@@ -147,7 +182,9 @@ export function createManualResetCoordinator({ store, prepareRepair, executeResu
     },
     async recordIntent(value) {
       const document = structuredClone(assertManualResetIntent(value)), t = document.transportIntent;
-      if(resume&&(document.mainSha!==resume.executorMainSha||t.action!=='execute'||t.packetSha256!==resume.packetSha256||t.bindingSha256!==resume.bindingSha256||
+      if(publication&&(document.mainSha!==publication.executorMainSha||t.action!=='execute'||t.packetSha256!==publication.packetSha256||t.bindingSha256!==publication.bindingSha256||
+        [publication.stopped.authorizationId,resume.originalAttempt.authorizationId,repair.originalAttempt.authorizationId].includes(t.authorizationId)))fail('prepublication_intent_changed');
+      if(resume&&!publication&&(document.mainSha!==resume.executorMainSha||t.action!=='execute'||t.packetSha256!==resume.packetSha256||t.bindingSha256!==resume.bindingSha256||
         t.authorizationId===resume.originalAttempt.authorizationId||t.authorizationId===repair.originalAttempt.authorizationId))fail('resume_intent_changed');
       if(repair&&!resume&&(document.mainSha!==repair.executorMainSha||t.packetSha256!==repair.packetSha256||t.bindingSha256!==repair.bindingSha256||
         t.authorizationId===repair.originalAttempt.authorizationId))fail('repair_intent_changed');
@@ -163,7 +200,8 @@ export function createManualResetCoordinator({ store, prepareRepair, executeResu
     async recordDispatchResponse({ operationId, action, intentSha256, runId, runAttempt }) {
       if (!Number.isSafeInteger(runId) || runId < 1 || runAttempt !== 1) fail('dispatch_response_invalid');
       if(repair&&action==='prepare'&&String(runId)!==repair.replacement.runId)fail('repair_run_changed');
-      if(resume&&String(runId)!==resume.replacement.runId)fail('resume_run_changed');
+      if(publication&&String(runId)!==publication.replacement.runId)fail('prepublication_run_changed');
+      if(resume&&!publication&&String(runId)!==resume.replacement.runId)fail('resume_run_changed');
       await dispatchClaim(operationId, action, intentSha256);
       return persist(`${prefix(operationId, action)}/dispatch-response`, { format: 'nestory-manual-reset-dispatch-response-v1',
         operationId, action, intentSha256, runId, runAttempt });

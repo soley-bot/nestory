@@ -86,6 +86,19 @@ test('seven-field execute resume stays byte-bound; other actions, missing histor
   const v=pack(p,l);assert.throws(()=>decryptStagedPayload(v.cipher,f.key,l,v.ref),/staging_invalid/);
  }
 });
+test('pre-publication recovery is byte-bound and requires execute plus both retained ancestors',()=>{
+ const f=fixture(),loc={...locator,action:'execute'},payload={...f.payload,repair:{historical:true},
+  resume:{record:{synthetic:true},observation:{foreignSha256:'b'.repeat(64)}},prepublicationRecovery:{synthetic:'child'}};
+ const pack=(p,l)=>{const cipher=encryptStagedPayload(p,f.key,l),ref=stagedPayloadReference(p,cipher,f.ref.signedUrl,l);return {cipher,ref};};
+ const {cipher,ref}=pack(payload,loc);
+ assert.deepEqual(decryptStagedPayload(cipher,f.key,loc,ref),payload);
+ const modified={...payload,prepublicationRecovery:{synthetic:'changed'}};
+ const altered=encryptStagedPayload(modified,f.key,loc);
+ assert.throws(()=>decryptStagedPayload(altered,f.key,loc,ref),/staging_invalid/);
+ for(const [p,l]of [[payload,locator],...['repair','resume'].map(field=>[Object.fromEntries(Object.entries(payload).filter(([k])=>k!==field)),loc]),[{...payload,sql:'SELECT 1'},loc]]){
+  const v=pack(p,l);assert.throws(()=>decryptStagedPayload(v.cipher,f.key,l,v.ref),/staging_invalid/);
+ }
+});
 test('Linux prefetch cache is exclusive ciphertext only, private, no-follow and checked on read', {skip:process.platform!=='linux'},async()=>{
  const dir=await mkdtemp(path.join(os.tmpdir(),'nestory-staging-test-')),env={RUNNER_TEMP:dir,GITHUB_RUN_ID:'123',GITHUB_RUN_ATTEMPT:'1'};
  const file=path.join(dir,'nestory-staged-123-1.bin'),f=fixture();
