@@ -105,7 +105,6 @@ jobs:
             *) exit 1 ;;
           esac
       - name: Install locked dependencies without lifecycle scripts
-        if: inputs.mode != 'direct-execute-once'
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Prepare ephemeral runner memory before private inputs
         shell: bash
