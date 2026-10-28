@@ -54,7 +54,8 @@ export function decryptStagedPayload(cipher,key,locator,ref){
  try{const b=Buffer.from(cipher);if(b.subarray(0,4).toString()!=='NLP1')fail();
   const d=createDecipheriv('aes-256-gcm',key,b.subarray(4,16));d.setAAD(aad(locator));d.setAuthTag(b.subarray(-16));
   plain=Buffer.concat([d.update(b.subarray(16,-16)),d.final()]);const payload=JSON.parse(new TextDecoder('utf8',{fatal:true}).decode(plain));
-  if(!(exact(payload,['packet','binding','artifacts','recovery','observation'])||exact(payload,['packet','binding','artifacts','recovery','observation','repair']))||digestDatabaseJson(payload)!==ref.payloadSha256)fail();return payload;
+  if(!(exact(payload,['packet','binding','artifacts','recovery','observation'])||exact(payload,['packet','binding','artifacts','recovery','observation','repair'])||
+   locator.action==='execute'&&exact(payload,['packet','binding','artifacts','recovery','observation','repair','resume']))||digestDatabaseJson(payload)!==ref.payloadSha256)fail();return payload;
  }catch{fail();}finally{plain?.fill(0);}
 }
 export function stagedWaiting(locator,staged){return {format:'nestory-local-custody-waiting-v2',...locator,staged:assertStagedPayloadReference(staged,locator)};}

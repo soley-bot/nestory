@@ -1,0 +1,145 @@
+{
+  "format": "nestory-local-execute-resume-manifest-v1",
+  "originalMainSha": "9a08df0181d391a9bc8e6c28319c6678485f4c59",
+  "operationId": "7c70e27f-ba37-48cc-8f93-d32badcb2fb7",
+  "allowedStages": [
+    "execute"
+  ],
+  "changes": [
+    {
+      "path": ".github/workflows/pilot-financial-reset-local-custody.yml",
+      "originalSha256": "9a97fd4186b8f16c09145a0c7d96a966d8d145a49623d93a0c4c13619d0d2640",
+      "replacementSha256": "cc3019038a32eb436d76019a302878d9f7187405b92b927ca13c6b82e7261c0b"
+    },
+    {
+      "path": "scripts/local-backup-custody-evidence.mjs",
+      "originalSha256": "c074746b4e4118fa2ed080c6600bdac4d81f9d0166828520d6d1c1f74969c34f",
+      "replacementSha256": "ed0e9dd83069a1cd67b1c2dfe2930a201d2908e96a6392c607950c0285c71ff8"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-bundle.mjs",
+      "originalSha256": "9c4e6a1ed31e9c23f8a6b2007aaa7f0369d5f6d84576710f3677581e46f7ba84",
+      "replacementSha256": "1e6a869b9f90514064331004b11752f813d79990a3df9520947dcee3bd8ba064"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-bundle.node-test.mjs",
+      "originalSha256": "d0b389e1f392a55b91b1befd205a406df6fe911ea5c5cf138c72bdb59cca18e1",
+      "replacementSha256": "a2746486448828687424361c740bde24779568b76e26c5e1b8077d76915c1a33"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-local.mjs",
+      "originalSha256": "45f79af3758227efb294cb8d1b25d82bed6f925dbbe9bd731c3ebd3be5102ce5",
+      "replacementSha256": "4d7b01494d7b7aad187e5ca75af9129324c0fbaa5207fe2e90f57b3fde16140f"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-local.node-test.mjs",
+      "originalSha256": "335675eeb9cfb9ec5b828e2d65a5cc778f19689021d2922aa3a14e26796506eb",
+      "replacementSha256": "83359c26b6cac0452e2ad3d0644b7430932e56d6542fccc4a9a49fe44b82ba6b"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-repair-manifest.json",
+      "originalSha256": null,
+      "replacementSha256": "ee88ab1704f521490928e409046463a75b1c45ff6beee0bbca557c4d20962d61"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-repair.mjs",
+      "originalSha256": null,
+      "replacementSha256": "1fd94705e9a4f10e2e89870c7616398543d4d2e8ef86502773555c481677fefb"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-repair.node-test.mjs",
+      "originalSha256": null,
+      "replacementSha256": "98a8db02492e5a402fd9a869774aa63b2db2cbb07cf2869b83c68cfc0702c0ee"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-staging.mjs",
+      "originalSha256": null,
+      "replacementSha256": "85d78b12bdd5121eaf5287e0544e1225edd3dca62b4cd421c0809162601a00d5"
+    },
+    {
+      "path": "scripts/local-backup-dispatch-staging.node-test.mjs",
+      "originalSha256": null,
+      "replacementSha256": "1cfc01042a4b82ca36652184fac125178a598a75385ed6df8012af593e314bd2"
+    },
+    {
+      "path": "scripts/local-backup-execute-adapter.mjs",
+      "originalSha256": null,
+      "replacementSha256": "4a40e8d92be4fb29a6ccb7e15df11dad7293e20b6230d628879fbcc8567a2272"
+    },
+    {
+      "path": "scripts/local-backup-execute-adapter.node-test.mjs",
+      "originalSha256": null,
+      "replacementSha256": "f735a02fd00516509b90fa215f1a1633350a232cf01c9f9fb98f42a0d00319fc"
+    },
+    {
+      "path": "scripts/local-backup-execute-resume.mjs",
+      "originalSha256": null,
+      "replacementSha256": "dec84e4e4592af0ba613c776db2989f71a1c70fc163a812258ec506b6cf5d692"
+    },
+    {
+      "path": "scripts/local-backup-execute-resume.node-test.mjs",
+      "originalSha256": null,
+      "replacementSha256": "45c64cb27058c4969911fa8bd7117a199d3e946b2e8715252089f329d223059a"
+    },
+    {
+      "path": "scripts/local-backup-execute-transition-manifest.json",
+      "originalSha256": null,
+      "replacementSha256": "da08e8799e3fe8352ff3c59b7ce772c9ed4cc1547552cefb19dcb7744f6c18e3"
+    },
+    {
+      "path": "scripts/local-backup-execute-transition.mjs",
+      "originalSha256": null,
+      "replacementSha256": "9e2ee1a66748f7b5fa3e23bcb25f7580973ddaa0110e5e958c6749242af6674e"
+    },
+    {
+      "path": "scripts/local-backup-execute-transition.node-test.mjs",
+      "originalSha256": null,
+      "replacementSha256": "2a9b890e3c77f2528b936d7e296ea073ba1c108e9b0c6c79a3f5b26218dc6a3a"
+    },
+    {
+      "path": "scripts/pilot-finance-reset-local-custody-runner.mjs",
+      "originalSha256": "86679ff4983920100829047d5ffa1ab405499b060d81d39141ea064abce5a50f",
+      "replacementSha256": "a4d05dc3cc124d08cdbee184506cd8be5610b64c8e1471b63800c55994a3ffd9"
+    },
+    {
+      "path": "scripts/pilot-finance-reset-local-custody.node-test.mjs",
+      "originalSha256": "6cc6c44ec25db569230dc21f78a255504a8b449dbe40db77e03ac5306fef889b",
+      "replacementSha256": "73404edd4624e75398fb20ce900f880d8149c574c9dc57f1a5e04cd069c64227"
+    },
+    {
+      "path": "scripts/pilot-finance-reset-manual-coordinator.mjs",
+      "originalSha256": "b033ba9df680f9e48d6f65490a6f7fbeb3e593e2d39857306c824cf3fe5ea38c",
+      "replacementSha256": "dab39514ad915accfbb40d775043daa855b94da337c670cd74e1252648cdfb20"
+    },
+    {
+      "path": "scripts/pilot-finance-reset-windows-journal.node-test.mjs",
+      "originalSha256": "1161e2debb2805f53aec47f1da8fcabd7a1658230a01f5470b0185612d582edc",
+      "replacementSha256": "fae98a31f7b40d5b1a34c8f8095537a416694737b829b54a64d7f629c78bd9d6"
+    },
+    {
+      "path": "scripts/pilot-finance-reset-worker-readiness.node-test.mjs",
+      "originalSha256": null,
+      "replacementSha256": "75abb4f464dff77ad74eb0349e5d4243c6541d74ccc246bc1f09c57bcb3176f7"
+    },
+    {
+      "path": "scripts/run-database-tests.mjs",
+      "originalSha256": "3ec4c6d8120786040536caee4eae0f17cfe964ba2cb26d4419bd55ac999350d6",
+      "replacementSha256": "a31c0178fc2760e498ce93ec8dc4bdcdc0ebcbe84f7250437658a72dd5f5e858"
+    },
+    {
+      "path": "scripts/run-database-tests.node-test.mjs",
+      "originalSha256": "fce4da36717f45480b42f7bd838143b46a329081a299730a076c29c9fee5d8c9",
+      "replacementSha256": "d5bdee0dd11d2ef0fb5f1ac4df5ad3808c34a2484106a472be20917634338b4d"
+    },
+    {
+      "path": "supabase/migrations/20261028053520_financial_reset_execute_attempt_foreign_baseline.sql",
+      "originalSha256": null,
+      "replacementSha256": "fcdd015c8cd2435219057adaca4818a1e6fc859ffe3c82d5e1ce36685e9b5fd3"
+    },
+    {
+      "path": "supabase/tests/financial_reset_execute_resume_test.sql",
+      "originalSha256": null,
+      "replacementSha256": "7d6d7fc12fe7ccfd9310fed02c8f7751c8ef7e59de1fc0330d34aefff306d01a"
+    }
+  ]
+}

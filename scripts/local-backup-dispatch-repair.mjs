@@ -10,6 +10,7 @@ import {digestJson} from './pilot-finance-reset-hosted-transport-protocol.mjs';
 export const PREPARE_REPAIR_ORIGINAL_MAIN='9a08df0181d391a9bc8e6c28319c6678485f4c59';
 export const PREPARE_REPAIR_OPERATION='7c70e27f-ba37-48cc-8f93-d32badcb2fb7';
 export const PREPARE_REPAIR_MANIFEST='scripts/local-backup-dispatch-repair-manifest.json';
+export const EXECUTE_RESUME_MANIFEST='scripts/local-backup-execute-resume-manifest.json';
 const org='752a87b8-bd04-4a45-9cb8-00687af66e73',project='pfvmztxktkwyewvxfgot';
 const root=path.resolve(import.meta.dirname,'..'),receipts=new WeakMap();
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
@@ -34,15 +35,32 @@ export const PREPARE_REPAIR_ALLOWED_FILES=Object.freeze([
  'scripts/pilot-finance-reset-manual-coordinator.mjs','scripts/pilot-finance-reset-windows-journal.node-test.mjs',
  'scripts/local-backup-custody-evidence.mjs','scripts/local-backup-custody-evidence.node-test.mjs',
 ].sort());
+// The resumed execution has one separately measured native schema transition.
+// Original migrations and financial action producers remain immutable.
+export const EXECUTE_RESUME_ALLOWED_FILES=Object.freeze([...PREPARE_REPAIR_ALLOWED_FILES,
+ PREPARE_REPAIR_MANIFEST,
+ 'scripts/local-backup-execute-resume.mjs','scripts/local-backup-execute-resume.node-test.mjs',
+ 'scripts/local-backup-execute-transition.mjs','scripts/local-backup-execute-transition.node-test.mjs',
+ 'scripts/local-backup-execute-transition-manifest.json',
+ 'scripts/local-backup-execute-adapter.mjs','scripts/local-backup-execute-adapter.node-test.mjs',
+ 'scripts/pilot-finance-reset-worker-readiness.node-test.mjs',
+ 'scripts/run-database-tests.mjs',
+ 'scripts/run-database-tests.node-test.mjs',
+ 'supabase/migrations/20261028053520_financial_reset_execute_attempt_foreign_baseline.sql',
+ 'supabase/tests/financial_reset_execute_resume_test.sql',
+].sort());
+const resumeManifest=value=>value?.format==='nestory-local-execute-resume-manifest-v1';
+const manifestPath=value=>resumeManifest(value)?EXECUTE_RESUME_MANIFEST:PREPARE_REPAIR_MANIFEST;
 
 export function assertPrepareRepairManifest(value){
+ const resumed=resumeManifest(value),allowed=resumed?EXECUTE_RESUME_ALLOWED_FILES:PREPARE_REPAIR_ALLOWED_FILES;
  if(!exact(value,['format','originalMainSha','operationId','allowedStages','changes'])||
-  value.format!=='nestory-local-prepare-repair-manifest-v1'||value.originalMainSha!==PREPARE_REPAIR_ORIGINAL_MAIN||
-  value.operationId!==PREPARE_REPAIR_OPERATION||!same(value.allowedStages,['prepare','seal','execute'])||
-  !Array.isArray(value.changes)||value.changes.length<1||value.changes.length>PREPARE_REPAIR_ALLOWED_FILES.length)fail();
+  (!resumed&&value.format!=='nestory-local-prepare-repair-manifest-v1')||value.originalMainSha!==PREPARE_REPAIR_ORIGINAL_MAIN||
+  value.operationId!==PREPARE_REPAIR_OPERATION||!same(value.allowedStages,resumed?['execute']:['prepare','seal','execute'])||
+  !Array.isArray(value.changes)||value.changes.length<1||value.changes.length>allowed.length)fail();
  const names=[];
  for(const c of value.changes){
-  if(!exact(c,['path','originalSha256','replacementSha256'])||!PREPARE_REPAIR_ALLOWED_FILES.includes(c.path)||
+  if(!exact(c,['path','originalSha256','replacementSha256'])||!allowed.includes(c.path)||
    !(c.originalSha256===null||hash.test(c.originalSha256))||!hash.test(c.replacementSha256)||
    c.originalSha256===c.replacementSha256||names.includes(c.path))fail();
   names.push(c.path);
@@ -53,15 +71,16 @@ export function assertPrepareRepairManifest(value){
 
 // Review-time generator only. The caller writes/reviews this JSON before the
 // commit; it contains byte hashes, never its own hash or a future merge SHA.
-export async function buildLocalDispatchRepairManifest(){
- const old=await gitSources(PREPARE_REPAIR_ORIGINAL_MAIN,PREPARE_REPAIR_ALLOWED_FILES),changes=[];
- for(const name of PREPARE_REPAIR_ALLOWED_FILES){
+export async function buildLocalDispatchRepairManifest({executeResume=false}={}){
+ const allowed=executeResume?EXECUTE_RESUME_ALLOWED_FILES:PREPARE_REPAIR_ALLOWED_FILES;
+ const old=await gitSources(PREPARE_REPAIR_ORIGINAL_MAIN,allowed),changes=[];
+ for(const name of allowed){
   let current;try{current=await readFile(path.join(root,name));}catch(error){if(error.code!=='ENOENT')throw error;if(old.get(name)!==null)fail();continue;}
   const originalSha256=old.get(name)===null?null:hashSourceBytes(old.get(name)),replacementSha256=hashSourceBytes(current);
   if(originalSha256!==replacementSha256)changes.push({path:name,originalSha256,replacementSha256});
  }
- return assertPrepareRepairManifest({format:'nestory-local-prepare-repair-manifest-v1',originalMainSha:PREPARE_REPAIR_ORIGINAL_MAIN,
-  operationId:PREPARE_REPAIR_OPERATION,allowedStages:['prepare','seal','execute'],changes});
+ return assertPrepareRepairManifest({format:executeResume?'nestory-local-execute-resume-manifest-v1':'nestory-local-prepare-repair-manifest-v1',originalMainSha:PREPARE_REPAIR_ORIGINAL_MAIN,
+  operationId:PREPARE_REPAIR_OPERATION,allowedStages:executeResume?['execute']:['prepare','seal','execute'],changes});
 }
 
 function git(args,input=''){
@@ -98,7 +117,7 @@ export function assertPrepareRepairSourceBytes({packet,manifest,originalFiles,cu
  assertPrepareRepairManifest(manifest);
  if(packet?.operation?.mainSha!==PREPARE_REPAIR_ORIGINAL_MAIN||packet.operation.operationId!==PREPARE_REPAIR_OPERATION||
   !Array.isArray(packet.sourceFiles)||!packet.sourceFiles.length||!(originalFiles instanceof Map)||!(currentFiles instanceof Map)||
-  !Array.isArray(changedPaths)||!same([...changedPaths].sort(),[...manifest.changes.map(c=>c.path),PREPARE_REPAIR_MANIFEST].sort()))fail();
+  !Array.isArray(changedPaths)||!same([...changedPaths].sort(),[...manifest.changes.map(c=>c.path),manifestPath(manifest)].sort()))fail();
  const names=new Set();
  for(const s of packet.sourceFiles){
   if(!exact(s,['path','sha256'])||names.has(s.path)||!hash.test(s.sha256))fail();names.add(s.path);
@@ -119,13 +138,15 @@ export async function verifyLocalDispatchCompatibility({packet,executorMainSha})
   (await git(['rev-parse','HEAD'])).toString().trim()!==executorMainSha||
   (await git(['status','--porcelain','--untracked-files=no'])).length)fail();
  await git(['merge-base','--is-ancestor',PREPARE_REPAIR_ORIGINAL_MAIN,executorMainSha]);
- const manifestBytes=await readFile(path.join(root,PREPARE_REPAIR_MANIFEST)),manifest=assertPrepareRepairManifest(decode(manifestBytes));
- const names=[...new Set([...packet.sourceFiles.map(s=>s.path),...manifest.changes.map(c=>c.path),PREPARE_REPAIR_MANIFEST])].sort();
+ let selectedManifest=EXECUTE_RESUME_MANIFEST,manifestBytes;
+ try{manifestBytes=await readFile(path.join(root,selectedManifest));}catch(error){if(error.code!=='ENOENT')throw error;selectedManifest=PREPARE_REPAIR_MANIFEST;manifestBytes=await readFile(path.join(root,selectedManifest));}
+ const manifest=assertPrepareRepairManifest(decode(manifestBytes));if(manifestPath(manifest)!==selectedManifest)fail();
+ const names=[...new Set([...packet.sourceFiles.map(s=>s.path),...manifest.changes.map(c=>c.path),selectedManifest])].sort();
  const [originalFiles,headFiles,changed]=await Promise.all([gitSources(PREPARE_REPAIR_ORIGINAL_MAIN,names),gitSources(executorMainSha,names),
   git(['diff','--name-only',PREPARE_REPAIR_ORIGINAL_MAIN,executorMainSha,'--'])]);
  const currentFiles=new Map();
  for(const name of names){const bytes=await readFile(path.join(root,name));if(!headFiles.get(name)||hashSourceBytes(bytes)!==hashSourceBytes(headFiles.get(name)))fail();currentFiles.set(name,bytes);}
- if(hashSourceBytes(manifestBytes)!==hashSourceBytes(headFiles.get(PREPARE_REPAIR_MANIFEST)))fail();
+ if(hashSourceBytes(manifestBytes)!==hashSourceBytes(headFiles.get(selectedManifest)))fail();
  assertPrepareRepairSourceBytes({packet,manifest,originalFiles,currentFiles,changedPaths:changed.toString().trim().split('\n').filter(Boolean)});
  const info={originalMainSha:PREPARE_REPAIR_ORIGINAL_MAIN,executorMainSha,manifestSha256:hashSourceBytes(manifestBytes),
   executorSourceSha256:digestJson(names.map(p=>({path:p,sha256:hashSourceBytes(currentFiles.get(p))}))),

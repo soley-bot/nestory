@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {canonicalJson,hashBytes,hashSourceBytes} from './pilot-finance-reset-operator-core.mjs';
-import {PREPARE_REPAIR_OPERATION,PREPARE_REPAIR_ORIGINAL_MAIN,PREPARE_REPAIR_MANIFEST,
+import {PREPARE_REPAIR_OPERATION,PREPARE_REPAIR_ORIGINAL_MAIN,PREPARE_REPAIR_MANIFEST,EXECUTE_RESUME_MANIFEST,
  assertPrepareRepairManifest,assertPrepareRepairSourceBytes,inspectLocalDispatchCompatibility,readLocalDispatchCompatibleSources,
  assertLocalDispatchCompatibilityCurrent,
  assertPrepareRepairRecord,assertPrepareRepairOriginalJournal,localPrepareRepairStagePrefix,
@@ -27,6 +27,36 @@ test('compatibility pins original bytes, unchanged SQL and exact finite reviewed
  const f=sourceFixture();assert.equal(assertPrepareRepairSourceBytes(f),true);assertPrepareRepairManifest(f.manifest);
  assert.equal(JSON.stringify(f.manifest).includes('executorMainSha'),false);
 });
+function resumeSourceFixture(){
+ const f=sourceFixture();
+ f.manifest.format='nestory-local-execute-resume-manifest-v1';f.manifest.allowedStages=['execute'];
+ for(const [path,content]of[
+  [PREPARE_REPAIR_MANIFEST,'{"retained":"original prepare repair"}\n'],
+  ['supabase/migrations/20261028053520_financial_reset_execute_attempt_foreign_baseline.sql','-- reviewed forward-only addition\nSELECT 2;\n'],
+ ]){
+  const value=Buffer.from(content);f.originalFiles.set(path,null);f.currentFiles.set(path,value);
+  f.manifest.changes.push({path,originalSha256:null,replacementSha256:hashSourceBytes(value)});
+ }
+ f.manifest.changes.sort((a,b)=>a.path.localeCompare(b.path));
+ f.changedPaths=[...f.manifest.changes.map(c=>c.path),EXECUTE_RESUME_MANIFEST];
+ return f;
+}
+test('execute-only compatibility adds the exact forward migration while retaining historical packet bytes and prepare manifest',()=>{
+ const f=resumeSourceFixture();assert.equal(assertPrepareRepairSourceBytes(f),true);
+ assert.deepEqual(f.manifest.allowedStages,['execute']);
+ assert.equal(f.originalFiles.get(f.packet.sourceFiles[0].path).toString(),'SELECT 1;\n');
+});
+for(const [name,change]of[
+ ['legacy manifest claiming the new migration',f=>{f.manifest.format='nestory-local-prepare-repair-manifest-v1';f.manifest.allowedStages=['prepare','seal','execute'];f.changedPaths[f.changedPaths.length-1]=PREPARE_REPAIR_MANIFEST;}],
+ ['resume manifest widening to prepare',f=>f.manifest.allowedStages=['prepare','execute']],
+ ['unknown manifest format',f=>f.manifest.format='nestory-local-execute-resume-manifest-v2'],
+ ['old manifest path substituted for resume manifest',f=>f.changedPaths[f.changedPaths.length-1]=PREPARE_REPAIR_MANIFEST],
+ ['changed new migration bytes',f=>f.currentFiles.set(f.manifest.changes.at(-1).path,Buffer.from('SELECT 3;'))],
+ ['different forward migration path',f=>f.manifest.changes.at(-1).path='supabase/migrations/20261028053521_unreviewed.sql'],
+ ['modified original financial migration',f=>{const path=f.packet.sourceFiles[0].path;f.currentFiles.set(path,Buffer.from('SELECT 3;'));}],
+ ['unlisted schema addition',f=>f.changedPaths.push('supabase/migrations/20261028053521_unreviewed.sql')],
+ ['missing retained prepare manifest',f=>f.currentFiles.delete(PREPARE_REPAIR_MANIFEST)],
+])test(`execute-only compatibility rejects ${name}`,()=>{const f=resumeSourceFixture();change(f);assert.throws(()=>assertPrepareRepairSourceBytes(f));});
 for(const [name,change]of[
  ['changed native SQL',f=>f.currentFiles.set(f.packet.sourceFiles[0].path,Buffer.from('SELECT 2;'))],
  ['changed original bytes',f=>f.originalFiles.set(f.packet.sourceFiles[0].path,Buffer.from('SELECT 2;'))],
