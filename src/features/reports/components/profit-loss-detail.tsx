@@ -9,27 +9,39 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatCalendarDate } from "@/lib/dates/format";
 import { cn } from "@/lib/utils";
 import { formatProfitLossAmount, profitLossSummaryRows, profitLossFundingHeading, type ProfitLossFunding } from "../data/profit-loss-funding";
-import type { UnitProfitLossLine } from "../reports.types";
+import type { ReportsViewQuery, UnitProfitLossLine, UnitProfitLossScreen } from "../reports.types";
+import { profitLossAccountKey } from "../data/report-screen-pagination";
+import { ReportPageNavigation, ReportScopeSearch, reportScreenHref } from "./report-page-navigation";
 
 const pageSize = 25;
-type AccountGroup = { key: string; label: string; direction: "income" | "expense"; lines: UnitProfitLossLine[]; total: bigint };
+type AccountGroup = { key: string; label: string; direction: "income" | "expense"; lines: UnitProfitLossLine[]; total: bigint; firstPage?: number | null };
 
-export function ProfitLossDetail({ lines, funding, returnTo }: { lines: UnitProfitLossLine[]; funding?: ProfitLossFunding; returnTo?: string }) {
+export function ProfitLossDetail({ lines, funding, returnTo, screenPage, viewQuery }: { lines: UnitProfitLossLine[]; funding?: ProfitLossFunding; returnTo?: string; screenPage?: UnitProfitLossScreen; viewQuery?: ReportsViewQuery }) {
   const id = useId();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [closedSections, setClosedSections] = useState<Set<string>>(new Set());
   const groups = useMemo(() => {
+    if (screenPage) {
+      const pageLines = new Map<string, UnitProfitLossLine[]>();
+      for (const line of lines) {
+        const key = profitLossAccountKey(line);
+        const selected = pageLines.get(key) ?? [];
+        selected.push(line);
+        pageLines.set(key, selected);
+      }
+      return screenPage.groups.map(group => ({ ...group, lines: pageLines.get(group.key) ?? [] }));
+    }
     const grouped = new Map<string, AccountGroup>();
     for (const line of lines) {
-      const key = JSON.stringify([line.direction, line.categoryId ?? line.categoryCode, line.currency]);
+      const key = profitLossAccountKey(line);
       const group = grouped.get(key) ?? { key, label: line.category, direction: line.direction, lines: [], total: BigInt(0) };
       group.lines.push(line);
       group.total += line.amountCents;
       grouped.set(key, group);
     }
     return [...grouped.values()].sort((a, b) => a.label.localeCompare(b.label));
-  }, [lines]);
-  const totals = profitLossSummaryRows(lines, funding);
+  }, [lines, screenPage]);
+  const totals = profitLossSummaryRows(lines, funding, screenPage?.totals);
   const toggle = (key: string, setter: typeof setExpanded) => setter(current => {
     const next = new Set(current);
     if (next.has(key)) next.delete(key); else next.add(key);
@@ -38,6 +50,8 @@ export function ProfitLossDetail({ lines, funding, returnTo }: { lines: UnitProf
 
   return (
     <section aria-label="Profit and loss detail">
+      {viewQuery ? <ReportScopeSearch viewQuery={viewQuery} /> : null}
+      {screenPage && viewQuery ? <ReportPageNavigation pagination={screenPage.pagination} viewQuery={viewQuery} parameter="detailPage" label="P&L transaction pages, top" /> : null}
       <div className="flex items-center justify-end gap-1 py-1.5">
         <Button className="h-7 gap-1 rounded-md text-xs font-normal" size="sm" variant="outline" onClick={() => { setClosedSections(new Set()); setExpanded(new Set(groups.map(group => group.key))); }}><ChevronsUpDown className="size-3" />Expand all</Button>
         <Button className="h-7 gap-1 rounded-md text-xs font-normal" size="sm" variant="outline" onClick={() => { setExpanded(new Set()); setClosedSections(new Set(["income", "expense"])); }}><ChevronsDownUp className="size-3" />Collapse all</Button>
@@ -71,6 +85,7 @@ export function ProfitLossDetail({ lines, funding, returnTo }: { lines: UnitProf
                     <TableCell className="whitespace-nowrap text-right tabular-nums">{formatProfitLossAmount(group.total)}</TableCell>
                   </TableRow>
                   <TableRow id={`${id}-${direction}-${index}`} hidden={!accountOpen} className="border-0"><TableCell colSpan={7} className="!p-0">
+                    {accountOpen && screenPage && group.lines.length === 0 ? <p className="px-8 py-2 text-muted-foreground">No transactions from this account on this page. {viewQuery && group.firstPage ? <Link prefetch={false} scroll={false} className="underline underline-offset-2" href={reportScreenHref(viewQuery, { detailPage: group.firstPage })}>View account transactions</Link> : null}</p> : null}
                     {accountOpen ? <table aria-label={`${group.label} transactions`} className="w-full table-fixed text-xs"><colgroup><col className="w-[21%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[13%]" /><col className="w-[15%]" /><col className="w-[16%]" /><col className="w-[16%]" /></colgroup><thead className="sr-only bg-[var(--table-header-bg)]"><tr>{["Account", "Date", "Type", "Name", "Property", "Memo", "Amount"].map(label => <th key={label}>{label}</th>)}</tr></thead><tbody>{group.lines.map(line => <tr key={line.id} className="border-b border-border/40 text-muted-foreground hover:bg-muted/25">
                       <td className="!pl-11"><span className="sr-only">{group.label}</span></td>
                       <td className="whitespace-nowrap">{formatCalendarDate(line.date)}</td>
@@ -101,6 +116,8 @@ export function ProfitLossDetail({ lines, funding, returnTo }: { lines: UnitProf
           </TableRow>)}
         </TableBody> : null}
       </Table>
+      {screenPage && viewQuery ? <ReportPageNavigation pagination={screenPage.pagination} viewQuery={viewQuery} parameter="detailPage" label="P&L transaction pages, bottom" /> : null}
+      {screenPage && screenPage.pagination.totalRecords === 0 && viewQuery?.scopeQuery ? <p role="status" className="mt-2 text-sm text-muted-foreground">No matching property or unit. Totals and exports still cover the full selected scope.</p> : null}
       <p className="mt-2 text-xs text-muted-foreground">Pending expenses are excluded. Profit is not cash available for withdrawal.</p>
       {funding?.unavailableReason ? <p role="status" className="mt-2 text-xs text-warning">{funding.unavailableReason}</p> : null}
     </section>

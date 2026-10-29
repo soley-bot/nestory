@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildPropertyDetail,
   buildPropertyDetailHrefs,
@@ -15,6 +15,21 @@ const property = {
 };
 
 describe("buildPropertyDetail", () => {
+  it("uses the aggregate snapshot date when the request crosses midnight", () => {
+    vi.useFakeTimers().setSystemTime(new Date("2025-01-02T00:00:01Z"));
+    try {
+      const detail = buildPropertyDetail({
+        currentDate: new Date("2025-01-01T23:59:59Z"),
+        ledgerEntries: [{ id: "period-bucket", amount: 42, currency: "USD", direction: "income", category: "rent", transaction_date: "2024-01-01" }],
+        property,
+        units: [],
+      });
+      expect(detail.financialSummary.incomeUsd).toBe(42);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps a whole-property draft lease separate from active lease and occupancy data", () => {
     const detail = buildPropertyDetail({
       activeLeases: [

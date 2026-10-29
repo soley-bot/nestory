@@ -26,6 +26,26 @@ class ResizeObserverStub {
 }
 
 describe("Shared report results table", () => {
+  it("navigates server pages while preserving filters and the displayed source record", async () => {
+    const user = userEvent.setup();
+    const report = unitProfitLossReport();
+    report.kind = "transactions";
+    report.rows = Array.from({ length: 10_000 }, (_, index) => ({
+      ...report.rows[0]!, id: `row-${index + 1}`, title: `Record ${index + 1}`,
+      cells: { property: `Property ${index + 1}` }, href: `/bills-expenses?sourceId=${index + 1}`,
+    }));
+    const viewQuery = query({ report: "transactions", page: 200, query: "repair", groupBy: "property", dateFrom: "2026-07-01", dateTo: "2026-07-31", columns: "property" });
+    renderReport({ report: prepareTrustedReportForScreen(report, { viewQuery }), viewQuery });
+    expect(screen.queryByRole("button", { name: "View details for Record 1" })).toBeNull();
+    expect(screen.getByText("Page 200 of 200")).toBeTruthy();
+    const previous = new URL(screen.getByRole("link", { name: "Previous" }).getAttribute("href")!, "https://nestory.invalid");
+    expect(Object.fromEntries(previous.searchParams)).toMatchObject({ page: "199", query: "repair", groupBy: "property", dateFrom: "2026-07-01", dateTo: "2026-07-31", columns: "property" });
+    await user.click(screen.getByRole("button", { name: "View details for Record 10000" }));
+    const source = new URL(screen.getByRole("link", { name: "Open record" }).getAttribute("href")!, "https://nestory.invalid");
+    expect(source.searchParams.get("sourceId")).toBe("10000");
+    expect(source.searchParams.get("returnTo")).toContain("page=200");
+  });
+
   it("matches drawer transactions by unit identity even when unit labels repeat", async () => {
     const user = userEvent.setup();
     const report = unitProfitLossReport();
@@ -124,8 +144,7 @@ describe("Shared report results table", () => {
     ).toBeTruthy();
   });
 
-  it("hides zero-activity units until the user asks to include them", async () => {
-    const user = userEvent.setup();
+  it("hides zero-activity units and links to the server-filtered page that includes them", () => {
     const report = unitProfitLossReport();
     report.rows.push({
       ...report.rows[0]!,
@@ -144,10 +163,13 @@ describe("Shared report results table", () => {
       title: "P2 / Unit B1",
     });
 
-    renderReport({ report });
+    const rendered = renderReport({ report: prepareTrustedReportForScreen(report, { viewQuery: query() }) });
 
     expect(screen.queryByText("P2 - Property Two")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Show 1 scope with no activity" }));
+    const href = screen.getByRole("link", { name: "Show 1 scope with no activity" }).getAttribute("href");
+    expect(href).toContain("showZeroActivity=1");
+    const includedQuery = query({ showZeroActivity: true });
+    rendered.rerender(<ReportResultsTable report={prepareTrustedReportForScreen(report, { viewQuery: includedQuery })} reportRowCount={2} viewQuery={includedQuery} />);
     expect(screen.getByText("P2 - Property Two")).toBeTruthy();
   });
 

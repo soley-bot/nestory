@@ -73,3 +73,20 @@ export async function loadScopedLeaseContext(
   if (!parsed.success) throw new Error("Could not load lease read context: malformed response");
   return parsed.data;
 }
+
+export async function loadLeaseRegisterContext(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  leaseIds: string[] = [],
+  options: { includeFilterOptions?: boolean; propertyIds?: string[]; unitIds?: string[] } = {},
+): Promise<ScopedLeaseContext> {
+  const result = await supabase.rpc("get_lease_register_context", {
+    p_organization_id: organizationId, p_lease_ids: leaseIds,
+    p_include_filter_options: options.includeFilterOptions ?? false,
+    p_property_ids: options.propertyIds ?? [], p_unit_ids: options.unitIds ?? [],
+  });
+  if (result.error) throw new Error(`Could not load lease read context: ${result.error.message}`);
+  const parsed = leaseContextSchema.safeParse(result.data);
+  if (!parsed.success) throw new Error("Could not load lease read context: malformed response");
+  return parsed.data;
+}

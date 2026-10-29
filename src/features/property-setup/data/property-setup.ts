@@ -1,4 +1,4 @@
-import { getPersonSelectOptions } from "@/features/people/data/person-options";
+import { getPersonSelectPage } from "@/features/people/data/person-options";
 import type {
   PropertySetupData,
   PropertySetupLeaseOption,
@@ -9,6 +9,7 @@ import type {
 import { normalizePropertyRentalStructure } from "@/features/properties/property-rental-structure";
 import { shouldLoadPropertySetupReadiness } from "@/features/property-setup/property-setup";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
 import {
   formatPropertyOptionLabel,
   formatUnitOptionLabel,
@@ -53,46 +54,53 @@ export async function getPropertySetupData({
   requestedSelection: PropertySetupSelection;
 }): Promise<PropertySetupData> {
   const supabase = await createSupabaseServerClient();
-  const [owners, tenants, propertiesResult, ownerLinksResult, unitsResult, leasesResult] =
-    await Promise.all([
-      getPersonSelectOptions({ organizationId, roles: ["owner"] }),
-      getPersonSelectOptions({ organizationId, roles: ["tenant"] }),
-      supabase
-        .from("properties")
-        .select("id, code, name, rental_structure")
-        .eq("organization_id", organizationId)
-        .is("archived_at", null)
-        .in("status", ["active", "under_renovation"])
-        .order("code", { ascending: true }),
-      supabase
-        .from("property_owners")
-        .select("property_id, person_id")
-        .eq("organization_id", organizationId)
-        .eq("is_primary", true)
-        .is("archived_at", null)
-        .is("ended_on", null),
-      supabase
-        .from("units")
-        .select("id, property_id, unit_number, status")
-        .eq("organization_id", organizationId)
-        .is("archived_at", null)
-        .neq("status", "inactive")
-        .order("unit_number", { ascending: true }),
-      supabase
-        .from("current_leases")
-        .select(
-          "id, property_id, unit_id, primary_tenant_person_id, tenant_name, lease_start_date, lease_end_date, monthly_rent_amount, status",
-        )
-        .eq("organization_id", organizationId)
-        .is("archived_at", null)
-        .in("status", ["active", "draft", "notice_given"])
-        .order("lease_start_date", { ascending: false }),
-    ]);
+  const [ownerPage, tenantPage] = await Promise.all([
+    getPersonSelectPage({ organizationId, roles: ["owner"], selectedId: requestedSelection.ownerId ?? undefined }),
+    getPersonSelectPage({ organizationId, roles: ["tenant"], selectedId: requestedSelection.tenantId ?? undefined }),
+  ]);
+  const owners = [...new Map([...ownerPage.options, ...(ownerPage.selectedOption && !ownerPage.selectedOption.archived ? [ownerPage.selectedOption] : [])].map(person => [person.id,person])).values()];
+  const tenants = [...new Map([...tenantPage.options, ...(tenantPage.selectedOption && !tenantPage.selectedOption.archived ? [tenantPage.selectedOption] : [])].map(person => [person.id,person])).values()];
+  const ownerId = owners.find(owner => owner.id === requestedSelection.ownerId)?.id;
+  const ownerLinksResult = ownerId ? await readAllRows((from,to) => supabase
+    .from("property_owners")
+    .select("property_id, person_id")
+    .eq("organization_id", organizationId).eq("person_id",ownerId)
+    .eq("is_primary", true).is("archived_at", null).is("ended_on", null)
+    .order("property_id").order("id").range(from,to)) : { data: [],error: null };
+  if (ownerLinksResult.error) throw new Error(`Could not load setup property owner links: ${ownerLinksResult.error.message}`);
+
+  const propertiesResult = await readAllRowsByIds((ownerLinksResult.data ?? []).map(link => link.property_id), (ids,from,to) => supabase
+    .from("properties").select("id, code, name, rental_structure")
+    .eq("organization_id",organizationId).in("id",ids).is("archived_at",null)
+    .in("status",["active","under_renovation"]).order("code").order("id").range(from,to));
+  if (propertiesResult.error) throw new Error(`Could not load setup properties: ${propertiesResult.error.message}`);
+  const propertyRows = ((propertiesResult.data ?? []) as PropertyRow[]).toSorted((first,second) => first.code.localeCompare(second.code) || first.id.localeCompare(second.id));
+  const selectedProperty = propertyRows.find(property => property.id === requestedSelection.propertyId);
+  const legacyPropertyIds = propertyRows.filter(property => property.id !== selectedProperty?.id && !["single_space","multi_unit"].includes(property.rental_structure ?? "")).map(property => property.id);
+  const [unitsResult, legacyUnitsResult, leasesResult] = await Promise.all([
+    selectedProperty ? readAllRows((from,to) => supabase
+      .from("units").select("id, property_id, unit_number, status")
+      .eq("organization_id",organizationId).eq("property_id",selectedProperty.id)
+      .is("archived_at",null).neq("status","inactive")
+      .order("unit_number").order("id").range(from,to)) : { data: [],error: null },
+    readAllRowsByIds(legacyPropertyIds,(ids,from,to) => supabase
+      .from("units").select("id, property_id")
+      .eq("organization_id",organizationId).in("property_id",ids)
+      .is("archived_at",null).neq("status","inactive")
+      .order("property_id").order("id").range(from,to)),
+    // Tenant choices exclude leases anywhere in the authorized portfolio, not
+    // only this property. Preserve that eligibility until a tenant is chosen.
+    selectedProperty ? readAllRows((from,to) => supabase
+      .from("current_leases")
+      .select("id, property_id, unit_id, primary_tenant_person_id, tenant_name, lease_start_date, lease_end_date, monthly_rent_amount, status")
+      .eq("organization_id",organizationId).is("archived_at",null)
+      .in("status",["active","draft","notice_given"])
+      .order("lease_start_date",{ ascending: false }).order("id").range(from,to)) : { data: [],error: null },
+  ]);
 
   for (const [label, result] of [
-    ["properties", propertiesResult],
-    ["property owner links", ownerLinksResult],
     ["units", unitsResult],
+    ["property unit counts", legacyUnitsResult],
     ["leases", leasesResult],
   ] as const) {
     if (result.error) {
@@ -100,13 +108,17 @@ export async function getPropertySetupData({
     }
   }
 
+  const unitCounts = new Map<string,number>();
+  for (const unit of [...(unitsResult.data ?? []),...(legacyUnitsResult.data ?? [])]) {
+    unitCounts.set(unit.property_id,(unitCounts.get(unit.property_id) ?? 0)+1);
+  }
   const properties = toPropertyOptions(
-    (propertiesResult.data ?? []) as PropertyRow[],
+    propertyRows,
     (ownerLinksResult.data ?? []) as OwnerLinkRow[],
-    (unitsResult.data ?? []) as UnitRow[],
+    unitCounts,
   );
   const propertiesById = new Map(
-    ((propertiesResult.data ?? []) as PropertyRow[]).map((property) => [property.id, property]),
+    propertyRows.map((property) => [property.id, property]),
   );
   const units = toUnitOptions((unitsResult.data ?? []) as UnitRow[], propertiesById);
   const leases = toLeaseOptions((leasesResult.data ?? []) as LeaseRow[]);
@@ -207,7 +219,7 @@ export function validateSelection({
 function toPropertyOptions(
   properties: PropertyRow[],
   ownerLinks: OwnerLinkRow[],
-  units: UnitRow[],
+  unitCounts: ReadonlyMap<string,number>,
 ): PropertySetupPropertyOption[] {
   const primaryOwnerByProperty = new Map(
     ownerLinks.map((link) => [link.property_id, link.person_id]),
@@ -222,7 +234,7 @@ function toPropertyOptions(
             ownerPersonId,
             rentalStructure: normalizePropertyRentalStructure(
               property.rental_structure,
-              units.filter((unit) => unit.property_id === property.id).length,
+              unitCounts.get(property.id) ?? 0,
             ),
           },
         ]

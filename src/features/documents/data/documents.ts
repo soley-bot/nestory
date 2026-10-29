@@ -145,7 +145,12 @@ export async function getDocumentsScreenData(
     for (const group of filters) documentsQuery = documentsQuery.or(group);
     return documentsQuery.order("uploaded_at", { ascending: false }).order("id").range(start, end);
   };
-  const documentsResult = await readBoundedSearch(groups, fetchPage, from, to);
+  const documentsResult = await readBoundedSearch(groups, fetchPage, from, to, {
+    client: supabase, entity: "documents", organizationId, sort: "uploaded_desc",
+    filters: { archive_state: viewQuery.archiveState, id: viewQuery.documentId,
+      property_id: viewQuery.propertyId, unit_id: viewQuery.unitId,
+      lease_id: viewQuery.leaseId, task_id: viewQuery.taskId },
+  });
 
   if (documentsResult.error) {
     throw new Error(`Could not load documents: ${documentsResult.error.message}`);

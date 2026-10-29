@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -60,6 +60,20 @@ function InputEventHarness() {
 }
 
 describe("PersonSelect", () => {
+  it("loads pages on intent and preserves a selected person outside the current page", async () => {
+    const user = userEvent.setup();
+    const late = { ...options[0], id: "person-5000", label: "Last tenant" };
+    const loadOptions = vi.fn(async (_query: string, page: number) => ({ options: page === 1 ? [options[0]] : [late], selectedOption: late, hasMore: page === 1 }));
+    const onOptionSelect = vi.fn();
+    const { container } = render(<PersonSelect context="Tenant" name="tenantId" options={[]} value={late.id} roles={["tenant"]} loadOptions={loadOptions} onOptionSelect={onOptionSelect} />);
+    await waitFor(() => expect((screen.getByRole("combobox") as HTMLInputElement).value).toBe("Last tenant"));
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("button", { name: "Load more people" }));
+    await waitFor(() => expect(loadOptions).toHaveBeenCalledWith("", 2, late.id));
+    await user.click(await screen.findByRole("option", { name: /Last tenant/ }));
+    expect(onOptionSelect).toHaveBeenCalledWith(late);
+    expect(container.querySelector<HTMLInputElement>('input[name="tenantId"]')?.value).toBe(late.id);
+  });
   it.each(["fieldset", "control"])("preserves the selected person when its open %s becomes disabled", async (target) => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();

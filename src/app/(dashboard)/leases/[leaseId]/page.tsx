@@ -1,8 +1,5 @@
 import { LeaseDetailScreen } from "@/features/leases/components/lease-detail-screen";
-import {
-  getFinanceAccountsData,
-  getLeaseDepositAccountOptions,
-} from "@/features/finance-accounts/data/finance-accounts";
+import { getLeaseDetailFormOptionsAction } from "@/features/leases/lease-filter-actions";
 import { getLeasePaymentResolutionData } from "@/features/finance-operations/data/finance-operations";
 import type { LeasePaymentResolutionData } from "@/features/finance-operations/finance-operations.types";
 import {
@@ -28,7 +25,7 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
     ...parseLeaseSearchParams({ archiveState: "all" }),
     leaseId,
   };
-  const [leaseData, paymentResolution, financeAccountData] = await Promise.all([
+  const [leaseData, paymentResolution] = await Promise.all([
     getLeasesScreenData(context.organizationId, viewQuery),
     paymentInvoiceId
       ? getLeasePaymentResolutionData({
@@ -38,7 +35,6 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
           operationalTimezone: context.operationalTimezone,
         })
       : Promise.resolve(null),
-    getFinanceAccountsData(context.organizationId),
   ]);
   const {
     billingFormConfig,
@@ -124,11 +120,8 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
           : undefined
       }
       lease={lease}
-      leaseDepositAccounts={getLeaseDepositAccountOptions(
-        financeAccountData.groups.flatMap((group) => group.accounts),
-      ).filter(
-        (account) => account.propertyId === null || account.propertyId === lease.propertyId,
-      )}
+      leaseDepositAccounts={[]}
+      loadFormOptions={getLeaseDetailFormOptionsAction.bind(null, lease.id)}
       paymentResolution={eligiblePaymentResolution}
       propertyOptions={propertyOptions}
       routeNotice={eligiblePaymentResolution ? undefined : routeNotice}

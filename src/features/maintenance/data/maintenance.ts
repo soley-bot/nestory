@@ -1,6 +1,4 @@
-import { needsBoundedSearch, readBoundedSearch } from "@/lib/search/bounded-register";
-import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
-import type { PortfolioSearch } from "@/lib/search/portfolio";
+import { searchTokens } from "@/lib/search/text";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import {
   resolveRecentChangeTargets,
@@ -8,10 +6,8 @@ import {
 } from "@/features/activity/recent-change-targets";
 import type { RecentChange } from "@/features/activity/activity.types";
 import {
-  OPERATIONAL_OPEN_MAINTENANCE_STATUSES,
   REMINDER_ACTIONABLE_MAINTENANCE_STATUSES,
   HIGH_COST_AMOUNT,
-  MAINTENANCE_UPCOMING_WINDOW_DAYS,
 } from "@/features/maintenance/maintenance.constants";
 import {
   formatMaintenanceChecklistText,
@@ -56,6 +52,8 @@ import type {
   MaintenanceViewQuery,
 } from "@/features/maintenance/maintenance.types";
 import type { Json } from "@/types/database";
+import { readCompleteRows } from "@/lib/db/complete-read";
+import { readAllRows } from "@/lib/db/read-all-rows";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { documentDownloadUrl } from "@/lib/uploads/document-download";
@@ -73,18 +71,14 @@ import {
 
 const taskSelect =
   "id, tenant_request_id, property_id, unit_id, branch_id, assignee_person_id, title, description, category, priority, status, blocked_reason, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, actual_cost_date, actual_cost_document_id, actual_cost_reference, checklist, recurrence_frequency, timeline_event_id, completed_at, created_at, archived_at";
-const queueTaskSelect = "id, status, due_date, title, description, category, priority, property_id, unit_id";
-type MaintenanceTaskProjection = typeof taskSelect | typeof queueTaskSelect;
 const propertySelect = "id, code, name";
 const unitSelect = "id, property_id, unit_number";
 const personSelect = "id, organization_id, display_name, archived_at";
 const branchSelect = "id, name, code";
 const staffRoleSelect = "person_id";
-const MAINTENANCE_QUERY_BATCH_SIZE = 1_000;
 const MAINTENANCE_REFERENCE_ID_BATCH_SIZE = 100;
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
-type MaintenanceTaskQuery = ReturnType<typeof createBaseTaskQuery>;
 
 type MaintenanceTaskRow = {
   actual_cost_amount: number | null;
@@ -118,10 +112,6 @@ type MaintenanceTaskRow = {
   unit_id: string | null;
   vendor_person_id: string | null;
 };
-
-type MaintenanceQueueTaskRow = Pick<MaintenanceTaskRow,
-  "id" | "status" | "due_date" | "title" | "description" | "category" | "priority" | "property_id" | "unit_id"
->;
 
 type PropertyRow = {
   code: string;
@@ -208,34 +198,29 @@ async function loadMaintenanceScreenData(
   { includeQueueCounts, operationalTimezone }: { includeQueueCounts: boolean; operationalTimezone: string },
 ): Promise<MaintenanceScreenData> {
   const supabase = await createSupabaseServerClient();
-  const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
   const now = new Date();
   const { today, currentTime } = getOperationalClock(now, operationalTimezone);
-  const queueViewQuery: MaintenanceViewQuery = {
-    ...viewQuery, page: 1, review: "all", status: "all", taskId: "all",
+  const aggregate = await getMaintenanceAggregate(supabase, organizationId, viewQuery, today, currentTime, actor, includeQueueCounts);
+  const taskRows = aggregate.pageIds.length
+    ? await readCompleteRows<MaintenanceTaskRow>({
+      context: "Could not load maintenance cases",
+      getRowId: task => task.id,
+      maxRows: aggregate.pageIds.length,
+      pageSize: aggregate.pageIds.length,
+      readPage: (from, to) => applyActorTaskScope(supabase.from("tasks").select(taskSelect, { count: "exact" })
+        .eq("organization_id", organizationId).in("id", aggregate.pageIds), actor)
+        .order("id", { ascending: true }).range(from, to),
+    })
+    : [];
+  const tasksById = new Map(taskRows.map(task => [task.id, task as MaintenanceTaskRow]));
+  const pageRows = aggregate.pageIds.map(id => tasksById.get(id)).filter((task): task is MaintenanceTaskRow => Boolean(task));
+  // An ID disappearing between summary and hydration must not become a silent partial page.
+  if (pageRows.length !== aggregate.pageIds.length) throw new Error("Maintenance cases changed while loading. Refresh and try again.");
+  const pagedTasks = {
+    rows: pageRows,
+    pagination: buildMaintenancePagination({ page: aggregate.page, pageSize: aggregate.pageSize, totalCount: aggregate.summary.total }),
   };
-  const needsQueueRows = includeQueueCounts && (
-    viewQuery.review !== "all" || viewQuery.status !== "all" || viewQuery.taskId !== "all"
-  );
-  const [pagedTasks, summaryTaskRows, queueTaskRows] = await Promise.all([
-    getPagedTaskRows(supabase, organizationId, viewQuery, today, currentTime, actor, portfolio),
-    getSummaryTaskRows(
-      supabase,
-      organizationId,
-      viewQuery,
-      today,
-      currentTime,
-      actor,
-      portfolio,
-    ),
-    needsQueueRows
-      ? getSummaryTaskRows<MaintenanceQueueTaskRow>(supabase, organizationId, queueViewQuery, today, currentTime, actor, portfolio, queueTaskSelect)
-      : Promise.resolve(undefined),
-  ]);
-  const referenceTaskRows = uniqueTaskRows([
-    ...pagedTasks.rows,
-    ...summaryTaskRows,
-  ]);
+  const referenceTaskRows = pagedTasks.rows;
   const isMember = actor?.workflowMode === "assigned";
   // A coordinator read surface does not grant assignment-directory authority.
   const loadAssignmentOptions = !isMember && capabilities.canAssignCase;
@@ -269,22 +254,6 @@ async function loadMaintenanceScreenData(
     ? undefined
     : new Set(vendorOptions.map((vendor) => vendor.id));
   const pageCases = pagedTasks.rows.map((task) =>
-    toMaintenanceCase({
-      actor: resolvedActor,
-      activity: [],
-      branchesById,
-      documents: [],
-      eligibleVendorPersonIds,
-      memberIdentities,
-      peopleById,
-      propertiesById,
-      currentTime,
-      task,
-      today,
-      unitsById,
-    }),
-  );
-  const summaryCases = summaryTaskRows.map((task) =>
     toMaintenanceCase({
       actor: resolvedActor,
       activity: [],
@@ -359,6 +328,7 @@ async function loadMaintenanceScreenData(
     vendorOptions,
   });
 
+  const { actualCostAmount, estimateCostAmount, repeatedIssues, ...summaryCounts } = aggregate.summary;
   return {
     cases: pageCases.map((maintenanceCase) => ({
       ...maintenanceCase,
@@ -372,9 +342,18 @@ async function loadMaintenanceScreenData(
       latestReviewInstruction: reopenInstructionByTaskId.get(maintenanceCase.id),
     })),
     pagination: pagedTasks.pagination,
-    queueCounts: includeQueueCounts ? buildMaintenanceQueueCounts(queueTaskRows ?? summaryTaskRows, today) : undefined,
+    queueCounts: includeQueueCounts ? aggregate.queueCounts ?? undefined : undefined,
     ...mutableOptions,
-    summary: buildMaintenanceSummary(summaryCases, viewQuery.month),
+    summary: {
+      ...summaryCounts,
+      actualCostDisplay: formatMoneyDisplay(actualCostAmount, "USD"),
+      estimateCostDisplay: formatMoneyDisplay(estimateCostAmount, "USD"),
+      repeatedIssues: repeatedIssues.map(issue => ({
+        caseCount: issue.caseCount, category: issue.category, propertyLabel: issue.propertyLabel,
+        scopeLabel: issue.scopeLabel, unitLabel: issue.unitLabel,
+        href: buildHref("/maintenance", { propertyId: issue.propertyId, query: issue.category, unitId: issue.unitId }),
+      })),
+    },
   };
 }
 
@@ -588,342 +567,52 @@ export function buildMaintenanceSummary(
   };
 }
 
-function buildMaintenanceQueueCounts(
-  tasks: Array<Pick<MaintenanceTaskRow, "due_date" | "status">>,
-  today: string,
-): MaintenanceQueueCounts {
-  const facts = tasks.map(task => getMaintenanceTaskFacts({
-    dueDate: task.due_date, priority: "normal", status: task.status,
-  }, today));
-  return {
-    completed: facts.filter(task => task.status === "completed").length,
-    open: facts.filter(task => task.isOpen).length,
-    overdue: facts.filter(task => task.isOverdue).length,
-    readyForReview: facts.filter(task => task.status === "ready_for_review").length,
-    total: facts.length,
-    upcoming: facts.filter(task => task.progressState === "upcoming" || task.progressState === "due_today").length,
+export type MaintenanceAggregate = {
+  summary: Omit<MaintenanceSummary, "actualCostDisplay" | "estimateCostDisplay" | "repeatedIssues"> & {
+    actualCostAmount: number;
+    estimateCostAmount: number;
+    repeatedIssues: Array<Omit<MaintenanceRepeatedIssue, "href"> & { propertyId: string; unitId: string | null }>;
   };
-}
+  queueCounts: MaintenanceQueueCounts | null;
+  pageIds: string[];
+  page: number;
+  pageSize: number;
+};
 
-async function getPagedTaskRows(
-  supabase: SupabaseServerClient,
-  organizationId: string,
-  viewQuery: MaintenanceViewQuery,
-  today: string,
-  currentTime: string,
-  actor?: MaintenanceActor,
-  portfolio?: PortfolioSearch,
-) {
-  let result = await buildTasksQuery(
-    supabase,
-    organizationId,
-    viewQuery,
-    today,
-    currentTime,
-    actor,
-    portfolio,
-  ).range(getPageStart(viewQuery.page, viewQuery.pageSize), getPageEnd(viewQuery.page, viewQuery.pageSize));
-
-  if (result.error) {
-    throw new Error(`Could not load maintenance cases: ${result.error.message}`);
-  }
-
-  let pagination = buildMaintenancePagination({
-    page: viewQuery.page,
-    pageSize: viewQuery.pageSize,
-    totalCount: result.count ?? 0,
-  });
-
-  if (pagination.page !== viewQuery.page) {
-    result = await buildTasksQuery(
-      supabase,
-      organizationId,
-      { ...viewQuery, page: pagination.page },
-      today,
-      currentTime,
-      actor,
-      portfolio,
-    ).range(
-      getPageStart(pagination.page, pagination.pageSize),
-      getPageEnd(pagination.page, pagination.pageSize),
-    );
-
-    if (result.error) {
-      throw new Error(`Could not load maintenance cases: ${result.error.message}`);
-    }
-
-    pagination = {
-      ...pagination,
-      totalCount: result.count ?? pagination.totalCount,
-    };
-  }
-
-  return {
-    pagination,
-    rows: (result.data ?? []) as MaintenanceTaskRow[],
-  };
-}
-
-async function getSummaryTaskRows<Row extends MaintenanceTaskRow | MaintenanceQueueTaskRow = MaintenanceTaskRow>(
-  supabase: SupabaseServerClient,
-  organizationId: string,
-  viewQuery: MaintenanceViewQuery,
-  today: string,
-  currentTime: string,
-  actor?: MaintenanceActor,
-  portfolio?: PortfolioSearch,
-  projection: MaintenanceTaskProjection = taskSelect,
-) {
-  if (needsBoundedSearch(taskSearchGroups(viewQuery, portfolio))) {
-    const result = await buildTasksQuery(supabase, organizationId, viewQuery, today, currentTime, actor, portfolio, projection).range(0, Number.MAX_SAFE_INTEGER);
-    if (result.error) throw new Error(`Could not load maintenance summary: ${result.error.message}`);
-    return (result.data ?? []) as Row[];
-  }
-  const rows: Row[] = [];
-  let from = 0;
-  let totalCount: number | null = null;
-
-  do {
-    const result = await buildTasksQuery(
-      supabase,
-      organizationId,
-      viewQuery,
-      today,
-      currentTime,
-      actor,
-      portfolio,
-      projection,
-    ).range(from, from + MAINTENANCE_QUERY_BATCH_SIZE - 1);
-
-    if (result.error) {
-      throw new Error(`Could not load maintenance summary: ${result.error.message}`);
-    }
-
-    totalCount = result.count ?? totalCount;
-    const batch = (result.data ?? []) as Row[];
-    rows.push(...batch);
-
-    if (batch.length < MAINTENANCE_QUERY_BATCH_SIZE) {
-      break;
-    }
-
-    from += MAINTENANCE_QUERY_BATCH_SIZE;
-  } while (totalCount === null || rows.length < totalCount);
-
-  return rows;
-}
-
-function buildTasksQuery(
-  supabase: SupabaseServerClient,
-  organizationId: string,
-  viewQuery: MaintenanceViewQuery,
-  today: string,
-  currentTime: string,
-  actor?: MaintenanceActor,
-  portfolio?: PortfolioSearch,
-  projection: MaintenanceTaskProjection = taskSelect,
-) {
-  const groups = taskSearchGroups(viewQuery, portfolio);
-  return { range: (from: number, to: number) => readBoundedSearch<Awaited<MaintenanceTaskQuery>>(groups, (start, end, filters) =>
-    buildFilteredTasksQuery(supabase, organizationId, viewQuery, today, currentTime, actor, filters, projection).order("id").range(start, end), from, to) };
-}
-
-function taskSearchGroups(viewQuery: MaintenanceViewQuery, portfolio?: PortfolioSearch) {
-  return viewQuery.taskId === "all" ? portfolio?.groups(viewQuery.query, ["title", "description", "category", "status", "priority"]) ?? [] : [];
-}
-
-function buildFilteredTasksQuery(
+async function getMaintenanceAggregate(
   supabase: SupabaseServerClient,
   organizationId: string,
   viewQuery: MaintenanceViewQuery,
   today: string,
   currentTime: string,
   actor: MaintenanceActor | undefined,
-  filters: string[],
-  projection: MaintenanceTaskProjection,
-) {
-  let query = createBaseTaskQuery(supabase, organizationId, projection);
-
-  query = applyActorTaskScope(query, actor);
-
-  if (viewQuery.archiveState === "active") {
-    query = query.is("archived_at", null);
-  } else if (viewQuery.archiveState === "archived") {
-    query = query.not("archived_at", "is", null);
-  }
-
-  if (viewQuery.taskId !== "all") {
-    query = query.eq("id", viewQuery.taskId);
-  } else if (viewQuery.propertyId !== "all") {
-    query = query.eq("property_id", viewQuery.propertyId);
-  }
-
-  if (viewQuery.taskId === "all" && viewQuery.unitId !== "all") {
-    query = query.eq("unit_id", viewQuery.unitId);
-  }
-
-  if (viewQuery.taskId !== "all") {
-    return applyTaskSort(query, viewQuery.sort);
-  }
-
-  if (viewQuery.priority !== "all") {
-    query = query.eq("priority", viewQuery.priority);
-  }
-
-  if (viewQuery.status !== "all") {
-    query = query.eq("status", viewQuery.status);
-  }
-
-  query = applyReviewFilter(query, viewQuery, today, currentTime);
-  for (const group of filters) query = query.or(group);
-
-  return applyTaskSort(query, viewQuery.sort);
+  includeQueueCounts: boolean,
+): Promise<MaintenanceAggregate> {
+  const { data, error } = await supabase.rpc("get_maintenance_summary", {
+    p_organization_id: organizationId,
+    p_filters: {
+      ...viewQuery,
+      searchTokens: searchTokens(viewQuery.query),
+      actorScope: actor?.dataScope ?? "organization",
+      actorBranchId: actor?.branchId ?? null,
+      actorPersonId: actor?.personId ?? null,
+    },
+    p_today: today,
+    p_current_time: currentTime,
+    p_month: `${viewQuery.month}-01`,
+    p_include_queue_counts: includeQueueCounts,
+  });
+  if (error) throw new Error(`Could not load maintenance summary: ${error.message}`);
+  if (!data) throw new Error("Could not load maintenance summary: aggregate is missing.");
+  return data as unknown as MaintenanceAggregate;
 }
 
-function createBaseTaskQuery(
-  supabase: SupabaseServerClient,
-  organizationId: string,
-  projection: MaintenanceTaskProjection = taskSelect,
-) {
-  const table = supabase.from("tasks");
-  return (projection === queueTaskSelect
-    ? table.select(queueTaskSelect, { count: "exact" })
-    : table.select(taskSelect, { count: "exact" }))
-    .eq("organization_id", organizationId);
-}
-
-function applyReviewFilter(
-  query: MaintenanceTaskQuery,
-  viewQuery: MaintenanceViewQuery,
-  today: string,
-  currentTime: string,
-) {
-  if (viewQuery.review === "all" || viewQuery.review === "work_orders") {
-    return query;
-  }
-
-  if (viewQuery.review === "open") {
-    return query.in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES]);
-  }
-
-  if (viewQuery.review === "overdue") {
-    return query.in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES]).lt("due_date", today);
-  }
-
-  if (viewQuery.review === "scheduled") {
-    return query
-      .in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES])
-      .or("due_date.not.is.null,reminder_date.not.is.null");
-  }
-
-  if (viewQuery.review === "upcoming") {
-    return query
-      .in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES])
-      .gte("due_date", today)
-      .lte("due_date", addDaysIso(today, MAINTENANCE_UPCOMING_WINDOW_DAYS));
-  }
-
-  if (viewQuery.review === "reminders") {
-    return query
-      .in("status", [...REMINDER_ACTIONABLE_MAINTENANCE_STATUSES])
-      .not("reminder_date", "is", null)
-      .or(
-        `reminder_date.lt.${today},and(reminder_date.eq.${today},or(reminder_time.is.null,reminder_time.lte.${currentTime}))`,
-      );
-  }
-
-  if (viewQuery.review === "inspections") {
-    return query.or(
-      "category.ilike.%inspect%,title.ilike.%inspect%,description.ilike.%inspect%",
-    );
-  }
-
-  if (viewQuery.review === "high_priority") {
-    return query.in("priority", ["high", "urgent"]);
-  }
-
-  if (viewQuery.review === "high_cost") {
-    return query.or(
-      `actual_cost_amount.gte.${HIGH_COST_AMOUNT},cost_estimate_amount.gte.${HIGH_COST_AMOUNT}`,
-    );
-  }
-
-  if (viewQuery.review === "recurring") {
-    return query.neq("recurrence_frequency", "none");
-  }
-
-  if (viewQuery.review === "review_completion") {
-    return query.eq("status", "ready_for_review");
-  }
-
-  if (viewQuery.review === "completed") {
-    return query.eq("status", "completed");
-  }
-
-  return query;
-}
-
-function applyTaskSort(
-  query: MaintenanceTaskQuery,
-  sort: MaintenanceViewQuery["sort"],
-) {
-  if (sort === "created_desc") {
-    return query.order("created_at", { ascending: false });
-  }
-
-  if (sort === "cost_desc") {
-    return query
-      .order("actual_cost_amount", { ascending: false, nullsFirst: false })
-      .order("cost_estimate_amount", { ascending: false, nullsFirst: false })
-      .order("due_date", { ascending: true, nullsFirst: false });
-  }
-
-  if (sort === "priority_desc") {
-    return query
-      .order("priority", { ascending: false })
-      .order("due_date", { ascending: true, nullsFirst: false });
-  }
-
-  return query
-    .order("due_date", { ascending: true, nullsFirst: false })
-    .order("due_time", { ascending: true, nullsFirst: false })
-    .order("created_at", { ascending: false });
-}
-
-function getPageStart(page: number, pageSize: number) {
-  return (Math.max(page, 1) - 1) * pageSize;
-}
-
-function getPageEnd(page: number, pageSize: number) {
-  return getPageStart(page, pageSize) + pageSize - 1;
-}
-
-function addDaysIso(value: string, days: number) {
-  const date = new Date(`${value}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-function applyActorTaskScope<T extends { eq: (column: string, value: string) => T }>(
-  query: T,
-  actor?: MaintenanceActor,
-) {
+function applyActorTaskScope<T extends { eq: (column: string, value: string) => T }>(query: T, actor?: MaintenanceActor) {
   if (actor?.dataScope === "assigned") {
-    const assignedQuery = actor.personId
-      ? query.eq("assignee_person_id", actor.personId)
-      : query.eq("assignee_person_id", "00000000-0000-0000-0000-000000000000");
-    return actor.branchId
-      ? assignedQuery.eq("branch_id", actor.branchId)
-      : assignedQuery.eq("branch_id", "00000000-0000-0000-0000-000000000000");
+    query = query.eq("assignee_person_id", actor.personId ?? "00000000-0000-0000-0000-000000000000");
   }
-
-  if (actor?.dataScope === "branch") {
-    return actor.branchId
-      ? query.eq("branch_id", actor.branchId)
-      : query.eq("branch_id", "00000000-0000-0000-0000-000000000000");
-  }
-
-  return query;
+  return actor && actor.dataScope !== "organization"
+    ? query.eq("branch_id", actor.branchId ?? "00000000-0000-0000-0000-000000000000") : query;
 }
 
 async function getMaintenanceReferenceRows({
@@ -957,7 +646,7 @@ async function getMaintenanceReferenceRows({
 
   const branchesPromise = referencedOnly && branchIds.length === 0
     ? Promise.resolve({ data: [] as BranchRow[], error: null })
-    : (() => {
+    : readAllRows((from, to) => {
         let query = supabase
           .from("organization_branches")
           .select(branchSelect)
@@ -966,11 +655,11 @@ async function getMaintenanceReferenceRows({
           .eq("status", "active")
           .order("name", { ascending: true });
         if (referencedOnly) query = query.in("id", branchIds);
-        return query;
-      })();
+        return query.order("id", { ascending: true }).range(from, to);
+      });
   const propertiesPromise = referencedOnly && propertyIds.length === 0
     ? Promise.resolve({ data: [] as PropertyRow[], error: null })
-    : (() => {
+    : readAllRows((from, to) => {
         let query = supabase
           .from("properties")
           .select(propertySelect)
@@ -978,11 +667,11 @@ async function getMaintenanceReferenceRows({
           .is("archived_at", null)
           .order("code", { ascending: true });
         if (referencedOnly) query = query.in("id", propertyIds);
-        return query;
-      })();
+        return query.order("id", { ascending: true }).range(from, to);
+      });
   const unitsPromise = referencedOnly && unitIds.length === 0
     ? Promise.resolve({ data: [] as UnitRow[], error: null })
-    : (() => {
+    : readAllRows((from, to) => {
         let query = supabase
           .from("units")
           .select(unitSelect)
@@ -990,8 +679,8 @@ async function getMaintenanceReferenceRows({
           .is("archived_at", null)
           .order("unit_number", { ascending: true });
         if (referencedOnly) query = query.in("id", unitIds);
-        return query;
-      })();
+        return query.order("id", { ascending: true }).range(from, to);
+      });
   const peoplePromise = personIds.length === 0
     ? Promise.resolve({ data: [] as PersonRow[], error: null })
     : Promise.all(
@@ -1926,9 +1615,6 @@ export function getLatestReviewInstructionByTaskId(rows: ActivityRow[]) {
   return instructions;
 }
 
-function uniqueTaskRows(rows: MaintenanceTaskRow[]) {
-  return [...new Map(rows.map((row) => [row.id, row])).values()];
-}
 
 function uniqueDefined(values: Array<string | null | undefined>) {
   return [...new Set(values.filter((value): value is string => Boolean(value)))];

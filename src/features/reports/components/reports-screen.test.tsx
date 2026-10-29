@@ -116,9 +116,9 @@ describe("Reports screen", () => {
     expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
   });
 
-  it("offers clearly named PDF and Excel exports through one menu", async () => {
+  it("offers complete PDF and Excel exports without screen page or search restrictions", async () => {
     const user = userEvent.setup();
-    renderReport();
+    renderReport({ viewQuery: query({ page: 200, detailPage: 400, scopeQuery: "Unmatched scope", showZeroActivity: true }) });
 
     await user.click(screen.getByRole("button", { name: "Export" }));
     expect(

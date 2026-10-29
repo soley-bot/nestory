@@ -30,14 +30,14 @@ describe("complete unit registers under API row caps", () => {
 
   it.each([24, 150])("does no ledger/media hydration for an empty text match across %s units", async count => {
     const units = Array.from({ length: count }, (_, index) => unit(index, id("property", 1)));
-    const { client, reads } = createCappedReadHarness({ properties: [property(1)], units });
+    const { client, reads, rpcReads } = createCappedReadHarness({ properties: [property(1)], units });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
     const result = await getUnitsScreenData(organizationId, parseUnitSearchParams({ query: "absentneedle" }));
     expect(result.units).toEqual([]);
     expect(reads.some(read => ["ledger_entries", "documents", "asset_photos"].includes(read.table))).toBe(false);
     const timelineReads = reads.filter(read => read.table === "timeline_events");
-    expect(timelineReads).toHaveLength(Math.ceil(count / 75));
-    expect(timelineReads.every(read => read.select === "id, unit_id, event_date, event_type, title")).toBe(true);
+    expect(timelineReads).toHaveLength(0);
+    expect(rpcReads).toContainEqual({ name: "get_unit_register_page", args: expect.objectContaining({ p_organization_id: organizationId, p_filters: expect.objectContaining({ query: "absentneedle" }) }) });
   });
   it("searches and filters occupancy beyond unit 1000 using current lease evidence", async () => {
     const units = Array.from({ length: 1205 }, (_, index) => unit(index, id("property", index)));
@@ -83,9 +83,12 @@ describe("complete unit registers under API row caps", () => {
     vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
     expect(await getUnitPropertyOptions(organizationId)).toHaveLength(1001);
   });
-  it.each(["error", "count"])("rejects a later unit page %s", async failure => {
-    const { client } = createCappedReadHarness({ properties: [property(1)], units: Array.from({ length: 1001 }, (_, index) => unit(index, id("property", 1))) }, { transformResult(read, result) {
-      if (read.table === "units" && (read.range?.[0] ?? 0) > 0) return failure === "error" ? { ...result, error: { message: "Synthetic page failure" } } : { ...result, count: 1002 };
+  it.each(["error", "incomplete identities"])("rejects a unit page RPC with %s", async failure => {
+    const { client } = createCappedReadHarness({ properties: [property(1)], units: Array.from({ length: 1001 }, (_, index) => unit(index, id("property", 1))) }, { transformRpcResult(read, result) {
+      if (read.name === "get_unit_register_page") {
+        const page = result.data as { ids: string[]; total_count: number };
+        return failure === "error" ? { ...result, error: { message: "Synthetic page failure" } } : { ...result, data: { ...page, ids: page.ids.slice(1) } };
+      }
       return result;
     } });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);

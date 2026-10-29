@@ -34,6 +34,8 @@ type PersonSelectProps = {
   includeArchived?: boolean;
   name: string;
   onValueChange?: (value: string) => void;
+  onOptionSelect?: (option: PersonSelectOption) => void;
+  loadOptions?: (query: string, page: number, selectedId: string) => Promise<{ options: PersonSelectOption[]; selectedOption: PersonSelectOption | null; hasMore: boolean }>;
   options: PersonSelectOption[];
   placeholder?: string;
   preservedOption?: PersonSelectOption;
@@ -58,6 +60,8 @@ export function PersonSelect({
   includeArchived = false,
   name,
   onValueChange,
+  onOptionSelect,
+  loadOptions,
   options,
   placeholder = "Choose a person",
   preservedOption,
@@ -73,10 +77,42 @@ export function PersonSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [remote, setRemote] = useState<{ query: string; options: PersonSelectOption[]; selectedOption: PersonSelectOption | null; hasMore: boolean }>({ query: "", options: [], selectedOption: null, hasMore: false });
+  const [page, setPage] = useState(1);
+  const [completedRequest, setCompletedRequest] = useState<{
+    key: string;
+    loader: PersonSelectProps["loadOptions"];
+    failed: boolean;
+  } | null>(null);
+  const onOptionSelectRef = useRef(onOptionSelect);
+  useEffect(() => { onOptionSelectRef.current = onOptionSelect; }, [onOptionSelect]);
   const selectedValue = value ?? internalValue;
   const previousValueRef = useRef(selectedValue);
+  const requestKey = JSON.stringify([query ?? "", open ? page : 1, selectedValue, open]);
+  const shouldLoad = Boolean(loadOptions && !disabled && (open || selectedValue));
+  const requestCompleted = completedRequest?.key === requestKey && completedRequest.loader === loadOptions;
+  const loading = shouldLoad && !requestCompleted;
+  const loadError = shouldLoad && requestCompleted && completedRequest.failed;
+  useEffect(() => {
+    if (!loadOptions || disabled || (!open && !selectedValue)) return;
+    let active = true;
+    const search = query ?? "";
+    const timer = window.setTimeout(() => {
+      void loadOptions(search, open ? page : 1, selectedValue).then(result => {
+        if (!active) return;
+        setRemote(previous => ({ ...result, query: search, options: page > 1 && previous.query === search
+          ? [...new Map([...previous.options, ...result.options].map(option => [option.id,option])).values()]
+          : result.options }));
+        if (result.selectedOption?.id === selectedValue) onOptionSelectRef.current?.(result.selectedOption);
+        setCompletedRequest({ key: requestKey, loader: loadOptions, failed: false });
+      }, () => { if (active) setCompletedRequest({ key: requestKey, loader: loadOptions, failed: true }); });
+    }, search ? 200 : 0);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [disabled, loadOptions, open, page, query, requestKey, selectedValue]);
   const normalizedOptions = useMemo(() => {
-    const next = options.filter((option) => includeArchived || !option.archived);
+    const next = (loadOptions ? remote.query === (query ?? "") ? remote.options : [] : options).filter((option) => includeArchived || !option.archived);
+    const selected = remote.selectedOption?.id === selectedValue ? remote.selectedOption : options.find(option => option.id === selectedValue);
+    if (loadOptions && selected && !next.some(option => option.id === selected.id)) next.push(selected);
     if (
       preservedOption &&
       selectedValue === preservedOption.id &&
@@ -85,7 +121,7 @@ export function PersonSelect({
       next.push(preservedOption);
     }
     return next;
-  }, [includeArchived, options, preservedOption, selectedValue]);
+  }, [includeArchived, options, preservedOption, selectedValue, loadOptions, remote, query]);
   const visibleOptions = useMemo(() => {
     const normalizedQuery = (query ?? "").trim().toLocaleLowerCase();
     const candidates = allowExternal
@@ -101,6 +137,7 @@ export function PersonSelect({
         ]
       : normalizedOptions;
 
+    if (loadOptions) return candidates.filter(option => option.id === externalValue || remote.options.some(row => row.id === option.id));
     if (!normalizedQuery) {
       return candidates;
     }
@@ -116,6 +153,8 @@ export function PersonSelect({
     externalLabel,
     normalizedOptions,
     query,
+    loadOptions,
+    remote.options,
   ]);
   const selectedOption =
     normalizedOptions.find((option) => option.id === selectedValue) ??
@@ -148,6 +187,7 @@ export function PersonSelect({
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
     if (nextOpen) {
+      setPage(1);
       setActiveIndex(
         Math.max(0, visibleOptions.findIndex((option) => option.id === selectedValue)),
       );
@@ -164,6 +204,11 @@ export function PersonSelect({
       setInternalValue(nextValue);
     }
     onValueChange?.(nextValue);
+    const option = normalizedOptions.find(option => option.id === nextValue);
+    if (option) {
+      if (loadOptions) setRemote(current => ({ ...current, selectedOption: option }));
+      onOptionSelect?.(option);
+    }
     inputRef.current?.focus();
     setOpen(false);
     setQuery(null);
@@ -203,7 +248,9 @@ export function PersonSelect({
       id={listboxId}
       role="listbox"
     >
-      {visibleOptions.length === 0 ? (
+      {loading ? <p className="px-3 py-2 text-sm text-muted-foreground" role="status">Loading people…</p> : null}
+      {loadError ? <p className="px-3 py-2 text-sm text-danger" role="alert">People could not be loaded. Close this selector and try again.</p> : null}
+      {visibleOptions.length === 0 && !loading && !loadError ? (
         <p className="px-3 py-3 text-sm text-muted-foreground">
           No matching people.
         </p>
@@ -239,6 +286,7 @@ export function PersonSelect({
           </button>
         ))
       )}
+      {loadOptions && remote.hasMore ? <button className="w-full px-3 py-2 text-sm text-primary" disabled={loading} onMouseDown={event => event.preventDefault()} onClick={() => setPage(current => current + 1)} type="button">Load more people</button> : null}
     </div>
   ) : null;
 
@@ -276,6 +324,7 @@ export function PersonSelect({
               disabled={disabled}
               onChange={(event) => {
                 setQuery(event.currentTarget.value);
+                setPage(1);
                 setActiveIndex(0);
                 setOpen(true);
               }}

@@ -19,6 +19,10 @@ vi.mock("@/features/leases/actions", () => ({
 vi.mock("@/features/property-setup/actions", () => ({
   activateSetupLeaseAction: navigation.activateLease,
 }));
+vi.mock("@/features/people/person-options-actions", () => ({
+  getOwnerOptionsAction: vi.fn(async () => ({ options: data.owners, selectedOption: null, hasMore: false })),
+  getTenantOptionsAction: vi.fn(async () => ({ options: data.tenants, selectedOption: null, hasMore: false })),
+}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/properties/setup",

@@ -1,3 +1,4 @@
+import { aggregateMaintenanceFixture, type MaintenanceRpcArgs } from "./maintenance-summary.test-fixture";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getMaintenanceScreenData } from "@/features/maintenance/data/maintenance";
 import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance.filters";
@@ -18,6 +19,7 @@ const unitId = "20000000-0000-4000-8000-000000000001";
 const actor: MaintenanceActor = {
   branchId: "branch-1", dataScope: "assigned", personId: "person-1", workflowMode: "assigned",
 };
+let fixturePortfolio = createPortfolioSearch([], []);
 const scopedParams = {
   month: "2026-06", pageSize: "10", priority: "high", propertyId, query: "leak", unitId, view: "list",
 };
@@ -26,7 +28,7 @@ const queueCounts = { completed: 11, open: 29, overdue: 12, readyForReview: 8, t
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-06-15T12:00:00.000Z"));
-  vi.mocked(loadPortfolioSearch).mockResolvedValue(createPortfolioSearch([], []));
+  fixturePortfolio = createPortfolioSearch([], []);
 });
 afterEach(() => vi.useRealTimers());
 
@@ -95,9 +97,9 @@ describe("Maintenance filtering and queue destinations", () => {
     if (review === "completed") expect(result.cases.every(row => row.status === "completed")).toBe(true);
     if (review === "open") expect(result.cases.every(row => row.isOpen)).toBe(true);
     expect(fixture.reads.filter(read => read.table === "tasks").every(read =>
-      read.filters.includes("organization_id=org-1") && read.filters.includes("assignee_person_id=person-1") &&
-      read.filters.includes("branch_id=branch-1"),
+      read.filters.includes("organization_id=org-1"),
     )).toBe(true);
+    expect(fixture.client.rpc).toHaveBeenCalledWith("get_maintenance_summary", expect.objectContaining({ p_filters: expect.objectContaining({ actorScope: "assigned", actorBranchId: "branch-1", actorPersonId: "person-1" }) }));
   });
 
   it("returns Completed records for the status selector and a status-only deep link", async () => {
@@ -198,19 +200,18 @@ describe("Maintenance filtering and queue destinations", () => {
     for (const [review, include] of [["all", true], ["completed", false]] as const) {
       const fixture = installFixture();
       const result = await load({ review }, include);
-      expect(fixture.reads.filter(read => read.table === "tasks")).toHaveLength(2);
+      expect(fixture.reads.filter(read => read.table === "tasks")).toHaveLength(1);
       expect(result.queueCounts).toEqual(include ? queueCounts : undefined);
     }
   });
 
-  it("loads only count and search fields for the broader queue scope", async () => {
+  it("returns queue aggregates without reading the broader task collection", async () => {
     const fixture = installFixture();
     await load({ review: "completed" }, true);
     const taskReads = fixture.reads.filter(read => read.table === "tasks");
-    expect(taskReads).toHaveLength(3);
-    expect(taskReads.filter(read => !read.projection.includes("actual_cost_amount")).map(read => read.projection)).toEqual([
-      "id, status, due_date, title, description, category, priority, property_id, unit_id",
-    ]);
+    expect(taskReads).toHaveLength(1);
+    expect(fixture.client.rpc).toHaveBeenCalledWith("get_maintenance_summary", expect.objectContaining({ p_include_queue_counts: true }));
+
   });
 
   it.each([
@@ -225,23 +226,26 @@ describe("Maintenance filtering and queue destinations", () => {
     expect(result.cases.some(row => row.id === "other-organization")).toBe(false);
   });
 
-  it("counts beyond the summary batch and returns only the selected page", async () => {
-    const extra = Array.from({ length: 1025 }, (_, index) => task("extra-" + index, "pending", "2026-06-14"));
+  it("counts more than 1200 tasks and hydrates only the selected page", async () => {
+    const extra = Array.from({ length: 1225 }, (_, index) => task("extra-" + index, "pending", "2026-06-14"));
     const fixture = installFixture(extra);
     const result = await load({ review: "completed" }, true);
     expect(result.cases).toHaveLength(10);
     expect(result.summary.total).toBe(11);
-    expect(result.queueCounts).toMatchObject({ total: 1068, open: 1054, completed: 11 });
-    expect(fixture.reads.some(read => read.table === "tasks" && read.from === 1000)).toBe(true);
+    expect(result.queueCounts).toMatchObject({ total: 1268, open: 1254, completed: 11 });
+    expect(fixture.reads.filter(read => read.table === "tasks")).toHaveLength(1);
+    expect(vi.mocked(fixture.client.rpc).mock.calls.filter(([name]) => name === "get_maintenance_summary")).toHaveLength(1);
   });
 
   it("keeps counts and rows consistent for an oversized owner search", async () => {
     installFixture();
-    vi.mocked(loadPortfolioSearch).mockResolvedValue(createPortfolioSearch(Array.from({ length: 420 }, (_, index) => ({
+    fixturePortfolio = createPortfolioSearch(Array.from({ length: 420 }, (_, index) => ({
       id: index ? "10000000-0000-4000-8000-" + String(index + 1).padStart(12, "0") : propertyId,
       code: "P" + index, name: "Property", ownerNames: ["Shared Owner"],
-    })), []));
+    })), []);
+    vi.mocked(loadPortfolioSearch).mockClear();
     const result = await load({ query: "shared", review: "open", page: "3" }, true);
+    expect(loadPortfolioSearch).not.toHaveBeenCalled();
     expect(result.pagination).toMatchObject({ page: 3, totalCount: 30, to: 30 });
     expect(result.cases).toHaveLength(10);
     expect(result.queueCounts).toEqual({ ...queueCounts, open: 30, total: 44 });
@@ -298,10 +302,12 @@ function installFixture(extra: FixtureRow[] = []) {
   };
   const client = {
     from: (table: string) => fixtureQuery(table, tables[table] ?? [], reads),
-    rpc: vi.fn(async () => ({ data: [], error: null })),
+    rpc: vi.fn(async (name: string, args: MaintenanceRpcArgs) => ({
+      data: name === "get_maintenance_summary" ? aggregateMaintenanceFixture(rows, args, tables, fixturePortfolio) : [], error: null,
+    })),
   } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>;
   vi.mocked(createSupabaseServerClient).mockResolvedValue(client);
-  return { reads };
+  return { reads, client };
 }
 
 function fixtureQuery(table: string, rows: FixtureRow[], reads: FixtureRead[]) {

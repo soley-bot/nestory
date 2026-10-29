@@ -98,7 +98,7 @@ describe("Unit form options authority", () => {
     expect(getWorkspaceMembershipForUser).toHaveBeenCalledWith("user-a", client);
     expect(query.select).toHaveBeenCalledWith("id, property_id, archived_at");
     expect(query.eq.mock.calls).toEqual([["organization_id", "org-a"], ["id", unitId]]);
-    expect(getPersonSelectOptions).toHaveBeenCalledExactlyOnceWith({ organizationId: "org-a", roles: ["tenant"] });
+    expect(getPersonSelectOptions).not.toHaveBeenCalled();
     expect(getLeaseBillingFormConfig).toHaveBeenCalledExactlyOnceWith("org-a");
     expect(getMaintenanceCreateFormOptions).not.toHaveBeenCalled();
   });

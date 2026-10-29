@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { getLeaseFilterOptionsAction } from "../lease-filter-actions";
 import { usePathname } from "next/navigation";
 import { RotateCcw } from "lucide-react";
 import { FilterPopover } from "@/components/ui/filter-popover";
@@ -34,11 +36,14 @@ export type LeaseFilterNavigation = {
 
 export function LeaseFilters({
   navigation,
-  properties,
-  units,
+  properties: initialProperties,
+  units: initialUnits,
   viewQuery,
 }: LeaseFiltersProps) {
   const pathname = usePathname();
+  const [options, setOptions] = useState<{ properties: LeasePropertyOption[]; units: LeaseUnitOption[] } | null>(null);
+  const properties = options ? [...new Map([...initialProperties,...options.properties].map(option => [option.id,option])).values()] : initialProperties;
+  const units = options ? [...new Map([...initialUnits,...options.units].map(option => [option.id,option])).values()] : initialUnits;
   const { isPending, replaceParam, search } = navigation;
   const advancedFilterCount = getAdvancedFilterCount(viewQuery);
   const hasActiveFilters =
@@ -80,6 +85,7 @@ export function LeaseFilters({
           id="lease-advanced-search"
           title="Filter leases"
         >
+          <LeaseFilterOptionsLoader onLoad={setOptions} loaded={options !== null} />
           <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <SelectControl
               ariaLabel="Filter leases by property"
@@ -200,6 +206,17 @@ export function LeaseFilters({
       </div>
     </div>
   );
+}
+
+function LeaseFilterOptionsLoader({ loaded, onLoad }: { loaded: boolean; onLoad: (options: { properties: LeasePropertyOption[]; units: LeaseUnitOption[] }) => void }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (loaded) return;
+    let active = true;
+    void getLeaseFilterOptionsAction().then(options => { if (active) onLoad(options); }, () => { if (active) setFailed(true); });
+    return () => { active = false; };
+  }, [loaded, onLoad]);
+  return loaded ? null : <p className="mb-2 text-sm text-muted-foreground" role={failed ? "alert" : "status"}>{failed ? "Filter choices could not be loaded. Close Filters and try again." : "Loading filter choices…"}</p>;
 }
 
 function getAdvancedFilterCount(viewQuery: LeaseViewQuery) {

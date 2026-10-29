@@ -2,7 +2,6 @@ import { z } from "zod";
 import { getLeaseBillingFormConfig } from "@/features/leases/data/leases";
 import { getMaintenanceCreateFormOptions } from "@/features/maintenance/data/maintenance";
 import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
-import { getPersonSelectOptions } from "@/features/people/data/person-options";
 import type { UnitFormOptionsResponse } from "@/features/units/unit-form-options.types";
 import {
   getCurrentUser,
@@ -60,13 +59,8 @@ export async function GET(
 
     const propertyId = result.data.property_id;
     if (mode === "lease") {
-      const [tenants, billingFormConfig] = await Promise.all([
-        getPersonSelectOptions({
-          organizationId: membership.organizationId,
-          roles: ["tenant"],
-        }),
-        getLeaseBillingFormConfig(membership.organizationId),
-      ]);
+      const tenants: [] = [];
+      const billingFormConfig = await getLeaseBillingFormConfig(membership.organizationId);
       return Response.json(
         {
           mode, unitId, propertyId, options: { tenants, billingFormConfig },

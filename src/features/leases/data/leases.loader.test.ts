@@ -81,6 +81,22 @@ describe("lease screen data readiness", () => {
     expect(lists[0].value.order).toHaveBeenLastCalledWith("id");
   });
 
+  it.each([1205, 5000])("loads only visible reference IDs for a %i-lease register", async count => {
+    const rows = leaseRows(count);
+    const { client } = leaseLoaderStub({ rows });
+    createSupabaseServerClient.mockResolvedValue(client);
+    const result = await getLeasesScreenData(organizationId, parseLeaseSearchParams({ page: String(Math.ceil(count / 50)), pageSize: "50" }));
+    const expected = rows.slice(Math.floor((count - 1) / 50) * 50).map(row => row.id);
+    expect(result.leases.map(lease => lease.id)).toEqual(expected);
+    expect(client.rpc.mock.calls.filter(([name]) => name === "get_lease_read_context")).toHaveLength(0);
+    expect(client.rpc.mock.calls.filter(([name]) => name === "get_lease_register_context")).toEqual([["get_lease_register_context", {
+      p_organization_id: organizationId, p_lease_ids: expected, p_include_filter_options: false, p_property_ids: [], p_unit_ids: [],
+    }]]);
+    expect(getPersonSelectOptions).not.toHaveBeenCalled();
+    expect(client.from.mock.calls.filter(([table]) => table === "people")).toHaveLength(0);
+    expect(result.billingFormConfig.companyOptions).toEqual([]);
+  });
+
   it("counts all selected lease records and both whole-property and unit ledger rows", async () => {
     const rows = leaseRows(2);
     rows[1].unit_id = "selected-unit";
@@ -102,18 +118,22 @@ describe("lease screen data readiness", () => {
   it.each(["start_desc", "rent_desc"])("pages a broad owner search through the scoped lease RPC (%s)", async (sort) => {
     const properties = Array.from({ length: 400 }, (_, index) => ({ id: index ? `20000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}` : propertyId, code: `P${index}`, name: "Property", ownerNames: ["Shared Owner"] }));
     vi.mocked(loadPortfolioSearch).mockResolvedValue(createPortfolioSearch(properties, []));
-    const rows = leaseRows(1200);
+    const rows = leaseRows(5000).map(row => ({ ...row, monthly_rent_amount: 500, tenant_name: "Equal tenant" }));
     const { client } = leaseLoaderStub({ rows });
     createSupabaseServerClient.mockResolvedValue(client);
-    const result = await getLeasesScreenData(organizationId, parseLeaseSearchParams({ query: "shared", page: "2", pageSize: "50", sort }));
-    expect(result.pagination.totalCount).toBe(1200);
+    const result = await getLeasesScreenData(organizationId, parseLeaseSearchParams({ query: "shared", page: "100", pageSize: "50", sort }));
+    expect(result.pagination.totalCount).toBe(5000);
     expect(result.leases).toHaveLength(50);
+    expect(result.leases.map(lease => lease.id)).toEqual(rows.slice(4950).map(row => row.id));
+    expect(client.rpc).toHaveBeenCalledWith("get_bounded_register_page", expect.objectContaining({
+      p_organization_id: organizationId, p_entity: "leases", p_effective_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      p_sort: sort, p_offset: 4950, p_limit: 50,
+      p_filters: expect.objectContaining({ archive_state: "active", status: "all", tenant_missing: false }),
+    }));
     const lists = client.rpc.mock.results.filter((_, index) => client.rpc.mock.calls[index][0] === "get_scoped_leases_with_effective_rent");
-    expect(lists.length).toBeGreaterThanOrEqual(3);
-    for (const call of lists) {
-      expect(call.value.or).not.toHaveBeenCalled();
-      expect(call.value.range.mock.calls[0][1] - call.value.range.mock.calls[0][0]).toBeLessThan(500);
-    }
+    expect(lists).toHaveLength(1);
+    expect(lists[0].value.or).toHaveBeenCalledExactlyOnceWith(`id.in.(${rows.slice(4950).map(row => JSON.stringify(row.id)).join(",")})`);
+    expect(lists[0].value.range).toHaveBeenCalledWith(0, 49);
   });
 
   it("loads named leases and term history when whole-domain related reads are denied", async () => {
@@ -357,8 +377,21 @@ function leaseLoaderStub({
     },
   );
   const rpc = vi.fn((name: string, args: Record<string, unknown>) => {
+    if (name === "get_bounded_register_page") {
+      // Transport model only; real RLS/filter/order proof is the SQL fixture.
+      const groups = args.p_groups as Array<Array<{ field: string; operator: string; value: string | string[] | null }>>;
+      const matches = rows.filter(row => groups.every(group => group.some(condition => {
+        const value = (row as Record<string, unknown>)[condition.field];
+        if (condition.operator === "in") return (condition.value as string[]).includes(String(value));
+        if (condition.operator === "eq") return String(value) === condition.value;
+        if (condition.operator === "not.is") return value != null;
+        return String(value ?? "").toLowerCase().includes(String(condition.value).replace(/[%*]/g, "").toLowerCase());
+      })));
+      const limit = Number(args.p_limit), offset = Math.min(Number(args.p_offset), Math.max(0, Math.ceil(matches.length / limit) - 1) * limit);
+      return query(ok({ ids: matches.slice(offset, offset + limit).map(row => row.id), total_count: matches.length }));
+    }
     if (name === "get_lease_rent_business_date") return query(businessDateResult ?? ok("2026-09-28"));
-    if (name === "get_lease_read_context") {
+    if (name === "get_lease_read_context" || name === "get_lease_register_context") {
       return query(contextResult ?? ok({
         properties: [{ archived_at: null, code: "PILOT", id: propertyId, name: "Pilot Property", rental_structure: "single_space" }],
         units: [], availability_leases: [], availability_terms: [],
@@ -452,6 +485,7 @@ function ok(data: unknown, count: number | null = null): QueryResult {
 
 function query(result: QueryResult, applyFilters = false) {
   let bounds: [number, number] | undefined;
+  let searchIds: Set<string> | undefined;
   const filters: Array<(row: Record<string, unknown>) => boolean> = [];
   const builder = {
     eq: vi.fn((field: string, value: unknown) => { filters.push(row => row[field] === value); return builder; }),
@@ -462,7 +496,10 @@ function query(result: QueryResult, applyFilters = false) {
     lt: vi.fn(() => builder),
     maybeSingle: vi.fn(() => builder),
     not: vi.fn(() => builder),
-    or: vi.fn(() => builder),
+    or: vi.fn((expression: string) => {
+      if (expression.startsWith("id.in.(")) searchIds = new Set(JSON.parse(`[${expression.slice(7, -1)}]`) as string[]);
+      return builder;
+    }),
     order: vi.fn(() => builder),
     range: vi.fn((from: number, to: number) => { bounds = [from, to]; return builder; }),
     select: vi.fn(() => builder),
@@ -472,8 +509,10 @@ function query(result: QueryResult, applyFilters = false) {
       reject?: (reason: unknown) => unknown,
     ) => {
       if (!Array.isArray(result.data)) return Promise.resolve(result).then(resolve, reject);
-      const rows = applyFilters ? result.data.filter(row => filters.every(matches => matches(row))) : result.data;
-      return Promise.resolve({ ...result, data: rows.slice(bounds?.[0] ?? 0, Math.min((bounds?.[1] ?? 999) + 1, (bounds?.[0] ?? 0) + 1000)) }).then(resolve, reject);
+      const rows = (applyFilters ? result.data.filter(row => filters.every(matches => matches(row))) : result.data)
+        .filter(row => !searchIds || searchIds.has(row.id));
+      return Promise.resolve({ ...result, count: searchIds ? rows.length : result.count,
+        data: rows.slice(bounds?.[0] ?? 0, Math.min((bounds?.[1] ?? 999) + 1, (bounds?.[0] ?? 0) + 1000)) }).then(resolve, reject);
     },
   };
 

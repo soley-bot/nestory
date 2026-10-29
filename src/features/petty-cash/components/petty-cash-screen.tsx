@@ -5,7 +5,7 @@ import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-
 import Link from "next/link";
 import { recordDisplayLabel } from "@/lib/presentation/record-label";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarPlus,
   Eye,
@@ -66,6 +66,7 @@ import {
   PersonSelect,
 } from "@/features/people/components/person-select";
 import type { PersonSelectOption } from "@/features/people/person-select";
+import { getStaffOptionsAction, getCounterpartyOptionsAction } from "@/features/people/person-options-actions";
 import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
@@ -1009,6 +1010,7 @@ function PettyCashAccountForm({
           <PersonSelect
             allowClear
             context="Petty cash custodian"
+            loadOptions={getStaffOptionsAction}
             name="custodianPersonId"
             options={staffOptions}
             placeholder="Search active Staff"
@@ -1088,6 +1090,10 @@ function PettyCashEntryForm({
       ),
     [account?.custodianPersonId, counterpartyOptions, entryKind],
   );
+  const loadCounterparties = useCallback(async (query: string, page: number, selectedId: string) => {
+    const result = await getCounterpartyOptionsAction(query,page,selectedId);
+    return { ...result, options: rankCounterpartyOptions(result.options,entryKind,account?.custodianPersonId) };
+  }, [account?.custodianPersonId, entryKind]);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -1229,6 +1235,7 @@ function PettyCashEntryForm({
         >
           <PersonSelect
             allowExternal
+            loadOptions={loadCounterparties}
             context={
               entryKind === "expense"
                 ? "Petty cash recipient"

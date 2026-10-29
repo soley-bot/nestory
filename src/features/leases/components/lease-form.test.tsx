@@ -24,6 +24,9 @@ vi.mock("@/features/leases/actions", () => ({
   createLeaseAction: createLeaseActionMock,
   updateLeaseAction: async () => ({}),
 }));
+vi.mock("@/features/leases/lease-person-options-actions", () => ({
+  getLeaseTenantOptionsAction: vi.fn(async () => ({ options: [{ id: "11111111-1111-4111-8111-111111111111", label: "Ari Tenant", description: "Tenant", roles: ["tenant"], partyType: "individual", archived: false }], selectedOption: null, hasMore: false })),
+}));
 
 vi.mock("@/features/people/components/person-form", () => ({
   PersonForm: ({
@@ -226,7 +229,7 @@ describe("LeaseForm current-step validation", () => {
     expect(screen.getByRole("alert").textContent).toBe("Choose a tenant.");
     expect(createLeaseActionMock).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("option", { name: /Ari Tenant/ }));
+    await user.click(await screen.findByRole("option", { name: /Ari Tenant/ }));
     await user.click(screen.getByRole("button", { name: "Next" }));
 
     expect(screen.getByRole("heading", { name: "Lease terms" })).not.toBeNull();

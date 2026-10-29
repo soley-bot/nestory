@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { getActivePropertyBranchOptions } from "@/features/properties/data/property-branches";
 import {
   getPropertiesScreenData,
-  getPropertyOwnerOptions,
 } from "@/features/properties/data/properties";
 import { getPropertyPortfolioSummary } from "@/features/properties/data/property-portfolio-summary";
 import { parsePropertySearchParams } from "@/features/properties/property.filters";
@@ -26,9 +25,8 @@ export default async function PropertiesPage({
   }
 
   const viewQuery = parsePropertySearchParams(params);
-  const [{ financialGeneration, pagination, properties }, ownerOptions, portfolioSummary, creationBranchOptions] = await Promise.all([
+  const [{ financialGeneration, pagination, properties }, portfolioSummary, creationBranchOptions] = await Promise.all([
     getPropertiesScreenData(context.organizationId, viewQuery),
-    getPropertyOwnerOptions(context.organizationId),
     getPropertyPortfolioSummary(context.organizationId),
     context.isSuperAdmin
       ? getActivePropertyBranchOptions(context.organizationId)
@@ -40,7 +38,7 @@ export default async function PropertiesPage({
       canCreate={context.permissionKeys.has("properties.write")}
       canSetUp={context.permissionKeys.has("leases.activate")}
       creationBranchOptions={creationBranchOptions}
-      ownerOptions={ownerOptions}
+      ownerOptions={[]}
       pagination={pagination}
       portfolioSummary={portfolioSummary}
       properties={properties}

@@ -8,6 +8,7 @@ import { ReportSavedViews } from "./report-saved-views";
 import { ReportColumns } from "./report-columns";
 import { ReportResultsTable } from "./report-results-table";
 import { ReportsFilters } from "./reports-filters";
+import { paginateTrustedReportForScreen } from "../data/report-screen-pagination";
 import type { ReportsViewQuery, TrustedReport } from "../reports.types";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }), usePathname: () => "/reports/transactions" }));
@@ -84,12 +85,15 @@ describe("Reporting workspace", () => {
     expect(screen.queryByRole("link", { name: "Roof costs" })).toBeNull();
   });
 
-  it("repeats full group totals on later pages without counting headings as records", async () => {
-    const user = userEvent.setup(); const data = report();
+  it("repeats full group totals on later server pages without counting headings as records", () => {
+    const data = report();
     data.rows = [{ id: "group-1", isGroup: true, title: "Property One", cells: { amount: "USD 510.00" }, sourceCount: 0, sourceLinks: [], sourceSummary: "" }, ...Array.from({ length: 51 }, (_, i) => ({ id: `row-${i}`, title: `Cost ${i + 1}`, cells: { date: "10 Jul 2026", property: "Property One", amount: "USD 10.00" }, sourceCount: 1, sourceLinks: [], sourceSummary: "1 source record" }))];
-    render(<ReportResultsTable report={data} reportRowCount={51} viewQuery={query({ groupBy: "property" })} />);
+    const firstQuery = query({ groupBy: "property" });
+    const rendered = render(<ReportResultsTable report={paginateTrustedReportForScreen(data, firstQuery)} reportRowCount={51} viewQuery={firstQuery} />);
     expect(screen.getAllByRole("button", { name: /View details for/ })).toHaveLength(50);
-    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("link", { name: "Next" }).getAttribute("href")).toContain("groupBy=property&page=2");
+    const secondQuery = query({ groupBy: "property", page: 2 });
+    rendered.rerender(<ReportResultsTable report={paginateTrustedReportForScreen(data, secondQuery)} reportRowCount={51} viewQuery={secondQuery} />);
     expect(screen.getAllByRole("button", { name: /View details for/ })).toHaveLength(1);
     expect(screen.getByRole("button", { name: "View details for Cost 51" })).toBeTruthy();
     expect(screen.getByText("USD 510.00")).toBeTruthy();

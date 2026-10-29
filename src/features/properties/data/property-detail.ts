@@ -296,7 +296,8 @@ export type PropertyDetail = ReturnType<typeof buildPropertySummary> & {
 };
 
 export function buildPropertyDetail({
-  businessDate = getBusinessDateValue(),
+  currentDate = new Date(),
+  businessDate = getBusinessDateValue(currentDate),
   activeLeases = [],
   activeOwner,
   activity = [],
@@ -312,6 +313,7 @@ export function buildPropertyDetail({
   recordCounts = {},
   units,
 }: {
+  currentDate?: Date;
   businessDate?: string;
   activeLeases?: PropertyDetailLeaseRecord[];
   activeOwner?: ActivePropertyOwnerLink | null;
@@ -380,7 +382,7 @@ export function buildPropertyDetail({
     activeOwner,
     propertyId: property.id,
   });
-  const financialSummary = buildPropertyFinancialSummary({ ledgerEntries });
+  const financialSummary = buildPropertyFinancialSummary({ currentDate, ledgerEntries });
   const expenseEvidenceByDocumentId = new Map(
     expenseEvidence.flatMap((evidence) =>
       evidence.supporting_document_id

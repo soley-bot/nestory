@@ -22,6 +22,11 @@ import type {
 import type { PersonSelectOption } from "@/features/people/person-select";
 
 const navigation = vi.hoisted(() => ({ replace: vi.fn() }));
+const personOptions = vi.hoisted(() => ({ load: vi.fn() }));
+vi.mock("@/features/people/person-options-actions", () => ({
+  getStaffOptionsAction: personOptions.load,
+  getCounterpartyOptionsAction: personOptions.load,
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: navigation.replace }),
@@ -30,6 +35,7 @@ vi.mock("next/navigation", () => ({
 
 beforeEach(() => {
   navigation.replace.mockReset();
+  personOptions.load.mockReset().mockResolvedValue({ options: [], selectedOption: null, hasMore: false });
   installMatchMedia(1440);
 });
 
@@ -518,6 +524,7 @@ describe("PettyCashScreen finance workspace contract", () => {
       label: "Acme Repairs",
       roles: ["vendor"],
     } satisfies PersonSelectOption;
+    personOptions.load.mockResolvedValue({ options: [vendor], selectedOption: null, hasMore: false });
     renderPettyCash({ counterpartyOptions: [vendor] });
 
     await user.click(screen.getByRole("button", { name: "Add cash row" }));
@@ -525,7 +532,7 @@ describe("PettyCashScreen finance workspace contract", () => {
       name: "Petty cash recipient",
     });
     await user.type(counterparty, "Acme");
-    await user.click(screen.getByRole("option", { name: /Acme Repairs/ }));
+    await user.click(await screen.findByRole("option", { name: /Acme Repairs/ }));
     expect(
       (
         document.querySelector(

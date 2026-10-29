@@ -273,7 +273,14 @@ async function loadLedgerScreenData(
 
     return ledgerQuery.order("id").range(start, end);
   };
-  const ledgerResult = await readBoundedSearch(viewQuery.entryId ? [] : searchGroups, fetchPage, from, to);
+  const dateScope = getLedgerTransactionDateScope(viewQuery);
+  const ledgerResult = await readBoundedSearch(viewQuery.entryId ? [] : searchGroups, fetchPage, from, to, {
+    client: supabase, entity: "ledger", organizationId, sort: viewQuery.sort,
+    filters: { archive_state: viewQuery.archiveState, id: viewQuery.entryId,
+      property_id: viewQuery.propertyId, unit_id: viewQuery.unitId, direction: viewQuery.direction,
+      date_from: dateScope.from, date_before: dateScope.before, min_amount: viewQuery.minAmount,
+      financial_start_date: financialStartDate },
+  });
 
   if (ledgerResult.error) {
     throw new Error(

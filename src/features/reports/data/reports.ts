@@ -8,6 +8,7 @@ import {
   selectCurrentLease,
 } from "@/features/units/data/unit-summary";
 import { getTrustedReport } from "@/features/reports/data/trusted-report";
+import { paginateTrustedReportForScreen } from "./report-screen-pagination";
 import { readReportSourceById, readReportSourceBatches } from "./report-source-completeness";
 import {
   loadScopedFinanceContext,
@@ -34,8 +35,6 @@ const occupancyUnitSelect =
   "id, property_id, unit_number, floor, size_sqm, status, current_rent_amount, current_rent_currency";
 const occupancyLeaseSelect =
   "id, unit_id, tenant_name, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency";
-const maxScreenReportRows = 75;
-const maxScreenSourceLinks = 5;
 
 type SupabaseServerClient = Awaited<
   ReturnType<typeof createSupabaseServerClient>
@@ -120,7 +119,7 @@ async function loadReportsScreenData(
   return {
     ownerOptions: trustedReport.ownerOptions ?? [],
     propertyOptions,
-    trustedReport: prepareTrustedReportForScreen(trustedReport),
+    trustedReport: prepareTrustedReportForScreen(trustedReport, { viewQuery }),
     unitOptions,
     viewQuery,
   };
@@ -151,12 +150,13 @@ function getReportSelectorData(financeContext: ScopedFinanceContext, includeArch
 
 export function prepareTrustedReportForScreen(
   report: TrustedReport,
-  options: { financeSafeRecords?: boolean } = {},
+  options: { financeSafeRecords?: boolean; viewQuery?: ReportsViewQuery } = {},
 ): TrustedReport {
+  const screenReport = paginateTrustedReportForScreen(report, options.viewQuery);
   const prepared = options.financeSafeRecords
-    ? makeReportRecordsFinanceSafe(report)
-    : report;
-  return trimTrustedReportForScreen(prepared);
+    ? makeReportRecordsFinanceSafe(screenReport)
+    : screenReport;
+  return prepared;
 }
 
 function makeReportRecordsFinanceSafe(report: TrustedReport): TrustedReport {
@@ -200,23 +200,6 @@ function toFinanceSafeRecordHref(href?: string) {
   )
     ? href
     : undefined;
-}
-
-function trimTrustedReportForScreen(report: TrustedReport): TrustedReport {
-  if (["transactions", "management-fees", "rent-roll", "rent-collections"].includes(report.kind)) {
-    return { ...report, totalRowCount: report.rows.filter((row) => !row.isGroup).length };
-  }
-  return {
-    ...report,
-    rows: (report.kind === "unit-profit-loss" ? report.rows : report.rows.slice(0, maxScreenReportRows)).map((row) => ({
-      ...row,
-      sourceLinks:
-        report.kind === "monthly-owner-activity"
-          ? row.sourceLinks
-          : row.sourceLinks.slice(0, maxScreenSourceLinks),
-    })),
-    totalRowCount: report.rows.length,
-  };
 }
 
 export async function getOccupancyReportData(

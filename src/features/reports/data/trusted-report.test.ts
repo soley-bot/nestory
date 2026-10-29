@@ -9,6 +9,34 @@ import {
 type TrustedReportInput = Parameters<typeof buildTrustedReport>[0];
 
 describe("Monthly Unit Profit & Loss", () => {
+  it("groups property-level events and owner names once for a large portfolio", () => {
+    const input = reportInput();
+    input.viewQuery.unitId = "all";
+    input.units = [];
+    input.properties = Array.from({ length: 1_000 }, (_, index) => ({ ...input.properties[0]!, id: `property-${index}`, code: `P${index}`, name: `Property ${index}` }));
+    let propertyEventReads = 0;
+    let ownerPropertyReads = 0;
+    const baseEvent = input.ownerProfitLossEvents![0]!;
+    input.ownerProfitLossEvents = Array.from({ length: 10_000 }, (_, index) => ({
+      ...baseEvent,
+      eventKey: `synthetic-${index}`,
+      unitId: null,
+      signedAmountCents: BigInt(index % 2 === 0 ? 100 : -50),
+      get propertyId() { propertyEventReads += 1; return `property-${Math.floor(index / 10)}`; },
+    }));
+    input.people = [{ id: "owner", display_name: "Synthetic Owner" }];
+    input.owners = input.properties.map((property, index) => ({
+      id: `owner-link-${index}`, person_id: "owner", ownership_label: null, ownership_percent: 100,
+      get property_id() { ownerPropertyReads += 1; return property.id; },
+    }));
+    const report = buildTrustedReport(input);
+    expect(report.rows).toHaveLength(1_000);
+    expect(report.rows.at(-1)).toMatchObject({ id: "property-level:property-999", cells: { income: "USD 2.50" } });
+    expect(report.unitProfitLossOwnerProperties?.at(-1)?.ownerName).toBe("Synthetic Owner");
+    expect(propertyEventReads).toBeLessThan(100_000);
+    expect(ownerPropertyReads).toBeLessThan(10_000);
+  });
+
   it("uses linked owner names and property names for the export heading", () => {
     const input = reportInput();
     input.owners = [{ id: "ownership-1", property_id: "property-1", person_id: "owner-1", ownership_label: null, ownership_percent: 100 }];

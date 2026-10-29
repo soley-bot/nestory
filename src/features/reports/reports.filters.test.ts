@@ -1,11 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  buildReportQueryParams,
   getReportMonthRange,
   parseReportSearchParams,
 } from "@/features/reports/reports.filters";
 
 describe("report search params", () => {
+  it("round-trips screen pagination and search while omitting them from exports", () => {
+    const query = parseReportSearchParams({ report: "unit-profit-loss", month: "2026-10", page: "200", detailPage: "400", scopeQuery: "  Riverside  ", showZeroActivity: "1" });
+    expect(query).toMatchObject({ page: 200, detailPage: 400, scopeQuery: "Riverside", showZeroActivity: true });
+    const params = buildReportQueryParams(query);
+    expect(parseReportSearchParams(Object.fromEntries(params))).toEqual(query);
+    expect(buildReportQueryParams(query, { includeScreenState: false }).toString()).toBe("report=unit-profit-loss&month=2026-10");
+  });
+
+  it.each(["0", "-1", "1.5", "Infinity", "9007199254740992", "2junk"])("rejects malformed page %s", page => {
+    expect(parseReportSearchParams({ page, detailPage: page })).toMatchObject({ page: 1, detailPage: 1 });
+  });
+
   it("defaults to the authorized company month at year-end", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-12-31T17:00:00Z"));

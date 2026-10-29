@@ -133,14 +133,14 @@ const initialFinanceActionState: FinanceOperationsActionState = {};
 
 export function LeaseDetailScreen({
   activeSection,
-  billingFormConfig,
+  billingFormConfig: initialBillingFormConfig,
   canRecordPayments,
   canViewFinance,
   canViewPropertyRecords = false,
   currentRentEditInvoiceId,
   historicalRentCorrectionCandidates = [],
   lease,
-  leaseDepositAccounts,
+  leaseDepositAccounts: initialLeaseDepositAccounts,
   paymentResolution,
   permissions,
   propertyOptions,
@@ -148,6 +148,7 @@ export function LeaseDetailScreen({
   returnTo,
   tenantOptions,
   unitOptions,
+  loadFormOptions,
 }: {
   activeSection: LeaseRecordSection;
   returnTo?: string;
@@ -161,10 +162,27 @@ export function LeaseDetailScreen({
   propertyOptions: LeasePropertyOption[];
   tenantOptions: LeaseTenantOption[];
   unitOptions: LeaseUnitOption[];
+  loadFormOptions?: (mode: "billing" | "edit" | "deposit") => Promise<{ billingFormConfig?: LeaseBillingFormConfig; leaseDepositAccounts?: FinanceOperationsData["leaseDepositAccounts"] }>;
 } & LeasePaymentFocusProps) {
   const { getBusinessDateValue } = useBusinessDate();
   const router = useRouter();
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
+  const [formResult, setFormResult] = useState<{ drawer: DrawerState; leaseId: string; data: { billingFormConfig?: LeaseBillingFormConfig; leaseDepositAccounts?: FinanceOperationsData["leaseDepositAccounts"] } | null; error: boolean } | null>(null);
+  const currentFormResult = formResult?.drawer === drawer && formResult.leaseId === lease.id ? formResult : null;
+  const formOptions = currentFormResult?.data;
+  const formOptionsError = currentFormResult?.error;
+  const billingFormConfig = formOptions?.billingFormConfig ?? initialBillingFormConfig;
+  const leaseDepositAccounts = (formResult?.leaseId === lease.id ? formResult.data?.leaseDepositAccounts : undefined) ?? initialLeaseDepositAccounts;
+  const formMode = drawer && ["billing","edit","deposit"].includes(drawer.mode) ? drawer.mode as "billing" | "edit" | "deposit" : null;
+  useEffect(() => {
+    if (!loadFormOptions || !formMode || !drawer) return;
+    let active = true;
+    void loadFormOptions(formMode).then(
+      data => { if (active) setFormResult({ drawer, leaseId: lease.id, data, error: false }); },
+      () => { if (active) setFormResult({ drawer, leaseId: lease.id, data: null, error: true }); },
+    );
+    return () => { active = false; };
+  }, [drawer, formMode, lease.id, loadFormOptions]);
   const [depositDialog, setDepositDialog] = useState<"rent" | "custody" | null>(null);
   const [transition, setTransition] = useState<LeaseTransition | null>(null);
   const [termChange, setTermChange] = useState<LeaseTermChange | null>(null);
@@ -406,7 +424,9 @@ export function LeaseDetailScreen({
           open
           title={getDrawerTitle(drawer)}
         >
-          {drawer.mode === "archive" ? (
+          {loadFormOptions && formMode && !formOptions ? (
+            <p className="p-5 text-sm" role={formOptionsError ? "alert" : "status"}>{formOptionsError ? "Form choices could not be loaded. Close the form and try again." : "Loading form choices…"}</p>
+          ) : drawer.mode === "archive" ? (
             <ArchiveLeasePanel
               lease={lease}
               onClose={() => setDrawer(null)}

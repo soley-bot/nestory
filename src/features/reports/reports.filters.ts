@@ -29,6 +29,10 @@ export function parseReportSearchParams(
   const ownerPersonId = getUuidOrAllSearchParam(params.ownerPersonId);
 
   return {
+    page: parsePage(params.page),
+    detailPage: parsePage(params.detailPage),
+    scopeQuery: (getFirstSearchParam(params.scopeQuery) ?? "").trim().slice(0, 200),
+    showZeroActivity: getFirstSearchParam(params.showZeroActivity) === "1",
     ...(["propertyId", "unitId"].some((key) => {
       const raw = getFirstSearchParam(params[key]);
       return raw && raw !== "all" && getUuidOrAllSearchParam(params[key]) === "all";
@@ -93,7 +97,7 @@ export function getReportDateRange(query: ReportsViewQuery) {
   return { start, end };
 }
 
-export function buildReportQueryParams(query: ReportsViewQuery) {
+export function buildReportQueryParams(query: ReportsViewQuery, { includeScreenState = true }: { includeScreenState?: boolean } = {}) {
   const params = new URLSearchParams({ report: query.report, month: query.month });
   for (const key of ["propertyId", "unitId", "ownerPersonId"] as const) {
     if (query[key] && query[key] !== "all") params.set(key, query[key]);
@@ -105,7 +109,21 @@ export function buildReportQueryParams(query: ReportsViewQuery) {
       if (value && value !== "all" && value !== "none") params.set(key, value);
     }
   }
+  if (includeScreenState) {
+    if (query.page && query.page > 1) params.set("page", String(query.page));
+    if (query.report === "unit-profit-loss") {
+      if (query.detailPage && query.detailPage > 1) params.set("detailPage", String(query.detailPage));
+      if (query.scopeQuery) params.set("scopeQuery", query.scopeQuery);
+      if (query.showZeroActivity) params.set("showZeroActivity", "1");
+    }
+  }
   return params;
+}
+
+function parsePage(value: SearchParamValue) {
+  const raw = getFirstSearchParam(value) ?? "1";
+  const page = /^\d+$/.test(raw) ? Number(raw) : 1;
+  return Number.isSafeInteger(page) && page > 0 ? page : 1;
 }
 
 function parsePeopleArchiveState(

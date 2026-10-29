@@ -18,7 +18,7 @@ const unit = { id: "unit", property_id: property.id, unit_number: "1A", status: 
 beforeEach(() => {
   rpc.mockReset();
   from.mockReset();
-  rpc.mockImplementation(async (name) => ({ data: name === "get_financial_write_context" ? context : { context, source_revision: "4" }, error: null }));
+  rpc.mockImplementation(async (name) => ({ data: name === "get_portfolio_ledger_totals" ? [] : name === "get_financial_write_context" ? context : { context, source_revision: "4" }, error: null }));
   from.mockImplementation((table) => {
     const rows = table === "properties" ? [property] : table === "units" ? [unit] : [];
     const result = { data: rows, count: rows.length, error: null };
@@ -51,7 +51,7 @@ describe("property and unit financial snapshots", () => {
 
   it.each(readers)("rejects %s when sources change while its related records load", async (_name, read) => {
     let checks = 0;
-    rpc.mockImplementation(async (name) => ({ data: name === "get_financial_write_context" ? context : { context, source_revision: String(++checks + 3) } }));
+    rpc.mockImplementation(async (name) => ({ data: name === "get_portfolio_ledger_totals" ? [] : name === "get_financial_write_context" ? context : { context, source_revision: String(++checks + 3) } }));
     await expect(read()).rejects.toThrow("changed while");
     expect(from).toHaveBeenCalled();
   });

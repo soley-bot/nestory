@@ -18,6 +18,7 @@ vi.mock("@/features/photos/data/photos", () => ({
 
 function fixture({ empty = false, error = false, properties = false, wait = Promise.resolve() } = {}) {
   const reads: { table: string; filters: [string, unknown][]; ids: string[]; range?: number[]; rows?: number }[] = [];
+  const rpcReads: { name: string; args: Record<string, unknown> }[] = [];
   const rows = Array.from({ length: empty ? 0 : 120 }, (_, index) => ({
     id: `unit-${index}`, property_id: "property-1", unit_number: String(index),
     status: index % 2 ? "occupied" : "vacant", archived_at: null,
@@ -25,7 +26,13 @@ function fixture({ empty = false, error = false, properties = false, wait = Prom
     size_sqm: null, bedroom_count: null, bathroom_count: null,
     property: { id: "property-1", code: "P1", name: "Synthetic property" },
   }));
-  const client = { from(table: string) {
+  const client = {
+    async rpc(name: string, args: Record<string, unknown>) {
+      rpcReads.push({ name, args });
+      if (name !== "get_portfolio_ledger_totals") throw new Error(`Unexpected loader fixture RPC: ${name}`);
+      return { data: [], error: null };
+    },
+    from(table: string) {
     const read: (typeof reads)[number] = { table, filters: [], ids: [] };
     reads.push(read);
     const query = {
@@ -48,7 +55,7 @@ function fixture({ empty = false, error = false, properties = false, wait = Prom
     };
     return query;
   } };
-  return { reads, client: client as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>> };
+  return { reads, rpcReads, client: client as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>> };
 }
 
 describe("visible list loading", () => {
@@ -70,12 +77,13 @@ describe("visible list loading", () => {
       expect(result.pagination.totalCount).toBe(120);
       expect(stub.reads[0].range).toEqual([0, size - 1]);
       expect(stub.reads[0].rows).toBe(size);
-      expect(stub.reads).toHaveLength(6);
+      expect(stub.reads).toHaveLength(5);
       const relations = stub.reads.filter(read => read.ids.length);
       expect(relations.length).toBeGreaterThan(0);
       expect(relations.every(read => read.ids.length === size)).toBe(true);
       expect(stub.reads.every(read => read.filters.some(([key, value]) => key === "organization_id" && value === "synthetic-org"))).toBe(true);
-      expect(relations).toHaveLength(4);
+      expect(relations).toHaveLength(3);
+      expect(stub.rpcReads).toEqual([{ name: "get_portfolio_ledger_totals", args: { p_organization_id: "synthetic-org", p_unit_ids: result.units.map(row => row.id) } }]);
     }
   });
 

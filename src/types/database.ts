@@ -122,6 +122,42 @@ type UpdateUnitRpc =
     };
 
 type RpcFunctionOverrides = {
+  get_bounded_register_page: {
+    Args: { p_organization_id: string; p_entity: string; p_groups: Json; p_filters: Json; p_sort: string; p_offset: number; p_limit: number; p_effective_date?: string | null };
+    Returns: Json;
+  };
+  get_person_select_page: {
+    Args: { p_organization_id: string; p_roles: string[]; p_query?: string; p_page?: number; p_selected_id?: string };
+    Returns: Json;
+  };
+  get_property_register_page: {
+    Args: { p_organization_id: string; p_filters: Json; p_page: number; p_page_size: number };
+    Returns: Json;
+  };
+  get_unit_register_page: {
+    Args: { p_organization_id: string; p_filters: Json; p_page: number; p_page_size: number };
+    Returns: Json;
+  };
+  get_portfolio_ledger_totals: {
+    Args: { p_organization_id: string; p_property_ids?: string[]; p_unit_ids?: string[]; p_period_start?: string };
+    Returns: Json;
+  };
+  get_overview_summary: {
+    Args: { p_organization_id: string; p_today: string; p_month: string; p_property_id?: string | null; p_financial_start_date?: string | null };
+    Returns: Json;
+  };
+  get_maintenance_summary: {
+    Args: { p_organization_id: string; p_filters: Json; p_today: string; p_current_time: string; p_month: string; p_include_queue_counts?: boolean };
+    Returns: Json;
+  };
+  get_finance_account_register_page: {
+    Args: { p_organization_id: string; p_query?: string; p_account_class?: string; p_status?: string; p_page?: number; p_page_size?: number };
+    Returns: Json;
+  };
+  get_lease_register_context: {
+    Args: { p_organization_id: string; p_lease_ids?: string[]; p_include_filter_options?: boolean; p_property_ids?: string[]; p_unit_ids?: string[] };
+    Returns: Json;
+  };
   continue_lease_month_to_month: {
     Args: { p_organization_id: string; p_lease_id: string; p_expected_term_id: string;
       p_expected_billing_rule_id: string; p_expected_rent_amount: number;

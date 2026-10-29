@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FinanceAccountsData, FinanceAccountSummary } from "@/features/finance-accounts/finance-accounts.types";
@@ -22,6 +22,39 @@ import { FinanceAccountsScreen } from "@/features/finance-accounts/components/fi
 afterEach(cleanup);
 
 describe("FinanceAccountsScreen", () => {
+  it("waits for complete form choices on intent and preserves a late parent option", async () => {
+    const user = userEvent.setup();
+    const data = fixture();
+    const late = account({ id: "last-parent", accountClass: "expense", accountSubtype: "expense", displayName: "Last available parent" });
+    const loadFormOptions = vi.fn(async () => ({ ...data, groups: [...data.groups, { accountClass: "expense" as const, accounts: [late] }] }));
+    render(<FinanceAccountsScreen groups={[]} properties={[]} canManageAccounts loadFormOptions={loadFormOptions} />);
+    expect(loadFormOptions).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "New account" }));
+    await waitFor(() => expect(loadFormOptions).toHaveBeenCalledOnce());
+    const drawer = screen.getByRole("dialog");
+    await user.selectOptions(await within(drawer).findByLabelText("Account type"), "expense:expense");
+    await user.click(within(drawer).getByRole("checkbox", { name: /sub-account/i }));
+    expect(within(drawer).getByRole("option", { name: "Last available parent" })).toBeTruthy();
+  });
+  it("discards responses from a closed form while the next form is loading", async () => {
+    const user = userEvent.setup();
+    let resolveFirst!: (data: FinanceAccountsData) => void;
+    let resolveSecond!: (data: FinanceAccountsData) => void;
+    const loadFormOptions = vi.fn()
+      .mockImplementationOnce(() => new Promise<FinanceAccountsData>(resolve => { resolveFirst=resolve; }))
+      .mockImplementationOnce(() => new Promise<FinanceAccountsData>(resolve => { resolveSecond=resolve; }));
+    render(<FinanceAccountsScreen {...fixture()} canManageAccounts loadFormOptions={loadFormOptions} />);
+    await user.click(screen.getByRole("button", { name: "New account" }));
+    await waitFor(() => expect(loadFormOptions).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    await user.click(screen.getByRole("button", { name: "Edit Repairs and maintenance" }));
+    await waitFor(() => expect(loadFormOptions).toHaveBeenCalledTimes(2));
+    await act(async () => { resolveFirst(fixture()); });
+    expect(screen.getByText("Loading account options…")).toBeTruthy();
+    expect(screen.queryByLabelText("Account type")).toBeNull();
+    await act(async () => { resolveSecond(fixture()); });
+    expect(await screen.findByLabelText("Account type")).toBeTruthy();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.createFinanceAccountAction.mockResolvedValue({});

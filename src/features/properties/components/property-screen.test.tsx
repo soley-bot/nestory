@@ -15,11 +15,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const peopleActions = vi.hoisted(() => ({
   createPerson: vi.fn(),
   updatePerson: vi.fn(),
+  getOptions: vi.fn(),
 }));
 
 vi.mock("@/features/people/actions", () => ({
   createPersonAction: peopleActions.createPerson,
   updatePersonAction: peopleActions.updatePerson,
+}));
+vi.mock("@/features/people/person-options-actions", () => ({
+  getOwnerOptionsAction: peopleActions.getOptions,
 }));
 
 import { PropertyScreen } from "@/features/properties/components/property-screen";
@@ -64,6 +68,7 @@ const properties = [
 ];
 
 beforeEach(() => {
+  peopleActions.getOptions.mockReset().mockResolvedValue({ options: [], selectedOption: null, hasMore: false });
   peopleActions.createPerson.mockReset();
   peopleActions.createPerson.mockResolvedValue({
     displayName: "New Owner",
@@ -286,11 +291,19 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.getByRole("textbox", { name: "Notes" })).toBeTruthy();
   });
 
-  it("preserves ownership facts for the same owner and defaults a replacement owner to full ownership", () => {
+  it("preserves ownership facts for the same owner and defaults a replacement owner to full ownership", async () => {
     const currentOwnerId = "11111111-1111-4111-8111-111111111111";
     const replacementOwnerId = "22222222-2222-4222-8222-222222222222";
     const property = makeProperty("property-edit", "EDIT", "Edit property");
     property.formValues.ownerPersonId = currentOwnerId;
+    peopleActions.getOptions.mockResolvedValue({
+      options: [
+        { archived: false, description: "Current", id: currentOwnerId, label: "Current Owner", roles: ["owner"] },
+        { archived: false, description: "Replacement", id: replacementOwnerId, label: "Replacement Owner", roles: ["owner"] },
+      ],
+      selectedOption: null,
+      hasMore: false,
+    });
 
     render(
       <PropertyForm
@@ -310,7 +323,7 @@ describe("PropertyScreen redesign contract", () => {
     expect(share.value).toBe("100.000");
 
     fireEvent.focus(screen.getByRole("combobox", { name: "Property owner" }));
-    fireEvent.click(screen.getByRole("option", { name: /Replacement Owner/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /Replacement Owner/ }));
 
     const replacementStart = document.querySelector<HTMLInputElement>('input[name="ownerStartedOn"]')!;
     const replacementShare = screen.getByRole("textbox", { name: /Ownership share/ }) as HTMLInputElement;

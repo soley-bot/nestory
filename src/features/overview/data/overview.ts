@@ -1,3 +1,4 @@
+import type { OverviewSummary } from "./overview-summary.types";
 import {
   resolveRecentChangeTargets,
   type ActivityTargetQueryClient,
@@ -5,106 +6,23 @@ import {
 import type {
   OverviewAttentionItem,
   OverviewLedgerPoint,
-  OverviewMaintenancePoint,
   OverviewMetric,
-  OverviewOccupancyPoint,
-  OverviewRecordPoint,
   OverviewScreenData,
   OverviewViewQuery,
 } from "@/features/overview/overview.types";
-import { getOverviewMonthScope } from "@/features/overview/overview.filters";
-import { OPERATIONAL_OPEN_MAINTENANCE_STATUSES } from "@/features/maintenance/maintenance.constants";
-import {
-  getMaintenanceTaskFacts,
-  type MaintenanceTaskFacts,
-} from "@/features/maintenance/maintenance.facts";
-import type { MaintenancePriority } from "@/features/maintenance/maintenance.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
-import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
-import type { CurrencyCode } from "@/lib/money/format";
+import { readAllRows } from "@/lib/db/read-all-rows";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
 
-const activeLeaseStatuses = ["active", "notice_given"] as const;
-const resolvedRentTermStatuses = ["active", "expired", "terminated", "upcoming"] as const;
 const largeExpenseReviewThreshold = 1000;
 const largeExpenseReviewHref = `/ledger?direction=expense&sort=amount_desc&period=last_30_days&minAmount=${largeExpenseReviewThreshold}`;
 const monthLabelFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
 });
 
-type PropertyRow = {
-  code: string;
-  id: string;
-  name: string;
-  rental_structure: string;
-  status: string;
-};
-
-type UnitRow = {
-  id: string;
-  property_id: string;
-  status: string;
-};
-
-type LeaseRow = {
-  id: string;
-  lease_end_date: string;
-  primary_tenant_person_id: string | null;
-  property_id: string;
-  unit_id: string | null;
-};
-
-type LeaseRentTermRow = {
-  lease_id: string;
-  payment_frequency: string;
-  rent_amount: number;
-  rent_currency: CurrencyCode;
-  status: string;
-};
-
-type LedgerWindowRow = {
-  amount: number;
-  currency: CurrencyCode;
-  direction: string;
-  transaction_date: string;
-};
-
-type MaintenanceTaskRow = {
-  due_date: string | null;
-  id: string;
-  priority: string;
-  property_id: string;
-  status: string;
-  title: string;
-};
-
-type MaintenanceTaskWithFacts = {
-  facts: MaintenanceTaskFacts;
-  task: MaintenanceTaskRow;
-};
-
-type PersonRow = {
-  id: string;
-  primary_email: string | null;
-  primary_phone: string | null;
-};
-
-type PersonRoleRow = {
-  person_id: string;
-  role: "owner" | "tenant" | "vendor";
-};
-
-type PersonContactRow = {
-  email: string | null;
-  person_id: string;
-  phone: string | null;
-};
-
-type PropertyOwnerRow = {
-  id: string;
-  property_id: string;
-};
+type LedgerWindowRow = OverviewSummary["ledger"][number];
+type PersonRoleRow = { role: "owner" | "tenant" | "vendor" };
 
 export async function getOverviewScreenData(
   organizationId: string,
@@ -123,403 +41,103 @@ async function loadOverviewScreenData(
   financialStartDate?: string | null,
 ): Promise<OverviewScreenData> {
   const supabase = await createSupabaseServerClient();
-  const now = new Date();
-  const businessToday = getBusinessDateString(now);
-  const effectiveQuery = query ?? {
-    financeView: "collections",
-    lens: "all",
-    month: businessToday.slice(0, 7),
-    propertyId: "all",
-    review: "all",
-  };
-  const monthScope = getOverviewMonthScope(effectiveQuery.month);
-  const currentMonthStart = startOfMonth(monthScope.from);
+  const businessToday = getBusinessDateString(new Date());
+  const month = query?.month ?? businessToday.slice(0, 7);
+  const currentMonthStart = startOfMonth(`${month}-01`);
   const originalLedgerStart = addMonths(currentMonthStart, -5);
   const ledgerStart = financialStartDate && toDateInput(originalLedgerStart) < financialStartDate
-    ? new Date(`${financialStartDate}T00:00:00.000Z`)
-    : originalLedgerStart;
-  const ledgerStartInput = toDateInput(ledgerStart);
-  const currentMonthEndInput = monthScope.before;
-  const recentExpenseStart = [addDaysToDateString(businessToday, -30), financialStartDate ?? ""].sort().at(-1)!;
-
-  const propertyFilter = effectiveQuery.propertyId === "all"
-    ? {}
-    : { property_id: effectiveQuery.propertyId };
-  const rentTermsQuery = () => supabase
-    .from("lease_terms")
-    .select("id, lease_id, rent_amount, rent_currency, payment_frequency, status")
-    .eq("organization_id", organizationId)
-    .eq("authority_kind", "authoritative")
-    .is("archived_at", null)
-    .in("status", [...resolvedRentTermStatuses])
-    .lte("start_date", businessToday)
-    .gte("end_date", businessToday);
-
-  const [
-    propertiesResult,
-    unitsResult,
-    leasesResult,
-    rentTermsResult,
-    ledgerWindowResult,
-    ledgerCountResult,
-    largeRecentExpenseCountResult,
-    peopleResult,
-    rolesResult,
-    propertyOwnersResult,
-    openMaintenanceResult,
-    documentsResult,
-    recentActivityResult,
-  ] = await Promise.all([
-    // One complete property read also supplies the property picker.
-    readAllRows((from, to) => supabase
-      .from("properties")
+    ? new Date(`${financialStartDate}T00:00:00.000Z`) : originalLedgerStart;
+  const [summaryResult, propertiesResult, recentActivityResult] = await Promise.all([
+    supabase.rpc("get_overview_summary", {
+      p_organization_id: organizationId,
+      p_property_id: query?.propertyId && query.propertyId !== "all" ? query.propertyId : undefined,
+      p_today: businessToday,
+      p_month: `${month}-01`,
+      p_financial_start_date: financialStartDate ?? undefined,
+    }),
+    // The picker and property charts intentionally represent the whole visible portfolio.
+    // Only these compact property labels scale with portfolio size; child rows do not.
+    readAllRows((from, to) => supabase.from("properties")
       .select("id, code, name, rental_structure, status")
-      .eq("organization_id", organizationId)
-      .is("archived_at", null)
-      .neq("status", "inactive")
-      .order("code", { ascending: true })
-      .order("id", { ascending: true })
-      .range(from, to)),
-    readAllRows((from, to) => supabase
-      .from("units")
-      .select("id, property_id, status")
-      .eq("organization_id", organizationId)
-      .match(propertyFilter)
-      .is("archived_at", null)
-      .neq("status", "inactive")
-      .order("id", { ascending: true })
-      .range(from, to)),
-    readAllRows((from, to) => supabase
-      .from("current_leases")
-      .select("id, unit_id, property_id, lease_end_date, primary_tenant_person_id")
-      .eq("organization_id", organizationId)
-      .match(propertyFilter)
-      .is("archived_at", null)
-      .in("status", [...activeLeaseStatuses])
-      .order("id", { ascending: true })
-      .range(from, to)),
-    // A property selection loads only its leases' terms after leases resolve.
-    effectiveQuery.propertyId === "all"
-      ? readAllRows((from, to) => rentTermsQuery()
-        .order("id", { ascending: true }).range(from, to))
-      : Promise.resolve({ data: [], error: null }),
-    readAllRows((from, to) => supabase
-      .from("ledger_entries")
-      .select("id, transaction_date, direction, amount, currency")
-      .eq("organization_id", organizationId)
-      .match(propertyFilter)
-      .is("archived_at", null)
-      .gte("transaction_date", ledgerStartInput)
-      .lt("transaction_date", currentMonthEndInput)
-      .order("id", { ascending: true })
-      .range(from, to)),
-    // Setup needs an exact count, not every historical ledger entry.
-    supabase
-      .from("ledger_entries")
-      .select("id", { count: "exact", head: true })
-      .eq("organization_id", organizationId)
-      .match(propertyFilter)
-      .is("archived_at", null)
-      .gte("transaction_date", financialStartDate ?? "0001-01-01"),
-    // This operating alert follows business today, independently of chart month.
-    supabase
-      .from("ledger_entries")
-      .select("id", { count: "exact", head: true })
-      .eq("organization_id", organizationId)
-      .match(propertyFilter)
-      .is("archived_at", null)
-      .eq("direction", "expense")
-      .gte("amount", largeExpenseReviewThreshold)
-      .gte("transaction_date", recentExpenseStart)
-      .lt("transaction_date", addDaysToDateString(businessToday, 1)),
-    readAllRows((from, to) => supabase
-      .from("people")
-      .select("id, primary_email, primary_phone")
-      .eq("organization_id", organizationId)
-      .is("archived_at", null)
-      .order("id", { ascending: true })
-      .range(from, to)),
-    readAllRows((from, to) => supabase
-      .from("person_roles")
-      .select("id, person_id, role")
-      .eq("organization_id", organizationId)
-      .eq("status", "active")
-      .is("archived_at", null)
-      .order("id", { ascending: true })
-      .range(from, to)),
-    readAllRows((from, to) => supabase
-      .from("property_owners")
-      .select("id, property_id")
-      .eq("organization_id", organizationId)
-      .match(propertyFilter)
-      .eq("is_primary", true)
-      .is("ended_on", null)
-      .is("archived_at", null)
-      .order("id", { ascending: true })
-      .range(from, to)),
-    readAllRows((from, to) => supabase
-      .from("tasks")
-      .select("id, property_id, title, status, priority, due_date")
-      .eq("organization_id", organizationId)
-      .match(propertyFilter)
-      .is("archived_at", null)
-      .in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES])
-      .order("id", { ascending: true })
-      .range(from, to)),
-    readAllRows((from, to) => supabase
-      .from("documents")
-      .select("id, property_id")
-      .eq("organization_id", organizationId)
-      .match(propertyFilter)
-      .is("archived_at", null)
-      .not("property_id", "is", null)
-      .order("id", { ascending: true })
-      .range(from, to)),
-    supabase
-      .from("activity_logs")
-      .select(
-        "id, entity_type, entity_id, action, previous_values, new_values, created_at",
-      )
-      .eq("organization_id", organizationId)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(8),
+      .eq("organization_id", organizationId).is("archived_at", null).neq("status", "inactive")
+      .order("code", { ascending: true }).order("id", { ascending: true }).range(from, to)),
+    supabase.from("activity_logs")
+      .select("id, entity_type, entity_id, action, previous_values, new_values, created_at")
+      .eq("organization_id", organizationId).order("created_at", { ascending: false })
+      .order("id", { ascending: false }).limit(8),
   ]);
-
+  assertNoError(summaryResult.error, "overview summary");
   assertNoError(propertiesResult.error, "overview properties");
-  assertNoError(unitsResult.error, "overview units");
-  assertNoError(leasesResult.error, "overview leases");
-  assertNoError(rentTermsResult.error, "overview rent terms");
-  assertNoError(ledgerWindowResult.error, "overview ledger window");
-  assertNoError(peopleResult.error, "overview people");
-  assertNoError(rolesResult.error, "overview person roles");
-  assertNoError(propertyOwnersResult.error, "overview property owners");
-  assertNoError(openMaintenanceResult.error, "overview maintenance");
-  assertNoError(documentsResult.error, "overview documents");
   assertNoError(recentActivityResult.error, "overview activity");
-  const ledgerEntryCount = requireExactCount(ledgerCountResult, "overview ledger count");
-  const largeRecentExpenseCount = requireExactCount(
-    largeRecentExpenseCountResult, "overview recent expenses",
-  );
-
-  const propertyOptions = ((propertiesResult.data ?? []) as PropertyRow[])
-    .filter((property) => property.status !== "inactive");
-  const activeProperties = propertyOptions.filter((property) =>
-    effectiveQuery.propertyId === "all" || property.id === effectiveQuery.propertyId,
-  );
-  const activePropertyIds = new Set(activeProperties.map((property) => property.id));
-  const operationalUnits = ((unitsResult.data ?? []) as UnitRow[]).filter(
-    (unit) => unit.status !== "inactive" && activePropertyIds.has(unit.property_id),
-  );
-  const currentLeases = (leasesResult.data ?? []) as LeaseRow[];
-  const ledgerRows = (ledgerWindowResult.data ?? []) as LedgerWindowRow[];
-  const activePeople = (peopleResult.data ?? []) as PersonRow[];
-  const activePersonIds = new Set(activePeople.map((person) => person.id));
-  const roles = ((rolesResult.data ?? []) as PersonRoleRow[])
-    .filter((role) => activePersonIds.has(role.person_id));
-  const propertyOwners = (propertyOwnersResult.data ?? []) as PropertyOwnerRow[];
-  const [scopedRentTermsResult, contactsResult] = await Promise.all([
-    effectiveQuery.propertyId === "all"
-      ? Promise.resolve(rentTermsResult)
-      : readAllRowsByIds(currentLeases.map((lease) => lease.id), (ids, from, to) =>
-        rentTermsQuery().in("lease_id", ids)
-          .order("id", { ascending: true }).range(from, to)),
-    // Extra contacts can only change the check for people without a primary value.
-    readAllRowsByIds(activePeople
-      .filter((person) => !hasText(person.primary_email) && !hasText(person.primary_phone))
-      .map((person) => person.id), (ids, from, to) => supabase
-      .from("person_contacts")
-      .select("id, person_id, email, phone")
-      .eq("organization_id", organizationId)
-      .in("person_id", ids)
-      .is("archived_at", null)
-      .or("email.not.is.null,phone.not.is.null")
-      .order("id", { ascending: true })
-      .range(from, to)),
-  ]);
-  assertNoError(scopedRentTermsResult.error, "overview rent terms");
-  assertNoError(contactsResult.error, "overview person contacts");
-  const currentRentTerms = (scopedRentTermsResult.data ?? []) as LeaseRentTermRow[];
-  const contacts = (contactsResult.data ?? []) as PersonContactRow[];
-  const operationalLeaseScope = splitOperationalLeases({
-    activeProperties,
-    currentLeases,
-    operationalUnits,
-  });
-  const operationalCurrentLeases = operationalLeaseScope.operational;
-  const invalidScopeLeases = operationalLeaseScope.needsReview;
-  const documents = (documentsResult.data ?? []) as Array<{
-    property_id: string | null;
-  }>;
-  const openMaintenanceTasks = (
-    (openMaintenanceResult.data ?? []) as MaintenanceTaskRow[]
-  )
-    .map((task) => ({
-      facts: getMaintenanceTaskFacts(
-        {
-          dueDate: task.due_date,
-          priority: task.priority,
-          status: task.status,
-        },
-        businessToday,
-      ),
-      task,
-    }))
-    .filter(({ facts }) => facts.isOpen);
-  const openMaintenanceCount = openMaintenanceTasks.length;
-  const currentLeasedUnitIds = new Set(
-    operationalCurrentLeases.flatMap((lease) =>
-      lease.unit_id ? [lease.unit_id] : [],
-    ),
-  );
-  const occupiedUnits = operationalUnits.filter(
-    (unit) =>
-      currentLeasedUnitIds.has(unit.id) || unit.status.toLowerCase() === "occupied",
-  );
-  const leaseGapUnits = operationalUnits.filter(
-    (unit) => !currentLeasedUnitIds.has(unit.id),
-  );
-  const vacantUnits = operationalUnits.filter(
-    (unit) => unit.status.toLowerCase() === "vacant",
-  );
-  const nonVacantLeaseGapUnits = leaseGapUnits.filter(
-    (unit) => unit.status.toLowerCase() !== "vacant",
-  );
-  const roleCounts = getRoleCounts(roles);
-  const currentPropertyOwnerIds = new Set(
-    propertyOwners.map((owner) => owner.property_id),
-  );
-  const missingOwnerLinks = activeProperties.filter(
-    (property) => !currentPropertyOwnerIds.has(property.id),
-  );
-  const activeRolePersonIds = new Set(roles.map((role) => role.person_id));
-  const usableContactPersonIds = getUsableContactPersonIds(contacts);
-  const peopleMissingContacts = activePeople.filter((person) =>
-    isMissingContact(person, usableContactPersonIds),
-  );
-  const peopleWithoutRoles = activePeople.filter(
-    (person) => !activeRolePersonIds.has(person.id),
-  );
-  const leasesEndingSoon = getLeasesEndingSoon(operationalCurrentLeases, businessToday);
-  const missingTenantLeases = operationalCurrentLeases.filter(
-    (lease) => !lease.primary_tenant_person_id,
-  );
-
-  const mtdLedgerRows = ledgerRows.filter(
-    (entry) =>
-      entry.transaction_date >= toDateInput(currentMonthStart) &&
-      entry.transaction_date < currentMonthEndInput,
-  );
-  const occupancyRate =
-    operationalUnits.length > 0
-      ? `${Math.round((occupiedUnits.length / operationalUnits.length) * 100)}%`
-      : "0%";
-  const attentionItems = buildAttentionItems({
-    largeRecentExpenseCount,
-    invalidScopeLeases,
-    leaseGapUnits: nonVacantLeaseGapUnits,
-    leasesEndingSoon,
-    missingTenantLeases,
-    missingOwnerLinks,
-    openMaintenanceCount,
-    peopleMissingContacts,
-    peopleWithoutRoles,
-    vacantUnits,
-  });
+  if (!summaryResult.data) throw new Error("Could not load overview summary: aggregate is missing.");
+  const summary = summaryResult.data as unknown as OverviewSummary;
+  const counts = summary.counts;
+  const attentionItems = buildAttentionItems(counts);
+  const occupancyByProperty = summary.properties.map(property => ({
+    href: `/units?occupancy=unoccupied&propertyId=${property.id}`,
+    label: `${property.code} / ${property.name}`,
+    occupiedUnits: property.occupiedUnits,
+    percent: property.totalUnits ? Math.round(property.occupiedUnits / property.totalUnits * 100) : 0,
+    totalUnits: property.totalUnits,
+    unoccupiedUnits: property.unoccupiedUnits,
+    vacantUnits: property.vacantUnits,
+  })).toSorted((a, b) => a.percent - b.percent || b.totalUnits - a.totalUnits || a.label.localeCompare(b.label));
+  const maintenanceByProperty = summary.properties.filter(property => property.openCount > 0).map(property => ({
+    blockedCount: property.blockedCount,
+    cases: property.cases.map(task => ({ ...task, href: `/maintenance?taskId=${task.id}` })),
+    href: `/maintenance?review=open&propertyId=${property.id}`,
+    label: `${property.code} / ${property.name}`,
+    openCount: property.openCount, overdueCount: property.overdueCount, urgentCount: property.urgentCount,
+  })).toSorted((a, b) => b.overdueCount - a.overdueCount || b.urgentCount - a.urgentCount || b.openCount - a.openCount || a.label.localeCompare(b.label));
+  const recordsByProperty = summary.properties.map(property => ({
+    documentCount: property.documentCount, href: `/properties/${property.id}`,
+    label: `${property.code} / ${property.name}`, missingTenantLinks: property.missingTenantLinks,
+    ownerLinked: property.ownerLinked, unitCount: property.totalUnits,
+  })).toSorted((a, b) => Number(a.ownerLinked) - Number(b.ownerLinked) || b.missingTenantLinks - a.missingTenantLinks || a.label.localeCompare(b.label));
   const recentChanges = await resolveRecentChangeTargets({
-    logs: recentActivityResult.data ?? [],
-    organizationId,
+    logs: recentActivityResult.data ?? [], organizationId,
     supabase: supabase as unknown as ActivityTargetQueryClient,
   });
-
   return {
     attentionItems,
     attentionTotal: attentionItems.reduce((total, item) => total + item.count, 0),
-    dashboardSummary: buildDashboardSummary({
-      attentionItems,
-      largeRecentExpenseCount,
-      leaseGapUnits: nonVacantLeaseGapUnits,
-      leasesEndingSoon,
-      missingTenantLeases,
-      missingOwnerLinks,
-      peopleMissingContacts,
-      peopleWithoutRoles,
-      vacantUnits,
+    dashboardSummary: buildDashboardSummary({ ...counts, attentionItems }),
+    expectedRent: { leaseCount: summary.expectedRent.leaseCount, monthly: summary.expectedRent.leaseCount
+      ? formatMoneyTotalsDisplay([{ amount: summary.expectedRent.amount, currency: "USD" }]) : null },
+    leaseEndings: Array.from({ length: 6 }, (_, index) => {
+      const date = addMonths(currentMonthStart, index);
+      const key = getMonthKey(date);
+      return { count: summary.leaseEndings.find(point => point.month === key)?.count ?? 0,
+        href: `/leases?status=current&endMonth=${key}&sort=end_asc`, label: monthLabelFormatter.format(date) };
     }),
-    expectedRent: buildExpectedRent(operationalCurrentLeases, currentRentTerms),
-    leaseEndings: buildLeaseEndingsChart(operationalCurrentLeases, currentMonthStart),
-    leaseRiskCount: leasesEndingSoon.length,
+    leaseRiskCount: counts.leasesEndingSoon,
     ledgerCurrency: "USD",
-    ledgerFlow: buildLedgerFlowChart({
-      monthEnd: currentMonthStart,
-      ledgerRows,
-      monthStart: ledgerStart,
-    }),
-    maintenanceByProperty: buildMaintenanceByProperty({
-      activeProperties,
-      tasks: openMaintenanceTasks,
-    }),
+    ledgerFlow: buildLedgerFlowChart({ monthEnd: currentMonthStart, ledgerRows: summary.ledger, monthStart: ledgerStart }),
+    maintenanceByProperty,
     metrics: buildMetrics({
-      activeLeaseCount: operationalCurrentLeases.length,
-      attentionItems,
-      mtdLedgerRows,
-      occupancyRate,
-      peopleCount: activePeople.length,
-      roleCounts,
-      leaseGapUnitCount: nonVacantLeaseGapUnits.length,
+      activeLeaseCount: counts.activeLeaseCount, attentionItems, leaseGapUnitCount: counts.leaseGapUnits,
+      mtdLedgerRows: summary.ledger.filter(row => row.transaction_date.slice(0, 7) === month),
+      occupancyRate: counts.unitCount ? `${Math.round(counts.occupiedUnits / counts.unitCount * 100)}%` : "0%",
+      peopleCount: counts.peopleCount, roleCounts: new Map([["tenant", counts.tenantCount]]),
     }),
-    occupancyByProperty: buildOccupancyByProperty({
-      activeProperties,
-      currentLeasedUnitIds,
-      operationalUnits,
-    }),
-    propertyOptions: propertyOptions.map((property) => ({
-      label: `${property.code} / ${property.name}`,
-      value: property.id,
-    })),
-    recordsByProperty: buildRecordsByProperty({
-      activeProperties,
-      documents,
-      missingOwnerLinks,
-      missingTenantLeases,
-      operationalUnits,
-    }),
+    occupancyByProperty,
+    propertyOptions: (propertiesResult.data ?? []).map(property => ({ label: `${property.code} / ${property.name}`, value: property.id })),
+    recordsByProperty,
     quickActions: [
-      { href: "/import", label: "Import data" },
-      { href: "/properties?action=create", label: "Add property" },
-      { href: "/units?action=create", label: "Add unit" },
-      { href: "/leases?action=create", label: "Add lease" },
-      { href: "/people?action=create", label: "Add person" },
-      { href: "/timeline?action=create", label: "Add event" },
+      { href: "/import", label: "Import data" }, { href: "/properties?action=create", label: "Add property" },
+      { href: "/units?action=create", label: "Add unit" }, { href: "/leases?action=create", label: "Add lease" },
+      { href: "/people?action=create", label: "Add person" }, { href: "/timeline?action=create", label: "Add event" },
       { href: "/ledger?action=create", label: "Add ledger entry" },
     ],
     recentChanges,
     workspaceSetup: {
-      activeLeaseCount: operationalCurrentLeases.length,
-      hasAnyOperatingData:
-        activeProperties.length > 0 ||
-        operationalUnits.length > 0 ||
-        activePeople.length > 0 ||
-        currentLeases.length > 0 ||
-        ledgerEntryCount > 0 ||
-        openMaintenanceCount > 0,
-      ledgerEntryCount,
-      peopleCount: activePeople.length,
-      propertyCount: activeProperties.length,
-      unitCount: operationalUnits.length,
+      activeLeaseCount: counts.activeLeaseCount,
+      hasAnyOperatingData: summary.properties.length > 0 || counts.unitCount > 0 || counts.peopleCount > 0
+        || counts.currentLeaseCount > 0 || counts.ledgerEntryCount > 0 || counts.openMaintenanceCount > 0,
+      ledgerEntryCount: counts.ledgerEntryCount, peopleCount: counts.peopleCount,
+      propertyCount: summary.properties.length, unitCount: counts.unitCount,
     },
   };
-}
-
-function requireExactCount(
-  result: { count: number | null; error: { message: string } | null },
-  label: string,
-) {
-  assertNoError(result.error, label);
-  if (result.count === null) {
-    throw new Error(`Could not load ${label}: exact count is missing.`);
-  }
-  return result.count;
 }
 
 function buildDashboardSummary({
@@ -535,82 +153,82 @@ function buildDashboardSummary({
 }: {
   attentionItems: OverviewAttentionItem[];
   largeRecentExpenseCount: number;
-  leaseGapUnits: UnitRow[];
-  leasesEndingSoon: LeaseRow[];
-  missingTenantLeases: LeaseRow[];
-  missingOwnerLinks: PropertyRow[];
-  peopleMissingContacts: PersonRow[];
-  peopleWithoutRoles: PersonRow[];
-  vacantUnits: UnitRow[];
+  leaseGapUnits: number;
+  leasesEndingSoon: number;
+  missingTenantLeases: number;
+  missingOwnerLinks: number;
+  peopleMissingContacts: number;
+  peopleWithoutRoles: number;
+  vacantUnits: number;
 }) {
   const attentionTotal = attentionItems.reduce((total, item) => total + item.count, 0);
 
-  if (peopleWithoutRoles.length > 0) {
+  if (peopleWithoutRoles > 0) {
     return {
       actionHref: "/people?status=no_role",
       actionLabel: "Review people",
-      detail: `${peopleWithoutRoles.length} people need a tenant, owner, vendor, or staff role before workflow checks are reliable.`,
+      detail: `${peopleWithoutRoles} people need a tenant, owner, vendor, or staff role before workflow checks are reliable.`,
       headline: "People records need cleanup first.",
       tone: "danger" as const,
     };
   }
 
-  if (vacantUnits.length > 0) {
+  if (vacantUnits > 0) {
     return {
       actionHref: "/units?status=vacant",
       actionLabel: "View vacant units",
       detail: "Review availability, attach new leases, or make the vacant-units report.",
-      headline: `${vacantUnits.length} vacant units are available.`,
+      headline: `${vacantUnits} vacant units are available.`,
       tone: "warning" as const,
     };
   }
 
-  if (leaseGapUnits.length > 0) {
+  if (leaseGapUnits > 0) {
     return {
       actionHref: "/units?leaseStatus=missing",
       actionLabel: "Review lease gaps",
       detail: "Some unit records have no current lease link.",
-      headline: `${leaseGapUnits.length} units need lease record review.`,
+      headline: `${leaseGapUnits} units need lease record review.`,
       tone: "warning" as const,
     };
   }
 
-  if (leasesEndingSoon.length > 0) {
+  if (leasesEndingSoon > 0) {
     return {
       actionHref: "/leases?status=current&endsWithin=60d&sort=end_asc",
       actionLabel: "Review leases",
-      detail: `${leasesEndingSoon.length} leases end in 60 days. Start renewal or move-out planning here.`,
+      detail: `${leasesEndingSoon} leases end in 60 days. Start renewal or move-out planning here.`,
       headline: "Lease renewals need attention.",
       tone: "warning" as const,
     };
   }
 
-  if (missingTenantLeases.length > 0) {
+  if (missingTenantLeases > 0) {
     return {
       actionHref: "/leases?status=current&tenantStatus=missing",
       actionLabel: "Review tenant links",
-      detail: `${missingTenantLeases.length} current leases are missing a linked People tenant.`,
+      detail: `${missingTenantLeases} current leases are missing a linked People tenant.`,
       headline: "Lease tenant links need cleanup.",
       tone: "warning" as const,
     };
   }
 
-  if (missingOwnerLinks.length > 0) {
+  if (missingOwnerLinks > 0) {
     return {
       actionHref: "/properties?ownerStatus=missing",
       actionLabel: "Review missing owners",
-      detail: `${missingOwnerLinks.length} properties are missing a current primary owner.`,
+      detail: `${missingOwnerLinks} properties are missing a current primary owner.`,
       headline: "Owner relationships need cleanup.",
       tone: "warning" as const,
     };
   }
 
 
-  if (peopleMissingContacts.length > 0) {
+  if (peopleMissingContacts > 0) {
     return {
       actionHref: "/people?status=missing_contact",
       actionLabel: "Review missing contacts",
-      detail: `${peopleMissingContacts.length} people are missing usable contact information.`,
+      detail: `${peopleMissingContacts} people are missing usable contact information.`,
       headline: "Contact records need review.",
       tone: "warning" as const,
     };
@@ -712,22 +330,22 @@ function buildAttentionItems({
   peopleWithoutRoles,
   vacantUnits,
 }: {
-  invalidScopeLeases: LeaseRow[];
+  invalidScopeLeases: number;
   largeRecentExpenseCount: number;
-  leaseGapUnits: UnitRow[];
-  leasesEndingSoon: LeaseRow[];
-  missingTenantLeases: LeaseRow[];
-  missingOwnerLinks: PropertyRow[];
+  leaseGapUnits: number;
+  leasesEndingSoon: number;
+  missingTenantLeases: number;
+  missingOwnerLinks: number;
   openMaintenanceCount: number;
-  peopleMissingContacts: PersonRow[];
-  peopleWithoutRoles: PersonRow[];
-  vacantUnits: UnitRow[];
+  peopleMissingContacts: number;
+  peopleWithoutRoles: number;
+  vacantUnits: number;
 }): OverviewAttentionItem[] {
   const items: Array<OverviewAttentionItem | null> = [
-    invalidScopeLeases.length > 0
+    invalidScopeLeases > 0
       ? {
           actionLabel: "Review leases",
-          count: invalidScopeLeases.length,
+          count: invalidScopeLeases,
           helper: "Property or unit is not available",
           href: "/leases?archiveState=all&status=current",
           id: "lease-scope-review",
@@ -737,10 +355,10 @@ function buildAttentionItems({
           tone: "warning",
         }
       : null,
-    leasesEndingSoon.length > 0
+    leasesEndingSoon > 0
       ? {
           actionLabel: "Review expiries",
-          count: leasesEndingSoon.length,
+          count: leasesEndingSoon,
           helper: "Next 60 days",
           href: "/leases?status=current&endsWithin=60d&sort=end_asc",
           id: "expiring-leases",
@@ -763,10 +381,10 @@ function buildAttentionItems({
           tone: "warning",
         }
       : null,
-    vacantUnits.length > 0
+    vacantUnits > 0
       ? {
           actionLabel: "Review vacancies",
-          count: vacantUnits.length,
+          count: vacantUnits,
           helper: "Marked vacant",
           href: "/units?status=vacant",
           id: "vacant-units",
@@ -776,10 +394,10 @@ function buildAttentionItems({
           tone: "warning",
         }
       : null,
-    leaseGapUnits.length > 0
+    leaseGapUnits > 0
       ? {
           actionLabel: "Link leases",
-          count: leaseGapUnits.length,
+          count: leaseGapUnits,
           helper: "No active lease link",
           href: "/units?leaseStatus=missing",
           id: "lease-gaps",
@@ -789,10 +407,10 @@ function buildAttentionItems({
           tone: "warning",
         }
       : null,
-    missingTenantLeases.length > 0
+    missingTenantLeases > 0
       ? {
           actionLabel: "Link tenants",
-          count: missingTenantLeases.length,
+          count: missingTenantLeases,
           helper: "No People tenant link",
           href: "/leases?status=current&tenantStatus=missing",
           id: "missing-tenant-links",
@@ -802,10 +420,10 @@ function buildAttentionItems({
           tone: "warning",
         }
       : null,
-    missingOwnerLinks.length > 0
+    missingOwnerLinks > 0
       ? {
           actionLabel: "Link owners",
-          count: missingOwnerLinks.length,
+          count: missingOwnerLinks,
           helper: "Needs ownership relationship",
           href: "/properties?ownerStatus=missing",
           id: "missing-owner-links",
@@ -815,10 +433,10 @@ function buildAttentionItems({
           tone: "warning",
         }
       : null,
-    peopleMissingContacts.length > 0
+    peopleMissingContacts > 0
       ? {
           actionLabel: "Add contact details",
-          count: peopleMissingContacts.length,
+          count: peopleMissingContacts,
           helper: "No primary contact value",
           href: "/people?status=missing_contact",
           id: "missing-contact-details",
@@ -828,10 +446,10 @@ function buildAttentionItems({
           tone: "warning",
         }
       : null,
-    peopleWithoutRoles.length > 0
+    peopleWithoutRoles > 0
       ? {
           actionLabel: "Assign roles",
-          count: peopleWithoutRoles.length,
+          count: peopleWithoutRoles,
           helper: "Needs tenant, owner, vendor, or staff role",
           href: "/people?status=no_role",
           id: "people-without-role",
@@ -865,168 +483,6 @@ function buildAttentionItems({
         left.id.localeCompare(right.id),
     )
     .slice(0, 12);
-}
-
-function buildOccupancyByProperty({
-  activeProperties,
-  currentLeasedUnitIds,
-  operationalUnits,
-}: {
-  activeProperties: PropertyRow[];
-  currentLeasedUnitIds: Set<string>;
-  operationalUnits: UnitRow[];
-}): OverviewOccupancyPoint[] {
-  const unitsByProperty = groupBy(operationalUnits, (unit) => unit.property_id);
-
-  return activeProperties
-    .map((property) => {
-      const propertyUnits = unitsByProperty.get(property.id) ?? [];
-      const occupiedUnits = propertyUnits.filter(
-        (unit) =>
-          currentLeasedUnitIds.has(unit.id) ||
-          unit.status.toLowerCase() === "occupied",
-      ).length;
-      const vacantUnits = propertyUnits.filter(
-        (unit) => unit.status.toLowerCase() === "vacant",
-      ).length;
-      const unoccupiedUnits = propertyUnits.filter(
-        (unit) =>
-          !currentLeasedUnitIds.has(unit.id) &&
-          unit.status.toLowerCase() !== "occupied" &&
-          unit.status.toLowerCase() !== "inactive",
-      ).length;
-
-      return {
-        href: `/units?occupancy=unoccupied&propertyId=${property.id}`,
-        label: `${property.code} / ${property.name}`,
-        occupiedUnits,
-        percent:
-          propertyUnits.length > 0
-            ? Math.round((occupiedUnits / propertyUnits.length) * 100)
-            : 0,
-        totalUnits: propertyUnits.length,
-        unoccupiedUnits,
-        vacantUnits,
-      };
-    })
-    .toSorted(
-      (first, second) =>
-        first.percent - second.percent ||
-        second.totalUnits - first.totalUnits ||
-        first.label.localeCompare(second.label),
-    );
-}
-
-function buildMaintenanceByProperty({
-  activeProperties,
-  tasks,
-}: {
-  activeProperties: PropertyRow[];
-  tasks: MaintenanceTaskWithFacts[];
-}): OverviewMaintenancePoint[] {
-  const tasksByProperty = groupBy(tasks, ({ task }) => task.property_id);
-
-  return activeProperties
-    .flatMap((property) => {
-      const propertyTasks = tasksByProperty.get(property.id) ?? [];
-      if (propertyTasks.length === 0) return [];
-
-      const sortedTasks = propertyTasks.toSorted(compareMaintenanceTasks);
-      return [{
-        blockedCount: propertyTasks.filter(({ facts }) => facts.isBlocked).length,
-        cases: sortedTasks.slice(0, 6).map(({ facts, task }) => ({
-          dueDate: task.due_date,
-          href: `/maintenance?taskId=${task.id}`,
-          id: task.id,
-          priority: facts.priority,
-          status: facts.status,
-          title: task.title,
-        })),
-        href: `/maintenance?review=open&propertyId=${property.id}`,
-        label: `${property.code} / ${property.name}`,
-        openCount: propertyTasks.length,
-        overdueCount: propertyTasks.filter(({ facts }) => facts.isOverdue).length,
-        urgentCount: propertyTasks.filter(({ facts }) => facts.isHighPriority).length,
-      }];
-    })
-    .toSorted(
-      (first, second) =>
-        second.overdueCount - first.overdueCount ||
-        second.urgentCount - first.urgentCount ||
-        second.openCount - first.openCount ||
-        first.label.localeCompare(second.label),
-    );
-}
-
-function buildRecordsByProperty({
-  activeProperties,
-  documents,
-  missingOwnerLinks,
-  missingTenantLeases,
-  operationalUnits,
-}: {
-  activeProperties: PropertyRow[];
-  documents: Array<{ property_id: string | null }>;
-  missingOwnerLinks: PropertyRow[];
-  missingTenantLeases: LeaseRow[];
-  operationalUnits: UnitRow[];
-}): OverviewRecordPoint[] {
-  const documentCountByProperty = countBy(
-    documents.flatMap((document) => document.property_id ? [document.property_id] : []),
-  );
-  const missingTenantLinksByProperty = countBy(
-    missingTenantLeases.map((lease) => lease.property_id),
-  );
-  const missingOwnerIds = new Set(missingOwnerLinks.map((property) => property.id));
-  const unitCountByProperty = countBy(
-    operationalUnits.map((unit) => unit.property_id),
-  );
-
-  return activeProperties
-    .map((property) => {
-      return {
-        documentCount: documentCountByProperty.get(property.id) ?? 0,
-        href: `/properties/${property.id}`,
-        label: `${property.code} / ${property.name}`,
-        missingTenantLinks: missingTenantLinksByProperty.get(property.id) ?? 0,
-        ownerLinked: !missingOwnerIds.has(property.id),
-        unitCount: unitCountByProperty.get(property.id) ?? 0,
-      };
-    })
-    .toSorted(
-      (first, second) =>
-        Number(first.ownerLinked) - Number(second.ownerLinked) ||
-        second.missingTenantLinks - first.missingTenantLinks ||
-        first.label.localeCompare(second.label),
-    );
-}
-
-function compareMaintenanceTasks(
-  first: MaintenanceTaskWithFacts,
-  second: MaintenanceTaskWithFacts,
-) {
-  return (
-    maintenancePriorityRank(second.facts.priority) -
-      maintenancePriorityRank(first.facts.priority) ||
-    (first.task.due_date ?? "9999-12-31").localeCompare(
-      second.task.due_date ?? "9999-12-31",
-    ) ||
-    first.task.title.localeCompare(second.task.title) ||
-    first.task.id.localeCompare(second.task.id)
-  );
-}
-
-function maintenancePriorityRank(priority: MaintenancePriority) {
-  if (priority === "urgent") return 4;
-  if (priority === "high") return 3;
-  if (priority === "normal") return 2;
-  return 1;
-}
-
-function countBy(values: string[]) {
-  const counts = new Map<string, number>();
-  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
-  return counts;
 }
 
 function buildLedgerFlowChart({
@@ -1083,160 +539,6 @@ function buildLedgerFlowChart({
   }));
 }
 
-function buildExpectedRent(
-  currentLeases: LeaseRow[],
-  currentRentTerms: LeaseRentTermRow[],
-) {
-  const resolvedTermsByLease = groupBy(
-    currentRentTerms.filter((term) =>
-      resolvedRentTermStatuses.includes(
-        term.status as (typeof resolvedRentTermStatuses)[number],
-      ),
-    ),
-    (term) => term.lease_id,
-  );
-  const monthlyTerms = currentLeases.flatMap((lease) => {
-    const resolvedTerms = resolvedTermsByLease.get(lease.id) ?? [];
-    return resolvedTerms.length === 1 &&
-      resolvedTerms[0].payment_frequency === "monthly"
-      ? resolvedTerms
-      : [];
-  });
-
-  if (monthlyTerms.length === 0) {
-    return { leaseCount: 0, monthly: null };
-  }
-
-  return {
-    leaseCount: new Set(monthlyTerms.map((term) => term.lease_id)).size,
-    monthly: formatMoneyTotalsDisplay(
-      monthlyTerms.map((term) => ({
-        amount: Number(term.rent_amount),
-        currency: term.rent_currency,
-      })),
-    ),
-  };
-}
-
-function splitOperationalLeases({
-  activeProperties,
-  currentLeases,
-  operationalUnits,
-}: {
-  activeProperties: PropertyRow[];
-  currentLeases: LeaseRow[];
-  operationalUnits: UnitRow[];
-}) {
-  const propertiesById = new Map(
-    activeProperties.map((property) => [property.id, property]),
-  );
-  const unitsById = new Map(operationalUnits.map((unit) => [unit.id, unit]));
-  const operational: LeaseRow[] = [];
-  const needsReview: LeaseRow[] = [];
-
-  for (const lease of currentLeases) {
-    const property = propertiesById.get(lease.property_id);
-    const unit = lease.unit_id ? unitsById.get(lease.unit_id) : undefined;
-    const hasOperationalScope =
-      property?.rental_structure === "single_space"
-        ? lease.unit_id === null
-        : property?.rental_structure === "multi_unit"
-          ? Boolean(unit && unit.property_id === property.id)
-          : false;
-
-    (hasOperationalScope ? operational : needsReview).push(lease);
-  }
-
-  return { needsReview, operational };
-}
-
-function buildLeaseEndingsChart(
-  currentLeases: LeaseRow[],
-  currentMonthStart: Date,
-) {
-  const months = Array.from({ length: 6 }, (_, index) =>
-    addMonths(currentMonthStart, index),
-  );
-  const points = new Map(
-    months.map((month) => [
-      getMonthKey(month),
-      {
-        count: 0,
-        href: `/leases?status=current&endMonth=${getMonthKey(month)}&sort=end_asc`,
-        label: monthLabelFormatter.format(month),
-      },
-    ]),
-  );
-
-  for (const lease of currentLeases) {
-    const point = points.get(lease.lease_end_date.slice(0, 7));
-
-    if (point) {
-      point.count += 1;
-    }
-  }
-
-  return Array.from(points.values());
-}
-
-function getLeasesEndingSoon(currentLeases: LeaseRow[], today: string) {
-  const soon = addDaysToDateString(today, 60);
-
-  return currentLeases.filter(
-    (lease) => lease.lease_end_date >= today && lease.lease_end_date <= soon,
-  );
-}
-
-function getRoleCounts(roles: PersonRoleRow[]) {
-  const counts = new Map<PersonRoleRow["role"], number>();
-
-  for (const role of roles) {
-    counts.set(role.role, (counts.get(role.role) ?? 0) + 1);
-  }
-
-  return counts;
-}
-
-function getUsableContactPersonIds(contacts: PersonContactRow[]) {
-  const personIds = new Set<string>();
-
-  for (const contact of contacts) {
-    if (hasText(contact.email) || hasText(contact.phone)) {
-      personIds.add(contact.person_id);
-    }
-  }
-
-  return personIds;
-}
-
-function isMissingContact(
-  person: PersonRow,
-  usableContactPersonIds: Set<string>,
-) {
-  if (hasText(person.primary_email) || hasText(person.primary_phone)) {
-    return false;
-  }
-
-  return !usableContactPersonIds.has(person.id);
-}
-
-function hasText(value: string | null) {
-  return Boolean(value?.trim());
-}
-
-function groupBy<T>(rows: T[], getKey: (row: T) => string) {
-  const groups = new Map<string, T[]>();
-
-  for (const row of rows) {
-    const key = getKey(row);
-    const group = groups.get(key) ?? [];
-    group.push(row);
-    groups.set(key, group);
-  }
-
-  return groups;
-}
-
 function startOfMonth(value: string) {
   const year = Number(value.slice(0, 4));
   const monthIndex = Number(value.slice(5, 7)) - 1;
@@ -1252,13 +554,6 @@ function addDays(value: Date, days: number) {
   const next = new Date(value);
   next.setUTCDate(next.getUTCDate() + days);
   return next;
-}
-
-function addDaysToDateString(value: string, days: number) {
-  const next = new Date(`${value}T00:00:00.000Z`);
-  next.setUTCDate(next.getUTCDate() + days);
-
-  return next.toISOString().slice(0, 10);
 }
 
 function getBusinessDateString(date: Date) {

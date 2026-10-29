@@ -4,6 +4,7 @@ import type { OwnerStatementPresentation } from "@/features/reports/data/pdf";
 import { formatCalendarDate } from "@/lib/dates/format";
 import { strToU8, zipSync } from "fflate";
 import { addCompanyLogo } from "./excel-logo";
+import { assertCompleteReportForExport } from "./report-export-completeness";
 
 import { getReportExportFilename } from "@/features/reports/data/report-format";
 import type { OwnerStatementPublicationModel } from "@/features/reports/data/owner-statement-report";
@@ -53,6 +54,7 @@ async function loadCompanyLogo(organizationId: string) {
 }
 
 export function buildTrustedReportXlsx(report: TrustedReport, presentation?: ReportExcelPresentation) {
+  assertCompleteReportForExport(report);
   const rows = workbookRows(report);
   const headerRow = rows.findIndex(row => row.role === "columnHeader") + 1;
   const lastDataRow = report.preserveRowDetails

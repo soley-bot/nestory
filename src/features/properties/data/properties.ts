@@ -1,9 +1,6 @@
-import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import { readPortfolioLedgerTotals, readPortfolioRegisterPage, trailingTwelveMonthStart } from "@/lib/db/portfolio-readers";
 import { getMaintenanceCaseCounts } from "./property-detail-counts";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
-import type { PortfolioSearch } from "@/lib/search/portfolio";
-import { matchesSearchText } from "@/lib/search/text";
-import { normalizeSearchText } from "@/lib/search/text";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { DEFAULT_COMPLETE_READ_MAX_ROWS, readCompleteRows } from "@/lib/db/complete-read";
@@ -14,7 +11,6 @@ import {
 } from "@/features/activity/recent-change-targets";
 import {
   buildPropertySummary,
-  type PropertyLedgerRecord,
   type PropertyRecord,
   type PropertySummary,
   type PropertyUnitRecord,
@@ -28,14 +24,12 @@ import {
   buildPropertyDetail,
   type PropertyDetailDocumentRecord,
   type PropertyExpenseEvidenceRecord,
-  type PropertyDetailLedgerTotalRecord,
   type PropertyDetailMaintenanceRecord,
   type PropertyDetailLeaseRecord,
   type PropertyDetailUnitRecord,
   type PropertyOwnerHistoryRecord,
 } from "@/features/properties/data/property-detail";
 import {
-  DEFAULT_PROPERTY_SORT,
   parsePropertySearchParams,
 } from "@/features/properties/property.filters";
 import { getPersonSelectOptions } from "@/features/people/data/person-options";
@@ -70,7 +64,6 @@ type ActiveOwnerRow = {
   property_id: string;
   started_on: string | null;
 };
-type PropertyLedgerSummaryRow = PropertyLedgerRecord & { id: string; property_id: string | null };
 type PropertyCurrentLeaseSummaryRow = {
   id: string;
   property_id: string;
@@ -218,18 +211,7 @@ async function loadPropertySummariesForRows({
         .is("archived_at", null)
         .order("id", { ascending: true }).range(from, to),
     })) as Promise<PropertyCurrentLeaseSummaryRow[]>,
-    queryValueBatches(propertyIdList, (batch, remainingRows) => readCompleteRows({
-      maxRows: remainingRows,
-      context: "Could not load ledger totals",
-      getRowId: (row) => row.id,
-      readPage: (from, to) => supabase
-        .from("ledger_entries")
-        .select("id, property_id, direction, amount, currency", { count: "exact" })
-        .eq("organization_id", organizationId)
-        .in("property_id", batch)
-        .is("archived_at", null)
-        .order("id", { ascending: true }).range(from, to),
-    })) as Promise<PropertyLedgerSummaryRow[]>,
+    readPortfolioLedgerTotals(supabase, organizationId, "property", propertyIdList),
     queryValueBatches(propertyIdList, (batch, remainingRows) => readCompleteRows({
       maxRows: remainingRows,
       context: "Could not load property images",
@@ -367,6 +349,7 @@ function canUsePagedPropertyBaseQuery(viewQuery: PropertyViewQuery) {
     viewQuery.leaseStatus === "all" &&
     viewQuery.netStatus === "all" &&
     viewQuery.review === "all" &&
+    viewQuery.ownerStatus === "all" &&
     (viewQuery.sort === "code_asc" ||
       viewQuery.sort === "name_asc" ||
       viewQuery.sort === "status_asc")
@@ -549,26 +532,28 @@ async function getCompletePropertiesScreenData({
   organizationId: string;
   viewQuery: PropertyViewQuery;
 }) {
-  const properties = await getPropertySummaries(organizationId, {
-    archiveState: viewQuery.archiveState,
-    ownerStatus: viewQuery.ownerStatus,
-    status: viewQuery.status,
-  });
-  const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(await createSupabaseServerClient(), organizationId) : undefined;
-  const filteredProperties = filterPropertySummaries(properties, viewQuery, portfolio);
-  const sortedProperties = sortPropertySummaries(
-    filteredProperties,
-    viewQuery.sort,
-  );
+  const supabase = await createSupabaseServerClient();
+  const page = await readPortfolioRegisterPage(supabase, "property", organizationId, viewQuery, viewQuery.page, viewQuery.pageSize);
   const pagination = buildPropertyPagination({
     page: viewQuery.page,
     pageSize: viewQuery.pageSize,
-    totalCount: sortedProperties.length,
+    totalCount: page.totalCount,
   });
-
+  if (!page.ids.length) return { pagination, properties: [] };
+  const rows = await readCompleteRows<PropertyRecord>({
+    maxRows: viewQuery.pageSize,
+    context: "Could not load property page",
+    getRowId: row => row.id,
+    readPage: (from, to) => buildPropertyBaseQuery(supabase, organizationId)
+      .in("id", page.ids).order("id").range(from, to),
+  });
+  const byId = new Map(rows.map(row => [row.id, row]));
+  if (rows.length !== page.ids.length || page.ids.some(id => !byId.has(id))) {
+    throw new Error("Could not load property page: Records changed while loading. Reload and try again.");
+  }
   return {
     pagination,
-    properties: getPropertyPageSummaries(sortedProperties, pagination),
+    properties: await loadPropertySummariesForRows({ organizationId, supabase, properties: page.ids.map(id => byId.get(id)!) }),
   };
 }
 
@@ -598,7 +583,8 @@ export async function getPropertyDetail(
 
 async function readPropertyDetail(organizationId: string, propertyId: string, operationalTimezone?: string) {
   const supabase = await createSupabaseServerClient();
-  const businessDate = getBusinessDateValue(new Date(), operationalTimezone);
+  const currentDate = new Date();
+  const businessDate = getBusinessDateValue(currentDate, operationalTimezone);
   const detailRecordLimit = 8;
   // Read the version first: a later ownership change then produces a safe
   // conflict, never a fresh version attached to an older owner snapshot.
@@ -693,21 +679,7 @@ async function readPropertyDetail(organizationId: string, propertyId: string, op
       .order("event_date", { ascending: false })
       .order("id", { ascending: false })
       .limit(detailRecordLimit),
-    readCompleteRows<PropertyDetailLedgerTotalRecord>({
-      context: "Could not load property ledger",
-      getRowId: row => row.id,
-      readPage: (from, to) => supabase
-      .from("ledger_entries")
-      .select(
-        "id, transaction_date, direction, category, amount, currency",
-        { count: "exact" },
-      )
-      .eq("organization_id", organizationId)
-      .eq("property_id", propertyId)
-      .is("archived_at", null)
-      .order("transaction_date", { ascending: false })
-      .order("id", { ascending: false }).range(from, to),
-    }),
+    readPortfolioLedgerTotals(supabase, organizationId, "property", [propertyId], trailingTwelveMonthStart(currentDate)),
     supabase.from("ledger_entries")
       .select("id, unit_id, transaction_date, direction, category, amount, currency, description")
       .eq("organization_id", organizationId)
@@ -838,6 +810,7 @@ async function readPropertyDetail(organizationId: string, propertyId: string, op
   });
 
   return buildPropertyDetail({
+    currentDate,
     businessDate,
     activeLeases: [
       ...activeLeaseRows,
@@ -863,7 +836,7 @@ async function readPropertyDetail(organizationId: string, propertyId: string, op
     recordCounts: {
       activeLeases: activeLeaseRows.length,
       documents: documentsResult.count ?? documents.length,
-      ledgerEntries: ledgerEntries.length,
+      ledgerEntries: ledgerEntries.reduce((total, row) => total + row.entry_count, 0),
       maintenanceCases: maintenanceResult.count ?? maintenanceCases.length,
       ...maintenanceCounts,
       photos: photos.length,
@@ -893,56 +866,6 @@ function groupByProperty<T extends { property_id: string | null }>(rows: T[]) {
   }
 
   return grouped;
-}
-
-function filterPropertySummaries(
-  properties: PropertySummary[],
-  viewQuery: PropertyViewQuery,
-  portfolio?: PortfolioSearch,
-) {
-
-  return properties.filter((property) => {
-    const matchesArchiveState =
-      viewQuery.archiveState === "all" ||
-      (viewQuery.archiveState === "archived"
-        ? property.isArchived
-        : !property.isArchived);
-    const matchesStatus =
-      viewQuery.status === "all" || property.formValues.status === viewQuery.status;
-    const matchesOwnerStatus = propertyMatchesOwnerStatusFilter(
-      property,
-      viewQuery.ownerStatus,
-    );
-    const matchesNetStatus = propertyMatchesNetStatusFilter(
-      property,
-      viewQuery.netStatus,
-    );
-    const matchesLeaseStatus = propertyMatchesLeaseStatusFilter(
-      property,
-      viewQuery.leaseStatus,
-    );
-    const matchesReview = propertyMatchesReviewFilter(property, viewQuery.review);
-    const haystack = normalizeSearchText([
-      property.name,
-      property.code,
-      property.type,
-      property.owner,
-      property.address,
-      property.status,
-    ]
-      .join(" "));
-    const matchesQuery = portfolio ? portfolio.matchesProperty(viewQuery.query, property.id, [haystack]) : matchesSearchText(viewQuery.query, [haystack]);
-
-    return (
-      matchesArchiveState &&
-      matchesStatus &&
-      matchesOwnerStatus &&
-      matchesNetStatus &&
-      matchesLeaseStatus &&
-      matchesReview &&
-      matchesQuery
-    );
-  });
 }
 
 export function propertyMatchesOwnerStatusFilter(
@@ -1000,40 +923,6 @@ export function propertyMatchesReviewFilter(
   return true;
 }
 
-function sortPropertySummaries(
-  properties: PropertySummary[],
-  sort = DEFAULT_PROPERTY_SORT,
-) {
-  return [...properties].sort((first, second) => {
-    if (sort === "name_asc") {
-      return compareStrings(first.name, second.name) || compareStrings(first.code, second.code) || first.id.localeCompare(second.id);
-    }
-
-    if (sort === "status_asc") {
-      return (
-        compareStrings(first.status, second.status) ||
-        compareStrings(first.code, second.code) || first.id.localeCompare(second.id)
-      );
-    }
-
-    if (sort === "net_desc") {
-      return (
-        second.netIncomeUsd - first.netIncomeUsd ||
-        compareStrings(first.code, second.code) || first.id.localeCompare(second.id)
-      );
-    }
-
-    if (sort === "net_asc") {
-      return (
-        first.netIncomeUsd - second.netIncomeUsd ||
-        compareStrings(first.code, second.code) || first.id.localeCompare(second.id)
-      );
-    }
-
-    return compareStrings(first.code, second.code) || first.id.localeCompare(second.id);
-  });
-}
-
 function buildPropertyPagination({
   page,
   pageSize,
@@ -1058,15 +947,6 @@ function buildPropertyPagination({
   };
 }
 
-function getPropertyPageSummaries(
-  properties: PropertySummary[],
-  pagination: PropertyPagination,
-) {
-  const start = pagination.totalCount === 0 ? 0 : pagination.from - 1;
-
-  return properties.slice(start, pagination.to);
-}
-
 function getRange(page: number, pageSize: number) {
   const from = (Math.max(page, 1) - 1) * pageSize;
 
@@ -1074,13 +954,6 @@ function getRange(page: number, pageSize: number) {
     from,
     to: from + pageSize - 1,
   };
-}
-
-function compareStrings(first: string, second: string) {
-  return first.localeCompare(second, undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
 }
 
 async function getActiveOwnerLinks(

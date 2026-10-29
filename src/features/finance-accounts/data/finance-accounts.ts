@@ -1,12 +1,16 @@
 import "server-only";
+import { z } from "zod";
 
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
+import type { FinanceAccountQuery } from "../finance-account-query";
 import type { Database } from "@/types/database";
 import type {
   FinanceAccountClass,
   FinanceAccountOption,
   FinanceAccountsData,
   FinanceAccountSummary,
+  FinanceAccountRegisterData,
 } from "@/features/finance-accounts/finance-accounts.types";
 
 type FinanceAccountRow = Pick<
@@ -46,18 +50,65 @@ const ACCOUNT_NAME_COMPARATOR = new Intl.Collator(undefined, {
   sensitivity: "base",
 });
 
+const accountPageSchema = z.object({
+  accounts: z.array(z.object({
+    id: z.string(), account_class: z.enum(["asset","liability","equity","income","expense"]),
+    account_number: z.string().nullable(), account_subtype: z.string(), archived_at: z.string().nullable(),
+    description: z.string().nullable(), display_name: z.string(), parent_account_id: z.string().nullable(),
+    property_id: z.string().nullable(), system_role: z.string().nullable(), use_for_lease_charges: z.boolean(),
+    use_for_lease_credits: z.boolean(), use_for_lease_deposits: z.boolean(),
+  })),
+  pagination: z.object({ from: z.number().int().nonnegative(), to: z.number().int().nonnegative(), page: z.number().int().positive(), pageSize: z.number().int().positive(), totalCount: z.number().int().nonnegative(), totalPages: z.number().int().positive() }),
+});
+
+export async function getFinanceAccountRegisterData(organizationId: string, query: FinanceAccountQuery): Promise<FinanceAccountRegisterData> {
+  const supabase = await createSupabaseServerClient();
+  const result = await supabase.rpc("get_finance_account_register_page", {
+    p_organization_id: organizationId, p_query: query.query, p_account_class: query.accountClass,
+    p_status: query.status, p_page: query.page, p_page_size: query.pageSize,
+  });
+  assertReadSucceeded("accounts", result.error);
+  const parsed = accountPageSchema.safeParse(result.data);
+  if (!parsed.success) throw new Error("Could not load account page: malformed response.");
+  const { accounts, pagination } = parsed.data;
+  const expectedPages = Math.max(1,Math.ceil(pagination.totalCount/query.pageSize));
+  const expectedPage = Math.min(query.page,expectedPages);
+  const expectedFrom = pagination.totalCount ? (expectedPage-1)*query.pageSize+1 : 0;
+  const expectedTo = Math.min(expectedPage*query.pageSize,pagination.totalCount);
+  const expectedCount = pagination.totalCount ? expectedTo-expectedFrom+1 : 0;
+  if (pagination.pageSize !== query.pageSize || pagination.totalPages !== expectedPages || pagination.page !== expectedPage
+    || pagination.from !== expectedFrom || pagination.to !== expectedTo || accounts.length !== expectedCount
+    || new Set(accounts.map(account => account.id)).size !== accounts.length) throw new Error("Could not load account page: malformed rows.");
+  const ids = accounts.map(account => account.id);
+  const propertyIds = accounts.flatMap(account => account.property_id ? [account.property_id] : []);
+  const [roles, sources, categories, properties] = await Promise.all([
+    readAllRowsByIds(ids, (batch, from, to) => supabase.from("finance_account_roles").select("account_id, role_code").eq("organization_id", organizationId).in("account_id", batch).order("role_code").range(from, to)),
+    readAllRowsByIds(ids, (batch, from, to) => supabase.from("finance_account_source_links").select("account_id").eq("organization_id", organizationId).in("account_id", batch).order("account_id").order("source_id").range(from, to)),
+    readAllRowsByIds(ids, (batch, from, to) => supabase.from("finance_account_category_links").select("account_id").eq("organization_id", organizationId).in("account_id", batch).order("account_id").order("category_id").range(from, to)),
+    readAllRowsByIds(propertyIds, (batch, from, to) => supabase.from("properties").select("id, code, name, archived_at").eq("organization_id", organizationId).in("id", batch).order("id").range(from, to)),
+  ]);
+  assertReadSucceeded("account defaults", roles.error);
+  assertReadSucceeded("account source mappings", sources.error);
+  assertReadSucceeded("account category mappings", categories.error);
+  assertReadSucceeded("account properties", properties.error);
+  const rolesById = groupDefaultRolesByAccount(roles.data ?? []);
+  const propertyLabels = new Map((properties.data ?? []).map(property => [property.id, `${property.code} · ${property.name}`]));
+  const summaries = accounts.map(account => ({ ...toFinanceAccountSummary(account, rolesById.get(account.id) ?? [], propertyLabels), depth: account.parent_account_id ? 1 as const : 0 as const }));
+  return { groups: ACCOUNT_CLASS_ORDER.map(accountClass => ({ accountClass, accounts: summaries.filter(account => account.accountClass === accountClass) })), properties: [], pagination };
+}
+
 export async function getFinanceAccountsData(
   organizationId: string,
 ): Promise<FinanceAccountsData> {
   const supabase = await createSupabaseServerClient();
   const [accountsResult, rolesResult, sourceLinksResult, categoryLinksResult, propertiesResult] = await Promise.all([
-    supabase.from("finance_accounts").select(
+    readAllRows((from, to) => supabase.from("finance_accounts").select(
       "id, account_class, account_number, account_subtype, archived_at, description, display_name, parent_account_id, property_id, system_role, use_for_lease_charges, use_for_lease_credits, use_for_lease_deposits",
-    ).eq("organization_id", organizationId).order("account_class").order("account_number").order("display_name"),
-    supabase.from("finance_account_roles").select("account_id, role_code").eq("organization_id", organizationId).order("role_code"),
-    supabase.from("finance_account_source_links").select("account_id").eq("organization_id", organizationId).order("account_id"),
-    supabase.from("finance_account_category_links").select("account_id").eq("organization_id", organizationId).order("account_id"),
-    supabase.from("properties").select("id, code, name, archived_at").eq("organization_id", organizationId).order("code").order("name"),
+    ).eq("organization_id", organizationId).order("account_class").order("account_number").order("display_name").order("id").range(from, to)),
+    readAllRows((from, to) => supabase.from("finance_account_roles").select("account_id, role_code").eq("organization_id", organizationId).order("role_code").range(from, to)),
+    readAllRows((from, to) => supabase.from("finance_account_source_links").select("account_id").eq("organization_id", organizationId).order("account_id").order("source_id").range(from, to)),
+    readAllRows((from, to) => supabase.from("finance_account_category_links").select("account_id").eq("organization_id", organizationId).order("account_id").order("category_id").range(from, to)),
+    readAllRows((from, to) => supabase.from("properties").select("id, code, name, archived_at").eq("organization_id", organizationId).order("code").order("name").order("id").range(from, to)),
   ]);
 
   assertReadSucceeded("accounts", accountsResult.error);
