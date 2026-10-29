@@ -10878,6 +10878,41 @@ export type Database = {
           },
         ]
       }
+      workspace_saved_views: {
+        Row: {
+          name: string
+          organization_id: string
+          query: string
+          resource: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          name: string
+          organization_id: string
+          query: string
+          resource: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          name?: string
+          organization_id?: string
+          query?: string
+          resource?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_saved_views_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       current_leases: {

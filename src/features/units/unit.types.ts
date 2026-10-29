@@ -204,6 +204,7 @@ export type UnitPagination = {
 
 export type UnitViewQuery = {
   archiveState: UnitArchiveState;
+  operationalOnly?: boolean;
   leaseStatus: UnitLeaseStatusFilter;
   occupancy: UnitOccupancyFilter;
   page: number;

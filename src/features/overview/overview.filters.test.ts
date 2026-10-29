@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
+  firstOverviewMonth,
   getOverviewMonthScope,
   parseOverviewSearchParams,
 } from "@/features/overview/overview.filters";
+
+it.each([
+  [null, undefined],
+  ["2026-10-01", "2026-10"],
+  ["2026-10-15", "2026-11"],
+  ["2026-12-31", "2027-01"],
+  ["2028-02-29", "2028-03"],
+])("starts reporting at the first full month after %s", (cutoff, month) => {
+  expect(firstOverviewMonth(cutoff)).toBe(month);
+});
 
 describe("parseOverviewSearchParams", () => {
   it("defaults to the current month and Portfolio", () => {

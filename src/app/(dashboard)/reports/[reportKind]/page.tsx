@@ -38,6 +38,8 @@ export default async function ReportBuilderPage({
   return (
     <ReportBuilderScreen
       {...data}
+      canReadFinance={context.capabilities.canReadFinance}
+      canCreateExpense={context.capabilities.canPostExpense || context.capabilities.canSubmitExpense}
       organizationName={context.organizationName}
       viewStorageKey={`${context.organizationId}:${context.userId}`}
     />

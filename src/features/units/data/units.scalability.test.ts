@@ -16,6 +16,13 @@ const lease = (index: number, unitId: unknown, status = "active"): CappedReadRow
 beforeEach(() => vi.mocked(createSupabaseServerClient).mockReset());
 
 describe("complete unit registers under API row caps", () => {
+  it("keeps dashboard unit links inside the active operating portfolio", async () => {
+    const units = [unit(1, id("property", 1)), { ...unit(2, id("property", 1)), status: "inactive" }, unit(3, id("property", 2)), unit(4, id("property", 3))];
+    const { client } = createCappedReadHarness({ properties: [property(1), { ...property(2), status: "inactive" }, { ...property(3), archived_at: "2026-01-01" }], units });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
+    const result = await getUnitsScreenData(organizationId, parseUnitSearchParams({ occupancy: "unoccupied", scope: "operational" }));
+    expect(result.units.map(row => row.id)).toEqual([units[0].id]);
+  });
   it.each(["text", "occupancy", "rent"])("hydrates only selected units after %s matching", async mode => {
     const units = Array.from({ length: 24 }, (_, index) => unit(index, id("property", 1)));
     const { client, reads } = createCappedReadHarness({ properties: [property(1)], units, current_leases: [lease(1, units[23].id)] });

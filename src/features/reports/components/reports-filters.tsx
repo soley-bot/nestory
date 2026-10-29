@@ -2,7 +2,7 @@
 
 import { FinancialForm } from "@/lib/finance/financial-write-provider";
 
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { RotateCcw, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,8 @@ export function ReportsFilters({ compact = false, action, ownerOptions, property
   const modern = ["transactions", "management-fees", "rent-roll", "rent-collections"].includes(viewQuery.report);
   const showUnit = modern || viewQuery.report === "unit-profit-loss";
   const showOwner = viewQuery.report === "monthly-owner-activity";
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const secondaryId = useId();
   const [propertyId, setPropertyId] = useState(viewQuery.propertyId);
   const [unitId, setUnitId] = useState(viewQuery.unitId);
   const visibleUnits = propertyId === "all" ? unitOptions : unitOptions.filter((unit) => unit.propertyId === propertyId);
@@ -36,6 +38,14 @@ export function ReportsFilters({ compact = false, action, ownerOptions, property
   const moreActive = [viewQuery.transactionType, viewQuery.transactionStatus, viewQuery.payeeId].some((value) => Boolean(value && value !== "all")) || Boolean(viewQuery.groupBy && viewQuery.groupBy !== "none");
   const showReset = (modern && viewQuery.status !== "all") || (showOwner && viewQuery.ownerPersonId !== "all") || viewQuery.propertyId !== "all" || (showUnit && viewQuery.unitId !== "all") || Boolean(viewQuery.query || viewQuery.dateFrom || viewQuery.dateTo || viewQuery.columns) || moreActive;
   const groupOptions = [{ label: "No grouping", value: "none" }, ...availableColumns.filter((column) => ["property", "unit", "type", "payee", "status"].includes(column.key)).map((column) => ({ label: column.label, value: column.key }))];
+  const appliedFilters = [
+    viewQuery.unitId !== "all" && `Unit: ${unitOptions.find(unit => unit.id === viewQuery.unitId)?.label ?? "Selected unit"}`,
+    viewQuery.query && `Search: ${viewQuery.query}`,
+    viewQuery.transactionType && viewQuery.transactionType !== "all" && `Type: ${filterOptions?.types?.find(option => option.id === viewQuery.transactionType)?.label ?? viewQuery.transactionType}`,
+    viewQuery.transactionStatus && viewQuery.transactionStatus !== "all" && `Status: ${filterOptions?.statuses?.find(option => option.id === viewQuery.transactionStatus)?.label ?? viewQuery.transactionStatus}`,
+    viewQuery.payeeId && viewQuery.payeeId !== "all" && `Payee: ${filterOptions?.payees?.find(option => option.id === viewQuery.payeeId)?.label ?? "Selected payee"}`,
+    viewQuery.groupBy && viewQuery.groupBy !== "none" && `Group: ${groupOptions.find(option => option.value === viewQuery.groupBy)?.label ?? viewQuery.groupBy}`,
+  ].filter((label): label is string => Boolean(label));
 
   if (compact) return <section aria-label="Report filters" className="workspace-gutter-x border-b border-border/70 bg-blue-50/20 py-2" role="region">
     <FinancialForm action={action} method="get" className="flex min-w-0 flex-wrap items-center gap-2">
@@ -58,6 +68,8 @@ export function ReportsFilters({ compact = false, action, ownerOptions, property
         <ScopeField label="From"><DatePickerField ariaLabel="Report start date" className="h-8 w-[150px] px-2.5 text-sm" defaultValue={viewQuery.dateFrom || monthRange.start} name="dateFrom" /></ScopeField>
         <ScopeField label="To"><DatePickerField ariaLabel="Report end date" className="h-8 w-[150px] px-2.5 text-sm" defaultValue={viewQuery.dateTo || monthRange.end} name="dateTo" /></ScopeField>
       </> : null}
+      {(showUnit || modern) ? <Button type="button" variant="outline" className="h-8 sm:hidden" aria-expanded={showMobileFilters} aria-controls={secondaryId} onClick={() => setShowMobileFilters(value => !value)}>Filters{unitId !== "all" || viewQuery.query || moreActive ? " · Active" : ""}</Button> : null}
+      <div id={secondaryId} className={showMobileFilters ? "contents" : "hidden sm:contents"}>
       {showUnit ? <ScopeField label="Unit"><SearchableSelectControl ariaLabel="Filter report by unit" wrapOptions className="min-h-8 h-auto w-[180px] px-2.5 text-sm py-1.5 [&_.truncate]:overflow-visible [&_.truncate]:whitespace-normal [&_.truncate]:[overflow-wrap:anywhere]" name="unitId" value={unitId} onValueChange={setUnitId} options={[{ label: "All units", value: "all" }, ...visibleUnits.map((unit) => ({ label: unit.label, value: unit.id }))]} /></ScopeField> : null}
       {modern ? <ScopeField label="Search"><Input aria-label="Search report" className="h-8 w-[190px] text-sm" name="query" type="search" placeholder="Search this report" defaultValue={viewQuery.query} /></ScopeField> : null}
       {modern ? <details className="group static sm:relative">
@@ -71,9 +83,11 @@ export function ReportsFilters({ compact = false, action, ownerOptions, property
           <Button className="h-8" type="submit">Apply filters</Button>
         </div>
       </details> : null}
+      </div>
       <Button aria-label="Apply filters" className="h-8 gap-1.5 px-3 text-sm" type="submit">Apply</Button>
       {showReset ? <Button asChild className="h-8" variant="ghost"><Link aria-label="Reset report filters" href={`/reports/${viewQuery.report}`}><RotateCcw size={14} />Reset</Link></Button> : null}
     </FinancialForm>
+    {appliedFilters.length ? <ul aria-label="Applied report filters" className="mt-2 flex flex-wrap gap-1 sm:hidden">{appliedFilters.map(label => <li key={label} className="max-w-full break-words rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">{label}</li>)}</ul> : null}
   </section>;
 }
 

@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { ReportsDirectory } from "./reports-directory";
@@ -19,9 +19,46 @@ beforeAll(() => {
     scrollIntoView: { configurable: true, value: () => undefined },
   });
 });
-afterEach(() => { cleanup(); localStorage.clear(); });
+afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); });
 
 describe("Reporting workspace", () => {
+  it("clears non-matching transaction filters while keeping the selected scope and period", () => {
+    const data = { ...report(), rows: [], emptyReason: "no-matches" as const };
+    render(<ReportBuilderScreen organizationName="IPS" propertyOptions={[]} unitOptions={[]} trustedReport={data} viewQuery={query({ propertyId: "property-1", unitId: "unit-1", dateFrom: "2026-07-03", dateTo: "2026-07-20", query: "roof", transactionType: "paid-cost", transactionStatus: "approved", payeeId: "vendor-1" })} />);
+    const href = new URL(screen.getByRole("link", { name: "Clear transaction filters" }).getAttribute("href")!, "https://nestory.test");
+    expect(href.searchParams.get("propertyId")).toBe("property-1");
+    expect(href.searchParams.get("unitId")).toBe("unit-1");
+    expect(href.searchParams.get("dateFrom")).toBe("2026-07-03");
+    expect(href.searchParams.get("dateTo")).toBe("2026-07-20");
+    for (const key of ["query", "transactionType", "transactionStatus", "payeeId"]) expect(href.searchParams.has(key)).toBe(false);
+    expect(screen.getByRole("link", { name: "Clear transaction filters" }).closest('[role="region"][tabindex="0"]')).toBeNull();
+  });
+
+  it("offers an authorized next step for an empty period", () => {
+    const props = { organizationName: "IPS", propertyOptions: [], unitOptions: [], trustedReport: { ...report(), rows: [], emptyReason: "no-activity" as const }, viewQuery: query() };
+    const { rerender } = render(<ReportBuilderScreen {...props} canReadFinance canCreateExpense />);
+    expect(screen.getByRole("link", { name: "Record expense" }).getAttribute("href")).toBe("/bills-expenses?action=create");
+    rerender(<ReportBuilderScreen {...props} canReadFinance />);
+    expect(screen.queryByRole("link", { name: "Record expense" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Review rent & collections" }).getAttribute("href")).toBe("/rent-income");
+    rerender(<ReportBuilderScreen {...props} />);
+    expect(screen.queryByRole("link", { name: "Review rent & collections" })).toBeNull();
+  });
+
+  it("keeps compatible scope and dates when switching reports without carrying transaction-only filters", () => {
+    render(<ReportBuilderScreen organizationName="IPS" propertyOptions={[]} unitOptions={[]} trustedReport={report()} viewQuery={query({ propertyId: "property-1", unitId: "unit-1", ownerPersonId: "owner-1", dateFrom: "2026-07-03", dateTo: "2026-07-20", columns: "date,amount", transactionType: "paid-cost" })} />);
+    const nav = within(screen.getByRole("navigation", { name: "Reports" }));
+    const collections = new URL(nav.getByRole("link", { name: "Rent collections" }).getAttribute("href")!, "https://nestory.test");
+    expect(collections.searchParams.get("propertyId")).toBe("property-1");
+    expect(collections.searchParams.get("unitId")).toBe("unit-1");
+    expect(collections.searchParams.get("dateFrom")).toBe("2026-07-03");
+    expect(collections.searchParams.has("transactionType")).toBe(false);
+    expect(collections.searchParams.has("columns")).toBe(false);
+    const owner = new URL(nav.getByRole("link", { name: "Owner activity" }).getAttribute("href")!, "https://nestory.test");
+    expect(owner.searchParams.get("ownerPersonId")).toBe("owner-1");
+    expect(owner.searchParams.get("month")).toBe("2026-07");
+    expect(owner.searchParams.has("unitId")).toBe(false);
+  });
   it("groups the directory and gates official statements", () => {
     const { rerender } = render(<ReportsDirectory />);
     expect(within(screen.getByRole("region", { name: "Transactions reports" })).getByRole("link", { name: /Management fees/ }).getAttribute("href")).toBe("/reports/management-fees");
@@ -63,25 +100,22 @@ describe("Reporting workspace", () => {
     expect(screen.getByRole("button", { name: "Apply columns" }).hasAttribute("disabled")).toBe(true);
   });
 
-  it("stores only view preferences and isolates organization and user scopes", async () => {
+  it("preserves browser views and imports them only after server confirmation", async () => {
     const user = userEvent.setup();
     const viewQuery = query({ query: "roof", columns: "date,amount" });
-    const { rerender } = render(<ReportSavedViews storageKey="org-1:user-1" viewQuery={viewQuery} />);
+    const key = "nestory:report-views:v1:org-1:user-1:transactions";
+    localStorage.setItem(key, JSON.stringify([{ name: "Roof costs", query: "query=roof&columns=date,amount&action=create" }]));
+    const fetchViews = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify({ scope: "org-1:user-1", views: [] })));
+    fetchViews.mockResolvedValue(new Response(JSON.stringify({ scope: "org-1:user-1", ok: true })));
+    render(<ReportSavedViews storageKey="org-1:user-1" viewQuery={viewQuery} />);
     await user.click(screen.getByText("Saved views"));
-    expect(screen.getByText("Saved on this browser")).toBeTruthy();
-    await user.type(screen.getByLabelText("View name"), "Roof costs");
-    await user.click(screen.getByRole("button", { name: "Save current view" }));
-    const stored = JSON.parse(localStorage.getItem("nestory:report-views:v1:org-1:user-1:transactions")!);
-    expect(Object.keys(stored[0]).sort()).toEqual(["name", "query"]);
-    expect(new URLSearchParams(stored[0].query).get("columns")).toBe("date,amount");
-    expect(screen.getByRole("link", { name: "Roof costs" }).getAttribute("href")).toContain("query=roof");
-    rerender(<ReportSavedViews storageKey="org-2:user-1" viewQuery={viewQuery} />);
-    expect(screen.queryByRole("link", { name: "Roof costs" })).toBeNull();
-    rerender(<ReportSavedViews storageKey="org-1:user-2" viewQuery={viewQuery} />);
-    expect(screen.queryByRole("link", { name: "Roof costs" })).toBeNull();
-    rerender(<ReportSavedViews storageKey="org-1:user-1" viewQuery={viewQuery} />);
-    await user.click(screen.getByRole("button", { name: "Remove saved view Roof costs" }));
-    expect(screen.queryByRole("link", { name: "Roof costs" })).toBeNull();
+    expect(screen.getByText("From this browser")).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Sync Roof costs" }).hasAttribute("disabled")).toBe(false));
+    await user.click(screen.getByRole("button", { name: "Sync Roof costs" }));
+    await screen.findByText("Saved Roof costs.");
+    expect(JSON.parse(localStorage.getItem(key)!)).toEqual([]);
+    expect(JSON.parse(fetchViews.mock.calls[1][1]!.body as string)).toMatchObject({ scope: "org-1:user-1", query: "query=roof&columns=date%2Camount" });
+    expect(screen.getByRole("link", { name: "Roof costs" }).getAttribute("href")).not.toContain("action=create");
   });
 
   it("repeats full group totals on later pages without counting headings as records", async () => {

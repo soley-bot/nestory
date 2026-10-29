@@ -8,6 +8,37 @@ const fetchContext = vi.fn();
 beforeEach(() => { vi.stubGlobal("fetch", fetchContext); fetchContext.mockResolvedValue({ ok: true, json: async () => ({ organizationId: "org", context: open }) }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 describe("original financial form intent", () => {
+  it.each(["network", "malformed"])("recovers from a %s check failure without losing the draft", async (failure) => {
+    if (failure === "network") fetchContext.mockRejectedValueOnce(new Error("offline"));
+    else fetchContext.mockResolvedValueOnce({ ok: true, json: async () => ({ context: {} }) });
+    const submit = vi.fn(event => event.preventDefault());
+    render(<FinancialWriteProvider context={open} organizationId="org"><FinancialForm aria-label="entry" onSubmit={submit}><input aria-label="Memo" defaultValue="Unsaved rent" /><button>Save</button></FinancialForm></FinancialWriteProvider>);
+    await screen.findByRole("alert");
+    const form = screen.getByRole("form", { name: "entry" }) as HTMLFormElement;
+    fireEvent.submit(form);
+    expect(submit).not.toHaveBeenCalled();
+    fireEvent.focus(window);
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect((screen.getByLabelText("Memo") as HTMLInputElement).value).toBe("Unsaved rent");
+    expect(new FormData(form).get(FINANCIAL_GENERATION_FIELD)).toBe("2");
+    fireEvent.submit(form);
+    expect(submit).toHaveBeenCalledOnce();
+  });
+  it.each([
+    { organizationId: "other", context: open },
+    { organizationId: "org", context: { ...open, generation: 3 } },
+    { organizationId: "org", context: { ...open, status: "frozen" } },
+  ])("never revives a session after a confirmed mismatch: %j", async (mismatch) => {
+    fetchContext.mockResolvedValueOnce({ ok: true, json: async () => mismatch });
+    const submit = vi.fn(event => event.preventDefault());
+    render(<FinancialWriteProvider context={open} organizationId="org"><FinancialForm aria-label="entry" onSubmit={submit}><button>Save</button></FinancialForm></FinancialWriteProvider>);
+    await screen.findByRole("alert");
+    fireEvent.focus(window);
+    await waitFor(() => expect(fetchContext).toHaveBeenCalledTimes(2));
+    fireEvent.submit(screen.getByRole("form", { name: "entry" }));
+    expect(submit).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toContain("Reload");
+  });
   it("hides a newer page payload under a retained layout before its status check completes", () => {
     fetchContext.mockImplementation(() => new Promise(() => {}));
     const view = (generation: number) => <FinancialWriteProvider context={open} organizationId="org">

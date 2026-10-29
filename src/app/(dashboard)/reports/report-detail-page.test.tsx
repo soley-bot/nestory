@@ -30,6 +30,7 @@ describe("ReportBuilderPage", () => {
     vi.clearAllMocks();
     mocks.requireFinanceReportContext.mockResolvedValue({
       isSuperAdmin: false,
+      capabilities: { canReadFinance: true, canPostExpense: false, canSubmitExpense: true },
       organizationId: "organization-1",
       organizationName: "IPS",
       permissionKeys: new Set(["finance.view", "finance.publish"]),
@@ -56,5 +57,6 @@ describe("ReportBuilderPage", () => {
       { rows: [] },
       { financeSafeRecords: true },
     );
+    expect(mocks.reportScreen).toHaveBeenCalledWith(expect.objectContaining({ canReadFinance: true, canCreateExpense: true }));
   });
 });

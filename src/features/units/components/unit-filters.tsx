@@ -45,6 +45,7 @@ export function UnitFilters({
     viewQuery.occupancy !== "all",
     viewQuery.leaseStatus !== "all",
     viewQuery.archiveState !== DEFAULT_UNIT_ARCHIVE_STATE,
+    viewQuery.operationalOnly,
   ].filter(Boolean).length;
   const hasSearchQuery = viewQuery.query.trim().length > 0;
   const hasAdvancedFilters = activeFilters > 0;
@@ -102,6 +103,18 @@ export function UnitFilters({
                     Filter units
                   </h2>
                   <div className="grid gap-2 p-3 sm:grid-cols-2">
+                    <FilterField label="Portfolio scope">
+                      <SelectControl
+                        ariaLabel="Filter by portfolio scope"
+                        className={compactSelectClassName}
+                        onValueChange={(value) => replaceParam("scope", value, "all")}
+                        options={[
+                          { label: "All units", value: "all" },
+                          { label: "Operating portfolio", value: "operational" },
+                        ]}
+                        value={selectedQuery.operationalOnly ? "operational" : "all"}
+                      />
+                    </FilterField>
                     <FilterField label="Property">
                       <SelectControl
                         ariaLabel="Filter by property"

@@ -29,6 +29,14 @@ const activeLeaseStatuses = ["active", "notice_given"] as const;
 const resolvedRentTermStatuses = ["active", "expired", "terminated", "upcoming"] as const;
 const largeExpenseReviewThreshold = 1000;
 const largeExpenseReviewHref = `/ledger?direction=expense&sort=amount_desc&period=last_30_days&minAmount=${largeExpenseReviewThreshold}`;
+function scopeOverviewHref(href: string, propertyId: string) {
+  const url = new URL(href, "https://nestory.invalid");
+  if (url.pathname === "/units") url.searchParams.set("scope", "operational");
+  if (propertyId !== "all" && ["/units", "/leases", "/maintenance", "/ledger"].includes(url.pathname)) {
+    url.searchParams.set("propertyId", propertyId);
+  }
+  return `${url.pathname}${url.search}`;
+}
 const monthLabelFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
 });
@@ -114,6 +122,7 @@ export async function getOverviewScreenData(
   return withFinancialReadContext(organizationId, async (context) => ({
     ...await loadOverviewScreenData(organizationId, query, context.financial_start_date),
     financialGeneration: context.generation,
+    financialStartDate: context.financial_start_date,
   }), `${month}-01`);
 }
 
@@ -374,16 +383,13 @@ async function loadOverviewScreenData(
   );
   const occupiedUnits = operationalUnits.filter(
     (unit) =>
-      currentLeasedUnitIds.has(unit.id) || unit.status.toLowerCase() === "occupied",
+      currentLeasedUnitIds.has(unit.id),
   );
   const leaseGapUnits = operationalUnits.filter(
     (unit) => !currentLeasedUnitIds.has(unit.id),
   );
-  const vacantUnits = operationalUnits.filter(
+  const vacantUnits = leaseGapUnits.filter(
     (unit) => unit.status.toLowerCase() === "vacant",
-  );
-  const nonVacantLeaseGapUnits = leaseGapUnits.filter(
-    (unit) => unit.status.toLowerCase() !== "vacant",
   );
   const roleCounts = getRoleCounts(roles);
   const currentPropertyOwnerIds = new Set(
@@ -417,7 +423,7 @@ async function loadOverviewScreenData(
   const attentionItems = buildAttentionItems({
     largeRecentExpenseCount,
     invalidScopeLeases,
-    leaseGapUnits: nonVacantLeaseGapUnits,
+    leaseGapUnits,
     leasesEndingSoon,
     missingTenantLeases,
     missingOwnerLinks,
@@ -426,6 +432,12 @@ async function loadOverviewScreenData(
     peopleWithoutRoles,
     vacantUnits,
   });
+  for (const item of attentionItems) item.href = scopeOverviewHref(item.href, effectiveQuery.propertyId);
+  const dashboardSummary = buildDashboardSummary({
+    attentionItems, largeRecentExpenseCount, leaseGapUnits, leasesEndingSoon,
+    missingTenantLeases, missingOwnerLinks, peopleMissingContacts, peopleWithoutRoles, vacantUnits,
+  });
+  dashboardSummary.actionHref = scopeOverviewHref(dashboardSummary.actionHref, effectiveQuery.propertyId);
   const recentChanges = await resolveRecentChangeTargets({
     logs: recentActivityResult.data ?? [],
     organizationId,
@@ -435,17 +447,7 @@ async function loadOverviewScreenData(
   return {
     attentionItems,
     attentionTotal: attentionItems.reduce((total, item) => total + item.count, 0),
-    dashboardSummary: buildDashboardSummary({
-      attentionItems,
-      largeRecentExpenseCount,
-      leaseGapUnits: nonVacantLeaseGapUnits,
-      leasesEndingSoon,
-      missingTenantLeases,
-      missingOwnerLinks,
-      peopleMissingContacts,
-      peopleWithoutRoles,
-      vacantUnits,
-    }),
+    dashboardSummary,
     expectedRent: buildExpectedRent(operationalCurrentLeases, currentRentTerms),
     leaseEndings: buildLeaseEndingsChart(operationalCurrentLeases, currentMonthStart),
     leaseRiskCount: leasesEndingSoon.length,
@@ -466,7 +468,7 @@ async function loadOverviewScreenData(
       occupancyRate,
       peopleCount: activePeople.length,
       roleCounts,
-      leaseGapUnitCount: nonVacantLeaseGapUnits.length,
+      leaseGapUnitCount: leaseGapUnits.length,
     }),
     occupancyByProperty: buildOccupancyByProperty({
       activeProperties,
@@ -557,7 +559,7 @@ function buildDashboardSummary({
 
   if (vacantUnits.length > 0) {
     return {
-      actionHref: "/units?status=vacant",
+      actionHref: "/units?status=vacant&occupancy=unoccupied",
       actionLabel: "View vacant units",
       detail: "Review availability, attach new leases, or make the vacant-units report.",
       headline: `${vacantUnits.length} vacant units are available.`,
@@ -662,7 +664,7 @@ function buildMetrics({
 
   return [
     {
-      helper: "Occupied units",
+      helper: "Units with a current lease",
       label: "Occupancy",
       tone: "success",
       value: occupancyRate,
@@ -767,10 +769,10 @@ function buildAttentionItems({
       ? {
           actionLabel: "Review vacancies",
           count: vacantUnits.length,
-          helper: "Marked vacant",
-          href: "/units?status=vacant",
+          helper: "Marked vacant with no current lease",
+          href: "/units?status=vacant&occupancy=unoccupied",
           id: "vacant-units",
-          kind: "data-quality",
+          kind: "vacancy",
           label: "Vacant units",
           priority: 80,
           tone: "warning",
@@ -883,21 +885,18 @@ function buildOccupancyByProperty({
       const propertyUnits = unitsByProperty.get(property.id) ?? [];
       const occupiedUnits = propertyUnits.filter(
         (unit) =>
-          currentLeasedUnitIds.has(unit.id) ||
-          unit.status.toLowerCase() === "occupied",
+          currentLeasedUnitIds.has(unit.id),
       ).length;
       const vacantUnits = propertyUnits.filter(
-        (unit) => unit.status.toLowerCase() === "vacant",
+        (unit) => !currentLeasedUnitIds.has(unit.id) && unit.status.toLowerCase() === "vacant",
       ).length;
       const unoccupiedUnits = propertyUnits.filter(
         (unit) =>
-          !currentLeasedUnitIds.has(unit.id) &&
-          unit.status.toLowerCase() !== "occupied" &&
-          unit.status.toLowerCase() !== "inactive",
+          !currentLeasedUnitIds.has(unit.id),
       ).length;
 
       return {
-        href: `/units?occupancy=unoccupied&propertyId=${property.id}`,
+        href: `/units?occupancy=unoccupied&scope=operational&propertyId=${property.id}`,
         label: `${property.code} / ${property.name}`,
         occupiedUnits,
         percent:

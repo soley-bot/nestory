@@ -11,6 +11,19 @@ import {
 } from "@/lib/validation/search-params";
 
 const monthPattern = /^(\d{4})-(0[1-9]|1[0-2])$/;
+
+// The reporting reader requires the entire requested period to be after the cutoff.
+export function firstOverviewMonth(financialStartDate?: string | null) {
+  if (!financialStartDate) return undefined;
+  if (financialStartDate.endsWith("-01")) return financialStartDate.slice(0, 7);
+  const [year, month] = financialStartDate.split("-").map(Number);
+  return new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 7);
+}
+
+export function formatOverviewMonth(month: string) {
+  return new Intl.DateTimeFormat("en", { month: "long", year: "numeric", timeZone: "UTC" })
+    .format(new Date(`${month}-01T00:00:00Z`));
+}
 const overviewLenses: OverviewLens[] = [
   "all",
   "leasing",
