@@ -16,6 +16,7 @@ add('public', 'preserve', 'organization_id', `activity_logs asset_photos documen
  people person_branch_relationships person_contacts person_roles person_travel_documents petty_cash_accounts properties property_owners rent_policy_versions
  tenant_requests units vendor_profiles`, 'Preserve identity, contracts, configuration and historical audit evidence.');
 add('public', 'preserve', 'id', 'organizations', 'Organization identity is the scope key; preserve it.');
+add('public', 'preserve', 'organization_id', 'workspace_saved_views', 'Personal filter preferences survive financial resets.');
 add('public', 'preserve-global', null, 'public_interest_requests notification_delivery_attempts', 'Unscoped intake/delivery evidence; never include in financial deletion.');
 add('public', 'retire-intent', 'organization_id', 'import_runs import_rows ips_cutover_batches ips_cutover_items ips_cutover_reconciliations ips_cutover_transitions notification_outbox', 'Retain provenance; old import/cutover/notification payload must not execute after reset.');
 add('public', 'normalize-reviewed', 'organization_id', 'lease_deposits tasks timeline_events', 'Preserve contract/task identity; exact cash-status, task cost or timeline financial projection after-values need a separate reviewed row manifest.');

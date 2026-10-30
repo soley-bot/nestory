@@ -447,9 +447,13 @@ export function buildTransactionReport({
     description: feesOnly
       ? "Actual incurred management fee occurrences, including signed corrections. These are not vendor cash payments."
       : "Rent charges, company receipts and paid costs are separate financial measures. Company receipts are invoice payments received by the company, may cover non-rent invoice lines and exclude direct owner collection confirmations. Paid costs use cash allocation lines; each source line is counted once.",
-    emptyTitle: "No matching transactions",
-    emptyDescription:
-      "Adjust the date range or filters to see recorded activity.",
+    emptyReason: scoped.length === 0 ? "no-activity" : "no-matches",
+    emptyTitle: scoped.length === 0
+      ? `No ${feesOnly ? "management fees" : "transactions"} recorded in this period`
+      : "No matching transactions",
+    emptyDescription: scoped.length === 0
+      ? "There is no recorded activity for the selected property, unit and dates. Try another period or review the source records."
+      : "Activity exists in this period, but none matches the current search, type, status or payee filters.",
     exportFilenameBase: feesOnly ? "management-fees" : "transactions",
     generatedAt: new Date().toISOString(),
     periodLabel: `${period.start} – ${period.end}`,

@@ -11,6 +11,20 @@ import type {
 } from "@/features/overview/overview.types";
 
 describe("OverviewScreen", () => {
+  it("opens matching records from summary cards and separates operating work from record checks", () => {
+    render(<OverviewScreen query={{ ...query, propertyId: "property-1" }} data={data} attentionQueue={[
+      { id: "work", actionLabel: "Review expiries", count: 2, helper: "Next 60 days", href: "/leases", kind: "expiring-lease", label: "Lease renewals", priority: 60, tone: "warning" },
+      { id: "records", actionLabel: "Link owners", count: 4, helper: "Missing owner", href: "/properties", kind: "data-quality", label: "Missing owner links", priority: 110, tone: "warning" },
+    ]} />);
+    const metrics = screen.getByRole("region", { name: "Portfolio metrics" });
+    expect(within(metrics).getByRole("link", { name: /Portfolio occupancy/ }).getAttribute("href")).toBe("/units?occupancy=occupied&scope=operational&propertyId=property-1");
+    expect(within(metrics).getByRole("link", { name: /Units without leases/ }).getAttribute("href")).toBe("/units?leaseStatus=missing&scope=operational&propertyId=property-1");
+    expect(screen.getByRole("region", { name: "Operating priorities" }).textContent).toContain("Lease renewals");
+    fireEvent.click(screen.getByRole("button", { name: /Needs attention/ }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Operating work" })).toBeTruthy();
+    expect(within(dialog).getByRole("heading", { name: "Record checks" })).toBeTruthy();
+  });
   afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
   it("hides dashboard amounts immediately when its payload belongs to an older financial session", () => {
@@ -210,6 +224,8 @@ describe("OverviewScreen", () => {
     expect(screen.getByText("1 active lease term")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Actual cash flow" })).toBeTruthy();
     expect(screen.getByText("No ledger activity in this period.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Review rent & collections" }).getAttribute("href")).toBe("/rent-income");
+    expect(screen.getByRole("link", { name: "Record expense" }).getAttribute("href")).toBe("/bills-expenses?action=create");
     expect(document.querySelector('[data-slot="dashboard-cash-flow-chart"]')).toBeNull();
   });
 

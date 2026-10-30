@@ -10,7 +10,9 @@ export function FinancialWriteProvider({ children, context, organizationId }: {
   children: ReactNode; context: FinancialWriteContext; organizationId: string;
 }) {
   const [initial] = useState(context);
-  const [invalid, setInvalid] = useState(false);
+  const [initialOrganizationId] = useState(organizationId);
+  const [verification, setVerification] = useState<"current" | "unavailable" | "stale">("current");
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
     let disposed = false;
     let running = false;
@@ -18,14 +20,17 @@ export function FinancialWriteProvider({ children, context, organizationId }: {
       if (running || document.visibilityState === "hidden") return;
       running = true;
       try {
-        const response = await fetch("/api/workspace/financial-context", { cache: "no-store" });
+        const response = await fetch("/api/workspace/financial-context", { cache: "no-store", signal: AbortSignal.timeout(10_000) });
         if (!response.ok) throw new Error("Financial context unavailable");
         const body = await response.json();
         const latest = financialWriteContextSchema.parse(body.context);
-        if (!disposed && (body.organizationId !== organizationId || financialContextKey(latest) !== financialContextKey(initial))) setInvalid(true);
+        if (typeof body.organizationId !== "string" || !body.organizationId) throw new Error("Financial workspace unavailable");
+        const matches = body.organizationId === initialOrganizationId && financialContextKey(latest) === financialContextKey(initial);
+        // Only uncertainty can recover. A confirmed change permanently retires this form intent.
+        if (!disposed) setVerification(previous => previous === "stale" || !matches ? "stale" : "current");
       } catch {
         // A failed status check cannot certify that an old form remains current.
-        if (!disposed) setInvalid(true);
+        if (!disposed) setVerification(previous => previous === "stale" ? "stale" : "unavailable");
       } finally { running = false; }
     };
     const onVisible = () => { void check(); };
@@ -34,12 +39,14 @@ export function FinancialWriteProvider({ children, context, organizationId }: {
     const timer = window.setInterval(onVisible, 30_000);
     void check();
     return () => { disposed = true; clearInterval(timer); window.removeEventListener("focus", onVisible); document.removeEventListener("visibilitychange", onVisible); };
-  }, [initial, organizationId]);
-  const blocked = invalid || initial.status === "frozen" || financialContextKey(context) !== financialContextKey(initial);
+  }, [initial, initialOrganizationId, retry]);
+  const contextChanged = organizationId !== initialOrganizationId || financialContextKey(context) !== financialContextKey(initial);
+  const temporary = verification === "unavailable" && !contextChanged && initial.status === "open";
+  const blocked = verification !== "current" || initial.status === "frozen" || contextChanged;
   return <FinancialContext.Provider value={{ context: initial, invalid: blocked }}>
     {blocked ? <div role="alert" className="border-b border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-      {initial.status === "frozen" ? "Financial changes and reports are paused while this workspace is being reset." : "The workspace’s financial session changed or could not be verified. Reload before entering transactions or using reports."}
-      <button className="ml-3 underline" onClick={() => window.location.reload()} type="button">Reload page</button>
+      {initial.status === "frozen" ? "Financial changes and reports are paused while this workspace is being reset." : temporary ? "We could not verify the financial session. Your draft is kept here; saving and reports will resume once the connection is verified." : "The workspace’s financial session changed. Reload before entering transactions or using reports."}
+      {temporary ? <button className="ml-3 underline" onClick={() => setRetry(value => value + 1)} type="button">Retry verification</button> : <button className="ml-3 underline" onClick={() => window.location.reload()} type="button">Reload page</button>}
     </div> : null}
     {children}
   </FinancialContext.Provider>;

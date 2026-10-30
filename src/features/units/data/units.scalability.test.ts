@@ -16,6 +16,34 @@ const lease = (index: number, unitId: unknown, status = "active"): CappedReadRow
 beforeEach(() => vi.mocked(createSupabaseServerClient).mockReset());
 
 describe("complete unit registers under API row caps", () => {
+  it("keeps dashboard unit links inside the active operating portfolio", async () => {
+    const units = [unit(1, id("property", 1)), { ...unit(2, id("property", 1)), status: "inactive" }, unit(3, id("property", 2)), unit(4, id("property", 3))];
+    const { client } = createCappedReadHarness({ properties: [property(1), { ...property(2), status: "inactive" }, { ...property(3), archived_at: "2026-01-01" }], units });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
+    const result = await getUnitsScreenData(organizationId, parseUnitSearchParams({ occupancy: "unoccupied", scope: "operational" }));
+    expect(result.units.map(row => row.id)).toEqual([units[0].id]);
+    expect(result.pagination.totalCount).toBe(1);
+  });
+  it("counts and pages operational scope before hydrating a capped final page", async () => {
+    const included = Array.from({ length: 12 }, (_, index) => unit(index + 100, id("property", 1)));
+    const excluded = Array.from({ length: 1005 }, (_, index) => unit(index + 1000, id("property", 2)));
+    const { client, reads, rpcReads } = createCappedReadHarness({
+      properties: [property(1), { ...property(2), status: "inactive" }],
+      units: [...excluded, ...included],
+    }, { apiRowCap: 1 });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
+    const result = await getUnitsScreenData(organizationId, parseUnitSearchParams({
+      scope: "operational", page: "999", pageSize: "10", sort: "unit_asc",
+    }));
+    expect(result.pagination).toMatchObject({ totalCount: 12, page: 2, from: 11, to: 12 });
+    expect(result.units.map(row => row.id)).toEqual(included.slice(10).map(row => row.id));
+    expect(rpcReads).toContainEqual({ name: "get_unit_register_page", args: expect.objectContaining({
+      p_filters: expect.objectContaining({ operationalOnly: true }),
+    }) });
+    expect(reads.filter(read => read.table === "units").every(read => read.filters.some(filter =>
+      filter.column === "id" && filter.method === "in" && (filter.value as unknown[]).length === 2,
+    ))).toBe(true);
+  });
   it.each(["text", "occupancy", "rent"])("hydrates only selected units after %s matching", async mode => {
     const units = Array.from({ length: 24 }, (_, index) => unit(index, id("property", 1)));
     const { client, reads } = createCappedReadHarness({ properties: [property(1)], units, current_leases: [lease(1, units[23].id)] });

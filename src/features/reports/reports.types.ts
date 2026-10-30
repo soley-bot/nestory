@@ -208,6 +208,7 @@ export type TrustedReport = {
   columns: TrustedReportColumn[];
   description: string;
   emptyDescription: string;
+  emptyReason?: "no-activity" | "no-matches";
   emptyTitle: string;
   exportValidation?: {
     code: string;

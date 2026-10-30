@@ -112,6 +112,8 @@ function registerPage(tables: Record<string, CappedReadRow[]>, name: string, arg
   } else {
     selected = visible(tables, "units", org, true).flatMap(row => {
       const property = properties.get(row.property_id);
+      if (filters.operationalOnly && (row.archived_at != null || row.status === "inactive"
+        || !property || property.archived_at != null || property.status === "inactive")) return [];
       const current = (unitLeases.get(row.id) ?? []).filter(lease => ["active", "notice_given", "draft"].includes(string(lease.status))).sort((a, b) => Number(b.status !== "draft") - Number(a.status !== "draft") || string(b.lease_start_date).localeCompare(string(a.lease_start_date)) || string(b.id).localeCompare(string(a.id)))[0];
       const activeLease = current?.status === "active" || current?.status === "notice_given";
       if (!matchesArchive(row, filters.archiveState) || (filters.propertyId && filters.propertyId !== "all" && row.property_id !== filters.propertyId)

@@ -23,6 +23,7 @@ type UnitSearchParams = Record<string, SearchParamValue>;
 
 export function parseUnitSearchParams(params: UnitSearchParams): UnitViewQuery {
   return {
+    ...(getFirstSearchParam(params.scope) === "operational" ? { operationalOnly: true } : {}),
     archiveState: parseUnitArchiveState(params.archiveState),
     leaseStatus: parseLeaseStatus(params.leaseStatus),
     occupancy: parseOccupancy(params.occupancy),

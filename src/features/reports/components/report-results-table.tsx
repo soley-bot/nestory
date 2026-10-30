@@ -26,6 +26,7 @@ import type {
 import { cn } from "@/lib/utils";
 
 type ReportResultsTableProps = {
+  emptyAction?: { href: string; label: string };
   report: TrustedReport;
   reportRowCount: number;
   viewQuery: ReportsViewQuery;
@@ -47,6 +48,7 @@ type DisplayColumn =
     };
 
 export function ReportResultsTable({
+  emptyAction,
   report: inputReport,
   reportRowCount,
   viewQuery,
@@ -96,6 +98,17 @@ export function ReportResultsTable({
 
         {isProfitLoss ? <ReportScopeSearch viewQuery={viewQuery} /> : null}
         {isProfitLoss ? pagination("Report pages, top") : null}
+        {rows.length === 0 ? (
+          <div className="flex min-h-40 flex-col items-center justify-center gap-2 px-4 py-8 text-center">
+            <p className="font-medium text-foreground">
+              {isProfitLoss && query ? "No matching property or unit" : report.emptyTitle}
+            </p>
+            <p className="max-w-lg text-sm text-muted-foreground">
+              {isProfitLoss && query ? "Try a different search or show scopes with no activity. Report totals and exports still cover the full selected scope." : report.emptyDescription}
+            </p>
+            {emptyAction ? <Button asChild size="sm" variant="outline" className="mt-2"><Link href={emptyAction.href}>{emptyAction.label}</Link></Button> : null}
+          </div>
+        ) : (
         <div
           aria-label={`${report.title} table`}
           className={cn("max-w-full", isProfitLoss ? "[&>[data-slot=table-container]]:max-h-[55vh]" : "overflow-x-auto")}
@@ -123,21 +136,7 @@ export function ReportResultsTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    className="px-4 py-10 text-center"
-                    colSpan={columns.length + 1}
-                  >
-                    <p className="font-medium text-foreground">
-                      {isProfitLoss && query ? "No matching property or unit" : report.emptyTitle}
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {isProfitLoss && query ? "Try a different search or show scopes with no activity. Report totals and exports still cover the full selected scope." : report.emptyDescription}
-                    </p>
-                  </TableCell>
-                </TableRow>
-              ) : (
+              {
                 rows.map((row, index) => row.isGroup ? <TableRow key={row.id} className="bg-muted/60">
                   <TableCell colSpan={columns.length + 1} className="px-3 py-2">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1">
@@ -158,10 +157,11 @@ export function ReportResultsTable({
                     row={row}
                   />
                 ))
-              )}
+              }
             </TableBody>
           </Table>
         </div>
+        )}
         {pagination(isProfitLoss ? "Report pages, bottom" : "Report pages")}
       </section>
 

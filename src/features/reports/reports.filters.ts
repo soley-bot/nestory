@@ -126,6 +126,25 @@ function parsePage(value: SearchParamValue) {
   return Number.isSafeInteger(page) && page > 0 ? page : 1;
 }
 
+export function buildReportSwitchHref(query: ReportsViewQuery, report: ReportKind) {
+  const next: ReportsViewQuery = report === query.report ? query : {
+    report,
+    page: 1,
+    detailPage: 1,
+    month: query.dateFrom && datePattern.test(query.dateFrom) ? query.dateFrom.slice(0, 7) : query.month,
+    propertyId: query.propertyId,
+    unitId: report === "monthly-owner-activity" ? "all" : query.unitId,
+    ownerPersonId: report === "monthly-owner-activity" ? query.ownerPersonId : "all",
+    peopleArchiveState: "active",
+    peopleView: "relationship",
+    status: "all",
+    ...(isExtendedReport(report) ? { dateFrom: query.dateFrom, dateTo: query.dateTo } : {}),
+  };
+  const params = buildReportQueryParams(next);
+  params.delete("report");
+  return `/reports/${report}?${params}`;
+}
+
 function parsePeopleArchiveState(
   value: string | string[] | undefined,
 ): PeopleReadinessArchiveState {

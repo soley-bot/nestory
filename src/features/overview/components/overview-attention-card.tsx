@@ -21,14 +21,19 @@ export function OverviewAttentionCard({
   items,
   metric,
   month,
+  propertyId = "all",
 }: {
   items: readonly OverviewAttentionItem[];
   metric: OverviewMetric;
   month: string;
+  propertyId?: string;
 }) {
   const value = typeof metric.value === "string" ? metric.value : metric.value.primary;
   const count = items.reduce((total, item) => total + item.count, 0);
   const ariaCount = count > 0 ? `${count} open checks` : "no open checks";
+  const recordChecks = items.filter(item => item.kind === "data-quality");
+  const operatingWork = items.filter(item => item.kind !== "data-quality");
+  const recordCount = recordChecks.reduce((sum, item) => sum + item.count, 0);
 
   return (
     <Dialog>
@@ -42,6 +47,7 @@ export function OverviewAttentionCard({
             <CardHeader>
               <CardTitle><h2>Needs attention</h2></CardTitle>
               <p className="text-2xl font-semibold tabular-nums">{value}</p>
+              <p className="text-xs text-muted-foreground">{operatingWork.reduce((sum, item) => sum + item.count, 0)} operating · {recordCount} record {recordCount === 1 ? "check" : "checks"}</p>
               <div className="col-start-2 row-span-2 row-start-1 self-start justify-self-end">
                 <Badge tone={count > 0 ? "warning" : "neutral"}>
                   <CircleAlert aria-hidden="true" className="size-3" />
@@ -56,12 +62,15 @@ export function OverviewAttentionCard({
         <DialogHeader>
           <DialogTitle>Needs attention</DialogTitle>
           <DialogDescription>
-            Open operating checks for this workspace.
+            Operating work and record checks for this scope. A record may appear in more than one check.
           </DialogDescription>
         </DialogHeader>
         {items.length > 0 ? (
-          <div className="divide-y divide-border rounded-lg border border-border">
-            {items.map((item) => (
+          <div className="max-h-[60vh] space-y-4 overflow-y-auto">
+            {[{ title: "Operating work", items: operatingWork }, { title: "Record checks", items: recordChecks }].filter(group => group.items.length).map(group => <section key={group.title}>
+            <h3 className="mb-2 text-sm font-semibold">{group.title}</h3>
+            <div className="divide-y divide-border rounded-lg border border-border">
+            {group.items.map((item) => (
               <div className="grid grid-cols-[1fr_auto] gap-3 p-3" key={item.id}>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -78,6 +87,7 @@ export function OverviewAttentionCard({
                 </Link>
               </div>
             ))}
+            </div></section>)}
           </div>
         ) : (
           <p className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
@@ -87,7 +97,7 @@ export function OverviewAttentionCard({
         <div className="flex justify-end border-t border-border pt-3">
           <Link
             className="inline-flex items-center gap-1 text-sm font-medium text-foreground hover:underline"
-            href={`/overview/attention?month=${month}`}
+            href={`/overview/attention?month=${month}${propertyId === "all" ? "" : `&propertyId=${encodeURIComponent(propertyId)}`}`}
           >
             View all checks <ArrowRight aria-hidden="true" className="size-4" />
           </Link>

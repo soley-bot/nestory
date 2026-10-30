@@ -42,7 +42,7 @@ import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
 
 const unitSelect =
   "id, property_id, unit_number, floor, size_sqm, bedroom_count, bathroom_count, status, current_rent_amount, current_rent_currency, archived_at";
-const propertySelect = "id, code, name";
+const propertySelect = "id, code, name, status, archived_at";
 const unitWithPropertySelect = `${unitSelect}, property:properties!units_property_id_fkey(${propertySelect})`;
 const leaseSelect =
   "id, unit_id, tenant_name, primary_tenant_person_id, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency";
@@ -148,6 +148,7 @@ export async function getUnitPropertyOptions(
 
 function canUsePagedUnitBaseQuery(viewQuery: UnitViewQuery) {
   return (
+    !viewQuery.operationalOnly &&
     viewQuery.query.trim().length === 0 &&
     viewQuery.occupancy === "all" &&
     viewQuery.leaseStatus === "all" &&

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { PageHelp, type PageHelpContent } from "@/components/help/page-help";
 import { WorkspaceHeaderPortal } from "@/components/layout/workspace-header-portal";
 import { cn } from "@/lib/utils";
+import { RegisterSavedViews } from "@/features/saved-views/register-saved-views";
 
 type PageHeaderProps = {
   breadcrumb?: ReactNode;
@@ -57,6 +58,7 @@ export function PageHeader({
         </div>
         <div className="order-1 ml-auto flex min-w-0 max-w-full shrink-0 flex-wrap items-center gap-2 lg:order-2">
           <PageHelp content={help} />
+          <RegisterSavedViews />
           {actions ? (
             <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 [&_a]:h-auto [&_a]:min-h-8 [&_a]:max-w-full [&_a]:whitespace-normal [&_a]:[overflow-wrap:anywhere] [&_button]:h-auto [&_button]:min-h-8 [&_button]:max-w-full [&_button]:whitespace-normal [&_button]:[overflow-wrap:anywhere]" data-slot="page-header-actions">
               {actions}

@@ -32,6 +32,7 @@ export async function getOverviewScreenData(
   return withFinancialReadContext(organizationId, async (context) => ({
     ...await loadOverviewScreenData(organizationId, query, context.financial_start_date),
     financialGeneration: context.generation,
+    financialStartDate: context.financial_start_date,
   }), `${month}-01`);
 }
 
@@ -72,9 +73,13 @@ async function loadOverviewScreenData(
   if (!summaryResult.data) throw new Error("Could not load overview summary: aggregate is missing.");
   const summary = summaryResult.data as unknown as OverviewSummary;
   const counts = summary.counts;
-  const attentionItems = buildAttentionItems(counts);
+  const attentionItems = buildAttentionItems(counts).map(item => ({
+    ...item, href: scopeOverviewHref(item.href, query?.propertyId ?? "all"),
+  }));
+  const dashboardSummary = buildDashboardSummary({ ...counts, attentionItems });
+  dashboardSummary.actionHref = scopeOverviewHref(dashboardSummary.actionHref, query?.propertyId ?? "all");
   const occupancyByProperty = summary.properties.map(property => ({
-    href: `/units?occupancy=unoccupied&propertyId=${property.id}`,
+    href: `/units?occupancy=unoccupied&propertyId=${property.id}&scope=operational`,
     label: `${property.code} / ${property.name}`,
     occupiedUnits: property.occupiedUnits,
     percent: property.totalUnits ? Math.round(property.occupiedUnits / property.totalUnits * 100) : 0,
@@ -101,7 +106,7 @@ async function loadOverviewScreenData(
   return {
     attentionItems,
     attentionTotal: attentionItems.reduce((total, item) => total + item.count, 0),
-    dashboardSummary: buildDashboardSummary({ ...counts, attentionItems }),
+    dashboardSummary,
     expectedRent: { leaseCount: summary.expectedRent.leaseCount, monthly: summary.expectedRent.leaseCount
       ? formatMoneyTotalsDisplay([{ amount: summary.expectedRent.amount, currency: "USD" }]) : null },
     leaseEndings: Array.from({ length: 6 }, (_, index) => {
@@ -140,6 +145,16 @@ async function loadOverviewScreenData(
   };
 }
 
+function scopeOverviewHref(href: string, propertyId: string) {
+  if (href.startsWith("#")) return href;
+  const url = new URL(href, "https://nestory.invalid");
+  if (url.pathname === "/units") url.searchParams.set("scope", "operational");
+  if (propertyId !== "all" && ["/units", "/leases", "/maintenance", "/ledger"].includes(url.pathname)) {
+    url.searchParams.set("propertyId", propertyId);
+  }
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 function buildDashboardSummary({
   attentionItems,
   largeRecentExpenseCount,
@@ -175,7 +190,7 @@ function buildDashboardSummary({
 
   if (vacantUnits > 0) {
     return {
-      actionHref: "/units?status=vacant",
+      actionHref: "/units?status=vacant&occupancy=unoccupied",
       actionLabel: "View vacant units",
       detail: "Review availability, attach new leases, or make the vacant-units report.",
       headline: `${vacantUnits} vacant units are available.`,
@@ -280,7 +295,7 @@ function buildMetrics({
 
   return [
     {
-      helper: "Occupied units",
+      helper: "Units with a current lease",
       label: "Occupancy",
       tone: "success",
       value: occupancyRate,
@@ -385,10 +400,10 @@ function buildAttentionItems({
       ? {
           actionLabel: "Review vacancies",
           count: vacantUnits,
-          helper: "Marked vacant",
-          href: "/units?status=vacant",
+          helper: "Marked vacant with no current lease",
+          href: "/units?status=vacant&occupancy=unoccupied",
           id: "vacant-units",
-          kind: "data-quality",
+          kind: "vacancy",
           label: "Vacant units",
           priority: 80,
           tone: "warning",

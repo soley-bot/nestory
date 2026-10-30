@@ -3,6 +3,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "@/components/layout/app-shell";
+import userEvent from "@testing-library/user-event";
 
 const navigation = vi.hoisted(() => ({ pathname: "/people" }));
 
@@ -14,10 +15,11 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/features/auth/actions", () => ({ signOutAction: vi.fn() }));
 
 beforeEach(() => {
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   navigation.pathname = "/people";
 });
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("AppShell Shadcn dashboard block", () => {
   it("keeps one vertical application scroll owner", () => {
@@ -48,11 +50,30 @@ describe("AppShell Shadcn dashboard block", () => {
     }
   });
 
-  it("uses the dashboard block quick-create action", () => {
+  it("offers authorized creation actions with the current area first", async () => {
     render(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
-    expect(screen.getByRole("link", { name: "Quick Create" }).getAttribute("href")).toBe(
-      "/properties?action=create",
-    );
+    await userEvent.click(screen.getByRole("button", { name: "Quick Create" }));
+    expect(screen.getAllByRole("menuitem")[0].textContent).toContain("Add person");
+    expect(screen.getByRole("menuitem", { name: "Add property" }).getAttribute("href")).toBe("/properties?action=create");
+    expect(screen.getByRole("menuitem", { name: "Prepare lease" }).getAttribute("href")).toBe("/leases?action=create");
+  });
+
+  it("shows only creation actions with both view and write permissions", async () => {
+    render(<AppShell role="custom" permissionKeys={["maintenance.view", "maintenance.create_assign", "properties.write"]}><div>Workspace content</div></AppShell>);
+    await userEvent.click(screen.getByRole("button", { name: "Quick Create" }));
+    expect(screen.getAllByRole("menuitem").map(item => item.textContent)).toEqual(["New maintenance case"]);
+  });
+
+  it.each(["finance.submit_expenses", "finance.post_expenses"] as const)("offers expense entry to a finance viewer with %s", async (permission) => {
+    render(<AppShell role="custom" permissionKeys={["finance.view", permission]}><div>Workspace content</div></AppShell>);
+    await userEvent.click(screen.getByRole("button", { name: "Quick Create" }));
+    expect(screen.getAllByRole("menuitem").map(item => item.textContent)).toEqual(["Record expense"]);
+    expect(screen.getByRole("menuitem", { name: "Record expense" }).getAttribute("href")).toBe("/bills-expenses?action=create");
+  });
+
+  it("requires expense page access before offering expense entry", () => {
+    render(<AppShell role="custom" permissionKeys={["finance.post_expenses"]}><div>Workspace content</div></AppShell>);
+    expect(screen.queryByRole("button", { name: "Quick Create" })).toBeNull();
   });
 
   it("exposes deep Finance, Maintenance, and Records destinations from desktop domain groups", () => {
@@ -304,7 +325,7 @@ describe("AppShell Shadcn dashboard block", () => {
       );
       expect(screen.queryByRole("link", { name: /Maintenance/ })).toBeNull();
       expect(screen.queryByRole("link", { name: /Settings/ })).toBeNull();
-      expect(screen.queryByRole("link", { name: "Quick Create" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Quick Create" })).toBeNull();
     },
   );
 

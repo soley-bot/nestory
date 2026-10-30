@@ -2,11 +2,24 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   buildReportQueryParams,
+  buildReportSwitchHref,
   getReportMonthRange,
   parseReportSearchParams,
 } from "@/features/reports/reports.filters";
 
 describe("report search params", () => {
+  it("resets pages when switching reports while retaining compatible scope and date context", () => {
+    const propertyId = "7d699b83-94ec-452b-9a18-bd0e9aac8610";
+    const query = parseReportSearchParams({ report: "transactions", propertyId, dateFrom: "2026-09-02", dateTo: "2026-10-28", page: "8", detailPage: "4" });
+    const switched = new URL(buildReportSwitchHref(query, "unit-profit-loss"), "https://nestory.invalid");
+    expect(switched.pathname).toBe("/reports/unit-profit-loss");
+    expect(parseReportSearchParams({ ...Object.fromEntries(switched.searchParams), report: "unit-profit-loss" })).toMatchObject({
+      propertyId, month: "2026-09", page: 1, detailPage: 1,
+    });
+    const unchanged = new URL(buildReportSwitchHref({ ...query, report: "unit-profit-loss" }, "unit-profit-loss"), "https://nestory.invalid");
+    expect(unchanged.searchParams.get("page")).toBe("8");
+    expect(unchanged.searchParams.get("detailPage")).toBe("4");
+  });
   it("round-trips screen pagination and search while omitting them from exports", () => {
     const query = parseReportSearchParams({ report: "unit-profit-loss", month: "2026-10", page: "200", detailPage: "400", scopeQuery: "  Riverside  ", showZeroActivity: "1" });
     expect(query).toMatchObject({ page: 200, detailPage: 400, scopeQuery: "Riverside", showZeroActivity: true });
