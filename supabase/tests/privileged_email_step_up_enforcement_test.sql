@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = public, extensions;
 
-SELECT plan(31);
+SELECT plan(35);
 
 INSERT INTO auth.users (id, email)
 VALUES
@@ -289,6 +289,13 @@ SELECT throws_ok(
   'privileged RPC mutation fails closed without a grant'
 );
 
+SELECT throws_ok(
+  $$INSERT INTO public.workspace_saved_views(organization_id,user_id,resource,name,query)
+    VALUES('b2000000-0000-0000-0000-000000000001','b1000000-0000-0000-0000-000000000001','/units','Unverified preference','')$$,
+  '42501', 'Privileged email verification required',
+  'saving a personal view requires the privileged actor exact-session grant'
+);
+
 RESET ROLE;
 INSERT INTO app_private.privileged_email_step_up_grants (
   organization_id,
@@ -313,6 +320,12 @@ SELECT lives_ok(
   'the exact active session grant authorizes a privileged RPC mutation'
 );
 
+SELECT lives_ok(
+  $$INSERT INTO public.workspace_saved_views(organization_id,user_id,resource,name,query)
+    VALUES('b2000000-0000-0000-0000-000000000001','b1000000-0000-0000-0000-000000000001','/units','Verified preference','status=vacant')$$,
+  'an exact active session grant allows the actor to save a personal view'
+);
+
 SELECT set_config(
   'request.jwt.claims',
   '{"role":"authenticated","sub":"b1000000-0000-0000-0000-000000000001","session_id":"b5000000-0000-0000-0000-000000000002"}',
@@ -322,6 +335,17 @@ SELECT throws_ok(
   $$SELECT public.update_organization_appearance('b2000000-0000-0000-0000-000000000001','system','forest',NULL)$$,
   '42501', NULL,
   'a grant for another Auth session does not authorize the mutation'
+);
+
+SELECT throws_ok(
+  $$UPDATE public.workspace_saved_views SET query='status=occupied' WHERE name='Verified preference'$$,
+  '42501', 'Privileged email verification required',
+  'a different session cannot update a saved personal view'
+);
+SELECT throws_ok(
+  $$DELETE FROM public.workspace_saved_views WHERE name='Verified preference'$$,
+  '42501', 'Privileged email verification required',
+  'a different session cannot delete a saved personal view'
 );
 
 RESET ROLE;
