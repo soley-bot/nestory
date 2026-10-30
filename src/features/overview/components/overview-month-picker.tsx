@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import * as Popover from "@radix-ui/react-popover";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
-import { buildOverviewHref } from "@/features/overview/overview.filters";
+import { buildOverviewHref, firstOverviewMonth, formatOverviewMonth } from "@/features/overview/overview.filters";
 import type { OverviewViewQuery } from "@/features/overview/overview.types";
 import { cn } from "@/lib/utils";
 
@@ -12,15 +12,18 @@ const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep
 
 export function OverviewMonthPicker({
   className,
+  financialStartDate,
   query,
 }: {
   className?: string;
+  financialStartDate?: string | null;
   query: OverviewViewQuery;
 }) {
   const [open, setOpen] = useState(false);
   const [selectedYear, selectedMonth] = query.month.split("-").map(Number);
   const [visibleYear, setVisibleYear] = useState(selectedYear);
-  const monthLabel = formatMonth(query.month);
+  const monthLabel = formatOverviewMonth(query.month);
+  const firstMonth = firstOverviewMonth(financialStartDate);
 
   return (
     <Popover.Root onOpenChange={setOpen} open={open}>
@@ -47,6 +50,7 @@ export function OverviewMonthPicker({
           <div className="flex items-center justify-between gap-2">
             <button
               aria-label="Previous year"
+              disabled={Boolean(firstMonth && visibleYear <= Number(firstMonth.slice(0, 4)))}
               className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setVisibleYear((year) => year - 1)}
               type="button"
@@ -68,6 +72,7 @@ export function OverviewMonthPicker({
               const monthNumber = index + 1;
               const month = `${visibleYear}-${String(monthNumber).padStart(2, "0")}`;
               const active = visibleYear === selectedYear && monthNumber === selectedMonth;
+              if (firstMonth && month < firstMonth) return <button key={name} type="button" disabled className="flex h-8 items-center justify-center rounded-md text-sm text-muted-foreground opacity-40">{name}</button>;
               return (
                 <Link
                   aria-current={active ? "date" : undefined}
@@ -86,17 +91,9 @@ export function OverviewMonthPicker({
               );
             })}
           </div>
+          {firstMonth ? <p className="mt-3 text-xs text-muted-foreground">Reporting available from {formatOverviewMonth(firstMonth)}.</p> : null}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
   );
-}
-
-function formatMonth(month: string) {
-  const [year, monthNumber] = month.split("-").map(Number);
-  return new Intl.DateTimeFormat("en", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
 }

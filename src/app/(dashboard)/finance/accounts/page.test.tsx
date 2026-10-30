@@ -2,17 +2,17 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  getFinanceAccountsData: vi.fn(),
+  getFinanceAccountRegisterData: vi.fn(),
   requireFinanceContext: vi.fn(),
   screenSpy: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/context", () => ({ requireFinanceContext: mocks.requireFinanceContext }));
 vi.mock("@/features/finance-accounts/data/finance-accounts", () => ({
-  getFinanceAccountsData: mocks.getFinanceAccountsData,
+  getFinanceAccountRegisterData: mocks.getFinanceAccountRegisterData,
 }));
-vi.mock("@/features/finance-accounts/components/finance-accounts-screen", () => ({
-  FinanceAccountsScreen: (props: Record<string, unknown>) => {
+vi.mock("@/features/finance-accounts/components/finance-account-register", () => ({
+  FinanceAccountRegister: (props: Record<string, unknown>) => {
     mocks.screenSpy(props);
     return <div>Chart route</div>;
   },
@@ -23,7 +23,7 @@ import FinanceAccountsPage from "@/app/(dashboard)/finance/accounts/page";
 describe("Finance accounts route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getFinanceAccountsData.mockResolvedValue({ groups: [], properties: [] });
+    mocks.getFinanceAccountRegisterData.mockResolvedValue({ groups: [], properties: [] });
   });
 
   it("loads the protected catalog and exposes Super Admin mutation authority", async () => {
@@ -34,10 +34,10 @@ describe("Finance accounts route", () => {
       organizationId: "organization-1",
     });
 
-    const html = renderToStaticMarkup(await FinanceAccountsPage());
+    const html = renderToStaticMarkup(await FinanceAccountsPage({ searchParams: Promise.resolve({ page: "25", query: "Late account" }) }));
 
     expect(html).toContain("Chart route");
-    expect(mocks.getFinanceAccountsData).toHaveBeenCalledWith("organization-1");
+    expect(mocks.getFinanceAccountRegisterData).toHaveBeenCalledWith("organization-1", expect.objectContaining({ page: 25, query: "Late account" }));
     expect(mocks.screenSpy).toHaveBeenCalledWith(
       expect.objectContaining({ canManageAccounts: true, groups: [], properties: [] }),
     );

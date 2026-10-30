@@ -379,9 +379,11 @@ describe("buildUnitDetail", () => {
     const getOccupancyHealth = ({
       activeLease,
       selectedDraftLease,
+      status = "vacant",
     }: {
       activeLease?: typeof lease;
       selectedDraftLease?: typeof draftLease;
+      status?: string;
     }) =>
       buildUnitDetail({
         activeLease,
@@ -393,7 +395,7 @@ describe("buildUnitDetail", () => {
         property,
         recentLedgerEntries: [],
         recentTimelineEvents: [],
-        unit: { ...unit, status: "vacant" },
+        unit: { ...unit, status },
       }).healthIndicators.find((indicator) => indicator.id === "occupancy");
 
     expect(getOccupancyHealth({})).toMatchObject({
@@ -406,6 +408,11 @@ describe("buildUnitDetail", () => {
       tone: "warning",
     });
     expect(getOccupancyHealth({ activeLease: lease })).toMatchObject({
+      label: "Unit status needs review",
+      tone: "warning",
+      description: "A current lease establishes occupancy, but the unit is still marked vacant.",
+    });
+    expect(getOccupancyHealth({ activeLease: lease, status: "occupied" })).toMatchObject({
       label: "Occupancy aligned",
       tone: "success",
     });

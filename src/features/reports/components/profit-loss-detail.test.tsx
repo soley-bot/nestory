@@ -3,7 +3,9 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { ProfitLossDetail } from "./profit-loss-detail";
-import type { UnitProfitLossLine } from "../reports.types";
+import { paginateTrustedReportForScreen } from "../data/report-screen-pagination";
+import { parseReportSearchParams } from "../reports.filters";
+import type { TrustedReport, UnitProfitLossLine } from "../reports.types";
 afterEach(cleanup);
 const line: UnitProfitLossLine = { amountCents: BigInt(6500), category: "Repairs", categoryCode: "repairs", categoryId: null, currency: "USD", date: "2026-09-09", description: "Roof repair", direction: "expense", id: "repair", property: "Property One", reportingGroup: "expenses", unit: "Property-level" };
 describe("Reference P&L account table", () => {
@@ -41,13 +43,25 @@ describe("Reference P&L account table", () => {
     expect(screen.queryByRole("row", { name: "Net income USD 10.00" })).toBeNull();
     expect(screen.getByRole("row", { name: "Owner funding contributions USD 20.00" })).toBeTruthy();
   });
-  it("expands every transaction in the report flow without paging or nested scroll regions", async () => {
+  it("expands only the server page while retaining full account totals and source return navigation", async () => {
     const user = userEvent.setup();
-    render(<ProfitLossDetail lines={Array.from({ length: 58 }, (_, index) => ({ ...line, id: `${index}`, description: `Repair ${index + 1}` }))} />);
+    const viewQuery = parseReportSearchParams({ report: "unit-profit-loss", month: "2026-10", detailPage: "400" });
+    const report = paginateTrustedReportForScreen({
+      kind: "unit-profit-loss", rows: [],
+      unitProfitLossLines: Array.from({ length: 10_000 }, (_, index) => ({ ...line, id: `${index}`, description: `Repair ${index + 1}`, sourceHref: `/bills-expenses?sourceId=${index + 1}` })),
+    } as unknown as TrustedReport, viewQuery);
+    const returnTo = "/reports/unit-profit-loss?month=2026-10&detailPage=400";
+    render(<ProfitLossDetail lines={report.unitProfitLossLines!} screenPage={report.unitProfitLossScreen} viewQuery={viewQuery} returnTo={returnTo} />);
     await user.click(screen.getByRole("button", { name: "Expand all" }));
-    expect(screen.getByText("Repair 58")).toBeTruthy();
-    expect(within(screen.getByRole("table", { name: "Repairs transactions" })).getAllByRole("row")).toHaveLength(59);
-    expect(screen.queryByRole("button", { name: "Next transactions" })).toBeNull();
+    expect(screen.getByText("Repair 10000")).toBeTruthy();
+    expect(screen.queryByText("Repair 1")).toBeNull();
+    expect(within(screen.getByRole("table", { name: "Repairs transactions" })).getAllByRole("row")).toHaveLength(26);
+    expect(screen.getAllByText("Page 400 of 400")).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "Previous" })[0]?.getAttribute("href")).toContain("detailPage=399");
+    expect(screen.getAllByRole("button", { name: "Next" })[0]?.hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("row", { name: "Net operating income -USD 650,000.00" })).toBeTruthy();
+    const source = new URL(screen.getByRole("link", { name: "Open transaction: Repair 10000" }).getAttribute("href")!, "https://nestory.invalid");
+    expect(source.searchParams.get("returnTo")).toBe(returnTo);
     expect(screen.getAllByRole("region")).toHaveLength(2);
   });
 });

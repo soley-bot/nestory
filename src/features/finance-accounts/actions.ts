@@ -4,6 +4,13 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireFinanceContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { getFinanceAccountsData } from "./data/finance-accounts";
+
+export async function getFinanceAccountFormDataAction() {
+  const context = await requireFinanceContext();
+  if (!context.isSuperAdmin) throw new Error("Account form unavailable.");
+  return getFinanceAccountsData(context.organizationId);
+}
 
 type FinanceAccountFieldErrors = Partial<
   Record<

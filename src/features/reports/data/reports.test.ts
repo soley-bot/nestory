@@ -3,17 +3,17 @@ import { prepareTrustedReportForScreen } from "@/features/reports/data/reports";
 import type { TrustedReport } from "@/features/reports/reports.types";
 
 describe("report screen preparation", () => {
-  it("limits the screen preview while preserving the complete row count", () => {
+  it("pages the screen while preserving the complete row count", () => {
     const selected = prepareTrustedReportForScreen(reportWithRows(76));
-    expect(selected.rows).toHaveLength(75);
+    expect(selected.rows).toHaveLength(50);
     expect(selected.totalRowCount).toBe(76);
   });
 
-  it("keeps every Unit P&L row available for pagination and search", () => {
+  it("returns a bounded Unit P&L page and the complete count", () => {
     const report = reportWithRows(89);
     report.kind = "unit-profit-loss";
     const selected = prepareTrustedReportForScreen(report);
-    expect(selected.rows).toHaveLength(89);
+    expect(selected.rows).toHaveLength(25);
     expect(selected.totalRowCount).toBe(89);
   });
 
@@ -82,7 +82,7 @@ function reportWithRows(rowCount: number): TrustedReport {
     kind: "monthly-owner-activity",
     periodLabel: "01 Aug 2026 - 31 Aug 2026",
     rows: Array.from({ length: rowCount }, (_, index) => ({
-      cells: { property: `Property ${index + 1}` },
+      cells: { property: `Property ${index + 1}`, income: "USD 1.00" },
       id: `row-${index + 1}`,
       sourceCount: 0,
       sourceLinks: [],

@@ -10878,6 +10878,41 @@ export type Database = {
           },
         ]
       }
+      workspace_saved_views: {
+        Row: {
+          name: string
+          organization_id: string
+          query: string
+          resource: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          name: string
+          organization_id: string
+          query: string
+          resource: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          name?: string
+          organization_id?: string
+          query?: string
+          resource?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_saved_views_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       current_leases: {
@@ -12232,6 +12267,19 @@ export type Database = {
         }
         Returns: Json
       }
+      get_bounded_register_page: {
+        Args: {
+          p_effective_date?: string
+          p_entity: string
+          p_filters: Json
+          p_groups: Json
+          p_limit: number
+          p_offset: number
+          p_organization_id: string
+          p_sort: string
+        }
+        Returns: Json
+      }
       get_deposit_rent_journal: {
         Args: { p_lease: string; p_org: string }
         Returns: Json
@@ -12293,6 +12341,17 @@ export type Database = {
           valid_from: string
           valid_to: string
         }[]
+      }
+      get_finance_account_register_page: {
+        Args: {
+          p_account_class?: string
+          p_organization_id: string
+          p_page?: number
+          p_page_size?: number
+          p_query?: string
+          p_status?: string
+        }
+        Returns: Json
       }
       get_finance_categories: {
         Args: {
@@ -12413,6 +12472,16 @@ export type Database = {
         Args: { p_lease_ids?: string[]; p_organization_id: string }
         Returns: Json
       }
+      get_lease_register_context: {
+        Args: {
+          p_include_filter_options?: boolean
+          p_lease_ids?: string[]
+          p_organization_id: string
+          p_property_ids?: string[]
+          p_unit_ids?: string[]
+        }
+        Returns: Json
+      }
       get_lease_rent_business_date: {
         Args: { p_organization_id: string }
         Returns: string
@@ -12491,6 +12560,17 @@ export type Database = {
           title: string
         }[]
       }
+      get_maintenance_summary: {
+        Args: {
+          p_current_time: string
+          p_filters: Json
+          p_include_queue_counts?: boolean
+          p_month: string
+          p_organization_id: string
+          p_today: string
+        }
+        Returns: Json
+      }
       get_maintenance_task_documents: {
         Args: { p_organization_id: string; p_task_ids: string[] }
         Returns: {
@@ -12561,6 +12641,16 @@ export type Database = {
           status: string
           version: number
         }[]
+      }
+      get_overview_summary: {
+        Args: {
+          p_financial_start_date?: string
+          p_month: string
+          p_organization_id: string
+          p_property_id?: string
+          p_today: string
+        }
+        Returns: Json
       }
       get_owner_account_read_context: {
         Args: { p_organization_id: string; p_requested_property_id?: string }
@@ -12803,7 +12893,26 @@ export type Database = {
           submission_id: string
         }[]
       }
+      get_person_select_page: {
+        Args: {
+          p_organization_id: string
+          p_page?: number
+          p_query?: string
+          p_roles: string[]
+          p_selected_id?: string
+        }
+        Returns: Json
+      }
       get_pilot_manual_restart_status: { Args: never; Returns: Json }
+      get_portfolio_ledger_totals: {
+        Args: {
+          p_organization_id: string
+          p_period_start?: string
+          p_property_ids?: string[]
+          p_unit_ids?: string[]
+        }
+        Returns: Json
+      }
       get_privileged_email_step_up_status: {
         Args: {
           p_organization_id: string
@@ -12864,6 +12973,15 @@ export type Database = {
           unit_id: string
           vendor_person_id: string
         }[]
+      }
+      get_property_register_page: {
+        Args: {
+          p_filters?: Json
+          p_organization_id: string
+          p_page?: number
+          p_page_size?: number
+        }
+        Returns: Json
       }
       get_rent_invoice_page: {
         Args: {
@@ -12953,6 +13071,15 @@ export type Database = {
         }
         Returns: Json
       }
+      get_unit_register_page: {
+        Args: {
+          p_filters?: Json
+          p_organization_id: string
+          p_page?: number
+          p_page_size?: number
+        }
+        Returns: Json
+      }
       list_fee_payment_date_candidates: {
         Args: { p_lease_id: string; p_organization_id: string }
         Returns: Json
@@ -12998,6 +13125,11 @@ export type Database = {
         }
         Returns: string
       }
+      matches_register_search: {
+        Args: { p_query: string; p_values: string[] }
+        Returns: boolean
+      }
+      normalize_register_search: { Args: { p_value: string }; Returns: string }
       open_next_petty_cash_period: {
         Args: {
           p_account_id: string
@@ -13353,6 +13485,10 @@ export type Database = {
           email: string
           invitation_id: string
         }[]
+      }
+      register_natural_sort_key: {
+        Args: { p_value: string }
+        Returns: string[]
       }
       register_owner_statement_artifact: {
         Args: {

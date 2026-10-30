@@ -342,15 +342,17 @@ function summary(
 }
 
 function chainQuery(result: { data: unknown; error: { message: string } | null }) {
+  let range: [number, number] | undefined;
   const query = {
     eq: vi.fn(),
     is: vi.fn(),
     order: vi.fn(),
     select: vi.fn(),
+    range: vi.fn((from: number, to: number) => { range = [from, to]; return query; }),
     then: (
       resolve: (value: typeof result) => unknown,
       reject?: (reason: unknown) => unknown,
-    ) => Promise.resolve(result).then(resolve, reject),
+    ) => Promise.resolve({ ...result, data: range && Array.isArray(result.data) ? result.data.slice(range[0], range[1] + 1) : result.data ?? (result.error ? null : []) }).then(resolve, reject),
   };
   query.select.mockReturnValue(query);
   query.eq.mockReturnValue(query);

@@ -6,7 +6,8 @@ import { parseUnitSearchParams } from "@/features/units/unit.filters";
 import { getMonthlyOwnerActivityReport } from "@/features/reports/data/monthly-owner-activity-report";
 import { getRentReport } from "@/features/reports/data/rent-reports";
 import type { ReportsViewQuery } from "@/features/reports/reports.types";
-import { createCappedReadHarness, type CappedRead } from "@/lib/db/complete-read.test-fixture";
+import type { CappedRead } from "@/lib/db/complete-read.test-fixture";
+import { createCappedReadHarness } from "@/features/properties/data/financial-capped-read.test-fixture";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
   expectedUsd, makeDensePropertyScaleFixture, makeInvoiceHistoryScaleFixture,
@@ -27,14 +28,14 @@ function useHarness(tables: Parameters<typeof createCappedReadHarness>[0], apiRo
   const client = {
     ...harness.client,
     rpc: vi.fn(async (name: string, args: Record<string, unknown>) => {
-      expect(args).toEqual({ p_organization_id: SCALE_ORGANIZATION_ID });
+      expect(args.p_organization_id).toBe(SCALE_ORGANIZATION_ID);
       if (name === "get_financial_write_context") {
         return { data: financialContext, error: null };
       }
       if (name === "get_financial_report_context") {
         return { data: { context: financialContext, source_revision: "0" }, error: null };
       }
-      throw new Error(`Unexpected scalability RPC: ${name}`);
+      return harness.client.rpc(name, args);
     }),
   } as unknown as Client;
   vi.mocked(createSupabaseServerClient).mockResolvedValue(client);

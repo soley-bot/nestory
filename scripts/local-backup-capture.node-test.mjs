@@ -11,8 +11,11 @@ const publicKeyArmored = (await pgp.readKey({binaryKey:generated.publicKey})).ar
 generated.privateKey.fill(0);
 const input = {operationId,publicKeyArmored,publicKeySha256:hash(publicKeyArmored)};
 test('fixed export preserves complete row images and separates credential witnesses', async () => {
-  assert.equal(LOCAL_CAPTURE_POLICY.length,161);
-  assert.equal(LOCAL_CAPTURE_POLICY.filter(p=>p.capture==='full-row-image').length,149);
+  assert.equal(LOCAL_CAPTURE_POLICY.length,162);
+  assert.equal(LOCAL_CAPTURE_POLICY.filter(p=>p.capture==='full-row-image').length,150);
+  assert.deepEqual(LOCAL_CAPTURE_POLICY.find(p=>p.table==='public.workspace_saved_views'), {
+    table:'public.workspace_saved_views', scopeColumn:'organization_id', capture:'full-row-image', mustBeEmpty:false,
+  });
   const sql = await buildPilotCiphertextCaptureSql(input);
   assert.match(sql,/BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/);
   assert.match(sql,/SET LOCAL search_path=pg_catalog,public/);
@@ -41,7 +44,7 @@ for (const changed of [{organizationId:'foreign'}, {operationId:"';DELETE"}, {pu
 function fixture() {
  const parts=[Buffer.alloc(LOCAL_CAPTURE_CHUNK_BYTES,1),Buffer.from('last')], payload=Buffer.concat(parts);
  const base={format:'nestory-local-pilot-ciphertext-chunk-v2',chunkBytes:LOCAL_CAPTURE_CHUNK_BYTES,status:'ready',operationId,sourceSha256:hash(payload),schemaSha256:'b'.repeat(64),ledgerSha256:'c'.repeat(64),publicKeySha256:input.publicKeySha256,
- payloadBytes:payload.length,businessRows:2,tableCount:161,chunkCount:2,chunkIndex:null,plaintextChunkSha256:null,ciphertextSha256:null,ciphertextBase64:null};
+ payloadBytes:payload.length,businessRows:2,tableCount:LOCAL_CAPTURE_POLICY.length,chunkCount:2,chunkIndex:null,plaintextChunkSha256:null,ciphertextSha256:null,ciphertextBase64:null};
  const observations=parts.map((bytes,chunkIndex)=>{const cipher=Buffer.from('synthetic-encrypted-'+chunkIndex);return {...base,chunkIndex,plaintextChunkSha256:hash(bytes),ciphertextSha256:hash(cipher),ciphertextBase64:cipher.toString('base64')};});
  return {before:base,after:{...base},observations,plaintextChunks:parts};
 }

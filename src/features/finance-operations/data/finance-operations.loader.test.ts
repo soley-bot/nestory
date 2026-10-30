@@ -182,6 +182,20 @@ describe("finance operations initial reads", () => {
     expect(harness.queries.some(query => query.table === "expense_transactions")).toBe(false);
     expect(harness.queries.some(query => query.table === "tenant_invoice_balances")).toBe(false);
   });
+
+  it.each(["rent", "account"])("does not load the people directory for a %s worklist", async mode => {
+    const harness = createFinanceReadHarness({
+      scoped_context: { data: { ...emptyContext(), people: [{ id: "owner-5000", display_name: "Late owner", party_type: "individual", archived_at: null }] } },
+      rent_invoice_page: { data: { invoices: [], selectedInvoice: null, pagination: { from: 0, to: 0, page: 1, pageSize: 50, totalCount: 0, totalPages: 1 }, totalVisibleCount: 0, totalsByCurrency: [], propertyOptions: [] } },
+      people: { data: Array.from({ length: 5000 }, (_, index) => ({ id: `unrelated-${index}`, display_name: `Other ${index}`, party_type: "individual", archived_at: null })) },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getFinanceOperationsData("organization-1", mode === "account" ? "property-1" : undefined,
+      mode === "rent" ? { rentInvoiceQuery: parseRentInvoiceQuery({}), includeExpenses: false } : { accountActivityOnly: true });
+    expect(result.peopleOptions).toHaveLength(1);
+    expect(result.peopleOptions[0]).toEqual({ id: "owner-5000", label: "Late owner", partyType: "individual" });
+    expect(harness.queries.filter(query => ["people", "person_roles"].includes(query.table))).toEqual([]);
+  });
   it("scopes expense reads before pagination on an ordinary property page", async () => {
     const harness = createFinanceReadHarness({
       properties: { data: [{ id: "property-1", code: "P", name: "Property", archived_at: null }] },

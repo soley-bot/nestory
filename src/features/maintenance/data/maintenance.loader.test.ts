@@ -1,4 +1,4 @@
-import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import { aggregateMaintenanceFixture, type MaintenanceRpcArgs } from "./maintenance-summary.test-fixture";
 import { createPortfolioSearch } from "@/lib/search/portfolio";
 import { describe, expect, it, vi } from "vitest";
 import { getMaintenanceCreateFormOptions, getMaintenanceScreenData } from "@/features/maintenance/data/maintenance";
@@ -13,13 +13,22 @@ vi.mock("@/lib/finance/financial-write-context.server", () => ({
   withFinancialReadContext: vi.fn(async (_organizationId, read) => read({ generation: 2 })),
 }));
 
-vi.mock("@/lib/search/portfolio.server", () => ({ loadPortfolioSearch: vi.fn() }));
 
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(),
 }));
 
+let fixturePortfolio = createPortfolioSearch([], []);
+
 describe("getMaintenanceScreenData reference loading", () => {
+  it("completes only the selected maintenance page when the API cap is smaller", async () => {
+    const supabase = createMaintenanceSupabaseStub({ taskRowCap: 1 });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+    const result = await getMaintenanceScreenData("org-1", { ...makeViewQuery(), pageSize: 2 });
+    expect(result.cases.map(row => row.id)).toEqual([visibleTask.id, offPageTask.id]);
+    expect(result.pagination.totalCount).toBe(2);
+    expect(supabase.inCalls.filter(call => call.table === "tasks")).toHaveLength(2);
+  });
   it("rejects unverifiable financial data before reading maintenance costs", async () => {
     vi.mocked(createSupabaseServerClient).mockClear();
     vi.mocked(withFinancialReadContext).mockRejectedValueOnce(new Error("Financial reporting is paused"));
@@ -62,14 +71,14 @@ describe("getMaintenanceScreenData reference loading", () => {
   });
 
   it("keeps branch scope and matching summary totals during a broad owner search", async () => {
-    vi.mocked(loadPortfolioSearch).mockResolvedValue(createPortfolioSearch(Array.from({ length: 400 }, (_, index) => ({ id: index ? `20000000-0000-4000-8000-${String(index).padStart(12, "0")}` : "property-visible", code: `P${index}`, name: "Property", ownerNames: ["Shared Owner"] })), []));
+    fixturePortfolio = createPortfolioSearch(Array.from({ length: 400 }, (_, index) => ({ id: index ? `20000000-0000-4000-8000-${String(index).padStart(12, "0")}` : "property-visible", code: `P${index}`, name: "Property", ownerNames: ["Shared Owner"] })), []);
     const supabase = createMaintenanceSupabaseStub();
     vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
     const result = await getMaintenanceScreenData("org-1", { ...makeViewQuery(), query: "shared" }, { branchId: "branch-visible", dataScope: "branch", workflowMode: "coordinator" });
     expect(result.pagination.totalCount).toBe(1);
     expect(result.summary.total).toBe(1);
     expect(result.cases.map(row => row.id)).toEqual(["task-visible"]);
-    expect(supabase.eqCalls.filter(call => call.table === "tasks").every(call => call.filters.some(([column, value]) => column === "branch_id" && value === "branch-visible"))).toBe(true);
+    expect(supabase.client.rpc).toHaveBeenCalledWith("get_maintenance_summary", expect.objectContaining({ p_filters: expect.objectContaining({ actorBranchId: "branch-visible" }) }));
   });
 
   it.each([false, undefined])("loads branch-readable cases without assignment RPC authority (%s)", async (canAssignCase) => {
@@ -93,9 +102,7 @@ describe("getMaintenanceScreenData reference loading", () => {
     expect(result.vendorOptions).toEqual([]);
     expect(supabase.client.rpc).not.toHaveBeenCalledWith("get_maintenance_execution_members", expect.anything());
     expect(supabase.client.rpc).not.toHaveBeenCalledWith("get_maintenance_vendor_options", expect.anything());
-    expect(supabase.eqCalls.filter((call) => call.table === "tasks").every(
-      (call) => call.filters.some(([column, value]) => column === "branch_id" && value === "branch-visible"),
-    )).toBe(true);
+    expect(supabase.client.rpc).toHaveBeenCalledWith("get_maintenance_summary", expect.objectContaining({ p_filters: expect.objectContaining({ actorBranchId: "branch-visible" }) }));
   });
 
   it("does not swallow assignment authorization failures for an authorized caller", async () => {
@@ -287,14 +294,10 @@ describe("getMaintenanceScreenData reference loading", () => {
     const result = await getMaintenanceScreenData("org-1", makeViewQuery(), actor);
 
     const taskFilters = supabase.eqCalls.filter((call) => call.table === "tasks");
-    expect(taskFilters).toHaveLength(2);
+    expect(taskFilters).toHaveLength(1);
+    expect(supabase.client.rpc).toHaveBeenCalledWith("get_maintenance_summary", expect.objectContaining({ p_filters: expect.objectContaining({ actorScope: actor.dataScope, actorBranchId: actor.branchId ?? null, actorPersonId: actor.personId ?? null }) }));
     if (expectedFilter) {
-      expect(taskFilters.every((call) =>
-        call.filters.some(
-          ([column, value]) =>
-            column === expectedFilter[0] && value === expectedFilter[1],
-        ),
-      )).toBe(true);
+      expect(supabase.client.rpc).toHaveBeenCalledWith("get_maintenance_summary", expect.objectContaining({ p_filters: expect.objectContaining({ actorBranchId: actor.branchId }) }));
     }
     for (const column of excludedColumns) {
       expect(taskFilters.every((call) =>
@@ -345,6 +348,7 @@ function makeViewQuery(): MaintenanceViewQuery {
 }
 
 const visibleTask = makeTask({
+  created_at: "2026-07-02T00:00:00.000Z",
   assignee_person_id: "visible-assignee",
   branch_id: "branch-visible",
   id: "task-visible",
@@ -356,7 +360,7 @@ const visibleTask = makeTask({
 
 const offPageTask = makeTask({
   assignee_person_id: "visible-assignee",
-  branch_id: "branch-off-page",
+  branch_id: "branch-visible",
   id: "task-off-page",
   property_id: "property-off-page",
   tenant_request_id: "request-off-page",
@@ -412,10 +416,12 @@ function createMaintenanceSupabaseStub({
   assignmentDenied = false,
   documentRows = [],
   memberIdentityCount = 1,
+  taskRowCap = Number.MAX_SAFE_INTEGER,
 }: {
   assignmentDenied?: boolean;
   documentRows?: Array<Record<string, unknown>>;
   memberIdentityCount?: number;
+  taskRowCap?: number;
 } = {}) {
   const inCalls: QueryCall[] = [];
   const eqCalls: EqCall[] = [];
@@ -427,6 +433,7 @@ function createMaintenanceSupabaseStub({
         (_, index) => `member-option-${index + 1}`,
       );
   const rowsByTable: Record<string, Array<Record<string, unknown>>> = {
+    tasks: [visibleTask, offPageTask],
     activity_logs: [],
     documents: [],
     organization_branches: [
@@ -481,9 +488,10 @@ function createMaintenanceSupabaseStub({
   const client = {
     from: vi.fn((table: string) => {
       fromCalls.push(table);
-      return createQuery(table, rowsByTable, inCalls, eqCalls);
+      return createQuery(table, rowsByTable, inCalls, eqCalls, taskRowCap);
     }),
-    rpc: vi.fn(async (name: string) => {
+    rpc: vi.fn(async (name: string, args: MaintenanceRpcArgs) => {
+      if (name === "get_maintenance_summary") return { data: aggregateMaintenanceFixture([visibleTask, offPageTask], args, rowsByTable, fixturePortfolio), error: null };
       if (assignmentDenied && ["get_maintenance_execution_members", "get_maintenance_vendor_options"].includes(name)) {
         return { data: null, error: { code: "42501", message: "Not authorized" } };
       }
@@ -527,10 +535,12 @@ function createQuery(
   rowsByTable: Record<string, Array<Record<string, unknown>>>,
   inCalls: QueryCall[],
   eqCalls: EqCall[],
+  taskRowCap: number,
 ) {
   const eqFilters: Array<[string, unknown]> = [];
   const inFilters: Array<[string, unknown[]]> = [];
-  let rangeEnd: number | undefined;
+  let rangeStart = 0;
+  let rangeEnd = Number.MAX_SAFE_INTEGER;
 
   const query = {
     eq: (column: string, value: unknown) => {
@@ -551,23 +561,18 @@ function createQuery(
     not: () => query,
     or: () => query,
     order: () => query,
-    range: (_start: number, end: number) => {
-      rangeEnd = end;
-      return query;
-    },
+    range: (start: number, end: number) => { rangeStart = start; rangeEnd = end; return query; },
     select: () => query,
     then: (
       onFulfilled: (value: { count: number | null; data: unknown[]; error: null }) => unknown,
       onRejected?: (reason: unknown) => unknown,
     ) => {
       eqCalls.push({ filters: [...eqFilters], table });
-      const rows = table === "tasks"
-        ? rangeEnd === 0
-          ? [visibleTask]
-          : [visibleTask, offPageTask]
-        : applyFilters(rowsByTable[table] ?? [], eqFilters, inFilters);
+      const matches = applyFilters(rowsByTable[table] ?? [], eqFilters, inFilters);
+      const rows = matches.slice(rangeStart, Math.min(rangeEnd + 1, rangeStart + (table === "tasks" ? taskRowCap : Number.MAX_SAFE_INTEGER)));
+
       return Promise.resolve({
-        count: table === "tasks" ? 2 : null,
+        count: matches.length,
         data: rows,
         error: null,
       }).then(onFulfilled, onRejected);

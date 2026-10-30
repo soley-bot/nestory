@@ -330,6 +330,7 @@ async function loadFinanceOperationsData(
   organizationId: string, propertyId: string | null | undefined, options: FinanceOperationsReadOptions,
 ): Promise<FinanceOperationsData> {
   const supabase = await createSupabaseServerClient();
+  const includePeopleDirectory = !options.rentInvoiceQuery && !options.accountActivityOnly;
   let rentInvoiceResult: Awaited<ReturnType<typeof loadRentInvoicePage>> | undefined;
   // Resolve the selected property through the checked finance reader before any
   // dependent reads. Reuse its result below; never retry an unavailable scope as
@@ -369,14 +370,14 @@ async function loadFinanceOperationsData(
       .eq("id", organizationId)
       .single(),
     async () => rentReadContext ?? loadScopedFinanceContext(supabase, organizationId, propertyId),
-    () => fetchAllActionableRows(async (from, to) => supabase
+    () => includePeopleDirectory ? fetchAllActionableRows(async (from, to) => supabase
       .from("people")
       .select("id, display_name, party_type, archived_at")
       .eq("organization_id", organizationId)
-      .order("display_name").order("id").range(from, to)),
-    () => fetchAllActionableRows(async (from, to) => supabase.from("person_roles").select("person_id, role")
+      .order("display_name").order("id").range(from, to)) : Promise.resolve({ data: [], error: null }),
+    () => includePeopleDirectory ? fetchAllActionableRows(async (from, to) => supabase.from("person_roles").select("person_id, role")
       .eq("organization_id", organizationId).eq("status", "active").is("archived_at", null)
-      .order("person_id").order("role").range(from, to)),
+      .order("person_id").order("role").range(from, to)) : Promise.resolve({ data: [], error: null }),
     async () => {
       if (options.accountActivityOnly) return { data: [] as TenantInvoiceBalanceRow[], error: null };
       if (!options.rentInvoiceQuery) return getTenantInvoiceBalanceRows(supabase, organizationId, propertyId, options.completeTransactionHistory);
@@ -528,6 +529,12 @@ async function loadFinanceOperationsData(
   const people = [...new Map(
     [...readContext.people, ...(peopleResult.data ?? [])].map((person) => [person.id, person]),
   ).values()].sort((left, right) => left.display_name.localeCompare(right.display_name));
+  const rolesByPersonId = new Map<string, string[]>();
+  for (const role of personRolesResult.data ?? []) {
+    const roles = rolesByPersonId.get(role.person_id) ?? [];
+    roles.push(role.role);
+    rolesByPersonId.set(role.person_id, roles);
+  }
   const owners = readContext.owner_assignments.filter((assignment) =>
     assignment.is_primary && assignment.ended_on === null && assignment.archived_at === null,
   );
@@ -776,8 +783,8 @@ async function loadFinanceOperationsData(
         id: person.id,
         label: person.display_name,
         partyType: person.party_type,
-        ...((personRolesResult.data ?? []).some((role) => role.person_id === person.id) ? {
-          roles: (personRolesResult.data ?? []).filter((role) => role.person_id === person.id).map((role) => role.role),
+        ...(rolesByPersonId.has(person.id) ? {
+          roles: rolesByPersonId.get(person.id),
         } : {}),
       })),
     positions: (positionsResult.data ?? []).flatMap((row) =>

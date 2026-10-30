@@ -46,3 +46,6 @@ export type FinanceAccountsData = {
   groups: FinanceAccountGroup[];
   properties: FinanceAccountPropertyOption[];
 };
+
+export type FinanceAccountPagination = { from: number; to: number; page: number; pageSize: number; totalCount: number; totalPages: number };
+export type FinanceAccountRegisterData = FinanceAccountsData & { pagination: FinanceAccountPagination };

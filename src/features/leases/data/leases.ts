@@ -37,13 +37,12 @@ import {
   formatPropertyOptionLabel,
   formatUnitOptionLabel,
 } from "@/lib/entity-option-labels";
-import { getPersonSelectOptions } from "@/features/people/data/person-options";
 import { documentDownloadUrl } from "@/lib/uploads/document-download";
 import {
   getCalendarDateInTimeZone,
   getLeaseBillingRuleState,
 } from "@/features/leases/lease-billing-rule-state";
-import { loadScopedLeaseContext, parseScopedLeaseReadiness, parseScopedLeaseRows } from "@/features/leases/data/scoped-lease-context";
+import { loadScopedLeaseContext, loadLeaseRegisterContext, parseScopedLeaseReadiness, parseScopedLeaseRows, type ScopedLeaseContext } from "@/features/leases/data/scoped-lease-context";
 import type { ScopedBillingTerm } from "@/features/finance-operations/data/scoped-finance-context";
 
 export { getCalendarDateInTimeZone } from "@/features/leases/lease-billing-rule-state";
@@ -89,37 +88,22 @@ export async function getLeasesScreenData(
 
 async function loadLeasesScreenData(organizationId: string, viewQuery: LeaseViewQuery) {
   const supabase = await createSupabaseServerClient();
-  const [
-    readContext,
-    tenantOptions,
-    billingFormConfig,
-  ] =
-    await Promise.all([
-      loadScopedLeaseContext(supabase, organizationId),
-      getPersonSelectOptions({ organizationId, roles: ["tenant"] }),
-      loadLeaseBillingFormConfig(supabase, organizationId),
-    ]);
+  const billingFormConfig = await loadLeaseBillingFormConfig(supabase, organizationId, false);
   const readinessClock = new Date();
   const readinessDate = getCalendarDateInTimeZone(
     readinessClock,
     billingFormConfig.operationalTimezone,
   );
 
-  const properties = readContext.properties;
-  const units = readContext.units;
+  let properties: ScopedLeaseContext["properties"] = [];
+  let units: ScopedLeaseContext["units"] = [];
 
   const reservationsByUnitId = buildLeaseUnitReservations(
-    readContext.availability_leases,
-    readContext.availability_terms,
+    [], [],
   );
   const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
-  const propertiesById = indexById(properties);
-  const unitsById = indexById(units);
-  const unitOptions = toUnitOptions(
-    units,
-    propertiesById,
-    reservationsByUnitId,
-  );
+  let propertiesById = indexById(properties);
+  let unitsById = indexById(units);
   const searchGroups = viewQuery.leaseId ? [] : buildLeaseSearchFilters(viewQuery, { properties, units, propertiesById, portfolio });
   const buildFilteredLeasesQuery = ({
     count,
@@ -232,9 +216,17 @@ async function loadLeasesScreenData(organizationId: string, viewQuery: LeaseView
   };
 
   const buildLeasesQuery = (options: Parameters<typeof buildFilteredLeasesQuery>[0] = {}) => {
+    const endDateScope = getLeaseEndDateScope(viewQuery);
     const range = (from: number, to: number) => readBoundedSearch(searchGroups,
       (start, end, filters) => buildFilteredLeasesQuery({ ...options, filters }).order("id").range(start, end),
-      from, to, result => parseScopedLeaseRows(result.data));
+      from, to, {
+        client: supabase, entity: "leases", organizationId, sort: options.sort ?? viewQuery.sort,
+        effectiveDate: readinessDate,
+        filters: { archive_state: viewQuery.archiveState, id: viewQuery.leaseId,
+          property_id: viewQuery.propertyId, unit_id: viewQuery.unitId, status: viewQuery.status,
+          tenant_missing: viewQuery.tenantStatus === "missing", end_from: endDateScope.from,
+          end_before: endDateScope.before, currency: options.currency },
+      }, result => parseScopedLeaseRows(result.data));
     return { range };
   };
 
@@ -283,7 +275,18 @@ async function loadLeasesScreenData(organizationId: string, viewQuery: LeaseView
     });
   }
 
-  const leases = toLeaseSummaries(parseScopedLeaseRows(leasesResult.data));
+  const leaseRows = parseScopedLeaseRows(leasesResult.data);
+  const pageContext = await loadLeaseRegisterContext(supabase, organizationId, leaseRows.map(lease => lease.id), {
+    propertyIds: viewQuery.propertyId === "all" ? [] : [viewQuery.propertyId],
+    unitIds: viewQuery.unitId === "all" ? [] : [viewQuery.unitId],
+  });
+  if (pageContext) {
+    properties = pageContext.properties;
+    units = pageContext.units;
+    propertiesById = indexById(properties);
+    unitsById = indexById(units);
+  }
+  const leases = toLeaseSummaries(leaseRows);
 
   return {
     billingFormConfig,
@@ -291,6 +294,7 @@ async function loadLeasesScreenData(organizationId: string, viewQuery: LeaseView
       leases,
       loadRentReadiness: Boolean(viewQuery.leaseId),
       organizationId,
+      readContext: pageContext,
       propertiesById,
       readinessDate,
       readinessClock,
@@ -299,8 +303,8 @@ async function loadLeasesScreenData(organizationId: string, viewQuery: LeaseView
     }),
     pagination,
     propertyOptions: toPropertyOptions(properties),
-    tenantOptions,
-    unitOptions,
+    tenantOptions: [],
+    unitOptions: toUnitOptions(units, propertiesById, reservationsByUnitId),
   };
 }
 
@@ -470,6 +474,7 @@ async function enrichLeaseSummaries({
   readinessClock,
   supabase,
   unitsById,
+  readContext: suppliedReadContext,
 }: {
   leases: LeaseSummary[];
   loadRentReadiness: boolean;
@@ -479,6 +484,7 @@ async function enrichLeaseSummaries({
   readinessClock: Date;
   supabase: SupabaseServerClient;
   unitsById: Map<string, LeaseUnitRow>;
+  readContext?: ScopedLeaseContext;
 }) {
   if (leases.length === 0) {
     return leases;
@@ -500,7 +506,7 @@ async function enrichLeaseSummaries({
     activationSchedulesResult,
     readinessResults,
   ] = await Promise.all([
-    loadScopedLeaseContext(supabase, organizationId, detailLeaseIds),
+    suppliedReadContext ?? loadScopedLeaseContext(supabase, organizationId, detailLeaseIds),
     readAllRowsByIds(detailLeaseIds, (ids, from, to) => supabase
       .from("documents")
       .select(
@@ -755,6 +761,7 @@ export function getEffectiveRentPolicyCalendarDate(
 async function loadLeaseBillingFormConfig(
   supabase: SupabaseServerClient,
   organizationId: string,
+  includeCompanyOptions = true,
 ): Promise<LeaseBillingFormConfig> {
   const [organizationResult, companiesResult, businessDateResult] = await Promise.all([
     supabase
@@ -762,13 +769,13 @@ async function loadLeaseBillingFormConfig(
       .select("name, operational_timezone")
       .eq("id", organizationId)
       .single(),
-    readAllRows((from, to) => supabase
+    includeCompanyOptions ? readAllRows((from, to) => supabase
       .from("people")
       .select("id, display_name")
       .eq("organization_id", organizationId)
       .eq("party_type", "company")
       .is("archived_at", null)
-      .order("display_name").order("id").range(from, to)),
+      .order("display_name").order("id").range(from, to)) : Promise.resolve({ data: [], error: null }),
     supabase.rpc("get_lease_rent_business_date", { p_organization_id: organizationId }),
   ]);
 
@@ -806,6 +813,11 @@ export async function getLeaseBillingFormConfig(
     await createSupabaseServerClient(),
     organizationId,
   );
+}
+
+export async function getLeaseRegisterFilterOptions(organizationId: string) {
+  const context = await loadLeaseRegisterContext(await createSupabaseServerClient(), organizationId, [], { includeFilterOptions: true });
+  return { properties: toPropertyOptions(context.properties), units: toUnitOptions(context.units, indexById(context.properties), new Map()) };
 }
 
 export async function loadEffectiveRentPolicyCalendarDate(

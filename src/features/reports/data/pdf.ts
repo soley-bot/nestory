@@ -1,4 +1,5 @@
 import { ownerStatementCash } from "@/features/reports/data/owner-statement-cash";
+import { assertCompleteReportForExport } from "./report-export-completeness";
 import { profitLossSummaryRows, profitLossFundingNote, profitLossBasisNote, formatProfitLossAmount, type ProfitLossFunding } from "./profit-loss-funding";
 import {
   formatLongReportDate,
@@ -221,6 +222,7 @@ export function buildTrustedReportPdf({
   organizationName: string;
   report: TrustedReport;
 }) {
+  assertCompleteReportForExport(report);
   if (
     report.kind === "unit-profit-loss" &&
     report.unitProfitLossLines !== undefined

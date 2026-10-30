@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { NestoryLogo } from "@/components/brand/nestory-logo";
+import { SavedViewScope } from "@/features/saved-views/register-saved-views";
 import {
   Collapsible,
   CollapsibleContent,
@@ -481,6 +482,16 @@ export function AppShell({
   const resolvedPermissionKeys = new Set<PermissionKey>(
     isSuperAdmin ? PERMISSION_KEYS : permissionKeys ?? [],
   );
+  const createActions = ([
+    { label: "Add property", path: "/properties", view: "properties.view", writes: ["properties.write"] },
+    { label: "Add unit", path: "/units", view: "properties.view", writes: ["properties.write"] },
+    { label: "Prepare lease", path: "/leases", view: "leases.view", writes: ["leases.prepare"] },
+    { label: "Add person", path: "/people", view: "people.view", writes: ["people.write"] },
+    { label: "New maintenance case", path: "/maintenance", view: "maintenance.view", writes: ["maintenance.create_assign"] },
+    { label: "Record expense", path: "/bills-expenses", view: "finance.view", writes: ["finance.submit_expenses", "finance.post_expenses"] },
+  ] satisfies { label: string; path: string; view: PermissionKey; writes: PermissionKey[] }[])
+    .filter(action => resolvedPermissionKeys.has(action.view) && action.writes.some(permission => resolvedPermissionKeys.has(permission)))
+    .toSorted((a, b) => Number(pathname.startsWith(b.path)) - Number(pathname.startsWith(a.path)));
   const resolvedRoleName =
     roleName ??
     (resolvedRoleKind === "custom"
@@ -548,22 +559,23 @@ export function AppShell({
               <SidebarGroup>
                 <SidebarGroupLabel>Workspace</SidebarGroupLabel>
                 <SidebarGroupContent className="flex flex-col gap-2">
-                  {isSuperAdmin || resolvedPermissionKeys.has("properties.write") ? (
+                  {createActions.length ? (
                     <SidebarMenu>
                       <SidebarMenuItem>
+                        <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                         <SidebarMenuButton
-                          asChild
                           className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
                           tooltip="Quick Create"
                         >
-                          <Link
-                            href="/properties?action=create"
-                            prefetch={false}
-                          >
                             <PlusCircle />
                             <span>Quick Create</span>
-                          </Link>
                         </SidebarMenuButton>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" side="right" className="w-56">
+                          {createActions.map(action => <DropdownMenuItem asChild key={action.path}><Link href={`${action.path}?action=create`} prefetch={false}>{action.label}</Link></DropdownMenuItem>)}
+                        </DropdownMenuContent>
+                        </DropdownMenu>
                       </SidebarMenuItem>
                     </SidebarMenu>
                   ) : null}
@@ -683,7 +695,7 @@ export function AppShell({
             data-scroll-owner="application"
             data-slot="app-shell-content"
           >
-            {children}
+            <SavedViewScope value={organizationId && userId ? `${organizationId}:${userId}` : null}>{children}</SavedViewScope>
           </div>
         </SidebarInset>
       </SidebarProvider>

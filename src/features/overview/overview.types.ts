@@ -26,6 +26,7 @@ export type OverviewAttentionKind =
   | "overdue-rent"
   | "urgent-maintenance"
   | "expiring-lease"
+  | "vacancy"
   | "missing-document"
   | "unreconciled-finance"
   | "data-quality";
@@ -141,6 +142,7 @@ export type OverviewWorkspaceSetup = {
 
 export type OverviewScreenData = {
   financialGeneration?: number;
+  financialStartDate?: string | null;
   attentionItems: OverviewAttentionItem[];
   attentionTotal: number;
   dashboardSummary: OverviewDashboardSummary;

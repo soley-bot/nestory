@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/tooltip";
 import { PersonForm } from "@/features/people/components/person-form";
 import { PersonSelect } from "@/features/people/components/person-select";
+import { getOwnerOptionsAction } from "@/features/people/person-options-actions";
 import type { PersonRoleValue } from "@/features/people/people.types";
 import {
   createPropertyAction,
@@ -399,7 +400,9 @@ export function PropertyForm({
             <PersonSelect
               allowClear
               context="Property owner"
+              loadOptions={getOwnerOptionsAction}
               name="ownerPersonId"
+              onOptionSelect={option => setAvailableOwnerOptions(current => current.some(candidate => candidate.id === option.id) ? current : [...current, option])}
               onValueChange={changeOwnerPerson}
               options={availableOwnerOptions}
               placeholder="Choose owner"

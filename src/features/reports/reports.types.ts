@@ -43,6 +43,11 @@ export type ReportUnitOption = {
 };
 
 export type ReportsViewQuery = {
+  /** Screen navigation only; never restricts the authoritative report/export. */
+  page?: number;
+  detailPage?: number;
+  scopeQuery?: string;
+  showZeroActivity?: boolean;
   scopeInvalid?: boolean;
   dateFrom?: string;
   dateTo?: string;
@@ -168,7 +173,31 @@ export type UnitProfitLossLine = {
   unit: string;
 };
 
+export type ReportPagination = {
+  page: number;
+  pageSize: number;
+  totalRecords: number;
+  totalPages: number;
+};
+
+export type UnitProfitLossScreen = {
+  groups: {
+    key: string;
+    label: string;
+    direction: "income" | "expense";
+    total: bigint;
+    count: number;
+    firstPage: number | null;
+  }[];
+  pagination: ReportPagination;
+  totals: { income: bigint; expenses: bigint };
+};
+
 export type TrustedReport = {
+  /** Present only on bounded screen results, after full totals are calculated. */
+  screenPagination?: ReportPagination;
+  zeroActivityRowCount?: number;
+  unitProfitLossScreen?: UnitProfitLossScreen;
   financialGeneration?: number;
   availableColumns?: TrustedReportColumn[];
   filterOptions?: {
@@ -179,6 +208,7 @@ export type TrustedReport = {
   columns: TrustedReportColumn[];
   description: string;
   emptyDescription: string;
+  emptyReason?: "no-activity" | "no-matches";
   emptyTitle: string;
   exportValidation?: {
     code: string;

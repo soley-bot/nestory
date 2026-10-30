@@ -1,7 +1,5 @@
 import { z } from "zod";
 import { getLeaseBillingFormConfig } from "@/features/leases/data/leases";
-import { getPersonSelectOptions } from "@/features/people/data/person-options";
-import { getPropertyOwnerOptions } from "@/features/properties/data/properties";
 import type { PropertyFormOptionsResponse } from "@/features/properties/property-form-options.types";
 import { getCurrentUser, getWorkspaceMembershipForUser } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
@@ -38,13 +36,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ prop
     }
     if (request.signal.aborted) return errorResponse("Request cancelled.", 499);
     if (mode === "edit") {
-      const owners = await getPropertyOwnerOptions(membership.organizationId);
+      const owners: [] = [];
       return Response.json({ mode, propertyId, options: { owners } } satisfies PropertyFormOptionsResponse<"edit">, { headers: PRIVATE_HEADERS });
     }
-    const [tenants, billingFormConfig] = await Promise.all([
-      getPersonSelectOptions({ organizationId: membership.organizationId, roles: ["tenant"] }),
-      getLeaseBillingFormConfig(membership.organizationId),
-    ]);
+    const tenants: [] = [];
+    const billingFormConfig = await getLeaseBillingFormConfig(membership.organizationId);
     return Response.json({ mode, propertyId, options: { tenants, billingFormConfig } } satisfies PropertyFormOptionsResponse<"lease">, { headers: PRIVATE_HEADERS });
   } catch {
     return errorResponse("Could not load this form. Try again.", 503);

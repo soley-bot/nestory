@@ -6,7 +6,6 @@ import {
 } from "@/lib/entity-option-labels";
 import { formatMoneyDisplay } from "@/lib/money/format";
 import type { CurrencyCode } from "@/lib/money/format";
-import { getPersonSelectOptions } from "@/features/people/data/person-options";
 import { calculatePettyCashRegister } from "@/features/petty-cash/register-facts";
 import type {
   PettyCashAccount,
@@ -132,8 +131,6 @@ async function loadPettyCashScreenData(
     accountsResult,
     propertiesResult,
     unitsResult,
-    counterpartyOptions,
-    staffOptions,
   ] = await Promise.all([
     supabase
       .from("petty_cash_accounts")
@@ -155,14 +152,6 @@ async function loadPettyCashScreenData(
       .eq("organization_id", organizationId)
       .is("archived_at", null)
       .order("unit_number", { ascending: true }),
-    getPersonSelectOptions({
-      organizationId,
-      roles: ["tenant", "owner", "vendor", "staff"],
-    }),
-    getPersonSelectOptions({
-      organizationId,
-      roles: ["staff"],
-    }),
   ]);
 
   if (accountsResult.error) {
@@ -248,7 +237,7 @@ async function loadPettyCashScreenData(
 
   return {
     accounts,
-    counterpartyOptions,
+    counterpartyOptions: [],
     entries,
     focusedEntryId: options.focusedEntryId,
     focusState: options.focusedEntryId
@@ -262,7 +251,7 @@ async function loadPettyCashScreenData(
       label: formatPropertyOptionLabel(property),
     })),
     selectedAccount,
-    staffOptions,
+    staffOptions: [],
     summary: buildSummary(selectedPeriod, entries, selectedAccount?.currency),
     unitOptions: units.map((unit): PettyCashUnitOption => {
       const property = propertiesById.get(unit.property_id);

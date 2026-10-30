@@ -18,10 +18,13 @@ vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: vi.fn() }));
 const enabled = process.env.NESTORY_SCALE_DATABASE_CI === "1";
 const apiUrl = "http://127.0.0.1:54321";
 type Env = Record<string, string | undefined>;
-const readContextRpcPaths = new Set([
+const readOnlyRpcPaths = new Set([
   "/rest/v1/rpc/get_finance_read_context",
   "/rest/v1/rpc/get_financial_write_context",
   "/rest/v1/rpc/get_financial_report_context",
+  "/rest/v1/rpc/get_portfolio_ledger_totals",
+  "/rest/v1/rpc/get_property_register_page",
+  "/rest/v1/rpc/get_unit_register_page",
 ]);
 
 function assertReadOnlyPostgrestRequest(input: RequestInfo | URL, init?: RequestInit) {
@@ -33,16 +36,25 @@ function assertReadOnlyPostgrestRequest(input: RequestInfo | URL, init?: Request
   assert.ok(url.pathname.startsWith("/rest/v1/"), "Only read-only PostgREST is permitted; Auth, delivery, and Storage requests are forbidden.");
   assert.ok(["GET", "HEAD", "POST"].includes(method), "Mutation methods are forbidden.");
   if (method === "POST" || url.pathname.startsWith("/rest/v1/rpc/")) {
-    assert.ok(readContextRpcPaths.has(url.pathname), "Only the three read context RPCs are permitted.");
+    assert.ok(readOnlyRpcPaths.has(url.pathname), "Only explicitly allowed read-only RPCs are permitted.");
   }
 }
 
 describe("scalability PostgREST request policy", () => {
-  it("allows table reads and only the three exact read context RPCs", () => {
+  const expectedReadRpcPaths = [
+    "/rest/v1/rpc/get_finance_read_context",
+    "/rest/v1/rpc/get_financial_write_context",
+    "/rest/v1/rpc/get_financial_report_context",
+    "/rest/v1/rpc/get_portfolio_ledger_totals",
+    "/rest/v1/rpc/get_property_register_page",
+    "/rest/v1/rpc/get_unit_register_page",
+  ];
+
+  it("allows table reads and the exact context and portfolio read RPCs", () => {
     for (const method of ["GET", "HEAD"]) {
       expect(() => assertReadOnlyPostgrestRequest(`${apiUrl}/rest/v1/properties?select=id`, { method })).not.toThrow();
     }
-    for (const rpc of readContextRpcPaths) {
+    for (const rpc of expectedReadRpcPaths) {
       for (const method of ["GET", "HEAD", "POST"]) {
         expect(() => assertReadOnlyPostgrestRequest(new URL(rpc, apiUrl), { method })).not.toThrow();
       }
@@ -56,8 +68,10 @@ describe("scalability PostgREST request policy", () => {
     for (const method of ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]) {
       expect(() => assertReadOnlyPostgrestRequest(`${apiUrl}/rest/v1/rpc/create_property`, { method })).toThrow();
     }
-    for (const method of ["PUT", "PATCH", "DELETE"]) {
-      expect(() => assertReadOnlyPostgrestRequest(`${apiUrl}/rest/v1/rpc/get_financial_write_context`, { method })).toThrow();
+    for (const rpc of expectedReadRpcPaths) {
+      for (const method of ["PUT", "PATCH", "DELETE"]) {
+        expect(() => assertReadOnlyPostgrestRequest(new URL(rpc, apiUrl), { method })).toThrow();
+      }
     }
   });
 
@@ -70,11 +84,15 @@ describe("scalability PostgREST request policy", () => {
     for (const destination of [
       "https://example.invalid/rest/v1/rpc/get_financial_report_context",
       `${apiUrl}/auth/v1/user`, `${apiUrl}/storage/v1/object`, `${apiUrl}/functions/v1/deliver`,
-      `${apiUrl}/rest/v1/rpc/get_financial_report_context_extra`,
-      `${apiUrl}/rest/v1/rpc/get_financial_report_context/`,
-      `${apiUrl}/rest/v1/rpc/get_financial_report_context%2Fextra`,
     ]) {
       expect(() => assertReadOnlyPostgrestRequest(destination, { method: "POST" })).toThrow();
+    }
+    for (const rpc of expectedReadRpcPaths) {
+      for (const suffix of ["_extra", "/", "%2Fextra"]) {
+        for (const method of ["GET", "HEAD", "POST"]) {
+          expect(() => assertReadOnlyPostgrestRequest(new URL(`${rpc}${suffix}`, apiUrl), { method })).toThrow();
+        }
+      }
     }
   });
 });

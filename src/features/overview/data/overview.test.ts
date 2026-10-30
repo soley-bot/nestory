@@ -11,6 +11,25 @@ vi.mock("@/lib/finance/financial-write-context.server", () => ({
 }));
 
 describe("getOverviewScreenData", () => {
+  it.each(["all", "prop-1"])("uses current leases and keeps dashboard links consistent for %s", async propertyId => {
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(createSupabaseStub({
+      properties: { data: [{ id: "prop-1", code: "CTR", name: "Central", rental_structure: "multi_unit" }] },
+      units: { data: [
+        { id: "unit-1", property_id: "prop-1", status: "vacant" },
+        { id: "unit-2", property_id: "prop-1", status: "vacant" },
+        { id: "unit-3", property_id: "prop-1", status: "occupied" },
+      ] },
+      current_leases: { data: [{ id: "lease-1", unit_id: "unit-1", property_id: "prop-1", primary_tenant_person_id: "person-1", lease_end_date: "2099-01-01" }] },
+    }));
+    const data = await getOverviewScreenData("11111111-1111-4111-8111-111111111111", { month: "2026-10", propertyId, financeView: "collections", lens: "all", review: "all" });
+    expect(data.metrics.find(metric => metric.label === "Occupancy")?.value).toBe("33%");
+    expect(data.metrics.find(metric => metric.label === "Lease gaps")?.value).toBe("2");
+    expect(data.occupancyByProperty[0]).toMatchObject({ occupiedUnits: 1, unoccupiedUnits: 2, vacantUnits: 1 });
+    const scope = propertyId === "all" ? "" : `&propertyId=${propertyId}`;
+    expect(data.attentionItems.find(item => item.id === "vacant-units")).toMatchObject({ count: 1, kind: "vacancy", href: `/units?status=vacant&occupancy=unoccupied&scope=operational${scope}` });
+    expect(data.attentionItems.find(item => item.id === "lease-gaps")).toMatchObject({ count: 2, href: `/units?leaseStatus=missing&scope=operational${scope}` });
+    expect(data.dashboardSummary.actionHref).toBe(`/units?status=vacant&occupancy=unoccupied&scope=operational${scope}`);
+  });
   it("marks a brand new workspace as not yet set up", async () => {
     vi.mocked(createSupabaseServerClient).mockResolvedValue(createSupabaseStub());
 

@@ -4,7 +4,8 @@ import { FinancialForm } from "@/lib/finance/financial-write-provider";
 
 import { matchesSearchText } from "@/lib/search/text";
 
-import { startTransition, useActionState, useMemo, useState } from "react";
+import { startTransition, useActionState, useEffect, useMemo, useState, type ReactNode } from "react";
+import type { FinanceAccountQuery } from "../finance-account-query";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
 import { WorkspacePage } from "@/components/layout/workspace-page";
@@ -71,12 +72,27 @@ export function FinanceAccountsScreen({
   canManageAccounts,
   groups,
   properties,
-}: FinanceAccountsData & { canManageAccounts: boolean }) {
+  register,
+  loadFormOptions,
+}: FinanceAccountsData & { canManageAccounts: boolean; loadFormOptions?: () => Promise<FinanceAccountsData>; register?: { query: FinanceAccountQuery; onChange: (name: string, value: string) => void; pagination: ReactNode } }) {
   const [drawer, setDrawer] = useState<DrawerState>(null);
-  const [query, setQuery] = useState("");
-  const [accountClass, setAccountClass] = useState<"all" | FinanceAccountClass>("all");
-  const [status, setStatus] = useState<StatusFilter>("active");
+  const [query, setQuery] = useState(register?.query.query ?? "");
+  const [accountClass, setAccountClass] = useState<"all" | FinanceAccountClass>(register?.query.accountClass ?? "all");
+  const [status, setStatus] = useState<StatusFilter>(register?.query.status ?? "active");
+  const [formResult, setFormResult] = useState<{ drawer: NonNullable<DrawerState>; data: FinanceAccountsData | null; error: boolean } | null>(null);
+  const formData = formResult?.drawer === drawer ? formResult.data : null;
+  const formError = formResult?.drawer === drawer && formResult.error;
+  useEffect(() => {
+    if (!loadFormOptions || !drawer || drawer.mode === "view") return;
+    let active = true;
+    void loadFormOptions().then(
+      data => { if (active) setFormResult({ drawer, data, error: false }); },
+      () => { if (active) setFormResult({ drawer, data: null, error: true }); },
+    );
+    return () => { active = false; };
+  }, [drawer, loadFormOptions]);
   const accounts = useMemo(() => groups.flatMap((group) => group.accounts), [groups]);
+  const formAccounts = formData ? formData.groups.flatMap(group => group.accounts) : accounts;
   const parentIds = useMemo(
     () => new Set(accounts.flatMap((account) => account.parentAccountId ? [account.parentAccountId] : [])),
     [accounts],
@@ -85,6 +101,7 @@ export function FinanceAccountsScreen({
     () => new Set(parentIds),
   );
   const visibleGroups = useMemo(() => {
+    if (register) return groups;
     const normalizedQuery = query.trim().toLocaleLowerCase();
     return accountClassOrder.map((groupClass) => {
       const group = groups.find((candidate) => candidate.accountClass === groupClass);
@@ -106,7 +123,7 @@ export function FinanceAccountsScreen({
       });
       return { accountClass: groupClass, accounts: visibleAccounts };
     });
-  }, [accountClass, expandedParents, groups, query, status]);
+  }, [accountClass, expandedParents, groups, query, status, register]);
   const visibleCount = visibleGroups.reduce((count, group) => count + group.accounts.length, 0);
 
   return (
@@ -126,16 +143,16 @@ export function FinanceAccountsScreen({
             ariaLabel="Search accounts"
             className="w-full sm:w-64 sm:flex-none"
             onQueryChange={setQuery}
-            onSubmit={event => event.preventDefault()}
+            onSubmit={event => { event.preventDefault(); register?.onChange("query", query); }}
             placeholder="Search number, name or description"
             query={query}
-            showSubmitButton={false}
+            showSubmitButton={Boolean(register)}
             submitLabel="Search accounts"
           />
           <select
             aria-label="Account type filter"
             className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            onChange={(event) => setAccountClass(event.target.value as "all" | FinanceAccountClass)}
+            onChange={(event) => { setAccountClass(event.target.value as "all" | FinanceAccountClass); register?.onChange("accountClass", event.target.value); }}
             value={accountClass}
           >
             <option value="all">All types</option>
@@ -146,7 +163,7 @@ export function FinanceAccountsScreen({
           <select
             aria-label="Account status"
             className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            onChange={(event) => setStatus(event.target.value as StatusFilter)}
+            onChange={(event) => { setStatus(event.target.value as StatusFilter); register?.onChange("status", event.target.value); }}
             value={status}
           >
             <option value="active">Active</option>
@@ -196,7 +213,7 @@ export function FinanceAccountsScreen({
                       else next.add(accountId);
                       return next;
                     })}
-                    parentIds={parentIds}
+                    parentIds={register ? new Set() : parentIds}
                   />
                   ) : null,
                 )}
@@ -204,6 +221,7 @@ export function FinanceAccountsScreen({
             </table>
           )}
         </div>
+        {register?.pagination}
       </div>
 
       <SideDrawer
@@ -217,25 +235,27 @@ export function FinanceAccountsScreen({
               ? drawer.account.archivedAt ? "Make account active" : "Make account inactive"
               : "Account details"}
       >
-        {drawer?.mode === "create" ? (
+        {loadFormOptions && drawer && drawer.mode !== "view" && !formData ? (
+          <p role={formError ? "alert" : "status"} className="p-5 text-sm">{formError ? "Account options could not be loaded. Close this form and try again." : "Loading account options…"}</p>
+        ) : drawer?.mode === "create" ? (
           <FinanceAccountForm
-            accounts={accounts}
+            accounts={formAccounts}
             mode="create"
             onCancel={() => setDrawer(null)}
-            properties={properties}
+            properties={formData?.properties ?? properties}
           />
         ) : drawer?.mode === "edit" ? (
           <FinanceAccountForm
             account={drawer.account}
-            accounts={accounts}
+            accounts={formAccounts}
             mode="edit"
             onCancel={() => setDrawer(null)}
-            properties={properties}
+            properties={formData?.properties ?? properties}
           />
         ) : drawer?.mode === "lifecycle" ? (
           <AccountLifecycleForm
             account={drawer.account}
-            accounts={accounts}
+            accounts={formAccounts}
             onCancel={() => setDrawer(null)}
           />
         ) : drawer?.mode === "view" ? (

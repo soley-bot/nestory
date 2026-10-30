@@ -11,13 +11,14 @@ export default async function LeasesPage({ searchParams }: LeasesPageProps) {
   const context = await requirePermission("leases.view");
   const params = await searchParams;
   const viewQuery = parseLeaseSearchParams(params);
-  const { leases, pagination, propertyOptions, tenantOptions, unitOptions } =
+  const { financialGeneration, leases, pagination, propertyOptions, tenantOptions, unitOptions } =
     await getLeasesScreenData(context.organizationId, viewQuery);
   const initialLeaseId = viewQuery.leaseId ?? undefined;
 
   return (
     <LeaseScreen
       canPrepare={context.permissionKeys.has("leases.prepare")}
+      financialGeneration={financialGeneration}
       key={initialLeaseId ?? "leases"}
       initialLeaseId={initialLeaseId}
       leases={leases}

@@ -107,12 +107,12 @@ describe("complete property registers under API row caps", () => {
     expect(result.pagination.totalCount).toBe(0);
   });
 
-  it.each(["error", "count"])("fails closed on a later ledger page %s", async (failure) => {
+  it.each(["error", "invalid count"])("fails closed on a ledger aggregate %s", async (failure) => {
     const target = property(1);
     const { client } = createCappedReadHarness({
       properties: [target], ledger_entries: Array.from({ length: 1001 }, (_, index) => ({ ...scope, id: id("ledger", index), property_id: target.id, amount: 1, currency: "USD", direction: "income" })),
-    }, { transformResult(read, result) {
-      if (read.table === "ledger_entries" && (read.range?.[0] ?? 0) > 0) return failure === "error" ? { ...result, data: null, error: { message: "Synthetic later page failure" } } : { ...result, count: 1002 };
+    }, { transformRpcResult(read, result) {
+      if (read.name === "get_portfolio_ledger_totals") return failure === "error" ? { data: null, error: { message: "Synthetic aggregate failure" } } : { ...result, data: (result.data as CappedReadRow[]).map(row => ({ ...row, entry_count: null })) };
       return result;
     } });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
@@ -121,23 +121,25 @@ describe("complete property registers under API row caps", () => {
   it("keeps full detail ledger totals while preserving the eight recent entries", async () => {
     const target = property(1);
     const ledger = Array.from({ length: 6001 }, (_, index) => ({ ...scope, id: id("entry", index), property_id: target.id, unit_id: null, transaction_date: "2026-01-01", direction: "income", category: "rent", amount: 1, currency: "USD", description: null }));
-    const { client, reads } = createCappedReadHarness({ properties: [target], ledger_entries: [...ledger, { ...ledger[0], id: "foreign-entry", organization_id: "other-org", amount: 999999 }] });
+    const { client, reads, rpcReads } = createCappedReadHarness({ properties: [target], ledger_entries: [...ledger, { ...ledger[0], id: "foreign-entry", organization_id: "other-org", amount: 999999 }] });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
     const result = await getPropertyDetail(organizationId, String(target.id));
     expect(result?.netIncomeUsd).toBe(6001);
     expect(result?.counts.ledgerEntries).toBe(6001);
     expect(result?.recentLedgerEntries).toHaveLength(8);
     expect(result?.recentLedgerEntries[0].id).toBe(id("entry", 6000));
-    expect(reads.filter(read => read.table === "ledger_entries" && read.range).every(read => read.select === "id, transaction_date, direction, category, amount, currency")).toBe(true);
+    expect(reads.filter(read => read.table === "ledger_entries" && read.range)).toEqual([]);
+    expect(rpcReads).toContainEqual({ name: "get_portfolio_ledger_totals", args: { p_organization_id: organizationId, p_property_ids: [target.id], p_period_start: expect.any(String) } });
     expect(reads.filter(read => read.table === "ledger_entries" && read.select?.includes("description")).map(read => read.returnedRows)).toEqual([8]);
   });
-  it("carries the relation budget across property ID batches", async () => {
+  it("bounds aggregate ID batches and rejects an error in the later batch", async () => {
     const properties = Array.from({ length: 76 }, (_, index) => property(index));
-    const { client } = createCappedReadHarness({ properties, ledger_entries: properties.map((row, index) => ({ ...scope, id: id("ledger", index), property_id: row.id, amount: 1, currency: "USD", direction: "income" })) }, { transformResult(read, result) {
-      return read.table === "ledger_entries" && read.filters.some(filter => filter.method === "in" && Array.isArray(filter.value) && filter.value.includes(properties[75].id)) ? { ...result, count: 99926 } : result;
+    const { client, rpcReads } = createCappedReadHarness({ properties, ledger_entries: properties.map((row, index) => ({ ...scope, id: id("ledger", index), property_id: row.id, amount: 1, currency: "USD", direction: "income" })) }, { transformRpcResult(read, result) {
+      return read.name === "get_portfolio_ledger_totals" && (read.args.p_property_ids as unknown[]).includes(properties[75].id) ? { data: null, error: { message: "Synthetic later aggregate failure" } } : result;
     } });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
-    await expect(getPropertySummaries(organizationId)).rejects.toThrow("supported 99925 rows");
+    await expect(getPropertySummaries(organizationId)).rejects.toThrow("Synthetic later aggregate failure");
+    expect(rpcReads.filter(read => read.name === "get_portfolio_ledger_totals").map(read => (read.args.p_property_ids as unknown[]).length)).toEqual([75, 1]);
   });
   it.each(["missing data", "missing count", "short page", "changing count"])("fails closed for a paged register with %s", async failure => {
     const { client } = createCappedReadHarness({ properties: Array.from({ length: 12 }, (_, index) => property(index)) }, { transformResult(read, result) {

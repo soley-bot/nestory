@@ -12,6 +12,7 @@ import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
 import { PersonForm } from "@/features/people/components/person-form";
 import { PersonSelect } from "@/features/people/components/person-select";
+import { getLeaseTenantOptionsAction } from "../lease-person-options-actions";
 import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
 import type { PersonRoleValue } from "@/features/people/people.types";
 import {
@@ -490,7 +491,9 @@ export function LeaseForm({
                 >
                   <PersonSelect
                     context="Lease tenant"
+                    loadOptions={getLeaseTenantOptionsAction}
                     name="tenantPersonId"
+                    onOptionSelect={option => setAvailableTenantOptions(current => current.some(candidate => candidate.id === option.id) ? current : [...current, option])}
                     onValueChange={setSelectedTenantId}
                     options={tenantOptions}
                     placeholder="Select tenant"

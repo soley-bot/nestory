@@ -72,11 +72,11 @@ describe("property form options authority", () => {
     expect(await response.json()).toEqual({ mode, propertyId, options: mode === "edit" ? { owners: [] } : { tenants: [], billingFormConfig } });
     expect(query.eq.mock.calls).toEqual([["organization_id", "org"], ["id", propertyId]]);
     if (mode === "edit") {
-      expect(getPropertyOwnerOptions).toHaveBeenCalledExactlyOnceWith("org");
+      expect(getPropertyOwnerOptions).not.toHaveBeenCalled();
       expect(getPersonSelectOptions).not.toHaveBeenCalled();
       expect(getLeaseBillingFormConfig).not.toHaveBeenCalled();
     } else {
-      expect(getPersonSelectOptions).toHaveBeenCalledExactlyOnceWith({ organizationId: "org", roles: ["tenant"] });
+      expect(getPersonSelectOptions).not.toHaveBeenCalled();
       expect(getLeaseBillingFormConfig).toHaveBeenCalledExactlyOnceWith("org");
       expect(getPropertyOwnerOptions).not.toHaveBeenCalled();
     }
@@ -110,7 +110,7 @@ describe("property form options authority", () => {
     expect(await response.json()).toEqual({ error: "Could not load this form. Try again." });
     noOptions();
     query.maybeSingle.mockResolvedValue({ data: property, error: null });
-    vi.mocked(getPropertyOwnerOptions).mockRejectedValueOnce(new Error("private"));
-    expect((await load()).status).toBe(503);
+    vi.mocked(getLeaseBillingFormConfig).mockRejectedValueOnce(new Error("private"));
+    expect((await load("lease")).status).toBe(503);
   });
 });

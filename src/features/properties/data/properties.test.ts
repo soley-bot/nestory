@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { from } = vi.hoisted(() => ({ from: vi.fn() }));
-vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: async () => ({ from }) }));
+const { from, rpc } = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn() }));
+vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: async () => ({ from, rpc }) }));
 vi.mock("@/lib/finance/financial-write-context.server", () => ({
   withFinancialReadContext: async (_org: string, read: (context: { generation: number }) => Promise<unknown>) => read({ generation: 2 }),
 }));
@@ -38,7 +38,13 @@ function query(result: Promise<unknown>) {
   return chain;
 }
 
-beforeEach(() => from.mockReset());
+beforeEach(() => {
+  from.mockReset();
+  rpc.mockReset().mockImplementation(async name => {
+    if (name !== "get_portfolio_ledger_totals") throw new Error(`Unexpected property fixture RPC: ${name}`);
+    return { data: [], error: null };
+  });
+});
 
 describe("property editor snapshot reads", () => {
   it("reads ownership only after the detail's property version has arrived", async () => {

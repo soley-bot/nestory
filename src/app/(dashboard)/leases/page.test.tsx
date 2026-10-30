@@ -26,6 +26,7 @@ describe("leases route", () => {
     requirePermission.mockReset();
     screenSpy.mockReset();
     getLeasesScreenData.mockResolvedValue({
+      financialGeneration: 11,
       leases: [],
       pagination: { from: 0, page: 1, pageSize: 50, to: 0, total: 0 },
       propertyOptions: [],
@@ -56,6 +57,7 @@ describe("leases route", () => {
     expect(screenSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         canPrepare,
+        financialGeneration: 11,
       }),
     );
   });

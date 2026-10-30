@@ -1,9 +1,6 @@
-import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
+import { readPortfolioLedgerTotals, readPortfolioRegisterPage, trailingTwelveMonthStart } from "@/lib/db/portfolio-readers";
 import { getMaintenanceCaseCounts } from "@/features/properties/data/property-detail-counts";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
-import type { PortfolioSearch } from "@/lib/search/portfolio";
-import { matchesSearchText } from "@/lib/search/text";
-import { normalizeSearchText } from "@/lib/search/text";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { DEFAULT_COMPLETE_READ_MAX_ROWS, readCompleteRows } from "@/lib/db/complete-read";
@@ -24,7 +21,6 @@ import {
   selectNewestDraftLease,
   type UnitDocumentRecord,
   type UnitLeaseRecord,
-  type UnitLedgerRecord,
   type UnitMaintenanceRecord,
   type UnitPersonRecord,
   type UnitPropertyRecord,
@@ -32,7 +28,6 @@ import {
   type UnitTimelineRecord,
 } from "@/features/units/data/unit-summary";
 import {
-  DEFAULT_UNIT_SORT,
   parseUnitSearchParams,
 } from "@/features/units/unit.filters";
 import type {
@@ -47,14 +42,12 @@ import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
 
 const unitSelect =
   "id, property_id, unit_number, floor, size_sqm, bedroom_count, bathroom_count, status, current_rent_amount, current_rent_currency, archived_at";
-const propertySelect = "id, code, name";
+const propertySelect = "id, code, name, status, archived_at";
 const unitWithPropertySelect = `${unitSelect}, property:properties!units_property_id_fkey(${propertySelect})`;
 const leaseSelect =
   "id, unit_id, tenant_name, primary_tenant_person_id, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency";
 const timelineContextSelect =
   "id, unit_id, lease_id, ledger_entry_id, event_date, event_type, title, description, cost_amount, cost_currency";
-const ledgerTotalsSelect =
-  "id, unit_id, transaction_date, direction, category, amount, currency";
 const recentLedgerSelect =
   "id, unit_id, transaction_date, direction, category, amount, currency, description";
 const documentSelect =
@@ -155,6 +148,7 @@ export async function getUnitPropertyOptions(
 
 function canUsePagedUnitBaseQuery(viewQuery: UnitViewQuery) {
   return (
+    !viewQuery.operationalOnly &&
     viewQuery.query.trim().length === 0 &&
     viewQuery.occupancy === "all" &&
     viewQuery.leaseStatus === "all" &&
@@ -339,65 +333,25 @@ async function getCompleteUnitsScreenData({
   supabase: SupabaseServerClient;
   viewQuery: UnitViewQuery;
 }) {
+  const page = await readPortfolioRegisterPage(supabase, "unit", organizationId, viewQuery, viewQuery.page, viewQuery.pageSize);
+  const pagination = buildUnitPagination({ page: viewQuery.page, pageSize: viewQuery.pageSize, totalCount: page.totalCount });
+  if (!page.ids.length) return { pagination, units: [] };
   const rows = await readCompleteRows<UnitRowWithProperty>({
-    context: "Could not load units",
+    maxRows: viewQuery.pageSize,
+    context: "Could not load unit page",
     getRowId: row => row.id,
-    compareRows: (previous, current) => previous.id.localeCompare(current.id),
-    readPage: (from, to) => applyUnitBaseFilters(buildUnitBaseQuery(supabase, organizationId), viewQuery)
-      .order("id", { ascending: true }).range(from, to),
+    readPage: (from, to) => buildUnitBaseQuery(supabase, organizationId).in("id", page.ids).order("id").range(from, to),
   });
-  const { units: unitRows, propertiesById } = splitUnitRowsAndProperties(rows as UnitRowWithProperty[]);
-  const unitRowsById = new Map(unitRows.map(unit => [unit.id, unit]));
-
-  if (unitRows.length === 0) {
-    return {
-      pagination: buildUnitPagination({
-        page: viewQuery.page,
-        pageSize: viewQuery.pageSize,
-        totalCount: 0,
-      }),
-      units: [],
-    };
+  const byId = new Map(rows.map(row => [row.id, row]));
+  if (rows.length !== page.ids.length || page.ids.some(id => !byId.has(id))) {
+    throw new Error("Could not load unit page: Records changed while loading. Reload and try again.");
   }
-
-  const units = (
-    await loadUnitSummariesForRows({
-      organizationId,
-      propertiesById,
-      supabase,
-      unitRows,
-      matching: { includeTimeline: Boolean(viewQuery.query.trim()) },
-    })
-  ).toSorted(compareUnitSummaries);
-  const portfolio = viewQuery.query.trim() ? await loadPortfolioSearch(supabase, organizationId) : undefined;
-  const filteredUnits = filterUnitSummaries(units, viewQuery, portfolio);
-  if (viewQuery.sort === "net_desc") {
-    const ledgerByUnitId = groupByUnitId(await getLedgerTotalRowsForUnits(supabase, organizationId, filteredUnits.map(unit => unit.id)));
-    for (const summary of filteredUnits) {
-      summary.ledgerNetUsd = buildUnitSummary({
-        unit: unitRowsById.get(summary.id)!,
-        ledgerEntries: ledgerByUnitId.get(summary.id) ?? [],
-      }).ledgerNetUsd;
-    }
-  }
-  const sortedUnits = sortUnitSummaries(filteredUnits, viewQuery.sort);
-  const pagination = buildUnitPagination({
-    page: viewQuery.page,
-    pageSize: viewQuery.pageSize,
-    totalCount: sortedUnits.length,
-  });
-
+  const { units: unitRows, propertiesById } = splitUnitRowsAndProperties(page.ids.map(id => byId.get(id)!));
   return {
     pagination,
-    units: await loadUnitSummariesForRows({
-      organizationId,
-      propertiesById,
-      supabase,
-      unitRows: getUnitPageSummaries(sortedUnits, pagination).map(summary => unitRowsById.get(summary.id)!),
-    }),
+    units: await loadUnitSummariesForRows({ organizationId, propertiesById, supabase, unitRows }),
   };
 }
-
 async function loadUnitSummariesForRows({
   organizationId,
   propertiesById,
@@ -516,7 +470,8 @@ export async function getUnitDetail(
 
 async function readUnitDetail(organizationId: string, unitId: string, operationalTimezone?: string) {
   const supabase = await createSupabaseServerClient();
-  const businessDate = getBusinessDateValue(new Date(), operationalTimezone);
+  const currentDate = new Date();
+  const businessDate = getBusinessDateValue(currentDate, operationalTimezone);
 
   const unitResult = await supabase
     .from("units")
@@ -577,17 +532,7 @@ async function readUnitDetail(organizationId: string, unitId: string, operationa
       .order("transaction_date", { ascending: false })
       .order("id", { ascending: false })
       .limit(detailRecordLimit),
-    readCompleteRows<UnitLedgerRecord & { id: string }>({
-      context: "Could not load unit ledger totals",
-      getRowId: row => row.id,
-      readPage: (from, to) => supabase
-      .from("ledger_entries")
-      .select(ledgerTotalsSelect, { count: "exact" })
-      .eq("organization_id", organizationId)
-      .eq("unit_id", unit.id)
-      .is("archived_at", null)
-      .order("id", { ascending: true }).range(from, to),
-    }),
+    readPortfolioLedgerTotals(supabase, organizationId, "unit", [unit.id], trailingTwelveMonthStart(currentDate)),
     supabase
       .from("documents")
       .select(documentSelect, { count: "exact" })
@@ -670,6 +615,7 @@ async function readUnitDetail(organizationId: string, unitId: string, operationa
   ]);
 
   return buildUnitDetail({
+    currentDate,
     businessDate,
     activeLease,
     activity,
@@ -788,65 +734,6 @@ function indexLatestTimelineByUnitId(rows: UnitTimelineRecord[]) {
   return index;
 }
 
-function compareUnitSummaries(
-  first: ReturnType<typeof buildUnitSummary>,
-  second: ReturnType<typeof buildUnitSummary>,
-) {
-  return (
-    Number(first.isArchived) - Number(second.isArchived) ||
-    first.propertyCode.localeCompare(second.propertyCode, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    }) ||
-    first.propertyName.localeCompare(second.propertyName, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    }) ||
-    first.unitNumber.localeCompare(second.unitNumber, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    }) || first.id.localeCompare(second.id)
-  );
-}
-
-function filterUnitSummaries(units: UnitSummary[], viewQuery: UnitViewQuery, portfolio?: PortfolioSearch) {
-
-  return units.filter((unit) => {
-    const matchesProperty =
-      viewQuery.propertyId === "all" || unit.propertyId === viewQuery.propertyId;
-    const matchesStatus =
-      viewQuery.status === "all" || unit.statusValue === viewQuery.status;
-    const matchesLeaseStatus = unitMatchesLeaseStatusFilter(
-      unit,
-      viewQuery.leaseStatus,
-    );
-    const matchesOccupancy = unitMatchesOccupancyFilter(
-      unit,
-      viewQuery.occupancy,
-    );
-    const haystack = normalizeSearchText([
-      unit.unitNumber,
-      unit.propertyCode,
-      unit.propertyName,
-      unit.propertyOwnerName,
-      unit.floorLabel,
-      unit.statusLabel,
-      unit.leaseLabel,
-      unit.latestTimelineEvent?.title ?? "",
-    ]
-      .join(" "));
-    const matchesQuery = matchesSearchText(viewQuery.query, [haystack, ...(portfolio?.unitValues(unit.id) ?? [])]);
-
-    return (
-      matchesProperty &&
-      matchesStatus &&
-      matchesLeaseStatus &&
-      matchesOccupancy &&
-      matchesQuery
-    );
-  });
-}
-
 export function unitMatchesLeaseStatusFilter(
   unit: Pick<UnitSummary, "hasActiveLease">,
   leaseStatus: UnitLeaseStatusFilter,
@@ -863,46 +750,6 @@ export function unitMatchesOccupancyFilter(
     : occupancy === "occupied"
       ? unit.hasActiveLease
       : !unit.hasActiveLease;
-}
-
-function sortUnitSummaries(
-  units: UnitSummary[],
-  sort: UnitViewQuery["sort"] = DEFAULT_UNIT_SORT,
-) {
-  return [...units].sort((first, second) => {
-    if (sort === "unit_asc") {
-      return (
-        compareStrings(first.unitNumber, second.unitNumber) ||
-        compareStrings(first.propertyCode, second.propertyCode) || first.id.localeCompare(second.id)
-      );
-    }
-
-    if (sort === "status_asc") {
-      return (
-        compareStrings(first.occupancyLabel, second.occupancyLabel) ||
-        compareStrings(first.propertyCode, second.propertyCode) ||
-        compareStrings(first.unitNumber, second.unitNumber) || first.id.localeCompare(second.id)
-      );
-    }
-
-    if (sort === "rent_desc") {
-      return (
-        second.rentUsd - first.rentUsd ||
-        compareStrings(first.propertyCode, second.propertyCode) ||
-        compareStrings(first.unitNumber, second.unitNumber) || first.id.localeCompare(second.id)
-      );
-    }
-
-    if (sort === "net_desc") {
-      return (
-        second.ledgerNetUsd - first.ledgerNetUsd ||
-        compareStrings(first.propertyCode, second.propertyCode) ||
-        compareStrings(first.unitNumber, second.unitNumber) || first.id.localeCompare(second.id)
-      );
-    }
-
-    return compareUnitSummaries(first, second);
-  });
 }
 
 function buildUnitPagination({
@@ -929,19 +776,9 @@ function buildUnitPagination({
   };
 }
 
-function getUnitPageSummaries(units: UnitSummary[], pagination: UnitPagination) {
-  const start = pagination.totalCount === 0 ? 0 : pagination.from - 1;
-
-  return units.slice(start, pagination.to);
-}
-
 function getRange(page: number, pageSize: number) {
   const from = (Math.max(page, 1) - 1) * pageSize;
-
-  return {
-    from,
-    to: from + pageSize - 1,
-  };
+  return { from, to: from + pageSize - 1 };
 }
 
 async function getLeaseRowsForUnits(
@@ -999,20 +836,7 @@ async function getLedgerTotalRowsForUnits(
   organizationId: string,
   unitIds: string[],
 ) {
-  const rows = await queryUnitIdBatches(unitIds, (batch, remainingRows) => readCompleteRows<UnitLedgerRecord & { id: string }>({
-    maxRows: remainingRows,
-    context: "Could not load unit ledger context",
-    getRowId: row => row.id,
-    readPage: (from, to) => supabase
-      .from("ledger_entries")
-      .select(ledgerTotalsSelect, { count: "exact" })
-      .eq("organization_id", organizationId)
-      .in("unit_id", batch)
-      .is("archived_at", null)
-      .order("id", { ascending: true }).range(from, to),
-  }));
-
-  return rows;
+  return readPortfolioLedgerTotals(supabase, organizationId, "unit", unitIds);
 }
 
 async function getImageRowsForUnits(
@@ -1098,11 +922,4 @@ export function chunkValues<T>(values: T[], size: number) {
   }
 
   return chunks;
-}
-
-function compareStrings(first: string, second: string) {
-  return first.localeCompare(second, undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
 }

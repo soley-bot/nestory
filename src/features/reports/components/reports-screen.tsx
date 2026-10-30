@@ -16,7 +16,7 @@ import { UnitProfitLossWorkspace } from "./unit-profit-loss-workspace";
 import { profitLossBasisLabel } from "../data/profit-loss-funding";
 import { ReportsFilters } from "@/features/reports/components/reports-filters";
 import { getReportCatalogItem, reportCatalog } from "@/features/reports/report-catalog";
-import { buildReportQueryParams } from "@/features/reports/reports.filters";
+import { buildReportQueryParams, buildReportSwitchHref } from "@/features/reports/reports.filters";
 import { ReportSavedViews } from "@/features/reports/components/report-saved-views";
 import { ReportColumns } from "@/features/reports/components/report-columns";
 import type {
@@ -28,11 +28,15 @@ import { RecheckReport } from "@/features/reports/components/report-remediation-
 import { unitProfitLossHelp } from "../report-help";
 
 type ReportsScreenProps = ReportsScreenData & {
+  canCreateExpense?: boolean;
+  canReadFinance?: boolean;
   organizationName: string;
   viewStorageKey?: string;
 };
 
 export function ReportBuilderScreen({
+  canCreateExpense = false,
+  canReadFinance = false,
   ownerOptions = [],
   propertyOptions,
   trustedReport,
@@ -53,6 +57,21 @@ export function ReportBuilderScreen({
   const reportRowCount =
     trustedReport.totalRowCount ?? trustedReport.rows.length;
   const queryKey = buildReportQueryParams(viewQuery).toString();
+  const clearedFilters = buildReportQueryParams({
+    ...viewQuery,
+    query: undefined,
+    transactionType: undefined,
+    transactionStatus: undefined,
+    payeeId: undefined,
+  });
+  const emptyAction = validation ? undefined
+    : trustedReport.emptyReason === "no-matches"
+      ? { href: `/reports/${viewQuery.report}?${clearedFilters}`, label: "Clear transaction filters" }
+      : trustedReport.emptyReason === "no-activity" && viewQuery.report === "transactions" && canReadFinance
+        ? canCreateExpense
+          ? { href: "/bills-expenses?action=create", label: "Record expense" }
+          : { href: "/rent-income", label: "Review rent & collections" }
+        : undefined;
 
   if (trustedReport.kind === "unit-profit-loss") {
     return <FinancialReportBoundary expectedGeneration={trustedReport.financialGeneration}><WorkspacePage className="overflow-x-clip" header={<header className="workspace-gutter-x flex min-h-12 flex-wrap items-center gap-3 border-b border-border/70 py-2">
@@ -61,10 +80,12 @@ export function ReportBuilderScreen({
       <span className="text-xs text-muted-foreground">{profitLossBasisLabel}</span>
       <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2"><PageHelp content={unitProfitLossHelp} />{validation ? null : <ExportMenu viewQuery={viewQuery} />}<RecheckReport /></div>
     </header>}>
+      <ReportNavigation viewQuery={viewQuery} />
       <ReportsFilters key={queryKey} compact action={`/reports/${viewQuery.report}`} propertyOptions={propertyOptions} unitOptions={unitOptions} ownerOptions={ownerOptions} viewQuery={viewQuery} />
       <div className="workspace-gutter-x pb-4">
+        {viewStorageKey ? <div className="flex justify-end py-2"><ReportSavedViews storageKey={viewStorageKey} viewQuery={viewQuery} /></div> : null}
         {validation ? <div role={trustedReport.scopeValidation ? "alert" : "status"} className="my-3 rounded-md border border-warning/30 bg-warning-soft/35 px-3 py-2 text-sm"><p className="font-semibold">{trustedReport.scopeValidation ? "Report unavailable" : "Export unavailable"}</p><p>{validation.message}</p></div> : null}
-        <UnitProfitLossWorkspace returnTo={`/reports/${viewQuery.report}?${queryKey}`} key={queryKey} report={trustedReport} />
+        <UnitProfitLossWorkspace returnTo={`/reports/${viewQuery.report}?${queryKey}`} key={queryKey} report={trustedReport} viewQuery={viewQuery} />
       </div>
     </WorkspacePage></FinancialReportBoundary>;
   }
@@ -77,9 +98,7 @@ export function ReportBuilderScreen({
       title={selectedReport.title}
     >
       <div className="flex min-w-0 flex-col bg-background">
-        <nav aria-label="Reports" className="workspace-gutter-x flex gap-1 overflow-x-auto border-b border-border py-2">
-          {reportCatalog.map((report) => <Link key={report.kind} aria-current={report.kind === viewQuery.report ? "page" : undefined} href={`/reports/${report.kind}`} className={cn("shrink-0 rounded-md px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", report.kind === viewQuery.report ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>{report.tabLabel}</Link>)}
-        </nav>
+        <ReportNavigation viewQuery={viewQuery} />
         <div className={viewQuery.report === "unit-profit-loss" ? "sticky top-0 z-20 bg-background" : undefined}>
         <ReportsFilters
           key={queryKey}
@@ -139,7 +158,7 @@ export function ReportBuilderScreen({
             >
               <dl
                 className={cn(
-                  "grid divide-y divide-border sm:divide-x sm:divide-y-0",
+                  "grid grid-cols-2 gap-x-3 sm:divide-x sm:divide-border",
                   visibleSummary.length === 3
                     ? "sm:grid-cols-3"
                     : visibleSummary.length > 4
@@ -164,11 +183,17 @@ export function ReportBuilderScreen({
             </section>
           ) : null}
 
-          <ReportResultsTable key={queryKey} report={trustedReport} reportRowCount={reportRowCount} viewQuery={viewQuery} />
+          <ReportResultsTable key={queryKey} emptyAction={emptyAction} report={trustedReport} reportRowCount={reportRowCount} viewQuery={viewQuery} />
         </div>
       </div>
     </WorkspacePage></FinancialReportBoundary>
   );
+}
+
+function ReportNavigation({ viewQuery }: { viewQuery: ReportsViewQuery }) {
+  return <nav aria-label="Reports" className="workspace-gutter-x flex gap-1 overflow-x-auto border-b border-border py-2">
+    {reportCatalog.map(report => <Link key={report.kind} aria-current={report.kind === viewQuery.report ? "page" : undefined} href={buildReportSwitchHref(viewQuery, report.kind)} className={cn("shrink-0 rounded-md px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", report.kind === viewQuery.report ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>{report.tabLabel}</Link>)}
+  </nav>;
 }
 
 function ExportMenu({ viewQuery }: { viewQuery: ReportsViewQuery }) {
@@ -196,6 +221,6 @@ function ExportMenu({ viewQuery }: { viewQuery: ReportsViewQuery }) {
 }
 
 function buildExportHref(path: string, viewQuery: ReportsViewQuery) {
-  const params = buildReportQueryParams(viewQuery);
+  const params = buildReportQueryParams(viewQuery, { includeScreenState: false });
   return `${path}?${params.toString()}`;
 }

@@ -28,6 +28,9 @@ const navigation = vi.hoisted(() => ({
 const leaseActions = vi.hoisted(() => ({
   createLeaseAction: vi.fn(),
 }));
+vi.mock("@/features/leases/lease-filter-actions", () => ({
+  getLeaseFilterOptionsAction: vi.fn(async () => ({ properties: [], units: [] })),
+}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => navigation.pathname,

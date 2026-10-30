@@ -27,6 +27,7 @@ import type {
 
 const historicalCorrectionMocks = vi.hoisted(() => ({ apply: vi.fn(), preview: vi.fn() }));
 const depositActionMocks = vi.hoisted(() => ({ record: vi.fn() }));
+const custodyMocks = vi.hoisted(() => ({ options: vi.fn() }));
 const leaseEditorMocks = vi.hoisted(() => ({ billing: vi.fn(), term: vi.fn() }));
 const actionMocks = vi.hoisted(() => ({
   confirmOwnerCollectionAction: vi.fn(),
@@ -81,6 +82,10 @@ vi.mock("@/features/leases/historical-rent-correction-actions", () => ({
 }));
 
 vi.mock("@/features/finance-operations/actions", () => actionMocks);
+vi.mock("@/features/leases/local-deposit-rent/custody-actions", () => ({
+  getDepositCustodyOptions: custodyMocks.options,
+  confirmDepositCustody: vi.fn(),
+}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/leases/lease-1",
@@ -89,6 +94,7 @@ vi.mock("next/navigation", () => ({
 
 beforeEach(() => {
   depositActionMocks.record.mockReset().mockResolvedValue({});
+  custodyMocks.options.mockReset().mockResolvedValue({ status: "success",deposits: [{ id: "deposit-1",label: "Security deposit",held: "1200.00" }],owners: [],businessDate: "2026-08-01",fingerprint: "snapshot" });
   leaseEditorMocks.billing.mockReset().mockResolvedValue({});
   leaseEditorMocks.term.mockReset().mockResolvedValue({});
   historicalCorrectionMocks.apply.mockReset();
@@ -116,6 +122,18 @@ afterEach(() => {
 });
 
 describe("LeaseDetailScreen", () => {
+  it("retains intent-loaded accounts when moving from the deposit drawer to custody confirmation", async () => {
+    const user=userEvent.setup();
+    const loadFormOptions=vi.fn().mockResolvedValue({ leaseDepositAccounts: [{ id: "last-account",displayName: "Last deposit account",accountClass: "liability",accountSubtype: "current_liability",propertyId: null }] });
+    render(detailElement("rent",makeLease(),{ ...allLeasePermissions,canCorrectFinance: true },{ loadFormOptions,leaseDepositAccounts: [] }));
+    expect(loadFormOptions).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Manage deposit" }));
+    await user.click(await screen.findByRole("button", { name: "Confirm deposit custody" }));
+    const picker=await screen.findByRole("combobox", { name: "Custody liability account" });
+    await user.click(picker);
+    expect(await screen.findByRole("option", { name: "Last deposit account" })).toBeTruthy();
+    expect(loadFormOptions).toHaveBeenCalledWith("deposit");
+  });
   it("hides mismatched rent and deposit panels while preserving lease section navigation", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
     render(<FinancialWriteProvider organizationId="org" context={{ generation: 1, status: "open", financial_start_date: "2026-08-01", enforced: true }}>
@@ -1720,6 +1738,8 @@ function renderDetail(
     canViewFinance?: boolean;
     returnTo?: string;
     canViewPropertyRecords?: boolean;
+    loadFormOptions?: React.ComponentProps<typeof LeaseDetailScreen>["loadFormOptions"];
+    leaseDepositAccounts?: React.ComponentProps<typeof LeaseDetailScreen>["leaseDepositAccounts"];
     billingFormConfig?: LeaseBillingFormConfig;
     historicalRentCorrectionCandidates?: HistoricalRentCorrectionCandidate[];
     paymentResolution?: LeasePaymentResolutionData;
@@ -1741,6 +1761,8 @@ function detailElement(
     canViewFinance?: boolean;
     returnTo?: string;
     canViewPropertyRecords?: boolean;
+    loadFormOptions?: React.ComponentProps<typeof LeaseDetailScreen>["loadFormOptions"];
+    leaseDepositAccounts?: React.ComponentProps<typeof LeaseDetailScreen>["leaseDepositAccounts"];
     billingFormConfig?: LeaseBillingFormConfig;
     historicalRentCorrectionCandidates?: HistoricalRentCorrectionCandidate[];
     paymentResolution?: LeasePaymentResolutionData;
@@ -1760,8 +1782,9 @@ function detailElement(
       canViewFinance={focus.canViewFinance ?? true}
       canViewPropertyRecords={focus.canViewPropertyRecords}
       historicalRentCorrectionCandidates={focus.historicalRentCorrectionCandidates}
+      loadFormOptions={focus.loadFormOptions}
       lease={lease}
-      leaseDepositAccounts={[
+      leaseDepositAccounts={focus.leaseDepositAccounts ?? [
         {
           accountClass: "liability",
           accountSubtype: "current_liability",

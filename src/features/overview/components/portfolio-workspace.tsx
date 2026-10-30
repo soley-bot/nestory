@@ -38,6 +38,7 @@ export function PortfolioWorkspace({
   query: OverviewViewQuery;
 }) {
   const cards = dashboardMetrics(data.metrics);
+  const priorities = attentionQueue.filter(item => item.kind !== "data-quality").slice(0, 3);
 
   return (
     <div
@@ -57,12 +58,23 @@ export function PortfolioWorkspace({
               key={metric.label}
               metric={metric}
               month={query.month}
+              propertyId={query.propertyId}
             />
           ) : (
-            <MetricCard key={metric.label} metric={metric} />
+            <MetricCard key={metric.label} metric={metric} propertyId={query.propertyId} />
           ),
         )}
       </section>
+
+      {priorities.length ? <section aria-label="Operating priorities" className="mx-4 rounded-lg border border-border lg:mx-6">
+        <h2 className="px-3 pt-3 text-sm font-semibold">Operating priorities</h2>
+        <div className="grid divide-y divide-border sm:auto-cols-fr sm:grid-flow-col sm:divide-x sm:divide-y-0">
+          {priorities.map(item => <Link key={item.id} href={item.href} className="flex items-center justify-between gap-3 p-3 text-sm outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring">
+            <span><span className="font-medium">{item.label}</span><span className="mt-0.5 block text-xs text-muted-foreground">{item.helper}</span></span>
+            <span className="flex items-center gap-2"><Badge tone={item.tone}>{item.count}</Badge><ArrowRight aria-hidden="true" size={14} /></span>
+          </Link>)}
+        </div>
+      </section> : null}
 
       <div
         className="flex justify-end px-4 lg:px-6"
@@ -72,7 +84,7 @@ export function PortfolioWorkspace({
       >
         <div className="inline-flex w-full min-w-0 flex-col gap-1 rounded-lg bg-muted p-1 sm:w-auto sm:flex-row sm:items-center">
           <OverviewPropertyPicker options={data.propertyOptions} query={query} />
-          <OverviewMonthPicker className="w-full shrink-0 whitespace-nowrap border-0 bg-background px-2.5 shadow-xs sm:w-auto" query={query} />
+          <OverviewMonthPicker className="w-full shrink-0 whitespace-nowrap border-0 bg-background px-2.5 shadow-xs sm:w-auto" financialStartDate={data.financialStartDate} query={query} />
         </div>
       </div>
 
@@ -109,10 +121,15 @@ export function PortfolioWorkspace({
               </div>
             ) : (
               <div
-                className="flex min-h-40 items-center justify-center rounded-lg bg-muted/30 px-4 text-center text-sm text-muted-foreground"
+                className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-lg bg-muted/30 px-4 py-5 text-center text-sm text-muted-foreground"
                 data-slot="dashboard-cash-flow-empty"
               >
-                No ledger activity in this period.
+                <p className="font-medium text-foreground">No ledger activity in this period.</p>
+                <p className="max-w-md text-xs">Expected rent is a forecast. Cash flow appears as financial activity is recorded.</p>
+                <div className="mt-1 flex flex-wrap justify-center gap-x-4 gap-y-2">
+                  <Link className="font-medium text-primary underline-offset-4 hover:underline" href="/rent-income">Review rent &amp; collections</Link>
+                  <Link className="font-medium text-primary underline-offset-4 hover:underline" href="/bills-expenses?action=create">Record expense</Link>
+                </div>
               </div>
             )}
           </CardContent>
@@ -177,19 +194,23 @@ export function PortfolioWorkspace({
   );
 }
 
-function MetricCard({ metric }: { metric: OverviewMetric }) {
+function MetricCard({ metric, propertyId }: { metric: OverviewMetric; propertyId: string }) {
   const value = typeof metric.value === "string" ? metric.value : metric.value.primary;
   const needsReview =
     metric.tone === "warning" ||
     metric.tone === "danger" ||
     (metric.label === "Occupancy" && Number.parseInt(value, 10) < 85);
   const StatusIcon = needsReview ? CircleAlert : TrendingUp;
+  const target = metric.label === "Occupancy" ? "/units?occupancy=occupied&scope=operational" : metric.label === "Lease gaps" ? "/units?leaseStatus=missing&scope=operational" : "/leases?status=current";
+  const href = propertyId === "all" ? target : `${target}&propertyId=${encodeURIComponent(propertyId)}`;
 
   return (
-    <Card size="sm">
+    <Link href={href} className="rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+    <Card className="h-full transition-colors hover:bg-muted/50" size="sm">
       <CardHeader>
         <CardTitle><h2>{metricLabel(metric.label)}</h2></CardTitle>
         <p className="text-2xl font-semibold tabular-nums">{value}</p>
+        <p className="text-xs text-muted-foreground">{metric.helper}</p>
         <CardAction>
           <Badge tone={needsReview ? "warning" : metric.tone === "neutral" ? "neutral" : metric.tone}>
             <StatusIcon aria-hidden="true" className="size-3" />
@@ -198,6 +219,7 @@ function MetricCard({ metric }: { metric: OverviewMetric }) {
         </CardAction>
       </CardHeader>
     </Card>
+    </Link>
   );
 }
 

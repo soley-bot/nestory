@@ -83,6 +83,8 @@ describe("lease detail route", () => {
     await renderPage({ action: "record-payment", invoiceId, returnTo });
     expect(detailSpy.mock.calls[0]?.[0].returnTo).toBe(returnTo);
     expect(requirePermission).toHaveBeenCalledWith("leases.view");
+    expect(getFinanceAccountsData).not.toHaveBeenCalled();
+    expect(detailSpy.mock.calls[0]?.[0].loadFormOptions).toEqual(expect.any(Function));
     expect(detailSpy.mock.calls[0]?.[0].canRecordPayments).toBe(true);
   });
 

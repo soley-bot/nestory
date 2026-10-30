@@ -112,6 +112,21 @@ function build(
 }
 
 describe("transaction report financial presentation", () => {
+  it("distinguishes an empty period from filters hiding recorded activity", () => {
+    const noActivity = build([entry({ date: "2026-08-31" })], { query: "roof" });
+    expect(noActivity.emptyReason).toBe("no-activity");
+    expect(noActivity.emptyTitle).toBe("No transactions recorded in this period");
+    const noMatches = build([entry()], { query: "roof" });
+    expect(noMatches.rows).toHaveLength(0);
+    expect(noMatches.emptyReason).toBe("no-matches");
+    expect(noMatches.emptyTitle).toBe("No matching transactions");
+  });
+
+  it("does not infer activity from another property or non-fee transactions", () => {
+    expect(build([entry()], { propertyId: "other" }).emptyReason).toBe("no-activity");
+    expect(build([entry()], { report: "management-fees" }).emptyTitle).toBe("No management fees recorded in this period");
+  });
+
   it("retains archived property activity in historical totals", () => {
     const report = buildTransactionReport({
       entries: [entry()],

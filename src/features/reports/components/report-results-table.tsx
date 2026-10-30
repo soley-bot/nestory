@@ -6,8 +6,8 @@ import * as React from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
-import { Input } from "@/components/ui/input";
 import { ProfitLossUnitTransactions } from "./profit-loss-detail";
+import { ReportPageNavigation, ReportScopeSearch, reportScreenHref } from "./report-page-navigation";
 import { Button } from "@/components/ui/button";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import {
@@ -26,6 +26,7 @@ import type {
 import { cn } from "@/lib/utils";
 
 type ReportResultsTableProps = {
+  emptyAction?: { href: string; label: string };
   report: TrustedReport;
   reportRowCount: number;
   viewQuery: ReportsViewQuery;
@@ -47,6 +48,7 @@ type DisplayColumn =
     };
 
 export function ReportResultsTable({
+  emptyAction,
   report: inputReport,
   reportRowCount,
   viewQuery,
@@ -56,25 +58,10 @@ export function ReportResultsTable({
   const [activeRow, setActiveRow] = React.useState<TrustedReportRow | null>(
     null,
   );
-  const [showZeroActivity, setShowZeroActivity] = React.useState(false);
-  const [page, setPage] = React.useState(0);
   const isProfitLoss = report.kind === "unit-profit-loss";
-  const pageSize = isProfitLoss ? 25 : 50;
-  const [search, setSearch] = React.useState("");
-  const zeroActivityRows =
-    report.kind === "unit-profit-loss"
-      ? report.rows.filter((row) => !hasFinancialActivity(row))
-      : [];
-  const activityRows =
-    report.kind === "unit-profit-loss" && !showZeroActivity
-      ? report.rows.filter(hasFinancialActivity)
-      : report.rows;
-  const query = search.trim().toLowerCase();
-  const allRows = isProfitLoss && query ? activityRows.filter((row) => `${row.cells.property} ${row.cells.unit}`.toLowerCase().includes(query)) : activityRows;
-  const recordCount = allRows.filter((row) => !row.isGroup).length;
-  const pageCount = Math.max(1, Math.ceil(recordCount / pageSize));
-  const currentPage = Math.min(page, pageCount - 1);
-  const rows = paginateReportRows(allRows, currentPage, pageSize);
+  const zeroActivityCount = report.zeroActivityRowCount ?? 0;
+  const query = viewQuery.scopeQuery ?? "";
+  const rows = report.rows;
   const columns = displayColumns(report);
   const operational = ["transactions", "management-fees", "rent-roll", "rent-collections"].includes(report.kind);
   const countLabel =
@@ -85,10 +72,7 @@ export function ReportResultsTable({
         : `${reportRowCount} ${reportRowCount === 1 ? "record" : "records"}`;
 
   function pagination(label: string) {
-    return pageCount > 1 ? <nav aria-label={label} className="flex flex-wrap items-center justify-between gap-2 border-t border-border py-2 text-xs text-muted-foreground">
-      <p>{currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, recordCount)} of {recordCount} records.{!isProfitLoss ? " Totals and exports include all matching rows." : ""}</p>
-      <div className="flex items-center gap-2"><Button size="sm" variant="outline" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Previous</Button><span>Page {currentPage + 1} of {pageCount}</span><Button size="sm" variant="outline" disabled={currentPage + 1 === pageCount} onClick={() => setPage(currentPage + 1)}>Next</Button></div>
-    </nav> : null;
+    return report.screenPagination ? <ReportPageNavigation pagination={report.screenPagination} viewQuery={viewQuery} label={label} /> : null;
   }
 
   return (
@@ -99,22 +83,32 @@ export function ReportResultsTable({
             {report.title}
           </h2>
           <span className="text-xs text-muted-foreground">{countLabel}</span>
-          {zeroActivityRows.length > 0 ? (
+          {zeroActivityCount > 0 ? (
             <Button
+              asChild
               className="ml-auto h-7 px-2 text-xs"
-              onClick={() => { setShowZeroActivity((current) => !current); setPage(0); }}
-              type="button"
               variant="ghost"
             >
-              {showZeroActivity
+              <Link prefetch={false} scroll={false} href={reportScreenHref(viewQuery, { showZeroActivity: !viewQuery.showZeroActivity, page: 1 })}>{viewQuery.showZeroActivity
                 ? "Hide scopes with no activity"
-                : `Show ${zeroActivityRows.length} ${zeroActivityRows.length === 1 ? "scope" : "scopes"} with no activity`}
+                : `Show ${zeroActivityCount} ${zeroActivityCount === 1 ? "scope" : "scopes"} with no activity`}</Link>
             </Button>
           ) : null}
         </div>
 
-        {isProfitLoss ? <div className="flex flex-wrap items-center gap-3 py-2"><Input aria-label="Find property or unit" placeholder="Find property or unit" className="max-w-xs" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} /><p className="text-xs text-muted-foreground">Search filters this list. Totals and exports cover the full report.</p></div> : null}
+        {isProfitLoss ? <ReportScopeSearch viewQuery={viewQuery} /> : null}
         {isProfitLoss ? pagination("Report pages, top") : null}
+        {rows.length === 0 ? (
+          <div className="flex min-h-40 flex-col items-center justify-center gap-2 px-4 py-8 text-center">
+            <p className="font-medium text-foreground">
+              {isProfitLoss && query ? "No matching property or unit" : report.emptyTitle}
+            </p>
+            <p className="max-w-lg text-sm text-muted-foreground">
+              {isProfitLoss && query ? "Try a different search or show scopes with no activity. Report totals and exports still cover the full selected scope." : report.emptyDescription}
+            </p>
+            {emptyAction ? <Button asChild size="sm" variant="outline" className="mt-2"><Link href={emptyAction.href}>{emptyAction.label}</Link></Button> : null}
+          </div>
+        ) : (
         <div
           aria-label={`${report.title} table`}
           className={cn("max-w-full", isProfitLoss ? "[&>[data-slot=table-container]]:max-h-[55vh]" : "overflow-x-auto")}
@@ -142,21 +136,7 @@ export function ReportResultsTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    className="px-4 py-10 text-center"
-                    colSpan={columns.length + 1}
-                  >
-                    <p className="font-medium text-foreground">
-                      {isProfitLoss && query ? "No matching property or unit" : report.emptyTitle}
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {isProfitLoss && query ? "Try a different search or show scopes with no activity. Report totals and exports still cover the full selected scope." : report.emptyDescription}
-                    </p>
-                  </TableCell>
-                </TableRow>
-              ) : (
+              {
                 rows.map((row, index) => row.isGroup ? <TableRow key={row.id} className="bg-muted/60">
                   <TableCell colSpan={columns.length + 1} className="px-3 py-2">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1">
@@ -177,10 +157,11 @@ export function ReportResultsTable({
                     row={row}
                   />
                 ))
-              )}
+              }
             </TableBody>
           </Table>
         </div>
+        )}
         {pagination(isProfitLoss ? "Report pages, bottom" : "Report pages")}
       </section>
 
@@ -303,14 +284,18 @@ function ReportRowDetails({
   if (!row) return null;
   const returnTo = `/reports/${viewQuery.report}?${buildReportQueryParams(viewQuery).toString()}`;
 
-  const unitLines = report.kind === "unit-profit-loss" && !report.scopeValidation && report.unitProfitLossLines ? report.unitProfitLossLines.filter((line) => row.id.startsWith("property-level:") ? line.unitId === null && line.propertyId === row.id.slice("property-level:".length) : line.unitId === row.id) : null;
+  // A paged report's detail lines are not the complete selected unit history.
+  // Its drawer retains source previews and links to the scoped, paged P&L.
+  const unitLines = report.kind === "unit-profit-loss" && !report.unitProfitLossScreen && !report.scopeValidation && report.unitProfitLossLines ? report.unitProfitLossLines.filter((line) => row.id.startsWith("property-level:") ? line.unitId === null && line.propertyId === row.id.slice("property-level:".length) : line.unitId === row.id) : null;
   const hiddenSourceCount = Math.max(
     0,
     row.sourceCount - row.sourceLinks.length,
   );
   const completeReportHref =
-    report.kind === "unit-profit-loss" && row.cells.unit !== "Property-level"
-      ? buildUnitExportHref("/reports/unit-profit-loss", viewQuery, row.id)
+    report.kind === "unit-profit-loss"
+      ? row.id.startsWith("property-level:")
+        ? reportScreenHref(viewQuery, { propertyId: row.id.slice("property-level:".length), unitId: "all", scopeQuery: "Property-level", page: 1, detailPage: 1 })
+        : buildUnitExportHref("/reports/unit-profit-loss", viewQuery, row.id)
       : null;
 
   return (
@@ -336,7 +321,7 @@ function ReportRowDetails({
       title={row.title}
     >
       <div className="space-y-6 px-5 pb-6">
-        {completeReportHref ? <p className="text-sm text-muted-foreground">These totals cover this unit only. Open the complete P&amp;L to review property-level costs and export the combined report.</p> : null}
+        {completeReportHref ? <p className="text-sm text-muted-foreground">{row.id.startsWith("property-level:") ? "These totals cover property-level activity. Open the complete P&L to page through its transactions and export the combined property report." : "These totals cover this unit only. Open the complete P&L to review property-level costs and export the combined report."}</p> : null}
         <dl className="space-y-1">
           {(report.availableColumns ?? report.columns).map((column) => (
             <div
@@ -474,29 +459,6 @@ function displayColumns(report: TrustedReport): DisplayColumn[] {
     }));
 }
 
-/** Paginate records, repeating a group's full-scope subtotal on continued pages. */
-function paginateReportRows(rows: TrustedReportRow[], page: number, pageSize: number) {
-  const selected: TrustedReportRow[] = [];
-  let group: TrustedReportRow | undefined;
-  let includedGroupId: string | undefined;
-  let recordIndex = 0;
-  for (const row of rows) {
-    if (row.isGroup) { group = row; continue; }
-    if (recordIndex >= page * pageSize && recordIndex < (page + 1) * pageSize) {
-      if (group && group.id !== includedGroupId) { selected.push(group); includedGroupId = group.id; }
-      selected.push(row);
-    }
-    recordIndex += 1;
-  }
-  return selected;
-}
-
-function hasFinancialActivity(row: TrustedReportRow) {
-  return [row.cells.income, row.cells.expenses, row.cells.netIncome].some(
-    (value) => numericValue(value) !== 0,
-  );
-}
-
 function operationalColumnWidth(key: string, columnCount: number): number | undefined {
   // Keep dense defaults readable; expanded column sets scroll within the table.
   if (["date", "dueDate", "leaseStart", "leaseEnd"].includes(key)) return 112;
@@ -504,12 +466,6 @@ function operationalColumnWidth(key: string, columnCount: number): number | unde
   if (["amount", "charges", "received", "outstanding", "credit", "rent", "fees"].includes(key)) return 132;
   if (key === "unit") return 90;
   return columnCount > 7 ? 155 : undefined;
-}
-
-function numericValue(value?: string) {
-  if (!value) return 0;
-  const parsed = Number(value.replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function buildUnitExportHref(

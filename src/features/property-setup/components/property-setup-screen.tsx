@@ -4,7 +4,7 @@ import { FinancialForm } from "@/lib/finance/financial-write-provider";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useCallback, useState, useTransition } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -22,6 +22,7 @@ import { Modal } from "@/components/ui/modal";
 import { SelectControl } from "@/components/ui/select-control";
 import { PersonForm } from "@/features/people/components/person-form";
 import { PersonSelect } from "@/features/people/components/person-select";
+import { getOwnerOptionsAction, getTenantOptionsAction } from "@/features/people/person-options-actions";
 import { PropertyForm } from "@/features/properties/components/property-form";
 import type { PropertyBranchOption } from "@/features/properties/property.types";
 import { UnitForm } from "@/features/units/components/unit-form";
@@ -120,6 +121,10 @@ export function PropertySetupScreen({
     data.tenants,
     selection,
   );
+  const loadTenantOptions = useCallback(async (query: string, page: number, selectedId: string) => {
+    const result = await getTenantOptionsAction(query,page,selectedId);
+    return { ...result, options: getSelectableSetupTenants(data.leases,result.options,selection) };
+  }, [data.leases, selection]);
 
   function navigate(nextSelection: PropertySetupSelection, nextStep = step) {
     const nextParams = buildPropertySetupQuery({
@@ -232,6 +237,7 @@ export function PropertySetupScreen({
               ) : null}
               {step === 3 ? (
                 <TenantLeaseStep
+                  loadTenantOptions={loadTenantOptions}
                   matchingLeases={matchingLeases}
                   onCreateLease={canCreateRecord("lease") ? () => setCreateModal("lease") : undefined}
                   onCreateTenant={canCreateRecord("tenant") ? () => setCreateModal("tenant") : undefined}
@@ -401,6 +407,7 @@ function OwnerStep({
         <PersonSelect
           className="mt-2"
           context="Property setup owner"
+          loadOptions={getOwnerOptionsAction}
           onValueChange={onSelect}
           name="ownerId"
           options={options}
@@ -467,6 +474,7 @@ function WholePropertyStep({ propertyLabel }: { propertyLabel: string }) {
 }
 
 function TenantLeaseStep({
+  loadTenantOptions,
   matchingLeases,
   onCreateLease,
   onCreateTenant,
@@ -477,6 +485,7 @@ function TenantLeaseStep({
   selection,
   tenantOptions,
 }: {
+  loadTenantOptions: typeof getTenantOptionsAction;
   matchingLeases: PropertySetupData["leases"];
   onCreateLease?: () => void;
   onCreateTenant?: () => void;
@@ -493,6 +502,7 @@ function TenantLeaseStep({
         <h2 className="text-sm font-semibold">Tenant</h2>
         <PersonSelect
           context="Property setup tenant"
+          loadOptions={loadTenantOptions}
           name="tenantId"
           onValueChange={onTenantSelect}
           options={tenantOptions}

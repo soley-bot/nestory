@@ -40,6 +40,7 @@ describe("overview complete scoped reads", () => {
     for (const request of fixture.requests.filter((request) => request.table === "ledger_entries")) {
       expect(request.filters).toContainEqual({ column: "transaction_date", operator: "gte", value: "2026-10-01" });
     }
+    expect(fixture.rpcRequests[0]).toMatchObject({ name: "get_overview_summary", args: { p_today: "2026-10-15", p_month: "2026-10-01", p_financial_start_date: "2026-10-01" } });
     expect(withFinancialReadContext).toHaveBeenCalledWith(fixtureOrganizationId, expect.any(Function), "2026-10-01");
   });
 
@@ -122,14 +123,15 @@ describe("overview complete scoped reads", () => {
     expect(data.ledgerFlow.at(-1)?.income).toBe(12);
     expect(data.recordsByProperty[0].documentCount).toBe(1);
     const termRequests = fixture.requests.filter((request) => request.table === "lease_terms");
-    expect(termRequests.reduce((sum, request) => sum + request.returnedRows, 0)).toBe(105);
+    expect(termRequests).toEqual([]);
+    expect(fixture.rpcRequests[0]).toMatchObject({ name: "get_overview_summary", args: { p_property_id: "property-1" } });
     expect(termRequests.every((request) => request.filters.some((filter) => filter.column === "lease_id" && filter.operator === "in" && (filter.value as string[]).length <= 100))).toBe(true);
     for (const table of ["units", "current_leases", "ledger_entries", "property_owners", "tasks", "documents"]) {
       expect(fixture.requests.filter((request) => request.table === table).every((request) => request.filters.some((filter) => filter.column === "property_id" && filter.value === "property-1"))).toBe(true);
     }
   });
 
-  it("loads supplemental contacts only when primary contacts are unusable and ignores archived people's roles", async () => {
+  it("uses supplemental contacts for missing primary values and ignores archived people's roles", async () => {
     const people = Array.from({ length: 1_005 }, (_, index) => ({ id: `person-${index}`, primary_email: index < 1_003 ? "valid@example.test" : "   " }));
     const fixture = createOverviewFixture({
       people: { data: [...people, { id: "archived-person", archived_at: "2026-01-01" }] },
@@ -143,7 +145,7 @@ describe("overview complete scoped reads", () => {
     const data = await getOverviewScreenData(fixtureOrganizationId, query);
     expect(data.attentionItems.some((item) => item.id === "missing-contact-details")).toBe(false);
     expect(data.metrics.find((metric) => metric.label === "People")?.value).toBe("1005 / 1005 tenants");
-    expect(fixture.requests.filter((request) => request.table === "person_contacts").reduce((sum, request) => sum + request.returnedRows, 0)).toBe(2);
+    expect(fixture.requests.some((request) => request.table === "person_contacts")).toBe(false);
   });
 
   it("counts current large expenses independently of chart month, with business-date bounds", async () => {
@@ -193,8 +195,9 @@ describe("overview complete scoped reads", () => {
     console.info("overview synthetic request/row counts (not latency)", measured);
     expect(data.workspaceSetup.ledgerEntryCount).toBe(21_005);
     expect(data.ledgerFlow.at(-1)?.income).toBe(1_005);
-    expect(measured.ledgerRows).toBe(1_005);
-    expect(measured.rows).toBe(1_007);
+    expect(measured.ledgerRows).toBe(0);
+    expect(measured.rows).toBe(2);
+    expect(fixture.rpcRequests).toHaveLength(1);
     expect(measured.requests).toBeLessThan(25);
   });
 });

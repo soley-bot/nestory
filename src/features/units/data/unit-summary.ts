@@ -45,9 +45,11 @@ export type UnitRecord = {
 };
 
 export type UnitPropertyRecord = {
+  archived_at?: string | null;
   code: string;
   id: string;
   name: string;
+  status?: string;
 };
 
 export type UnitLeaseRecord = {
@@ -583,10 +585,12 @@ function buildUnitHealthIndicators({
 
   if (readiness.lease === "occupied") {
     indicators.push({
-      description: "A current lease establishes this unit as occupied.",
+      description: statusValue === "vacant"
+        ? "A current lease establishes occupancy, but the unit is still marked vacant."
+        : "A current lease establishes this unit as occupied.",
       id: "occupancy",
-      label: "Occupancy aligned",
-      tone: "success",
+      label: statusValue === "vacant" ? "Unit status needs review" : "Occupancy aligned",
+      tone: statusValue === "vacant" ? "warning" : "success",
     });
   } else if (readiness.lease === "draft") {
     indicators.push({

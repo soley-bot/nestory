@@ -16,6 +16,34 @@ const lease = (index: number, unitId: unknown, status = "active"): CappedReadRow
 beforeEach(() => vi.mocked(createSupabaseServerClient).mockReset());
 
 describe("complete unit registers under API row caps", () => {
+  it("keeps dashboard unit links inside the active operating portfolio", async () => {
+    const units = [unit(1, id("property", 1)), { ...unit(2, id("property", 1)), status: "inactive" }, unit(3, id("property", 2)), unit(4, id("property", 3))];
+    const { client } = createCappedReadHarness({ properties: [property(1), { ...property(2), status: "inactive" }, { ...property(3), archived_at: "2026-01-01" }], units });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
+    const result = await getUnitsScreenData(organizationId, parseUnitSearchParams({ occupancy: "unoccupied", scope: "operational" }));
+    expect(result.units.map(row => row.id)).toEqual([units[0].id]);
+    expect(result.pagination.totalCount).toBe(1);
+  });
+  it("counts and pages operational scope before hydrating a capped final page", async () => {
+    const included = Array.from({ length: 12 }, (_, index) => unit(index + 100, id("property", 1)));
+    const excluded = Array.from({ length: 1005 }, (_, index) => unit(index + 1000, id("property", 2)));
+    const { client, reads, rpcReads } = createCappedReadHarness({
+      properties: [property(1), { ...property(2), status: "inactive" }],
+      units: [...excluded, ...included],
+    }, { apiRowCap: 1 });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
+    const result = await getUnitsScreenData(organizationId, parseUnitSearchParams({
+      scope: "operational", page: "999", pageSize: "10", sort: "unit_asc",
+    }));
+    expect(result.pagination).toMatchObject({ totalCount: 12, page: 2, from: 11, to: 12 });
+    expect(result.units.map(row => row.id)).toEqual(included.slice(10).map(row => row.id));
+    expect(rpcReads).toContainEqual({ name: "get_unit_register_page", args: expect.objectContaining({
+      p_filters: expect.objectContaining({ operationalOnly: true }),
+    }) });
+    expect(reads.filter(read => read.table === "units").every(read => read.filters.some(filter =>
+      filter.column === "id" && filter.method === "in" && (filter.value as unknown[]).length === 2,
+    ))).toBe(true);
+  });
   it.each(["text", "occupancy", "rent"])("hydrates only selected units after %s matching", async mode => {
     const units = Array.from({ length: 24 }, (_, index) => unit(index, id("property", 1)));
     const { client, reads } = createCappedReadHarness({ properties: [property(1)], units, current_leases: [lease(1, units[23].id)] });
@@ -30,14 +58,14 @@ describe("complete unit registers under API row caps", () => {
 
   it.each([24, 150])("does no ledger/media hydration for an empty text match across %s units", async count => {
     const units = Array.from({ length: count }, (_, index) => unit(index, id("property", 1)));
-    const { client, reads } = createCappedReadHarness({ properties: [property(1)], units });
+    const { client, reads, rpcReads } = createCappedReadHarness({ properties: [property(1)], units });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
     const result = await getUnitsScreenData(organizationId, parseUnitSearchParams({ query: "absentneedle" }));
     expect(result.units).toEqual([]);
     expect(reads.some(read => ["ledger_entries", "documents", "asset_photos"].includes(read.table))).toBe(false);
     const timelineReads = reads.filter(read => read.table === "timeline_events");
-    expect(timelineReads).toHaveLength(Math.ceil(count / 75));
-    expect(timelineReads.every(read => read.select === "id, unit_id, event_date, event_type, title")).toBe(true);
+    expect(timelineReads).toHaveLength(0);
+    expect(rpcReads).toContainEqual({ name: "get_unit_register_page", args: expect.objectContaining({ p_organization_id: organizationId, p_filters: expect.objectContaining({ query: "absentneedle" }) }) });
   });
   it("searches and filters occupancy beyond unit 1000 using current lease evidence", async () => {
     const units = Array.from({ length: 1205 }, (_, index) => unit(index, id("property", index)));
@@ -83,9 +111,12 @@ describe("complete unit registers under API row caps", () => {
     vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);
     expect(await getUnitPropertyOptions(organizationId)).toHaveLength(1001);
   });
-  it.each(["error", "count"])("rejects a later unit page %s", async failure => {
-    const { client } = createCappedReadHarness({ properties: [property(1)], units: Array.from({ length: 1001 }, (_, index) => unit(index, id("property", 1))) }, { transformResult(read, result) {
-      if (read.table === "units" && (read.range?.[0] ?? 0) > 0) return failure === "error" ? { ...result, error: { message: "Synthetic page failure" } } : { ...result, count: 1002 };
+  it.each(["error", "incomplete identities"])("rejects a unit page RPC with %s", async failure => {
+    const { client } = createCappedReadHarness({ properties: [property(1)], units: Array.from({ length: 1001 }, (_, index) => unit(index, id("property", 1))) }, { transformRpcResult(read, result) {
+      if (read.name === "get_unit_register_page") {
+        const page = result.data as { ids: string[]; total_count: number };
+        return failure === "error" ? { ...result, error: { message: "Synthetic page failure" } } : { ...result, data: { ...page, ids: page.ids.slice(1) } };
+      }
       return result;
     } });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(client as never);

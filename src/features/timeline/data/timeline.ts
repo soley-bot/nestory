@@ -245,7 +245,13 @@ async function loadTimelineScreenData(
       query = applyTimelineSort(query, viewQuery.sort);
 
       return query.order("id").range(start, end);
-    }, from, to);
+    }, from, to, {
+      client: supabase, entity: "timeline", organizationId, sort: viewQuery.sort,
+      filters: { archive_state: viewQuery.archiveState, id: viewQuery.eventId,
+        property_id: viewQuery.propertyId, unit_id: viewQuery.unitId, event_type: viewQuery.eventType,
+        date_from: viewQuery.dateFrom, date_to: viewQuery.dateTo, scope,
+        financial_start_date: financialStartDate },
+    });
   };
 
   const [

@@ -1,14 +1,17 @@
-import { FinanceAccountsScreen } from "@/features/finance-accounts/components/finance-accounts-screen";
-import { getFinanceAccountsData } from "@/features/finance-accounts/data/finance-accounts";
+import { FinanceAccountRegister } from "@/features/finance-accounts/components/finance-account-register";
+import { getFinanceAccountRegisterData } from "@/features/finance-accounts/data/finance-accounts";
+import { parseFinanceAccountQuery } from "@/features/finance-accounts/finance-account-query";
 import { requireFinanceContext } from "@/lib/auth/context";
 
-export default async function FinanceAccountsPage() {
+export default async function FinanceAccountsPage({ searchParams }: { searchParams: Promise<Record<string,string|string[]|undefined>> }) {
   const context = await requireFinanceContext();
-  const data = await getFinanceAccountsData(context.organizationId);
+  const query = parseFinanceAccountQuery(await searchParams);
+  const data = await getFinanceAccountRegisterData(context.organizationId, query);
 
   return (
-    <FinanceAccountsScreen
+    <FinanceAccountRegister
       {...data}
+      query={query}
       canManageAccounts={context.isSuperAdmin}
     />
   );

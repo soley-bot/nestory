@@ -876,10 +876,10 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
               : "neutral",
       });
     });
+  const propertyLevelEvents = groupBy(context.ownerProfitLossEvents.filter(event => event.unitId === null), "propertyId");
+  const ownersByProperty = groupBy(context.owners, "property_id");
   const propertyLevelRows = context.properties.flatMap((property) => {
-    const events = context.ownerProfitLossEvents.filter(
-      (event) => event.propertyId === property.id && event.unitId === null,
-    );
+    const events = propertyLevelEvents.get(property.id) ?? [];
     if (events.length === 0) return [];
 
     const incomeCents = sumOwnerProfitLossEvents(
@@ -1013,7 +1013,7 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
       context.viewQuery.unitId === "all" ? undefined : "single-unit",
     unitProfitLossLines,
     unitProfitLossOwnerProperties: context.properties.map(property => {
-      const names = context.owners.filter(owner => owner.property_id === property.id)
+      const names = (ownersByProperty.get(property.id) ?? [])
         .map(owner => context.peopleById.get(owner.person_id)?.display_name)
         .filter((name): name is string => Boolean(name));
       return { ownerName: [...new Set(names)].join(", ") || property.owner || "Not provided", propertyName: property.name };

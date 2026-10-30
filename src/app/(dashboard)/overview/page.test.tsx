@@ -6,14 +6,17 @@ const {
   getOverviewScreenData,
   overviewScreenSpy,
   requireSuperAdminContext,
+  getFinancialWriteContext,
 } = vi.hoisted(() => ({
   buildAdminWorkspaceQueue: vi.fn(),
   getOverviewScreenData: vi.fn(),
   overviewScreenSpy: vi.fn(),
   requireSuperAdminContext: vi.fn(),
+  getFinancialWriteContext: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/context", () => ({ requireSuperAdminContext }));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({ getFinancialWriteContext }));
 vi.mock("@/features/overview/data/overview", () => ({
   getOverviewScreenData,
 }));
@@ -35,6 +38,18 @@ describe("OverviewPage", () => {
     getOverviewScreenData.mockReset();
     overviewScreenSpy.mockReset();
     requireSuperAdminContext.mockReset();
+    getFinancialWriteContext.mockReset().mockResolvedValue({ financial_start_date: null });
+  });
+
+  it("offers a valid month without reading an unavailable financial period", async () => {
+    requireSuperAdminContext.mockResolvedValue({ organizationId: "org" });
+    getFinancialWriteContext.mockResolvedValue({ financial_start_date: "2026-10-01" });
+    const html = renderToStaticMarkup(await OverviewPage({ searchParams: Promise.resolve({ month: "2026-09", propertyId: "11111111-1111-4111-8111-111111111111", lens: "leasing" }) }));
+    expect(getOverviewScreenData).not.toHaveBeenCalled();
+    expect(html).toContain("Open October 2026");
+    expect(html).toContain("month=2026-10");
+    expect(html).toContain("propertyId=11111111-1111-4111-8111-111111111111");
+    expect(html).toContain("lens=leasing");
   });
 
   it("passes the prioritized attention projection into the Super Admin workspace", async () => {
