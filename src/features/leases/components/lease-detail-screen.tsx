@@ -1654,6 +1654,8 @@ function LeaseTermModal({
       <RecordForm action={formAction} ariaLabel={copy.title} contentClassName="space-y-5 p-4" onCancel={onClose} pending={pending} saveLabel={copy.submitLabel} savingLabel="Saving..." state={state}>
         <input name="leaseId" type="hidden" value={lease.id} />
         <input name="supersedesTermId" type="hidden" value={term.id} />
+        <input name="termChangeMode" type="hidden" value={mode} />
+        {mode === "renewal" && !monthToMonth ? <input name="billingRuleId" type="hidden" value={continuationRule?.id ?? ""} /> : null}
         <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
 
 
@@ -1729,6 +1731,7 @@ function LeaseTermModal({
           </label>
         </div>}
 
+        {mode === "renewal" && !monthToMonth ? <p className="text-sm text-muted-foreground">{continuationRule ? "The collection route, billing recipient and recurring management fees carry forward. One-time proration amounts stay with the earlier period." : "Review the missing billing rule before renewing this lease."}</p> : null}
         {mode !== "renewal" ? <p className="text-sm text-muted-foreground">Choose the first day of the month to change its rent, including the current or a past month within this active term. For an earlier term, use Correct historical rent. Issued rent and the ongoing schedule update together. Previous amounts remain in history.</p> : null}
 
       </RecordForm>

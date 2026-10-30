@@ -24,6 +24,7 @@ import type {
 import { formatFileSize } from "@/features/documents/components/document-list";
 import { formatCalendarDate, formatDate } from "@/lib/dates/format";
 import { cn } from "@/lib/utils";
+import { RenewalBillingRecovery } from "@/features/leases/components/renewal-billing-recovery";
 
 const sections: Array<{ id: LeaseRecordSection; label: string }> = [
   { id: "overview", label: "Overview" },
@@ -385,6 +386,8 @@ function LeaseRentAndDeposit({
             </div>
           ) : null}
         </div>
+        {permissions.canChangeTerms && !lease.isArchived && ["active", "notice_given"].includes(lease.statusValue)
+          ? <RenewalBillingRecovery lease={lease} /> : null}
       </section>
 
     </div>

@@ -1001,6 +1001,12 @@ export async function scheduleFutureRentTermAction(
     return { message: "Refresh the form and try again.", status: "error" };
   }
 
+  const isRenewal = readString(formData, "termChangeMode") === "renewal";
+  const billingRuleId = postgresUuid("Choose the previous billing rule.").safeParse(readString(formData, "billingRuleId"));
+  if (isRenewal && !billingRuleId.success) {
+    return { message: "Review the missing billing rule before renewing this lease.", status: "error" };
+  }
+
   const supabase = await createSupabaseServerClient(formData);
   const pathContext = await getLeasePathContext(
     supabase,
@@ -1013,7 +1019,7 @@ export async function scheduleFutureRentTermAction(
   }
 
   const { data: termId, error } = await supabase.rpc(
-    "schedule_authoritative_lease_term",
+    isRenewal ? "renew_lease_with_billing" : "schedule_authoritative_lease_term",
     {
       p_end_date: parsed.data.endDate,
       p_idempotency_key: idempotencyKey,
@@ -1025,6 +1031,7 @@ export async function scheduleFutureRentTermAction(
       p_rent_due_day: parsed.data.rentDueDay,
       p_start_date: parsed.data.startDate,
       p_supersedes_term_id: parsed.data.supersedesTermId,
+      ...(isRenewal && billingRuleId.success ? { p_expected_billing_rule_id: billingRuleId.data } : {}),
     },
   );
 
@@ -1043,10 +1050,37 @@ export async function scheduleFutureRentTermAction(
 
   return {
     leaseId: parsed.data.leaseId,
-    message: "Rent schedule updated. Earlier history was kept.",
+    message: isRenewal ? "Lease renewed with billing rules carried forward." : "Rent schedule updated. Earlier history was kept.",
     status: "success",
     termId,
   };
+}
+
+export async function carryForwardLeaseRenewalBillingAction(
+  _state: LeaseActionState,
+  formData: FormData,
+): Promise<LeaseActionState> {
+  const context = await requirePermission("leases.change_terms");
+  const parsed = z.object({
+    leaseId: leaseIdSchema,
+    termId: postgresUuid("Choose the renewal term."),
+    billingRuleId: postgresUuid("Choose the previous billing rule."),
+  }).safeParse({ leaseId: readString(formData, "leaseId"), termId: readString(formData, "termId"), billingRuleId: readString(formData, "billingRuleId") });
+  const idempotencyKey = readIdempotencyKey(formData);
+  if (!parsed.success || !idempotencyKey) return { status: "error", message: "Refresh the lease and review its renewal billing." };
+  const supabase = await createSupabaseServerClient(formData);
+  const pathContext = await getLeasePathContext(supabase, context.organizationId, parsed.data.leaseId);
+  if (!pathContext) return { status: "error", message: "We could not find that lease." };
+  const { error } = await supabase.rpc("carry_forward_lease_renewal_billing", {
+    p_organization_id: context.organizationId, p_lease_id: parsed.data.leaseId,
+    p_term_id: parsed.data.termId, p_expected_billing_rule_id: parsed.data.billingRuleId,
+    p_idempotency_key: idempotencyKey,
+  });
+  if (error) return { status: "error", message: leaseActionErrorMessage(error) };
+  revalidateLeasePaths([pathContext.property_id], [pathContext.unit_id], parsed.data.leaseId);
+  revalidatePath("/finance");
+  revalidatePath("/rent-income");
+  return { status: "success", leaseId: parsed.data.leaseId, message: "Renewal billing carried forward. Earlier billing history was kept." };
 }
 
 export async function archiveLeaseAction(
@@ -1245,6 +1279,11 @@ function leaseActionErrorMessage(error: {
   const errorMessage = `${message} ${details ?? ""}`;
   const lifecycleMessage = financialWriteError(errorMessage);
   if (lifecycleMessage) return lifecycleMessage;
+  if (errorMessage.includes("renewal_dates_must_follow_term")) return "Start the renewal on the previous end date or the following day, then choose a later end date.";
+  if (errorMessage.includes("renewal_billing_has_issued_rent")) return "Review the issued rent before extending these billing rules.";
+  if (errorMessage.includes("renewal_future_billing_exists")) return "A later billing rule already exists. Review it before carrying forward the earlier rule.";
+  if (errorMessage.includes("renewal_billing_changed_or_incomplete")) return "The previous billing rule changed or is incomplete. Refresh the lease and review its billing setup.";
+  if (errorMessage.includes("renewal_term_changed") || errorMessage.includes("renewal_active_lease_required")) return "The lease or renewal term changed. Refresh the lease before trying again.";
   if (errorMessage.includes("lease_renewal_dates_invalid")) {
     return "Choose the actual move-in date within the original term, a renewal end date on or after today, and a positive rent amount.";
   }
