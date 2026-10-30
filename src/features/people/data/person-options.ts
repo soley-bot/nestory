@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { z } from "zod";
 import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
+import { postgresUuid } from "@/lib/validation/postgres-uuid";
 import {
   buildPersonSelectOptions,
   type PersonSelectOption,
@@ -11,9 +12,10 @@ import type { PersonRoleValue } from "@/features/people/people.types";
 
 const personOptionSchema = z.object({ archived: z.boolean(), description: z.string(), id: z.string(), label: z.string(), partyType: z.enum(["individual","company"]), roles: z.array(z.enum(["tenant","owner","vendor","staff"])) });
 const personPageSchema = z.object({ options: z.array(personOptionSchema).max(25), selectedOption: personOptionSchema.nullable(), hasMore: z.boolean() });
+const selectedPersonIdSchema = postgresUuid("Invalid person selection.");
 
 export async function getPersonSelectPage({ organizationId, roles, query = "", page = 1, selectedId }: { organizationId: string; roles: PersonRoleValue[]; query?: string; page?: number; selectedId?: string }): Promise<{ options: PersonSelectOption[]; selectedOption: PersonSelectOption | null; hasMore: boolean }> {
-  if (!Number.isSafeInteger(page) || page < 1 || roles.length === 0 || query.length > 200 || (selectedId && !z.uuid().safeParse(selectedId).success)) throw new Error("Invalid person selection.");
+  if (!Number.isSafeInteger(page) || page < 1 || roles.length === 0 || query.length > 200 || (selectedId && !selectedPersonIdSchema.safeParse(selectedId).success)) throw new Error("Invalid person selection.");
   const supabase = await createSupabaseServerClient();
   const result = await supabase.rpc("get_person_select_page", { p_organization_id: organizationId, p_roles: roles, p_query: query, p_page: page, ...(selectedId ? { p_selected_id: selectedId } : {}) });
   if (result.error) throw new Error(`Could not load people options: ${result.error.message}`);

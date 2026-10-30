@@ -41,6 +41,33 @@ describe("paged person options", () => {
   const id = "c7010000-0000-4000-8000-000000005000";
   const option = { archived: false, description: "Tenant", id, label: "Last tenant", partyType: "individual", roles: ["tenant"] };
 
+  beforeEach(() => createSupabaseServerClient.mockReset());
+
+  it.each([
+    "80000000-0000-0000-0000-000000000004",
+    "d1000000-0000-0000-0000-000000000001",
+  ])("hydrates selected PostgreSQL person ID %s without RFC version restrictions", async selectedId => {
+    const selectedOption = { ...option, id: selectedId };
+    const rpc = vi.fn().mockResolvedValue({ data: { options: [], selectedOption, hasMore: false }, error: null });
+    createSupabaseServerClient.mockResolvedValue({ rpc });
+
+    await expect(getPersonSelectPage({ organizationId: "org", roles: ["tenant"], selectedId })).resolves.toEqual({
+      options: [], selectedOption, hasMore: false,
+    });
+    expect(rpc).toHaveBeenCalledWith("get_person_select_page", {
+      p_organization_id: "org", p_roles: ["tenant"], p_query: "", p_page: 1, p_selected_id: selectedId,
+    });
+  });
+
+  it.each([
+    "not-a-uuid",
+    "80000000-0000-0000-0000-00000000004",
+    "80000000-0000-0000-0000-00000000000g",
+  ])("rejects malformed selected person ID %s before querying", async selectedId => {
+    await expect(getPersonSelectPage({ organizationId: "org", roles: ["tenant"], selectedId })).rejects.toThrow("Invalid person selection.");
+    expect(createSupabaseServerClient).not.toHaveBeenCalled();
+  });
+
   it("hydrates a selected person independently of the requested search page", async () => {
     const rpc = vi.fn().mockResolvedValue({ data: { options: [], selectedOption: option, hasMore: false }, error: null });
     createSupabaseServerClient.mockResolvedValue({ rpc });
