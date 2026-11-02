@@ -9,6 +9,28 @@ import type { TrustedReport } from "@/features/reports/reports.types";
 import { isContainedPdf } from "@/lib/uploads/pdf-containment";
 
 describe("trusted report PDF export", () => {
+  it("keeps P&L summary text clear of the repeated table header after a page break", () => {
+    const report = monthlyOwnerActivityReport();
+    report.kind = "unit-profit-loss";
+    report.unitProfitLossLines = Array.from({ length: 10 }, (_, index) => ({
+      id: `rent-${index}`, amountCents: BigInt(10000), category: "Rent", categoryCode: "rent", categoryId: null,
+      currency: "USD", date: "2026-10-01", description: "October rent", direction: "income", property: "House", reportingGroup: "rent", unit: "A1",
+    }));
+    report.unitProfitLossFunding = { contributionCents: BigInt(30000), remainingBalanceCents: BigInt(0) };
+    const bytes = buildTrustedReportPdf({ organizationName: "Sample Operations", report });
+    const pdf = Buffer.from(bytes).toString("latin1");
+    const pages = [...pdf.matchAll(/\nstream\n([\s\S]*?)\nendstream/g)].map(match => match[1]!);
+    expect(pages.length).toBeGreaterThan(1);
+    const summaryPage = pages.at(-1)!;
+    const text = [...summaryPage.matchAll(/BT \/F[12] ([\d.]+) Tf 1 0 0 1 ([\d.]+) ([\d.]+) Tm \((.*)\) Tj ET/g)]
+      .map(match => ({ size: Number(match[1]), y: Number(match[3]), text: match[4]! }));
+    const header = text.find(item => item.text === "Account")!;
+    const total = text.find(item => item.text === "Total income")!;
+    expect(total.y + total.size).toBeLessThan(header.y - header.size - 4);
+    expect(summaryPage).toContain("USD 1,000.00");
+    expect(summaryPage).toContain("USD 300.00");
+    expect(isContainedPdf(bytes)).toBe(true);
+  });
   it("preserves every owner activity amount and all six summary totals in readable panels", () => {
     const report = monthlyOwnerActivityReport();
     const metrics = [

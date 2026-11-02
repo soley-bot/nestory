@@ -144,7 +144,7 @@ const unitStatementSectionHeight = 22;
 const unitStatementCategoryTextWidth = 310;
 const unitStatementEmptyHeight = 30;
 const unitStatementSubtotalHeight = 24;
-const unitStatementTotalsHeight = 66;
+const unitStatementTotalsHeight = 76;
 
 const colors = {
   accent: "#2f5f7f",
@@ -1018,7 +1018,7 @@ function buildUnitStatementFlowRows({
     },
     {
       expenseTotal,
-      height: funding ? summaryRows.length * 18 + fundingNoteLines * 10 + 8 : unitStatementTotalsHeight,
+      height: funding ? summaryRows.length * 18 + fundingNoteLines * 10 + 18 : unitStatementTotalsHeight,
       incomeTotal,
       kind: "totals",
       netIncome,
@@ -1178,7 +1178,7 @@ function renderUnitProfitLossPage({
       drawUnitProfitLossTotals(
         commands,
         row,
-        y + row.height - 6,
+        y + row.height - 16,
       );
     }
   }

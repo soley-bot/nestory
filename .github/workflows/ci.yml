@@ -528,7 +528,7 @@ jobs:
 
   production_database:
     name: Production Database
-    needs: database
+    needs: release_readiness
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20

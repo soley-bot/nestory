@@ -176,7 +176,7 @@ function profitLossSheetXml(report: TrustedReport, hasLogo: boolean) {
       entries.filter(line => categoryKey(line.category) === categoryKey(category)));
     ordered.push(...entries.filter(line => !categories.some(category => categoryKey(line.category) === categoryKey(category))));
     return ordered.map(line => [
-    { style: 4, value: line.category }, excelDateCell(line.date), { style: 4, value: direction === "income" ? "Payment" : line.type ?? "Expense" },
+    { style: 4, value: line.category }, excelDateCell(line.date), { style: 4, value: line.type ?? (direction === "income" ? "Invoice" : "Expense") },
     { style: 4, value: line.name ?? "" }, { style: 4, value: line.unit },
     { style: 4, value: line.description }, money(line.amountCents),
     ]);
