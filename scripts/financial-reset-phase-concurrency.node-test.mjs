@@ -179,7 +179,7 @@ for (const commit of [true, false]) {
   });
 }
 
-test('an early-flushed report checkpoint excludes concurrent contact writes and later normal cash is preserved on recovery refusal', async () => {
+test('the checked reset excludes concurrent contact writes and preserves source data when the real calendar refuses recovery', async t => {
   // Reuse the reviewed SQL fixture and its real reset/continuation/report path.
   // Commit only fixture construction, so another backend can see the contact
   // while the reset transaction retains its exclusive lifecycle lock.
@@ -216,7 +216,16 @@ test('an early-flushed report checkpoint excludes concurrent contact writes and 
   const continuationPlan = resetBody.slice(continuationStart, continuationEnd);
   // Move the existing plan construction ahead of reservation and authorize
   // execution before its first action. The SQL fixture's phase assertions stay.
-  const execution = resetBody.slice(actionStart, continuationStart) + resetBody.slice(zeroStart);
+  const expiredStart = source.indexOf('\n\\else', reportEnd);
+  const expiredEnd = source.indexOf('\n\\endif', expiredStart);
+  assert.ok(expiredStart > reportEnd && expiredEnd > expiredStart, 'the calendar refusal branch must close the reused fixture');
+  // The report marker is inside the October-only branch. Keep its matching
+  // refusal branch instead of leaving psql inside an unterminated false \if,
+  // which would silently skip PHASE_READY outside the reviewed month.
+  const execution = resetBody.slice(actionStart, continuationStart) + resetBody.slice(zeroStart)
+    + '\nSET CONSTRAINTS ALL IMMEDIATE;'
+    + source.slice(expiredStart, expiredEnd)
+    + '\n\\endif\n\\echo CONTINUATION_REPLAY_MONTH :continuation_replay_month\n';
   const restart = `COMMIT; BEGIN; SET LOCAL application_name='checkpoint-reset-${org}';
     SET LOCAL statement_timeout='20s'; SET LOCAL idle_in_transaction_session_timeout='30s';`;
   // This is a disposable SQL fixture with synthetic external review inputs, not
@@ -284,10 +293,14 @@ test('an early-flushed report checkpoint excludes concurrent contact writes and 
     SELECT app_private.assert_financial_reset_hosted_reservation(binding,'execute') FROM phase_stage_fixture;`;
   const reset = session(`${remap(fixtureBody)} COMMIT; BEGIN;
     SET LOCAL application_name='checkpoint-reset-${org}'; SET LOCAL statement_timeout='20s'; SET LOCAL idle_in_transaction_session_timeout='30s';
-    ${stages} ${remap(execution)} SET CONSTRAINTS ALL IMMEDIATE;`, `checkpoint-reset-${org}`, 'supabase_admin');
+    ${stages}
+    SELECT 'RESET_SOURCE_BEFORE:'||app_private.financial_reset_hash(app_private.financial_reset_continuation_snapshot('${org}'));
+    ${remap(execution)}`, `checkpoint-reset-${org}`, 'supabase_admin');
   try {
-    await waitFor(() => reset.stdout.includes('PHASE_READY'), reset, 'real report checkpoint reaches early constraint flush');
+    await waitFor(() => reset.stdout.includes('PHASE_READY'), reset, 'real checked reset reaches its calendar outcome');
     assert.doesNotMatch(reset.stdout, /not ok [0-9]+/);
+    const replayMonth = reset.stdout.match(/^CONTINUATION_REPLAY_MONTH (t|f)$/m)?.[1];
+    assert.ok(replayMonth, 'the fixture must report the actual business-month decision');
     for (const mutation of [
       `UPDATE public.person_contacts SET contact_name='Concurrent change' WHERE id='${contact}';`,
       `UPDATE public.person_contacts SET organization_id='${foreignOrg}',person_id='${foreignPerson}' WHERE id='${contact}';`,
@@ -300,7 +313,23 @@ test('an early-flushed report checkpoint excludes concurrent contact writes and 
       assert.match(refused.stderr, /40001:.*financial_reset_checkpoint_writer_conflict/);
     }
     reset.child.stdin.end('COMMIT;\n');
-    assert.equal((await reset.done).status, 0, reset.stderr);
+    const completed = await reset.done;
+    if (replayMonth === 'f') {
+      assert.notEqual(completed.status, 0, 'an expired continuation cannot commit a partial reset');
+      assert.match(completed.stderr, /financial_reset_checkpoint_must_commit/);
+      const before = reset.stdout.match(/^RESET_SOURCE_BEFORE:([a-f0-9]{64})$/m)?.[1];
+      assert.ok(before, 'the real pre-execution source snapshot must be recorded');
+      assert.equal(sql(`SELECT app_private.financial_reset_hash(app_private.financial_reset_continuation_snapshot('${org}'));`), before,
+        'refused partial commit preserves every original source image');
+      assert.equal(sql(`SELECT count(*) FROM app_private.financial_reset_verification_checkpoints WHERE operation_id='${operation}';`), '0');
+      assert.equal(sql(`SELECT count(*) FROM app_private.financial_reset_continuation_plans WHERE operation_id='${operation}';`), '0');
+      assert.equal(sql(`SELECT status FROM app_private.financial_reset_zero_plans WHERE operation_id='${operation}';`), 'prepared');
+      assert.equal(sql(`SELECT status FROM app_private.financial_write_controls WHERE organization_id='${org}';`), 'frozen');
+      t.diagnostic('Actual business month is outside October 2026: concurrent writers were refused, no checkpoint was fabricated, and the partial commit preserved all original sources.');
+      return;
+    }
+    assert.equal(completed.status, 0, reset.stderr);
+    t.diagnostic('Actual business month is October 2026: testing the real report checkpoint and later-cash recovery boundary.');
     assert.equal(sql(`SELECT contact_name FROM public.person_contacts WHERE id='${contact}';`), 'Preserved contact');
     sql(`SELECT app_private.assert_financial_reset_report_recovery_boundary('${operation}');`);
     // The review/artifact references below are explicitly synthetic test
