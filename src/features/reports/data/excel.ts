@@ -1,5 +1,5 @@
 import { ownerStatementCash } from "@/features/reports/data/owner-statement-cash";
-import { profitLossSummaryRows, profitLossFundingNote, profitLossFundingHeading, profitLossBasisNote } from "./profit-loss-funding";
+import { profitLossSummaryRows, profitLossFundingHeading, profitLossBasisNote } from "./profit-loss-funding";
 import type { OwnerStatementPresentation } from "@/features/reports/data/pdf";
 import { formatCalendarDate } from "@/lib/dates/format";
 import { strToU8, zipSync } from "fflate";
@@ -206,9 +206,6 @@ function profitLossSheetXml(report: TrustedReport, hasLogo: boolean) {
         ? total(row.label, row.amountCents)
         : [{ style: 4, value: row.label }, ...Array.from({ length: 5 }, () => ({ value: "" })),
           row.amountCents === null ? { value: "Unavailable" } : money(row.amountCents)]]),
-    ...(report.unitProfitLossFunding ? [[], [{ style: 4, span: 7, value: profitLossFundingNote }],
-      ...(report.unitProfitLossFunding.unavailableReason ? [[{ style: 4, span: 7, value: report.unitProfitLossFunding.unavailableReason }]] : [])] : []),
-    ...(report.unitProfitLossScopeNote ? [[{ style: 4, span: 7, value: report.unitProfitLossScopeNote }]] : []),
   ];
   const sheet = ownerWorkbookSheetXml(rows, 8, [32, 16, 14, 38, 32, 42, 18]);
   return hasLogo ? sheet.replace("</worksheet>", '<drawing xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId1"/></worksheet>') : sheet;

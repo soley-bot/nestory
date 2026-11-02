@@ -76,7 +76,7 @@ describe("PDF and XLSX accounting presentation", () => {
     const sheet = strFromU8(unzipSync(buildTrustedReportXlsx(funded))["xl/worksheets/sheet1.xml"]!);
     for (const text of [pdf, sheet]) {
       expect(text).toContain("Unavailable");
-      expect(text).toContain("Review Owner Accounts");
+      expect(text).not.toContain("Review Owner Accounts");
     }
   });
   it("omits internal source appendices even when P&L rows have audit links", () => {

@@ -1,5 +1,5 @@
 import { ownerStatementCash } from "@/features/reports/data/owner-statement-cash";
-import { profitLossSummaryRows, profitLossFundingNote, profitLossBasisNote, formatProfitLossAmount, type ProfitLossFunding } from "./profit-loss-funding";
+import { profitLossSummaryRows, profitLossBasisNote, formatProfitLossAmount, type ProfitLossFunding } from "./profit-loss-funding";
 import {
   formatLongReportDate,
   getReportExportFilename,
@@ -976,7 +976,6 @@ function buildUnitStatementFlowRows({
     });
   const buildCategoryRows = buildEntries;
   const summaryRows = profitLossSummaryRows([...incomeLines, ...expenseLines], funding);
-  const fundingNoteLines = funding ? wrapText([profitLossFundingNote, funding.unavailableReason].filter(Boolean).join(" "), tableWidth, 8, 6).length : 0;
 
   return [
     {
@@ -1021,7 +1020,7 @@ function buildUnitStatementFlowRows({
     },
     {
       expenseTotal,
-      height: funding ? summaryRows.length * 18 + fundingNoteLines * 10 + 18 : unitStatementTotalsHeight,
+      height: funding ? summaryRows.length * 18 + 18 : unitStatementTotalsHeight,
       incomeTotal,
       kind: "totals",
       netIncome,
@@ -1186,11 +1185,6 @@ function renderUnitProfitLossPage({
     }
   }
 
-  if (report.unitProfitLossScopeNote) {
-    wrapText(report.unitProfitLossScopeNote, unitStatementContentWidth, 8, 2).forEach((line, index) => {
-      drawText(commands, line, marginX, 48 - index * 9, { fontSize: 8, color: colors.muted, width: unitStatementContentWidth });
-    });
-  }
   drawUnitProfitLossFooter(commands, pageIndex + 1, totalPages);
   return commands.join("\n");
 }
@@ -1397,12 +1391,6 @@ function drawUnitProfitLossTotals(
       width: amountWidth,
     });
   });
-  if (row.funding) {
-    const note = [profitLossFundingNote, row.funding.unavailableReason].filter(Boolean).join(" ");
-    wrapText(note, tableWidth, 8, 6).forEach((line, index) => {
-      drawText(commands, line, marginX, yTop - row.summaryRows.length * 18 - index * 10, { fontSize: 8, color: colors.muted, width: tableWidth });
-    });
-  }
 }
 
 function drawUnitProfitLossFooter(
