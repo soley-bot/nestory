@@ -124,6 +124,17 @@ describe("Reports screen", () => {
     expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
   });
 
+  it("links incomplete unit billing to the lease without showing misleading zero totals", () => {
+    const report = unitProfitLossReport();
+    report.exportValidation = { code: "monthly_rent_incomplete", status: 409, message: "Monthly rent billing is incomplete." };
+    report.rows = [{ ...report.rows[0], title: "Example Tenant", cells: { issue: "Monthly rent invoice is missing." }, href: "/leases/lease-1?section=rent" }];
+    renderReport({ report });
+    expect(screen.getByRole("link", { name: "Review billing for Example Tenant" }).getAttribute("href")).toContain("/leases/lease-1?section=rent");
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
+    expect(screen.queryByText("Net operating income")).toBeNull();
+  });
+
   it("offers clearly named PDF and Excel exports through one menu", async () => {
     const user = userEvent.setup();
     renderReport();
