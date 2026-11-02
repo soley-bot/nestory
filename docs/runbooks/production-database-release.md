@@ -25,7 +25,7 @@ Merging is authorization for the protected workflow to release that exact main S
 
 ## Protected main release
 
-The `Production Database` job runs after local database CI and performs this fail-closed sequence:
+The `Production Database` job waits for `Release readiness`, which requires every application check (including the dependency audit) and local database CI to pass, then performs this fail-closed sequence:
 
 1. Check out `github.sha`, query the current `main` SHA with a step-scoped GitHub token, and prove both values equal without persisting checkout credentials.
 2. Link the pinned project Supabase CLI using protected environment secrets.

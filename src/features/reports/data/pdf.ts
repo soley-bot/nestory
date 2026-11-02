@@ -144,7 +144,7 @@ const unitStatementSectionHeight = 22;
 const unitStatementCategoryTextWidth = 310;
 const unitStatementEmptyHeight = 30;
 const unitStatementSubtotalHeight = 24;
-const unitStatementTotalsHeight = 66;
+const unitStatementTotalsHeight = 76;
 
 const colors = {
   accent: "#2f5f7f",
@@ -928,6 +928,7 @@ function buildUnitProfitLossStatementPdf({
     incomeLines,
     netIncome,
     funding: report.unitProfitLossFunding,
+    unitScope: report.unitProfitLossDetailScope === "single-unit",
   });
   const pages = paginateUnitStatementRows(rows);
   const totalPages = pages.length;
@@ -953,6 +954,7 @@ function buildUnitStatementFlowRows({
   incomeTotal,
   netIncome,
   funding,
+  unitScope,
 }: {
   expenseLines: UnitProfitLossLine[];
   expenseTotal: string;
@@ -960,10 +962,11 @@ function buildUnitStatementFlowRows({
   incomeTotal: string;
   netIncome: string;
   funding?: ProfitLossFunding;
+  unitScope?: boolean;
 }): UnitStatementFlowRow[] {
   const buildEntries = (lines: UnitProfitLossLine[]) =>
     lines.flatMap((line): UnitStatementFlowRow[] => {
-      const values = [line.category, formatCalendarDate(line.date), line.type ?? (line.direction === "income" ? "Invoice" : "Expense"), line.name ?? "", line.property === line.unit ? line.unit : `${line.property} / ${line.unit}`, line.description, formatExactMoneyCents(line.amountCents, line.currency)];
+      const values = [line.category, formatCalendarDate(line.date), line.type ?? (line.direction === "income" ? "Invoice" : "Expense"), line.name ?? "", unitScope || line.property === line.unit ? line.unit : `${line.property} / ${line.unit}`, line.description, formatExactMoneyCents(line.amountCents, line.currency)];
       const cells = values.map((value, index) => wrapText(value, unitStatementColumns[index].width - cellPaddingX * 2, 8.2, Number.MAX_SAFE_INTEGER));
       const count = Math.max(...cells.map(cell => cell.length));
       return Array.from({ length: Math.ceil(count / 22) }, (_, index) => ({
@@ -1018,7 +1021,7 @@ function buildUnitStatementFlowRows({
     },
     {
       expenseTotal,
-      height: funding ? summaryRows.length * 18 + fundingNoteLines * 10 + 8 : unitStatementTotalsHeight,
+      height: funding ? summaryRows.length * 18 + fundingNoteLines * 10 + 18 : unitStatementTotalsHeight,
       incomeTotal,
       kind: "totals",
       netIncome,
@@ -1153,7 +1156,7 @@ function renderUnitProfitLossPage({
     report,
     page.firstPage,
   );
-  drawUnitProfitLossTableHeader(commands, contentTop + headerRowHeight);
+  drawUnitProfitLossTableHeader(commands, contentTop + headerRowHeight, report.unitProfitLossDetailScope === "single-unit");
 
   let y = contentTop;
   let entryIndex = 0;
@@ -1178,11 +1181,16 @@ function renderUnitProfitLossPage({
       drawUnitProfitLossTotals(
         commands,
         row,
-        y + row.height - 6,
+        y + row.height - 16,
       );
     }
   }
 
+  if (report.unitProfitLossScopeNote) {
+    wrapText(report.unitProfitLossScopeNote, unitStatementContentWidth, 8, 2).forEach((line, index) => {
+      drawText(commands, line, marginX, 48 - index * 9, { fontSize: 8, color: colors.muted, width: unitStatementContentWidth });
+    });
+  }
   drawUnitProfitLossFooter(commands, pageIndex + 1, totalPages);
   return commands.join("\n");
 }
@@ -1335,7 +1343,7 @@ function drawUnitProfitLossSubtotalRow(
   });
 }
 
-function drawUnitProfitLossTableHeader(commands: string[], yTop: number) {
+function drawUnitProfitLossTableHeader(commands: string[], yTop: number, unitScope = false) {
   drawRect(
     commands,
     marginX,
@@ -1350,7 +1358,7 @@ function drawUnitProfitLossTableHeader(commands: string[], yTop: number) {
 
   let x = marginX;
   for (const column of unitStatementColumns) {
-    drawText(commands, column.label, x + cellPaddingX, yTop - 15, {
+    drawText(commands, unitScope && column.label === "Property / unit" ? "Unit" : column.label, x + cellPaddingX, yTop - 15, {
       align: column.align,
       bold: true,
       color: colors.ink,

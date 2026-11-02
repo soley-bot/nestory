@@ -76,6 +76,14 @@ test('strict TAP validation rejects failures, missing assertions and missing pla
   assert.equal(verifyPgTapOutput('1..2\nok 1 - first\nok 2 # SKIP Original-date success path is eligible only during October 2026; no clock override is used.\n', 'financial_reset_original_invoice_dates_test.sql'), 2);
   assert.equal(verifyPgTapOutput('1..2\nok 1 - first\nok 2 # SKIP October-only success path is not executed with a fabricated database clock.\n', 'financial_reset_empty_books_test.sql'), 2);
   assert.throws(() => verifyPgTapOutput('1..1\nok 1 # SKIP unexpected\n', 'financial_reset_empty_books_test.sql'));
+  for (const [name, reason] of [
+    ['financial_reset_continuation_test.sql', 'October continuation success requires the actual October 2026 business month; no clock override is used.'],
+    ['financial_reset_reviewed_dispositions_test.sql', 'October disposition success requires the actual October 2026 business month; no clock override is used.'],
+  ]) {
+    assert.equal(verifyPgTapOutput(`ok 1 - actual clock refuses replay\nok 2 # SKIP ${reason}\n1..2\n`, name), 2);
+    assert.throws(() => verifyPgTapOutput('ok 1 # SKIP unexpected\n1..1\n', name));
+    assert.throws(() => verifyPgTapOutput(`ok 1 # SKIP ${reason}\n1..1\n`, 'other_test.sql'));
+  }
   for (const bad of ['ok 1 - first', '1..2\nok 1 - first', '1..1\nnot ok 1 - failed', '1..1\nBail out! denied', '1..1\nok 2 - wrong', '1..1\nok 1 - ignored # TODO later', '1..0 # SKIP all', '1..1\n1..1\nok 1 - first', '1..1\nok 1 # SKIP unexpected']) {
     assert.throws(() => verifyPgTapOutput(bad, 'proof'));
   }

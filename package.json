@@ -151,6 +151,9 @@
   },
   "overrides": {
     "browserslist": "4.28.8",
+    "@sentry/nextjs": {
+      "glob": "14.0.2"
+    },
     "@next/eslint-plugin-next@16.4.2": {
       "fast-glob": "$@nestory/next-eslint-glob"
     }

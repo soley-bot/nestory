@@ -421,7 +421,9 @@ WITH renewed AS (
   SELECT public.schedule_authoritative_lease_term(
     '00000000-0000-0000-0000-000000000001',
     (SELECT renewal_lease_id FROM ips_rent_runtime),
-    '2026-12-01', '2027-01-31', 1100.00, 'USD', 5, 'monthly',
+    (pg_temp.following_period_start() + interval '1 month')::date,
+    (pg_temp.following_period_start() + interval '3 months - 1 day')::date,
+    1100.00, 'USD', 5, 'monthly',
     (SELECT renewal_original_term_id FROM ips_rent_runtime),
     'track-5-renewal'
   ) AS term_id
@@ -469,7 +471,8 @@ SELECT results_eq(
 SELECT app_private.generate_lease_rent_invoice(
   '00000000-0000-0000-0000-000000000001',
   (SELECT renewal_lease_id FROM ips_rent_runtime),
-  '2026-12-01', '2026-12-01', 'scheduled',
+  (pg_temp.following_period_start() + interval '1 month')::date,
+  (pg_temp.following_period_start() + interval '1 month')::date, 'scheduled',
   '00000000-0000-0000-0000-000000000101'
 );
 
@@ -486,7 +489,8 @@ SELECT results_eq(
       ON invoice.organization_id = term.organization_id
      AND invoice.lease_id = term.lease_id
      AND invoice.lease_term_id = term.id
-     AND invoice.billing_period_start = '2026-12-01'
+     AND invoice.billing_period_start =
+       (pg_temp.following_period_start() + interval '1 month')::date
     JOIN public.tenant_invoice_rent_segments AS segment
       ON segment.organization_id = invoice.organization_id
      AND segment.invoice_id = invoice.id

@@ -4,6 +4,7 @@ import { strFromU8, unzipSync } from "fflate";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getReportsScreenData } from "@/features/reports/data/reports";
+import { getTrustedReport } from "./trusted-report";
 import type { ReportsViewQuery } from "@/features/reports/reports.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
@@ -102,16 +103,15 @@ describe("live Finance report reads", () => {
     });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
 
-    const result = await getReportsScreenData(
-      ORGANIZATION_ID,
-      reportQuery({ report: "unit-profit-loss" }),
-    );
+    const result = await getReportsScreenData(ORGANIZATION_ID, reportQuery({ report: "unit-profit-loss" }));
 
     expect(result.propertyOptions).toEqual([
       { id: PROPERTY_ID, label: "Riverside Apartments — RIV" },
     ]);
     expect(result.unitOptions).toEqual([]);
-    expect(result.trustedReport.rows).toEqual([
+    expect(result.trustedReport.rows).toEqual([]);
+    const legacyReport = await getTrustedReport({ organizationId: ORGANIZATION_ID, viewQuery: reportQuery({ report: "unit-profit-loss" }) });
+    expect(legacyReport.rows).toEqual([
       expect.objectContaining({
         cells: expect.objectContaining({
           income: "USD 300.00",
@@ -130,6 +130,12 @@ describe("live Finance report reads", () => {
     });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
     const result = await getReportsScreenData(ORGANIZATION_ID, reportQuery({ report: "unit-profit-loss", unitId }));
+    expect(result.unitOptions[0].label).toContain("(archived)");
+    if (unitId === "all") {
+      expect(result.trustedReport.unitProfitLossLines).toBeUndefined();
+      expect(harness.rpcCalls.some(([name]) => name === "get_owner_profit_loss_events_page")).toBe(false);
+      return;
+    }
     expect(result.trustedReport.rows).toEqual([expect.objectContaining({ cells: expect.objectContaining({ unit: "Unit A1 (archived)", income: "USD 300.00" }) })]);
     expect(result.trustedReport.unitProfitLossLines?.[0]).toMatchObject({ unitId: UNIT_ID, unit: "Unit A1 (archived)" });
     expect(result.unitOptions[0].label).toContain("(archived)");
@@ -143,8 +149,8 @@ describe("live Finance report reads", () => {
   it("fails closed instead of relabeling a missing non-null unit as property-level", async () => {
     const harness = createReportReadHarness({ context: financeContext({ units: [] }), ownerProfitLossEvents: [{ ...ownerProfitLossEvent(), unit_id: UNIT_ID }] });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
-    const result = await getReportsScreenData(ORGANIZATION_ID, reportQuery({ report: "unit-profit-loss" }));
-    expect(result.trustedReport).toMatchObject({
+    const result = await getTrustedReport({ organizationId: ORGANIZATION_ID, viewQuery: reportQuery({ report: "unit-profit-loss" }) });
+    expect(result).toMatchObject({
       title: "Report unavailable",
       rows: [],
       summary: [],
@@ -163,13 +169,13 @@ describe("live Finance report reads", () => {
   });
 
   it("enriches names through the P&L loader without loading cash events", async () => {
-    const event = ownerProfitLossEvent();
+    const event = { ...ownerProfitLossEvent(), unit_id: UNIT_ID };
     const harness = createReportReadHarness({
       ownerProfitLossEvents: [event],
       ownerProfitLossNames: [{ event_key: event.event_key, party_name: "Tenant Example" }],
     });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
-    const result = await getReportsScreenData(ORGANIZATION_ID, reportQuery({ report: "unit-profit-loss" }));
+    const result = await getReportsScreenData(ORGANIZATION_ID, reportQuery({ report: "unit-profit-loss", unitId: UNIT_ID }));
     expect(result.trustedReport.unitProfitLossLines).toEqual([
       expect.objectContaining({ name: "Tenant Example", type: "Invoice" }),
     ]);

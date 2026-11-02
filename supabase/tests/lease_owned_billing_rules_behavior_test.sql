@@ -33,6 +33,11 @@ CREATE TEMP TABLE lease_billing_state (
   replacement_result jsonb,
   scheduled_result jsonb,
   invoice_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  -- A future issued month must fence the rule change beyond today's month.
+  snapshot_period_start date NOT NULL DEFAULT greatest(
+    (date_trunc('month', now() AT TIME ZONE 'Asia/Bangkok') + interval '1 month')::date,
+    DATE '2026-10-01'
+  ),
   invoice_rule_id uuid
 ) ON COMMIT DROP;
 
@@ -957,8 +962,10 @@ SELECT
   state.invoice_id, state.organization_id,
   'LBR-' || left(state.invoice_id::text, 8), state.property_id, state.unit_id,
   (state.create_result ->> 'leaseId')::uuid, state.draft_rule_id,
-  DATE '2026-10-01', DATE '2026-10-31', DATE '2026-10-01',
-  DATE '2026-10-20', 'through_ips', 'company', state.company_id,
+  state.snapshot_period_start,
+  (state.snapshot_period_start + interval '1 month - 1 day')::date,
+  state.snapshot_period_start,
+  state.snapshot_period_start + 19, 'through_ips', 'company', state.company_id,
   'Lease billing company', 'USD', 1200, 'issued', 'percentage', 9, 108
 FROM lease_billing_state AS state;
 
@@ -988,7 +995,7 @@ SELECT is(
     FROM public.lease_billing_terms AS billing
     WHERE billing.id = state.draft_rule_id
   ),
-  DATE '2026-10-31',
+  (state.snapshot_period_start + interval '1 month - 1 day')::date,
   'an active rule ends the day before the next unbilled month'
 )
 FROM lease_billing_state AS state;
@@ -999,7 +1006,7 @@ SELECT is(
     FROM public.lease_billing_terms AS billing
     WHERE billing.id = (state.replacement_result ->> 'billingTermId')::uuid
   ),
-  DATE '2026-11-01',
+  (state.snapshot_period_start + interval '1 month')::date,
   'the replacement begins after the latest generated invoice month'
 )
 FROM lease_billing_state AS state;
@@ -1038,8 +1045,8 @@ UPDATE lease_billing_state AS state
 SET direct_result = app_private.try_generate_lease_rent_invoice(
   state.organization_id,
   (state.create_result ->> 'leaseId')::uuid,
-  DATE '2026-11-01',
-  DATE '2026-11-01',
+  (state.snapshot_period_start + interval '1 month')::date,
+  (state.snapshot_period_start + interval '1 month')::date,
   'manual_recovery',
   state.admin_id
 );
@@ -1223,8 +1230,8 @@ SELECT is(
     FROM public.lease_billing_terms AS billing
     WHERE billing.organization_id = state.organization_id
       AND billing.lease_id = (state.create_result ->> 'leaseId')::uuid
-      AND billing.effective_from <= DATE '2026-10-01'
-      AND billing.effective_to >= DATE '2026-10-31'
+      AND billing.effective_from <= state.snapshot_period_start
+      AND billing.effective_to >= (state.snapshot_period_start + interval '1 month - 1 day')::date
   ),
   1,
   'generated invoice months remain covered by exactly one immutable historical rule'

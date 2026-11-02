@@ -245,6 +245,8 @@ CREATE TEMP TABLE lease_rent_state (
   blocked_lease_id uuid NOT NULL DEFAULT 'a5000000-0000-0000-0000-000000000002',
   missing_policy_lease_id uuid NOT NULL DEFAULT 'a5000000-0000-0000-0000-000000000003',
   recovery_lease_id uuid NOT NULL DEFAULT 'a5000000-0000-0000-0000-000000000004',
+  adoption_unit_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  adoption_lease_id uuid NOT NULL DEFAULT gen_random_uuid(),
   good_term_id uuid NOT NULL DEFAULT 'a6000000-0000-0000-0000-000000000001',
   blocked_term_id uuid NOT NULL DEFAULT 'a6000000-0000-0000-0000-000000000002',
   recovery_term_id uuid NOT NULL DEFAULT 'a6000000-0000-0000-0000-000000000003',
@@ -1916,6 +1918,51 @@ SELECT results_eq(
 
 RESET ROLE;
 
+-- Isolate imported obligations from the current-month catch-up scenarios above.
+-- Reusing good_lease_id would collide with its already-issued November/December
+-- invoices once the real business clock reaches those months.
+INSERT INTO public.units (id, organization_id, property_id, unit_number, status)
+SELECT adoption_unit_id, organization_id, property_id, 'LEGACY-ADOPTION', 'occupied'
+FROM lease_rent_state;
+
+SET LOCAL session_replication_role = replica;
+
+INSERT INTO public.leases (
+  id, organization_id, property_id, unit_id, primary_tenant_person_id,
+  status, created_by, updated_by
+)
+SELECT adoption_lease_id, organization_id, property_id, adoption_unit_id,
+  good_tenant_id, 'active', super_admin_id, super_admin_id
+FROM lease_rent_state;
+
+INSERT INTO public.lease_terms (
+  organization_id, lease_id, term_sequence, start_date, end_date,
+  rent_amount, rent_currency, rent_due_day, payment_frequency, status,
+  authority_kind, confirmed_at, confirmed_by, created_by, updated_by
+)
+SELECT organization_id, adoption_lease_id, 1, DATE '2026-08-15', DATE '2027-07-31',
+  1000, 'USD', 5, 'monthly', 'active', 'authoritative', now(),
+  super_admin_id, super_admin_id, super_admin_id
+FROM lease_rent_state;
+
+INSERT INTO public.lease_billing_terms (
+  organization_id, lease_id, property_id, effective_from, effective_to,
+  collection_route, management_fee_mode, management_fee_value,
+  charge_management_fee_when_active, full_management_fee_during_proration,
+  billing_recipient_kind, billing_recipient_person_id,
+  rent_calculation_timezone, short_month_due_day_rule,
+  lease_start_proration_rule, lease_end_proration_rule, mid_period_rent_change_rule,
+  charge_through_lease_end, rule_source, confirmed_at, confirmed_by, created_by, updated_by
+)
+SELECT organization_id, adoption_lease_id, property_id,
+  DATE '2026-08-15', DATE '2027-07-31', 'through_ips', 'percentage', 10,
+  true, false, 'individual', good_tenant_id, 'Asia/Bangkok', 'last_calendar_day',
+  'actual_days', 'actual_days', 'next_full_month', true, 'lease_default_v1', now(),
+  super_admin_id, super_admin_id, super_admin_id
+FROM lease_rent_state;
+
+SET LOCAL session_replication_role = origin;
+
 SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
 
 INSERT INTO public.finance_income_items (
@@ -1940,8 +1987,8 @@ SELECT
   existing_income_id,
   organization_id,
   property_id,
-  good_unit_id,
-  good_lease_id,
+  adoption_unit_id,
+  adoption_lease_id,
   'rent',
   'Good Lease Tenant',
   due_date,
@@ -1958,8 +2005,8 @@ FROM (
     'a9000000-0000-0000-0000-000000000001'::uuid AS existing_income_id,
     organization_id,
     property_id,
-    good_unit_id,
-    good_lease_id,
+    adoption_unit_id,
+    adoption_lease_id,
     '2026-11-01'::date AS due_date,
     1000::numeric AS amount_due,
     '2026-11'::text AS reference,
@@ -1970,8 +2017,8 @@ FROM (
     'a9000000-0000-0000-0000-000000000002'::uuid,
     organization_id,
     property_id,
-    good_unit_id,
-    good_lease_id,
+    adoption_unit_id,
+    adoption_lease_id,
     '2026-12-01'::date,
     999::numeric,
     '2026-12'::text,
@@ -1985,7 +2032,7 @@ SELECT lives_ok(
   $$
     SELECT app_private.generate_lease_rent_invoice(
       (SELECT organization_id FROM lease_rent_state),
-      (SELECT good_lease_id FROM lease_rent_state),
+      (SELECT adoption_lease_id FROM lease_rent_state),
       '2026-11-01',
       '2026-11-01',
       'scheduled',
@@ -2031,7 +2078,7 @@ SELECT is(
     SELECT count(*)::integer
     FROM public.finance_income_items
     WHERE organization_id = (SELECT organization_id FROM lease_rent_state)
-      AND lease_id = (SELECT good_lease_id FROM lease_rent_state)
+      AND lease_id = (SELECT adoption_lease_id FROM lease_rent_state)
       AND income_type = 'rent'
       AND due_date BETWEEN '2026-11-01' AND '2026-11-30'
       AND archived_at IS NULL
@@ -2044,7 +2091,7 @@ SELECT throws_ok(
   $$
     SELECT app_private.generate_lease_rent_invoice(
       (SELECT organization_id FROM lease_rent_state),
-      (SELECT good_lease_id FROM lease_rent_state),
+      (SELECT adoption_lease_id FROM lease_rent_state),
       '2026-12-01',
       '2026-12-01',
       'scheduled',
@@ -2060,7 +2107,7 @@ SELECT is(
   (
     SELECT count(*)::integer
     FROM public.tenant_invoices
-    WHERE lease_id = (SELECT good_lease_id FROM lease_rent_state)
+    WHERE lease_id = (SELECT adoption_lease_id FROM lease_rent_state)
       AND billing_period_start = '2026-12-01'
   ),
   0,

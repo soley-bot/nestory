@@ -100,6 +100,8 @@ export function verifyPgTapOutput(output, name) {
   assert.equal(results.length, planned, `${name}: every planned assertion must execute`);
   results.forEach((line, index) => {
     const knownDateSkips = {
+      'financial_reset_continuation_test.sql': 'October continuation success requires the actual October 2026 business month; no clock override is used.',
+      'financial_reset_reviewed_dispositions_test.sql': 'October disposition success requires the actual October 2026 business month; no clock override is used.',
       'financial_reset_held_deposit_forward_test.sql': 'Forward original-date success is eligible only in October 2026; the real clock is not changed.',
       'financial_reset_original_invoice_dates_test.sql': 'Original-date success path is eligible only during October 2026; no clock override is used.',
       'financial_reset_empty_books_test.sql': 'October-only success path is not executed with a fabricated database clock.',

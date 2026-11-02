@@ -405,11 +405,13 @@ async function loadTrustedReport({
         organizationId,
         viewQuery.propertyId === "all" ? undefined : viewQuery.propertyId,
       ));
+    const selectedUnitPropertyId = financeContext.units.find(unit => unit.id === viewQuery.unitId)?.property_id;
     const properties: PropertyRow[] = financeContext.properties
       .filter(
         (property) =>
           property.archived_at === null &&
-          (viewQuery.propertyId === "all" || property.id === viewQuery.propertyId),
+          (viewQuery.propertyId === "all" || property.id === viewQuery.propertyId) &&
+          (viewQuery.unitId === "all" || property.id === selectedUnitPropertyId),
       )
       .map((property) => ({
         code: property.code,
@@ -820,6 +822,8 @@ function buildUnitPerformanceReport(context: ReportContext): TrustedReport {
 }
 
 function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
+  const singleUnit = context.viewQuery.unitId !== "all";
+  const unassignedCount = context.ownerProfitLossEvents.filter(event => event.unitId === null).length;
   if (context.ownerProfitLossEvents.some(event => event.unitId !== null && context.unitsById.get(event.unitId)?.property_id !== event.propertyId)) {
     throw new Error("Profit and loss unit identity is unavailable in the report scope.");
   }
@@ -876,7 +880,7 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
               : "neutral",
       });
     });
-  const propertyLevelRows = context.properties.flatMap((property) => {
+  const propertyLevelRows = singleUnit ? [] : context.properties.flatMap((property) => {
     const events = context.ownerProfitLossEvents.filter(
       (event) => event.propertyId === property.id && event.unitId === null,
     );
@@ -916,7 +920,9 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
     ];
   });
   const rows = [...unitRows, ...propertyLevelRows];
-  const recognizedEvents = context.ownerProfitLossEvents;
+  const recognizedEvents = singleUnit
+    ? context.ownerProfitLossEvents.filter(event => event.unitId === context.viewQuery.unitId)
+    : context.ownerProfitLossEvents;
   const unitProfitLossLines =
     recognizedEvents
           .map<UnitProfitLossLine>((event) => {
@@ -1011,6 +1017,11 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
     totalsTraceLabel: `Totals trace to ${recognizedEvents.length} recognized owner event${recognizedEvents.length === 1 ? "" : "s"} in ${context.periodLabel}, including ${propertyLevelCount} property-level event${propertyLevelCount === 1 ? "" : "s"}. Tenant settlements, Ledger rows, and tenant-recharge company costs are not recognition sources.`,
     unitProfitLossDetailScope:
       context.viewQuery.unitId === "all" ? undefined : "single-unit",
+    unitProfitLossScopeNote: singleUnit
+      ? unassignedCount > 0
+        ? `Excludes ${unassignedCount} unassigned property transaction${unassignedCount === 1 ? "" : "s"}. Shared amounts have not been allocated to this unit.`
+        : "Includes only income and expenses assigned to this unit."
+      : undefined,
     unitProfitLossLines,
     unitProfitLossOwnerProperties: context.properties.map(property => {
       const names = context.owners.filter(owner => owner.property_id === property.id)
@@ -1577,6 +1588,7 @@ function filterReportInputByUnit(input: TrustedReportInput): TrustedReportInput 
 
   return {
     ...input,
+    ...(input.viewQuery.report === "unit-profit-loss" ? { properties: input.properties.filter(property => property.id === propertyId) } : {}),
     documents: input.documents.filter((document) => document.unit_id === unitId),
     ledgerEntries: input.ledgerEntries.filter((entry) => entry.unit_id === unitId),
     leases: input.leases.filter((lease) => lease.unit_id === unitId),

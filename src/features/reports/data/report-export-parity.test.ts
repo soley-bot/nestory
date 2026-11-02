@@ -134,7 +134,8 @@ describe("PDF and XLSX accounting presentation", () => {
     expect(sheet).toContain("Accrual basis: income and expenses by invoice or cost date.");
     expect(sheet).toContain("Owner: Xavier Tissieres | Property: Xavier St.65");
     expect(sheet).toContain(">Unit A1</t>");
-    expect(sheet).toContain(">Payment</t>");
+    expect(sheet).toContain(">Invoice</t>");
+    expect(sheet).not.toContain(">Payment</t>");
     expect(sheet).not.toContain("Scope summary");
     expect(sheet).toContain('s="5"><v>46235</v>');
     savePreview("profit-loss-august", pdf, xlsx);

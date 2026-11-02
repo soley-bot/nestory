@@ -176,7 +176,7 @@ function profitLossSheetXml(report: TrustedReport, hasLogo: boolean) {
       entries.filter(line => categoryKey(line.category) === categoryKey(category)));
     ordered.push(...entries.filter(line => !categories.some(category => categoryKey(line.category) === categoryKey(category))));
     return ordered.map(line => [
-    { style: 4, value: line.category }, excelDateCell(line.date), { style: 4, value: direction === "income" ? "Payment" : line.type ?? "Expense" },
+    { style: 4, value: line.category }, excelDateCell(line.date), { style: 4, value: line.type ?? (direction === "income" ? "Invoice" : "Expense") },
     { style: 4, value: line.name ?? "" }, { style: 4, value: line.unit },
     { style: 4, value: line.description }, money(line.amountCents),
     ]);
@@ -190,7 +190,7 @@ function profitLossSheetXml(report: TrustedReport, hasLogo: boolean) {
     [{ style: 1, span: hasLogo ? 5 : 7, value: "Profit and loss details" }],
     [],
     [{ style: 9, span: hasLogo ? 5 : 7, value: report.periodLabel }],
-    [],
+    report.unitProfitLossDetailScope === "single-unit" ? [{ style: 4, span: 7, value: report.scopeLabel }] : [],
     [{ style: 4, span: 7, value: report.unitProfitLossOwnerProperties?.length
       ? report.unitProfitLossOwnerProperties.map(({ ownerName, propertyName }) => `Owner: ${ownerName} | Property: ${propertyName}`).join("\n")
       : `Owner: Not provided | Property: ${report.scopeLabel}` }],
@@ -208,6 +208,7 @@ function profitLossSheetXml(report: TrustedReport, hasLogo: boolean) {
           row.amountCents === null ? { value: "Unavailable" } : money(row.amountCents)]]),
     ...(report.unitProfitLossFunding ? [[], [{ style: 4, span: 7, value: profitLossFundingNote }],
       ...(report.unitProfitLossFunding.unavailableReason ? [[{ style: 4, span: 7, value: report.unitProfitLossFunding.unavailableReason }]] : [])] : []),
+    ...(report.unitProfitLossScopeNote ? [[{ style: 4, span: 7, value: report.unitProfitLossScopeNote }]] : []),
   ];
   const sheet = ownerWorkbookSheetXml(rows, 8, [32, 16, 14, 38, 32, 42, 18]);
   return hasLogo ? sheet.replace("</worksheet>", '<drawing xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId1"/></worksheet>') : sheet;

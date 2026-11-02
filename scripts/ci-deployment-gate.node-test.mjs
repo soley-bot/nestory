@@ -171,7 +171,7 @@ test("production database release is serialized and runs only from exact merged 
     workflow,
     /^  cancel-in-progress: \$\{\{ github\.ref != 'refs\/heads\/main' \}\}$/m,
   );
-  assert.match(release, /^    needs: database$/m);
+  assert.match(release, /^    needs: release_readiness$/m);
   assert.match(
     release,
     /^    if: github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'$/m,

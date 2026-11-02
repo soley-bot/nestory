@@ -158,7 +158,7 @@ SELECT is((SELECT end_date::text FROM public.lease_terms WHERE lease_id=(SELECT 
  'infinity','ordinary continuation has no fabricated fixed end');
 SELECT is((SELECT count(*) FROM public.tenant_invoices WHERE lease_id=(SELECT start_actual_lease FROM boundary_state)
  AND total_amount=600 AND management_fee_amount=60),1::bigint,'ordinary renewal generates the reviewed rent and fee');
-SELECT ok((SELECT bool_and(issue_date=business_date AND due_date=greatest(billing_month+6,business_date))
+SELECT ok((SELECT bool_and(issue_date=business_date AND due_date=greatest(billing_period_start+6,business_date))
  FROM public.tenant_invoices CROSS JOIN boundary_state WHERE lease_id=start_actual_lease),
  'ordinary renewal retains actual execution dates and the due-date floor');
 ROLLBACK TO SAVEPOINT ordinary_month_to_month;
@@ -302,6 +302,10 @@ SELECT set_config('request.headers','{"sentinel":"original","x-nestory-financial
 CREATE FUNCTION pg_temp.prepare_continuation(p_plan jsonb) RETURNS void LANGUAGE sql AS $$
  SELECT app_private.prepare_financial_reset_continuation('fa231050-0000-4000-8000-000000000200',p_plan,app_private.financial_reset_hash(p_plan));
 $$;
+-- This reviewed replay is deliberately limited to October. Ordinary renewal
+-- above still runs with the real clock; later months must prove refusal.
+SELECT date_trunc('month',business_date)::date=billing_month AS continuation_replay_month FROM boundary_state \gset
+\if :continuation_replay_month
 SAVEPOINT unsupported_hosted_legacy;
 SELECT throws_ok($$SELECT pg_temp.prepare_continuation((value-ARRAY['execution_business_date','invoice_date_policy','original_invoice_sources'])||
  jsonb_build_object('version',2,'issue_date',(SELECT business_date FROM boundary_state),'leases',
@@ -420,5 +424,16 @@ SELECT throws_ok($$UPDATE app_private.financial_write_controls SET status='open'
 SELECT is((SELECT status FROM app_private.financial_write_controls WHERE organization_id=(SELECT organization_id FROM boundary_state)),
  'frozen','rejected unchecked reopening leaves the completed phase frozen');
 SELECT lives_ok($$SET CONSTRAINTS ALL IMMEDIATE$$,'ordinary deferred constraints and final frozen-state fence all pass');
+\else
+SELECT throws_ok($$SELECT pg_temp.prepare_continuation(value) FROM continuation_plan$$,
+ '23514','financial_reset_continuation_current_cutoff_month_required','expired October continuation refuses preparation with the real business clock');
+SELECT is((SELECT count(*) FROM app_private.financial_reset_continuation_plans WHERE operation_id='fa231050-0000-4000-8000-000000000200'),0::bigint,
+ 'expired continuation creates no prepared phase');
+SELECT is((SELECT count(*) FROM public.tenant_invoices WHERE organization_id=(SELECT organization_id FROM boundary_state)),0::bigint,
+ 'expired continuation creates no invoice');
+SELECT is((SELECT status FROM app_private.financial_write_controls WHERE organization_id=(SELECT organization_id FROM boundary_state)),'frozen',
+ 'expired continuation leaves financial writes frozen');
+SELECT skip('October continuation success requires the actual October 2026 business month; no clock override is used.');
+\endif
 SELECT * FROM finish();
 ROLLBACK;

@@ -60,7 +60,8 @@ describe("trusted report Excel export", () => {
     }
     expect(sheet).toContain('r="A8"');
     expect(sheet).toContain('>Unit</t>');
-    expect(sheet).toContain('>Payment</t>');
+    expect(sheet).toContain('>Invoice</t>');
+    expect(sheet).not.toContain('>Payment</t>');
     expect(sheet).toContain('>8F-D2</t>');
     expect(sheet).not.toContain('Bellavita / 8F-D2');
     expect(sheet).not.toContain(">Net income</t>");
@@ -84,6 +85,14 @@ describe("trusted report Excel export", () => {
     expect(sheet).not.toContain(">Rent</t>");
     expect(sheet).not.toContain(">Cleaning</t>");
     expect(sheet).toContain("<v>682.00</v>");
+  });
+  it("preserves income correction types in the accrual P&L workbook", () => {
+    const report = reportFixture();
+    report.unitProfitLossLines = [{ id: "income-correction", amountCents: -BigInt(50000), category: "Rent", categoryCode: "rent", categoryId: null, currency: "USD", date: "2026-07-01", description: "Rent adjustment", direction: "income", type: "Correction", property: "Property One", reportingGroup: "rent", unit: "A1" }];
+    const sheet = strFromU8(unzipSync(buildTrustedReportXlsx(report))["xl/worksheets/sheet1.xml"]!);
+    expect(sheet).toContain(">Correction</t>");
+    expect(sheet).not.toContain(">Payment</t>");
+    expect(sheet).toContain("<v>-500.00</v>");
   });
   it("delivers P&L without event IDs, technical trace notes, or raw timestamps", () => {
     const report = reportFixture();

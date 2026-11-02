@@ -93,11 +93,12 @@ SELECT lives_ok($$SELECT app_private.generate_simple_lease_rent_invoice(org,leas
  app_private.rent_business_date(org,statement_timestamp()),'activation_catch_up',maker,rule)
  FROM original_date_contract_fixture CROSS JOIN original_date_state WHERE n IN (1,2)$$,
  'ordinary execution-date generator creates both positive-rent invoices');
-SELECT is((SELECT count(*) FROM public.tenant_invoices WHERE organization_id=(SELECT org FROM original_date_state)),2::bigint,
+SELECT is((SELECT count(*) FROM public.tenant_invoices WHERE organization_id=(SELECT org FROM original_date_state)
+ AND billing_period_start=DATE '2026-10-01'),2::bigint,
  'ordinary execution-date alternative generates both invoices');
 SELECT ok((SELECT bool_and(issue_date=app_private.rent_business_date(org,statement_timestamp())
  AND due_date=greatest(DATE '2026-10-07',app_private.rent_business_date(org,statement_timestamp())))
- FROM public.tenant_invoices CROSS JOIN original_date_state WHERE organization_id=org),
+ FROM public.tenant_invoices CROSS JOIN original_date_state WHERE organization_id=org AND billing_period_start=DATE '2026-10-01'),
  'ordinary execution-date generator retains the actual issue date and due-date floor');
 ROLLBACK TO SAVEPOINT ordinary_execution_date_probe;
 SELECT is((SELECT count(*) FROM public.tenant_invoices WHERE organization_id=(SELECT org FROM original_date_state)),0::bigint,
@@ -232,7 +233,8 @@ SELECT ok(NOT EXISTS(SELECT 1 FROM (VALUES('anon'),('authenticated'),('service_r
  WHERE has_function_privilege(name,'app_private.assert_financial_reset_original_invoice_dates(uuid,jsonb)','EXECUTE')),
  'original-date option exposes no application reset permission');
 SELECT is((SELECT count(*) FROM app_private.financial_reset_archive_rows a JOIN original_date_state s ON s.operation=a.operation_id
- WHERE a.relation_name='public.tenant_invoices'),2::bigint,
+ WHERE a.relation_name='public.tenant_invoices' AND a.primary_key->>'id' IN
+ (SELECT invoice_id::text FROM original_date_generated)),2::bigint,
  'both original invoice sources are real immutable archived rows');
 
 -- The option deliberately expires after October. Future test runs prove refusal

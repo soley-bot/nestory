@@ -345,6 +345,8 @@ SELECT set_config('request.headers','{"sentinel":"original","x-nestory-financial
 CREATE FUNCTION pg_temp.prepare_deferred(p_plan jsonb) RETURNS void LANGUAGE sql AS $$
  SELECT app_private.prepare_financial_reset_continuation('fa231616-0000-4000-8000-000000000200',p_plan,app_private.financial_reset_hash(p_plan));
 $$;
+SELECT date_trunc('month',business_date)::date=billing_month AS disposition_replay_month FROM boundary_state \gset
+\if :disposition_replay_month
 SAVEPOINT unsupported_hosted_legacy;
 SELECT throws_ok($$SELECT pg_temp.prepare_deferred((value-ARRAY['execution_business_date','invoice_date_policy','original_invoice_sources'])||
  jsonb_build_object('version',2,'issue_date',(SELECT business_date FROM boundary_state),'leases',
@@ -379,6 +381,7 @@ SELECT throws_ok($$SELECT app_private.financial_reset_deferred_lease_source(orga
 SELECT throws_ok($$SELECT app_private.financial_reset_deferred_lease_source(organization_id,'fa231616-0000-0000-0000-000000000020',billing_month) FROM boundary_state$$,
  '23514','financial_reset_deferred_lease_term_not_expired','October day14 term must use normal proration rather than expired-before-October deferral');
 
+\endif
 CREATE TEMP TABLE deposit_images AS SELECT jsonb_build_object('id','fa231616-0000-0000-0000-000000000401',
  'organization_id',organization_id,'lease_id',end_actual_lease,'deposit_type','security','amount',1234.56,'currency','USD',
  'notes','Unchanged deposit contract','status','held','received_on','2026-09-01','returned_on',NULL,'archived_at',NULL,
@@ -402,6 +405,7 @@ SELECT ok(NOT app_private.financial_reset_normalized_image('public.lease_deposit
  value||jsonb_build_object('lease_id','fa231616-0000-0000-0000-000000000016','status','pending','received_on',NULL,'returned_on',NULL),now(),NULL),
  'terminal archived lease cannot use the active held-cash normalization path') FROM deposit_images;
 
+\if :disposition_replay_month
 SELECT lives_ok($$SELECT pg_temp.prepare_deferred((SELECT value FROM continuation_plan))$$,'complete reviewed bill/deferred roster prepares');
 SELECT lives_ok($$SELECT app_private.apply_financial_reset_continuation('fa231616-0000-4000-8000-000000000200')$$,
  'ordinary billing runs while the exact expired lease remains unbilled');
@@ -441,5 +445,16 @@ SELECT ok(NOT EXISTS(SELECT 1 FROM jsonb_array_elements(app_private.financial_re
  WHERE s->>'relation_name' IN ('public.leases','public.lease_terms','public.lease_billing_terms')),
  'recovery never prunes or repairs the unchanged deferred contract');
 SELECT lives_ok($$SET CONSTRAINTS ALL IMMEDIATE$$,'reviewed deferred checkpoint commits frozen with full snapshot and normal constraints');
+\else
+SELECT throws_ok($$SELECT pg_temp.prepare_deferred(value) FROM continuation_plan$$,
+ '23514','financial_reset_continuation_current_cutoff_month_required','expired October disposition review refuses preparation with the real business clock');
+SELECT is((SELECT count(*) FROM app_private.financial_reset_continuation_plans WHERE operation_id='fa231616-0000-4000-8000-000000000200'),0::bigint,
+ 'expired review creates no prepared continuation');
+SELECT is((SELECT count(*) FROM public.tenant_invoices WHERE organization_id=(SELECT organization_id FROM boundary_state)),0::bigint,
+ 'expired review creates no invoice');
+SELECT is((SELECT status FROM app_private.financial_write_controls WHERE organization_id=(SELECT organization_id FROM boundary_state)),'frozen',
+ 'expired review leaves financial writes frozen');
+SELECT skip('October disposition success requires the actual October 2026 business month; no clock override is used.');
+\endif
 SELECT * FROM finish();
 ROLLBACK;
