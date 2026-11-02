@@ -133,8 +133,9 @@ describe("Monthly Unit Profit & Loss", () => {
     );
   });
 
-  it("keeps property-level activity in the selected unit's property only", () => {
+  it("excludes shared property costs from a separate unit report and identifies the omission", () => {
     const input = reportInput();
+    input.viewQuery.unitId = "unit-1";
     input.properties.push({
       code: "P2",
       id: "property-2",
@@ -155,13 +156,36 @@ describe("Monthly Unit Profit & Loss", () => {
 
     const report = buildTrustedReport(input);
 
-    expect(report.rows.map(({ id }) => id)).toEqual([
-      "unit-1",
-      "property-level:property-1",
-    ]);
+    expect(report.rows.map(({ id }) => id)).toEqual(["unit-1"]);
     expect(report.summary.find(({ label }) => label === "Expenses")?.value).toBe(
-      "USD 160.00",
+      "USD 40.00",
     );
+    expect(report.unitProfitLossLines).toHaveLength(4);
+    expect(report.unitProfitLossScopeNote).toContain("1 unassigned property transaction");
+    expect(report.unitProfitLossOwnerProperties?.map(row => row.propertyName)).toEqual(["Property One"]);
+  });
+
+  it("generates independent reports for two units without duplicating shared costs", () => {
+    const input = reportInput();
+    input.units.push({ ...input.units[0], id: "unit-2", unit_number: "A2" });
+    input.ownerProfitLossEvents?.push(
+      event("unit-two-rent", { unitId: "unit-2", signedAmountCents: BigInt(70_000) }),
+      event("unit-two-cost", { unitId: "unit-2", economicClass: "owner_expense", signedAmountCents: BigInt(7_000), sourceType: "owner_invoice_line" }),
+    );
+    const combined = buildTrustedReport(input);
+    const separate = ["unit-1", "unit-2"].map(unitId => buildTrustedReport({ ...input, viewQuery: { ...input.viewQuery, unitId } }));
+    expect(separate.map(report => report.summary.slice(0, 3).map(metric => metric.value))).toEqual([
+      ["USD 400.00", "USD 40.00", "USD 360.00"],
+      ["USD 700.00", "USD 70.00", "USD 630.00"],
+    ]);
+    expect(separate.map(report => report.unitProfitLossLines?.map(line => line.unitId))).toEqual([
+      ["unit-1", "unit-1", "unit-1", "unit-1"], ["unit-2", "unit-2"],
+    ]);
+    expect(separate[0].scopeLabel).toContain("Unit A1");
+    expect(separate[1].scopeLabel).toContain("Unit A2");
+    const separateCents = separate.flatMap(report => report.unitProfitLossLines ?? []).reduce((sum, line) => sum + line.amountCents, BigInt(0));
+    const combinedCents = combined.unitProfitLossLines!.reduce((sum, line) => sum + line.amountCents, BigInt(0));
+    expect(combinedCents - separateCents).toBe(BigInt(12_000));
   });
 
   it("formats exact bigint cents beyond Number.MAX_SAFE_INTEGER", () => {
@@ -313,7 +337,7 @@ function reportInput(): TrustedReportInput {
       propertyId: "all",
       report: "unit-profit-loss",
       status: "all",
-      unitId: "unit-1",
+      unitId: "all",
     },
   };
 }

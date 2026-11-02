@@ -110,7 +110,16 @@ async function loadReportsScreenData(
     viewQuery.propertyId === "all" ? undefined : viewQuery.propertyId,
   );
   const { propertyOptions, unitOptions } = getReportSelectorData(financeContext, ["transactions", "management-fees", "rent-collections"].includes(viewQuery.report), viewQuery.report === "unit-profit-loss");
-  const trustedReport = await getTrustedReport({
+  const choosingUnits = viewQuery.report === "unit-profit-loss" && viewQuery.unitId === "all" && !viewQuery.scopeInvalid
+    && (viewQuery.propertyId === "all" || propertyOptions.some(property => property.id === viewQuery.propertyId));
+  // The landing screen selects independent reports. It needs no combined
+  // transaction payload or totals; each chosen unit is verified on preview/export.
+  const trustedReport: TrustedReport = choosingUnits ? {
+    kind: "unit-profit-loss", title: "Unit profit & loss", columns: [], rows: [], summary: [],
+    description: "Choose units to generate separate reports.", emptyTitle: "Choose units", emptyDescription: "",
+    exportFilenameBase: "unit-profit-loss", generatedAt: new Date().toISOString(), periodLabel: viewQuery.month,
+    scopeLabel: propertyOptions.find(property => property.id === viewQuery.propertyId)?.label ?? "All properties", totalsTraceLabel: "",
+  } : await getTrustedReport({
     financeContext,
     organizationId,
     supabase,

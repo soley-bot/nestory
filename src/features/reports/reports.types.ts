@@ -205,6 +205,7 @@ export type TrustedReport = {
   unitProfitLossFunding?: import("./data/profit-loss-funding").ProfitLossFunding;
   unitProfitLossOwnerProperties?: { ownerName: string; propertyName: string }[];
   unitProfitLossDetailScope?: "single-unit";
+  unitProfitLossScopeNote?: string;
   unitProfitLossLines?: UnitProfitLossLine[];
 };
 

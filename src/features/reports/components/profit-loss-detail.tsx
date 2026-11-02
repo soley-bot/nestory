@@ -14,7 +14,7 @@ import type { UnitProfitLossLine } from "../reports.types";
 const pageSize = 25;
 type AccountGroup = { key: string; label: string; direction: "income" | "expense"; lines: UnitProfitLossLine[]; total: bigint };
 
-export function ProfitLossDetail({ lines, funding, returnTo }: { lines: UnitProfitLossLine[]; funding?: ProfitLossFunding; returnTo?: string }) {
+export function ProfitLossDetail({ lines, funding, returnTo, unitScope = false }: { lines: UnitProfitLossLine[]; funding?: ProfitLossFunding; returnTo?: string; unitScope?: boolean }) {
   const id = useId();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [closedSections, setClosedSections] = useState<Set<string>>(new Set());
@@ -45,7 +45,7 @@ export function ProfitLossDetail({ lines, funding, returnTo }: { lines: UnitProf
       <Table aria-label="Profit & loss detail" scrollRegionLabel="Profit and loss report" className="min-w-[850px] table-fixed text-xs [&_td]:px-3 [&_td]:py-1.5">
         <colgroup><col className="w-[21%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[13%]" /><col className="w-[15%]" /><col className="w-[16%]" /><col className="w-[16%]" /></colgroup>
         <TableHeader><TableRow className="hover:bg-muted/30">
-          {["Account", "Date", "Type", "Name", "Property", "Memo", "Amount"].map(label => <TableHead key={label} className={cn("h-9 border-y border-border/70 px-3 text-[11px] font-medium text-muted-foreground", label === "Account" && "border-r border-r-border/50", label === "Amount" && "text-right")}>{label}</TableHead>)}
+          {["Account", "Date", "Type", "Name", unitScope ? "Unit" : "Property", "Memo", "Amount"].map(label => <TableHead key={label} className={cn("h-9 border-y border-border/70 px-3 text-[11px] font-medium text-muted-foreground", label === "Account" && "border-r border-r-border/50", label === "Amount" && "text-right")}>{label}</TableHead>)}
         </TableRow></TableHeader>
         {(["income", "expense"] as const).map((direction, sectionIndex) => {
           const sectionLabel = direction === "income" ? "Income" : "Operating expenses";
@@ -71,12 +71,12 @@ export function ProfitLossDetail({ lines, funding, returnTo }: { lines: UnitProf
                     <TableCell className="whitespace-nowrap text-right tabular-nums">{formatProfitLossAmount(group.total)}</TableCell>
                   </TableRow>
                   <TableRow id={`${id}-${direction}-${index}`} hidden={!accountOpen} className="border-0"><TableCell colSpan={7} className="!p-0">
-                    {accountOpen ? <table aria-label={`${group.label} transactions`} className="w-full table-fixed text-xs"><colgroup><col className="w-[21%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[13%]" /><col className="w-[15%]" /><col className="w-[16%]" /><col className="w-[16%]" /></colgroup><thead className="sr-only bg-[var(--table-header-bg)]"><tr>{["Account", "Date", "Type", "Name", "Property", "Memo", "Amount"].map(label => <th key={label}>{label}</th>)}</tr></thead><tbody>{group.lines.map(line => <tr key={line.id} className="border-b border-border/40 text-muted-foreground hover:bg-muted/25">
+                    {accountOpen ? <table aria-label={`${group.label} transactions`} className="w-full table-fixed text-xs"><colgroup><col className="w-[21%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[13%]" /><col className="w-[15%]" /><col className="w-[16%]" /><col className="w-[16%]" /></colgroup><thead className="sr-only bg-[var(--table-header-bg)]"><tr>{["Account", "Date", "Type", "Name", unitScope ? "Unit" : "Property", "Memo", "Amount"].map(label => <th key={label}>{label}</th>)}</tr></thead><tbody>{group.lines.map(line => <tr key={line.id} className="border-b border-border/40 text-muted-foreground hover:bg-muted/25">
                       <td className="!pl-11"><span className="sr-only">{group.label}</span></td>
                       <td className="whitespace-nowrap">{formatCalendarDate(line.date)}</td>
                       <td className="align-top whitespace-normal [overflow-wrap:anywhere]">{line.type ?? (line.direction === "income" ? "Invoice" : "Expense")}</td>
                       <td className="align-top whitespace-normal [overflow-wrap:anywhere]" title={line.name}>{line.name || "—"}</td>
-                      <td className="align-top whitespace-normal [overflow-wrap:anywhere]" title={`${line.property} / ${line.unit}`}>{line.property}<span className="block whitespace-normal text-[11px] [overflow-wrap:anywhere]">{line.unit}</span></td>
+                      <td className="align-top whitespace-normal [overflow-wrap:anywhere]" title={unitScope ? line.unit : `${line.property} / ${line.unit}`}>{unitScope ? line.unit : <>{line.property}<span className="block whitespace-normal text-[11px] [overflow-wrap:anywhere]">{line.unit}</span></>}</td>
                       <td className="align-top whitespace-normal [overflow-wrap:anywhere]" title={line.description}>{line.sourceHref ? <Link className="text-foreground underline underline-offset-2" href={withReportReturn(line.sourceHref, returnTo)} aria-label={`Open transaction: ${line.description}`}>{line.description}</Link> : line.description}</td>
                       <td className={cn("whitespace-nowrap text-right tabular-nums", line.amountCents < BigInt(0) && "text-danger")}>{formatProfitLossAmount(line.amountCents)}</td>
                     </tr>)}</tbody></table> : null}

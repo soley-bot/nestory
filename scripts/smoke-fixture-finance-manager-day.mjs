@@ -789,6 +789,9 @@ async function assertReportExports(page, baseUrl) {
   await page.waitForURL((url) => url.pathname === "/reports/unit-profit-loss", {
     timeout: 20_000,
   });
+  await requireVisible(page.getByRole("heading", { name: "One P&L for each unit" }), "separate-unit-reports");
+  await page.getByRole("link", { name: "View P&L for CTR-RES / Unit A-01", exact: true }).click();
+  await page.waitForURL((url) => url.searchParams.get("unitId") === "20000000-0000-0000-0000-000000000001", { timeout: 20_000 });
   await page.getByRole("button", { name: "Export" }).click();
   const pdfHref = await page.getByRole("menuitem", { name: "PDF" }).getAttribute("href");
   const excelHref = await page.getByRole("menuitem", { name: "Excel" }).getAttribute("href");

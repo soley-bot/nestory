@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ReportResultsTable } from "@/features/reports/components/report-results-table";
 import { UnitProfitLossWorkspace } from "./unit-profit-loss-workspace";
+import { UnitProfitLossSelector } from "./unit-profit-loss-selector";
 import { profitLossBasisLabel } from "../data/profit-loss-funding";
 import { ReportsFilters } from "@/features/reports/components/reports-filters";
 import { getReportCatalogItem, reportCatalog } from "@/features/reports/report-catalog";
@@ -57,14 +58,16 @@ export function ReportBuilderScreen({
   if (trustedReport.kind === "unit-profit-loss") {
     return <FinancialReportBoundary expectedGeneration={trustedReport.financialGeneration}><WorkspacePage className="overflow-x-clip" header={<header className="workspace-gutter-x flex min-h-12 flex-wrap items-center gap-3 border-b border-border/70 py-2">
       <Link href="/reports" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />All reports</Link>
-      <h1 className="text-sm font-semibold">Profit &amp; loss detail</h1>
+      <h1 className="text-sm font-semibold">{viewQuery.unitId === "all" ? "Unit profit & loss" : "Profit & loss detail"}</h1>
       <span className="text-xs text-muted-foreground">{profitLossBasisLabel}</span>
-      <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2"><PageHelp content={unitProfitLossHelp} />{validation ? null : <ExportMenu viewQuery={viewQuery} />}<RecheckReport /></div>
+      <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2"><PageHelp content={unitProfitLossHelp} />{validation || viewQuery.unitId === "all" ? null : <ExportMenu viewQuery={viewQuery} />}<RecheckReport /></div>
     </header>}>
       <ReportsFilters key={queryKey} compact action={`/reports/${viewQuery.report}`} propertyOptions={propertyOptions} unitOptions={unitOptions} ownerOptions={ownerOptions} viewQuery={viewQuery} />
       <div className="workspace-gutter-x pb-4">
         {validation ? <div role={trustedReport.scopeValidation ? "alert" : "status"} className="my-3 rounded-md border border-warning/30 bg-warning-soft/35 px-3 py-2 text-sm"><p className="font-semibold">{trustedReport.scopeValidation ? "Report unavailable" : "Export unavailable"}</p><p>{validation.message}</p></div> : null}
-        <UnitProfitLossWorkspace returnTo={`/reports/${viewQuery.report}?${queryKey}`} key={queryKey} report={trustedReport} />
+        {viewQuery.unitId === "all"
+          ? trustedReport.scopeValidation ? null : <UnitProfitLossSelector key={queryKey} unitOptions={unitOptions} viewQuery={viewQuery} />
+          : <UnitProfitLossWorkspace returnTo={`/reports/${viewQuery.report}?${queryKey}`} key={queryKey} report={trustedReport} />}
       </div>
     </WorkspacePage></FinancialReportBoundary>;
   }

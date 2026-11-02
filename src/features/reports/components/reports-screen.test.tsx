@@ -28,6 +28,14 @@ class ResizeObserverStub {
 }
 
 describe("Reports screen", () => {
+  it("starts with separate unit reports instead of a combined property table", () => {
+    renderReport({ viewQuery: query({ unitId: "all" }) });
+    expect(screen.getByRole("heading", { name: "One P&L for each unit" })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "P1 / Unit A1" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Download PDFs" }).getAttribute("href")).toContain("unitIds=unit-1");
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
+  });
   it.each([[1, 2], [2, 1]])("hides generation %i report data inside a generation %i workspace before polling", (reportGeneration, sessionGeneration) => {
     const fetchStatus = vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
     try {
@@ -63,7 +71,7 @@ describe("Reports screen", () => {
     expect(screen.queryByRole("tab")).toBeNull();
     expect(screen.queryByRole("region", { name: "Report totals" })).toBeNull();
     expect(screen.getAllByRole("table")).toHaveLength(1);
-    expect(screen.getAllByRole("columnheader").map(cell => cell.textContent)).toEqual(["Account", "Date", "Type", "Name", "Property", "Memo", "Amount"]);
+    expect(screen.getAllByRole("columnheader").map(cell => cell.textContent)).toEqual(["Account", "Date", "Type", "Name", "Unit", "Memo", "Amount"]);
     expect(screen.getByRole("link", { name: "All reports" }).getAttribute("href")).toBe("/reports");
     expect(screen.getByRole("button", { name: "Report month" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Filter report by property" })).toBeTruthy();
@@ -123,10 +131,10 @@ describe("Reports screen", () => {
     await user.click(screen.getByRole("button", { name: "Export" }));
     expect(
       screen.getByRole("menuitem", { name: "PDF report" }).getAttribute("href"),
-    ).toBe("/api/reports/pdf?report=unit-profit-loss&month=2026-07");
+    ).toBe("/api/reports/pdf?report=unit-profit-loss&month=2026-07&unitId=unit-1");
     expect(
       screen.getByRole("menuitem", { name: "Excel workbook" }).getAttribute("href"),
-    ).toBe("/api/reports/excel?report=unit-profit-loss&month=2026-07");
+    ).toBe("/api/reports/excel?report=unit-profit-loss&month=2026-07&unitId=unit-1");
     expect(screen.queryByText("Export CSV")).toBeNull();
     expect(screen.queryByText("Print / PDF")).toBeNull();
   });
@@ -194,7 +202,7 @@ describe("Reports screen", () => {
 });
 function renderReport({
   report = unitProfitLossReport(),
-  viewQuery = query(),
+  viewQuery = query({ unitId: "unit-1" }),
   sessionGeneration,
 }: {
   report?: TrustedReport;
