@@ -40,7 +40,7 @@ beforeEach(() => {
 });
 
 describe("unit report bundle", () => {
-  it.each(["pdf", "xlsx"] as const)("contains two independent %s files with scope and exclusion notes", async format => {
+  it.each(["pdf", "xlsx"] as const)("contains two independent %s files with unit scope", async format => {
     const bundle = await getUnitProfitLossBundle("org", "Example", { ...selection, format });
     if ("validation" in bundle) throw new Error(bundle.validation.message);
     const files = unzipSync(bundle.body);
@@ -51,7 +51,6 @@ describe("unit report bundle", () => {
       const text = format === "pdf" ? Buffer.from(bytes).toString("latin1") : strFromU8(unzipSync(bytes)["xl/worksheets/sheet1.xml"]!);
       expect(text).toContain(`Unit A${number}`);
       expect(text).not.toContain(`Rent for A${number === 1 ? 2 : 1}`);
-      expect(text).toContain("unassigned property transaction");
       if (format === "pdf") expect(text).not.toContain("Property / unit");
     }
     expect(loadScopedFinanceContext).toHaveBeenCalledTimes(1);

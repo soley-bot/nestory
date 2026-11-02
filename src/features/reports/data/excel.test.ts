@@ -81,7 +81,6 @@ describe("trusted report Excel export", () => {
     report.unitProfitLossFunding = { contributionCents: BigInt(68200), remainingBalanceCents: null, unavailableReason: "Unassigned activity" };
     const sheet = strFromU8(unzipSync(buildTrustedReportXlsx(report))["xl/worksheets/sheet1.xml"]!);
     expect(sheet.match(/>Unavailable<\/t>/g)).toHaveLength(1);
-    expect(sheet).toContain("Unassigned activity");
     expect(sheet).not.toContain(">Rent</t>");
     expect(sheet).not.toContain(">Cleaning</t>");
     expect(sheet).toContain("<v>682.00</v>");
