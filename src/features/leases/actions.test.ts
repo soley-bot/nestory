@@ -28,6 +28,7 @@ vi.mock("@/lib/db/server", () => ({
 
 import {
   createLeaseAction,
+  carryForwardLeaseRenewalBillingAction,
   recordLeaseDepositEventAction,
   recordCurrentLeaseOccupancyEvidenceAction,
   reverseLeaseDepositEventAction,
@@ -84,6 +85,36 @@ describe("Lease occupancy evidence input", () => {
     expect(await scheduleFutureRentTermAction({}, form)).toMatchObject({ status: "success" });
     expect(rpc).toHaveBeenCalledWith("continue_lease_month_to_month", expect.objectContaining({ p_expected_rent_amount: 600, p_expected_fee_value: 10 }));
     expect(rpc.mock.calls[0][1]).not.toHaveProperty("p_end_date");
+  });
+  it("saves fixed renewal dates and carried billing in one checked command", async () => {
+    const form = futureRentTermForm();
+    form.set("termChangeMode", "renewal");
+    form.set("billingRuleId", "70000000-0000-4000-8000-000000000001");
+    expect(await scheduleFutureRentTermAction({}, form)).toMatchObject({ status: "success" });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith("renew_lease_with_billing", expect.objectContaining({
+      p_expected_billing_rule_id: "70000000-0000-4000-8000-000000000001",
+      p_start_date: "2026-09-01", p_end_date: "2026-09-30",
+    }));
+  });
+  it("does not save a fixed renewal when its billing rule is missing", async () => {
+    const form = futureRentTermForm();
+    form.set("termChangeMode", "renewal");
+    expect(await scheduleFutureRentTermAction({}, form)).toMatchObject({ status: "error" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+  it("repairs renewal billing through the scoped command without changing the term", async () => {
+    const form = futureRentTermForm();
+    form.set("termId", "50000000-0000-4000-8000-000000000001");
+    form.set("billingRuleId", "70000000-0000-4000-8000-000000000001");
+    expect(await carryForwardLeaseRenewalBillingAction({}, form)).toMatchObject({ status: "success" });
+    expect(requirePermission).toHaveBeenCalledWith("leases.change_terms");
+    expect(rpc).toHaveBeenCalledWith("carry_forward_lease_renewal_billing", expect.objectContaining({
+      p_organization_id: organizationId, p_lease_id: leaseId,
+      p_term_id: "50000000-0000-4000-8000-000000000001",
+      p_expected_billing_rule_id: "70000000-0000-4000-8000-000000000001",
+    }));
+    expect(revalidatePath).toHaveBeenCalledWith("/reports");
   });
   it("requires explicit continuous-stay confirmation", async () => {
     const form = futureRentTermForm(); form.set("monthToMonth", "on");

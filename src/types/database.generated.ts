@@ -3623,6 +3623,7 @@ export type Database = {
           mid_period_rent_change_rule: string
           organization_id: string
           property_id: string
+          renewed_from_billing_term_id: string | null
           rent_calculation_timezone: string
           rule_source: string
           short_month_due_day_rule: string
@@ -3659,6 +3660,7 @@ export type Database = {
           mid_period_rent_change_rule?: string
           organization_id: string
           property_id: string
+          renewed_from_billing_term_id?: string | null
           rent_calculation_timezone?: string
           rule_source?: string
           short_month_due_day_rule?: string
@@ -3695,6 +3697,7 @@ export type Database = {
           mid_period_rent_change_rule?: string
           organization_id?: string
           property_id?: string
+          renewed_from_billing_term_id?: string | null
           rent_calculation_timezone?: string
           rule_source?: string
           short_month_due_day_rule?: string
@@ -3746,6 +3749,17 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "property_finance_positions"
             referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "lease_billing_terms_renewed_from_fkey"
+            columns: [
+              "organization_id",
+              "lease_id",
+              "renewed_from_billing_term_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "lease_billing_terms"
+            referencedColumns: ["organization_id", "lease_id", "id"]
           },
           {
             foreignKeyName: "lease_billing_terms_supersedes_fkey"
@@ -11428,6 +11442,16 @@ export type Database = {
         Args: { p_organization_id: string; p_schedule_id: string }
         Returns: Json
       }
+      carry_forward_lease_renewal_billing: {
+        Args: {
+          p_expected_billing_rule_id: string
+          p_idempotency_key: string
+          p_lease_id: string
+          p_organization_id: string
+          p_term_id: string
+        }
+        Returns: string
+      }
       close_owner_month: {
         Args: {
           p_close_reason: string
@@ -13447,6 +13471,22 @@ export type Database = {
         }
         Returns: Json
       }
+      renew_lease_with_billing: {
+        Args: {
+          p_end_date: string
+          p_expected_billing_rule_id: string
+          p_idempotency_key: string
+          p_lease_id: string
+          p_organization_id: string
+          p_payment_frequency: string
+          p_rent_amount: number
+          p_rent_currency: Database["public"]["Enums"]["currency_code"]
+          p_rent_due_day: number
+          p_start_date: string
+          p_supersedes_term_id: string
+        }
+        Returns: string
+      }
       reopen_owner_month: {
         Args: {
           p_idempotency_key: string
@@ -13597,6 +13637,7 @@ export type Database = {
           mid_period_rent_change_rule: string
           organization_id: string
           property_id: string
+          renewed_from_billing_term_id: string | null
           rent_calculation_timezone: string
           rule_source: string
           short_month_due_day_rule: string

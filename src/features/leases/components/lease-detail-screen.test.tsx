@@ -27,7 +27,7 @@ import type {
 
 const historicalCorrectionMocks = vi.hoisted(() => ({ apply: vi.fn(), preview: vi.fn() }));
 const depositActionMocks = vi.hoisted(() => ({ record: vi.fn() }));
-const leaseEditorMocks = vi.hoisted(() => ({ billing: vi.fn(), term: vi.fn() }));
+const leaseEditorMocks = vi.hoisted(() => ({ billing: vi.fn(), term: vi.fn(), carryBilling: vi.fn() }));
 const actionMocks = vi.hoisted(() => ({
   confirmOwnerCollectionAction: vi.fn(),
   recordTenantInvoicePaymentAction: vi.fn(),
@@ -59,6 +59,7 @@ vi.mock("@/lib/dates/format", async (importOriginal) => {
 });
 
 vi.mock("@/features/leases/actions", () => ({
+  carryForwardLeaseRenewalBillingAction: (...args: unknown[]) => leaseEditorMocks.carryBilling(...args),
   recordCompletedDraftLeaseAction: async () => ({}),
   renewAndActivateDraftLeaseAction: async () => ({}),
   archiveLeaseAction: async () => ({}),
@@ -91,6 +92,7 @@ beforeEach(() => {
   depositActionMocks.record.mockReset().mockResolvedValue({});
   leaseEditorMocks.billing.mockReset().mockResolvedValue({});
   leaseEditorMocks.term.mockReset().mockResolvedValue({});
+  leaseEditorMocks.carryBilling.mockReset().mockResolvedValue({ status: "success" });
   historicalCorrectionMocks.apply.mockReset();
   historicalCorrectionMocks.preview.mockReset();
   actionMocks.confirmOwnerCollectionAction.mockReset();
@@ -1419,6 +1421,32 @@ describe("LeaseDetailScreen", () => {
     expect(screen.getByText("Scheduled from 01 Jun 2027")).not.toBeNull();
     expect(screen.getByText("Billing rule history")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Change rules" })).not.toBeNull();
+  });
+  it("carries a saved renewal's prior billing forward through its checked form", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    const oldTerm = { ...lease.terms[0], id: "old-term", status: "expired" as const, startDate: "2025-10-14", endDate: "2026-10-13" };
+    lease.terms = [{ ...lease.terms[0], startDate: "2026-10-14", endDate: "2027-08-14" }, oldTerm];
+    lease.billingRules = [billingRule({ id: "old-billing", state: "historical", effectiveFrom: "2025-10-14", effectiveTo: "2026-10-14", managementFeeValue: 10 })];
+    renderDetail("rent", lease);
+    const form = screen.getByRole("form", { name: "Carry forward renewal billing" });
+    expect(within(form).getByText(/15 Oct 2026.*14 Aug 2027/)).toBeTruthy();
+    await user.click(within(form).getByRole("button", { name: "Carry forward renewal billing" }));
+    await waitFor(() => expect(leaseEditorMocks.carryBilling).toHaveBeenCalledTimes(1));
+    const data = leaseEditorMocks.carryBilling.mock.calls[0][1] as FormData;
+    expect(data.get("termId")).toBe("term-1");
+    expect(data.get("billingRuleId")).toBe("old-billing");
+    await waitFor(() => expect(routerMocks.refresh).toHaveBeenCalled());
+  });
+  it("does not offer billing carry-forward when a later billing rule exists", () => {
+    const lease = makeLease();
+    lease.terms[0] = { ...lease.terms[0], startDate: "2026-10-14", endDate: "2027-08-14" };
+    lease.billingRules = [
+      billingRule({ id: "old-billing", state: "historical", effectiveFrom: "2025-10-14", effectiveTo: "2026-10-14" }),
+      billingRule({ id: "new-billing", state: "scheduled", effectiveFrom: "2026-11-01", effectiveTo: "2027-08-14" }),
+    ];
+    renderDetail("rent", lease);
+    expect(screen.queryByRole("form", { name: "Carry forward renewal billing" })).toBeNull();
   });
 
   it("keeps date-only billing rule dates on their calendar day west of UTC", () => {
