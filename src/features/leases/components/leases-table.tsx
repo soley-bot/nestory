@@ -310,10 +310,14 @@ function getDepositAttention(lease: LeaseSummary) {
   }
 
   if (!deposit) {
-    return "Deposit not received";
+    return "Deposit needs verification";
   }
 
   const status = deposit.statusLabel.toLowerCase();
+
+  if (status === "pending" || status === "needs verification") {
+    return "Deposit needs verification";
+  }
 
   if (status === "active" || status === "held" || status === "returned") {
     return null;
