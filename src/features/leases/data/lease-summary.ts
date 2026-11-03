@@ -746,7 +746,9 @@ function toDepositContext(
         : "No deposit required"
       : heldCents > BigInt(0) && heldCents < amountCents
         ? "Partially held"
-      : formatStoredLabel(deposit.status),
+      : deposit.status === "pending"
+        ? "Needs verification"
+        : formatStoredLabel(deposit.status),
     typeLabel: formatStoredLabel(deposit.deposit_type),
   };
 }
