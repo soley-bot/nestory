@@ -240,6 +240,7 @@ export type LeaseDepositContext = {
   receivedAmount: number;
   statusLabel: string;
   typeLabel: string;
+  typeValue: string;
 };
 
 export type LeaseDepositEventContext = { id: string; eventDate: string; eventType: string; amountDisplay: MoneyDisplayValue; reference: string; reversible: boolean };

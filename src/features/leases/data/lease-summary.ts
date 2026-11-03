@@ -727,8 +727,9 @@ function toDepositContext(
   const isZeroDeposit = Number(deposit.amount) === 0;
   const zeroDepositHasEvidence =
     isZeroDeposit &&
-    ((deposit.events?.length ?? 0) > 0 || hasLedgerEvidence);
+    (heldCents !== BigInt(0) || hasLedgerEvidence);
   return {
+    typeValue: deposit.deposit_type,
     amount: Number(deposit.amount),
     amountCents: amountCentsNumber,
     amountDisplay: formatMoneyDisplay(deposit.amount, deposit.currency),

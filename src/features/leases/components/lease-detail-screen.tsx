@@ -42,6 +42,7 @@ import { LeasePaymentResolutionView } from "@/features/leases/components/lease-p
 import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
 import { FeePaymentDateModal } from "@/features/leases/components/fee-payment-date-modal";
 import { LeaseForm } from "@/features/leases/components/lease-form";
+import { DepositRequirementForm } from "@/features/leases/components/deposit-requirement-form";
 import { DepositRentModal } from "@/features/leases/local-deposit-rent/shared-journal-modal";
 import { DepositCustodyModal } from "@/features/leases/local-deposit-rent/custody-modal";
 import { findConfiguredAccountId } from "@/features/finance-accounts/finance-account-selection";
@@ -101,6 +102,7 @@ type DrawerState =
   | { mode: "archive" }
   | { mode: "billing" }
   | { mode: "deposit" }
+  | { mode: "deposit_requirement" }
   | { mode: "edit" }
   | { mode: "restore" };
 
@@ -385,6 +387,7 @@ export function LeaseDetailScreen({
             setTransition(nextTransition);
           }}
           onManageDeposit={() => openDrawer({ mode: "deposit" })}
+          onEditDepositRequirement={() => openDrawer({ mode: "deposit_requirement" })}
           onScheduleTerm={(mode) => {
             setStatusMessage(null);
             if (!activeTerm) {
@@ -425,6 +428,8 @@ export function LeaseDetailScreen({
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
             />
+          ) : drawer.mode === "deposit_requirement" ? (
+            <DepositRequirementForm lease={lease} onClose={() => setDrawer(null)} onSuccess={setStatusMessage} />
           ) : drawer.mode === "deposit" ? (
             <LeaseDepositPanel
               canReadSettlements={canViewFinance}
@@ -1743,6 +1748,7 @@ function getDrawerTitle(drawer: DrawerState) {
   if (drawer.mode === "archive") return "Archive lease";
   if (drawer.mode === "billing") return "Change billing rules";
   if (drawer.mode === "deposit") return "Manage security deposit";
+  if (drawer.mode === "deposit_requirement") return "Edit required deposit";
   if (drawer.mode === "restore") return "Restore lease";
   return "Edit draft";
 }
@@ -1751,6 +1757,7 @@ function getDrawerDescription(drawer: DrawerState) {
   if (drawer.mode === "archive")
     return "Archive this record without deleting its history.";
   if (drawer.mode === "billing") return undefined;
+  if (drawer.mode === "deposit_requirement") return "Update the deposit agreed in the lease.";
   if (drawer.mode === "deposit")
     return "Review the held balance and record deposit changes for this lease.";
   if (drawer.mode === "restore")

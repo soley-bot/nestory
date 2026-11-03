@@ -26,7 +26,7 @@ import type {
 } from "@/features/leases/lease.types";
 
 const historicalCorrectionMocks = vi.hoisted(() => ({ apply: vi.fn(), preview: vi.fn() }));
-const depositActionMocks = vi.hoisted(() => ({ record: vi.fn() }));
+const depositActionMocks = vi.hoisted(() => ({ record: vi.fn(), requirement: vi.fn() }));
 const leaseEditorMocks = vi.hoisted(() => ({ billing: vi.fn(), term: vi.fn(), carryBilling: vi.fn() }));
 const actionMocks = vi.hoisted(() => ({
   confirmOwnerCollectionAction: vi.fn(),
@@ -81,6 +81,10 @@ vi.mock("@/features/leases/historical-rent-correction-actions", () => ({
   previewHistoricalRentCorrectionAction: (...args: unknown[]) => historicalCorrectionMocks.preview(...args),
 }));
 
+vi.mock("@/features/leases/deposit-requirement-actions", () => ({
+  updateDepositRequirementAction: (...args: unknown[]) => depositActionMocks.requirement(...args),
+}));
+
 vi.mock("@/features/finance-operations/actions", () => actionMocks);
 
 vi.mock("next/navigation", () => ({
@@ -90,6 +94,7 @@ vi.mock("next/navigation", () => ({
 
 beforeEach(() => {
   depositActionMocks.record.mockReset().mockResolvedValue({});
+  depositActionMocks.requirement.mockReset().mockResolvedValue({ status: "success", message: "Required deposit updated. The held balance is unchanged." });
   leaseEditorMocks.billing.mockReset().mockResolvedValue({});
   leaseEditorMocks.term.mockReset().mockResolvedValue({});
   leaseEditorMocks.carryBilling.mockReset().mockResolvedValue({ status: "success" });
@@ -1094,6 +1099,72 @@ describe("LeaseDetailScreen", () => {
       expect(screen.getByText(content)).not.toBeNull();
     },
   );
+
+  it("edits the requirement independently of rent and recorded activity", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    renderDetail("rent", lease);
+    await user.click(screen.getByRole("button", { name: "Edit required deposit" }));
+    const drawer = screen.getByRole("dialog", { name: "Edit required deposit" });
+    const amount = within(drawer).getByRole("textbox", { name: /Required deposit \(USD\)/ });
+    await user.clear(amount);
+    await user.type(amount, "1750");
+    await user.type(within(drawer).getByRole("textbox", { name: /Reason for change/ }), "Agreed revised lease deposit");
+    await user.click(within(drawer).getByRole("button", { name: "Save required deposit" }));
+    await waitFor(() => expect(depositActionMocks.requirement).toHaveBeenCalledOnce());
+    const data = depositActionMocks.requirement.mock.calls[0]![1] as FormData;
+    expect(data.get("amount")).toBe("1750");
+    expect(data.get("expectedAmount")).toBe("1200.00");
+    expect(data.get("expectedDepositId")).toBe(lease.deposits[0]!.id);
+    expect(data.has("monthlyRentAmount")).toBe(false);
+    expect(depositActionMocks.record).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit required deposit" })).toBeNull());
+    expect(routerMocks.refresh).toHaveBeenCalled();
+  });
+
+  it("offers a requirement edit when an active lease has no deposit", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    lease.deposits = [];
+    lease.formValues.depositAmount = null;
+    renderDetail("rent", lease);
+    await user.click(screen.getByRole("button", { name: "Edit required deposit" }));
+    expect((screen.getByRole("textbox", { name: /Required deposit \(USD\)/ }) as HTMLInputElement).value).toBe("0.00");
+  });
+
+  it("keeps a failed requirement submission and its retry key", async () => {
+    depositActionMocks.requirement.mockRejectedValue(new Error("Response lost"));
+    const user = userEvent.setup();
+    renderDetail("rent", makeLease());
+    await user.click(screen.getByRole("button", { name: "Edit required deposit" }));
+    const amount = screen.getByRole("textbox", { name: /Required deposit \(USD\)/ });
+    await user.clear(amount); await user.type(amount, "1750");
+    await user.type(screen.getByRole("textbox", { name: /Reason for change/ }), "Agreed revised lease deposit");
+    await user.click(screen.getByRole("button", { name: "Save required deposit" }));
+    await screen.findByText(/The save could not be confirmed/);
+    expect((amount as HTMLInputElement).value).toBe("1750");
+    await user.click(screen.getByRole("button", { name: "Save required deposit" }));
+    await waitFor(() => expect(depositActionMocks.requirement).toHaveBeenCalledTimes(2));
+    const first = depositActionMocks.requirement.mock.calls[0]![1] as FormData;
+    const retry = depositActionMocks.requirement.mock.calls[1]![1] as FormData;
+    expect(Object.fromEntries(retry)).toEqual(Object.fromEntries(first));
+  });
+
+  it("hides requirement editing for closed and archived leases", () => {
+    const lease = makeLease();
+    lease.statusValue = "ended";
+    renderDetail("rent", lease);
+    expect(screen.queryByRole("button", { name: "Edit required deposit" })).toBeNull();
+    cleanup();
+    lease.statusValue = "active"; lease.isArchived = true;
+    renderDetail("rent", lease);
+    expect(screen.queryByRole("button", { name: "Edit required deposit" })).toBeNull();
+  });
+
+  it("hides requirement editing without lease term permission", () => {
+    renderDetail("rent", makeLease(), { ...allLeasePermissions, canChangeTerms: false });
+    expect(screen.queryByRole("button", { name: "Edit required deposit" })).toBeNull();
+  });
 
   it("keeps deposit history and changes inside one drawer", async () => {
     const user = userEvent.setup();

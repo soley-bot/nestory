@@ -51,6 +51,7 @@ export function LeaseDetailView({
   onChangeBillingRules,
   onLifecycleChange,
   onManageDeposit,
+  onEditDepositRequirement,
   onScheduleTerm,
 }: {
   activeSection: LeaseRecordSection;
@@ -64,6 +65,7 @@ export function LeaseDetailView({
     transition: "activate" | "cancel" | "end" | "give_notice" | "terminate",
   ) => void;
   onManageDeposit: () => void;
+  onEditDepositRequirement: () => void;
   onScheduleTerm: (mode: "renewal" | "rent_change") => void;
 }) {
   return (
@@ -86,6 +88,7 @@ export function LeaseDetailView({
             lease={lease}
             onChangeBillingRules={onChangeBillingRules}
             onManageDeposit={onManageDeposit}
+            onEditDepositRequirement={onEditDepositRequirement}
             permissions={permissions}
             onScheduleTerm={onScheduleTerm}
           />
@@ -228,6 +231,7 @@ function LeaseRentAndDeposit({
   lease,
   onChangeBillingRules,
   onManageDeposit,
+  onEditDepositRequirement,
   onScheduleTerm,
   permissions,
 }: {
@@ -235,6 +239,7 @@ function LeaseRentAndDeposit({
   lease: LeaseSummary;
   onChangeBillingRules: () => void;
   onManageDeposit: () => void;
+  onEditDepositRequirement: () => void;
   onScheduleTerm: (mode: "renewal" | "rent_change") => void;
   permissions: LeaseActionPermissions;
 }) {
@@ -268,17 +273,22 @@ function LeaseRentAndDeposit({
         ) : null}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <SectionHeading id="rent-deposit-heading" title="Rent & deposit" />
-          {hasDepositDetails ? (
-            <Button onClick={onManageDeposit} variant="outline">
-              {permissions.canChangeTerms && !lease.isArchived
-                ? "Manage deposit"
-                : permissions.canChangeTerms
-                  && ["ended", "terminated", "cancelled"].includes(lease.statusValue)
-                  && lease.deposits.some((deposit) => deposit.heldBalanceCents > 0)
-                  ? "Settle deposit"
-                  : "View deposit"}
-            </Button>
-          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {permissions.canChangeTerms && !lease.isArchived && ["active", "notice_given"].includes(lease.statusValue) ? (
+              <Button onClick={onEditDepositRequirement} variant="outline">Edit required deposit</Button>
+            ) : null}
+            {hasDepositDetails ? (
+              <Button onClick={onManageDeposit} variant="outline">
+                {permissions.canChangeTerms && !lease.isArchived
+                  ? "Manage deposit"
+                  : permissions.canChangeTerms
+                    && ["ended", "terminated", "cancelled"].includes(lease.statusValue)
+                    && lease.deposits.some((deposit) => deposit.heldBalanceCents > 0)
+                    ? "Settle deposit"
+                    : "View deposit"}
+              </Button>
+            ) : null}
+          </div>
         </div>
         <dl className="mt-3 grid grid-cols-1 border-y border-border sm:grid-cols-2">
           <Metric label="Current rent">

@@ -254,6 +254,18 @@ describe("buildLeaseSummary", () => {
     expect(summary.deposits[0]).toMatchObject({ statusLabel: "Needs review" });
   });
 
+  it("shows no requirement after a deposit is fully refunded and the agreed amount is zero", () => {
+    const summary = buildLeaseSummary({
+      deposits: [{ amount: 0, archived_at: null, currency: "USD", deposit_type: "security",
+        id: "refunded-deposit", lease_id: "lease-1", status: "returned", events: [
+          { id: "receipt", amount: 100, currency: "USD", event_date: "2026-07-01", event_type: "received", reference: "Receipt", reversal_of_id: null },
+          { id: "refund", amount: 100, currency: "USD", event_date: "2026-07-02", event_type: "refunded", reference: "Refund", reversal_of_id: null },
+        ] }], lease: { ...lease, deposit_amount: null, deposit_currency: null }, property, unit,
+    });
+    expect(summary.deposits[0]).toMatchObject({ statusLabel: "No deposit required", heldBalance: 0 });
+    expect(summary.deposits[0]!.events).toHaveLength(2);
+  });
+
   it("surfaces zero-value deposit ledger evidence for review", () => {
     const summary = buildLeaseSummary({
       depositLedgerEvidenceIds: new Set(["deposit-zero-with-ledger"]),
