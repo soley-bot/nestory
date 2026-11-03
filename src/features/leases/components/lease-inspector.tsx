@@ -120,7 +120,7 @@ function Detail({
 }
 
 function getDepositSummary(lease: LeaseSummary) {
-  const deposit = lease.deposits[0];
+  const deposit = lease.deposits.find(item => item.typeValue === "security");
 
   if (deposit) {
     return `${deposit.heldBalanceDisplay.primary} held`;

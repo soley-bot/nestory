@@ -45,6 +45,7 @@ export async function updateDepositRequirementAction(
     if (lifecycle) return { status: "error", message: lifecycle };
     if (isPrivilegedStepUpRequiredError(error)) return { status: "error", message: privilegedStepUpRequiredActionMessage };
     if (message.includes("deposit_requirement_below_held")) return { status: "error", message: "The required deposit cannot be less than the amount currently held. Record any agreed refund first, then update the requirement." };
+    if (message.includes("deposit_requirement_busy")) return { status: "error", message: "Someone is updating this lease. Your changes are still here. Try saving again in a moment." };
     if (/deposit_requirement_changed|deposit_requirement_active_lease_required/.test(message)) return { status: "error", message: "The lease or required deposit has changed. Close this form, refresh the lease and try again." };
     if (/deposit_requirement_ambiguous|deposit_requirement_legacy_evidence/.test(message)) return { status: "error", message: "This deposit has historical records that need review before its requirement can be changed." };
     if (error.code === "42501") return { status: "error", message: "You do not have permission to change this lease's required deposit." };

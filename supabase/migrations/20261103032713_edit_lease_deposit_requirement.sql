@@ -18,6 +18,7 @@ DECLARE
   v_lease public.leases%ROWTYPE;
   v_deposit public.lease_deposits%ROWTYPE;
   v_claim record;
+  v_header_count integer;
   v_held numeric := 0;
   v_currency public.currency_code;
 BEGIN
@@ -44,10 +45,21 @@ BEGIN
   );
   IF v_claim.is_replay THEN RETURN (v_claim.result_ids->>'leaseId')::uuid; END IF;
 
-  -- Serialize new deposit creation and lease closure; keep FK key-share locks compatible.
-  SELECT * INTO v_lease FROM public.leases
-  WHERE organization_id = p_organization_id AND id = p_lease_id
-  FOR NO KEY UPDATE;
+  -- Rent applications and their reversals lock the deposit before its lease.
+  SELECT * INTO v_deposit FROM public.lease_deposits
+  WHERE organization_id = p_organization_id AND lease_id = p_lease_id
+    AND deposit_type = 'security' AND archived_at IS NULL
+  ORDER BY id LIMIT 1 FOR UPDATE;
+
+  -- Custody confirmation and lifecycle operations can already hold the lease.
+  -- Never wait for them while holding their deposit. A retry reads fresh cash.
+  BEGIN
+    SELECT * INTO v_lease FROM public.leases
+    WHERE organization_id = p_organization_id AND id = p_lease_id
+    FOR NO KEY UPDATE NOWAIT;
+  EXCEPTION WHEN lock_not_available THEN
+    RAISE EXCEPTION 'deposit_requirement_busy' USING ERRCODE = '40001';
+  END;
   PERFORM app_private.assert_lease_permission(
     p_organization_id, p_lease_id, 'leases.change_terms'::public.organization_permission_key
   );
@@ -56,17 +68,14 @@ BEGIN
   END IF;
 
   -- Fail closed on ambiguous historical headers instead of choosing one silently.
-  IF (SELECT count(*) FROM public.lease_deposits
-      WHERE organization_id = p_organization_id AND lease_id = p_lease_id
-        AND deposit_type = 'security' AND archived_at IS NULL) > 1 THEN
+  SELECT count(*) INTO v_header_count FROM public.lease_deposits
+  WHERE organization_id = p_organization_id AND lease_id = p_lease_id
+    AND deposit_type = 'security' AND archived_at IS NULL;
+  IF v_header_count > 1 THEN
     RAISE EXCEPTION 'deposit_requirement_ambiguous' USING ERRCODE = '55000';
   END IF;
-  SELECT * INTO v_deposit FROM public.lease_deposits
-  WHERE organization_id = p_organization_id AND lease_id = p_lease_id
-    AND deposit_type = 'security' AND archived_at IS NULL
-  FOR UPDATE;
-
-  IF v_deposit.id IS DISTINCT FROM p_expected_deposit_id
+  IF (v_header_count = 1 AND v_deposit.id IS NULL)
+    OR v_deposit.id IS DISTINCT FROM p_expected_deposit_id
     OR coalesce(v_deposit.amount, v_lease.deposit_amount, 0) IS DISTINCT FROM p_expected_amount THEN
     RAISE EXCEPTION 'deposit_requirement_changed' USING ERRCODE = '40001';
   END IF;

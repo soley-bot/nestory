@@ -226,6 +226,14 @@ describe("LeaseDetailScreen", () => {
     expect(screen.getByRole("navigation", { name: "Lease record sections" })).toBeTruthy();
   });
 
+  it("shows a zero requirement without marking it received in payment resolution", () => {
+    const lease = makeLease();
+    Object.assign(lease.deposits[0]!, { amount: 0, amountCents: 0, receivedAmount: 0, statusLabel: "No deposit required" });
+    renderDetail("overview", lease, allLeasePermissions, { paymentResolution: resolutionFixture() });
+    expect(screen.getByText("No deposit required")).toBeTruthy();
+    expect(screen.queryByText("Received", { exact: true })).toBeNull();
+  });
+
   it("replaces the record sections with the focused payment resolution", () => {
     renderDetail("overview", makeLease(), allLeasePermissions, {
       paymentResolution: resolutionFixture(),
@@ -1103,7 +1111,11 @@ describe("LeaseDetailScreen", () => {
   it("edits the requirement independently of rent and recorded activity", async () => {
     const user = userEvent.setup();
     const lease = makeLease();
+    const security = lease.deposits[0]!;
+    lease.deposits.unshift({ ...security, id: "key-deposit", typeValue: "key", amount: 25,
+      amountCents: 2500, amountDisplay: { ...security.amountDisplay, primary: "USD 25.00" } });
     renderDetail("rent", lease);
+    expect(screen.getByText("USD 1,200.00 required · USD 0.00 held")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Edit required deposit" }));
     const drawer = screen.getByRole("dialog", { name: "Edit required deposit" });
     const amount = within(drawer).getByRole("textbox", { name: /Required deposit \(USD\)/ });
@@ -1115,7 +1127,7 @@ describe("LeaseDetailScreen", () => {
     const data = depositActionMocks.requirement.mock.calls[0]![1] as FormData;
     expect(data.get("amount")).toBe("1750");
     expect(data.get("expectedAmount")).toBe("1200.00");
-    expect(data.get("expectedDepositId")).toBe(lease.deposits[0]!.id);
+    expect(data.get("expectedDepositId")).toBe(security.id);
     expect(data.has("monthlyRentAmount")).toBe(false);
     expect(depositActionMocks.record).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit required deposit" })).toBeNull());

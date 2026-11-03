@@ -48,6 +48,60 @@ export async function custodyConcurrency(context) {
       check('serialized reversal then archival preserves restored balances and inactive original account',`SELECT app_private.deposit_rent_held(${q(1)},${q(lease+2)})=500 AND (SELECT balance_due=500 FROM public.tenant_invoice_balances WHERE id=${q(lease+3)}) AND (SELECT archived_at IS NOT NULL AND archived_by=${q(106)} FROM public.finance_accounts WHERE id=${q(81)}) AND (SELECT liability_account_id=${q(81)} FROM public.deposit_rent_applications WHERE id='${result.result.commandId}')`,'t');
       return;
     }
+
+    // Pause a rent journal at its deposit lock, then let a requirement editor
+    // queue behind it. The journal still needs its lease lock to finish.
+    const editedLease = 24000;
+    seed(editedLease, 'through_ips', 500, 500, 600);
+    sql(`BEGIN; SET LOCAL session_replication_role=replica;
+      UPDATE public.leases SET status='active' WHERE id=${q(editedLease)}; COMMIT;`);
+    async function journalWhileEditing(payload, oldAmount, newAmount, expectedHeld) {
+      const operation = payload.operation;
+      const intent = prepareFor(editedLease, payload);
+      const args = argsFor(editedLease, intent);
+      sql(actor(101, `SET LOCAL ROLE authenticated;
+        SELECT public.begin_deposit_rent_journal_attempt(${args},${intent.revision})`, true));
+      const journal = start(`deposit_requirement_${operation}`, `BEGIN;
+        SELECT id FROM public.lease_deposits WHERE id=${q(editedLease + 2)} FOR UPDATE;`, true);
+      await ready(journal);
+      const editor = start(`deposit_requirement_after_${operation}`, ordinary(`
+        SELECT public.update_lease_deposit_requirement(${q(1)},${q(editedLease)},${newAmount},${oldAmount},
+          'Revised synthetic lease agreement','requirement-after-${operation}',${q(editedLease + 2)})`) + ' COMMIT;');
+      await blocked(editor);
+      journal.child.stdin.end(`SET LOCAL "request.jwt.claim.sub"=${q(101)}; SET LOCAL ROLE authenticated;
+        SELECT public.execute_deposit_rent_journal(${args}); COMMIT;\n`);
+      await Promise.all([journal.done, editor.done]);
+      if (journal.code !== 0 || editor.code !== 0) {
+        throw Error(`Concurrent ${operation} and required deposit edit failed: ${journal.err} ${editor.err}`);
+      }
+      const result = JSON.parse(journal.out.split('\n').find(line => line.startsWith('{')) ?? 'null');
+      if (result?.state !== 'resolved') throw Error(`Concurrent ${operation} was not posted`);
+      check(`required deposit edit serializes with a real ${operation} journal`, `SELECT
+        app_private.deposit_rent_held(${q(1)},${q(editedLease + 2)})=${expectedHeld}
+        AND (SELECT balance_due=${expectedHeld} FROM public.tenant_invoice_balances WHERE id=${q(editedLease + 3)})
+        AND (SELECT amount=${newAmount} FROM public.lease_deposits WHERE id=${q(editedLease + 2)})
+        AND (SELECT deposit_amount=${newAmount} FROM public.leases WHERE id=${q(editedLease)})`, 't');
+      return result.result.commandId;
+    }
+    const applicationId = await journalWhileEditing(custodyPayload(editedLease), 600, 650, 400);
+    await journalWhileEditing({ operation: 'reverse', leaseId: context.id(editedLease),
+      date: '2026-10-05', reason: 'Synthetic deposit requirement reversal', applicationId }, 650, 700, 500);
+
+    const leaseLock = start('deposit_requirement_lease_shared', `BEGIN;
+      SELECT id FROM public.leases WHERE id=${q(editedLease)} FOR SHARE;`, true);
+    await ready(leaseLock);
+    const retry = `SELECT public.update_lease_deposit_requirement(${q(1)},${q(editedLease)},750,700,
+      'Updated synthetic agreement','requirement-after-lease-lock',${q(editedLease + 2)})`;
+    const busyEditor = start('deposit_requirement_busy', ordinary(retry) + ' COMMIT;');
+    await busyEditor.done;
+    if (busyEditor.code === 0 || !busyEditor.err.includes('deposit_requirement_busy')) {
+      throw Error(`Expected a retryable lease conflict: ${busyEditor.err}`);
+    }
+    await release(leaseLock);
+    sql(actor(101, `SET LOCAL ROLE authenticated; ${retry}`, true));
+    check('a lease locked for custody can be retried with the original edit key', `SELECT amount=750
+      FROM public.lease_deposits WHERE id=${q(editedLease + 2)}`, 't');
+
     seed(17000,'through_ips',500,600,700);
     const intent=prepareFor(17000,custodyPayload(17000)),args=argsFor(17000,intent);
     sql(actor(101,`SET LOCAL ROLE authenticated; SELECT public.begin_deposit_rent_journal_attempt(${args},${intent.revision})`,true));

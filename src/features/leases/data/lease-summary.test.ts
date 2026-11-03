@@ -264,6 +264,7 @@ describe("buildLeaseSummary", () => {
     });
     expect(summary.deposits[0]).toMatchObject({ statusLabel: "No deposit required", heldBalance: 0 });
     expect(summary.deposits[0]!.events).toHaveLength(2);
+    expect(summary.riskIndicators.find(risk => risk.id === "deposit")?.label).toBe("No deposit required");
   });
 
   it("surfaces zero-value deposit ledger evidence for review", () => {

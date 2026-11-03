@@ -45,6 +45,7 @@ describe("update required deposit", () => {
   });
   it.each([
     ["deposit_requirement_below_held", "Record any agreed refund first"],
+    ["deposit_requirement_busy", "Try saving again"],
     ["deposit_requirement_changed", "refresh the lease"],
     ["deposit_requirement_legacy_evidence", "historical records"],
   ])("explains the %s rejection", async (message, expected) => {

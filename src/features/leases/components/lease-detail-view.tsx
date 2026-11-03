@@ -756,7 +756,7 @@ function ActionMessage({
 }
 
 function getDepositSummary(lease: LeaseSummary) {
-  const deposit = lease.deposits[0];
+  const deposit = lease.deposits.find(item => item.typeValue === "security");
   return deposit
     ? `${deposit.amountDisplay.primary} required · ${deposit.heldBalanceDisplay.primary} held`
     : lease.depositLabel;

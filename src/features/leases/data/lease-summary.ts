@@ -227,12 +227,11 @@ export function buildLeaseSummary({
       : null;
   const depositCurrency = lease.deposit_currency ?? rentCurrency;
   const hasDeposit = depositAmount !== null;
-  const zeroDepositNeedsReview = deposits.some(
-    (deposit) =>
-      !deposit.archived_at &&
-      Number(deposit.amount) === 0 &&
-      ((deposit.events?.length ?? 0) > 0 ||
-        depositLedgerEvidenceIds.has(deposit.id)),
+  const depositContexts = deposits
+    .filter((deposit) => !deposit.archived_at)
+    .map((deposit) => toDepositContext(deposit, depositLedgerEvidenceIds.has(deposit.id)));
+  const zeroDepositNeedsReview = depositContexts.some((deposit) =>
+    deposit.amountCents === 0 && (deposit.heldBalanceCents !== 0 || depositLedgerEvidenceIds.has(deposit.id)),
   );
   const formValues: LeaseFormValues = {
     depositAmount,
@@ -281,14 +280,7 @@ export function buildLeaseSummary({
     depositLabel: hasDeposit
       ? formatMoney(depositAmount, depositCurrency)
       : "No deposit required",
-    deposits: deposits
-      .filter((deposit) => !deposit.archived_at)
-      .map((deposit) =>
-        toDepositContext(
-          deposit,
-          depositLedgerEvidenceIds.has(deposit.id),
-        ),
-      ),
+    deposits: depositContexts,
     documents: activeDocuments.map(toDocumentContext),
     endDateLabel: formatDate(displayEndDate),
     formValues,
