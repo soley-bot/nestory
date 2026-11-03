@@ -108,6 +108,11 @@ function endLease() {
     'Confirmed deposit concurrency fixture move-out','deposit-concurrency-end');`;
 }
 
+function changeRequirement(amount, expected, key) {
+  return `SELECT public.update_lease_deposit_requirement('${organizationId}','${leaseId}',
+    ${amount},${expected},'Agreed synthetic deposit requirement','${key}','${depositId}');`;
+}
+
 async function race(firstSql, secondSql, release = "COMMIT", secondShouldSucceed = true) {
   const name = "deposit-retry-" + randomUUID();
   const first = session(actorSql(firstSql + "\nDO $$ BEGIN RAISE NOTICE 'deposit_safety_posted'; END $$;", "deposit-first-" + nonce));
@@ -162,6 +167,27 @@ for (const type of ["received", "refunded"]) {
     assert.equal(run(`SELECT amount FROM public.lease_deposit_events WHERE organization_id='${organizationId}' AND reference='${key}';`), "50.00");
   });
 }
+
+test("requirement edits serialize and reject a stale competing form", async () => {
+  const { retried } = await race(changeRequirement(800, 500, "requirement-first"),
+    changeRequirement(900, 500, "requirement-second"), "COMMIT", false);
+  assert.match(retried.stderr, /deposit_requirement_changed/);
+  assert.equal(run(`SELECT amount FROM public.lease_deposits WHERE id='${depositId}';`), "800.00");
+});
+
+test("a requirement reduction sees a concurrently committed receipt", async () => {
+  const { retried } = await race(command("received", 400, "requirement-held-first"),
+    changeRequirement(300, 500, "requirement-reduce-second"), "COMMIT", false);
+  assert.match(retried.stderr, /deposit_requirement_below_held/);
+  assert.equal(run(`SELECT amount FROM public.lease_deposits WHERE id='${depositId}';`), "500.00");
+});
+
+test("a receipt sees a concurrently reduced requirement", async () => {
+  const { retried } = await race(changeRequirement(300, 500, "requirement-reduce-first"),
+    command("received", 400, "requirement-receipt-second"), "COMMIT", false);
+  assert.match(retried.stderr, /receipts exceed/);
+  assert.equal(run(`SELECT count(*) FROM public.lease_deposit_events WHERE lease_deposit_id='${depositId}';`), "0");
+});
 
 test("different archived refund keys cannot overspend held custody", async () => {
   run(actorSql(command("received", 100, "deposit-archive-seed") + `

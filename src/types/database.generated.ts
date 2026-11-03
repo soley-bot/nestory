@@ -14297,6 +14297,18 @@ export type Database = {
         }
         Returns: string
       }
+      update_lease_deposit_requirement: {
+        Args: {
+          p_amount: number
+          p_expected_amount: number
+          p_expected_deposit_id?: string
+          p_idempotency_key: string
+          p_lease_id: string
+          p_organization_id: string
+          p_reason: string
+        }
+        Returns: string
+      }
       update_lease_with_authoritative_term: {
         Args: {
           p_deposit_amount: number

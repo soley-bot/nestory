@@ -303,7 +303,7 @@ function formatLedgerCount(lease: LeaseSummary) {
 }
 
 function getDepositAttention(lease: LeaseSummary) {
-  const deposit = lease.deposits[0];
+  const deposit = lease.deposits.find(item => item.typeValue === "security");
 
   if (!lease.depositDisplay) {
     return null;

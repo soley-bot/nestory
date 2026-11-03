@@ -319,8 +319,9 @@ function ContextRow({
 }
 
 function getDepositPresentation(lease: LeaseSummary) {
-  const deposit = lease.deposits[0];
-  if (!deposit) return { amount: "No deposit required", state: null };
+  const deposit = lease.deposits.find(item => item.typeValue === "security");
+  if (!deposit) return { amount: lease.depositLabel, state: lease.depositDisplay ? "Needs verification" : null };
+  if (deposit.amountCents === 0) return { amount: "No deposit required", state: deposit.statusLabel === "Needs review" ? deposit.statusLabel : null };
   if (deposit.receivedAmount >= deposit.amount) {
     return { amount: deposit.amountDisplay.primary, state: "Received" };
   }
