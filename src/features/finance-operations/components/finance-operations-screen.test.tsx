@@ -268,7 +268,11 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByRole("dialog").querySelector<HTMLInputElement>('input[name="leaseId"]')?.value).toBe("lease-2");
     await user.click(within(screen.getByRole("dialog")).getByRole("button",{name:"Cancel"}));
     await user.click(screen.getByRole("button",{name:"Receive payment"}));
-    expect(screen.getByRole("dialog").textContent).toContain("Other tenant");
+    const payment = screen.getByRole("dialog");
+    expect(await within(payment).findByRole("textbox", { name: "Amount" })).toBeTruthy();
+    expect(payment.textContent).toContain("Other tenant");
+    expect(payment.querySelector<HTMLInputElement>('input[name="invoiceId"]')?.value).toBe("invoice-2");
+    expect(payment.querySelector<HTMLInputElement>('input[name="__financialGeneration"]')?.value).toBe("3");
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button",{name:"Add expense"}));
     const expense = screen.getByRole("dialog");
@@ -318,7 +322,7 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByRole("button", { name: "Cancel expense" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Edit expense" }));
     const dialog = screen.getByRole("dialog", { name: "Edit expense" });
-    expect((within(dialog).getByLabelText("Reference (optional)") as HTMLInputElement).value).toBe("Receipt 42");
+    expect((await within(dialog).findByLabelText("Reference (optional)") as HTMLInputElement).value).toBe("Receipt 42");
     expect(within(dialog).getByDisplayValue("Original repair description")).toBeTruthy();
     const form = within(dialog).getByRole("form");
     const lines = JSON.parse(valueOfNamedInput(form, "lines")!);

@@ -2,6 +2,7 @@
 
 import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   useActionState,
@@ -32,7 +33,6 @@ import { RecordForm } from "@/components/ui/record-form";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer, useDrawerDraftGuard, useDrawerCloseRequest } from "@/components/ui/side-drawer";
-import { DocumentForm } from "@/features/documents/components/document-screen";
 import {
   ArchiveLeasePanel,
   RestoreLeasePanel,
@@ -40,11 +40,6 @@ import {
 import { LeaseDetailView } from "@/features/leases/components/lease-detail-view";
 import { LeasePaymentResolutionView } from "@/features/leases/components/lease-payment-resolution-view";
 import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
-import { FeePaymentDateModal } from "@/features/leases/components/fee-payment-date-modal";
-import { LeaseForm } from "@/features/leases/components/lease-form";
-import { DepositRequirementForm } from "@/features/leases/components/deposit-requirement-form";
-import { DepositRentModal } from "@/features/leases/local-deposit-rent/shared-journal-modal";
-import { DepositCustodyModal } from "@/features/leases/local-deposit-rent/custody-modal";
 import { findConfiguredAccountId } from "@/features/finance-accounts/finance-account-selection";
 import {
   cancelLeaseActivationAction,
@@ -89,6 +84,31 @@ import { getCalendarDateInTimeZone } from "@/features/leases/lease-billing-rule-
 import { workflowReturnHref } from "@/features/leases/workflow-return";
 import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { formatDate, formatCalendarDate } from "@/lib/dates/format";
+
+const DocumentForm = dynamic(
+  () => import("@/features/documents/components/document-screen").then((module) => module.DocumentForm),
+  { loading: () => <p className="p-4" role="status">Loading upload form...</p> },
+);
+const FeePaymentDateModal = dynamic(
+  () => import("@/features/leases/components/fee-payment-date-modal").then((module) => module.FeePaymentDateModal),
+  { loading: () => <p className="p-4" role="status">Loading payment dates...</p> },
+);
+const LeaseForm = dynamic(
+  () => import("@/features/leases/components/lease-form").then((module) => module.LeaseForm),
+  { loading: () => <p className="p-4" role="status">Loading lease form...</p> },
+);
+const DepositRequirementForm = dynamic(
+  () => import("@/features/leases/components/deposit-requirement-form").then((module) => module.DepositRequirementForm),
+  { loading: () => <p className="p-4" role="status">Loading deposit requirement...</p> },
+);
+const DepositRentModal = dynamic(
+  () => import("@/features/leases/local-deposit-rent/shared-journal-modal").then((module) => module.DepositRentModal),
+  { loading: () => <p className="p-4" role="status">Loading deposit form...</p> },
+);
+const DepositCustodyModal = dynamic(
+  () => import("@/features/leases/local-deposit-rent/custody-modal").then((module) => module.DepositCustodyModal),
+  { loading: () => <p className="p-4" role="status">Loading deposit custody...</p> },
+);
 
 type LeaseTransition =
   | "activate"

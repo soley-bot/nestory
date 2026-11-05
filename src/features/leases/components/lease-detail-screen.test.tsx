@@ -26,6 +26,7 @@ import type {
 } from "@/features/leases/lease.types";
 
 const historicalCorrectionMocks = vi.hoisted(() => ({ apply: vi.fn(), preview: vi.fn() }));
+const feeDateMocks = vi.hoisted(() => ({ list: vi.fn(), preview: vi.fn(), correct: vi.fn() }));
 const depositActionMocks = vi.hoisted(() => ({ record: vi.fn(), requirement: vi.fn() }));
 const leaseEditorMocks = vi.hoisted(() => ({ billing: vi.fn(), term: vi.fn(), carryBilling: vi.fn() }));
 const actionMocks = vi.hoisted(() => ({
@@ -85,6 +86,12 @@ vi.mock("@/features/leases/deposit-requirement-actions", () => ({
   updateDepositRequirementAction: (...args: unknown[]) => depositActionMocks.requirement(...args),
 }));
 
+vi.mock("@/features/leases/fee-payment-date-actions", () => ({
+  listFeePaymentDateCandidatesAction: feeDateMocks.list,
+  previewFeePaymentDateCorrectionAction: feeDateMocks.preview,
+  correctFeePaymentDateAction: feeDateMocks.correct,
+}));
+
 vi.mock("@/features/finance-operations/actions", () => actionMocks);
 
 vi.mock("next/navigation", () => ({
@@ -93,6 +100,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 beforeEach(() => {
+  feeDateMocks.list.mockReset().mockResolvedValue({ candidates: [] });
+  feeDateMocks.preview.mockReset();
+  feeDateMocks.correct.mockReset();
   depositActionMocks.record.mockReset().mockResolvedValue({});
   depositActionMocks.requirement.mockReset().mockResolvedValue({ status: "success", message: "Required deposit updated. The held balance is unchanged." });
   leaseEditorMocks.billing.mockReset().mockResolvedValue({});
@@ -951,7 +961,7 @@ describe("LeaseDetailScreen", () => {
     await user.click(screen.getByRole("button", { name: "Edit draft" }));
 
     const dialog = screen.getByRole("dialog", { name: "Edit draft" });
-    expect(within(dialog).getByRole("form", { name: "Edit draft form" })).not.toBeNull();
+    expect(await within(dialog).findByRole("form", { name: "Edit draft form" })).not.toBeNull();
     expect(within(dialog).queryByRole("combobox", { name: "Tenant" })).toBeNull();
     expect(within(dialog).queryByRole("combobox", { name: "Property" })).toBeNull();
     expect(within(dialog).queryByRole("combobox", { name: "Unit" })).toBeNull();
@@ -1118,7 +1128,7 @@ describe("LeaseDetailScreen", () => {
     expect(screen.getByText("USD 1,200.00 required · USD 0.00 held")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Edit required deposit" }));
     const drawer = screen.getByRole("dialog", { name: "Edit required deposit" });
-    const amount = within(drawer).getByRole("textbox", { name: /Required deposit \(USD\)/ });
+    const amount = await within(drawer).findByRole("textbox", { name: /Required deposit \(USD\)/ });
     await user.clear(amount);
     await user.type(amount, "1750");
     await user.type(within(drawer).getByRole("textbox", { name: /Reason for change/ }), "Agreed revised lease deposit");
@@ -1141,7 +1151,7 @@ describe("LeaseDetailScreen", () => {
     lease.formValues.depositAmount = null;
     renderDetail("rent", lease);
     await user.click(screen.getByRole("button", { name: "Edit required deposit" }));
-    expect((screen.getByRole("textbox", { name: /Required deposit \(USD\)/ }) as HTMLInputElement).value).toBe("0.00");
+    expect((await screen.findByRole("textbox", { name: /Required deposit \(USD\)/ }) as HTMLInputElement).value).toBe("0.00");
   });
 
   it("keeps a failed requirement submission and its retry key", async () => {
@@ -1149,7 +1159,7 @@ describe("LeaseDetailScreen", () => {
     const user = userEvent.setup();
     renderDetail("rent", makeLease());
     await user.click(screen.getByRole("button", { name: "Edit required deposit" }));
-    const amount = screen.getByRole("textbox", { name: /Required deposit \(USD\)/ });
+    const amount = await screen.findByRole("textbox", { name: /Required deposit \(USD\)/ });
     await user.clear(amount); await user.type(amount, "1750");
     await user.type(screen.getByRole("textbox", { name: /Reason for change/ }), "Agreed revised lease deposit");
     await user.click(screen.getByRole("button", { name: "Save required deposit" }));
@@ -1771,7 +1781,7 @@ describe("LeaseDetailScreen", () => {
     await user.click(screen.getByRole("button", { name: "Attach file" }));
 
     const dialog = screen.getByRole("dialog", { name: "Upload lease file" });
-    const form = within(dialog).getByRole("form", {
+    const form = await within(dialog).findByRole("form", {
       name: "Upload document form",
     });
     expect(
@@ -1783,6 +1793,27 @@ describe("LeaseDetailScreen", () => {
     expect(
       form.querySelector<HTMLInputElement>('input[name="unitId"]')?.value,
     ).toBe("unit-1");
+  });
+
+  it("loads fee payment dates only when their dialog opens and returns to the lease on close", async () => {
+    const user = userEvent.setup();
+    renderDetail("rent", makeLease(), {
+      ...allLeasePermissions,
+      canCorrectHistoricalRent: true,
+    });
+
+    expect(feeDateMocks.list).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Manage lease" }));
+    await user.click(screen.getByRole("menuitem", { name: "Correct fee payment date" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Correct fee payment date" });
+    expect(await within(dialog).findByText("No fee payments can be corrected for this lease.")).toBeTruthy();
+    expect(feeDateMocks.list).toHaveBeenCalledExactlyOnceWith("lease-1", expect.any(FormData));
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(routerMocks.replace).not.toHaveBeenCalled();
+    expect(feeDateMocks.correct).not.toHaveBeenCalled();
   });
 
   it("does not let term-change authority activate, close, or archive a lease", () => {

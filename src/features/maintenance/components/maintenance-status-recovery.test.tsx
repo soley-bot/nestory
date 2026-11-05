@@ -202,7 +202,7 @@ describe("maintenance status recovery", () => {
     });
 
     expect(await screen.findByRole("status")).not.toBeNull();
-    expect(navigation.refresh).toHaveBeenCalledTimes(1);
+    expect(navigation.refresh).not.toHaveBeenCalled();
     rerender(makeMaintenanceStatusScreen([makeCase("in_progress")]));
 
     await waitFor(() => {
@@ -259,7 +259,7 @@ describe("maintenance status recovery", () => {
     });
 
     expect(await screen.findByRole("status")).not.toBeNull();
-    expect(navigation.refresh).toHaveBeenCalledTimes(1);
+    expect(navigation.refresh).not.toHaveBeenCalled();
     await waitFor(() => {
       const card = document.querySelector<HTMLElement>('[data-task-card="task-1"]');
       expect(within(card!).getByText("Scheduled")).not.toBeNull();
@@ -272,6 +272,45 @@ describe("maintenance status recovery", () => {
       expect(within(card!).getByText("In Progress")).not.toBeNull();
       expect(within(card!).queryByText("Scheduled")).toBeNull();
     });
+    expect(maintenanceActions.updateStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it("reconciles canonical status delivered by the action before its transition settles", async () => {
+    let resolveTransition: (value: { message: string; status: "success" }) => void =
+      () => {};
+    const transition = new Promise<{ message: string; status: "success" }>(
+      (resolve) => {
+        resolveTransition = resolve;
+      },
+    );
+    maintenanceActions.updateStatus.mockReset().mockImplementationOnce(() => transition);
+
+    const { rerender } = render(makeMaintenanceStatusScreen([makeCase()]));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Move case to scheduled" }),
+    );
+
+    rerender(makeMaintenanceStatusScreen([makeCase("in_progress")]));
+    expect(
+      within(
+        document.querySelector<HTMLElement>('[data-task-card="task-1"]')!,
+      ).getByText("Scheduled"),
+    ).not.toBeNull();
+
+    await act(async () => {
+      resolveTransition({
+        message: "Maintenance status updated.",
+        status: "success",
+      });
+      await transition;
+    });
+
+    await waitFor(() => {
+      const card = document.querySelector<HTMLElement>('[data-task-card="task-1"]');
+      expect(within(card!).getByText("In Progress")).not.toBeNull();
+      expect(within(card!).queryByText("Scheduled")).toBeNull();
+    });
+    expect(navigation.refresh).not.toHaveBeenCalled();
     expect(maintenanceActions.updateStatus).toHaveBeenCalledTimes(1);
   });
 });
