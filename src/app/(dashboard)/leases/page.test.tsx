@@ -29,7 +29,6 @@ describe("leases route", () => {
       leases: [],
       pagination: { from: 0, page: 1, pageSize: 50, to: 0, total: 0 },
       propertyOptions: [],
-      tenantOptions: [],
       unitOptions: [],
     });
   });

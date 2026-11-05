@@ -1,4 +1,5 @@
 import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
+import { measureWorkspaceRead } from "@/lib/observability/workspace-performance.server";
 import { expiredRentTermEndDate } from "../expired-rent-term";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
@@ -320,10 +321,10 @@ export async function getFinanceOperationsData(
   if (options.accountActivityOnly && (!propertyId || options.completeTransactionHistory)) throw new Error("Recent account activity requires a property and bounded history.");
   if (options.rentInvoiceQuery && (options.accountActivityOnly || options.completeTransactionHistory)) throw new Error("Rent invoice pages require bounded rent history.");
   if (options.rentInvoiceQuery && propertyId) propertyId = propertyId.toLowerCase();
-  return withFinancialReadContext(organizationId, async (financialContext) => ({
+  return measureWorkspaceRead("finance", () => withFinancialReadContext(organizationId, async (financialContext) => ({
     ...await loadFinanceOperationsData(organizationId, propertyId, options),
     financialGeneration: financialContext.generation,
-  }), options.expenseMonth ? `${options.expenseMonth}-01` : undefined);
+  }), options.expenseMonth ? `${options.expenseMonth}-01` : undefined));
 }
 
 async function loadFinanceOperationsData(
@@ -474,34 +475,27 @@ async function loadFinanceOperationsData(
   const tenantInvoiceIds = (tenantInvoicesResult.data ?? []).flatMap(
     (invoice) => (invoice.id ? [invoice.id] : []),
   );
-  const tenantLinesResult = await getTenantInvoiceLineRows(
-    supabase,
-    organizationId,
-    tenantInvoiceIds,
-  );
+  // These reads depend only on the selected invoices. Settlements use two
+  // requests, so this phase stays within four concurrent database reads.
+  // Account loading above has its own fan-out and completes before this phase.
+  const [tenantLinesResult, tenantInvoiceGenerationResult, tenantInvoiceSettlementResult] =
+    await Promise.all([
+      getTenantInvoiceLineRows(supabase, organizationId, tenantInvoiceIds),
+      getTenantInvoiceGenerationRows(supabase, organizationId, tenantInvoiceIds),
+      getTenantInvoiceSettlementRows(supabase, organizationId, tenantInvoiceIds),
+    ]);
   if (tenantLinesResult.error) {
     throw new Error(
       `Could not load tenant invoice lines: ${tenantLinesResult.error.message}`,
     );
   }
 
-  const tenantInvoiceGenerationResult =
-    await getTenantInvoiceGenerationRows(
-      supabase,
-      organizationId,
-      tenantInvoiceIds,
-    );
   if (tenantInvoiceGenerationResult.error) {
     throw new Error(
       `Could not load tenant invoice generation metadata: ${tenantInvoiceGenerationResult.error.message}`,
     );
   }
 
-  const tenantInvoiceSettlementResult = await getTenantInvoiceSettlementRows(
-    supabase,
-    organizationId,
-    tenantInvoiceIds,
-  );
   if (tenantInvoiceSettlementResult.error) {
     throw new Error(
       `Could not load tenant invoice settlements: ${tenantInvoiceSettlementResult.error.message}`,

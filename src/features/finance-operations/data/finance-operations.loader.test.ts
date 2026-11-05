@@ -422,6 +422,55 @@ describe("finance operations initial reads", () => {
     );
   });
 
+  it("starts independent invoice enrichment together without exceeding four reads", async () => {
+    const fixture = portfolioReviewFixture();
+    const started = new Set<string>();
+    const gate = Promise.withResolvers<void>();
+    const tables = [
+      "tenant_invoice_line_balances", "tenant_invoices",
+      "tenant_invoice_payments", "owner_collection_confirmations",
+    ];
+    for (const table of tables) {
+      fixture[table] = {
+        ...fixture[table],
+        onRead: () => started.add(table),
+        waitFor: gate.promise,
+      };
+    }
+    const harness = createFinanceReadHarness(fixture);
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+
+    const loading = getFinanceOperationsData("organization-1");
+    try {
+      await vi.waitFor(() => expect(started).toEqual(new Set(tables)));
+    } finally {
+      gate.resolve();
+    }
+    const result = await loading;
+
+    expect(harness.maxInFlight()).toBeLessThanOrEqual(4);
+    expect(result.tenantInvoices).toHaveLength(2);
+    expect(result.tenantInvoices[0].settlements).toContainEqual(
+      expect.objectContaining({ id: "payment-1", amount: 140 }),
+    );
+  });
+
+  it.each([
+    ["tenant_invoice_line_balances", "lines"],
+    ["tenant_invoices", "generation metadata"],
+    ["tenant_invoice_payments", "settlements"],
+    ["owner_collection_confirmations", "settlements"],
+  ])("keeps a parallel %s failure fatal", async (table, label) => {
+    const fixture = portfolioReviewFixture();
+    fixture[table] = { data: [], error: { message: "Read unavailable" } };
+    const harness = createFinanceReadHarness(fixture);
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+
+    await expect(getFinanceOperationsData("organization-1")).rejects.toThrow(
+      `Could not load tenant invoice ${label}: Read unavailable`,
+    );
+  });
+
   it("caps database concurrency while preserving declared result order", async () => {
     // Break caught: restoring the wide Promise.all burst that exhausted the
     // authenticated eight-second statement budget during rapid navigation.
@@ -537,6 +586,8 @@ type QueryResult = {
   data: unknown;
   delayMs?: number;
   error?: { message: string; code?: string } | null;
+  onRead?: () => void;
+  waitFor?: Promise<void>;
 };
 
 function createFinanceReadHarness(
@@ -634,13 +685,14 @@ function createFinanceReadHarness(
       if (Array.isArray(value.data)) value.data=this.bounds ? value.data.slice(this.bounds[0],this.bounds[1]+1) : value.data.slice(0,1000);
       active += 1;
       peak = Math.max(peak, active);
+      override?.onRead?.();
 
-      return new Promise<typeof value>((resolve) => {
+      return Promise.resolve(override?.waitFor).then(() => new Promise<typeof value>((resolve) => {
         setTimeout(() => {
           active -= 1;
           resolve(value);
         }, override?.delayMs ?? 5);
-      }).then(onfulfilled, onrejected);
+      })).then(onfulfilled, onrejected);
     }
   }
 

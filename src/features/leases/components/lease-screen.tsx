@@ -24,7 +24,6 @@ import type {
   LeasePagination,
   LeasePropertyOption,
   LeaseSummary,
-  LeaseTenantOption,
   LeaseUnitOption,
   LeaseViewQuery,
 } from "@/features/leases/lease.types";
@@ -40,7 +39,6 @@ type LeaseScreenProps = {
   leases: LeaseSummary[];
   pagination: LeasePagination;
   propertyOptions: LeasePropertyOption[];
-  tenantOptions: LeaseTenantOption[];
   unitOptions: LeaseUnitOption[];
   viewQuery: LeaseViewQuery;
 };

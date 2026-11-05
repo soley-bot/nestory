@@ -13,6 +13,7 @@ import type {
   OverviewViewQuery,
 } from "@/features/overview/overview.types";
 import { getOverviewMonthScope } from "@/features/overview/overview.filters";
+import { parseOverviewLedgerSummary } from "@/features/overview/data/overview-ledger-summary";
 import { OPERATIONAL_OPEN_MAINTENANCE_STATUSES } from "@/features/maintenance/maintenance.constants";
 import {
   getMaintenanceTaskFacts,
@@ -21,6 +22,7 @@ import {
 import type { MaintenancePriority } from "@/features/maintenance/maintenance.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
+import { measureWorkspaceRead } from "@/lib/observability/workspace-performance.server";
 import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
 import type { CurrencyCode } from "@/lib/money/format";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
@@ -111,10 +113,10 @@ export async function getOverviewScreenData(
   query?: OverviewViewQuery,
 ): Promise<OverviewScreenData> {
   const month = query?.month ?? getBusinessDateString(new Date()).slice(0, 7);
-  return withFinancialReadContext(organizationId, async (context) => ({
+  return measureWorkspaceRead("overview", () => withFinancialReadContext(organizationId, async (context) => ({
     ...await loadOverviewScreenData(organizationId, query, context.financial_start_date),
     financialGeneration: context.generation,
-  }), `${month}-01`);
+  }), `${month}-01`));
 }
 
 async function loadOverviewScreenData(
@@ -160,9 +162,7 @@ async function loadOverviewScreenData(
     unitsResult,
     leasesResult,
     rentTermsResult,
-    ledgerWindowResult,
-    ledgerCountResult,
-    largeRecentExpenseCountResult,
+    ledgerSummaryResult,
     peopleResult,
     rolesResult,
     propertyOwnersResult,
@@ -203,35 +203,18 @@ async function loadOverviewScreenData(
       ? readAllRows((from, to) => rentTermsQuery()
         .order("id", { ascending: true }).range(from, to))
       : Promise.resolve({ data: [], error: null }),
-    readAllRows((from, to) => supabase
-      .from("ledger_entries")
-      .select("id, transaction_date, direction, amount, currency")
-      .eq("organization_id", organizationId)
-      .match(propertyFilter)
-      .is("archived_at", null)
-      .gte("transaction_date", ledgerStartInput)
-      .lt("transaction_date", currentMonthEndInput)
-      .order("id", { ascending: true })
-      .range(from, to)),
-    // Setup needs an exact count, not every historical ledger entry.
-    supabase
-      .from("ledger_entries")
-      .select("id", { count: "exact", head: true })
-      .eq("organization_id", organizationId)
-      .match(propertyFilter)
-      .is("archived_at", null)
-      .gte("transaction_date", financialStartDate ?? "0001-01-01"),
-    // This operating alert follows business today, independently of chart month.
-    supabase
-      .from("ledger_entries")
-      .select("id", { count: "exact", head: true })
-      .eq("organization_id", organizationId)
-      .match(propertyFilter)
-      .is("archived_at", null)
-      .eq("direction", "expense")
-      .gte("amount", largeExpenseReviewThreshold)
-      .gte("transaction_date", recentExpenseStart)
-      .lt("transaction_date", addDaysToDateString(businessToday, 1)),
+    // Aggregate visible ledger rows in the database, with exact counts and no
+    // PostgREST row-cap truncation. Expense alerts follow business today.
+    supabase.rpc("get_overview_ledger_summary", {
+      p_organization_id: organizationId,
+      p_window_from: ledgerStartInput,
+      p_window_before: currentMonthEndInput,
+      p_recent_expense_from: recentExpenseStart,
+      p_recent_expense_before: addDaysToDateString(businessToday, 1),
+      p_large_expense_threshold: largeExpenseReviewThreshold,
+      ...(effectiveQuery.propertyId === "all" ? {} : { p_property_id: effectiveQuery.propertyId }),
+      ...(financialStartDate ? { p_financial_start_date: financialStartDate } : {}),
+    }),
     readAllRows((from, to) => supabase
       .from("people")
       .select("id, primary_email, primary_phone")
@@ -290,17 +273,16 @@ async function loadOverviewScreenData(
   assertNoError(unitsResult.error, "overview units");
   assertNoError(leasesResult.error, "overview leases");
   assertNoError(rentTermsResult.error, "overview rent terms");
-  assertNoError(ledgerWindowResult.error, "overview ledger window");
+  assertNoError(ledgerSummaryResult.error, "overview ledger summary");
   assertNoError(peopleResult.error, "overview people");
   assertNoError(rolesResult.error, "overview person roles");
   assertNoError(propertyOwnersResult.error, "overview property owners");
   assertNoError(openMaintenanceResult.error, "overview maintenance");
   assertNoError(documentsResult.error, "overview documents");
   assertNoError(recentActivityResult.error, "overview activity");
-  const ledgerEntryCount = requireExactCount(ledgerCountResult, "overview ledger count");
-  const largeRecentExpenseCount = requireExactCount(
-    largeRecentExpenseCountResult, "overview recent expenses",
-  );
+  const ledgerSummary = parseOverviewLedgerSummary(ledgerSummaryResult.data);
+  const ledgerEntryCount = ledgerSummary.ledger_entry_count;
+  const largeRecentExpenseCount = ledgerSummary.large_recent_expense_count;
 
   const propertyOptions = ((propertiesResult.data ?? []) as PropertyRow[])
     .filter((property) => property.status !== "inactive");
@@ -312,7 +294,7 @@ async function loadOverviewScreenData(
     (unit) => unit.status !== "inactive" && activePropertyIds.has(unit.property_id),
   );
   const currentLeases = (leasesResult.data ?? []) as LeaseRow[];
-  const ledgerRows = (ledgerWindowResult.data ?? []) as LedgerWindowRow[];
+  const ledgerRows = ledgerSummary.months;
   const activePeople = (peopleResult.data ?? []) as PersonRow[];
   const activePersonIds = new Set(activePeople.map((person) => person.id));
   const roles = ((rolesResult.data ?? []) as PersonRoleRow[])
@@ -509,17 +491,6 @@ async function loadOverviewScreenData(
       unitCount: operationalUnits.length,
     },
   };
-}
-
-function requireExactCount(
-  result: { count: number | null; error: { message: string } | null },
-  label: string,
-) {
-  assertNoError(result.error, label);
-  if (result.count === null) {
-    throw new Error(`Could not load ${label}: exact count is missing.`);
-  }
-  return result.count;
 }
 
 function buildDashboardSummary({
