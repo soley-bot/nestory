@@ -52,7 +52,7 @@ SELECT kind, gen_random_uuid() id,
     'recurrence_paused', 'explicit', 'archived_person', 'lease_anchor'
   ]) AS expected
 FROM visibility_state CROSS JOIN unnest(ARRAY[
-  'own', 'owner', 'owner_ends_today', 'owner_future', 'owner_null_start', 'owner_archived',
+  'own', 'owner', 'owner_ends_today', 'owner_future', 'owner_archived_null_start', 'owner_archived',
   'primary', 'primary_ended', 'primary_archived', 'lease_anchor',
   'party_today', 'party_yesterday', 'party_void', 'party_archived',
   'occupancy', 'occupancy_void', 'occupancy_vacated', 'occupancy_archived',
@@ -82,11 +82,11 @@ SELECT org, admin, 'super_admin', NULL, NULL, NULL FROM visibility_state;
 UPDATE public.organization_authorization_states SET ordinary_access_enabled = true
 WHERE organization_id = (SELECT org FROM visibility_state);
 
-INSERT INTO public.property_owners(organization_id, property_id, person_id, started_on, ended_on, archived_at)
-SELECT s.org, s.property_a, p.id,
-  CASE p.kind WHEN 'owner_future' THEN current_date + 1 WHEN 'owner_null_start' THEN NULL ELSE current_date - 1 END,
+INSERT INTO public.property_owners(organization_id, property_id, person_id, ownership_percent, started_on, ended_on, archived_at)
+SELECT s.org, s.property_a, p.id, 10,
+  CASE p.kind WHEN 'owner_future' THEN current_date + 1 WHEN 'owner_archived_null_start' THEN NULL ELSE current_date - 1 END,
   CASE WHEN p.kind = 'owner_ends_today' THEN current_date END,
-  CASE WHEN p.kind = 'owner_archived' THEN now() END
+  CASE WHEN p.kind IN ('owner_archived', 'owner_archived_null_start') THEN now() END
 FROM visibility_state s CROSS JOIN visibility_people p WHERE p.kind LIKE 'owner%';
 
 CREATE TEMP TABLE visibility_leases AS
