@@ -1,5 +1,6 @@
 import { vi } from "vitest";
 import type { createSupabaseServerClient } from "@/lib/db/server";
+import type { Database } from "@/types/database";
 
 export const fixtureOrganizationId = "11111111-1111-4111-8111-111111111111";
 type Row = Record<string, unknown>;
@@ -20,15 +21,53 @@ export type OverviewFixtureResult = {
   error?: { message: string } | null;
   errorAtFrom?: number;
 };
+type LedgerSummaryArgs = Database["public"]["Functions"]["get_overview_ledger_summary"]["Args"];
+type LedgerSummaryFixtureResult = { data: unknown; error: { message: string } | null };
 
 // This deliberately implements filters, ordering, projections and server caps.
 // It measures request/row counts, not database latency, SQL plans or RLS.
 export function createOverviewFixture(
   tables: Record<string, OverviewFixtureResult> = {},
   serverCap = 1_000,
+  ledgerSummaryResult?: LedgerSummaryFixtureResult,
 ) {
   const requests: OverviewFixtureRequest[] = [];
+  const rpcRequests: Array<{ args: LedgerSummaryArgs; name: string; returnedMonths: number }> = [];
   const client = {
+    rpc: vi.fn(async (name: string, args: LedgerSummaryArgs) => {
+      if (name !== "get_overview_ledger_summary") throw new Error(`Unsupported fixture RPC: ${name}`);
+      const request = { args, name, returnedMonths: 0 };
+      rpcRequests.push(request);
+      if (ledgerSummaryResult) return ledgerSummaryResult;
+      // This models the public response shape; database tests separately verify
+      // the SQL aggregation and RLS rather than treating this mock as evidence.
+      const rows = (tables.ledger_entries?.data ?? []).map((value) => ({
+        organization_id: fixtureOrganizationId, archived_at: null, currency: "USD", ...(value as Row),
+      })).filter((row) => row.organization_id === args.p_organization_id
+        && row.archived_at === null
+        && (!args.p_property_id || (row as Row).property_id === args.p_property_id)
+        && String((row as Row).transaction_date) >= (args.p_financial_start_date ?? "0001-01-01"));
+      const months = new Map<string, { amount: number; currency: unknown; direction: unknown; transaction_date: string }>();
+      for (const row of rows as Row[]) {
+        if (String(row.transaction_date) < args.p_window_from || String(row.transaction_date) >= args.p_window_before) continue;
+        const transaction_date = `${String(row.transaction_date).slice(0, 7)}-01`;
+        const key = `${transaction_date}:${row.currency}:${row.direction}`;
+        const month = months.get(key) ?? { amount: 0, currency: row.currency, direction: row.direction, transaction_date };
+        month.amount += Math.round(Number(row.amount) * 100);
+        months.set(key, month);
+      }
+      request.returnedMonths = months.size;
+      return { error: null, data: {
+        ledger_entry_count: rows.length,
+        large_recent_expense_count: rows.filter((row) => {
+          const entry = row as Row;
+          return entry.direction === "expense" && Number(entry.amount) >= args.p_large_expense_threshold
+            && String(entry.transaction_date) >= args.p_recent_expense_from
+            && String(entry.transaction_date) < args.p_recent_expense_before;
+        }).length,
+        months: Array.from(months.values(), (month) => ({ ...month, amount: month.amount / 100 })),
+      } };
+    }),
     from: vi.fn((table: string) => {
       const result = tables[table] ?? {};
       const rows = (result.data ?? []).map((value, index) => ({
@@ -116,7 +155,7 @@ export function createOverviewFixture(
       return query;
     }),
   } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>;
-  return { client, requests };
+  return { client, requests, rpcRequests };
 }
 
 function matches(row: Row, { column, operator, value }: Filter) {

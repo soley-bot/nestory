@@ -65,7 +65,51 @@ describe("lease screen data readiness", () => {
     createSupabaseServerClient.mockReset();
     readBoundary.mockReset();
     readBoundary.mockImplementation(async (_organizationId, read) => read({ generation: 2 }));
-    getPersonSelectOptions.mockClear();
+    getPersonSelectOptions.mockReset().mockResolvedValue([]);
+  });
+
+  it("loads the register without requesting tenant or company form options", async () => {
+    const { client } = leaseLoaderStub({ rows: leaseRows(1) });
+    createSupabaseServerClient.mockResolvedValue(client);
+    getPersonSelectOptions.mockRejectedValue(new Error("People selectors are unavailable"));
+
+    const result = await getLeasesScreenData(organizationId);
+
+    expect(result.leases).toHaveLength(1);
+    expect(result.tenantOptions).toEqual([]);
+    expect(result.billingFormConfig).toMatchObject({
+      companyOptions: [],
+      operationalTimezone: "Asia/Phnom_Penh",
+    });
+    expect(getPersonSelectOptions).not.toHaveBeenCalled();
+    expect(client.from).not.toHaveBeenCalledWith("people");
+    expect(client.rpc).toHaveBeenCalledWith("get_lease_rent_business_date", {
+      p_organization_id: organizationId,
+    });
+  });
+
+  it("retains tenant and company form options for a focused lease", async () => {
+    const rows = leaseRows(1);
+    const { client } = leaseLoaderStub({ rows, supportingRows: {
+      people: [{
+        id: "billing-company", organization_id: organizationId,
+        display_name: "Billing company", party_type: "company", archived_at: null,
+      }],
+    } });
+    createSupabaseServerClient.mockResolvedValue(client);
+    getPersonSelectOptions.mockResolvedValue([{ id: tenantId, label: "Tenant 1" }]);
+
+    const result = await getLeasesScreenData(
+      organizationId, parseLeaseSearchParams({ leaseId: rows[0].id }),
+    );
+
+    expect(result.tenantOptions).toEqual([{ id: tenantId, label: "Tenant 1" }]);
+    expect(result.billingFormConfig.companyOptions).toEqual([
+      { id: "billing-company", label: "Billing company" },
+    ]);
+    expect(getPersonSelectOptions).toHaveBeenCalledWith({
+      organizationId, roles: ["tenant"],
+    });
   });
 
   it("loads a deep rent page directly without fetching a capped prefix", async () => {

@@ -279,16 +279,12 @@ function MaintenanceScreenContent({
   });
 
   useEffect(() => {
-    if (previousCasesRef.current === cases) {
+    if (statusChangePending || previousCasesRef.current === cases) {
       return;
     }
 
     const previousCasesValue = previousCasesRef.current;
     previousCasesRef.current = cases;
-
-    if (statusChangePending) {
-      return;
-    }
 
     const previousCases = new Map(
       previousCasesValue.map((maintenanceCase) => [
@@ -305,7 +301,9 @@ function MaintenanceScreenContent({
       const next = new Map(current);
 
       for (const taskId of current.keys()) {
-        if (previousCases.get(taskId) !== canonicalCases.get(taskId)) {
+        // A stale response can replace record objects while the action is pending.
+        // Keep the optimistic status until canonical status data actually changes.
+        if (previousCases.get(taskId)?.status !== canonicalCases.get(taskId)?.status) {
           next.delete(taskId);
           changed = true;
         }
@@ -434,7 +432,7 @@ function MaintenanceScreenContent({
         kind: "success",
         text: result.message ?? "Maintenance status updated.",
       });
-      router.refresh();
+      // The action revalidates this route and returns updated cases in its response.
     });
   }
 

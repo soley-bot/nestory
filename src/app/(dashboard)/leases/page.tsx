@@ -11,7 +11,7 @@ export default async function LeasesPage({ searchParams }: LeasesPageProps) {
   const context = await requirePermission("leases.view");
   const params = await searchParams;
   const viewQuery = parseLeaseSearchParams(params);
-  const { leases, pagination, propertyOptions, tenantOptions, unitOptions } =
+  const { leases, pagination, propertyOptions, unitOptions } =
     await getLeasesScreenData(context.organizationId, viewQuery);
   const initialLeaseId = viewQuery.leaseId ?? undefined;
 
@@ -23,7 +23,6 @@ export default async function LeasesPage({ searchParams }: LeasesPageProps) {
       leases={leases}
       pagination={pagination}
       propertyOptions={propertyOptions}
-      tenantOptions={tenantOptions}
       unitOptions={unitOptions}
       viewQuery={viewQuery}
     />

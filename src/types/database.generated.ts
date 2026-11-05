@@ -12586,6 +12586,19 @@ export type Database = {
           version: number
         }[]
       }
+      get_overview_ledger_summary: {
+        Args: {
+          p_financial_start_date?: string
+          p_large_expense_threshold: number
+          p_organization_id: string
+          p_property_id?: string
+          p_recent_expense_before: string
+          p_recent_expense_from: string
+          p_window_before: string
+          p_window_from: string
+        }
+        Returns: Json
+      }
       get_owner_account_read_context: {
         Args: { p_organization_id: string; p_requested_property_id?: string }
         Returns: Json

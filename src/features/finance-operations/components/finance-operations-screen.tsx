@@ -45,7 +45,7 @@ import { workflowReturnHref } from "@/features/leases/workflow-return";
 import { createManualTenantChargeAction, publishTenantInvoicePdfAction, recordOwnerPaymentAction, recordWithdrawalAction, recoverLeaseRentPeriodAction, recoverRentGenerationExceptionAction, reverseExpenseAction, reverseOwnerCollectionConfirmationAction, reverseTenantInvoicePaymentAction, retryTenantReceiptPdfAction, reviewExpenseAction, cancelExpenseAction } from "@/features/finance-operations/actions";
 import { FinanceCategorySetupEntry } from "@/features/finance-operations/components/finance-category-manager";
 import { TenantInvoiceVoidControl } from "@/features/finance-operations/components/tenant-invoice-void-control";
-import { TenantInvoicePaymentForm, type TenantPaymentReceiptResult } from "@/features/finance-operations/components/tenant-invoice-payment-form";
+import type { TenantPaymentReceiptResult } from "@/features/finance-operations/components/tenant-invoice-payment-form";
 import { getRentInvoiceView, isVisibleTenantInvoice, RentInvoiceFilterBar } from "@/features/finance-operations/components/rent-invoice-filters";
 import type { CommercialDocumentLink, ExpenseSubmissionSummary, FinanceLease, FinanceOperationsActionState, FinanceOperationsData, OwnerInvoiceSummary, PropertyAccountEntry, PropertyFinancePosition, RentGenerationException, TenantInvoiceSettlement, TenantInvoiceSummary } from "@/features/finance-operations/finance-operations.types";
 import { categoryLabel, expenseStatusPresentation, formatEvidenceSize, getInvoiceStatusPresentation, maintenanceStatusLabel } from "@/features/finance-operations/finance-operations-view-model";
@@ -63,6 +63,10 @@ import { cn } from "@/lib/utils";
 
 const ExpenseForm = dynamic(() => import("./finance-expense-form").then(module => module.ExpenseForm), { loading: () => <p className="p-4" role="status">Loading expense form...</p> });
 const BillingSetupForm = dynamic(() => import("./finance-billing-setup-form").then(module => module.BillingSetupForm), { loading: () => <p className="p-4" role="status">Loading billing form...</p> });
+const TenantInvoicePaymentForm = dynamic(
+  () => import("./tenant-invoice-payment-form").then((module) => module.TenantInvoicePaymentForm),
+  { loading: () => <p className="p-4" role="status">Loading payment form...</p> },
+);
 
 export type FinanceOperationsView =
   "account" | "balances" | "expenses" | "rent" | "work" | "transactions";

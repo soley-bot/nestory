@@ -104,7 +104,7 @@ describe("LeaseScreen redesign contract", () => {
   it("hides stale financial rows while retaining lease navigation and filters", () => {
     vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
     render(<FinancialWriteProvider organizationId="org" context={{ generation: 1, status: "open", enforced: true, financial_start_date: "2026-08-01" }}>
-      <LeaseScreen financialGeneration={2} leases={leases} pagination={{ from: 1, to: 2, page: 1, pageSize: 50, totalCount: 2, totalPages: 1 }} propertyOptions={[]} tenantOptions={[]} unitOptions={[]} viewQuery={defaultViewQuery} />
+      <LeaseScreen financialGeneration={2} leases={leases} pagination={{ from: 1, to: 2, page: 1, pageSize: 50, totalCount: 2, totalPages: 1 }} propertyOptions={[]} unitOptions={[]} viewQuery={defaultViewQuery} />
     </FinancialWriteProvider>);
     expect(screen.queryByRole("table")).toBeNull();
     expect(screen.getByRole("heading", { name: /^Leases$/ })).toBeTruthy();
@@ -739,22 +739,6 @@ function renderLeases({
       propertyOptions={
         propertyOptions ?? [{ id: "property-1", label: "Riverside House" }]
       }
-      tenantOptions={[
-        {
-          archived: false,
-          description: "Tenant · alice@example.com",
-          id: "person-1",
-          label: "Alice Tenant",
-          roles: ["tenant"],
-        },
-        {
-          archived: false,
-          description: "Tenant · ben@example.com",
-          id: "person-2",
-          label: "Ben Tenant",
-          roles: ["tenant"],
-        },
-      ]}
       unitOptions={
         unitOptions ?? [
           { id: "unit-1", label: "Unit 2A", propertyId: "property-1" },

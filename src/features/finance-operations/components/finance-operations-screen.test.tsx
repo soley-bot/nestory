@@ -268,7 +268,11 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByRole("dialog").querySelector<HTMLInputElement>('input[name="leaseId"]')?.value).toBe("lease-2");
     await user.click(within(screen.getByRole("dialog")).getByRole("button",{name:"Cancel"}));
     await user.click(screen.getByRole("button",{name:"Receive payment"}));
-    expect(screen.getByRole("dialog").textContent).toContain("Other tenant");
+    const payment = screen.getByRole("dialog");
+    expect(await within(payment).findByRole("textbox", { name: "Amount" })).toBeTruthy();
+    expect(payment.textContent).toContain("Other tenant");
+    expect(payment.querySelector<HTMLInputElement>('input[name="invoiceId"]')?.value).toBe("invoice-2");
+    expect(payment.querySelector<HTMLInputElement>('input[name="__financialGeneration"]')?.value).toBe("3");
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button",{name:"Add expense"}));
     const expense = screen.getByRole("dialog");
@@ -318,7 +322,7 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByRole("button", { name: "Cancel expense" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Edit expense" }));
     const dialog = screen.getByRole("dialog", { name: "Edit expense" });
-    expect((within(dialog).getByLabelText("Reference (optional)") as HTMLInputElement).value).toBe("Receipt 42");
+    expect((await within(dialog).findByLabelText("Reference (optional)") as HTMLInputElement).value).toBe("Receipt 42");
     expect(within(dialog).getByDisplayValue("Original repair description")).toBeTruthy();
     const form = within(dialog).getByRole("form");
     const lines = JSON.parse(valueOfNamedInput(form, "lines")!);
@@ -1645,7 +1649,7 @@ describe("FinanceOperationsScreen", () => {
       screen.getByRole("button", { name: "Record tenant payment" }),
     );
     const dialog = screen.getByRole("dialog", { name: "Confirm owner collection" });
-    expect(within(dialog).getByText("INV-FOCUSED")).not.toBeNull();
+    expect(await within(dialog).findByText("INV-FOCUSED")).not.toBeNull();
     expect(within(dialog).queryByText("INV-UNRELATED")).toBeNull();
   });
 
@@ -3334,7 +3338,7 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
   });
 
-  it("keeps invoice selection inside the record payment modal", () => {
+  it("keeps invoice selection inside the record payment modal", async () => {
     const input = data();
     const invoice = tenantInvoice();
     invoice.collectionRoute = "through_ips";
@@ -3369,7 +3373,7 @@ describe("FinanceOperationsScreen", () => {
       screen.getByRole("dialog", { name: "Record tenant payment" }),
     ).not.toBeNull();
     expect(
-      screen.getByRole("button", { name: "Choose another" }),
+      await screen.findByRole("button", { name: "Choose another" }),
     ).not.toBeNull();
     expect(screen.getByText("Received into")).not.toBeNull();
     expect(
@@ -3948,7 +3952,7 @@ describe("FinanceOperationsScreen", () => {
     render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordPayments: true })} organizationName="Fixture" view="rent" />);
     await user.click(screen.getByRole("button", { name: "View invoice INV-202608-001" }));
     await user.click(screen.getByRole("button", { name: "Record payment" }));
-    await user.click(within(screen.getByRole("dialog", { name: "Record payment" })).getByRole("button", { name: "Record payment" }));
+    await user.click(await within(screen.getByRole("dialog", { name: "Record payment" })).findByRole("button", { name: "Record payment" }));
     expect((await screen.findByRole("status")).textContent).toContain(message);
     expect(screen.queryByRole("button", { name: "Create receipt again" })).toBeNull();
     expect(screen.queryByRole("dialog", { name: "Record payment" })).toBeNull();
@@ -3970,7 +3974,7 @@ describe("FinanceOperationsScreen", () => {
     await user.click(screen.getByRole("button", { name: openLabel }));
     const title = kind === "payment" ? "Record payment" : kind === "approve" ? "Approve paid cost" : kind === "reject" ? "Reject paid cost" : kind === "cancel" ? "Cancel expense" : "Reverse expense";
     const dialog = screen.getByRole("dialog", { name: title });
-    const field = within(dialog).getByLabelText(kind === "payment" ? "Reference (optional)" : kind === "approve" ? "Review note" : kind === "reject" ? "Rejection reason" : "Reason");
+    const field = await within(dialog).findByLabelText(kind === "payment" ? "Reference (optional)" : kind === "approve" ? "Review note" : kind === "reject" ? "Rejection reason" : "Reason");
     fireEvent.change(field, { target: { value: "Keep this draft" } });
     if (kind === "approve") await user.click(within(dialog).getByRole("checkbox"));
     const form = field.closest("form")!;
@@ -4013,7 +4017,7 @@ describe("FinanceOperationsScreen", () => {
     expect(within(details).getByText(invoice.invoiceNumber, { exact: true })).toBeTruthy();
     await user.click(within(details).getByRole("button", { name: "Record payment" }));
     const payment = screen.getByRole("dialog", { name: "Record payment" });
-    fireEvent.change(within(payment).getByLabelText("Amount", { exact: true }), { target: { value: "40" } });
+    fireEvent.change(await within(payment).findByLabelText("Amount", { exact: true }), { target: { value: "40" } });
     expect(within(payment).getByRole("combobox", { name: "Received into" })).toBeTruthy();
     const form = within(payment).getByRole("button", { name: "Record payment" }).closest("form")!;
     const settlementDate = form.elements.namedItem("settlementDate");
@@ -4058,7 +4062,7 @@ describe("FinanceOperationsScreen", () => {
     await user.click(screen.getByRole("button", { name: "Record payment" }));
     const paymentDialog = screen.getByRole("dialog", { name: "Record payment" });
     await user.click(
-      within(paymentDialog).getByRole("button", { name: "Record payment" }),
+      await within(paymentDialog).findByRole("button", { name: "Record payment" }),
     );
     const immediateReceiptDownload = await screen.findByRole("link", {
       name: "Download receipt",
@@ -4094,7 +4098,7 @@ describe("FinanceOperationsScreen", () => {
     );
     await user.click(screen.getByRole("button", { name: "Record payment" }));
     await user.click(
-      within(screen.getByRole("dialog", { name: "Record payment" })).getByRole(
+      await within(screen.getByRole("dialog", { name: "Record payment" })).findByRole(
         "button",
         { name: "Record payment" },
       ),

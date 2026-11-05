@@ -37,9 +37,12 @@ describe("overview complete scoped reads", () => {
     expect(result.workspaceSetup.ledgerEntryCount).toBe(1);
     expect(result.ledgerFlow).toHaveLength(1);
     expect(result.ledgerFlow[0]).toMatchObject({ label: "Oct", income: 75, expense: 0 });
-    for (const request of fixture.requests.filter((request) => request.table === "ledger_entries")) {
-      expect(request.filters).toContainEqual({ column: "transaction_date", operator: "gte", value: "2026-10-01" });
-    }
+    expect(fixture.rpcRequests).toEqual([{ name: "get_overview_ledger_summary", returnedMonths: 1, args: {
+      p_organization_id: fixtureOrganizationId,
+      p_window_from: "2026-10-01", p_window_before: "2026-11-01",
+      p_recent_expense_from: "2026-10-01", p_recent_expense_before: "2026-10-16",
+      p_large_expense_threshold: 1000, p_financial_start_date: "2026-10-01",
+    } }]);
     expect(withFinancialReadContext).toHaveBeenCalledWith(fixtureOrganizationId, expect.any(Function), "2026-10-01");
   });
 
@@ -92,6 +95,9 @@ describe("overview complete scoped reads", () => {
     // The property-picker and overview share one sequence of pages.
     expect(fixture.requests.filter((request) => request.table === "properties" && request.from === 0)).toHaveLength(1);
     expect(fixture.requests.some((request) => request.table === "person_contacts")).toBe(false);
+    expect(fixture.requests.some((request) => request.table === "ledger_entries")).toBe(false);
+    expect(fixture.rpcRequests).toHaveLength(1);
+    expect(fixture.rpcRequests[0].returnedMonths).toBe(2);
   });
 
   it("scopes property rows and rent terms while keeping all property-picker options", async () => {
@@ -124,9 +130,10 @@ describe("overview complete scoped reads", () => {
     const termRequests = fixture.requests.filter((request) => request.table === "lease_terms");
     expect(termRequests.reduce((sum, request) => sum + request.returnedRows, 0)).toBe(105);
     expect(termRequests.every((request) => request.filters.some((filter) => filter.column === "lease_id" && filter.operator === "in" && (filter.value as string[]).length <= 100))).toBe(true);
-    for (const table of ["units", "current_leases", "ledger_entries", "property_owners", "tasks", "documents"]) {
+    for (const table of ["units", "current_leases", "property_owners", "tasks", "documents"]) {
       expect(fixture.requests.filter((request) => request.table === table).every((request) => request.filters.some((filter) => filter.column === "property_id" && filter.value === "property-1"))).toBe(true);
     }
+    expect(fixture.rpcRequests[0].args).toMatchObject({ p_organization_id: fixtureOrganizationId, p_property_id: "property-1" });
   });
 
   it("loads supplemental contacts only when primary contacts are unusable and ignores archived people's roles", async () => {
@@ -162,17 +169,20 @@ describe("overview complete scoped reads", () => {
     expect(data.ledgerFlow).toEqual([]);
     expect(data.attentionItems.find((item) => item.id === "large-recent-expenses")?.count).toBe(2);
     expect(fixture.requests.filter((request) => request.table === "ledger_entries").reduce((sum, request) => sum + request.returnedRows, 0)).toBe(0);
+    expect(fixture.rpcRequests[0]).toMatchObject({ returnedMonths: 0, args: {
+      p_recent_expense_from: "2026-09-15", p_recent_expense_before: "2026-10-16",
+      p_window_before: "2025-02-01",
+    } });
   });
 
-  it("does not render partial totals when a later page fails or an exact count is unavailable", async () => {
-    const fixture = createOverviewFixture({ ledger_entries: {
-      data: Array.from({ length: 501 }, () => ({ transaction_date: "2026-10-01", amount: 1, direction: "income", currency: "USD" })),
-      error: { message: "later page failed" }, errorAtFrom: 500,
-    } });
+  it("does not render partial totals when the aggregate fails or an exact count is unavailable", async () => {
+    const fixture = createOverviewFixture({}, 1000, { data: null, error: { message: "aggregate failed" } });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(fixture.client);
-    await expect(getOverviewScreenData(fixtureOrganizationId, query)).rejects.toThrow("later page failed");
-    vi.mocked(createSupabaseServerClient).mockResolvedValue(createOverviewFixture({ ledger_entries: { count: null } }).client);
-    await expect(getOverviewScreenData(fixtureOrganizationId, query)).rejects.toThrow("exact count is missing");
+    await expect(getOverviewScreenData(fixtureOrganizationId, query)).rejects.toThrow("aggregate failed");
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(createOverviewFixture({}, 1000, {
+      data: { months: [], ledger_entry_count: null, large_recent_expense_count: 0 }, error: null,
+    }).client);
+    await expect(getOverviewScreenData(fixtureOrganizationId, query)).rejects.toThrow("complete exact totals are missing or invalid");
   });
 
   it("measures bounded transfer for a long-lived synthetic portfolio", async () => {
@@ -186,15 +196,18 @@ describe("overview complete scoped reads", () => {
     vi.mocked(createSupabaseServerClient).mockResolvedValue(fixture.client);
     const data = await getOverviewScreenData(fixtureOrganizationId, query);
     const measured = {
-      requests: fixture.requests.length,
+      requests: fixture.requests.length + fixture.rpcRequests.length,
       rows: fixture.requests.reduce((sum, request) => sum + request.returnedRows, 0),
       ledgerRows: fixture.requests.filter((request) => request.table === "ledger_entries").reduce((sum, request) => sum + request.returnedRows, 0),
+      ledgerMonths: fixture.rpcRequests.reduce((sum, request) => sum + request.returnedMonths, 0),
     };
     console.info("overview synthetic request/row counts (not latency)", measured);
     expect(data.workspaceSetup.ledgerEntryCount).toBe(21_005);
     expect(data.ledgerFlow.at(-1)?.income).toBe(1_005);
-    expect(measured.ledgerRows).toBe(1_005);
-    expect(measured.rows).toBe(1_007);
-    expect(measured.requests).toBeLessThan(25);
+    expect(measured.ledgerRows).toBe(0);
+    expect(measured.ledgerMonths).toBe(1);
+    expect(measured.rows).toBe(2);
+    expect(fixture.rpcRequests).toHaveLength(1);
+    expect(measured.requests).toBeLessThan(15);
   });
 });
