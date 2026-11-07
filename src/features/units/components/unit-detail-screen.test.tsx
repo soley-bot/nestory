@@ -52,6 +52,14 @@ beforeEach(() => {
 });
 
 describe("UnitDetailScreen focused operating record", () => {
+  it.each(["maintenance", "inactive"] as const)("does not label a unit in %s as available", (status) => {
+    renderUnitDetail({ unit: buildLeasePanelUnitDetail(status) });
+    const header = screen.getByRole("heading", { name: "Unit 12A", level: 1 }).closest("header")!;
+    expect(within(header).getByText(status === "maintenance" ? "Maintenance" : "Inactive")).toBeTruthy();
+    expect(screen.queryByText("Available", { exact: true })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Create lease" })).toBeNull();
+  });
+
   it("shows operational and lease state separately and retains the tenant for lease creation", async () => {
     renderUnitDetail({ tenantPersonId: "person-tenant", unit: availableUnitDetail });
     expect(screen.getByText("In service")).toBeTruthy();
@@ -597,7 +605,7 @@ const maintenanceUnitDetail = buildLeasePanelUnitDetail("maintenance");
 const draftUnitDetail = buildLeasePanelUnitDetail("vacant", draftLease);
 
 function buildLeasePanelUnitDetail(
-  status: "maintenance" | "vacant",
+  status: "maintenance" | "vacant" | "inactive",
   selectedDraftLease?: typeof draftLease,
 ) {
   return buildUnitDetail({

@@ -87,6 +87,21 @@ describe("maintenance action capabilities", () => {
     );
   });
 
+  it.each(["", "not-a-property-id"])("asks for a property and prevents writes for an invalid selection (%s)", async (propertyId) => {
+    requirePermission.mockResolvedValue(authority(["maintenance.create_assign"]));
+    const formData = validMaintenanceForm();
+    formData.set("status", "pending");
+    formData.set("propertyId", propertyId);
+
+    for (const action of [createMaintenanceCaseAction, updateMaintenanceCaseAction]) {
+      expect(await action({}, formData)).toMatchObject({
+        status: "error",
+        fieldErrors: { propertyId: ["Choose a property."] },
+      });
+    }
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it("submits the recorded cost to Finance through operations authority", async () => {
     requirePermission.mockResolvedValue(authority(["maintenance.review"], {
       userId: "00000000-0000-4000-8000-000000000009",

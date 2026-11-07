@@ -45,6 +45,7 @@ import {
 } from "@/features/reports/report-catalog";
 import { formatDate } from "@/lib/dates/format";
 import type { MoneyDisplayValue } from "@/lib/money/format";
+import { buildHref } from "@/lib/url/href";
 import { cn } from "@/lib/utils";
 
 export type PropertyRecordSection =
@@ -398,6 +399,7 @@ function getPropertyRecordPanelContent({
           <PropertyOverviewWorkspace
             onAssignOwner={onAssignOwner}
             property={property}
+            tenantPersonId={tenantPersonId}
           />
         ) : null}
       </section>
@@ -415,9 +417,11 @@ function getPropertyRecordPanelContent({
 function PropertyOverviewWorkspace({
   onAssignOwner,
   property,
+  tenantPersonId,
 }: {
   onAssignOwner?: () => void;
   property: PropertyDetail;
+  tenantPersonId?: string;
 }) {
   const activeLeaseLabel =
     property.counts.activeLeases === 1
@@ -442,8 +446,8 @@ function PropertyOverviewWorkspace({
       </dl>
 
       <div className="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,2.45fr)_minmax(300px,0.9fr)] 2xl:items-stretch">
-        <PropertyOverviewUnits property={property} />
-        <PropertyOverviewCard onAssignOwner={onAssignOwner} property={property} />
+        <PropertyOverviewUnits property={property} tenantPersonId={tenantPersonId} />
+        <PropertyOverviewCard onAssignOwner={onAssignOwner} property={property} tenantPersonId={tenantPersonId} />
       </div>
     </>
   );
@@ -470,7 +474,7 @@ const propertyOverviewFilterOptions = [
   { label: "No active lease", value: "unleased" },
 ];
 
-function PropertyOverviewUnits({ property }: { property: PropertyDetail }) {
+function PropertyOverviewUnits({ property, tenantPersonId }: { property: PropertyDetail; tenantPersonId?: string }) {
   const [filter, setFilter] = useState<PropertyOverviewFilter>("all");
   const [query, setQuery] = useState("");
   const activeUnits = property.unitsList.filter((unit) => !unit.isArchived);
@@ -494,7 +498,7 @@ function PropertyOverviewUnits({ property }: { property: PropertyDetail }) {
 
           return {
             actionLabel: "View details",
-            href: `/units/${unit.id}`,
+            href: buildHref(`/units/${unit.id}`, { tenantPersonId }),
             id: unit.id,
             leaseDates: lease?.termLabel ?? unit.leaseEndLabel,
             rentDisplay: lease?.rentDisplay ?? unit.monthlyRentDisplay,
@@ -685,9 +689,11 @@ function PropertyOverviewUnits({ property }: { property: PropertyDetail }) {
 function PropertyOverviewCard({
   onAssignOwner,
   property,
+  tenantPersonId,
 }: {
   onAssignOwner?: () => void;
   property: PropertyDetail;
+  tenantPersonId?: string;
 }) {
   const coverPhoto =
     property.photos.find((photo) => photo.isCover && photo.url) ??
@@ -785,6 +791,7 @@ function PropertyOverviewCard({
           <PropertyOverviewAction
             action={property.nextAction}
             onAssignOwner={onAssignOwner}
+            tenantPersonId={tenantPersonId}
           />
         </div>
       </div>
@@ -795,9 +802,11 @@ function PropertyOverviewCard({
 function PropertyOverviewAction({
   action,
   onAssignOwner,
+  tenantPersonId,
 }: {
   action: PropertyDetail["nextAction"];
   onAssignOwner?: () => void;
+  tenantPersonId?: string;
 }) {
   const className = cn(
     "h-7 rounded-md border px-2.5 text-xs font-semibold shadow-none transition-colors",
@@ -813,8 +822,15 @@ function PropertyOverviewAction({
     );
   }
 
+  let href = action.href;
+  if (tenantPersonId && /^\/units(?:\/|\?|$)/.test(href)) {
+    const destination = new URL(href, "https://nestory.invalid");
+    destination.searchParams.set("tenantPersonId", tenantPersonId);
+    href = `${destination.pathname}${destination.search}${destination.hash}`;
+  }
+
   return (
-    <Link className={cn(className, "inline-flex items-center")} href={action.href} prefetch={false}>
+    <Link className={cn(className, "inline-flex items-center")} href={href} prefetch={false}>
       {action.label}
     </Link>
   );

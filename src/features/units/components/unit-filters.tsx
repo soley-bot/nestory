@@ -24,12 +24,14 @@ import { cn } from "@/lib/utils";
 type UnitFiltersProps = {
   navigation: RegisterNavigation;
   properties: UnitPropertyOption[];
+  resetHref?: string;
   viewQuery: UnitViewQuery;
 };
 
 export function UnitFilters({
   navigation,
   properties,
+  resetHref,
   viewQuery,
 }: UnitFiltersProps) {
   const pathname = usePathname();
@@ -234,7 +236,7 @@ export function UnitFilters({
               <Link
                 aria-label="Reset unit filters"
                 className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-card px-2 text-primary outline-none transition-colors hover:bg-muted hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
-                href={pathname}
+                href={resetHref ?? pathname}
                 onNavigate={navigation.cancelPending}
                 scroll={false}
                 title="Reset filters"

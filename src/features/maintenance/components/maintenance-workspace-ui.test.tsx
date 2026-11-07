@@ -1450,6 +1450,10 @@ describe("MaintenanceForm drawer draft safety", () => {
     maintenanceActions.update.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
     const user = await openDrawer();
     await user.click(screen.getByRole("button", { name: "Save" }));
+    const pendingForm = screen.getByRole("dialog", { name: "Edit maintenance" }).querySelector("form")!;
+    expect(pendingForm.querySelector('[name="title"]')!.matches(":disabled")).toBe(true);
+    fireEvent.submit(pendingForm);
+    expect(maintenanceActions.update).toHaveBeenCalledTimes(1);
     await user.keyboard("{Escape}");
     expect(screen.getByRole("alertdialog", { name: "Saving is still in progress" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Discard changes" })).toBeNull();
@@ -1470,5 +1474,26 @@ describe("MaintenanceForm drawer draft safety", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit maintenance" })).toBeNull());
     expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("retains selected recurrence after a failed save and submits it again on retry", async () => {
+    maintenanceActions.update.mockResolvedValueOnce({ status: "error", message: "Check the property.", fieldErrors: { propertyId: ["Select a property."] } } as never).mockResolvedValueOnce({ status: "success", message: "Saved." } as never);
+    const user = await openDrawer();
+    const drawer = screen.getByRole("dialog", { name: "Edit maintenance" });
+    await user.click(within(drawer).getByText("Follow up", { selector: "summary" }));
+    const recurrence = within(drawer).getByRole("combobox", { name: "Recurrence" });
+    recurrence.focus();
+    await user.keyboard("{ArrowDown}");
+    await user.click(await screen.findByRole("option", { name: "Weekly" }));
+    await user.click(within(drawer).getByRole("button", { name: "Save" }));
+    await screen.findByText("Check the property.");
+    expect(recurrence.textContent).toBe("Weekly");
+    expect(new FormData(drawer.querySelector("form")!).get("recurrenceFrequency")).toBe("weekly");
+    await user.click(within(drawer).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit maintenance" })).toBeNull());
+    expect(maintenanceActions.update.mock.calls).toHaveLength(2);
+    for (const call of maintenanceActions.update.mock.calls) {
+      expect((call as unknown as [unknown, FormData])[1].get("recurrenceFrequency")).toBe("weekly");
+    }
   });
 });

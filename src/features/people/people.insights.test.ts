@@ -36,7 +36,9 @@ describe("people insights", () => {
       "0",
     ]);
     expect(insights.attentionQueues.find((queue) => queue.id === "missing-contact")?.count).toBe(1);
+    expect(insights.attentionQueues.find((queue) => queue.id === "missing-contact")?.href).toBe("/people?status=missing_contact");
     expect(insights.attentionQueues.find((queue) => queue.id === "missing-role")?.count).toBe(1);
+    expect(insights.attentionQueues.find((queue) => queue.id === "missing-role")?.href).toBe("/people?status=no_role");
     expect(insights.attentionQueues.find((queue) => queue.id === "missing-evidence")?.count).toBe(2);
   });
 

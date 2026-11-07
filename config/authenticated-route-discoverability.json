@@ -41,7 +41,7 @@
     "finance-account-detail": { "kind": "context", "source": "src/features/finance-accounts/components/finance-accounts-screen.tsx", "hrefToken": "href={`/finance/accounts/${encodeURIComponent(account.id)}`", "labelToken": "Activity for ${account.displayName}" },
     "property-detail": { "kind": "context", "source": "src/features/properties/components/properties-table.tsx", "hrefToken": "href={getPropertyHref(property.id)}", "labelToken": "{property.name}" },
     "property-setup": { "kind": "context", "source": "src/features/properties/components/property-screen.tsx", "hrefToken": "href=\"/properties/setup\"", "labelToken": "Set up property" },
-    "units-list": { "kind": "context", "source": "src/features/properties/components/property-screen.tsx", "hrefToken": "href: \"/units\"", "labelToken": "label: \"Units\"" },
+    "units-list": { "kind": "context", "source": "src/features/properties/components/property-screen.tsx", "hrefToken": "href: buildHref(\"/units\", { tenantPersonId })", "labelToken": "label: \"Units\"" },
     "unit-detail": { "kind": "context", "source": "src/features/units/components/units-table.tsx", "hrefToken": "onSelectUnit(unit.id)", "labelToken": "View unit ${unit.unitNumber} details" },
     "lease-detail": { "kind": "context", "source": "src/features/leases/components/lease-inspector.tsx", "hrefToken": "href={getLeaseHref(lease.id)}", "labelToken": "Open lease record" },
     "advanced-ledger": { "kind": "context", "source": "src/app/(dashboard)/finance/advanced/page.tsx", "hrefToken": "href: \"/ledger\"", "labelToken": "label: \"Ledger\"" },

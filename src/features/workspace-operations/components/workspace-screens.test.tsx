@@ -14,6 +14,7 @@ import type {
   FinanceWorkspaceQueueItem,
 } from "@/features/workspace-operations/finance-workspace.types";
 import type { OverviewAttentionItem } from "@/features/overview/overview.types";
+import { BusinessDateProvider } from "@/lib/dates/business-date-provider";
 
 afterEach(cleanup);
 
@@ -78,6 +79,19 @@ const memberData: FinanceMemberWorkspaceData = {
   role: "finance_member",
   totals: { approvedRecently: 0, awaitingReview: 0, rejected: 1 },
 };
+
+it.each(["manager", "member"] as const)("keeps submitter and calendar age on the %s mobile finance card", (role) => {
+  render(
+    <BusinessDateProvider businessDate="2026-08-07" serverTime="2026-08-07T05:00:00Z" timeZone="Asia/Phnom_Penh">
+      {role === "manager" ? <FinanceManagerWorkspace data={managerData} /> : <FinanceMemberWorkspace data={memberData} />}
+    </BusinessDateProvider>,
+  );
+  const cards = screen.getByRole("list", { name: role === "manager" ? "Review queue" : "Submission queue" });
+  const card = within(cards).getAllByRole("listitem")[0]!;
+  expect(within(card).getByText("Submitted by mony.rath@example.test")).toBeTruthy();
+  expect(within(card).getByText("Yesterday").getAttribute("datetime")).toBe("2026-08-06T09:00:00.000Z");
+  expect(within(card).getByRole("link", { name: role === "manager" ? "Review" : "Open" }).getAttribute("href")).toBe("/bills-expenses?submission=submission-1");
+});
 
 describe("Finance Manager workspace", () => {
   it("maps every visible value to a contract field", () => {

@@ -97,6 +97,28 @@ describe("unit screen report links", () => {
 });
 
 describe("UnitScreen redesign contract", () => {
+  it("retains the tenant through desktop and mobile unit entry and review filters", () => {
+    navigation.searchParams = new URLSearchParams("tenantPersonId=tenant-1&status=vacant");
+    renderUnits({ viewQuery: { ...defaultViewQuery, status: "vacant" } });
+    const href = "/units/unit-1?tenantPersonId=tenant-1";
+    expect(screen.getByRole("link", { name: "View unit 1A details" }).getAttribute("href")).toBe(href);
+    fireEvent.click(screen.getByRole("row", { name: "Open unit 1A" }));
+    expect(navigation.push).toHaveBeenLastCalledWith(href);
+    fireEvent.click(screen.getByRole("button", { name: "Open unit 1A" }));
+    expect(navigation.push).toHaveBeenLastCalledWith(href);
+    expect(screen.getByRole("link", { name: "Reset unit filters" }).getAttribute("href"))
+      .toBe("/units?tenantPersonId=tenant-1");
+    const review = new URL(screen.getByRole("link", { name: "Review unoccupied units" }).getAttribute("href")!, "https://nestory.invalid");
+    expect(Object.fromEntries(review.searchParams)).toEqual({ occupancy: "unoccupied", tenantPersonId: "tenant-1" });
+  });
+
+  it("retains the tenant when clearing an empty unit search", () => {
+    navigation.searchParams = new URLSearchParams("tenantPersonId=tenant-1&query=missing");
+    renderUnits({ units: [], viewQuery: { ...defaultViewQuery, query: "missing" } });
+    expect(screen.getByRole("link", { name: "Clear filters" }).getAttribute("href"))
+      .toBe("/units?tenantPersonId=tenant-1");
+  });
+
   it("applies a rapid filter reversal before the first response arrives", async () => {
     const user = userEvent.setup();
     renderUnits();

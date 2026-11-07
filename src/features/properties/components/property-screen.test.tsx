@@ -658,6 +658,16 @@ describe("PropertyScreen redesign contract", () => {
     expect(target.searchParams.get("returnTo")).toBe("/properties?tenantPersonId=tenant-1&query=River");
   });
 
+  it("retains tenant handoff through every portfolio summary shortcut", () => {
+    navigation.searchParams = new URLSearchParams("tenantPersonId=tenant-1");
+    renderProperties();
+    const summary = screen.getByRole("navigation", { name: "Portfolio summary" });
+    for (const link of within(summary).getAllByRole("link")) {
+      const target = new URL(link.getAttribute("href")!, "https://nestory.invalid");
+      expect(target.searchParams.get("tenantPersonId")).toBe("tenant-1");
+    }
+  });
+
   it("retains the tenant after creating a missing lease property", async () => {
     const user = userEvent.setup();
     navigation.searchParams = new URLSearchParams("tenantPersonId=tenant-1");

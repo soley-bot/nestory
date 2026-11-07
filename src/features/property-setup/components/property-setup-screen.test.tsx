@@ -40,6 +40,51 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("PropertySetupScreen", () => {
+  it.each(["property", "unit"] as const)("searches a large existing %s list and retains the chosen record", async (kind) => {
+    const user = userEvent.setup();
+    const options = Array.from({ length: 9 }, (_, index) => ({
+      ...(kind === "property" ? data.properties[0]! : data.units[0]!),
+      id: `${kind}-${index + 1}`,
+      label: `Synthetic ${kind} ${String(index + 1).padStart(2, "0")}`,
+    }));
+    const fixture: PropertySetupData = kind === "property"
+      ? { ...data, properties: options as PropertySetupData["properties"] }
+      : { ...data, units: options as PropertySetupData["units"] };
+    render(<PropertySetupScreen data={fixture} step={2} />);
+    await user.click(screen.getByRole("combobox", { name: `Existing ${kind}` }));
+    const search = screen.getByRole("combobox", { name: `Search Existing ${kind}` });
+    await user.type(search, "not present");
+    expect(screen.getByText("No matching options.")).toBeTruthy();
+    await user.clear(search);
+    await user.type(search, "09");
+    const match = screen.getByRole("option", { name: new RegExp(`Synthetic ${kind} 09`) });
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    await user.click(match);
+    const destination = new URL(navigation.replace.mock.calls[0]![0], "https://nestory.invalid");
+    expect(destination.searchParams.get(`${kind}Id`)).toBe(`${kind}-9`);
+    expect(destination.searchParams.get("ownerId")).toBe("owner-1");
+    expect(navigation.createLease).not.toHaveBeenCalled();
+  });
+
+  it("gives a large matching-lease search its own accessible label and selects the filtered lease", async () => {
+    const user = userEvent.setup();
+    render(<PropertySetupScreen data={{
+      ...data,
+      selection: { ...data.selection, tenantId: "tenant-1" },
+      leases: Array.from({ length: 9 }, (_, index) => ({
+        ...data.leases[0]!, id: `lease-${index + 1}`, label: `Synthetic lease ${String(index + 1).padStart(2, "0")}`,
+      })),
+    }} step={3} />);
+    await user.click(screen.getByRole("combobox", { name: "Lease or occupancy" }));
+    await user.type(screen.getByRole("combobox", { name: "Search Lease or occupancy" }), "09");
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    await user.click(screen.getByRole("option", { name: "Synthetic lease 09" }));
+    const destination = new URL(navigation.replace.mock.calls[0]![0], "https://nestory.invalid");
+    expect(destination.searchParams.get("leaseId")).toBe("lease-9");
+    expect(destination.searchParams.get("tenantId")).toBe("tenant-1");
+    expect(navigation.activateLease).not.toHaveBeenCalled();
+  });
+
   it.each([1, 2, 3] as const)("keeps existing selection available without creation rights at step %s", (step) => {
     render(<PropertySetupScreen data={data} step={step} />);
     expect(screen.queryByRole("button", { name: /Create new|Add unit/ })).toBeNull();

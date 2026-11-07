@@ -28,6 +28,8 @@ import { SettingsSectionHeader } from '../src/features/organization/components/s
 import { Card, CardHeader } from '../src/components/ui/card';
 import { DocumentList } from '../src/features/documents/components/document-list';
 import { FinanceAccountActivityScreen } from '../src/features/finance-accounts/components/finance-account-activity-screen';
+import { LedgerFilters } from '../src/features/ledger/components/ledger-filters';
+import { DEFAULT_LEDGER_VIEW_QUERY } from '../src/features/ledger/ledger.filters';
 
 const name = 'Alexandria Catherine de la Cruz — Internationale Wohnungsverwaltung und Gemeinschaftsdienstleistungen';
 const propertyName = 'Riverside Gardens North — Residential and Commercial Community Management Partnership';
@@ -62,6 +64,12 @@ const surfaces = {
   'person-search': <PersonSelect aria-label="Choose tenant" name="tenantId" roles={['tenant']} options={[{id:'person-1',label:name,description:`Tenant — accounts.${token}@example.invalid`,roles:['tenant'],archived:false}]} />,
   'property-filters': <PropertyFilters displayMode="table" onDisplayModeChange={noop} onOpenProperty={noop} properties={[propertyRecord]} viewQuery={parsePropertySearchParams({query:token})} navigation={{isPending:false,replaceParam:noop,search:{query:token,onQueryChange:noop,onCompositionChange:noop,onSubmit:noop,cancelPending:noop}}} />,
   'report-filters': <ReportsFilters compact action="#reports" ownerOptions={[]} propertyOptions={[{id:'property-1',label:`${propertyName} ${token}`}]} unitOptions={[{id:'unit-1',propertyId:'property-1',label:token}]} viewQuery={{...reportQuery,propertyId:'property-1',unitId:'unit-1'}} />,
+  'ledger-filters': <section className="flex min-w-0 flex-col gap-2 border-b border-border/70 bg-background px-4 py-2 sm:px-6 lg:flex-row lg:items-start">
+    <div className="flex min-h-8 shrink-0 items-center gap-3 rounded-md border border-border/70 bg-card px-3">Visible net USD 0.00</div>
+    <div aria-label="Ledger tools" className="ml-auto flex w-full min-w-0 justify-end lg:w-auto lg:max-w-[430px] lg:flex-1" role="toolbar">
+      <LedgerFilters properties={[{id:'property-1',label:`${propertyName} ${token}`}]} units={[]} viewQuery={{...DEFAULT_LEDGER_VIEW_QUERY,dateFrom:'2026-10-01',minAmount:200}} />
+    </div>
+  </section>,
   people: <PeopleInspector person={person} getPersonHref={() => '#person'} onEditPerson={noop} onArchivePerson={noop} onRestorePerson={noop} />,
   leases: <LeaseInspector lease={lease} getLeaseHref={() => '#lease'} />,
   maintenance: <BoardSurface actorMode="manager" cases={[task]} selectedTaskId="" onSelect={noop} emptyLabel="No cases" />,

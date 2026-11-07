@@ -130,11 +130,16 @@ export function LedgerFilters({
         </div>
 
         <div aria-label="Active date and amount filters" className="flex flex-wrap gap-2">
-          {([ ["period", viewQuery.period === "all" ? "" : viewQuery.period.replaceAll("_", " ")], ["dateFrom", viewQuery.dateFrom], ["dateTo", viewQuery.dateTo], ["minAmount", viewQuery.minAmount === null ? "" : String(viewQuery.minAmount)] ] as const).filter(([, value]) => value !== "").map(([name, value]) => <Button key={name} size="sm" variant="outline" aria-label={`Clear ${name} filter`} onClick={() => replaceParam(name, "", "")}>{name === "dateFrom" ? "From" : name === "dateTo" ? "To" : name === "minAmount" ? "Minimum" : "Period"}: {value} ×</Button>)}
+          {([
+            ["period", viewQuery.period === "all" ? "" : viewQuery.period.replaceAll("_", " "), "Period", "period"],
+            ["dateFrom", viewQuery.dateFrom, "From", "from date"],
+            ["dateTo", viewQuery.dateTo, "To", "to date"],
+            ["minAmount", viewQuery.minAmount === null ? "" : String(viewQuery.minAmount), "Minimum", "minimum amount"],
+          ] as const).filter(([, value]) => value !== "").map(([name, value, label, accessibleLabel]) => <Button key={name} size="sm" variant="outline" aria-label={`Clear ${accessibleLabel} filter`} onClick={() => replaceParam(name, "", "")}>{label}: {value} ×</Button>)}
         </div>
         {advancedOpen ? (
           <div
-            className="grid gap-2 rounded-md border border-border bg-muted p-2 text-sm lg:grid-cols-[minmax(180px,240px)_minmax(180px,240px)_minmax(150px,180px)_minmax(130px,160px)_minmax(130px,170px)_minmax(84px,104px)]"
+            className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,180px),1fr))] gap-2 rounded-md border border-border bg-muted p-2 text-sm"
             id="ledger-advanced-search"
           >
             <SelectControl
@@ -209,10 +214,10 @@ export function LedgerFilters({
               value={viewQuery.sort}
             />
 
-            <label className="grid gap-1 text-xs">Period<select aria-label="Ledger period" className="h-8 rounded-md border bg-background px-2 text-sm" value={viewQuery.period} onChange={event => replaceParam("period", event.target.value, "all", ["dateFrom", "dateTo"])}><option value="all">All dates</option><option value="current_month">Current month</option><option value="last_30_days">Last 30 days</option></select></label>
-            <label className="grid gap-1 text-xs">From<input aria-label="Ledger date from" className="h-8 min-w-0 rounded-md border bg-background px-2 text-sm" type="date" value={viewQuery.dateFrom} onChange={event => replaceParam("dateFrom", event.target.value, "", ["period"])} /></label>
-            <label className="grid gap-1 text-xs">To<input aria-label="Ledger date to" className="h-8 min-w-0 rounded-md border bg-background px-2 text-sm" type="date" value={viewQuery.dateTo} onChange={event => replaceParam("dateTo", event.target.value, "", ["period"])} /></label>
-            <label className="grid gap-1 text-xs">Minimum amount<input aria-label="Ledger minimum amount" className="h-8 min-w-0 rounded-md border bg-background px-2 text-sm" type="number" min="0" step="0.01" defaultValue={viewQuery.minAmount ?? ""} key={viewQuery.minAmount ?? ""} onBlur={event => { if (event.target.validity.valid) replaceParam("minAmount", event.target.value, ""); }} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} /></label>
+            <label className="grid min-w-0 gap-1 text-xs">Period<select aria-label="Ledger period" className="h-8 min-w-0 rounded-md border bg-background px-2 text-sm" value={viewQuery.period} onChange={event => replaceParam("period", event.target.value, "all", ["dateFrom", "dateTo"])}><option value="all">All dates</option><option value="current_month">Current month</option><option value="last_30_days">Last 30 days</option></select></label>
+            <label className="grid min-w-0 gap-1 text-xs">From<input aria-label="Ledger date from" className="h-8 min-w-0 rounded-md border bg-background px-2 text-sm" type="date" value={viewQuery.dateFrom} onChange={event => replaceParam("dateFrom", event.target.value, "", ["period"])} /></label>
+            <label className="grid min-w-0 gap-1 text-xs">To<input aria-label="Ledger date to" className="h-8 min-w-0 rounded-md border bg-background px-2 text-sm" type="date" value={viewQuery.dateTo} onChange={event => replaceParam("dateTo", event.target.value, "", ["period"])} /></label>
+            <label className="grid min-w-0 gap-1 text-xs">Minimum amount<input aria-label="Ledger minimum amount" className="h-8 min-w-0 rounded-md border bg-background px-2 text-sm" type="number" min="0" step="0.01" defaultValue={viewQuery.minAmount ?? ""} key={viewQuery.minAmount ?? ""} onBlur={event => { if (event.target.validity.valid) replaceParam("minAmount", event.target.value, ""); }} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} /></label>
             <SelectControl
               ariaLabel="Rows per page"
               className={compactSelectClassName}
