@@ -11,6 +11,9 @@ import { createServer } from 'node:http';
 // actions are isolated. The server binds loopback and rejects non-GET requests.
 const phase = process.argv[2] ?? 'after';
 if (!['before', 'after'].includes(phase)) throw Error('Use before or after');
+const selectedSurface = process.argv.find(value => value.startsWith('--surface='))?.slice('--surface='.length);
+const serveOnly = process.argv.includes('--serve-only');
+const viewports = selectedSurface === 'ledger-filters' ? [320, 390, 768, 1024, 1280, 1440] : [320, 390, 768, 1440];
 const output = resolve('output/playwright/feature-layout', phase);
 await mkdir(output, { recursive: true });
 const stubPlugin = { name: 'synthetic-boundaries', setup(builder) {
@@ -24,7 +27,7 @@ const stubPlugin = { name: 'synthetic-boundaries', setup(builder) {
     let contents;
     if (path === 'next/link') contents = `import React from 'react'; export default function Link({prefetch,onNavigate,scroll,children,...props}) { return <a {...props}>{children}</a> }`;
     else if (path === 'next/image') contents = `import React from 'react'; export default function Image({fill,priority,...props}) { return <img {...props}/> }`;
-    else if (path === 'next/navigation') contents = `export const usePathname=()=>'/finance/accounts'; export const useSearchParams=()=>new URLSearchParams(); export const useRouter=()=>({push(){},replace(){},refresh(){}});`;
+    else if (path === 'next/navigation') contents = `export const usePathname=()=>'/finance/accounts'; export const useSearchParams=()=>new URLSearchParams(); export const useRouter=()=>({push(){},replace(){},refresh(){}}); export const unstable_rethrow=()=>{};`;
     else if (path.includes('theme-toggle')) contents = `import React from 'react'; export function ThemeToggle(){ return <button type="button" aria-label="Toggle theme">◐</button> }`;
     else contents = `export async function loginAction(){ await new Promise(r=>setTimeout(r,250)); return {message:'Unable to sign in to InternationalResidentialCommunityManagementServices_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ. Check your email and password, then try again.'}; }`;
     return { contents, loader: 'jsx', resolveDir: process.cwd() };
@@ -48,6 +51,10 @@ const server = createServer(async (request, response) => {
   } else { response.setHeader('Content-Type', 'text/html'); response.end(html); }
 });
 await new Promise(r => server.listen(0, '127.0.0.1', r));
+if (serveOnly) {
+  console.log(`Synthetic layout fixture: http://127.0.0.1:${server.address().port}/?surface=${selectedSurface ?? 'ledger-filters'}`);
+  await new Promise(() => {});
+}
 const browser = await chromium.launch({ headless: true });
 const results = [];
 function inspectLayout() {
@@ -87,13 +94,23 @@ function inspectLayout() {
     }
     if (!['inline','contents'].includes(style.display) && style.textOverflow !== 'ellipsis' && (textRect.right>rect.right+1 || textRect.left<rect.left-1 || textRect.bottom>rect.bottom+3 || textRect.top<rect.top-3)) textOutsideBox.push(record);
   }
-  return { documentOverflow:document.documentElement.scrollWidth>innerWidth+1, unintended, clipped, sharedClipped, textOutsideBox, textOutsideCell };
+  const ledgerFilters = document.getElementById('ledger-advanced-search');
+  const ledgerFilterOverflow = [];
+  if (ledgerFilters) {
+    const bounds = ledgerFilters.getBoundingClientRect();
+    if (ledgerFilters.scrollWidth > ledgerFilters.clientWidth + 1) ledgerFilterOverflow.push('Filter panel content exceeds its container');
+    for (const control of ledgerFilters.querySelectorAll('input:not([type="hidden"]),select,button[role="combobox"]')) {
+      const rect = control.getBoundingClientRect();
+      if (rect.width && (rect.left < bounds.left - 1 || rect.right > bounds.right + 1)) ledgerFilterOverflow.push(control.getAttribute('aria-label') ?? control.tagName);
+    }
+  }
+  return { documentOverflow:document.documentElement.scrollWidth>innerWidth+1, unintended, clipped, sharedClipped, textOutsideBox, textOutsideCell, ledgerFilterOverflow };
 }
 try {
-  for (const width of [320, 390, 768, 1440]) {
+  for (const width of viewports) {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
     await page.route('**/*', route => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort());
-    for (const surface of ['auth', 'dashboard', 'property', 'unit', 'unit-inspector', 'properties-register', 'units-register', 'people-register', 'leases-register', 'timeline-register', 'person-search', 'property-filters', 'report-filters', 'people', 'leases', 'maintenance', 'timeline', 'reports', 'report-detail', 'settings', 'documents', 'finance', 'empty', 'loading']) {
+    for (const surface of (selectedSurface ? [selectedSurface] : ['auth', 'dashboard', 'property', 'unit', 'unit-inspector', 'properties-register', 'units-register', 'people-register', 'leases-register', 'timeline-register', 'person-search', 'property-filters', 'report-filters', 'ledger-filters', 'people', 'leases', 'maintenance', 'timeline', 'reports', 'report-detail', 'settings', 'documents', 'finance', 'empty', 'loading'])) {
       const errors = [];
       const onError = error => errors.push(error.message);
       page.on('pageerror', onError);
@@ -146,7 +163,7 @@ try {
   // 200% zoom reflow equivalent: 1440 physical pixels / 2 = 720 CSS pixels.
   const page = await browser.newPage({ viewport: { width: 720, height: 450 }, deviceScaleFactor: 2 });
   await page.route('**/*', route => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort());
-  for (const surface of ['auth','property','unit','unit-inspector','people','leases','timeline','reports','report-detail','settings','finance']) {
+  for (const surface of (selectedSurface ? [selectedSurface] : ['auth','property','unit','unit-inspector','people','leases','timeline','reports','report-detail','settings','finance','ledger-filters'])) {
     await page.goto(`http://127.0.0.1:${server.address().port}/?surface=${surface}`);
     if (surface === 'reports') await page.getByRole('button', { name: 'Expand all', exact: true }).click();
     if (surface === 'report-detail') {
@@ -160,7 +177,7 @@ try {
   await page.close();
 } finally { await browser.close(); await new Promise(r=>server.close(r)); }
 await writeFile(resolve(output, 'assertions.json'), JSON.stringify(results, null, 2));
-await writeFile(resolve(output, 'environment.json'), JSON.stringify({generatedAt:new Date().toISOString(),phase,reviewedBase:'db86c5d09c71c485a5b5d4ad1772cdcc00b51451',node:process.version,browser:browser.version(),viewports:[320,390,768,1440],zoom:{reflowEquivalent:200,cssViewport:720,deviceScaleFactor:2,nativeBrowserZoom:false},source:phase==='before'?'Reviewed Git source':'Isolated working tree',fonts:'System fallback; next/font Google download is not run',mockedBoundaries:['Next Link/navigation/image','Theme toggle','Auth action'],network:'Loopback GET only; external browser requests aborted'},null,2));
-const failures=results.filter(r=>r.documentOverflow||r.unintended?.length||r.clipped?.length||r.textOutsideBox?.length||r.textOutsideCell?.length||r.errors?.length);
-console.log(JSON.stringify({ phase, cases:results.length, failureCount:failures.length, failures:phase==='after'?failures.map(r=>({surface:r.surface,width:r.width,overflow:r.documentOverflow,unintended:r.unintended.length,clipped:r.clipped.length,textOutsideBox:r.textOutsideBox.length,textOutsideCell:r.textOutsideCell.length})):undefined, sharedClipped:results.filter(r=>r.sharedClipped.length).map(r=>[r.surface,r.width]), errors:results.filter(r=>r.errors?.length) }, null, 2));
+await writeFile(resolve(output, 'environment.json'), JSON.stringify({generatedAt:new Date().toISOString(),phase,reviewedBase:'db86c5d09c71c485a5b5d4ad1772cdcc00b51451',node:process.version,browser:browser.version(),viewports,zoom:{reflowEquivalent:200,cssViewport:720,deviceScaleFactor:2,nativeBrowserZoom:false},source:phase==='before'?'Reviewed Git source':'Isolated working tree',fonts:'System fallback; next/font Google download is not run',mockedBoundaries:['Next Link/navigation/image','Theme toggle','Auth action'],network:'Loopback GET only; external browser requests aborted'},null,2));
+const failures=results.filter(r=>r.documentOverflow||r.unintended?.length||r.clipped?.length||r.textOutsideBox?.length||r.textOutsideCell?.length||r.ledgerFilterOverflow?.length||r.errors?.length);
+console.log(JSON.stringify({ phase, cases:results.length, failureCount:failures.length, failures:phase==='after'?failures.map(r=>({surface:r.surface,width:r.width,overflow:r.documentOverflow,unintended:r.unintended.length,clipped:r.clipped.length,textOutsideBox:r.textOutsideBox.length,textOutsideCell:r.textOutsideCell.length,ledgerFilterOverflow:r.ledgerFilterOverflow})):undefined, sharedClipped:results.filter(r=>r.sharedClipped.length).map(r=>[r.surface,r.width]), errors:results.filter(r=>r.errors?.length) }, null, 2));
 if(phase==='after'&&failures.length) process.exitCode=1;

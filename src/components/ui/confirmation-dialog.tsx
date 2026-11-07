@@ -1,6 +1,6 @@
 "use client"
 
-import type { MouseEvent } from "react"
+import { useState, type MouseEvent } from "react"
 
 import {
   AlertDialog,
@@ -34,6 +34,22 @@ export function ConfirmationDialog({
   open,
   title,
 }: ConfirmationDialogProps) {
+  const presentation = { ariaLabel, cancelLabel, confirmLabel, description, hasConfirm: Boolean(onConfirm), title }
+  const [lastOpenPresentation, setLastOpenPresentation] = useState(presentation)
+  if (open && (
+    lastOpenPresentation.ariaLabel !== ariaLabel ||
+    lastOpenPresentation.cancelLabel !== cancelLabel ||
+    lastOpenPresentation.confirmLabel !== confirmLabel ||
+    lastOpenPresentation.description !== description ||
+    lastOpenPresentation.hasConfirm !== presentation.hasConfirm ||
+    lastOpenPresentation.title !== title
+  )) {
+    setLastOpenPresentation(presentation)
+  }
+  // Radix keeps closed content mounted during its exit animation. Keep the
+  // actual confirmation visible instead of showing the caller's cleared state.
+  const displayed = open ? presentation : lastOpenPresentation
+
   return (
     <AlertDialog
       onOpenChange={(nextOpen) => {
@@ -41,16 +57,16 @@ export function ConfirmationDialog({
       }}
       open={open}
     >
-      <AlertDialogContent aria-label={ariaLabel}>
+      <AlertDialogContent aria-label={displayed.ariaLabel}>
         <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
+          <AlertDialogTitle>{displayed.title}</AlertDialogTitle>
+          <AlertDialogDescription>{displayed.description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
-          {confirmLabel && onConfirm ? (
-            <AlertDialogAction onClick={onConfirm} variant="destructive">
-              {confirmLabel}
+          <AlertDialogCancel>{displayed.cancelLabel}</AlertDialogCancel>
+          {displayed.confirmLabel && displayed.hasConfirm ? (
+            <AlertDialogAction onClick={open ? onConfirm : undefined} variant="destructive">
+              {displayed.confirmLabel}
             </AlertDialogAction>
           ) : null}
         </AlertDialogFooter>

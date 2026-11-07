@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SideDrawer } from "@/components/ui/side-drawer";
-import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
+import { buildHref, removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
 import { UnitForm } from "@/features/units/components/unit-form";
 import { UnitFilters } from "@/features/units/components/unit-filters";
 import { UnitsTable } from "@/features/units/components/units-table";
@@ -42,12 +42,13 @@ type UnitScreenProps = {
 };
 
 export function UnitScreen(props: UnitScreenProps) {
+  const tenantPersonId = useSearchParams().get("tenantPersonId");
   return (
     <FinancialReportBoundary expectedGeneration={props.financialGeneration} fallback={
       <WorkspacePage title="Units" context="Unit records" contextHref="/units">
         <p className="px-4 py-3 text-sm">Financial amounts and filters need a refresh before they can be used.</p>
         <nav aria-label="Unit records" className="flex flex-col gap-2 px-4 pb-4">
-          {props.units.map((unit) => <Link key={unit.id} href={`/units/${unit.id}`}>{unit.propertyCode} / Unit {unit.unitNumber}</Link>)}
+          {props.units.map((unit) => <Link key={unit.id} href={buildHref(`/units/${unit.id}`, { tenantPersonId })}>{unit.propertyCode} / Unit {unit.unitNumber}</Link>)}
         </nav>
       </WorkspacePage>
     }>
@@ -66,6 +67,9 @@ function UnitScreenContent({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const tenantPersonId = searchParams.get("tenantPersonId");
+  const clearFiltersHref = buildHref(pathname, { tenantPersonId });
+  const getUnitHref = (unitId: string) => buildHref(`/units/${unitId}`, { tenantPersonId });
   const navigation = useRegisterNavigation(viewQuery.query);
   const isVacantReview = viewQuery.status === "vacant";
   const isOccupancyReview = viewQuery.occupancy === "unoccupied";
@@ -75,6 +79,7 @@ function UnitScreenContent({
     isOccupancyReview,
     isVacantReview,
     propertyId: viewQuery.propertyId,
+    tenantPersonId,
   });
   const reviewPropertyLabel = getSelectedPropertyLabel(
     propertyOptions,
@@ -92,7 +97,7 @@ function UnitScreenContent({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const openUnitRecord = (unitId: string) => {
     navigation.cancelPending();
-    router.push(`/units/${unitId}`);
+    router.push(getUnitHref(unitId));
   };
   const changeSort = (sort: UnitSortKey) => {
     navigation.replaceParam("sort", sort, DEFAULT_UNIT_SORT);
@@ -134,7 +139,7 @@ function UnitScreenContent({
             hasFilters ? (
               <Link
                 className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-                href={pathname}
+                href={clearFiltersHref}
                 onNavigate={navigation.cancelPending}
                 scroll={false}
               >
@@ -156,6 +161,7 @@ function UnitScreenContent({
           <div className="min-h-0 flex-1 p-3 lg:pt-0">
             <UnitsTable
               archiveState={viewQuery.archiveState}
+              getUnitHref={getUnitHref}
               onSelectUnit={openUnitRecord}
               onSortChange={changeSort}
               sort={viewQuery.sort}
@@ -200,6 +206,7 @@ function UnitScreenContent({
         <UnitFilters
           navigation={navigation}
           properties={propertyOptions}
+          resetHref={clearFiltersHref}
           viewQuery={viewQuery}
         />
       }
@@ -287,11 +294,13 @@ function getUnitReviewContext({
   isOccupancyReview,
   isVacantReview,
   propertyId,
+  tenantPersonId,
 }: {
   isLeaseReview: boolean;
   isOccupancyReview: boolean;
   isVacantReview: boolean;
   propertyId: string;
+  tenantPersonId: string | null;
 }): UnitReviewContext | null {
   if (isVacantReview) {
     return {
@@ -299,7 +308,7 @@ function getUnitReviewContext({
       description:
         "Vacant units ready for leasing review.",
       nextStep: "Fill vacancy or review unoccupied units",
-      reportHref: getVacantUnitsReportHref(propertyId),
+      reportHref: getVacantUnitsReportHref(propertyId, tenantPersonId),
     };
   }
 
@@ -335,11 +344,14 @@ function hasActiveUnitFilters(viewQuery: UnitViewQuery) {
   );
 }
 
-export function getVacantUnitsReportHref(propertyId: string) {
+export function getVacantUnitsReportHref(propertyId: string, tenantPersonId?: string | null) {
   const params = new URLSearchParams({ occupancy: "unoccupied" });
 
   if (propertyId !== "all") {
     params.set("propertyId", propertyId);
+  }
+  if (tenantPersonId) {
+    params.set("tenantPersonId", tenantPersonId);
   }
 
   return `/units?${params.toString()}`;

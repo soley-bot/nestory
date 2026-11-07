@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 const unitRowClassName =
   "cursor-pointer border-t border-border transition-colors hover:bg-muted/70";
 type UnitsTableProps = {
+  getUnitHref?: (id: string) => string;
   onSelectUnit: (id: string) => void;
   onSortChange: (sort: UnitSortKey) => void;
   sort: UnitSortKey;
@@ -29,6 +30,7 @@ type UnitsTableProps = {
 
 export function UnitsTable({
   archiveState,
+  getUnitHref = (id) => `/units/${id}`,
   onSelectUnit,
   onSortChange,
   sort,
@@ -156,7 +158,7 @@ export function UnitsTable({
                     <RecordLink
                       aria-label={`View unit ${unit.unitNumber} details`}
                       className="py-0"
-                      href={`/units/${unit.id}`}
+                      href={getUnitHref(unit.id)}
                       onClick={(event) => {
                         if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
                           event.preventDefault();

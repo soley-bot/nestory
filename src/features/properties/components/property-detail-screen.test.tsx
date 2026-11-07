@@ -35,6 +35,16 @@ describe("PropertyDetailScreen task-first detail contract", () => {
     expect(screen.getByRole("link", { name: "Unit 04-01" }).getAttribute("href"))
       .toBe("/units/unit-1?tenantPersonId=tenant-1");
   });
+  it("keeps the tenant in desktop, mobile and suggested overview unit links", () => {
+    renderPropertyDetail({ tenantPersonId: "tenant-1", propertyOverride: {
+      ...property,
+      nextAction: { ...property.nextAction, href: "/units/unit-1", label: "Open Unit 04-01" },
+    } });
+    const overview = screen.getByRole("tabpanel", { name: "Overview" });
+    const unitLinks = within(overview).getAllByRole("link").filter((link) => link.getAttribute("href")?.startsWith("/units/"));
+    expect(unitLinks).toHaveLength(3);
+    for (const link of unitLinks) expect(link.getAttribute("href")).toBe("/units/unit-1?tenantPersonId=tenant-1");
+  });
   it("keeps the tenant in the property breadcrumb and section URLs", () => {
     renderPropertyDetail({ tenantPersonId: "tenant-1" });
     expect(screen.getByRole("link", { name: "Properties" }).getAttribute("href"))

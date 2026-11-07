@@ -251,7 +251,7 @@ function PropertyScreenContent({
             />
           }
           className="px-4 sm:px-6 2xl:px-8"
-          navigation={<PropertyPortfolioSummaryNav onNavigate={navigation.cancelPending} summary={portfolioSummary} />}
+          navigation={<PropertyPortfolioSummaryNav onNavigate={navigation.cancelPending} summary={portfolioSummary} tenantPersonId={tenantPersonId} />}
           title="Properties"
         />
       }
@@ -343,27 +343,29 @@ function PropertyScreenContent({
 function PropertyPortfolioSummaryNav({
   onNavigate,
   summary,
+  tenantPersonId,
 }: {
   onNavigate: () => void;
   summary: PropertyPortfolioSummary;
+  tenantPersonId: string | null;
 }) {
   const items = [
     {
-      href: "/properties?status=active",
+      href: buildHref("/properties", { status: "active", tenantPersonId }),
       icon: Circle,
       label: "Active",
       tone: "text-success",
       value: summary.activeProperties,
     },
     {
-      href: "/units",
+      href: buildHref("/units", { tenantPersonId }),
       icon: Building2,
       label: "Units",
       tone: "text-muted-foreground",
       value: summary.totalUnits,
     },
     {
-      href: "/properties?leaseStatus=missing",
+      href: buildHref("/properties", { leaseStatus: "missing", tenantPersonId }),
       icon: CircleAlert,
       label: "Without lease",
       tone: "text-warning",

@@ -53,11 +53,12 @@ export type MaintenanceActionState = {
   status?: "error" | "success";
 };
 
+const uuidShapePattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const uuidShapeSchema = z
   .string()
   .trim()
   .regex(
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    uuidShapePattern,
     "Invalid UUID",
   );
 const optionalUuidSchema = z
@@ -134,7 +135,7 @@ const maintenanceSchema = z
     dueDate: optionalDateSchema,
     dueTime: optionalTimeSchema,
     priority: z.enum(["low", "normal", "high", "urgent"]),
-    propertyId: uuidShapeSchema,
+    propertyId: z.string().trim().regex(uuidShapePattern, "Choose a property."),
     recurrenceFrequency: z.enum([
       "none",
       "weekly",

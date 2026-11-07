@@ -397,6 +397,7 @@ async function loadOverviewScreenData(
       ? `${Math.round((occupiedUnits.length / operationalUnits.length) * 100)}%`
       : "0%";
   const attentionItems = buildAttentionItems({
+    propertyId: effectiveQuery.propertyId,
     largeRecentExpenseCount,
     invalidScopeLeases,
     leaseGapUnits: nonVacantLeaseGapUnits,
@@ -672,6 +673,7 @@ function buildMetrics({
 }
 
 function buildAttentionItems({
+  propertyId,
   invalidScopeLeases,
   largeRecentExpenseCount,
   leaseGapUnits,
@@ -683,6 +685,7 @@ function buildAttentionItems({
   peopleWithoutRoles,
   vacantUnits,
 }: {
+  propertyId: string;
   invalidScopeLeases: LeaseRow[];
   largeRecentExpenseCount: number;
   leaseGapUnits: UnitRow[];
@@ -829,6 +832,19 @@ function buildAttentionItems({
 
   return items
     .filter((item): item is OverviewAttentionItem => Boolean(item))
+    .map((item) => {
+      if (propertyId === "all") return item;
+      if (item.id === "missing-owner-links") {
+        return { ...item, href: `/properties/${propertyId}` };
+      }
+      const [pathname, search] = item.href.split("?");
+      // People readiness is workspace-wide. Only the property-scoped queues
+      // should inherit the property whose records produced their counts.
+      if (!["/units", "/leases", "/maintenance", "/ledger"].includes(pathname)) return item;
+      const params = new URLSearchParams(search);
+      params.set("propertyId", propertyId);
+      return { ...item, href: `${pathname}?${params}` };
+    })
     .toSorted(
       (left, right) =>
         left.priority - right.priority ||

@@ -153,6 +153,48 @@ describe("overview complete scoped reads", () => {
     expect(fixture.requests.filter((request) => request.table === "person_contacts").reduce((sum, request) => sum + request.returnedRows, 0)).toBe(2);
   });
 
+  it("keeps attention queue links in the selected property while People checks remain workspace-wide", async () => {
+    const selectedPropertyId = "22222222-2222-4222-8222-222222222222";
+    const otherPropertyId = "33333333-3333-4333-8333-333333333333";
+    const fixture = createOverviewFixture({
+      properties: { data: [
+        { ...property, id: selectedPropertyId },
+        { ...property, id: otherPropertyId, code: "TWO" },
+      ] },
+      units: { data: [
+        { id: "vacant-selected", property_id: selectedPropertyId, status: "vacant" },
+        { id: "gap-selected", property_id: selectedPropertyId, status: "maintenance" },
+        { id: "leased-selected", property_id: selectedPropertyId, status: "occupied" },
+        { id: "vacant-other", property_id: otherPropertyId, status: "vacant" },
+      ] },
+      current_leases: { data: [
+        { id: "lease-selected", property_id: selectedPropertyId, unit_id: "leased-selected", lease_end_date: "2026-11-01", primary_tenant_person_id: null },
+        { id: "misplaced-selected", property_id: selectedPropertyId, unit_id: "missing-unit", lease_end_date: "2026-11-01", primary_tenant_person_id: null },
+      ] },
+      tasks: { data: [
+        { id: "task-selected", property_id: selectedPropertyId, title: "Synthetic selected task", status: "pending", priority: "normal", due_date: null },
+        { id: "task-other", property_id: otherPropertyId, title: "Synthetic other task", status: "pending", priority: "normal", due_date: null },
+      ] },
+      people: { data: [{ id: "person-one" }, { id: "person-two" }] },
+      ledger_entries: { data: [
+        { property_id: selectedPropertyId, transaction_date: "2026-10-15", direction: "expense", amount: 1200 },
+        { property_id: otherPropertyId, transaction_date: "2026-10-15", direction: "expense", amount: 2000 },
+      ] },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(fixture.client);
+
+    const data = await getOverviewScreenData(fixtureOrganizationId, { ...query, propertyId: selectedPropertyId });
+    const queue = (id: string) => data.attentionItems.find((item) => item.id === id)!;
+    for (const id of ["lease-scope-review", "expiring-leases", "open-maintenance", "vacant-units", "lease-gaps", "missing-tenant-links", "large-recent-expenses"]) {
+      expect(queue(id).count).toBe(1);
+      expect(new URL(queue(id).href, "https://nestory.invalid").searchParams.get("propertyId")).toBe(selectedPropertyId);
+    }
+    expect(queue("vacant-units").href).toBe(`/units?status=vacant&propertyId=${selectedPropertyId}`);
+    expect(queue("missing-owner-links").href).toBe(`/properties/${selectedPropertyId}`);
+    expect(queue("missing-contact-details")).toMatchObject({ count: 2, href: "/people?status=missing_contact" });
+    expect(queue("people-without-role")).toMatchObject({ count: 2, href: "/people?status=no_role" });
+  });
+
   it("counts current large expenses independently of chart month, with business-date bounds", async () => {
     const fixture = createOverviewFixture({ ledger_entries: { data: [
       { transaction_date: "2026-09-15", direction: "expense", amount: 1_000 },

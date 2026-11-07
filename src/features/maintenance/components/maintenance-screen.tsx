@@ -9,6 +9,7 @@ import Link from "next/link";
 import {
   Children,
   isValidElement,
+  startTransition,
   useActionState,
   useEffect,
   useId,
@@ -1665,6 +1666,7 @@ export function MaintenanceForm({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const baselineRef = useRef<string | null>(null);
+  const submitLockedRef = useRef(false);
   const [dirty, setDirty] = useState(false);
   const requestClose = useDrawerCloseRequest(onClose);
   const [state, action, pending] = useActionState(
@@ -1685,6 +1687,10 @@ export function MaintenanceForm({
     [onClose, status],
   );
   useDrawerDraftGuard(guard);
+
+  useEffect(() => {
+    if (!pending) submitLockedRef.current = false;
+  }, [pending]);
 
   useEffect(() => {
     if (formRef.current) {
@@ -1829,8 +1835,17 @@ export function MaintenanceForm({
   }, [state]);
 
   return (
-    <FinancialForm action={action} className="flex h-full min-w-0 flex-col" ref={formRef} onChangeCapture={updateDirty} onInput={updateDirty} onClickCapture={updateDirty} onInvalidCapture={(event) => { const details = event.target instanceof HTMLElement ? event.target.closest("details") : null; if (details) details.open = true; }}>
-      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
+    <FinancialForm action={action} className="flex h-full min-w-0 flex-col" ref={formRef} onChangeCapture={updateDirty} onInput={updateDirty} onClickCapture={updateDirty} onInvalidCapture={(event) => { const details = event.target instanceof HTMLElement ? event.target.closest("details") : null; if (details) details.open = true; }} onSubmit={(event) => {
+      event.preventDefault();
+      if (pending || submitLockedRef.current) return;
+      submitLockedRef.current = true;
+      const submitter = (event.nativeEvent as SubmitEvent).submitter;
+      const data = new FormData(event.currentTarget, submitter);
+      // A resolved validation error must retain the draft. React's native
+      // action path otherwise resets uncontrolled selectors after resolution.
+      startTransition(() => action(data));
+    }}>
+      <fieldset className="min-w-0 flex-1 space-y-4 overflow-y-auto border-0 px-4 py-5 sm:px-5" disabled={pending}>
         {maintenanceCase ? (
           <input name="taskId" type="hidden" value={maintenanceCase.id} />
         ) : null}
@@ -2148,7 +2163,7 @@ export function MaintenanceForm({
             {state.message}
           </p>
         ) : null}
-      </div>
+      </fieldset>
       <div className="border-t border-border px-4 py-4 sm:px-5">
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button className="w-full sm:w-auto" onClick={requestClose} type="button" variant="ghost">
