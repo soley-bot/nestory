@@ -1,8 +1,5 @@
-import type {
-  UnitBadgeTone,
-  UnitStatusValue,
-} from "@/features/units/unit.types";
-import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
+import type { UnitStatusValue } from "@/features/units/unit.types";
+import type { CurrencyCode } from "@/lib/money/format";
 
 export type ReportKind =
   | "transactions"
@@ -213,40 +210,7 @@ export type ReportExportValidation = NonNullable<
   TrustedReport["exportValidation"]
 >;
 
-export type OccupancyReportRow = {
-  floorLabel: string;
-  id: string;
-  inclusionLabel: string;
-  propertyCode: string;
-  propertyId: string;
-  propertyName: string;
-  remark: string;
-  rentAmount?: number;
-  rentCurrency?: CurrencyCode;
-  rentDisplay?: MoneyDisplayValue;
-  rentLabel: string;
-  sizeLabel: string;
-  statusLabel: string;
-  statusTone: UnitBadgeTone;
-  statusValue: UnitStatusValue;
-  typeLabel: string;
-  unitNumber: string;
-};
-
-export type OccupancyReport = {
-  generatedAt: string;
-  rows: OccupancyReportRow[];
-  totals: {
-    occupied: number;
-    other: number;
-    total: number;
-    vacant: number;
-    visible: number;
-  };
-};
-
 export type ReportsScreenData = {
-  occupancyReport?: OccupancyReport;
   ownerOptions?: ReportOwnerOption[];
   propertyOptions: ReportPropertyOption[];
   trustedReport: TrustedReport;

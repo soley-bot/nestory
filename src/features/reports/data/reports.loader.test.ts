@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getReportsScreenData } from "@/features/reports/data/reports";
 import { getTrustedReport } from "./trusted-report";
+import { getUnitProfitLossBundle } from "./unit-profit-loss-bundle";
 import type { ReportsViewQuery } from "@/features/reports/reports.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
@@ -126,7 +127,7 @@ describe("live Finance report reads", () => {
   it.each(["all", UNIT_ID])("retains archived unit identity in historical P&L for %s", async unitId => {
     const harness = createReportReadHarness({
       context: financeContext({ units: [{ id: UNIT_ID, property_id: PROPERTY_ID, unit_number: "A1", archived_at: "2026-08-01" }] }),
-      ownerProfitLossEvents: [{ ...ownerProfitLossEvent(), unit_id: UNIT_ID }],
+      ownerProfitLossEvents: [ownerProfitLossEvent(UNIT_ID)],
     });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
     const result = await getReportsScreenData(ORGANIZATION_ID, reportQuery({ report: "unit-profit-loss", unitId }));
@@ -147,7 +148,7 @@ describe("live Finance report reads", () => {
   });
 
   it("fails closed instead of relabeling a missing non-null unit as property-level", async () => {
-    const harness = createReportReadHarness({ context: financeContext({ units: [] }), ownerProfitLossEvents: [{ ...ownerProfitLossEvent(), unit_id: UNIT_ID }] });
+    const harness = createReportReadHarness({ context: financeContext({ units: [] }), ownerProfitLossEvents: [ownerProfitLossEvent(UNIT_ID)] });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
     const result = await getTrustedReport({ organizationId: ORGANIZATION_ID, viewQuery: reportQuery({ report: "unit-profit-loss" }) });
     expect(result).toMatchObject({
@@ -169,7 +170,7 @@ describe("live Finance report reads", () => {
   });
 
   it("enriches names through the P&L loader without loading cash events", async () => {
-    const event = { ...ownerProfitLossEvent(), unit_id: UNIT_ID };
+    const event = ownerProfitLossEvent(UNIT_ID);
     const harness = createReportReadHarness({
       ownerProfitLossEvents: [event],
       ownerProfitLossNames: [{ event_key: event.event_key, party_name: "Tenant Example" }],
@@ -179,6 +180,51 @@ describe("live Finance report reads", () => {
     expect(result.trustedReport.unitProfitLossLines).toEqual([
       expect.objectContaining({ name: "Tenant Example", type: "Invoice" }),
     ]);
+  });
+
+  it("reads each property's events and names once per download and preserves standalone unit reports in selection order", async () => {
+    const otherProperty = "10000000-0000-4000-8000-000000000002";
+    const units = [PROPERTY_ID, otherProperty, PROPERTY_ID].map((propertyId, index) => ({
+      id: `20000000-0000-4000-8000-00000000000${index + 1}`,
+      property_id: propertyId, unit_number: `U${index + 1}`, archived_at: null,
+    }));
+    const events = units.map((unit, index) => ({
+      ...ownerProfitLossEvent(unit.id), property_id: unit.property_id,
+      source_id: unit.id, cursor_source_id: unit.id, event_key: `tenant_invoice_line:${unit.id}`,
+      description: `Rent for ${unit.unit_number}`, signed_amount: `${index + 1}00.00`,
+    }));
+    const harness = createReportReadHarness({
+      context: financeContext({
+        properties: [PROPERTY_ID, otherProperty].map((id, index) => ({
+          id, code: `P${index}`, name: `Property ${index}`, archived_at: null,
+        })),
+        units,
+      }),
+      ownerProfitLossEvents: events,
+      ownerProfitLossNames: events.map(event => ({ event_key: event.event_key, party_name: `Tenant ${event.description}` })),
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const selection = { month: "2026-07", format: "pdf" as const, propertyId: "all", unitIds: units.map(unit => unit.id) };
+
+    for (const amount of ["100.00", "900.00"]) {
+      events[0]!.signed_amount = amount;
+      harness.rpcCalls.length = 0;
+      const bundle = await getUnitProfitLossBundle(ORGANIZATION_ID, "Example", selection);
+      if ("validation" in bundle) throw new Error(bundle.validation.message);
+      const files = Object.entries(unzipSync(bundle.body));
+      expect(files).toHaveLength(units.length);
+      for (const name of ["get_owner_profit_loss_events_page", "get_owner_profit_loss_names"]) {
+        const reads = harness.rpcCalls.filter(([rpc, args]) => rpc === name && !args.p_after_source_id);
+        expect(reads.map(([, args]) => args.p_property_id)).toEqual([PROPERTY_ID, otherProperty]);
+      }
+      for (const [index, unit] of units.entries()) {
+        const standalone = await getTrustedReport({ organizationId: ORGANIZATION_ID,
+          viewQuery: reportQuery({ report: "unit-profit-loss", propertyId: unit.property_id, unitId: unit.id }) });
+        expect(standalone.unitProfitLossLines?.map(line => line.unitId)).toEqual([unit.id]);
+        expect(files[index]![0]).toContain(`unit-${unit.unit_number.toLowerCase()}.pdf`);
+        expect(Buffer.from(files[index]![1]).equals(Buffer.from(buildTrustedReportPdf({ organizationName: "Example", report: standalone })))).toBe(true);
+      }
+    }
   });
 
   it("preserves the report property selector's name ordering", async () => {
@@ -308,7 +354,7 @@ function person(id: string, displayName: string) {
   };
 }
 
-function ownerProfitLossEvent() {
+function ownerProfitLossEvent(unitId: string | null = null) {
   const sourceId = "50000000-0000-4000-8000-000000000001";
   return {
     category_code: "rent",
@@ -337,7 +383,7 @@ function ownerProfitLossEvent() {
     source_parent_id: null,
     source_parent_type: null,
     source_type: "tenant_invoice_line",
-    unit_id: null,
+    unit_id: unitId,
   };
 }
 
@@ -352,8 +398,8 @@ function createReportReadHarness({
 }: {
   context?: unknown;
   contextResponse?: QueryResult;
-  ownerProfitLossNames?: unknown[];
-  ownerProfitLossEvents?: unknown[];
+  ownerProfitLossNames?: { event_key: string; party_name: string }[];
+  ownerProfitLossEvents?: ReturnType<typeof ownerProfitLossEvent>[];
   propertyAccountEntries?: unknown[];
 } = {}) {
   class Query implements PromiseLike<QueryResult> {
@@ -404,10 +450,13 @@ function createReportReadHarness({
           );
         }
         if (name === "get_owner_profit_loss_names") {
-          return new Query({ data: ownerProfitLossNames, count: ownerProfitLossNames.length, error: null });
+          const keys = args.p_event_keys as string[];
+          const names = ownerProfitLossNames.filter(row => keys.includes(row.event_key));
+          return new Query({ data: names, count: names.length, error: null });
         }
         if (name === "get_owner_profit_loss_events_page") {
-          return Promise.resolve({ data: args.p_after_source_id ? [] : ownerProfitLossEvents, error: null });
+          const events = ownerProfitLossEvents.filter(event => event.property_id === args.p_property_id);
+          return Promise.resolve({ data: args.p_after_source_id ? [] : events, error: null });
         }
         throw new Error(`Unexpected report RPC: ${name}`);
       },

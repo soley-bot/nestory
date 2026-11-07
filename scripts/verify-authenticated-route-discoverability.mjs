@@ -294,7 +294,7 @@ async function verifyFinanceSafeLinks(result) {
     join(projectRoot, "src/app/(dashboard)/reports/[reportKind]/page.tsx"),
     "utf8",
   );
-  if (!reportsData.includes("financeSafeRecords") || !reportPage.includes("financeSafeRecords: true")) {
+  if (!reportsData.includes("makeReportRecordsFinanceSafe") || !/financeSafeRecords:\s*!context\.isSuperAdmin\b/.test(reportPage)) {
     result.push("reports: Finance Manager record links are not sanitized to finance-safe routes");
   }
 }
