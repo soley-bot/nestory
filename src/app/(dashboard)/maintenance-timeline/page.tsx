@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { renderTimelineRoute } from "@/features/timeline/timeline-route";
 
 type MaintenanceTimelinePageProps = {
@@ -13,3 +14,5 @@ export default async function MaintenanceTimelinePage({
     title: "Maintenance Timeline",
   });
 }
+
+export const metadata: Metadata = { title: "Maintenance timeline" };

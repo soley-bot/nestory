@@ -606,7 +606,7 @@ function CalendarDayCell({
         <span
           className={cn(
             "inline-flex size-5 items-center justify-center rounded-full text-xs",
-            day.isToday && "bg-accent text-background",
+            day.isToday && "bg-accent text-accent-foreground",
           )}
         >
           {day.dayNumber}

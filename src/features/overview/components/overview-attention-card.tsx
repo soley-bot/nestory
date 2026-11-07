@@ -21,10 +21,12 @@ export function OverviewAttentionCard({
   items,
   metric,
   month,
+  propertyId = "all",
 }: {
   items: readonly OverviewAttentionItem[];
   metric: OverviewMetric;
   month: string;
+  propertyId?: string;
 }) {
   const value = typeof metric.value === "string" ? metric.value : metric.value.primary;
   const count = items.reduce((total, item) => total + item.count, 0);
@@ -87,7 +89,7 @@ export function OverviewAttentionCard({
         <div className="flex justify-end border-t border-border pt-3">
           <Link
             className="inline-flex items-center gap-1 text-sm font-medium text-foreground hover:underline"
-            href={`/overview/attention?month=${month}`}
+            href={`/overview/attention?${new URLSearchParams(propertyId === "all" ? {month} : {month, propertyId})}`}
           >
             View all checks <ArrowRight aria-hidden="true" className="size-4" />
           </Link>

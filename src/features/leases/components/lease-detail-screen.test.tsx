@@ -29,6 +29,7 @@ const historicalCorrectionMocks = vi.hoisted(() => ({ apply: vi.fn(), preview: v
 const feeDateMocks = vi.hoisted(() => ({ list: vi.fn(), preview: vi.fn(), correct: vi.fn() }));
 const depositActionMocks = vi.hoisted(() => ({ record: vi.fn(), requirement: vi.fn() }));
 const leaseEditorMocks = vi.hoisted(() => ({ billing: vi.fn(), term: vi.fn(), carryBilling: vi.fn() }));
+const lifecycleMocks = vi.hoisted(() => ({ transition: vi.fn() }));
 const actionMocks = vi.hoisted(() => ({
   confirmOwnerCollectionAction: vi.fn(),
   recordTenantInvoicePaymentAction: vi.fn(),
@@ -73,7 +74,7 @@ vi.mock("@/features/leases/actions", () => ({
   scheduleLeaseActivationAction: async () => ({}),
   scheduleFutureRentTermAction: (...args: unknown[]) => leaseEditorMocks.term(...args),
   saveLeaseBillingRulesAction: (...args: unknown[]) => leaseEditorMocks.billing(...args),
-  transitionLeaseLifecycleAction: async () => ({}),
+  transitionLeaseLifecycleAction: (...args: unknown[]) => lifecycleMocks.transition(...args),
   updateLeaseAction: async () => ({}),
 }));
 
@@ -103,6 +104,7 @@ beforeEach(() => {
   feeDateMocks.list.mockReset().mockResolvedValue({ candidates: [] });
   feeDateMocks.preview.mockReset();
   feeDateMocks.correct.mockReset();
+  lifecycleMocks.transition.mockReset().mockResolvedValue({});
   depositActionMocks.record.mockReset().mockResolvedValue({});
   depositActionMocks.requirement.mockReset().mockResolvedValue({ status: "success", message: "Required deposit updated. The held balance is unchanged." });
   leaseEditorMocks.billing.mockReset().mockResolvedValue({});
@@ -625,7 +627,7 @@ describe("LeaseDetailScreen", () => {
       const originalEndDate = new FormData(form).get("endDate");
       expect(new FormData(form).get("startDate")).toBe("2026-08-01");
 
-      await user.click(within(dialog).getByRole("button", { name: "Effective date" }));
+      await user.click(within(dialog).getByRole("combobox", { name: "Effective date" }));
       await user.click(screen.getByRole("button", { name: "Today" }));
 
       expect(new FormData(form).get("startDate")).toBe("2026-08-15");
@@ -863,6 +865,12 @@ describe("LeaseDetailScreen", () => {
     expect(payload.get("correctedRentAmount")).toBe("1450.00");
     expect(payload.get("correctedDueDay")).toBe("5");
     expect(payload.get("correctedManagementFeeAmount")).toBe("48.33");
+    let finishPreview!: (value: unknown) => void;
+    historicalCorrectionMocks.preview.mockReturnValueOnce(new Promise(resolve => { finishPreview = resolve; }));
+    await user.click(within(dialog).getByRole("button", { name: "Preview correction" }));
+    expect((within(dialog).getByRole("button", { name: "Apply management fee correction" }) as HTMLButtonElement).disabled).toBe(true);
+    const refreshedPreview = await historicalCorrectionMocks.preview.mock.results[0].value;
+    await act(async () => finishPreview(refreshedPreview));
     fireEvent.change(screen.getByLabelText("Corrected management fee amount"), { target: { value: "50" } });
     expect(screen.queryByRole("button", { name: "Apply management fee correction" })).toBeNull();
     expect(screen.getByText(/inputs changed after preview/)).not.toBeNull();
@@ -930,6 +938,30 @@ describe("LeaseDetailScreen", () => {
     expect(
       dialog.querySelector<HTMLInputElement>('input[name="transition"]')?.value,
     ).toBe("cancel");
+  });
+
+  it("retains lifecycle fields after a rejected save and protects the pending request", async () => {
+    let finish!: (value: { status: string; message: string }) => void;
+    lifecycleMocks.transition.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    const user = userEvent.setup();
+    const lease = makeLease();
+    lease.statusLabel = "Draft";
+    lease.statusValue = "draft";
+    renderDetail("overview", lease);
+    await user.click(screen.getByRole("button", { name: "Cancel draft" }));
+    const dialog = screen.getByRole("dialog", { name: "Cancel draft" });
+    await user.type(within(dialog).getByLabelText("Reason or note"), "Tenant changed plans");
+    fireEvent.submit(dialog.querySelector("form")!);
+    await waitFor(() => expect(lifecycleMocks.transition).toHaveBeenCalledOnce());
+    expect(within(dialog).getByRole("button", { name: "Cancel" }).matches(":disabled")).toBe(true);
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("alertdialog", { name: "Saving is still in progress" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Continue waiting" }));
+    await act(async () => finish({ status: "error", message: "Review the date and try again." }));
+    expect(await screen.findByText("Review the date and try again.")).not.toBeNull();
+    expect((within(dialog).getByLabelText("Reason or note") as HTMLTextAreaElement).value).toBe("Tenant changed plans");
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).not.toBeNull();
   });
 
   it("shows a pending activation with a direct cancel action", () => {
@@ -1104,6 +1136,18 @@ describe("LeaseDetailScreen", () => {
     ).toBe("give_notice");
   });
 
+  it("confirms dismissal of an edited lease notice", async () => {
+    const user = userEvent.setup();
+    renderDetail("overview");
+    await user.click(screen.getByRole("button", { name: "Manage lease" }));
+    await user.click(screen.getByRole("menuitem", { name: "Record notice" }));
+    const dialog = screen.getByRole("dialog", { name: "Record notice" });
+    await user.type(within(dialog).getByLabelText("Reason or note"), "Tenant gave written notice");
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).not.toBeNull();
+    expect(within(dialog).getByLabelText<HTMLTextAreaElement>("Reason or note").value).toBe("Tenant gave written notice");
+  });
+
   it.each([
     ["rent", "Rent & deposit", "Change rent"],
     ["occupancy", "Move-in & move-out", "Confirmed dates"],
@@ -1170,6 +1214,31 @@ describe("LeaseDetailScreen", () => {
     const first = depositActionMocks.requirement.mock.calls[0]![1] as FormData;
     const retry = depositActionMocks.requirement.mock.calls[1]![1] as FormData;
     expect(Object.fromEntries(retry)).toEqual(Object.fromEntries(first));
+  });
+
+  it("protects an edited deposit requirement and its pending save", async () => {
+    let finish!: (result: { status: string; message: string }) => void;
+    depositActionMocks.requirement.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    const user = userEvent.setup();
+    renderDetail("rent", makeLease());
+    await user.click(screen.getByRole("button", { name: "Edit required deposit" }));
+    const drawer = screen.getByRole("dialog", { name: "Edit required deposit" });
+    const amount = await within(drawer).findByRole("textbox", { name: /Required deposit \(USD\)/ });
+    await user.clear(amount);
+    await user.type(amount, "1750");
+    await user.type(within(drawer).getByRole("textbox", { name: /Reason for change/ }), "Agreed revised lease deposit");
+    await user.click(within(drawer).getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    await user.click(within(drawer).getByRole("button", { name: "Save required deposit" }));
+    await waitFor(() => expect(depositActionMocks.requirement).toHaveBeenCalledOnce());
+    expect(amount.matches(":disabled")).toBe(true);
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("alertdialog", { name: "Saving is still in progress" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Continue waiting" }));
+    await act(async () => finish({ status: "error", message: "Review the required deposit and retry." }));
+    expect((amount as HTMLInputElement).value).toBe("1750");
+    expect((within(drawer).getByRole("textbox", { name: /Reason for change/ }) as HTMLInputElement).value).toBe("Agreed revised lease deposit");
   });
 
   it("hides requirement editing for closed and archived leases", () => {

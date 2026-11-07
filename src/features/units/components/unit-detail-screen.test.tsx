@@ -52,6 +52,27 @@ beforeEach(() => {
 });
 
 describe("UnitDetailScreen focused operating record", () => {
+  it("shows operational and lease state separately and retains the tenant for lease creation", async () => {
+    renderUnitDetail({ tenantPersonId: "person-tenant", unit: availableUnitDetail });
+    expect(screen.getByText("In service")).toBeTruthy();
+    expect(screen.getByText("No lease")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Create lease" }));
+    const drawer = await screen.findByRole("dialog", { name: "Create lease" });
+    expect((within(drawer).getByRole("combobox", { name: /Tenant/ }) as HTMLInputElement).value).toBe("Dara Tenant");
+  });
+  it("keeps the tenant while switching unit sections or choosing another property", () => {
+    renderUnitDetail({ tenantPersonId: "person-tenant", unit: availableUnitDetail });
+    expect(screen.getByRole("link", { name: "Properties" }).getAttribute("href"))
+      .toBe("/properties?tenantPersonId=person-tenant");
+    const propertyLink = screen.getByRole("link", { name: /CTR.*Central Residence/ });
+    expect(new URL(propertyLink.getAttribute("href")!, "https://nestory.invalid").searchParams.get("tenantPersonId"))
+      .toBe("person-tenant");
+    const overview = screen.getByRole("tabpanel", { name: "Overview" });
+    expect(within(overview).getByRole("link", { name: "Central Residence" }).getAttribute("href"))
+      .toBe("/properties/property-1?tenantPersonId=person-tenant");
+    fireEvent.click(screen.getByRole("tab", { name: "Files" }));
+    expect(new URLSearchParams(window.location.search).get("tenantPersonId")).toBe("person-tenant");
+  });
   it.each(["frozen", "open"] as const)("preserves unit navigation but hides financial amounts for a %s stale payload", (status) => {
     vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
     renderUnitDetail({ context: { generation: 2, status, enforced: true, financial_start_date: "2026-10-01" }, unit: { ...unitDetail, financialGeneration: 1 } });
@@ -232,10 +253,10 @@ describe("UnitDetailScreen focused operating record", () => {
     const drawer = screen.getByRole("dialog", { name: "New maintenance case" });
     await waitFor(() => expect(drawer.querySelector("form")).toBeTruthy());
     expect(drawer.querySelector("form")).toBeTruthy();
-    expect(within(drawer).getByRole("combobox", { name: "Property" }).textContent).toContain(
+    expect(within(drawer).getByRole("combobox", { name: /^Property/ }).textContent).toContain(
       "CTR / Central Residence",
     );
-    expect(within(drawer).getByRole("combobox", { name: "Unit" }).textContent).toContain("Unit 12A");
+    expect(within(drawer).getByRole("combobox", { name: /^Unit/ }).textContent).toContain("Unit 12A");
     const formValues = new FormData(drawer.querySelector("form")!);
     expect(formValues.getAll("propertyId")).toEqual(["property-1"]);
     expect(formValues.getAll("unitId")).toEqual(["unit-1"]);
@@ -422,6 +443,7 @@ describe("UnitDetailScreen focused operating record", () => {
 });
 
 function renderUnitDetail({
+  tenantPersonId,
   context,
   canArchive = true,
   canCreateLease = true,
@@ -430,6 +452,7 @@ function renderUnitDetail({
   initialSection = "overview",
   unit = unitDetail,
 }: {
+  tenantPersonId?: string;
   context?: FinancialWriteContext;
   canArchive?: boolean;
   canCreateLease?: boolean;
@@ -438,12 +461,13 @@ function renderUnitDetail({
   initialSection?: "overview" | "lease" | "finance" | "maintenance" | "files";
   unit?: typeof unitDetail;
 } = {}) {
-  return render(buildUnitDetailElement({ initialSection, unit, canArchive, canCreateLease, canCreateMaintenanceCase, canWrite }), {
+  return render(buildUnitDetailElement({ tenantPersonId, initialSection, unit, canArchive, canCreateLease, canCreateMaintenanceCase, canWrite }), {
     wrapper: context ? ({ children }) => <FinancialWriteProvider organizationId="org" context={context}>{children}</FinancialWriteProvider> : undefined,
   });
 }
 
 function buildUnitDetailElement({
+  tenantPersonId,
   canArchive = true,
   canCreateLease = true,
   canCreateMaintenanceCase = true,
@@ -451,6 +475,7 @@ function buildUnitDetailElement({
   initialSection = "overview",
   unit = unitDetail,
 }: {
+  tenantPersonId?: string;
   canArchive?: boolean;
   canCreateLease?: boolean;
   canCreateMaintenanceCase?: boolean;
@@ -460,6 +485,7 @@ function buildUnitDetailElement({
 } = {}) {
   return (
     <UnitDetailScreen
+      tenantPersonId={tenantPersonId}
       activeSection={initialSection}
       canArchive={canArchive}
       canCreateLease={canCreateLease}

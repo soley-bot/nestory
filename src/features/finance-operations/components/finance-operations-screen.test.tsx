@@ -231,7 +231,7 @@ describe("FinanceOperationsScreen", () => {
     input.expenseSubmissions = [expenseSubmission("submitted"), { ...expenseSubmission("submitted"), id: "september", date: "2026-09-01", vendorLabel: "September vendor" }];
     render(<FinanceOperationsScreen {...input} {...financeCapabilities()} organizationName="IPS" view="expenses" />);
     await user.click(screen.getByRole("button", { name: "Expense month" }));
-    await user.click(screen.getByRole("button", { name: "Aug" }));
+    await user.click(screen.getByRole("button", { name: /^Aug / }));
     expect(screen.queryByText("September vendor")).toBeNull();
     expect(screen.getByText("Sokha Repairs")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
@@ -245,7 +245,7 @@ describe("FinanceOperationsScreen", () => {
     const input = data(); input.expenseSubmissions = [];
     render(<FinanceOperationsScreen {...input} {...financeCapabilities()} expenseMonth="2026-08" organizationName="IPS" view="expenses" />);
     await user.click(screen.getByRole("button", { name: "Expense month" }));
-    await user.click(screen.getByRole("button", { name: "Sep" }));
+    await user.click(screen.getByRole("button", { name: /^Sep / }));
     expect(navigation.replace).toHaveBeenCalledWith("/bills-expenses?expenseMonth=2026-09", { scroll: false });
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(navigation.replace).toHaveBeenCalledWith("/bills-expenses", { scroll: false });
@@ -437,7 +437,7 @@ describe("FinanceOperationsScreen", () => {
     await user.type(screen.getByRole("textbox", { name: /^Reason for change/ }), "Correct receipt date");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await screen.findByText("Choose a date in the open period.");
-    const date = screen.getByRole("button", { name: /^Change date/ });
+    const date = screen.getByRole("combobox", { name: /^Change date/ });
     await waitFor(() => expect(document.activeElement).toBe(date));
     expect(date.getAttribute("data-invalid")).toBe("true");
     expect(document.getElementById(date.getAttribute("aria-describedby")!)?.textContent).toBe("Choose a date in the open period.");
@@ -1767,7 +1767,7 @@ describe("FinanceOperationsScreen", () => {
       within(dialog).getByRole("button", { name: "Billing month" }),
     ).not.toBeNull();
     expect(
-      within(dialog).getByRole("button", { name: "Due date" }),
+      within(dialog).getByRole("combobox", { name: "Due date" }),
     ).not.toBeNull();
     const amount = within(dialog).getByLabelText("Amount");
     expect(amount.getAttribute("placeholder")).toBe("0.00");

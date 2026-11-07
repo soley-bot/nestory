@@ -1,7 +1,7 @@
 "use client";
 
 import { UploadCloud } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useDropzone, type Accept } from "react-dropzone";
 import { cn } from "@/lib/utils";
 import { MAX_SERVER_UPLOAD_BYTES, SERVER_UPLOAD_SIZE_MESSAGE } from "@/lib/uploads/upload-limits";
@@ -32,6 +32,7 @@ type FileDropzoneFieldProps = {
   accept: Accept;
   className?: string;
   description?: string;
+  disabled?: boolean;
   displayFileName?: string;
   name?: string;
   maxSize?: number;
@@ -52,6 +53,7 @@ export function FileDropzoneField(props: FileDropzoneFieldProps) {
   accept,
   className,
   description,
+  disabled = false,
   displayFileName,
   name,
   maxSize = MAX_SERVER_UPLOAD_BYTES,
@@ -63,19 +65,51 @@ export function FileDropzoneField(props: FileDropzoneFieldProps) {
   } = props;
   const [fileName, setFileName] = useState("");
   const [error, setError] = useState("");
+  const syncedDropFileRef = useRef<File | null>(null);
   const errorId = useId();
-  const { getInputProps, getRootProps, inputRef, isDragActive, open } = useDropzone({
+  const { getInputProps, getRootProps, inputRef, isDragActive } = useDropzone({
     accept,
+    disabled,
     maxSize,
     maxFiles: 1,
     multiple: false,
     noClick: true,
     noKeyboard: true,
-    onDropAccepted(files) {
+    onDropAccepted(files, event) {
+      if (disabled || inputRef.current?.matches(":disabled")) return;
+      const eventType = event && "type" in event ? event.type : "";
       const file = files[0];
 
       if (!file) {
         return;
+      }
+      if (eventType === "change" && syncedDropFileRef.current === file) {
+        syncedDropFileRef.current = null;
+        return;
+      }
+
+      const input = inputRef.current;
+      if (eventType === "drop" && input && input.files?.[0] !== file) {
+        try {
+          const transfer = new DataTransfer();
+          transfer.items.add(file);
+          input.files = transfer.files;
+        } catch {
+          const message = "This browser could not attach the dropped file. Please browse for it instead.";
+          clearFileInput(input);
+          input.setCustomValidity(message);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          setFileName("");
+          setError(message);
+          onReject?.();
+          return;
+        }
+        syncedDropFileRef.current = file;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        window.setTimeout(() => {
+          if (syncedDropFileRef.current === file) syncedDropFileRef.current = null;
+        }, 0);
       }
 
       setFileName(file.name);
@@ -84,6 +118,7 @@ export function FileDropzoneField(props: FileDropzoneFieldProps) {
       onFile?.(file);
     },
     onDropRejected(rejections) {
+      if (disabled || inputRef.current?.matches(":disabled")) return;
       const message = rejections.some((item) => item.errors.some((error) => error.code === "file-too-large"))
         ? SERVER_UPLOAD_SIZE_MESSAGE : "Choose one file in an accepted format.";
       setError(message);
@@ -91,24 +126,28 @@ export function FileDropzoneField(props: FileDropzoneFieldProps) {
       if (inputRef.current) {
         inputRef.current.value = "";
         inputRef.current.setCustomValidity(message);
+        inputRef.current.dispatchEvent(new Event("input", { bubbles: true }));
       }
       onReject?.();
     },
   });
-  const handleOpen = () => {
-    open();
-  };
+  const handleOpen = useCallback(() => {
+    if (disabled || inputRef.current?.matches(":disabled")) return;
+    // react-dropzone's open() clears input.files before showing the picker.
+    // Native click preserves the current attachment if the user cancels.
+    inputRef.current?.click();
+  }, [disabled, inputRef]);
   useEffect(() => {
     if (!openRef) {
       return;
     }
 
-    openRef.current = open;
+    openRef.current = handleOpen;
 
     return () => {
       openRef.current = null;
     };
-  }, [open, openRef]);
+  }, [handleOpen, openRef]);
   const displayLabel =
     displayFileName ??
     (fileName || (isDragActive ? "Drop file here" : "Drop file here or browse"));
@@ -122,6 +161,7 @@ export function FileDropzoneField(props: FileDropzoneFieldProps) {
         aria-labelledby={ariaLabelledBy}
         aria-required={ariaRequired ?? required}
         required={required}
+        disabled={disabled}
       />
       <button
         {...getRootProps({
@@ -138,6 +178,7 @@ export function FileDropzoneField(props: FileDropzoneFieldProps) {
             className,
           ),
         })}
+        disabled={disabled}
         type="button"
       >
         <UploadCloud className="text-muted-foreground" size={18} />
@@ -152,8 +193,9 @@ export function FileDropzoneField(props: FileDropzoneFieldProps) {
       </button>
       {error ? <div className="mt-2 text-sm">
         <p className="text-danger" id={errorId} role="alert">{error}</p>
-        <button type="button" className="mt-1 underline" onClick={() => {
+        <button type="button" disabled={disabled} className="mt-1 underline" onClick={() => {
           clearFileInput(inputRef.current);
+          inputRef.current?.dispatchEvent(new Event("input", { bubbles: true }));
           setError("");
           setFileName("");
           onClear?.();

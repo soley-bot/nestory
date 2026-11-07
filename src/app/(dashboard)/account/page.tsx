@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   AccountScreen,
@@ -111,3 +112,5 @@ async function loadPerson(
     roles: (roleResult.data ?? []).map((row) => row.role),
   };
 }
+
+export const metadata: Metadata = { title: "My account" };

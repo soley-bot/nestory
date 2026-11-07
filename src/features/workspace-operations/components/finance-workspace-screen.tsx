@@ -57,6 +57,7 @@ export function FinanceManagerWorkspace({
               }
               amount={<QueueAmount value={item.amountDisplay} />}
               context={item.contextLabel}
+              details={<><span>Submitted by <QueueText value={item.submittedByLabel} /></span><QueueAge value={item.submittedAt} /></>}
               key={item.id}
               status={<QueueStatus label={item.statusLabel} tone={item.tone} />}
               title={item.title}
@@ -143,6 +144,7 @@ export function FinanceMemberWorkspace({
               }
               amount={<QueueAmount value={item.amountDisplay} />}
               context={item.contextLabel}
+              details={<><span>Submitted by <QueueText value={item.submittedByLabel} /></span><QueueAge value={item.submittedAt} /></>}
               key={item.id}
               status={<QueueStatus label={item.statusLabel} tone={item.tone} />}
               title={item.title}

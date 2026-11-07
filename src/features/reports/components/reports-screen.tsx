@@ -1,16 +1,11 @@
-import { FinancialReportLink, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
-import { AlertTriangle, ArrowLeft, ChevronDown, Download } from "lucide-react";
+import { ReportExportMenu as ExportMenu } from "./report-export-menu";
+import { FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 import { PageHelp } from "@/components/help/page-help";
 import { WorkspacePage } from "@/components/layout/workspace-page";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+
 import { ReportResultsTable } from "@/features/reports/components/report-results-table";
 import { UnitProfitLossWorkspace } from "./unit-profit-loss-workspace";
 import { UnitProfitLossSelector } from "./unit-profit-loss-selector";
@@ -22,7 +17,6 @@ import { ReportSavedViews } from "@/features/reports/components/report-saved-vie
 import { ReportColumns } from "@/features/reports/components/report-columns";
 import type {
   ReportsScreenData,
-  ReportsViewQuery,
 } from "@/features/reports/reports.types";
 import { cn } from "@/lib/utils";
 import { RecheckReport } from "@/features/reports/components/report-remediation-controls";
@@ -64,9 +58,9 @@ export function ReportBuilderScreen({
     </header>}>
       <ReportsFilters key={queryKey} compact action={`/reports/${viewQuery.report}`} propertyOptions={propertyOptions} unitOptions={unitOptions} ownerOptions={ownerOptions} viewQuery={viewQuery} />
       <div className="workspace-gutter-x pb-4">
-        {validation ? <div role={trustedReport.scopeValidation ? "alert" : "status"} className="my-3 rounded-md border border-warning/30 bg-warning-soft/35 px-3 py-2 text-sm"><p className="font-semibold">{trustedReport.scopeValidation ? "Report unavailable" : "Export unavailable"}</p><p>{validation.message}</p></div> : null}
-        {viewQuery.unitId === "all"
-          ? trustedReport.scopeValidation ? null : <UnitProfitLossSelector key={queryKey} unitOptions={unitOptions} viewQuery={viewQuery} />
+        {validation ? <div role={trustedReport.scopeValidation ? "alert" : "status"} className="my-3 rounded-md border border-warning/30 bg-warning-soft/35 px-3 py-2 text-sm"><p className="font-semibold">Report unavailable</p><p>{validation.message}</p></div> : null}
+        {!validation && viewQuery.unitId === "all"
+          ? <UnitProfitLossSelector key={queryKey} unitOptions={unitOptions} viewQuery={viewQuery} />
           : <UnitProfitLossWorkspace returnTo={`/reports/${viewQuery.report}?${queryKey}`} key={queryKey} report={trustedReport} />}
       </div>
     </WorkspacePage></FinancialReportBoundary>;
@@ -172,33 +166,4 @@ export function ReportBuilderScreen({
       </div>
     </WorkspacePage></FinancialReportBoundary>
   );
-}
-
-function ExportMenu({ viewQuery }: { viewQuery: ReportsViewQuery }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button size="sm" variant="outline">
-          <Download />
-          Export
-          <ChevronDown />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40">
-        <DropdownMenuItem asChild>
-          <FinancialReportLink href={buildExportHref("/api/reports/pdf", viewQuery)}>PDF report</FinancialReportLink>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <FinancialReportLink href={buildExportHref("/api/reports/excel", viewQuery)}>
-            Excel workbook
-          </FinancialReportLink>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function buildExportHref(path: string, viewQuery: ReportsViewQuery) {
-  const params = buildReportQueryParams(viewQuery);
-  return `${path}?${params.toString()}`;
 }

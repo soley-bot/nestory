@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { OwnerBalanceLedger, OwnerSourceResolution } from "@/features/owner-balances/components/owner-balance-ledger";
 import { OwnerStatementsReport } from "@/features/owner-balances/components/owner-statements-report";
 import { isStatementReportEnabled } from "@/features/owner-balances/statement-report-enabled";
@@ -162,3 +163,5 @@ function positiveInteger(value: string | undefined) {
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
+
+export const metadata: Metadata = { title: "Balances" };

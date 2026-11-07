@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
   OwnerBalanceLedger,
@@ -104,3 +105,5 @@ function positiveInteger(value: string | undefined) {
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
 }
+
+export const metadata: Metadata = { title: "Property account" };

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { signOutAction } from "@/features/auth/actions";
@@ -125,3 +126,5 @@ function descriptionFor(state: Awaited<ReturnType<typeof getInvitationAcceptance
   if (state === "signed_out") return "Sign in to continue.";
   return "This invitation cannot be used.";
 }
+
+export const metadata: Metadata = { title: "Accept invitation" };

@@ -13,6 +13,7 @@ export function MaintenanceReminderNotifications({
   reminders,
 }: MaintenanceReminderNotificationsProps) {
   const [dismissed, setDismissed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   if (dismissed || reminders.length === 0) {
     return null;
@@ -42,22 +43,29 @@ export function MaintenanceReminderNotifications({
           ) : null}
         </div>
         <button
-          aria-label="Dismiss notifications"
+          aria-label="Dismiss all notifications"
           className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           onClick={() => setDismissed(true)}
-          title="Dismiss notifications"
+          title="Dismiss all notifications"
           type="button"
         >
           <X size={14} />
         </button>
       </div>
-      <Link
-        className="mt-2 inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-xs font-medium transition-colors hover:bg-muted"
-        href={reminder.href}
-        prefetch={false}
-      >
-        Open reminder
-      </Link>
+      <ul className="mt-2 max-h-[50dvh] space-y-2 overflow-y-auto" aria-label="Delivered reminders">
+        {(expanded ? reminders : [reminder]).map((item, index) => (
+          <li key={`${item.href}-${index}`}>
+            <Link className="inline-flex min-h-8 items-center rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted" href={item.href} prefetch={false}>
+              {expanded ? item.title : "Open reminder"}
+            </Link>
+          </li>
+        ))}
+      </ul>
+      {reminders.length > 1 ? (
+        <button aria-expanded={expanded} className="mt-2 min-h-8 rounded-md px-2.5 text-xs font-medium underline underline-offset-4 hover:bg-muted" onClick={() => setExpanded((value) => !value)} type="button">
+          {expanded ? "Show fewer" : `View all ${reminders.length} reminders`}
+        </button>
+      ) : null}
     </aside>
   );
 }

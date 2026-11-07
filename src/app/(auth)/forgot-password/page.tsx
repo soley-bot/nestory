@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { AuthPageShell } from "@/features/auth/components/auth-page-shell";
 import { ForgotPasswordForm } from "@/features/auth/components/forgot-password-form";
 
@@ -15,3 +16,5 @@ export default function ForgotPasswordPage() {
     </AuthPageShell>
   );
 }
+
+export const metadata: Metadata = { title: "Reset password" };

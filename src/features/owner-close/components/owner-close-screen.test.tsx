@@ -286,7 +286,7 @@ describe("OwnerCloseScreen", () => {
     expect(screen.getByLabelText("Close reason")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Record correction" })).toBeTruthy();
     expect(screen.getByLabelText("Signed correction amount")).toBeTruthy();
-    expect(screen.getByLabelText("Evidence file fingerprint").closest("details:not([open])"))
+    expect(screen.getByLabelText("Evidence file").closest("details:not([open])"))
       .toBeNull();
     expect(screen.getByText("Revision 1 - Closed")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Reopen month" })).toBeNull();

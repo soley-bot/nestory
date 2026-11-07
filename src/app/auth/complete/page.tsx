@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { AuthPageShell } from "@/features/auth/components/auth-page-shell";
 import { ImplicitSessionCompletion } from "@/features/auth/components/implicit-session-completion";
 import { Button } from "@/components/ui/button";
@@ -49,3 +50,5 @@ export default async function AuthCompletePage({
 
   return <ImplicitSessionCompletion key={`${failed}:${nextPath}`} failed={failed} nextPath={nextPath} />;
 }
+
+export const metadata: Metadata = { title: "Completing sign-in" };

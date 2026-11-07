@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSettingsLandingHref } from "@/features/organization/settings-navigation";
 import { requireWorkspaceContext } from "@/lib/auth/context";
@@ -23,3 +24,5 @@ function legacySectionHref(value: string | string[] | undefined) {
     ? `/settings/${section}`
     : "/settings/organization";
 }
+
+export const metadata: Metadata = { title: "Settings" };

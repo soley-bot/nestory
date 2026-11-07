@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { UnitDetailScreen } from "@/features/units/components/unit-detail-screen";
 import { getUnitDetail } from "@/features/units/data/units";
 import { parseUnitDetailQuery } from "@/features/units/unit-detail-route";
@@ -44,7 +45,10 @@ export default async function UnitPage({ params, searchParams }: UnitPageProps) 
       canWrite={context.permissionKeys.has("properties.write")}
       key={scopeKey}
       sourceTaskId={sourceTaskId}
+      tenantPersonId={typeof rawSearchParams.tenantPersonId === "string" ? rawSearchParams.tenantPersonId : undefined}
       unit={unit}
     />
   );
 }
+
+export const metadata: Metadata = { title: "Unit details" };

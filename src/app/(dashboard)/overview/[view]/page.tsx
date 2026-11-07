@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
   OverviewDetailPage,
@@ -23,7 +24,6 @@ export default async function OverviewDetailRoute({
   const query = parseOverviewSearchParams(await searchParams);
   const data = await getOverviewScreenData(context.organizationId, {
     ...query,
-    propertyId: "all",
     review: "all",
   });
 
@@ -33,3 +33,5 @@ export default async function OverviewDetailRoute({
 function isOverviewDetailView(value: string): value is OverviewDetailView {
   return value === "attention";
 }
+
+export const metadata: Metadata = { title: "Attention checks" };

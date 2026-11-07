@@ -122,3 +122,10 @@ describe("CutoverPanel", () => {
     expect(screen.getByRole("button", { name: "Confirm imported totals" })).toBeTruthy();
   });
 });
+
+it("requires an intentional start date for a new import plan", () => {
+  render(<CutoverPanel canManage detail={null} />);
+  const input = screen.getByLabelText("Start date");
+  expect(input).toHaveProperty("value", "");
+  expect(input).toHaveProperty("required", true);
+});

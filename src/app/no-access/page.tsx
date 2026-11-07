@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { signOutAction } from "@/features/auth/actions";
 import { AuthPageShell } from "@/features/auth/components/auth-page-shell";
@@ -85,3 +86,5 @@ export default async function NoAccessPage({ searchParams }: NoAccessPageProps) 
     </AuthPageShell>
   );
 }
+
+export const metadata: Metadata = { title: "Access unavailable" };

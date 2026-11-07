@@ -175,7 +175,7 @@ function MaintenanceCostHandoffPanel({
             : "You can still finish the work."}
         </p>
       ) : (
-        <FinancialForm action={action} className="space-y-3 rounded-md border border-border bg-card p-3">
+        <FinancialForm draftGuard={{ pending, saved: state.status === "success" }} action={action} className="space-y-3 rounded-md border border-border bg-card p-3">
           {isApprovedAdjustment ? (
             <p className="text-xs leading-5 text-muted-foreground">
               Approved history stays unchanged. Update the recorded total in
@@ -192,6 +192,8 @@ function MaintenanceCostHandoffPanel({
                 defaultValue={
                   maintenanceCase.actualCostDate ?? getBusinessDateValue()
                 }
+                aria-invalid={Boolean(state.fieldErrors?.expenseDate?.[0])}
+                aria-describedby={state.fieldErrors?.expenseDate?.[0] ? `cost-date-error-${maintenanceCase.id}` : undefined}
                 name="expenseDate"
                 required
               />
@@ -201,6 +203,8 @@ function MaintenanceCostHandoffPanel({
               <UploadFileInput
                 accept="application/pdf,image/jpeg,image/png,image/webp"
                 aria-label="Receipt"
+                aria-invalid={Boolean(state.fieldErrors?.supportingDocumentId?.[0])}
+                aria-describedby={state.fieldErrors?.supportingDocumentId?.[0] ? `cost-receipt-error-${maintenanceCase.id}` : undefined}
                 name="evidenceFile"
                 required
 
@@ -212,6 +216,8 @@ function MaintenanceCostHandoffPanel({
             <Input
               defaultValue={maintenanceCase.actualCostReference ?? ""}
               maxLength={160}
+              aria-invalid={Boolean(state.fieldErrors?.reference?.[0])}
+              aria-describedby={state.fieldErrors?.reference?.[0] ? `cost-reference-error-${maintenanceCase.id}` : undefined}
               name="reference"
               placeholder="Receipt number or payment note"
             />
@@ -219,13 +225,16 @@ function MaintenanceCostHandoffPanel({
           <p className="text-xs text-muted-foreground">
             Upload a receipt for Finance to review this cost. It is kept with this submission.
           </p>
+          {state.fieldErrors?.supportingDocumentId?.[0] ? (
+            <p className="text-xs text-danger" id={`cost-receipt-error-${maintenanceCase.id}`} role="alert">{state.fieldErrors.supportingDocumentId[0]}</p>
+          ) : null}
           {state.fieldErrors?.reference?.[0] ? (
-            <p className="text-xs text-danger">
+            <p className="text-xs text-danger" id={`cost-reference-error-${maintenanceCase.id}`} role="alert">
               {state.fieldErrors.reference[0]}
             </p>
           ) : null}
           {state.fieldErrors?.expenseDate?.[0] ? (
-            <p className="text-xs text-danger">
+            <p className="text-xs text-danger" id={`cost-date-error-${maintenanceCase.id}`} role="alert">
               {state.fieldErrors.expenseDate[0]}
             </p>
           ) : null}
@@ -334,7 +343,7 @@ function CoordinatedExecutionPanel({
       ) : null}
       {availableActions.includes("block") && availableActions.includes("complete") ? (
         <>
-          <FinancialForm action={action} className="space-y-2 rounded-md border border-border bg-card p-3">
+          <FinancialForm draftGuard={{ pending, saved: state.status === "success" }} action={action} className="space-y-2 rounded-md border border-border bg-card p-3">
             <input name="taskId" type="hidden" value={maintenanceCase.id} />
             <input name="coordinatedAction" type="hidden" value="block" />
             <label className="block text-sm font-medium" htmlFor={`coordinated-block-${maintenanceCase.id}`}>
@@ -344,7 +353,7 @@ function CoordinatedExecutionPanel({
               id={`coordinated-block-${maintenanceCase.id}`}
               maxLength={500}
               minLength={3}
-              name="coordinatedNote"
+              aria-invalid={Boolean(state.fieldErrors?.coordinatedNote?.[0])} aria-describedby={state.fieldErrors?.coordinatedNote?.[0] ? `coordinatedNote-error-${maintenanceCase.id}` : undefined} name="coordinatedNote"
               placeholder="What prevents coordinated work from continuing?"
               required
             />
@@ -357,7 +366,7 @@ function CoordinatedExecutionPanel({
               <Pause size={14} /> Mark coordinated work blocked
             </Button>
           </FinancialForm>
-          <FinancialForm action={action} className="space-y-2 rounded-md border border-border bg-card p-3">
+          <FinancialForm draftGuard={{ pending, saved: state.status === "success" }} action={action} className="space-y-2 rounded-md border border-border bg-card p-3">
             <input name="taskId" type="hidden" value={maintenanceCase.id} />
             <input name="coordinatedAction" type="hidden" value="complete" />
             <label className="block text-sm font-medium" htmlFor={`coordinated-complete-${maintenanceCase.id}`}>
@@ -367,7 +376,7 @@ function CoordinatedExecutionPanel({
               id={`coordinated-complete-${maintenanceCase.id}`}
               maxLength={500}
               minLength={3}
-              name="coordinatedNote"
+              aria-invalid={Boolean(state.fieldErrors?.coordinatedNote?.[0])} aria-describedby={state.fieldErrors?.coordinatedNote?.[0] ? `coordinatedNote-error-${maintenanceCase.id}` : undefined} name="coordinatedNote"
               placeholder="What was completed and by whom?"
               required
             />
@@ -383,7 +392,7 @@ function CoordinatedExecutionPanel({
         </>
       ) : null}
       {state.fieldErrors?.coordinatedNote?.[0] ? (
-        <p className="text-xs text-danger">{state.fieldErrors.coordinatedNote[0]}</p>
+        <p className="text-xs text-danger" id={`coordinatedNote-error-${maintenanceCase.id}`} role="alert">{state.fieldErrors.coordinatedNote[0]}</p>
       ) : null}
       {state.status === "error" && state.message ? (
         <p className="text-sm text-danger" role="alert">{state.message}</p>
@@ -452,7 +461,7 @@ function MemberExecutionPanel({
           {maintenanceCase.checklist.length === 0 ? (
             <p className="text-sm text-muted-foreground">No checklist items were assigned.</p>
           ) : maintenanceCase.checklist.map((item) => (
-            <FinancialForm action={action} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-2" key={item.id}>
+            <FinancialForm draftGuard={{ pending, saved: state.status === "success" }} action={action} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-2" key={item.id}>
               <input name="taskId" type="hidden" value={maintenanceCase.id} />
               <input name="executionAction" type="hidden" value="set_checklist_item" />
               <input name="checklistItemId" type="hidden" value={item.id} />
@@ -467,12 +476,12 @@ function MemberExecutionPanel({
       ) : null}
       {maintenanceCase.status === "in_progress" ? (
         <>
-          <FinancialForm action={action} className="space-y-2 rounded-md border border-border bg-card p-3">
+          <FinancialForm draftGuard={{ pending, saved: state.status === "success" }} action={action} className="space-y-2 rounded-md border border-border bg-card p-3">
             <input name="taskId" type="hidden" value={maintenanceCase.id} />
             <input name="executionAction" type="hidden" value="block" />
             <label className="block text-sm font-medium" htmlFor={`blocked-${maintenanceCase.id}`}>Blocker</label>
-            <Textarea id={`blocked-${maintenanceCase.id}`} maxLength={500} minLength={3} name="blockedReason" placeholder="What prevents the work from continuing?" required />
-            {state.fieldErrors?.blockedReason?.[0] ? <p className="text-xs text-danger">{state.fieldErrors.blockedReason[0]}</p> : null}
+            <Textarea id={`blocked-${maintenanceCase.id}`} maxLength={500} minLength={3} aria-invalid={Boolean(state.fieldErrors?.blockedReason?.[0])} aria-describedby={state.fieldErrors?.blockedReason?.[0] ? `blockedReason-error-${maintenanceCase.id}` : undefined} name="blockedReason" placeholder="What prevents the work from continuing?" required />
+            {state.fieldErrors?.blockedReason?.[0] ? <p className="text-xs text-danger" id={`blockedReason-error-${maintenanceCase.id}`} role="alert">{state.fieldErrors.blockedReason[0]}</p> : null}
             <TransitionConsequence
               maintenanceCase={maintenanceCase}
               notification="Workspace handoff only"
@@ -520,7 +529,7 @@ function CompletionReviewPanel({
   }, [onStatusMessage, router, state.message, state.status]);
 
   return (
-    <FinancialForm action={action} className="space-y-3 border-t border-border pt-3">
+    <FinancialForm draftGuard={{ pending, saved: state.status === "success" }} action={action} className="space-y-3 border-t border-border pt-3">
       <input name="taskId" type="hidden" value={maintenanceCase.id} />
       <p className="text-sm font-semibold">Completion review</p>
       <TransitionConsequence
@@ -535,8 +544,8 @@ function CompletionReviewPanel({
         </ul>
       ) : null}
       <label className="block text-sm font-medium" htmlFor={`review-${maintenanceCase.id}`}>Review note</label>
-      <Textarea id={`review-${maintenanceCase.id}`} maxLength={500} minLength={3} name="reviewNote" placeholder="Optional for approval; required to return work." />
-      {state.fieldErrors?.reviewNote?.[0] ? <p className="text-xs text-danger">{state.fieldErrors.reviewNote[0]}</p> : null}
+      <Textarea id={`review-${maintenanceCase.id}`} maxLength={500} minLength={3} aria-invalid={Boolean(state.fieldErrors?.reviewNote?.[0])} aria-describedby={state.fieldErrors?.reviewNote?.[0] ? `reviewNote-error-${maintenanceCase.id}` : undefined} name="reviewNote" placeholder="Optional for approval; required to return work." />
+      {state.fieldErrors?.reviewNote?.[0] ? <p className="text-xs text-danger" id={`reviewNote-error-${maintenanceCase.id}`} role="alert">{state.fieldErrors.reviewNote[0]}</p> : null}
       <div className="flex flex-wrap gap-2">
         <Button disabled={pending} name="reviewAction" type="submit" value="approve" variant="default"><CheckCircle2 size={14} /> Approve completion</Button>
         <Button disabled={pending} name="reviewAction" type="submit" value="reopen"><CornerUpLeft size={14} /> Return to assignee</Button>
@@ -555,7 +564,7 @@ function ExecutionButton({ action, actionName, children, disabled, primary, task
   taskId: string;
 }) {
   return (
-    <FinancialForm action={action}>
+    <FinancialForm draftGuard={{ pending: disabled, saved: false }} action={action}>
       <input name="taskId" type="hidden" value={taskId} />
       <input name="executionAction" type="hidden" value={actionName} />
       <Button disabled={disabled} type="submit" variant={primary ? "default" : "secondary"}>{children}</Button>
@@ -571,7 +580,7 @@ function CoordinatedButton({ action, actionName, children, disabled, taskId }: {
   taskId: string;
 }) {
   return (
-    <FinancialForm action={action}>
+    <FinancialForm draftGuard={{ pending: disabled, saved: false }} action={action}>
       <input name="taskId" type="hidden" value={taskId} />
       <input name="coordinatedAction" type="hidden" value={actionName} />
       <Button disabled={disabled} type="submit" variant="secondary">{children}</Button>

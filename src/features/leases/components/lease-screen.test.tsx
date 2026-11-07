@@ -223,6 +223,13 @@ describe("LeaseScreen redesign contract", () => {
     expect(screen.getByRole("region", { name: "2 leases ending in Oct 2026" })).not.toBeNull();
   });
 
+  it("labels a calendar month consistently west of UTC", () => {
+    vi.stubEnv("TZ", "America/Los_Angeles");
+    renderLeases({ viewQuery: { ...defaultViewQuery, endMonth: "2026-11" } });
+    expect(screen.getByRole("region", { name: "2 leases ending in Nov 2026" })).not.toBeNull();
+    vi.unstubAllEnvs();
+  });
+
   it("clears dependent unit, page and legacy selection when property changes, preserving other criteria", async () => {
     const user = userEvent.setup();
     navigation.searchParams = new URLSearchParams("propertyId=property-1&unitId=unit-1&page=3&leaseId=lease-1&query=River&archiveState=all&endsWithin=30d&endMonth=2026-10&sort=end_asc&pageSize=25");

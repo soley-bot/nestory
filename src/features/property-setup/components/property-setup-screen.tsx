@@ -438,6 +438,7 @@ function SelectRecordStep({
       <label className="block text-sm font-medium">
         Existing {label.toLowerCase()}
         <SelectControl
+          ariaLabel={`Existing ${label.toLowerCase()}`}
           className="mt-2"
           onValueChange={onSelect}
           options={[{ label: placeholder, value: "" }, ...options]}
@@ -504,9 +505,11 @@ function TenantLeaseStep({
       </section>
 
       <section className="space-y-3 rounded-md border border-border p-3 sm:p-4">
-        <h2 className="text-sm font-semibold">Lease or occupancy</h2>
+        <h2 className="text-sm font-semibold" id="property-setup-lease-heading">Lease or occupancy</h2>
         {selection.tenantId ? (
           <SelectControl
+            aria-labelledby="property-setup-lease-heading"
+            ariaLabel="Matching lease"
             onValueChange={onLeaseSelect}
             options={[
               { label: "Choose matching lease", value: "" },

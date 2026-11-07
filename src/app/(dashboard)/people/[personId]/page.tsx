@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { PersonDetailScreen } from "@/features/people/components/person-detail-screen";
 import { getAccessByPersonId } from "@/features/organization/data";
 import { getPersonDetail } from "@/features/people/data/people";
@@ -35,3 +36,5 @@ export default async function PersonPage({ params }: PersonPageProps) {
     />
   );
 }
+
+export const metadata: Metadata = { title: "Person details" };

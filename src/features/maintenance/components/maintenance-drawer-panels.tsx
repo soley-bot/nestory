@@ -1,6 +1,6 @@
 "use client";
 
-import { FinancialForm } from "@/lib/finance/financial-write-provider";
+import { FinancialForm, FinancialFormCancel } from "@/lib/finance/financial-write-provider";
 
 import { useActionState, useEffect } from "react";
 import { Archive, RotateCcw } from "lucide-react";
@@ -39,7 +39,7 @@ export function ArchiveMaintenancePanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <FinancialForm action={action} className="flex h-full flex-col">
+    <FinancialForm draftGuard={{ pending, saved: state.status === "success" }} action={action} className="flex h-full flex-col">
       <input name="taskId" type="hidden" value={maintenanceCase.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="flex items-center gap-2 text-danger">
@@ -82,7 +82,7 @@ export function RestoreMaintenancePanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <FinancialForm action={action} className="flex h-full flex-col">
+    <FinancialForm draftGuard={{ pending, saved: state.status === "success" }} action={action} className="flex h-full flex-col">
       <input name="taskId" type="hidden" value={maintenanceCase.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="flex items-center gap-2 text-primary">
@@ -153,9 +153,9 @@ function PanelFooter({
   return (
     <div className="border-t border-border px-4 py-4 sm:px-5">
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <Button className="w-full sm:w-auto" onClick={onClose} type="button">
+        <FinancialFormCancel className="w-full sm:w-auto" disabled={pending} onClick={onClose} type="button">
           Cancel
-        </Button>
+        </FinancialFormCancel>
         <Button
           className="w-full sm:w-auto"
           disabled={pending}

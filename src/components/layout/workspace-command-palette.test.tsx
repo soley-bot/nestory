@@ -387,6 +387,23 @@ describe("Workspace command palette results", () => {
     expect(document.activeElement).toBe(screen.getByRole("combobox"));
   });
 
+  it("keeps completed results for a normalized-equivalent edit", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      results: [{ href: "/people/person-1", id: "person-1", kind: "person", label: "Dara" }],
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AppShell roleKind="custom" permissionKeys={["people.view"]}><span>People</span></AppShell>);
+    openPalette();
+    const input = screen.getByRole("combobox", { name: "Search or jump" });
+    fireEvent.change(input, { target: { value: "dara" } });
+    await advanceSearch();
+    expect(screen.getByRole("option", { name: /Dara/ })).toBeTruthy();
+    fireEvent.change(input, { target: { value: "DARA " } });
+    expect(screen.getByRole("option", { name: /Dara/ })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).not.toContain("Searching records");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("describes a bounded preview without presenting its size as the total count", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ results: [], partial: false, limited: true })));
     renderPalette(); openPalette();

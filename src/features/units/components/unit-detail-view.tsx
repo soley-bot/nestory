@@ -25,6 +25,7 @@ import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { formatDate } from "@/lib/dates/format";
 import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
+import { buildHref } from "@/lib/url/href";
 
 const unitRecordSections: Array<{
   id: UnitRecordSection;
@@ -38,6 +39,7 @@ const unitRecordSections: Array<{
 ];
 
 export function UnitDetailView({
+  tenantPersonId,
   canArchiveFiles = false,
   canWriteFiles = false,
   initialSection = "overview",
@@ -50,6 +52,7 @@ export function UnitDetailView({
   sourceTaskId,
   unit,
 }: {
+  tenantPersonId?: string;
   canArchiveFiles?: boolean;
   canWriteFiles?: boolean;
   initialSection?: UnitRecordSection;
@@ -82,6 +85,7 @@ export function UnitDetailView({
       data-slot="unit-record-workspace"
     >
       <UnitRecordNavigation
+        tenantPersonId={tenantPersonId}
         activeSection={activeSection}
         onSectionChange={setActiveSection}
         openMaintenanceCount={unit.counts.openMaintenanceCases ?? 0}
@@ -101,7 +105,10 @@ export function UnitDetailView({
           onOpenLease={onOpenLease}
           onOpenLedgerEntry={onOpenLedgerEntry}
           onOpenMaintenanceCase={onOpenMaintenanceCase}
-          unit={unit}
+          unit={tenantPersonId ? {
+            ...unit,
+            hrefs: { ...unit.hrefs, property: buildHref(`/properties/${unit.propertyId}`, { tenantPersonId }) },
+          } : unit}
         />
         </FinancialReportBoundary>
       </div>
@@ -597,12 +604,14 @@ function UnitFilesPanel({
 }
 
 function UnitRecordNavigation({
+  tenantPersonId,
   activeSection,
   onSectionChange,
   openMaintenanceCount,
   sourceTaskId,
   unitId,
 }: {
+  tenantPersonId?: string;
   activeSection: UnitRecordSection;
   onSectionChange: (section: UnitRecordSection) => void;
   openMaintenanceCount: number;
@@ -614,6 +623,7 @@ function UnitRecordNavigation({
       <div className="flex min-w-max items-center gap-1" role="tablist">
         {unitRecordSections.map((item) => {
           const href = buildUnitRecordHref({
+            tenantPersonId,
             section: item.id,
             sourceTaskId,
             unitId,

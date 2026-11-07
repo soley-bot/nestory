@@ -76,6 +76,7 @@ const propertyNextActionToneClass: Record<PropertyBadgeTone, string> = {
 };
 
 export function PropertyDetailView({
+  tenantPersonId,
   returnTo,
   canArchiveFiles = false,
   initialSection = "overview",
@@ -85,6 +86,7 @@ export function PropertyDetailView({
   onCreateLease,
   property,
 }: {
+  tenantPersonId?: string;
   returnTo?: string;
   canArchiveFiles?: boolean;
   initialSection?: PropertyLocalSection;
@@ -117,6 +119,7 @@ export function PropertyDetailView({
       data-slot="property-record-workspace"
     >
       <PropertyRecordNavigation
+        tenantPersonId={tenantPersonId}
         returnTo={returnTo}
         activeSection={activeSection}
         accountHref={property.hrefs.account}
@@ -128,6 +131,7 @@ export function PropertyDetailView({
       <div className="flex-1">
         <FinancialReportBoundary expectedGeneration={property.financialGeneration}>
         <PropertyRecordPanel
+          tenantPersonId={tenantPersonId}
           activeSection={activeSection}
           canArchiveFiles={canArchiveFiles}
           onAddDocument={onAddDocument}
@@ -143,6 +147,7 @@ export function PropertyDetailView({
 }
 
 function PropertyRecordPanel({
+  tenantPersonId,
   activeSection,
   canArchiveFiles,
   onAddDocument,
@@ -151,6 +156,7 @@ function PropertyRecordPanel({
   onCreateLease,
   property,
 }: {
+  tenantPersonId?: string;
   activeSection: PropertyLocalSection;
   canArchiveFiles: boolean;
   onAddDocument?: () => void;
@@ -160,6 +166,7 @@ function PropertyRecordPanel({
   property: PropertyDetail;
 }) {
   const content = getPropertyRecordPanelContent({
+    tenantPersonId,
     activeSection,
     canArchiveFiles,
     onAddDocument,
@@ -182,6 +189,7 @@ function PropertyRecordPanel({
 }
 
 function getPropertyRecordPanelContent({
+  tenantPersonId,
   activeSection,
   canArchiveFiles,
   onAddDocument,
@@ -190,6 +198,7 @@ function getPropertyRecordPanelContent({
   onCreateLease,
   property,
 }: {
+  tenantPersonId?: string;
   activeSection: PropertyLocalSection;
   canArchiveFiles: boolean;
   onAddDocument?: () => void;
@@ -228,7 +237,7 @@ function getPropertyRecordPanelContent({
               onAction={onAddUnit}
             />
           ) : (
-            <PropertyUnitsTable units={property.unitsList} />
+            <PropertyUnitsTable tenantPersonId={tenantPersonId} units={property.unitsList} />
           )}
         </div>
       </section>
@@ -947,6 +956,7 @@ function PropertyRentalStructureSetup({ propertyId }: { propertyId: string }) {
 }
 
 export function PropertyRecordNavigation({
+  tenantPersonId,
   returnTo,
   accountHref,
   activeSection,
@@ -954,6 +964,7 @@ export function PropertyRecordNavigation({
   onSectionChange,
   propertyId,
 }: {
+  tenantPersonId?: string;
   returnTo?: string;
   accountHref?: string;
   activeSection: PropertyRecordSection;
@@ -975,9 +986,12 @@ export function PropertyRecordNavigation({
                 ? `/properties/${propertyId}`
                 : `/properties/${propertyId}?section=${item.id}`;
           const originHref = workflowReturnHref(returnTo);
-          const href = originHref
+          const returnHref = originHref
             ? `${baseHref}${baseHref.includes("?") ? "&" : "?"}${new URLSearchParams({ returnTo: originHref })}`
             : baseHref;
+          const href = tenantPersonId
+            ? `${returnHref}${returnHref.includes("?") ? "&" : "?"}${new URLSearchParams({ tenantPersonId })}`
+            : returnHref;
           const className = cn(
             "inline-flex h-9 items-center gap-1.5 border-b-2 border-transparent px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
             activeSection === item.id && "border-primary text-foreground",

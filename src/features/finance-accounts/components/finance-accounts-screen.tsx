@@ -4,7 +4,7 @@ import { FinancialForm } from "@/lib/finance/financial-write-provider";
 
 import { matchesSearchText } from "@/lib/search/text";
 
-import { startTransition, useActionState, useMemo, useState } from "react";
+import { type ComponentProps, startTransition, useActionState, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
 import { WorkspacePage } from "@/components/layout/workspace-page";
@@ -69,9 +69,10 @@ type DrawerState =
 
 export function FinanceAccountsScreen({
   canManageAccounts,
+  navigation,
   groups,
   properties,
-}: FinanceAccountsData & { canManageAccounts: boolean }) {
+}: FinanceAccountsData & { canManageAccounts: boolean; navigation?: Omit<ComponentProps<typeof FinanceWorkspaceNavigation>, "activeRoute"> }) {
   const [drawer, setDrawer] = useState<DrawerState>(null);
   const [query, setQuery] = useState("");
   const [accountClass, setAccountClass] = useState<"all" | FinanceAccountClass>("all");
@@ -118,7 +119,7 @@ export function FinanceAccountsScreen({
         </Button>
       ) : null}
       breadcrumbItems={[{ href: "/finance", label: "Finance" }]}
-      localNav={<FinanceWorkspaceNavigation activeRoute="/finance/accounts" />}
+      localNav={<FinanceWorkspaceNavigation {...navigation} activeRoute="/finance/accounts" />}
       title="Chart of Accounts"
       toolbar={
         <div className="flex min-w-0 flex-wrap items-center gap-2">

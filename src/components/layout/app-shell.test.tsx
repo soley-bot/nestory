@@ -228,6 +228,13 @@ describe("AppShell Shadcn dashboard block", () => {
     ).toBe("page");
   });
 
+  it("marks only Advanced current on its finance subroute", () => {
+    navigation.pathname = "/finance/advanced";
+    render(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
+    expect(screen.getByRole("link", { name: "Advanced" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("link", { name: "Portfolio review" }).getAttribute("aria-current")).toBeNull();
+  });
+
   it.each([
     ["/maintenance", "Cases"],
     ["/recurring-tasks", "Recurring work"],

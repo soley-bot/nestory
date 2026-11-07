@@ -237,6 +237,8 @@ export type OwnerAccountRegisterRecord = {
 
 export type OwnerBalanceData = {
   financialGeneration?: number;
+  ownerInvoicePayments?: { id: string; eventDate: string; amount: CanonicalOwnerBalanceAmount; reference: string }[];
+  ownerDistributions?: { id: string; eventDate: string; amount: CanonicalOwnerBalanceAmount; reference: string }[];
   unitOptions?: {id: string; propertyId: string; label: string}[];
   accountPage: number;
   accountPageCount: number;

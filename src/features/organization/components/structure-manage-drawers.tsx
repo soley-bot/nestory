@@ -37,6 +37,7 @@ export function BranchManageDrawer({
   const [values, setValues] = useState(() => branchValues(branch));
   const [status, setStatus] = useState<DraftStatus>("clean");
   const [message, setMessage] = useState<string>();
+  const [uncertain, setUncertain] = useState(false);
 
   const discard = useCallback(() => {
     setValues(branchValues(branch));
@@ -50,18 +51,32 @@ export function BranchManageDrawer({
     setMessage(undefined);
   };
   const save = async () => {
+    if (status === "saving" || uncertain) return;
     setStatus("saving");
-    const result = await updateOrganizationBranchAction({ id: branch.id, ...values });
-    setMessage(result.message);
-    setStatus(result.kind === "saved" ? "saved" : "error");
+    try {
+      const result = await updateOrganizationBranchAction({ id: branch.id, ...values });
+      setMessage(result.message);
+      setStatus(result.kind === "saved" ? "saved" : "error");
+    } catch {
+      setUncertain(true);
+      setMessage("We could not confirm whether the change was saved. Reload the workspace to check the latest record before trying again.");
+      setStatus("error");
+    }
   };
   const changeLifecycle = async () => {
+    if (status === "saving" || uncertain) return;
     setStatus("saving");
-    const result = archived
-      ? await restoreOrganizationBranchAction(branch.id)
-      : await archiveOrganizationBranchAction(branch.id);
-    setMessage(result.message);
-    setStatus(result.kind === "saved" ? "saved" : "error");
+    try {
+      const result = archived
+        ? await restoreOrganizationBranchAction(branch.id)
+        : await archiveOrganizationBranchAction(branch.id);
+      setMessage(result.message);
+      setStatus(result.kind === "saved" ? "saved" : "error");
+    } catch {
+      setUncertain(true);
+      setMessage("We could not confirm whether the change was saved. Reload the workspace to check the latest record before trying again.");
+      setStatus("error");
+    }
   };
 
   return (
@@ -71,10 +86,10 @@ export function BranchManageDrawer({
         <div className="px-5 py-5">
           <FormSection title="Branch details">
             <div className="grid gap-3 sm:grid-cols-2">
-              <StructureField disabled={archived || !canManageStructure || status === "saving"} label="Name" name="branch-manage-name" onChange={(value) => setField("name", value)} value={values.name} />
-              <StructureField disabled={archived || !canManageStructure || status === "saving"} label="Branch code" name="branch-manage-code" onChange={(value) => setField("code", value)} value={values.code} />
+              <StructureField disabled={archived || !canManageStructure || status === "saving" || uncertain} label="Name" name="branch-manage-name" onChange={(value) => setField("name", value)} value={values.name} />
+              <StructureField disabled={archived || !canManageStructure || status === "saving" || uncertain} label="Branch code" name="branch-manage-code" onChange={(value) => setField("code", value)} value={values.code} />
             </div>
-            <StructureField disabled={archived || !canManageStructure || status === "saving"} label="Address" name="branch-manage-address" onChange={(value) => setField("address", value)} value={values.address} />
+            <StructureField disabled={archived || !canManageStructure || status === "saving" || uncertain} label="Address" name="branch-manage-address" onChange={(value) => setField("address", value)} value={values.address} />
           </FormSection>
         </div>
 
@@ -92,7 +107,7 @@ export function BranchManageDrawer({
           />
           <Button
             className="w-full"
-            disabled={!canManageStructure || status === "saving"}
+            disabled={!canManageStructure || status === "saving" || uncertain}
             onClick={() => void changeLifecycle()}
             type="button"
             variant="outline"
@@ -101,9 +116,10 @@ export function BranchManageDrawer({
           </Button>
         </div>
 
+        {uncertain ? <Button className="mx-5 mb-3" onClick={() => window.location.reload()} type="button" variant="outline">Reload workspace</Button> : null}
         <DraftActionBar
           describedBy="branch-manage-impact"
-          disabledReason={archived ? "Restore this branch before editing." : undefined}
+          disabledReason={uncertain ? "Reload to check the saved record." : archived ? "Restore this branch before editing." : undefined}
           onDiscard={discard}
           onSave={() => void save()}
           saveLabel="Save"
@@ -130,6 +146,7 @@ export function TeamManageDrawer({
   const [values, setValues] = useState(() => teamValues(team));
   const [status, setStatus] = useState<DraftStatus>("clean");
   const [message, setMessage] = useState<string>();
+  const [uncertain, setUncertain] = useState(false);
 
   const discard = useCallback(() => {
     setValues(teamValues(team));
@@ -143,23 +160,37 @@ export function TeamManageDrawer({
     setMessage(undefined);
   };
   const save = async () => {
+    if (status === "saving" || uncertain) return;
     setStatus("saving");
-    const result = await updateOrganizationTeamAction({
-      branchId: values.branchId || null,
-      id: team.id,
-      managerPersonId: values.managerPersonId || null,
-      name: values.name,
-    });
-    setMessage(result.message);
-    setStatus(result.kind === "saved" ? "saved" : "error");
+    try {
+      const result = await updateOrganizationTeamAction({
+        branchId: values.branchId || null,
+        id: team.id,
+        managerPersonId: values.managerPersonId || null,
+        name: values.name,
+      });
+      setMessage(result.message);
+      setStatus(result.kind === "saved" ? "saved" : "error");
+    } catch {
+      setUncertain(true);
+      setMessage("We could not confirm whether the change was saved. Reload the workspace to check the latest record before trying again.");
+      setStatus("error");
+    }
   };
   const changeLifecycle = async () => {
+    if (status === "saving" || uncertain) return;
     setStatus("saving");
-    const result = archived
-      ? await restoreOrganizationTeamAction(team.id)
-      : await archiveOrganizationTeamAction(team.id);
-    setMessage(result.message);
-    setStatus(result.kind === "saved" ? "saved" : "error");
+    try {
+      const result = archived
+        ? await restoreOrganizationTeamAction(team.id)
+        : await archiveOrganizationTeamAction(team.id);
+      setMessage(result.message);
+      setStatus(result.kind === "saved" ? "saved" : "error");
+    } catch {
+      setUncertain(true);
+      setMessage("We could not confirm whether the change was saved. Reload the workspace to check the latest record before trying again.");
+      setStatus("error");
+    }
   };
 
   return (
@@ -168,15 +199,15 @@ export function TeamManageDrawer({
       <div className="flex min-h-full flex-col">
         <div className="px-5 py-5">
           <FormSection title="Team details">
-            <StructureField disabled={archived || !canManageStructure || status === "saving"} label="Name" name="team-manage-name" onChange={(value) => setField("name", value)} value={values.name} />
+            <StructureField disabled={archived || !canManageStructure || status === "saving" || uncertain} label="Name" name="team-manage-name" onChange={(value) => setField("name", value)} value={values.name} />
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block min-w-0 text-sm font-medium text-foreground">
                 <span>Branch</span>
-                <SelectControl ariaLabel="Branch" className="mt-1" disabled={archived || !canManageStructure || status === "saving"} onValueChange={(value) => setField("branchId", value)} options={[{ label: "All branches", value: "" }, ...activeBranches.map((branch) => ({ label: `${branch.code} - ${branch.name}`, value: branch.id }))]} value={values.branchId} />
+                <SelectControl ariaLabel="Branch" className="mt-1" disabled={archived || !canManageStructure || status === "saving" || uncertain} onValueChange={(value) => setField("branchId", value)} options={[{ label: "All branches", value: "" }, ...activeBranches.map((branch) => ({ label: `${branch.code} - ${branch.name}`, value: branch.id }))]} value={values.branchId} />
               </label>
               <label className="block min-w-0 text-sm font-medium text-foreground">
                 <span>Manager</span>
-                <SelectControl ariaLabel="Manager" className="mt-1" disabled={archived || !canManageStructure || status === "saving"} onValueChange={(value) => setField("managerPersonId", value)} options={[{ label: "No manager", value: "" }, ...staff.map((person) => ({ label: person.label, value: person.id }))]} value={values.managerPersonId} />
+                <SelectControl ariaLabel="Manager" className="mt-1" disabled={archived || !canManageStructure || status === "saving" || uncertain} onValueChange={(value) => setField("managerPersonId", value)} options={[{ label: "No manager", value: "" }, ...staff.map((person) => ({ label: person.label, value: person.id }))]} value={values.managerPersonId} />
               </label>
             </div>
           </FormSection>
@@ -194,12 +225,13 @@ export function TeamManageDrawer({
             title="Team impact"
             variant="inline"
           />
-          <Button className="w-full" disabled={!canManageStructure || status === "saving"} onClick={() => void changeLifecycle()} type="button" variant="outline">
+          <Button className="w-full" disabled={!canManageStructure || status === "saving" || uncertain} onClick={() => void changeLifecycle()} type="button" variant="outline">
             {archived ? "Restore team" : "Archive team"}
           </Button>
         </div>
 
-        <DraftActionBar describedBy="team-manage-impact" disabledReason={archived ? "Restore this team before editing." : undefined} onDiscard={discard} onSave={() => void save()} saveLabel="Save" status={status} statusMessage={message} />
+        {uncertain ? <Button className="mx-5 mb-3" onClick={() => window.location.reload()} type="button" variant="outline">Reload workspace</Button> : null}
+        <DraftActionBar describedBy="team-manage-impact" disabledReason={uncertain ? "Reload to check the saved record." : archived ? "Restore this team before editing." : undefined} onDiscard={discard} onSave={() => void save()} saveLabel="Save" status={status} statusMessage={message} />
       </div>
     </SideDrawer>
   );

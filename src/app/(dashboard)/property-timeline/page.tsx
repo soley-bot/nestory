@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { renderTimelineRoute } from "@/features/timeline/timeline-route";
 
 type PropertyTimelinePageProps = {
@@ -13,3 +14,5 @@ export default async function PropertyTimelinePage({
     title: "Property Timeline",
   });
 }
+
+export const metadata: Metadata = { title: "Property timeline" };

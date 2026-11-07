@@ -29,6 +29,12 @@ import { PropertyForm } from "@/features/properties/components/property-form";
 import { buildPropertySummary } from "@/features/properties/data/property-summary";
 import type { PropertyViewQuery } from "@/features/properties/property.types";
 
+const propertyActions = vi.hoisted(() => ({ create: vi.fn() }));
+vi.mock("@/features/properties/actions", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/features/properties/actions")>(),
+  createPropertyAction: propertyActions.create,
+}));
+
 const navigation = vi.hoisted(() => ({
   pathname: "/properties",
   push: vi.fn(),
@@ -64,6 +70,7 @@ const properties = [
 ];
 
 beforeEach(() => {
+  propertyActions.create.mockReset().mockResolvedValue({ status: "success", propertyId: "property-new", message: "Property created." });
   peopleActions.createPerson.mockReset();
   peopleActions.createPerson.mockResolvedValue({
     displayName: "New Owner",
@@ -209,12 +216,12 @@ describe("PropertyScreen redesign contract", () => {
       document.querySelector<HTMLInputElement>('input[name="propertyType"]')?.value,
     ).toBe("Condo");
     expect(screen.getByRole("textbox", { name: /Address/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Registered date" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Registered date" })).toBeTruthy();
     expect(document.querySelector('input[name="photo"]')).not.toBeNull();
 
     expect(screen.queryByRole("combobox", { name: "Status" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Property owner" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Acquisition date" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Acquisition date" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: /Ownership share/ })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Notes" })).toBeNull();
   });
@@ -277,8 +284,8 @@ describe("PropertyScreen redesign contract", () => {
 
     expect(screen.getByRole("combobox", { name: /Status/ })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: /Property owner/ })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Acquisition date/ })).toBeNull();
-    expect(screen.getByRole("button", { name: /Ownership start date/ })).toBeTruthy();
+    expect(screen.queryByRole("combobox", { name: /Acquisition date/ })).toBeNull();
+    expect(screen.getByRole("combobox", { name: /Ownership start date/ })).toBeTruthy();
     expect(
       document.querySelector<HTMLInputElement>('input[name="acquisitionDate"]')?.value,
     ).toBe("2025-06-15");
@@ -639,6 +646,38 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.getByRole("link", { name: "Riverside House" }).getAttribute("href")).toBe(href);
     fireEvent.click(within(screen.getByRole("table")).getAllByRole("row")[2]!);
     expect(navigation.push).toHaveBeenCalledWith(href);
+  });
+
+  it("retains tenant handoff when resetting filters or returning from a selected property", () => {
+    navigation.searchParams = new URLSearchParams("tenantPersonId=tenant-1&query=River");
+    renderProperties({ viewQuery: { ...defaultViewQuery, query: "River" } });
+    expect(screen.getByRole("link", { name: "Reset property filters" }).getAttribute("href"))
+      .toBe("/properties?tenantPersonId=tenant-1");
+    const target = new URL(screen.getByRole("link", { name: "Riverside House" }).getAttribute("href")!, "https://nestory.invalid");
+    expect(target.searchParams.get("tenantPersonId")).toBe("tenant-1");
+    expect(target.searchParams.get("returnTo")).toBe("/properties?tenantPersonId=tenant-1&query=River");
+  });
+
+  it("retains the tenant after creating a missing lease property", async () => {
+    const user = userEvent.setup();
+    navigation.searchParams = new URLSearchParams("tenantPersonId=tenant-1");
+    renderProperties();
+    await user.click(screen.getByRole("button", { name: "Add property" }));
+    const form = screen.getByRole("form", { name: "Add property form" });
+    fireEvent.change(within(form).getByRole("textbox", { name: /Property name/ }), { target: { value: "New Home" } });
+    fireEvent.submit(form);
+    await waitFor(() => expect(propertyActions.create).toHaveBeenCalledOnce());
+    await waitFor(() => expect(navigation.push).toHaveBeenCalledOnce());
+    const target = new URL(navigation.push.mock.calls[0][0], "https://nestory.invalid");
+    expect(target.pathname).toBe("/properties/property-new");
+    expect(target.searchParams.get("tenantPersonId")).toBe("tenant-1");
+  });
+
+  it("retains tenant handoff when clearing an empty property search", () => {
+    navigation.searchParams = new URLSearchParams("tenantPersonId=tenant-1&query=missing");
+    renderProperties({ properties: [], viewQuery: { ...defaultViewQuery, query: "missing" } });
+    expect(screen.getByRole("link", { name: "Clear filters" }).getAttribute("href"))
+      .toBe("/properties?tenantPersonId=tenant-1");
   });
 
   it("keeps the selected property facts readable in the register", () => {

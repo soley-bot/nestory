@@ -33,6 +33,51 @@ beforeAll(() => {
 });
 
 describe("ImportPreviewScreen", () => {
+  it("blocks a current import while a past run resumes and ignores an older file read", async () => {
+    const resume = deferred<Record<string, unknown>>();
+    const read = deferred<string>();
+    actions.commitStagedImportRunAction.mockReturnValueOnce(resume.promise);
+    const user = userEvent.setup();
+    const { container } = renderImport([importRun("staged-run", "staged")]);
+    uploadCsv(container, "ready.csv", Promise.resolve("Property Code,Property Name\nNEW,New Home"));
+    await screen.findByRole("button", { name: "Import 1 ready row" });
+    await user.click(screen.getByText("Past imports", { selector: "span" }));
+    await user.click(screen.getByRole("button", { name: "Resume import.csv" }));
+    expect(screen.getByRole("button", { name: "Import 1 ready row" })).toHaveProperty("disabled", true);
+    await act(async () => fireEvent.submit(screen.getByRole("button", { name: "Import 1 ready row" }).closest("form")!));
+    expect(actions.importReadyRowsAction).not.toHaveBeenCalled();
+    await act(async () => resume.resolve({ status: "success", message: "Resumed synthetic run." }));
+    expect(screen.getByRole("button", { name: "Import 1 ready row" })).toHaveProperty("disabled", false);
+
+    const nextResume = deferred<Record<string, unknown>>();
+    actions.commitStagedImportRunAction.mockReturnValueOnce(nextResume.promise);
+    await act(async () => uploadCsv(container, "slow.csv", read.promise));
+    await user.click(screen.getByRole("button", { name: "Resume import.csv" }));
+    await act(async () => read.resolve("Property Code,Property Name\nOLD,Old Home"));
+    expect(screen.queryByRole("heading", { name: "slow.csv" })).toBeNull();
+    await act(async () => nextResume.resolve({ status: "success" }));
+  });
+
+  it("freezes the file, type and mappings until an in-flight import returns", async () => {
+    const pending = deferred<{ status: "success"; message: string }>();
+    actions.importReadyRowsAction.mockReturnValueOnce(pending.promise);
+    const user = userEvent.setup();
+    const { container } = renderImport([importRun("staged-run", "staged")]);
+    uploadCsv(container, "ready.csv", Promise.resolve("Property Code,Property Name\nNEW,New Home"));
+    const submit = await screen.findByRole("button", { name: "Import 1 ready row" });
+    const payload = container.querySelector<HTMLInputElement>('input[name="payload"]')!.value;
+    await user.click(submit);
+    expect(screen.getByRole("button", { name: "Resume import.csv", hidden: true })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("combobox", { name: "Import type" })).toHaveProperty("disabled", true);
+    expect(container.querySelector('input[type="file"]')).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Auto-map again" })).toHaveProperty("disabled", true);
+    for (const mapping of screen.getAllByRole("combobox", { name: /^Map /, hidden: true })) expect(mapping).toHaveProperty("disabled", true);
+    expect(container.querySelector<HTMLInputElement>('input[name="payload"]')!.value).toBe(payload);
+    await act(async () => pending.resolve({ status: "success", message: "Synthetic import completed." }));
+    expect(await screen.findByText("Synthetic import completed.")).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Import type" })).toHaveProperty("disabled", false);
+  });
+
   it("keeps a valid import payload pinned to its original generation after a reset", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
     const view = (generation: number) => <FinancialWriteProvider organizationId="org"

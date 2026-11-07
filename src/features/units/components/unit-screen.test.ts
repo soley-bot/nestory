@@ -78,6 +78,12 @@ afterEach(() => {
 });
 
 describe("unit screen report links", () => {
+  it("names the unoccupied review for the list it opens", () => {
+    renderUnits({ viewQuery: { ...defaultViewQuery, status: "vacant" } });
+    expect(screen.getByRole("link", { name: "Review unoccupied units" }).getAttribute("href"))
+      .toBe("/units?occupancy=unoccupied");
+    expect(screen.queryByRole("link", { name: "Make report" })).toBeNull();
+  });
   it("opens vacancy review in the filtered Units workspace", () => {
     expect(getVacantUnitsReportHref("all")).toBe(
       "/units?occupancy=unoccupied",

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { usePathname } from "next/navigation"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
 
@@ -155,6 +156,7 @@ function Sidebar({
   className,
   children,
   dir,
+  onClickCapture,
   ...props
 }: React.ComponentProps<"div"> & {
   side?: "left" | "right"
@@ -162,6 +164,8 @@ function Sidebar({
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const pathname = usePathname()
+  React.useEffect(() => { setOpenMobile(false) }, [pathname, setOpenMobile])
 
   if (collapsible === "none") {
     return (
@@ -186,7 +190,11 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground"
+          onClickCapture={(event) => {
+            onClickCapture?.(event)
+            if (event.target instanceof Element && event.target.closest("a[href]")) setOpenMobile(false)
+          }}
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,

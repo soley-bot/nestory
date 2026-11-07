@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { PropertyScreen } from "@/features/properties/components/property-screen";
 import { redirect } from "next/navigation";
 import { getActivePropertyBranchOptions } from "@/features/properties/data/property-branches";
@@ -48,3 +49,5 @@ export default async function PropertiesPage({
     />
   );
 }
+
+export const metadata: Metadata = { title: "Properties" };

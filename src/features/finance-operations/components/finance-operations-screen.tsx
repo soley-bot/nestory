@@ -1,6 +1,6 @@
 "use client";
 
-import { FinancialForm, FinancialReportBoundary, useFinancialWriteContext } from "@/lib/finance/financial-write-provider";
+import { FinancialFormCancel, FinancialForm, FinancialReportBoundary, useFinancialWriteContext } from "@/lib/finance/financial-write-provider";
 
 import { SearchCombo } from "@/components/ui/search-combo";
 import { matchesSearchText } from "@/lib/search/text";
@@ -1679,7 +1679,7 @@ function RentGenerationRetry({
   );
 
   return (
-    <FinancialForm action={action} className="space-y-1">
+    <FinancialForm draftGuard={{pending, saved: state.status === "success"}} action={action} className="space-y-1">
       <input name="exceptionId" type="hidden" value={exceptionId} />
       <Button
         aria-label={`${recheck ? "Recheck and generate" : "Generate"} missing rent for ${monthLabel}`}
@@ -1728,7 +1728,7 @@ function HistoricalRentRecoveryForm({
       lease.status === "ended" ||
       lease.status === "terminated",
   );
-  const [state, action] = useActionState(
+  const [state, action, pending] = useActionState(
     recoverLeaseRentPeriodAction,
     actionInitialState,
   );
@@ -1746,7 +1746,7 @@ function HistoricalRentRecoveryForm({
   }
 
   return (
-    <FinancialForm action={action} className="space-y-4 p-4">
+    <FinancialForm draftGuard={{pending, saved: state.status === "success"}} action={action} className="space-y-4 p-4">
       <Field label="Lease">
         {fixedLease ? <>
           <input type="hidden" name="leaseId" value={fixedLease.id} />
@@ -2545,7 +2545,7 @@ function InvoicePdfPublicationForm({
   onClose: () => void;
   onSuccess: (state: FinanceOperationsActionState) => void;
 }) {
-  const [state, formAction] = useActionState(
+  const [state, formAction, pending] = useActionState(
     publishTenantInvoicePdfAction,
     actionInitialState,
   );
@@ -2564,7 +2564,7 @@ function InvoicePdfPublicationForm({
   }, [hidden]);
 
   return (
-    <FinancialForm action={formAction} className="space-y-4 p-4" hidden={hidden}>
+    <FinancialForm draftGuard={{pending, saved: state.status === "success"}} action={formAction} className="space-y-4 p-4" hidden={hidden}>
       <input name="invoiceId" type="hidden" value={invoice.id} />
       <Field label="Payment instructions">
         <textarea
@@ -2588,9 +2588,9 @@ function InvoicePdfPublicationForm({
       </Field>
       <ActionMessage state={state} />
       <FormFooter>
-        <Button onClick={onClose} type="button" variant="outline">
+        <FinancialFormCancel onClick={onClose} type="button" variant="outline">
           Cancel
-        </Button>
+        </FinancialFormCancel>
         <SubmitButton label="Publish PDF" />
       </FormFooter>
     </FinancialForm>
@@ -2648,7 +2648,7 @@ function ReceiptAction({
   onSuccess?: (state: FinanceOperationsActionState) => void;
   settlement: TenantInvoiceSettlement;
 }) {
-  const [state, formAction] = useActionState(
+  const [state, formAction, pending] = useActionState(
     retryTenantReceiptPdfAction,
     actionInitialState,
   );
@@ -2682,7 +2682,7 @@ function ReceiptAction({
   if (!unavailable) return null;
 
   return (
-    <FinancialForm action={formAction} className="flex flex-wrap items-center justify-end gap-2">
+    <FinancialForm draftGuard={{pending, saved: state.status === "success"}} action={formAction} className="flex flex-wrap items-center justify-end gap-2">
       <input name="paymentId" type="hidden" value={settlement.id} />
       <span className="text-muted-foreground">Receipt unavailable</span>
       {canRetry && !state.receiptRequiresReview ? <SubmitButton label="Create receipt again" /> : null}
@@ -2922,9 +2922,9 @@ function ExpenseDetails({
         </div>
       ) : (
         <FormFooter>
-          <Button onClick={onClose} variant="outline">
+          <FinancialFormCancel onClick={onClose} variant="outline">
             Close
-          </Button>
+          </FinancialFormCancel>
           {submission.status === "approved" && canReverse && !submission.transactionReviewBlocked ? (
             <Button
               aria-label={`Reverse expense for ${submission.vendorLabel}`}
@@ -2937,9 +2937,9 @@ function ExpenseDetails({
         </FormFooter>
       )}
       {submission.status === "submitted" && canReview && !submission.transactionReviewBlocked && !submission.reviewRequiresAnotherUser ? (
-        <Button onClick={onClose} variant="ghost">
+        <FinancialFormCancel onClick={onClose} variant="ghost">
           Close
-        </Button>
+        </FinancialFormCancel>
       ) : null}
     </div>
   );
@@ -2992,9 +2992,9 @@ function OwnerBalanceDetails({
         ]}
       />
       <FormFooter>
-        <Button onClick={onClose} variant="outline">
+        <FinancialFormCancel onClick={onClose} variant="outline">
           Close
-        </Button>
+        </FinancialFormCancel>
         <div className="flex flex-wrap justify-end gap-2">
           <Button asChild variant="outline">
             <Link href={`/properties/${position.propertyId}/account`}>
@@ -3539,7 +3539,7 @@ function SettlementReversalForm({
     invoice.collectionRoute === "through_ips"
       ? reverseTenantInvoicePaymentAction
       : reverseOwnerCollectionConfirmationAction;
-  const [state, formAction] = useActionState(action, actionInitialState);
+  const [state, formAction, pending] = useActionState(action, actionInitialState);
   useSuccess(state, onSuccess);
 
   if (settlements.length === 0) {
@@ -3553,7 +3553,7 @@ function SettlementReversalForm({
   }
 
   return (
-    <FinancialForm action={formAction} className="space-y-4 p-4">
+    <FinancialForm draftGuard={{pending, saved: state.status === "success"}} action={formAction} className="space-y-4 p-4">
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
       <input name="reason" type="hidden" value={reason} />
       <DefinitionRows
@@ -3632,13 +3632,13 @@ function OwnerPaymentForm({
 }) {
   const { getBusinessDateValue } = useBusinessDate();
   const idempotencyKey = useStableActionId("owner-payment");
-  const [state, action] = useActionState(
+  const [state, action, pending] = useActionState(
     recordOwnerPaymentAction,
     actionInitialState,
   );
   useSuccess(state, onSuccess);
   return (
-    <FinancialForm action={action} className="space-y-4 p-4">
+    <FinancialForm draftGuard={{pending, saved: state.status === "success"}} action={action} className="space-y-4 p-4">
       <DefinitionRows
         rows={[
           ["Owner", invoice.ownerLabel],
@@ -3690,13 +3690,13 @@ function WithdrawalForm({
   const [amount, setAmount] = useState("");
   const [reference, setReference] = useState("");
   const [withdrawalDate, setWithdrawalDate] = useState(getBusinessDateValue());
-  const [state, action] = useActionState(
+  const [state, action, pending] = useActionState(
     recordWithdrawalAction,
     actionInitialState,
   );
   useSuccess(state, onSuccess);
   return (
-    <FinancialForm action={action} className="space-y-4 bg-muted/15 p-4">
+    <FinancialForm draftGuard={{pending, saved: state.status === "success"}} action={action} className="space-y-4 bg-muted/15 p-4">
       <DefinitionRows
         rows={[
           ["Property", position.propertyLabel],
@@ -3756,9 +3756,9 @@ function WithdrawalForm({
       </div>
       <ActionMessage state={state} />
       <FormFooter>
-        <Button onClick={onClose} type="button" variant="ghost">
+        <FinancialFormCancel onClick={onClose} type="button" variant="ghost">
           Cancel
-        </Button>
+        </FinancialFormCancel>
         <SubmitButton label="Record owner distribution" />
       </FormFooter>
     </FinancialForm>
@@ -3802,7 +3802,7 @@ function ManualTenantChargeForm({
   const [leaseId, setLeaseId] = useState(fixedLease?.id ?? "");
   const [billingPeriod, setBillingPeriod] = useState(getBusinessMonthValue());
   const idempotencyKey = useStableActionId("manual-tenant-charge");
-  const [state, action] = useActionState(
+  const [state, action, pending] = useActionState(
     createManualTenantChargeAction,
     actionInitialState,
   );
@@ -3825,6 +3825,7 @@ function ManualTenantChargeForm({
 
   return (
     <FinancialForm
+      draftGuard={{pending, saved: state.status === "success"}}
       action={action}
       className="space-y-4 p-4"
       onReset={(event) => {
@@ -3964,9 +3965,9 @@ function ManualTenantChargeForm({
       </Field>
       <ActionMessage state={state} />
       <FormFooter>
-        <Button onClick={onClose} type="button" variant="outline">
+        <FinancialFormCancel onClick={onClose} type="button" variant="outline">
           Cancel
-        </Button>
+        </FinancialFormCancel>
         <SubmitButton label="Bill tenant" disabled={!invoiceContext.ready} />
       </FormFooter>
     </FinancialForm>

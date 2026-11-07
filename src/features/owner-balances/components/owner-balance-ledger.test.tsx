@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 
 import { FinancialWriteProvider } from "@/lib/finance/financial-write-provider";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -24,6 +24,7 @@ vi.mock("@/features/owner-balances/lifecycle-actions", () => ({
 }));
 
 import { calculateReportMonthAction, assignReportSourceAction } from "@/features/reports/remediation-actions";
+import { recordOwnerCashEventAction, reverseOwnerInvoicePaymentAction } from "@/features/owner-balances/lifecycle-actions";
 import { OwnerBalanceLedger, OwnerSourceResolution } from "@/features/owner-balances/components/owner-balance-ledger";
 import type { OwnerBalanceData } from "@/features/owner-balances/owner-balance.types";
 import { canonicalizeSignedOwnerOpeningAmount } from "@/features/owner-balances/owner-balance.money";
@@ -36,6 +37,36 @@ const allocationSetId = "00000000-0000-4000-8000-000000000006";
 const movementId = "00000000-0000-4000-8000-000000000007";
 
 describe("OwnerBalanceLedger", () => {
+  it("records another contribution only after an explicit new command with a fresh key", async () => {
+    const user = userEvent.setup();
+    render(<OwnerBalanceLedger canAllocate={false} canCorrect canTransfer={false} data={data()} organizationName="IPS" selectedMonth="2026-08" selectedOwnerPersonId={ownerId} selectedPropertyId={propertyId} />);
+    await user.click(screen.getByText("Balance operations"));
+    const form = within(screen.getByRole("region", {name: "Owner cash activity"})).getByRole("button", {name: "Record owner contribution"}).closest("form")!;
+    fireEvent.change(within(form).getByLabelText("Amount"), {target: {value: "25.00"}});
+    fireEvent.submit(form);
+    await screen.findByRole("button", {name: "Record another contribution"});
+    expect(within(form).getByRole("button", {name: "Record owner contribution"}).matches(":disabled")).toBe(true);
+    await user.click(screen.getByRole("button", {name: "Record another contribution"}));
+    fireEvent.submit(form);
+    await waitFor(() => expect(recordOwnerCashEventAction).toHaveBeenCalledTimes(2));
+    const calls = vi.mocked(recordOwnerCashEventAction).mock.calls;
+    expect(calls[1][0].get("amount")).toBe("25.00");
+    expect(calls[1][0].get("idempotencyKey")).not.toBe(calls[0][0].get("idempotencyKey"));
+  });
+
+  it("reverses the selected payment record with its full amount and reference", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.ownerInvoicePayments = [{id: sourceId, eventDate: "2026-08-10", amount: "100.01" as never, reference: "OP-001 · Bank transfer"}];
+    render(<OwnerBalanceLedger canAllocate={false} canCorrect canTransfer={false} data={input} organizationName="IPS" selectedMonth="2026-08" selectedOwnerPersonId={ownerId} selectedPropertyId={propertyId} />);
+    await user.click(screen.getByText("Balance operations"));
+    await user.selectOptions(screen.getByLabelText("Owner invoice payment"), sourceId);
+    expect(screen.getByRole("status").textContent).toContain("USD 100.01 · OP-001 · Bank transfer");
+    fireEvent.submit(screen.getByRole("button", {name: "Reverse owner invoice payment"}).closest("form")!);
+    await waitFor(() => expect(reverseOwnerInvoicePaymentAction).toHaveBeenCalledOnce());
+    expect(vi.mocked(reverseOwnerInvoicePaymentAction).mock.calls[0][0].get("ownerPaymentId")).toBe(sourceId);
+  });
+
   it.each([false, true])("hides cached account activity while retaining navigation (%s)", propertyLayout => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
     const context = { generation: 1, status: "open" as const, financial_start_date: "2026-08-01", enforced: true };

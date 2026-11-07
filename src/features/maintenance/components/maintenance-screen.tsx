@@ -1,13 +1,17 @@
 "use client";
 
+import { RecordField } from "@/components/ui/record-form";
 import { FinancialForm, FinancialReportBoundary, useFinancialFormData } from "@/lib/finance/financial-write-provider";
 
 import { Table } from "@/components/ui/table";
 
 import Link from "next/link";
 import {
+  Children,
+  isValidElement,
   useActionState,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -1893,21 +1897,15 @@ export function MaintenanceForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Branch" error={state.fieldErrors?.branchId?.[0]}>
               {branchControlMode === "fixed" && actor.branchId ? (
-                <>
-                  <input name="branchId" type="hidden" value={actor.branchId} />
+                <input name="branchId" type="hidden" value={actor.branchId} />
+              ) : null}
+              {branchControlMode === "fixed" && actor.branchId ? (
                   <div className="flex min-h-8 min-w-0 items-center rounded-md border border-border bg-muted px-2.5 py-1 text-sm [overflow-wrap:anywhere]">
                     {managerBranch?.label ??
                       maintenanceCase?.branchLabel ??
                       "Assigned branch"}
                   </div>
-                </>
               ) : (
-                <>
-                  {branchControlMode === "all_branches" ? (
-                    <p className="mb-1.5 text-xs text-muted-foreground">
-                      All branches access
-                    </p>
-                  ) : null}
                   <MaintenanceReadableSelect
                     ariaLabel="Branch"
                     name="branchId"
@@ -1932,8 +1930,10 @@ export function MaintenanceForm({
                     ]}
                     value={branchId}
                   />
-                </>
               )}
+              {branchControlMode === "all_branches" ? (
+                <p className="mt-1.5 text-xs text-muted-foreground">All branches access</p>
+              ) : null}
             </Field>
             <Field
               label="Assignee"
@@ -2296,6 +2296,7 @@ function LinkButton({ children, href }: { children: ReactNode; href: string }) {
 }
 
 function ChecklistEditor({ error, value }: { error?: string; value: string }) {
+  const errorId = useId();
   const [items, setItems] = useState<MaintenanceChecklistItem[]>(() => {
     const parsed = parseMaintenanceChecklistText(value);
 
@@ -2352,6 +2353,9 @@ function ChecklistEditor({ error, value }: { error?: string; value: string }) {
               }
             />
             <Input
+              aria-label={`Checklist item ${index + 1}`}
+              aria-invalid={error ? "true" : undefined}
+              aria-describedby={error ? errorId : undefined}
               className={cn(
                 "h-8 min-w-0 flex-1 border-0 bg-transparent px-0 shadow-none focus:border-transparent focus:ring-0",
                 item.completed && "text-muted-foreground line-through",
@@ -2374,7 +2378,7 @@ function ChecklistEditor({ error, value }: { error?: string; value: string }) {
           </div>
         ))}
       </div>
-      {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}
+      {error ? <p className="mt-1 text-xs text-danger" id={errorId}>{error}</p> : null}
     </div>
   );
 }
@@ -2396,13 +2400,9 @@ function Field({
   error?: string;
   label: string;
 }) {
-  return (
-    <label className="block min-w-0 max-w-full text-sm font-medium [overflow-wrap:anywhere]">
-      {label}
-      <div className="mt-2 min-w-0 max-w-full">{children}</div>
-      {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}
-    </label>
-  );
+  const items = Children.toArray(children);
+  const isHiddenInput = (child: ReactNode) => isValidElement<{ type?: string }>(child) && child.type === "input" && child.props.type === "hidden";
+  return <>{items.filter(isHiddenInput)}<RecordField error={error} label={label} name={label}>{items.filter((child) => !isHiddenInput(child))}</RecordField></>;
 }
 
 function getCreateInitialValues(

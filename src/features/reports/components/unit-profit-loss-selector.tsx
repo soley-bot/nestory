@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FinancialReportLink } from "@/lib/finance/financial-write-provider";
+import { ReportBatchExportActions } from "./report-export-menu";
 import { buildReportQueryParams } from "../reports.filters";
 import { maxUnitProfitLossBatchSize } from "../unit-profit-loss-export";
 import type { ReportsViewQuery, ReportUnitOption } from "../reports.types";
@@ -40,11 +39,7 @@ export function UnitProfitLossSelector({ unitOptions, viewQuery }: {
       <label className="grid gap-1 text-xs font-medium">Find units
         <Input type="search" className="w-72 max-w-full" placeholder="Search by property or unit" value={search} onChange={event => { setSearch(event.target.value); setPage(0); }} />
       </label>
-      <div className="flex flex-wrap items-center gap-2">
-        {([['pdf', 'Download PDFs'], ['xlsx', 'Download Excel files']] as const).map(([format, label]) => canExport
-          ? <Button asChild key={format} size="sm" variant={format === "pdf" ? "default" : "outline"}><FinancialReportLink href={exportHref(format)}><Download aria-hidden="true" />{label}</FinancialReportLink></Button>
-          : <Button disabled key={format} size="sm" variant={format === "pdf" ? "default" : "outline"}><Download aria-hidden="true" />{label}</Button>)}
-      </div>
+      <ReportBatchExportActions pdfHref={exportHref("pdf")} excelHref={exportHref("xlsx")} disabled={!canExport} />
     </div>
     <div className="mt-3 flex flex-wrap items-center gap-3 border-y border-border bg-muted/20 px-3 py-2 text-xs">
       <span aria-live="polite">{selectedIds.length} selected · Up to {maxUnitProfitLossBatchSize} reports per download</span>

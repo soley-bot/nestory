@@ -238,3 +238,21 @@ function form(values: Record<string, string>) {
   for (const [key, value] of Object.entries(values)) formData.set(key, value);
   return formData;
 }
+
+
+describe("owner lifecycle form recovery", () => {
+  beforeEach(() => { vi.clearAllMocks(); mocks.requireOperation.mockResolvedValue({ organizationId }); mocks.requireCorrection.mockResolvedValue({ organizationId }); mocks.requireSuperAdmin.mockResolvedValue({ organizationId }); mocks.rpc.mockResolvedValue({data: null, error: null}); });
+  it("returns an inline amount error without attempting a financial write", async () => {
+    const { recordOwnerCashEventFormAction } = await import("./lifecycle-form-actions");
+    const result = await recordOwnerCashEventFormAction(form({amount: "0", currency: "USD", eventDate: "2026-10-01", eventType: "owner_contribution", idempotencyKey: "synthetic-amount-test", ownerPersonId: ownerId, propertyId, reason: "Synthetic test"}));
+    expect(result).toMatchObject({status: "error", message: "Enter an amount greater than zero."});
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("keeps reversal authorization and exposes a recoverable business rejection", async () => {
+    const { reversePropertyWithdrawalFormAction } = await import("./lifecycle-form-actions");
+    mocks.rpc.mockResolvedValue({data: null, error: {message: "owner_distribution_already_reversed"}});
+    const result = await reversePropertyWithdrawalFormAction(form({withdrawalId, reversalDate: "2026-10-02", reason: "Synthetic reversal", idempotencyKey: "synthetic-reversal-test"}));
+    expect(mocks.requireCorrection).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({status: "error", message: expect.stringContaining("already been reversed")});
+  });
+});

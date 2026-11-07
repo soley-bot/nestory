@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ReportBuilderScreen } from "@/features/reports/components/reports-screen";
 import {
@@ -5,7 +6,7 @@ import {
   prepareTrustedReportForScreen,
 } from "@/features/reports/data/reports";
 import { parseReportSearchParams } from "@/features/reports/reports.filters";
-import { isReportKind } from "@/features/reports/report-catalog";
+import { getReportCatalogItem, isReportKind } from "@/features/reports/report-catalog";
 import { requireFinanceReportContext } from "@/lib/auth/context";
 
 type ReportBuilderPageProps = {
@@ -42,4 +43,9 @@ export default async function ReportBuilderPage({
       viewStorageKey={`${context.organizationId}:${context.userId}`}
     />
   );
+}
+
+export async function generateMetadata({ params }: ReportBuilderPageProps): Promise<Metadata> {
+  const { reportKind } = await params;
+  return { title: isReportKind(reportKind) ? getReportCatalogItem(reportKind).title : "Report unavailable" };
 }

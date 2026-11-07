@@ -5,11 +5,13 @@ import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
+  startTransition,
   useActionState,
   useEffect,
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
   type ReactNode,
 } from "react";
 import { useFormStatus } from "react-dom";
@@ -29,6 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { useOverlayCloseRequest, useOverlayFormDraftGuard } from "@/components/ui/overlay-dismissal-context";
 import { RecordForm } from "@/components/ui/record-form";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
@@ -1334,7 +1337,7 @@ function HistoricalRentCorrectionModal({
                 : "No eligible issued historical rent period is available for this Lease."}
           </div>
         ) : (
-          <FinancialForm action={previewAction} className="space-y-4">
+          <GuardedFinancialForm action={previewAction} className="space-y-4" pending={previewPending || applyPending} saved={applyState.status === "success"}>
             <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
             <label className="grid gap-1.5 text-sm font-medium">
               Issued rent period
@@ -1427,14 +1430,12 @@ function HistoricalRentCorrectionModal({
               </p>
             ) : null}
             <div className="flex justify-end gap-2">
-              <Button onClick={onClose} type="button" variant="ghost">
-                Cancel
-              </Button>
+              <GuardedCancelButton onClose={onClose} />
               <Button disabled={previewPending} type="submit" variant="outline">
                 {previewPending ? "Checking..." : "Preview correction"}
               </Button>
             </div>
-          </FinancialForm>
+          </GuardedFinancialForm>
         )}
 
         {preview && previewMatches ? (
@@ -1443,6 +1444,8 @@ function HistoricalRentCorrectionModal({
             applyAction={applyAction}
             applyMessage={applyState.message}
             applyPending={applyPending}
+            previewPending={previewPending}
+            applySaved={applyState.status === "success"}
             correctedDueDay={correctedDueDay}
             correctedRentAmount={correctedRentAmount}
             currentMonthOnly={currentMonthOnly}
@@ -1466,6 +1469,8 @@ function HistoricalRentCorrectionPreviewPanel({
   applyAction,
   applyMessage,
   applyPending,
+  previewPending,
+  applySaved,
   correctedDueDay,
   correctedRentAmount,
   currentMonthOnly,
@@ -1478,6 +1483,8 @@ function HistoricalRentCorrectionPreviewPanel({
   applyAction: (formData: FormData) => void;
   applyMessage?: string;
   applyPending: boolean;
+  previewPending: boolean;
+  applySaved: boolean;
   correctedDueDay: string;
   correctedRentAmount: string;
   currentMonthOnly: boolean;
@@ -1537,7 +1544,7 @@ function HistoricalRentCorrectionPreviewPanel({
           </ul>
         </div>
       ) : (
-        <FinancialForm action={applyAction} className="space-y-3">
+        <GuardedFinancialForm action={applyAction} className="space-y-3" pending={previewPending || applyPending} saved={applySaved}>
           {correctedManagementFeeAmount !== undefined ? <input name="correctedManagementFeeAmount" type="hidden" value={correctedManagementFeeAmount} /> : null}
           <input name="invoiceId" type="hidden" value={invoiceId} />
           <input
@@ -1555,7 +1562,7 @@ function HistoricalRentCorrectionPreviewPanel({
             </p>
           ) : null}
           <div className="flex justify-end">
-            <Button disabled={applyPending} type="submit" variant="destructive">
+            <Button disabled={previewPending || applyPending} type="submit" variant="destructive">
               {applyPending
                 ? "Applying..."
                 : correctedManagementFeeAmount !== undefined
@@ -1565,7 +1572,7 @@ function HistoricalRentCorrectionPreviewPanel({
                     : "Apply historical correction"}
             </Button>
           </div>
-        </FinancialForm>
+        </GuardedFinancialForm>
       )}
     </section>
   );
@@ -1818,7 +1825,7 @@ function LeaseTransitionModal({
 
   return (
     <Modal onClose={onClose} open title={copy.title}>
-      <FinancialForm action={formAction} className="space-y-4 p-4">
+      <GuardedFinancialForm action={formAction} className="space-y-4 p-4" pending={pending} saved={state.status === "success"}>
         <input name="leaseId" type="hidden" value={lease.id} />
         <input name="expectedStatus" type="hidden" value={lease.statusValue} />
         <input name="expectedOccupancyId" type="hidden" value={occupancyId} />
@@ -1868,14 +1875,12 @@ function LeaseTransitionModal({
         ) : null}
 
         <div className="flex justify-end gap-2 border-t border-border pt-4">
-          <Button onClick={onClose} type="button" variant="ghost">
-            Cancel
-          </Button>
+          <GuardedCancelButton onClose={onClose} />
           <Button disabled={pending} type="submit">
             {pending ? "Saving..." : copy.submitLabel}
           </Button>
         </div>
-      </FinancialForm>
+      </GuardedFinancialForm>
     </Modal>
   );
 }
@@ -1976,7 +1981,7 @@ function LeaseActivationModal({
 
   return (
     <Modal onClose={onClose} open title="Activate lease">
-      <FinancialForm action={formAction} className="space-y-5 p-4">
+      <GuardedFinancialForm action={formAction} className="space-y-5 p-4" pending={pending} saved={state.status === "success"}>
         <input name="expectedTermId" type="hidden" value={lease.terms.find((term) => term.status === "draft")?.id ?? ""} />
         <input name="leaseId" type="hidden" value={lease.id} />
         <input name="expectedStatus" type="hidden" value="draft" />
@@ -2083,14 +2088,12 @@ function LeaseActivationModal({
         ) : null}
 
         <div className="flex justify-end gap-2 border-t border-border pt-4">
-          <Button onClick={onClose} type="button" variant="ghost">
-            Cancel
-          </Button>
+          <GuardedCancelButton onClose={onClose} />
           <Button disabled={pending || (outcome === "staying" && expiredTerm && !canRenew)} type="submit">
             {pending ? "Saving..." : outcome === "completed" ? "Record ended lease" : expiredTerm ? "Renew and activate" : "Activate lease"}
           </Button>
         </div>
-      </FinancialForm>
+      </GuardedFinancialForm>
     </Modal>
   );
 }
@@ -2099,6 +2102,39 @@ function FieldError({ errors }: { errors?: string[] }) {
   return errors?.length ? (
     <span className="text-xs font-normal text-danger">{errors[0]}</span>
   ) : null;
+}
+
+function GuardedFinancialForm({
+  action,
+  children,
+  onSubmit,
+  pending,
+  saved = false,
+  ...props
+}: ComponentProps<typeof FinancialForm> & { pending: boolean; saved?: boolean }) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const submitLockedRef = useRef(false);
+  useEffect(() => {
+    if (!pending) submitLockedRef.current = false;
+  }, [pending]);
+  const { onChangeCapture, onInput } = useOverlayFormDraftGuard(formRef, pending, saved);
+  return <FinancialForm {...props} action={action} onChangeCapture={onChangeCapture} onInput={onInput} ref={formRef}
+    onSubmit={(event) => {
+      onSubmit?.(event);
+      if (event.defaultPrevented || typeof action !== "function") return;
+      event.preventDefault();
+      if (pending || submitLockedRef.current) return;
+      submitLockedRef.current = true;
+      const formData = new FormData(event.currentTarget, (event.nativeEvent as SubmitEvent).submitter);
+      startTransition(() => action(formData));
+    }}>
+    <fieldset className="contents" disabled={pending}>{children}</fieldset>
+  </FinancialForm>;
+}
+
+function GuardedCancelButton({ onClose }: { onClose: () => void }) {
+  const requestClose = useOverlayCloseRequest(onClose);
+  return <Button onClick={requestClose} type="button" variant="ghost">Cancel</Button>;
 }
 
 function LeasePaymentReceiptAction({

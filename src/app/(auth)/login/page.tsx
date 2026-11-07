@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { AuthPageShell } from "@/features/auth/components/auth-page-shell";
 import { LoginForm } from "@/features/auth/components/login-form";
 import { safeLoginNextPath } from "@/lib/auth/login-redirect";
@@ -25,3 +26,5 @@ export default async function LoginPage({ searchParams }: {
     </AuthPageShell>
   );
 }
+
+export const metadata: Metadata = { title: "Sign in" };

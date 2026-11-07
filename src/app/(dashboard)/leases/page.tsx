@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { LeaseScreen } from "@/features/leases/components/lease-screen";
 import { getLeasesScreenData } from "@/features/leases/data/leases";
 import { parseLeaseSearchParams } from "@/features/leases/lease.filters";
@@ -28,3 +29,5 @@ export default async function LeasesPage({ searchParams }: LeasesPageProps) {
     />
   );
 }
+
+export const metadata: Metadata = { title: "Leases" };

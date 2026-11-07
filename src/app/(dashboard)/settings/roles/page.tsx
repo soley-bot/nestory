@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { SettingsShell } from "@/components/layout/settings-shell";
 import { RoleSettingsScreen } from "@/features/organization/components/role-settings-screen";
 import {
@@ -25,3 +26,5 @@ export default async function RolesSettingsPage() {
     </SettingsShell>
   );
 }
+
+export const metadata: Metadata = { title: "Access roles" };

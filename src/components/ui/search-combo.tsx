@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search-input";
@@ -54,6 +54,7 @@ export function SearchCombo({
 }: SearchComboProps) {
   const listboxId = useId();
   const composing = useRef(false);
+  const suggestionsListRef = useRef<HTMLDivElement>(null);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [activeSuggestionId, setActiveSuggestionId] = useState<string | null>(null);
   const hasScope = scopeOptions.length > 1;
@@ -62,6 +63,18 @@ export function SearchCombo({
   const activeSuggestion = hasSuggestions
     ? suggestions.find(suggestion => suggestion.id === activeSuggestionId)
     : undefined;
+
+  useEffect(() => {
+    if (!activeSuggestion || !suggestionsListRef.current) return;
+    const viewport = suggestionsListRef.current;
+    const option = Array.from(viewport.querySelectorAll<HTMLElement>("[role='option']"))
+      .find((item) => item.id === `${listboxId}-${encodeURIComponent(activeSuggestion.id)}`);
+    if (!option) return;
+    const optionBounds = option.getBoundingClientRect();
+    const viewportBounds = viewport.getBoundingClientRect();
+    if (optionBounds.top < viewportBounds.top) viewport.scrollTop -= viewportBounds.top - optionBounds.top;
+    else if (optionBounds.bottom > viewportBounds.bottom) viewport.scrollTop += optionBounds.bottom - viewportBounds.bottom;
+  }, [activeSuggestion, listboxId]);
 
   function selectSuggestion(suggestion: SearchComboSuggestion) {
     setSuggestionsOpen(false);
@@ -147,7 +160,7 @@ export function SearchCombo({
           ) : null}
         </div>
         {hasSuggestions ? (
-          <div aria-label={`${ariaLabel} suggestions`} id={listboxId} role="listbox" className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 max-h-[min(24rem,60vh)] overflow-y-auto rounded-md border border-border bg-card p-1 shadow-lg">
+          <div aria-label={`${ariaLabel} suggestions`} id={listboxId} ref={suggestionsListRef} role="listbox" className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 max-h-[min(24rem,60vh)] overflow-y-auto rounded-md border border-border bg-card p-1 shadow-lg">
             {suggestions.map((suggestion) => (
               <button
                 aria-selected={suggestion.id === activeSuggestion?.id}

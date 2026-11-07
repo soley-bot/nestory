@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { SettingsShell } from "@/components/layout/settings-shell";
 import { buildAccessByPersonId } from "@/features/organization/access-status";
 import { AccessSettingsScreen } from "@/features/organization/components/access-settings-screen";
@@ -90,3 +91,5 @@ function readUuidParam(value: string | string[] | undefined) {
     ? first
     : undefined;
 }
+
+export const metadata: Metadata = { title: "Workspace access" };

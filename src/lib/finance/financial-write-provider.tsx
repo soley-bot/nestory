@@ -1,6 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ComponentProps, type ReactNode } from "react";
+import { createContext, startTransition, useCallback, useContext, useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { useOverlayFormDraftGuard, useOverlayCloseRequest } from "@/components/ui/overlay-dismissal-context";
+import { Button } from "@/components/ui/button";
 import { FINANCIAL_GENERATION_FIELD, financialContextKey, financialWriteContextSchema, type FinancialWriteContext } from "./financial-write-context";
 
 type FinancialSession = { context: FinancialWriteContext; invalid: boolean };
@@ -78,7 +80,47 @@ export function useFinancialFormData() {
 
 // Used by both server-rendered and interactive forms; the hidden value is part
 // of the original browser intent, including programmatic new FormData(form).
-export function FinancialForm({ children, onSubmit, ...props }: ComponentProps<"form">) {
+type FinancialFormProps = ComponentProps<"form"> & { draftGuard?: { pending: boolean; saved: boolean } };
+export function FinancialForm({ draftGuard, ...props }: FinancialFormProps) {
+  return draftGuard ? <GuardedFinancialForm {...props} draftGuard={draftGuard} /> : <FinancialFormBase {...props} />;
+}
+function GuardedFinancialForm({ action, draftGuard, children, onChangeCapture, onInput, onSubmit, ...props }: FinancialFormProps & {draftGuard: {pending: boolean; saved: boolean}}) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const submitLockedRef = useRef(false);
+  const [submitted, setSubmitted] = useState(false);
+  const guard = useOverlayFormDraftGuard(formRef, draftGuard.pending, draftGuard.saved && submitted);
+  useEffect(() => {
+    if (!draftGuard.pending) {
+      submitLockedRef.current = false;
+      queueMicrotask(() => setSubmitted(false));
+    }
+  }, [draftGuard.pending, draftGuard.saved]);
+  return <FinancialFormBase {...props} action={action} ref={formRef}
+    onSubmit={event => {
+      if (draftGuard.pending || submitLockedRef.current) { event.preventDefault(); return; }
+      onSubmit?.(event);
+      if (event.defaultPrevented) return;
+      setSubmitted(true);
+      if (typeof action === "function") {
+        // Explicit dispatch retains native inputs when an action returns a
+        // validation error. React's form action path resets them on resolution.
+        event.preventDefault();
+        submitLockedRef.current = true;
+        const submitter = (event.nativeEvent as SubmitEvent).submitter;
+        const data = new FormData(event.currentTarget, submitter);
+        startTransition(() => action(data));
+      }
+    }}
+    onChangeCapture={event => { guard.onChangeCapture(); onChangeCapture?.(event); }}
+    onInput={event => { guard.onInput(); onInput?.(event); }}>
+    <fieldset className="contents" disabled={draftGuard.pending}>{children}</fieldset>
+  </FinancialFormBase>;
+}
+export function FinancialFormCancel({onClick, ...props}: Omit<ComponentProps<typeof Button>, "onClick"> & {onClick: () => void}) {
+  const requestClose = useOverlayCloseRequest(onClick);
+  return <Button {...props} type="button" onClick={requestClose} />;
+}
+function FinancialFormBase({ children, onSubmit, ...props }: ComponentProps<"form">) {
   const session = useFinancialWriteContext();
   const [generation] = useState(session?.context.generation);
   const isRead = props.method?.toLowerCase() === "get";

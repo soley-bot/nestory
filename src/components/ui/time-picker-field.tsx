@@ -3,6 +3,10 @@
 import { SelectControl } from "@/components/ui/select-control";
 
 type TimePickerFieldProps = {
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean | "false" | "true";
+  "aria-labelledby"?: string;
+  "aria-required"?: boolean | "false" | "true";
   ariaLabel?: string;
   className?: string;
   defaultValue?: string;
@@ -25,6 +29,10 @@ const timeOptions = [
 ];
 
 export function TimePickerField({
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
+  "aria-labelledby": ariaLabelledBy,
+  "aria-required": ariaRequired,
   ariaLabel,
   className,
   defaultValue = "",
@@ -33,6 +41,10 @@ export function TimePickerField({
 }: TimePickerFieldProps) {
   return (
     <SelectControl
+      aria-describedby={ariaDescribedBy}
+      aria-invalid={ariaInvalid}
+      aria-labelledby={ariaLabelledBy}
+      aria-required={ariaRequired}
       ariaLabel={ariaLabel}
       className={className}
       defaultValue={defaultValue}

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { ReportsDirectory } from "@/features/reports/components/reports-directory";
@@ -12,3 +13,5 @@ export default async function ReportsPage() {
     </WorkspacePage>
   );
 }
+
+export const metadata: Metadata = { title: "Reports" };

@@ -3,9 +3,9 @@ import { prepareTrustedReportForScreen } from "@/features/reports/data/reports";
 import type { TrustedReport } from "@/features/reports/reports.types";
 
 describe("report screen preparation", () => {
-  it("limits the screen preview while preserving the complete row count", () => {
+  it("keeps all owner activity rows available for pagination", () => {
     const selected = prepareTrustedReportForScreen(reportWithRows(76));
-    expect(selected.rows).toHaveLength(75);
+    expect(selected.rows).toHaveLength(76);
     expect(selected.totalRowCount).toBe(76);
   });
 

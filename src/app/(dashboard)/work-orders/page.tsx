@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { renderMaintenanceRoute } from "@/features/maintenance/maintenance-route";
 
 type WorkOrdersPageProps = {
@@ -18,3 +19,5 @@ export default function WorkOrdersPage({ searchParams }: WorkOrdersPageProps) {
     title: "Work Orders",
   });
 }
+
+export const metadata: Metadata = { title: "Work orders" };

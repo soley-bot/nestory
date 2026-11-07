@@ -61,7 +61,7 @@ export function LeasingPropertyPreviewList({
       </section>
 
       <Modal
-        description={`Leasing position for ${formatMonthLabel(month)}.`}
+        description={`Current leasing position. Financial reporting period: ${formatMonthLabel(month)}.`}
         onClose={() => setSelectedRow(null)}
         open={selectedRow !== null}
         title={selectedRow?.label ?? "Leasing preview"}

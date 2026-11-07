@@ -29,6 +29,31 @@ afterEach(() => {
 });
 
 describe("PropertyDetailScreen task-first detail contract", () => {
+  it("keeps the selected tenant while choosing a unit for a multi-unit property", () => {
+    renderPropertyDetail({ tenantPersonId: "tenant-1" });
+    expect(screen.getByText("Choose where this tenant will lease")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Unit 04-01" }).getAttribute("href"))
+      .toBe("/units/unit-1?tenantPersonId=tenant-1");
+  });
+  it("keeps the tenant in the property breadcrumb and section URLs", () => {
+    renderPropertyDetail({ tenantPersonId: "tenant-1" });
+    expect(screen.getByRole("link", { name: "Properties" }).getAttribute("href"))
+      .toBe("/properties?tenantPersonId=tenant-1");
+    fireEvent.click(screen.getByRole("tab", { name: "Units" }));
+    expect(new URLSearchParams(window.location.search).get("tenantPersonId")).toBe("tenant-1");
+    const panel = screen.getByRole("tabpanel", { name: "Units" });
+    const unitLinks = within(panel).getAllByRole("link", { name: /^Unit 04-01/ });
+    for (const link of unitLinks) expect(link.getAttribute("href")).toBe("/units/unit-1?tenantPersonId=tenant-1");
+  });
+  it.each(["active", "draft"])("does not offer a duplicate whole-property lease during tenant handoff (%s)", (state) => {
+    const lease = property.activeLeases[0];
+    renderPropertyDetail({ tenantPersonId: "tenant-1", propertyOverride: {
+      ...property, rentalStructure: "single_space",
+      activeLeases: state === "active" ? [lease] : [],
+      propertyDraftLease: state === "draft" ? lease : undefined,
+    } });
+    expect(screen.queryByRole("button", { name: "Create lease for this property" })).toBeNull();
+  });
   it.each(["frozen", "open"] as const)("preserves the property identity and navigation for a %s stale payload", (status) => {
     vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
     renderPropertyDetail({ context: { generation: 2, status, enforced: true, financial_start_date: "2026-10-01" }, propertyOverride: { ...property, financialGeneration: 1 } });
@@ -593,6 +618,7 @@ describe("PropertyDetailScreen task-first detail contract", () => {
 });
 
 function renderPropertyDetail({
+  tenantPersonId,
   context,
   returnTo,
   canArchive,
@@ -601,6 +627,7 @@ function renderPropertyDetail({
   initialSection,
   propertyOverride = property,
 }: {
+  tenantPersonId?: string;
   context?: FinancialWriteContext;
   returnTo?: string;
   canArchive?: boolean;
@@ -611,6 +638,7 @@ function renderPropertyDetail({
 } = {}) {
   return render(
     <PropertyDetailScreen
+      tenantPersonId={tenantPersonId}
       returnTo={returnTo}
       canArchive={canArchive}
       canCreateLease={canCreateLease}

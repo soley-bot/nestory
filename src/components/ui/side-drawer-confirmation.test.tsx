@@ -35,13 +35,14 @@ function DraftGuard({
   return <button type="button">Drawer field</button>;
 }
 
-function DrawerHarness({ status = "dirty" }: { status?: DraftStatus }) {
+function DrawerHarness({ status = "dirty", secondStatus }: { status?: DraftStatus; secondStatus?: DraftStatus }) {
   const [open, setOpen] = useState(true);
   const close = useCallback(() => setOpen(false), []);
 
   return open ? (
     <SideDrawer onClose={close} open title="Edit property">
       <DraftGuard onDiscard={close} status={status} />
+      {secondStatus ? <DraftGuard onDiscard={close} status={secondStatus} /> : null}
     </SideDrawer>
   ) : (
     <p>Drawer closed</p>
@@ -49,6 +50,37 @@ function DrawerHarness({ status = "dirty" }: { status?: DraftStatus }) {
 }
 
 describe("side drawer dismissal confirmation", () => {
+  it("keeps the saving notice when a save starts during discard confirmation", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<DrawerHarness />);
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    rerender(<DrawerHarness status="saving" />);
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(screen.getByRole("alertdialog", { name: "Saving is still in progress" })).not.toBeNull();
+    expect(screen.queryByText("Drawer closed")).toBeNull();
+  });
+
+  it("clears a saving notice when the drawer closes externally and reopens", async () => {
+    const user = userEvent.setup();
+    const view = (open: boolean) => <SideDrawer open={open} onClose={vi.fn()} title="Edit property"><DraftGuard onDiscard={vi.fn()} status="saving" /></SideDrawer>;
+    const { rerender } = render(view(true));
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    rerender(view(false));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    rerender(view(true));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Edit property" }).hasAttribute("inert")).toBe(false);
+  });
+  it("keeps a dirty form protected beside a clean form and prioritizes an active save", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<DrawerHarness secondStatus="clean" />);
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    rerender(<DrawerHarness secondStatus="saving" />);
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    expect(screen.getByRole("alertdialog", { name: "Saving is still in progress" })).not.toBeNull();
+  });
   it("opens a focused modal above the dirty drawer and restores focus when cancelled", async () => {
     const user = userEvent.setup();
     render(<DrawerHarness />);

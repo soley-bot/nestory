@@ -34,6 +34,7 @@ import type { PropertyRecordSection } from "@/features/properties/components/pro
 import type { PropertyDetail } from "@/features/properties/data/property-detail";
 import type { PropertyOwnerOption } from "@/features/properties/property.types";
 import { UnitForm } from "@/features/units/components/unit-form";
+import { buildHref } from "@/lib/url/href";
 import { workflowReturnHref } from "@/features/leases/workflow-return";
 
 type DrawerState =
@@ -48,6 +49,7 @@ type ConfirmationState = {
 };
 
 type PropertyDetailScreenProps = {
+  tenantPersonId?: string;
   returnTo?: string;
   billingFormConfig?: LeaseBillingFormConfig;
   canArchive?: boolean;
@@ -66,7 +68,7 @@ export function PropertyDetailScreen(props: PropertyDetailScreenProps) {
     <FinancialReportBoundary expectedGeneration={property.financialGeneration} fallback={
       <>
         <PageHeader title={property.name} description={`${property.code} / ${property.type}`} breadcrumb={
-          <PageBreadcrumb current={property.name} items={[{ href: workflowReturnHref(props.returnTo) ?? "/properties", label: "Properties" }]} />
+          <PageBreadcrumb current={property.name} items={[{ href: workflowReturnHref(props.returnTo) ?? buildHref("/properties", { tenantPersonId: props.tenantPersonId }), label: "Properties" }]} />
         } />
         <nav aria-label="Property record navigation" className="flex gap-4 px-4 py-3">
           <Link href={property.hrefs.account}>Finance</Link>
@@ -80,6 +82,7 @@ export function PropertyDetailScreen(props: PropertyDetailScreenProps) {
 }
 
 function PropertyDetailScreenContent({
+  tenantPersonId,
   returnTo,
   billingFormConfig,
   canArchive = true,
@@ -172,7 +175,7 @@ function PropertyDetailScreenContent({
         breadcrumb={
           <PageBreadcrumb
             current={property.name}
-            items={[{ href: originHref ?? "/properties", label: "Properties" }]}
+            items={[{ href: originHref ?? buildHref("/properties", { tenantPersonId }), label: "Properties" }]}
           />
         }
         context={
@@ -184,6 +187,28 @@ function PropertyDetailScreenContent({
         description={`${property.code} / ${property.type}`}
         title={property.name}
       />
+
+      {tenantPersonId ? (
+        <div className="mx-4 mt-4 rounded-md border border-accent/30 bg-accent/10 p-4 text-sm sm:mx-6">
+          <p className="font-medium">Choose where this tenant will lease</p>
+          {property.rentalStructure === "single_space" ? (
+            canCreateLease && !property.isArchived && property.activeLeases.length === 0 && !property.propertyDraftLease ? (
+              <Button className="mt-3" onClick={() => setDrawer({ mode: "create-lease", property })}>
+                Create lease for this property
+              </Button>
+            ) : <p className="mt-2">Lease creation is unavailable for this property.</p>
+          ) : property.rentalStructure === "multi_unit" ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {property.unitsList.filter((unit) => !unit.isArchived).map((unit) => (
+                <Link className="rounded-md border border-border bg-card px-3 py-2 font-medium hover:bg-muted" href={`/units/${unit.id}?${new URLSearchParams({ tenantPersonId })}`} key={unit.id}>
+                  Unit {unit.unitNumber}
+                </Link>
+              ))}
+              {property.unitsList.every((unit) => unit.isArchived) ? <p>No active units are available to select.</p> : null}
+            </div>
+          ) : <p className="mt-2">Set this property’s rental structure before creating a lease.</p>}
+        </div>
+      ) : null}
 
       {statusMessage ? (
         <div className="px-4 pt-5 sm:px-6 lg:shrink-0 lg:px-6">
@@ -197,6 +222,7 @@ function PropertyDetailScreenContent({
       ) : null}
 
       <PropertyDetailView
+        tenantPersonId={tenantPersonId}
         returnTo={originHref}
         canArchiveFiles={canArchive}
         initialSection={initialSection}
@@ -244,6 +270,7 @@ function PropertyDetailScreenContent({
             >
               {(options) => (
                 <LeaseForm
+                  initialValues={tenantPersonId ? { tenantPersonId } : undefined}
                   returnTo={`/properties/${property.id}`}
                   billingFormConfig={options.billingFormConfig}
                   canRecordDepositReceipt={canRecordDepositReceipt}

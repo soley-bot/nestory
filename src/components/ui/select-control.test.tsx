@@ -27,6 +27,24 @@ class ResizeObserverStub {
 }
 
 describe("SelectControl", () => {
+  it("scrolls to a selected option on open and keeps keyboard navigation visible", async () => {
+    const user = userEvent.setup();
+    const bounds = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const viewport = this.closest('[role="listbox"]') as HTMLElement | null;
+      const index = this.getAttribute("role") === "option" ? Number(this.textContent?.match(/Category (\d+)/)?.[1]) - 1 : 0;
+      const top = this.getAttribute("role") === "option" ? index * 40 - (viewport?.scrollTop ?? 0) : 0;
+      return { top, bottom: top + (this.getAttribute("role") === "option" ? 40 : 120), left: 0, right: 200, width: 200, height: 120, x: 0, y: top, toJSON() {} };
+    });
+    try {
+      render(<SelectControl ariaLabel="Category" defaultValue="8" options={Array.from({ length: 12 }, (_, index) => ({ label: `Category ${index + 1}`, value: String(index) }))} />);
+      await user.click(screen.getByRole("combobox", { name: "Category" }));
+      const viewport = screen.getByRole("listbox");
+      expect(viewport.scrollTop).toBe(240);
+      await user.keyboard("{ArrowDown}");
+      expect(viewport.scrollTop).toBe(280);
+      expect(document.activeElement).toBe(screen.getByRole("combobox", {name: "Search Category"}));
+    } finally { bounds.mockRestore(); }
+  });
   it.each([2, 7])("ignores an open option when its fieldset becomes disabled with %i options", async (count) => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();
@@ -79,6 +97,18 @@ describe("SelectControl", () => {
     await user.click(screen.getByRole("combobox", { name: "Category" }));
     await user.keyboard("{ArrowDown}{Enter}");
     expect(onValueChange).toHaveBeenCalledWith("2");
+  });
+
+  it("does not select an option when Enter confirms IME composition", async () => {
+    const user = userEvent.setup();
+    const onValueChange = vi.fn();
+    render(<SelectControl ariaLabel="Property" onValueChange={onValueChange}
+      options={Array.from({ length: 7 }, (_, index) => ({ label: `Property ${index + 1}`, value: String(index) }))} />);
+    await user.click(screen.getByRole("combobox", { name: "Property" }));
+    const search = screen.getByRole("combobox", { name: "Search Property" });
+    fireEvent.keyDown(search, { key: "Enter", isComposing: true, keyCode: 229 });
+    expect(onValueChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("listbox")).not.toBeNull();
   });
 
   it.each([2, 7])("opens and selects with the keyboard with %i options", async (count) => {

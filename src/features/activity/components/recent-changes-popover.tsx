@@ -42,7 +42,7 @@ export function RecentChangesPopover({
         >
           <Bell size={15} />
           {changes.length > 0 ? (
-            <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-xs font-semibold leading-none text-background">
+            <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-xs font-semibold leading-none text-accent-foreground">
               {changes.length > 9 ? "9+" : changes.length}
             </span>
           ) : null}

@@ -29,6 +29,19 @@ afterEach(() => {
 });
 
 describe("ThemeRuntime", () => {
+  it("applies a matching preference change from another tab", () => {
+    render(<ThemeRuntime organizationId="org-1"
+      theme={{ accentPreset: "neutral", accentSeed: null, mode: "light" }} userId="user-1">
+      <span>Workspace</span>
+    </ThemeRuntime>);
+    const key = getDisplayThemeStorageKey("org-1", "user-1");
+    localStorage.setItem(key, "dark");
+    window.dispatchEvent(new StorageEvent("storage", { key, newValue: "dark" }));
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    window.dispatchEvent(new StorageEvent("storage", { key: "other-user", newValue: "light" }));
+    expect(document.documentElement.dataset.theme).toBe("dark");
+  });
+
   it("does not reuse another user's display preference in the same organization", () => {
     localStorage.setItem(
       getDisplayThemeStorageKey("org-1", "user-a"),

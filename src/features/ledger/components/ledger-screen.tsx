@@ -1,6 +1,6 @@
 "use client";
 
-import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
+import { FinancialFormCancel, FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 
 import {
   useActionState,
@@ -417,7 +417,7 @@ export function getLedgerReviewContext(
       countLabel: "in the current month",
       description: "Dashboard ledger net opens this month-to-date view.",
       nextStep:
-        "Select an entry to inspect, edit, attach a receipt, or lock the month.",
+        "Select an entry to inspect its details and open its source record.",
     };
   }
 
@@ -433,7 +433,7 @@ export function getLedgerReviewContext(
       countLabel: `from recent expenses${threshold}`,
       description: `Dashboard expense review shows expenses from the last 30 days${threshold}.`,
       nextStep:
-        "Check the largest entries first, then attach receipts or correct records.",
+        "Check the largest entries first, then open their source records for details.",
     };
   }
 
@@ -454,7 +454,7 @@ export function getLedgerReviewContext(
         viewQuery.dateFrom,
         viewQuery.dateTo,
       )}.`,
-      nextStep: "Select an entry to inspect or adjust the ledger record.",
+      nextStep: "Select an entry to inspect its details and open its source record.",
     };
   }
 
@@ -560,7 +560,7 @@ function ReceiptPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <FinancialForm action={action} className="flex h-full flex-col">
+    <FinancialForm draftGuard={{pending, saved: state.status === "success"}} action={action} className="flex h-full flex-col">
       <input name="entryId" type="hidden" value={entry.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="rounded-md border border-border bg-muted px-3 py-3">
@@ -604,9 +604,9 @@ function ReceiptPanel({
 
       <div className="border-t border-border px-4 py-4 sm:px-5">
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button className="w-full sm:w-auto" onClick={onClose} type="button">
+          <FinancialFormCancel className="w-full sm:w-auto" onClick={onClose} type="button">
             Cancel
-          </Button>
+          </FinancialFormCancel>
           <Button
             className="w-full sm:w-auto"
             disabled={pending}
@@ -646,7 +646,7 @@ function PeriodLockPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <FinancialForm action={action} className="flex h-full flex-col">
+    <FinancialForm draftGuard={{pending, saved: state.status === "success"}} action={action} className="flex h-full flex-col">
       <div className="flex-1 space-y-5 px-4 py-5 sm:px-5">
         <ConsequencePanel
           summary={
@@ -745,9 +745,9 @@ function PeriodLockPanel({
 
       <div className="border-t border-border px-4 py-4 sm:px-5">
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button className="w-full sm:w-auto" onClick={onClose} type="button">
+          <FinancialFormCancel className="w-full sm:w-auto" onClick={onClose} type="button">
             Cancel
-          </Button>
+          </FinancialFormCancel>
           <Button
             className="w-full sm:w-auto"
             disabled={pending}

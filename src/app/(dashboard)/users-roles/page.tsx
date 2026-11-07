@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 type LegacyUsersRolesPageProps = {
@@ -27,3 +28,5 @@ function readUuidParam(value: string | string[] | undefined) {
     ? first
     : undefined;
 }
+
+export const metadata: Metadata = { title: "Users and roles" };

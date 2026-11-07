@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { LedgerScreen } from "@/features/ledger/components/ledger-screen";
 import { getLedgerScreenData } from "@/features/ledger/data/ledger";
 import { parseLedgerSearchParams } from "@/features/ledger/ledger.filters";
@@ -24,3 +25,5 @@ export default async function LedgerPage({ searchParams }: LedgerPageProps) {
     />
   );
 }
+
+export const metadata: Metadata = { title: "Ledger" };

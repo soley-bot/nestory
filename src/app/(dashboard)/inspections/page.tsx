@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { renderMaintenanceRoute } from "@/features/maintenance/maintenance-route";
 
 type InspectionsPageProps = {
@@ -18,3 +19,5 @@ export default function InspectionsPage({ searchParams }: InspectionsPageProps) 
     title: "Inspections",
   });
 }
+
+export const metadata: Metadata = { title: "Inspections" };
