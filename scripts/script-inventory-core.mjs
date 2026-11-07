@@ -4,6 +4,7 @@ const defaultGateCommands = new Set([
   "test:all",
   "test:contracts",
   "test:database",
+  "test:pilot-finance-reset",
   "test:ui",
   "test:unit",
 ]);

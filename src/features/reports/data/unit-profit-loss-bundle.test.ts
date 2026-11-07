@@ -5,6 +5,8 @@ import { loadScopedFinanceContext } from "@/features/finance-operations/data/sco
 import { getTrustedReport } from "./trusted-report";
 import { loadReportCompanyLogo } from "./owner-statement-presentation";
 import { getUnitProfitLossBundle } from "./unit-profit-loss-bundle";
+import * as pdf from "./pdf";
+import * as excel from "./excel";
 import type { TrustedReport } from "../reports.types";
 
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: vi.fn() }));
@@ -32,6 +34,7 @@ function unitReport(unitId: string): TrustedReport {
 }
 
 beforeEach(() => {
+    vi.restoreAllMocks();
   vi.resetAllMocks();
   vi.mocked(createSupabaseServerClient).mockResolvedValue({} as never);
   vi.mocked(loadScopedFinanceContext).mockResolvedValue({ properties: [{ id: property, archived_at: null }], units: [unit1, unit2].map(id => ({ id, property_id: property })) } as never);
@@ -83,5 +86,53 @@ describe("unit report bundle", () => {
   it("fails closed if a source returns combined or misattributed unit details", async () => {
     vi.mocked(getTrustedReport).mockResolvedValue(unitReport(unit2));
     expect(await getUnitProfitLossBundle("org", "Example", selection)).toMatchObject({ validation: { status: 409, code: "invalid_unit_report" } });
+  });
+
+  it.each(["pdf", "xlsx"] as const)("keeps selection-order errors when a later %s renderer throws", async (format) => {
+    const otherProperty = "00000000-0000-4000-8000-000000000020";
+    const otherUnit = "00000000-0000-4000-8000-000000000003";
+    vi.mocked(loadScopedFinanceContext).mockResolvedValue({
+      properties: [property, otherProperty].map(id => ({ id, archived_at: null })),
+      units: [{ id: unit1, property_id: property }, { id: otherUnit, property_id: otherProperty }, { id: unit2, property_id: property }],
+    } as never);
+    const billingError = { status: 409, code: "monthly_rent_incomplete", message: "Review billing." } as const;
+    const earlierRenderError = new Error("Second selection could not render.");
+    const laterRenderError = new Error("Third selection could not render.");
+    const render = (report: TrustedReport) => {
+      const unitId = report.unitProfitLossLines![0]!.unitId;
+      if (unitId === unit2) throw laterRenderError;
+      if (unitId === otherUnit) throw earlierRenderError;
+      return new Uint8Array([1]);
+    };
+    vi.spyOn(pdf, "buildTrustedReportPdf").mockImplementation(({ report }) => render(report));
+    vi.spyOn(excel, "buildTrustedReportXlsx").mockImplementation(render);
+    const interleaved = { ...selection, format, propertyId: "all", unitIds: [unit1, otherUnit, unit2] };
+    vi.mocked(getTrustedReport).mockImplementation(async ({ viewQuery }) =>
+      viewQuery.unitId === otherUnit
+        ? { ...unitReport(otherUnit), exportValidation: billingError }
+        : unitReport(viewQuery.unitId));
+
+    await expect(getUnitProfitLossBundle("org", "Example", interleaved)).resolves.toEqual({ validation: billingError });
+
+    vi.mocked(getTrustedReport).mockImplementation(async ({ viewQuery }) => unitReport(viewQuery.unitId));
+    await expect(getUnitProfitLossBundle("org", "Example", interleaved)).rejects.toBe(earlierRenderError);
+  });
+
+  it("reports the earliest selected unit's failure when two interleaved property groups fail", async () => {
+    const otherProperty = "00000000-0000-4000-8000-000000000020";
+    const otherUnit = "00000000-0000-4000-8000-000000000003";
+    vi.mocked(loadScopedFinanceContext).mockResolvedValue({
+      properties: [property, otherProperty].map(id => ({ id, archived_at: null })),
+      units: [{ id: unit1, property_id: property }, { id: otherUnit, property_id: otherProperty }, { id: unit2, property_id: property }],
+    } as never);
+    const billingError = { status: 409, code: "monthly_rent_incomplete", message: "Review billing." } as const;
+    vi.mocked(getTrustedReport).mockImplementation(async ({ viewQuery }) => {
+      if (viewQuery.unitId === otherUnit) return { ...unitReport(otherUnit), exportValidation: billingError };
+      return unitReport(unit1); // The third selection receives the wrong unit's details.
+    });
+    const result = await getUnitProfitLossBundle("org", "Example", {
+      ...selection, propertyId: "all", unitIds: [unit1, otherUnit, unit2],
+    });
+    expect(result).toEqual({ validation: billingError });
   });
 });

@@ -280,6 +280,12 @@ function invalidReportScope(viewQuery: ReportsViewQuery): TrustedReport {
 }
 
 type TrustedReportOptions = {
+  bundlePropertyEvents?: {
+    organizationId: string;
+    month: string;
+    propertyId: string;
+    events?: OwnerProfitLossEvent[];
+  };
   financeContext?: ScopedFinanceContext;
   organizationId: string;
   supabase?: SupabaseServerClient;
@@ -327,6 +333,7 @@ function invalidReportRange(viewQuery: ReportsViewQuery, error: unknown): Truste
 }
 
 async function loadTrustedReport({
+  bundlePropertyEvents,
   financeContext: suppliedFinanceContext,
   organizationId,
   supabase: suppliedSupabase,
@@ -443,15 +450,14 @@ async function loadTrustedReport({
       (viewQuery.unitId !== "all" && !units.some((unit) => unit.id === viewQuery.unitId))
     ) return invalidReportScope(viewQuery);
 
-    const ownerProfitLossEvents =
-      propertyIds.length === 0
-        ? []
-        : await loadReportOwnerProfitLossEvents({
-            organizationId,
-            period,
-            propertyIds,
-            supabase,
-          });
+    const sharedSource = bundlePropertyEvents?.organizationId === organizationId
+      && bundlePropertyEvents.month === viewQuery.month
+      && propertyIds.length === 1 && bundlePropertyEvents.propertyId === propertyIds[0]
+      ? bundlePropertyEvents : undefined;
+    const ownerProfitLossEvents = sharedSource?.events ?? await loadReportOwnerProfitLossEvents({
+      organizationId, period, propertyIds, supabase,
+    });
+    if (sharedSource) sharedSource.events = ownerProfitLossEvents;
     const owners: OwnerRow[] = (financeContext.owner_assignments ?? [])
       .filter(
         (assignment) =>

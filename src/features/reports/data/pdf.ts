@@ -7,8 +7,6 @@ import {
 import { formatCalendarDate } from "@/lib/dates/format";
 import type { OwnerStatementPublicationModel } from "@/features/reports/data/owner-statement-report";
 import type {
-  OccupancyReport,
-  OccupancyReportRow,
   ReportsViewQuery,
   TrustedReport,
   UnitProfitLossLine,
@@ -132,7 +130,6 @@ const unitStatementContentWidth = 770;
 const rowFontSize = 8.2;
 const rowLineHeight = 10.4;
 const cellPaddingX = 5;
-const tableTopY = 382;
 const trustedTableTopY = 350;
 const statementTableTopY = 438;
 const tableBottomY = 45;
@@ -181,17 +178,6 @@ const sourceTraceColumns: PdfColumn[] = [
 ];
 
 
-
-const columns: PdfColumn[] = [
-  { align: "center", label: "No.", maxLines: 1, width: 30 },
-  { label: "Property Name", maxLines: 2, width: 168 },
-  { label: "Unit no. / Floor", maxLines: 2, width: 92 },
-  { label: "Type", maxLines: 2, width: 72 },
-  { label: "Inclusion", maxLines: 2, width: 70 },
-  { align: "right", label: "Price", maxLines: 1, width: 86 },
-  { label: "Property Code", maxLines: 2, width: 72 },
-  { label: "Remark", maxLines: 3, width: 180 },
-];
 
 export async function getReportPdf(
   organizationId: string,
@@ -640,69 +626,6 @@ function renderTrustedReportSourceTracePage({
   return commands.join("\n");
 }
 
-export function buildOccupancyReportPdf({
-  organizationName,
-  report,
-  scopeLabel,
-}: {
-  organizationName: string;
-  report?: OccupancyReport;
-  scopeLabel: string;
-}) {
-  const rows = buildPdfRows(report?.rows ?? []);
-  const pages = paginateRows(rows);
-  const pageCommands = pages.map((page, pageIndex) =>
-    renderPage({
-      organizationName,
-      page,
-      pageIndex,
-      report,
-      scopeLabel,
-      totalPages: pages.length,
-    }),
-  );
-
-  return createPdfDocument(pageCommands);
-}
-
-function buildPdfRows(rows: OccupancyReportRow[]) {
-  if (rows.length === 0) {
-    return [
-      buildPdfRow(
-        [
-          "",
-          "No units match this report.",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-        ],
-        0,
-        columns,
-      ),
-    ];
-  }
-
-  return rows.map((row, index) =>
-    buildPdfRow(
-      [
-        String(index + 1),
-        row.propertyName,
-        getUnitFloorLabel(row),
-        row.typeLabel,
-        row.inclusionLabel,
-        row.rentLabel,
-        row.propertyCode,
-        row.remark,
-      ],
-      index,
-      columns,
-    ),
-  );
-}
-
 function buildPdfRow(
   cells: string[],
   index: number,
@@ -737,7 +660,7 @@ function buildPdfRow(
   };
 }
 
-function paginateRows(rows: PdfTableRow[], yTop = tableTopY) {
+function paginateRows(rows: PdfTableRow[], yTop: number) {
   const pages: PdfPage[] = [];
   let currentRows: PdfTableRow[] = [];
   let remainingHeight = yTop - headerRowHeight - tableBottomY;
@@ -756,39 +679,6 @@ function paginateRows(rows: PdfTableRow[], yTop = tableTopY) {
   pages.push({ rows: currentRows });
 
   return pages;
-}
-
-function renderPage({
-  organizationName,
-  page,
-  pageIndex,
-  report,
-  scopeLabel,
-  totalPages,
-}: {
-  organizationName: string;
-  page: PdfPage;
-  pageIndex: number;
-  report?: OccupancyReport;
-  scopeLabel: string;
-  totalPages: number;
-}) {
-  const commands: string[] = [];
-  const pageNumber = pageIndex + 1;
-
-  drawHeader(commands, organizationName, report, scopeLabel);
-  drawTableHeader(commands, tableTopY, columns);
-
-  let y = tableTopY - headerRowHeight;
-
-  for (const row of page.rows) {
-    y -= row.height;
-    drawTableRow(commands, row, y, columns);
-  }
-
-  drawFooter(commands, pageNumber, totalPages);
-
-  return commands.join("\n");
 }
 
 function buildTrustedReportPdfColumns(report: TrustedReport): PdfColumn[] {
@@ -2001,121 +1891,6 @@ function fitTextFontSize(value: string, width: number, preferredSize: number, bo
   return Math.min(preferredSize, Math.floor(fittedSize * 100) / 100);
 }
 
-function drawHeader(
-  commands: string[],
-  organizationName: string,
-  report: OccupancyReport | undefined,
-  scopeLabel: string,
-) {
-  drawRect(commands, marginX, 542, 28, 28, {
-    fill: colors.ink,
-    stroke: colors.ink,
-  });
-  drawText(commands, "N", marginX, 551, {
-    align: "center",
-    bold: true,
-    color: "#ffffff",
-    fontSize: 13,
-    width: 28,
-  });
-  drawText(commands, "Nestory", marginX + 38, 557, {
-    bold: true,
-    color: colors.ink,
-    fontSize: 11,
-  });
-  drawText(commands, "Available unit report", marginX + 38, 544, {
-    color: colors.muted,
-    fontSize: 8.5,
-  });
-
-  drawText(commands, `Available Units - ${organizationName}`, 0, 550, {
-    align: "center",
-    bold: true,
-    color: colors.ink,
-    fontSize: 16,
-    width: pageWidth,
-  });
-  drawText(
-    commands,
-    report ? `(Last Update: ${formatLongReportDate(report.generatedAt)})` : "",
-    0,
-    532,
-    {
-      align: "center",
-      color: colors.muted,
-      fontSize: 9.5,
-      width: pageWidth,
-    },
-  );
-
-  drawText(commands, "STRICTLY FOR LEASING REVIEW", pageWidth - marginX - 160, 557, {
-    align: "right",
-    bold: true,
-    color: colors.warning,
-    fontSize: 8,
-    width: 160,
-  });
-  drawText(commands, `Page prepared ${formatLongReportDate(new Date().toISOString())}`, pageWidth - marginX - 190, 544, {
-    align: "right",
-    color: colors.muted,
-    fontSize: 8,
-    width: 190,
-  });
-
-  drawRect(commands, marginX, 492, tableWidth, 30, {
-    fill: colors.soft,
-    stroke: colors.border,
-  });
-  drawRect(commands, marginX, 492, 4, 30, { fill: colors.accent });
-  drawMeta(commands, "Scope", scopeLabel, marginX + 16, 501, 250);
-  drawMeta(
-    commands,
-    "Report rows",
-    String(report?.totals.visible ?? 0),
-    marginX + 300,
-    501,
-    115,
-  );
-  drawMeta(
-    commands,
-    "Vacant units",
-    String(report?.totals.vacant ?? 0),
-    marginX + 448,
-    501,
-    115,
-  );
-  drawMeta(
-    commands,
-    "Template",
-    "Available units",
-    marginX + 594,
-    501,
-    150,
-  );
-}
-
-function drawMeta(
-  commands: string[],
-  label: string,
-  value: string,
-  x: number,
-  y: number,
-  width: number,
-) {
-  drawText(commands, label.toUpperCase(), x, y + 10, {
-    bold: true,
-    color: colors.muted,
-    fontSize: 6.8,
-    width,
-  });
-  drawText(commands, value, x, y - 1, {
-    bold: true,
-    color: colors.ink,
-    fontSize: 9,
-    width,
-  });
-}
-
 function drawTableHeader(
   commands: string[],
   yTop: number,
@@ -2486,10 +2261,6 @@ function createPdfDocument(
   parts.push(Buffer.from(trailer, "latin1"));
 
   return new Uint8Array(Buffer.concat(parts));
-}
-
-function getUnitFloorLabel(row: OccupancyReportRow) {
-  return row.floorLabel === "-" ? row.unitNumber : `${row.unitNumber} / ${row.floorLabel}`;
 }
 
 function sanitizeText(value: string) {

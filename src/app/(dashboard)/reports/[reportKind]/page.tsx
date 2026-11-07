@@ -1,9 +1,6 @@
 import { notFound } from "next/navigation";
 import { ReportBuilderScreen } from "@/features/reports/components/reports-screen";
-import {
-  getReportsScreenData,
-  prepareTrustedReportForScreen,
-} from "@/features/reports/data/reports";
+import { getReportsScreenData } from "@/features/reports/data/reports";
 import { parseReportSearchParams } from "@/features/reports/reports.filters";
 import { isReportKind } from "@/features/reports/report-catalog";
 import { requireFinanceReportContext } from "@/lib/auth/context";
@@ -28,12 +25,9 @@ export default async function ReportBuilderPage({
     ...(await searchParams),
     report: reportKind,
   }, context.operationalTimezone);
-  const data = await getReportsScreenData(context.organizationId, viewQuery);
-  if (!context.isSuperAdmin) {
-    data.trustedReport = prepareTrustedReportForScreen(data.trustedReport, {
-      financeSafeRecords: true,
-    });
-  }
+  const data = await getReportsScreenData(context.organizationId, viewQuery, {
+    financeSafeRecords: !context.isSuperAdmin,
+  });
 
   return (
     <ReportBuilderScreen

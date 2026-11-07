@@ -2,24 +2,26 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  getReportsScreenData: vi.fn(),
-  prepareTrustedReportForScreen: vi.fn((report) => report),
-  reportScreen: vi.fn(),
+  getTrustedReport: vi.fn(),
   requireFinanceReportContext: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/context", () => ({
   requireFinanceReportContext: mocks.requireFinanceReportContext,
 }));
-vi.mock("@/features/reports/data/reports", () => ({
-  getReportsScreenData: mocks.getReportsScreenData,
-  prepareTrustedReportForScreen: mocks.prepareTrustedReportForScreen,
+vi.mock("@/features/reports/data/trusted-report", () => ({
+  getTrustedReport: mocks.getTrustedReport,
+}));
+vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: vi.fn() }));
+vi.mock("@/features/finance-operations/data/scoped-finance-context", () => ({
+  loadScopedFinanceContext: async () => ({ properties: [], units: [] }),
+}));
+vi.mock("@/lib/finance/financial-write-context.server", () => ({
+  withFinancialReadContext: async (_org: string, read: (context: { generation: number }) => Promise<unknown>) =>
+    read({ generation: 1 }),
 }));
 vi.mock("@/features/reports/components/reports-screen", () => ({
-  ReportBuilderScreen: (props: Record<string, unknown>) => {
-    mocks.reportScreen(props);
-    return <div>Operational report detail</div>;
-  },
+  ReportBuilderScreen: () => <div>Operational report detail</div>,
 }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 
@@ -35,26 +37,44 @@ describe("ReportBuilderPage", () => {
       permissionKeys: new Set(["finance.view", "finance.publish"]),
       role: "custom",
     });
-    mocks.getReportsScreenData.mockResolvedValue({
-      trustedReport: { rows: [] },
-    });
   });
 
   it("loads an existing operational report with Finance report authority", async () => {
-    const html = renderToStaticMarkup(await ReportBuilderPage({
+    const page = await ReportBuilderPage({
       params: Promise.resolve({ reportKind: "unit-profit-loss" }),
       searchParams: Promise.resolve({ month: "2026-08" }),
-    }));
+    });
+    const html = renderToStaticMarkup(page);
 
     expect(html).toContain("Operational report detail");
     expect(mocks.requireFinanceReportContext).toHaveBeenCalledOnce();
-    expect(mocks.getReportsScreenData).toHaveBeenCalledWith(
-      "organization-1",
-      expect.objectContaining({ report: "unit-profit-loss" }),
-    );
-    expect(mocks.prepareTrustedReportForScreen).toHaveBeenCalledWith(
-      { rows: [] },
-      { financeSafeRecords: true },
-    );
+    expect(page.props.viewQuery).toMatchObject({ report: "unit-profit-loss", month: "2026-08" });
+    expect(page.props.trustedReport.kind).toBe("unit-profit-loss");
+  });
+
+  it.each([false, true])("preserves the full Owner activity count and role-specific links (super admin: %s)", async (isSuperAdmin) => {
+    mocks.requireFinanceReportContext.mockResolvedValue({
+      isSuperAdmin, organizationId: "organization-1", operationalTimezone: "UTC",
+    });
+    const href = "/people/owner-1";
+    const rows = Array.from({ length: 76 }, (_, index) => ({
+      id: String(index), href, sourceLinks: [{ href }],
+    }));
+    mocks.getTrustedReport.mockResolvedValue({ kind: "monthly-owner-activity", rows });
+
+    const page = await ReportBuilderPage({
+      params: Promise.resolve({ reportKind: "monthly-owner-activity" }),
+      searchParams: Promise.resolve({ month: "2026-08" }),
+    });
+
+    const preview = page.props.trustedReport;
+    expect(mocks.getTrustedReport).toHaveBeenCalledWith(expect.objectContaining({
+      organizationId: "organization-1",
+      viewQuery: expect.objectContaining({ report: "monthly-owner-activity", month: "2026-08" }),
+    }));
+    expect(preview.rows).toHaveLength(75);
+    expect(preview.totalRowCount).toBe(76);
+    expect(preview.rows[0].href).toBe(isSuperAdmin ? href : undefined);
+    expect(preview.rows[0].sourceLinks[0].href).toBe(isSuperAdmin ? href : undefined);
   });
 });
