@@ -15,12 +15,28 @@ vi.mock("@/features/photos/actions", () => ({
 }));
 import { PhotoGallery } from "@/features/photos/components/photo-gallery";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 beforeEach(() => {
   vi.resetAllMocks();
   actions.cover.mockResolvedValue({ message: "Cover updated.", status: "success" });
   actions.archive.mockResolvedValue({ message: "Photo archived.", status: "success" });
   HTMLElement.prototype.scrollTo = vi.fn();
+  // userEvent patches input.files; JSDOM's native FormData reads its internal
+  // FileList instead. Bridge the selected files to model browser serialization.
+  const NativeFormData = globalThis.FormData;
+  vi.stubGlobal("FormData", class extends NativeFormData {
+    constructor(form?: HTMLFormElement, submitter?: HTMLElement | null) {
+      super(form, submitter);
+      for (const input of form?.querySelectorAll<HTMLInputElement>('input[type="file"][name]') ?? []) {
+        if (input.matches(":disabled") || !input.files?.length) continue;
+        this.delete(input.name);
+        for (const file of Array.from(input.files)) this.append(input.name, file);
+      }
+    }
+  });
 });
 
 const photo = {
@@ -35,6 +51,113 @@ const photo = {
 };
 
 describe("PhotoGallery exact permissions", () => {
+  it("discards a selected file with the drawer and starts fresh when reopened", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("URL", Object.assign(class extends URL {}, {
+      createObjectURL: vi.fn(() => "blob:photo-preview"),
+      revokeObjectURL: vi.fn(),
+    }));
+    render(gallery());
+    await user.click(screen.getByRole("button", { name: "Add photo" }));
+    const file = new File(["photo"], "unit.jpg", { type: "image/jpeg" });
+    await user.upload(document.querySelector('input[type="file"]') as HTMLInputElement, file);
+    expect(screen.getByText("Ready to upload")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    expect(screen.getByRole("button", { name: "Discard changes" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    await waitFor(() => expect(screen.queryByText("Ready to upload")).toBeNull());
+    await user.click(screen.getByRole("button", { name: "Add photo" }));
+    expect(screen.queryByText("Ready to upload")).toBeNull();
+    expect((document.querySelector('input[type="file"]') as HTMLInputElement).files).toHaveLength(0);
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps the uploaded draft after a server validation error", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("URL", Object.assign(class extends URL {}, {
+      createObjectURL: vi.fn(() => "blob:photo-preview"),
+      revokeObjectURL: vi.fn(),
+    }));
+    actions.upload.mockResolvedValue({ status: "error", message: "Check the caption." });
+    render(gallery());
+    await user.click(screen.getByRole("button", { name: "Add photo" }));
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, new File(["photo"], "unit.jpg", { type: "image/jpeg" }));
+    await user.type(screen.getByLabelText("Caption"), "Kitchen draft");
+    await user.click(screen.getByRole("button", { name: "Upload photo" }));
+    expect(await screen.findByText("Check the caption.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Caption")).toHaveValue("Kitchen draft");
+    expect(input.files?.[0]?.name).toBe("unit.jpg");
+    expect(screen.getByText("Ready to upload")).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
+  it("prevents dropping a replacement while upload is pending", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("URL", Object.assign(class extends URL {}, {
+      createObjectURL: vi.fn(() => "blob:photo-preview"),
+      revokeObjectURL: vi.fn(),
+    }));
+    const result = deferred();
+    actions.upload.mockReturnValueOnce(result.promise);
+    render(gallery());
+    await user.click(screen.getByRole("button", { name: "Add photo" }));
+    await user.upload(document.querySelector('input[type="file"]') as HTMLInputElement,
+      new File(["photo"], "unit.jpg", { type: "image/jpeg" }));
+    await user.click(screen.getByRole("button", { name: "Upload photo" }));
+    expect(screen.getByRole("button", { name: "Uploading..." })).toBeDisabled();
+    const replacement = new File(["replacement"], "replacement.jpg", { type: "image/jpeg" });
+    await act(async () => fireEvent.drop(screen.getByRole("button", { name: /unit.jpg.*JPG/ }), {
+      dataTransfer: { files: [replacement], items: [{ kind: "file", type: replacement.type, getAsFile: () => replacement }], types: ["Files"] },
+    }));
+    expect(screen.queryByText("replacement.jpg")).toBeNull();
+    expect(screen.getByText("Ready to upload")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    expect(screen.getByRole("alertdialog", { name: "Saving is still in progress" })).toBeInTheDocument();
+    await act(async () => result.resolve({ status: "success" }));
+    vi.unstubAllGlobals();
+  });
+
+  it("closes without a discard warning after the selected photo is cleared", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("URL", Object.assign(class extends URL {}, {
+      createObjectURL: vi.fn(() => "blob:photo-preview"),
+      revokeObjectURL: vi.fn(),
+    }));
+    render(gallery());
+    await user.click(screen.getByRole("button", { name: "Add photo" }));
+    await user.upload(document.querySelector('input[type="file"]') as HTMLInputElement,
+      new File(["photo"], "unit.jpg", { type: "image/jpeg" }));
+    await user.click(screen.getByRole("button", { name: "Clear selected photo" }));
+    expect(screen.queryByText("Ready to upload")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("uses unit scope in the upload drawer", async () => {
+    const user = userEvent.setup();
+    render(<PhotoGallery canWrite emptyLabel="No photos" photos={[]} propertyId="property-1" title="Unit photos" unitId="unit-1" />);
+    await user.click(screen.getByRole("button", { name: "Add photo" }));
+    expect(screen.getByText("Upload a photo to this unit.")).toBeInTheDocument();
+  });
+
+  it("clears the selected preview when a replacement is rejected", async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    vi.stubGlobal("URL", Object.assign(class extends URL {}, {
+      createObjectURL: vi.fn(() => "blob:photo-preview"),
+      revokeObjectURL: vi.fn(),
+    }));
+    render(gallery());
+    await user.click(screen.getByRole("button", { name: "Add photo" }));
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, new File(["valid"], "valid.jpg", { type: "image/jpeg" }));
+    expect(screen.getByText("Ready to upload")).toBeInTheDocument();
+    await user.upload(input, new File(["invalid"], "invalid.txt", { type: "text/plain" }));
+    expect(screen.queryByText("Ready to upload")).toBeNull();
+    expect(input.files).toHaveLength(0);
+    vi.unstubAllGlobals();
+  });
   it("splits upload and cover editing from archival", () => {
     const { rerender } = render(
       <PhotoGallery

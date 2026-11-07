@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import {
   OverlayDismissalContext,
+  discardOverlayDraftGuards,
+  getOverlayDraftDecision,
   type OverlayDraftGuard,
 } from "@/components/ui/overlay-dismissal-context";
 import { useOverlayPortalContainer } from "@/components/ui/overlay-portal-container";
@@ -55,7 +57,7 @@ export function SideDrawer({
   summary,
   title,
 }: SideDrawerProps) {
-  const draftGuardRef = React.useRef<OverlayDraftGuard | null>(null);
+  const draftGuardsRef = React.useRef(new Map<symbol, OverlayDraftGuard>());
   const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const previouslyFocusedElementRef = React.useRef<HTMLElement | null>(
     typeof document !== "undefined" &&
@@ -68,6 +70,11 @@ export function SideDrawer({
   >(null);
   const [portalContainer, setPortalContainer] =
     React.useState<HTMLDivElement | null>(null);
+  const [previousOpen, setPreviousOpen] = React.useState(open);
+  if (previousOpen !== open) {
+    setPreviousOpen(open);
+    setDismissalDecision(null);
+  }
 
   const restorePreviousFocus = React.useCallback(() => {
     const previouslyFocusedElement = previouslyFocusedElementRef.current;
@@ -81,22 +88,15 @@ export function SideDrawer({
   }, []);
 
   const registerDraftGuard = React.useCallback((guard: OverlayDraftGuard) => {
-    draftGuardRef.current = guard;
-    return () => {
-      if (draftGuardRef.current === guard) draftGuardRef.current = null;
-    };
+    const key = Symbol("draft guard");
+    draftGuardsRef.current.set(key, guard);
+    return () => { draftGuardsRef.current.delete(key); };
   }, []);
 
   const requestClose = React.useCallback(() => {
-    const guard = draftGuardRef.current;
-
-    if (guard?.status === "saving") {
-      setDismissalDecision("saving");
-      return;
-    }
-
-    if (guard?.status === "dirty" || guard?.status === "error") {
-      setDismissalDecision("dirty");
+    const decision = getOverlayDraftDecision(draftGuardsRef.current.values());
+    if (decision) {
+      setDismissalDecision(decision);
       return;
     }
 
@@ -105,11 +105,14 @@ export function SideDrawer({
     restorePreviousFocus();
   }, [onClose, restorePreviousFocus]);
 
-  const discardAndClose = React.useCallback(() => {
-    const onDiscard = draftGuardRef.current?.onDiscard;
+  const discardAndClose = React.useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    if (getOverlayDraftDecision(draftGuardsRef.current.values()) === "saving") {
+      event.preventDefault();
+      setDismissalDecision("saving");
+      return;
+    }
     setDismissalDecision(null);
-    if (onDiscard) onDiscard();
-    else onClose();
+    discardOverlayDraftGuards(draftGuardsRef.current.values(), onClose);
     restorePreviousFocus();
   }, [onClose, restorePreviousFocus]);
 
@@ -224,7 +227,7 @@ export function SideDrawer({
         }
         onCancel={cancelDismissal}
         onConfirm={dismissalDecision === "dirty" ? discardAndClose : undefined}
-        open={dismissalDecision !== null}
+        open={open && dismissalDecision !== null}
         title={
           dismissalDecision === "dirty"
             ? "Discard unsaved changes?"

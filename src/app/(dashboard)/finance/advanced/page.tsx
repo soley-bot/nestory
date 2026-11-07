@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { WorkspacePage } from "@/components/layout/workspace-page";
@@ -62,3 +63,5 @@ export default async function AdvancedFinancePage() {
     </WorkspacePage>
   );
 }
+
+export const metadata: Metadata = { title: "Advanced finance" };

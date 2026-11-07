@@ -13,7 +13,7 @@ describe("PeopleCommandCenter", () => {
     render(<PeopleCommandCenter insights={makeInsights()} />);
 
     expect(
-      screen.queryByRole("button", { name: /people to review/i }),
+      screen.queryByRole("button", { name: /issues to review/i }),
     ).toBeNull();
   });
 
@@ -30,7 +30,7 @@ describe("PeopleCommandCenter", () => {
     );
 
     await user.click(
-      screen.getByRole("button", { name: "3 people to review" }),
+      screen.getByRole("button", { name: "3 issues to review" }),
     );
     const dialog = screen.getByRole("dialog", { name: "People attention" });
 

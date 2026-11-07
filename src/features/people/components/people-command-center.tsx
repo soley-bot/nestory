@@ -27,7 +27,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
     <Popover.Root>
       <Popover.Trigger asChild>
         <button
-          aria-label={`${attentionCount} people to review`}
+          aria-label={`${attentionCount} issues to review`}
           className="flex h-8 max-w-full items-center gap-2 rounded-md px-2 text-left text-xs outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
           type="button"
         >
@@ -36,7 +36,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
             className="size-4 shrink-0 text-muted-foreground"
           />
           <span className="font-semibold text-foreground">
-            {attentionCount} to review
+            {attentionCount} {attentionCount === 1 ? "issue" : "issues"} to review
           </span>
           <ChevronDown
             aria-hidden="true"

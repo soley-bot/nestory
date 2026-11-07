@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { FinanceOperationsScreen } from "@/features/finance-operations/components/finance-operations-screen";
 import { getFinanceOperationsData } from "@/features/finance-operations/data/finance-operations";
 import { requireFinanceContext } from "@/lib/auth/context";
@@ -38,3 +39,5 @@ export default async function FinancePage(_props: {
     />
   );
 }
+
+export const metadata: Metadata = { title: "Portfolio review" };

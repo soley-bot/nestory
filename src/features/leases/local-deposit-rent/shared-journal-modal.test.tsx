@@ -15,7 +15,7 @@ async function prepare(user:ReturnType<typeof userEvent.setup>){
   await user.click(screen.getByRole("combobox",{name:"Deposit"}));await user.click(screen.getByRole("option",{name:/^Security deposit/}));
   await user.click(screen.getByRole("combobox",{name:"Invoice"}));await user.click(screen.getByRole("option",{name:/^October rent invoice/}));
   await user.click(screen.getByRole("combobox",{name:"Rent line"}));await user.click(screen.getByRole("option",{name:/^October rent/}));
-  await user.click(screen.getByRole("button",{name:"Application date"}));
+  await user.click(screen.getByRole("combobox",{name:"Application date"}));
   // The picker opens on the authorized November business date, independent of
   // this test's October device clock. Select the earlier application explicitly.
   await user.click(screen.getByRole("button",{name:"Previous month"}));
@@ -69,7 +69,7 @@ describe("actual product controls bound to dormant shared-journal workflow",()=>
   await user.click(await screen.findByRole("combobox",{name:"Deposit"}));await user.click(screen.getByRole("option",{name:/^Other deposit/}));
   await user.click(screen.getByRole("combobox",{name:"Action"}));await user.click(screen.getByRole("option",{name:"Reverse a full application"}));
   await user.click(screen.getByRole("combobox",{name:"Original application"}));await user.click(screen.getByRole("option",{name:/USD 100\.00/}));
-  await user.click(screen.getByRole("button",{name:"Reversal date"}));await user.click(screen.getByRole("button",{name:"Today"}));
+  await user.click(screen.getByRole("combobox",{name:"Reversal date"}));await user.click(screen.getByRole("button",{name:"Today"}));
   await user.type(screen.getByRole("textbox",{name:"Reason"}),"Verify original custody explanation");await user.click(screen.getByRole("button",{name:"Preview changes"}));
   await screen.findByRole("button",{name:"Confirm full reversal"});
   expect(screen.getByText(custodian==="owner"?"No new bank payment. Owner-held money does not increase money held by IPS.":"No new bank payment. Already-held deposit money is reclassified for the owner.")).toBeTruthy();
@@ -79,7 +79,7 @@ describe("actual product controls bound to dormant shared-journal workflow",()=>
   const button=await prepare(user),oldKey=f.current()!.idempotencyKey;const snapshot=f.h.snapshot.bind(f.h);vi.spyOn(f.h,"snapshot").mockImplementation(()=>({...snapshot(),businessDate:"2026-10-06"}));f.control.businessConflict=true;await user.click(button);
   await screen.findByText(/unused preview changed or expired/i);expect(screen.queryByRole("button",{name:"Retry original action"})).toBeNull();expect((screen.getByRole("textbox",{name:"Reason"}) as HTMLInputElement).value).toBe("Settle October rent");
   expect(f.current()!.state).toBe("preview");expect(f.h.getState().held).toBe("500.00");expect(f.port.executeOriginal).not.toHaveBeenCalled();
-  expect(document.querySelector('input[name="date"]')).toHaveProperty("value","2026-10-05");await user.click(screen.getByRole("button",{name:"Application date"}));await user.click(screen.getByRole("button",{name:"Today"}));expect(document.querySelector('input[name="date"]')).toHaveProperty("value","2026-10-06");
+  expect(document.querySelector('input[name="date"]')).toHaveProperty("value","2026-10-05");await user.click(screen.getByRole("combobox",{name:"Application date"}));await user.click(screen.getByRole("button",{name:"Today"}));expect(document.querySelector('input[name="date"]')).toHaveProperty("value","2026-10-06");
   f.control.businessConflict=false;await user.click(screen.getByRole("button",{name:"Preview changes"}));await user.click(await screen.findByRole("button",{name:"Confirm deposit application"}));await waitFor(()=>expect(success).toHaveBeenCalledTimes(1));
   expect(f.current()!.idempotencyKey).not.toBe(oldKey);expect(f.h.getState().held).toBe("200.00");
  });

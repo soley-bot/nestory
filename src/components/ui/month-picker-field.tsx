@@ -99,10 +99,12 @@ export function MonthPickerField({
 
                 return (
                   <button
+                    aria-label={`${month} ${visibleYear}`}
+                    aria-pressed={isSelected}
                     className={cn(
                       "h-8 rounded-md text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
                       isSelected
-                        ? "bg-accent text-background hover:bg-accent"
+                        ? "bg-accent text-accent-foreground hover:bg-accent"
                         : "text-foreground",
                     )}
                     key={month}

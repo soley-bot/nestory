@@ -439,7 +439,13 @@ function DomainDestinationMenuItem({
         <CollapsibleContent className="data-closed:animate-out data-closed:fade-out-0 data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-top-1">
           <SidebarMenuSub aria-label={`${destination.label} pages`}>
             {destination.children?.map((child) => {
-              const childActive = childDestinationMatchesPath(pathname, child);
+              const matchingChildren = destination.children?.filter((candidate) =>
+                childDestinationMatchesPath(pathname, candidate)) ?? [];
+              const longestMatch = Math.max(0, ...matchingChildren.flatMap((candidate) =>
+                candidate.routes.filter((route) => pathname === route || pathname.startsWith(`${route}/`))
+                  .map((route) => route.length)));
+              const childActive = child.routes.some((route) =>
+                (pathname === route || pathname.startsWith(`${route}/`)) && route.length === longestMatch);
               return (
                 <SidebarMenuSubItem key={child.href}>
                   <SidebarMenuSubButton asChild isActive={childActive}>

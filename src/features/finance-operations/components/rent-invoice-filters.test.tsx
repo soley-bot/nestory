@@ -51,9 +51,9 @@ it("searches while typing and clears only the search while keeping rent filters"
 });
 
 it("finds rent by a secondary owner and compact unit code without including a sibling unit", () => {
-  const first = {id: "i1", propertyId: "p1", propertyLabel: "PM-1 · North", unitLabel: "BELLAVITA #7F-D2", invoiceNumber: "RENT-1", recipientLabel: "Tenant", occupantLabels: [], paymentStatus: "unpaid", dueDate: "2026-09-01"} as unknown as TenantInvoiceSummary;
+  const first = {id: "i1", propertyId: "p1", propertyLabel: "PM-1 Â· North", unitLabel: "BELLAVITA #7F-D2", invoiceNumber: "RENT-1", recipientLabel: "Tenant", occupantLabels: [], paymentStatus: "unpaid", dueDate: "2026-09-01"} as unknown as TenantInvoiceSummary;
   const second = {...first, id: "i2", unitLabel: "BELLAVITA #8F-D2"};
-  const positions = [{propertyId: "p1", propertyLabel: "PM-1 · North", ownerLabel: "Primary Owner", ownerSearchLabels: ["Primary Owner", "Alex Morgan"]}] as PropertyFinancePosition[];
+  const positions = [{propertyId: "p1", propertyLabel: "PM-1 Â· North", ownerLabel: "Primary Owner", ownerSearchLabels: ["Primary Owner", "Alex Morgan"]}] as PropertyFinancePosition[];
   const view = getRentInvoiceView([first, second], new URLSearchParams({q: "MORGAN 7FD2"}), "2026-09-27", positions);
   expect(view.filteredInvoices.map(invoice => invoice.id)).toEqual(["i1"]);
 });

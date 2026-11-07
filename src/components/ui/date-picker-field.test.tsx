@@ -6,7 +6,7 @@ import { DatePickerField } from "@/components/ui/date-picker-field";
 import { BusinessDateProvider } from "@/lib/dates/business-date-provider";
 
 function openCalendar(label: string) {
-  fireEvent.click(screen.getByRole("button", { name: label }));
+  fireEvent.click(screen.getByRole("combobox", { name: label }));
 }
 
 function selectableDays() {
@@ -20,6 +20,25 @@ function selectableDays() {
 
 describe("DatePickerField", () => {
   afterEach(() => { cleanup(); vi.useRealTimers(); });
+
+  it.each(["day", "Clear", "Today"])("ignores %s in an open calendar after its fieldset becomes disabled", (choice) => {
+    const onValueChange = vi.fn();
+    const view = (disabled: boolean) => <fieldset disabled={disabled}><DatePickerField ariaLabel="Payment date" defaultValue="2026-08-18" name="paymentDate" onValueChange={onValueChange} /></fieldset>;
+    const { rerender, container } = render(view(false));
+    openCalendar("Payment date");
+    rerender(view(true));
+    fireEvent.click(choice === "day" ? screen.getByRole("grid").querySelector('[data-day="2026-08-19"] button')! : screen.getByRole("button", { name: choice }));
+    expect(onValueChange).not.toHaveBeenCalled();
+    expect((container.querySelector('[name="paymentDate"]') as HTMLInputElement).value).toBe("2026-08-18");
+  });
+
+  it("announces invalid and required state on the date chooser", () => {
+    render(<DatePickerField ariaLabel="Payment date" aria-invalid="true" aria-required="true" name="paymentDate" />);
+    const chooser = screen.getByRole("combobox", { name: "Payment date" });
+    expect(chooser.getAttribute("aria-invalid")).toBe("true");
+    expect(chooser.getAttribute("aria-required")).toBe("true");
+    expect(chooser.getAttribute("aria-haspopup")).toBe("dialog");
+  });
 
   it.each([
     ["Asia/Phnom_Penh", "2027-01-01"],
@@ -37,7 +56,7 @@ describe("DatePickerField", () => {
   it("round trips an editable backdated year-end payment without changing the calendar day", () => {
     const onValueChange = vi.fn();
     const { container } = render(<DatePickerField ariaLabel="Payment date" defaultValue="2026-12-31" name="paymentDate" onValueChange={onValueChange} />);
-    expect(screen.getByRole("button", { name: "Payment date" }).textContent).toContain("31 Dec 2026");
+    expect(screen.getByRole("combobox", { name: "Payment date" }).textContent).toContain("31 Dec 2026");
     openCalendar("Payment date");
     fireEvent.click(screen.getByRole("button", { name: "Previous year" }));
     fireEvent.click(screen.getByRole("grid").querySelector('[data-day="2025-12-31"] button')!);

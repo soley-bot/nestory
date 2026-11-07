@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import Link from "next/link";
 import { Table } from "@/components/ui/table";
@@ -6,7 +7,7 @@ import { WorkspacePage } from "@/components/layout/workspace-page";
 import type { FinanceAccountActivity } from "@/features/finance-accounts/data/finance-account-activity";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 
-export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAccountActivity }) {
+export function FinanceAccountActivityScreen({ activity, filterError, attemptedFilters, navigation }: { activity: FinanceAccountActivity; filterError?: string | null; attemptedFilters?: {periodStart: string; periodEnd: string}; navigation?: Omit<ComponentProps<typeof FinanceWorkspaceNavigation>, "activeRoute"> }) {
   const showRunningBalance = activity.runningBalance !== null;
   return (
     <WorkspacePage
@@ -14,16 +15,16 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
         { href: "/finance", label: "Finance" },
         { href: "/finance/accounts", label: "Chart of Accounts" },
       ]}
-      localNav={<FinanceWorkspaceNavigation activeRoute="/finance/accounts" />}
+      localNav={<FinanceWorkspaceNavigation {...navigation} activeRoute="/finance/accounts" />}
       title={activity.account.displayName}
       actions={<Badge variant={activity.account.archivedAt ? "secondary" : "outline"}>{activity.account.archivedAt ? "Inactive" : "Active"}</Badge>}
       toolbar={(
         <FinancialForm className="min-w-0 max-w-full flex flex-wrap items-end gap-2" method="get">
           <label className="grid min-w-0 max-w-full gap-1 text-xs text-muted-foreground">From
-            <input className="h-8 min-w-0 max-w-full rounded-md border bg-background px-2 text-sm text-foreground" name="from" type="date" defaultValue={activity.filters.periodStart} />
+            <input className="h-8 min-w-0 max-w-full rounded-md border bg-background px-2 text-sm text-foreground" name="from" type="date" defaultValue={attemptedFilters?.periodStart ?? activity.filters.periodStart} />
           </label>
           <label className="grid min-w-0 max-w-full gap-1 text-xs text-muted-foreground">To
-            <input className="h-8 min-w-0 max-w-full rounded-md border bg-background px-2 text-sm text-foreground" name="to" type="date" defaultValue={activity.filters.periodEnd} />
+            <input className="h-8 min-w-0 max-w-full rounded-md border bg-background px-2 text-sm text-foreground" name="to" type="date" defaultValue={attemptedFilters?.periodEnd ?? activity.filters.periodEnd} />
           </label>
           <label className="grid min-w-0 max-w-full gap-1 text-xs text-muted-foreground">Property
             <select className="h-8 min-w-0 max-w-full rounded-md border bg-background px-2 text-sm text-foreground" name="propertyId" defaultValue={activity.filters.propertyId ?? "all"}>
@@ -32,10 +33,12 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
             </select>
           </label>
           <button className="h-8 rounded-md border bg-background px-3 text-sm font-medium" type="submit">Apply</button>
+          <p className="basis-full text-xs text-muted-foreground">Choose a period of up to 366 days.</p>
+          {filterError ? <p role="alert" className="basis-full text-sm text-danger">{filterError}</p> : null}
         </FinancialForm>
       )}
     >
-      <FinancialReportBoundary expectedGeneration={activity.financialGeneration}>
+      {filterError ? <p className="workspace-gutter-x py-4 text-sm">Correct the dates above to view account activity.</p> : <FinancialReportBoundary expectedGeneration={activity.financialGeneration}>
       <div className="workspace-gutter-x space-y-4 py-4">
         <div className="min-w-0 text-sm text-muted-foreground [overflow-wrap:anywhere]">
           <p>{accountIdentity(activity.account.accountClass, activity.account.accountSubtype)}</p>
@@ -96,7 +99,7 @@ export function FinanceAccountActivityScreen({ activity }: { activity: FinanceAc
           </Table>
         </div>
       </div>
-      </FinancialReportBoundary>
+      </FinancialReportBoundary>}
     </WorkspacePage>
   );
 }

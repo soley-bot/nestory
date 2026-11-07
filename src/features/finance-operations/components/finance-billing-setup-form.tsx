@@ -29,14 +29,14 @@ export function BillingSetupForm({
   peopleOptions: FinanceOperationsData["peopleOptions"];
 }) {
   const idempotencyKey = useStableActionId("billing");
-  const [state, action] = useActionState(
+  const [state, action, pending] = useActionState(
     saveLeaseBillingAction,
     actionInitialState,
   );
   const defaults = toLeaseBillingRuleDefaults(lease, peopleOptions);
   useSuccess(state, onSuccess);
   return (
-    <FinancialForm action={action} className="space-y-4 p-4">
+    <FinancialForm draftGuard={{pending, saved: state.status === "success"}} action={action} className="space-y-4 p-4">
       <input name="leaseId" type="hidden" value={lease.id} />
       <input
         name="expectedCurrentBillingRuleId"

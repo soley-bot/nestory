@@ -2,9 +2,10 @@
 
 import { FinancialForm } from "@/lib/finance/financial-write-provider";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { Archive, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useOverlayCloseRequest, useOverlayFormDraftGuard } from "@/components/ui/overlay-dismissal-context";
 import {
   archiveLeaseAction,
   type LeaseActionState,
@@ -30,6 +31,8 @@ export function ArchiveLeasePanel({
     archiveLeaseAction,
     archiveInitialState,
   );
+  const formRef = useRef<HTMLFormElement>(null);
+  const { onChangeCapture, onInput } = useOverlayFormDraftGuard(formRef, pending);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -39,7 +42,7 @@ export function ArchiveLeasePanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <FinancialForm action={action} className="flex h-full flex-col">
+    <FinancialForm action={action} className="flex h-full flex-col" onChangeCapture={onChangeCapture} onInput={onInput} ref={formRef}>
       <input name="leaseId" type="hidden" value={lease.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="flex items-center gap-2 text-danger">
@@ -152,10 +155,11 @@ function PanelFooter({
   onClose: () => void;
   pending: boolean;
 }) {
+  const requestClose = useOverlayCloseRequest(onClose);
   return (
     <div className="border-t border-border px-4 py-4 sm:px-5">
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <Button className="w-full sm:w-auto" onClick={onClose} type="button">
+        <Button className="w-full sm:w-auto" onClick={requestClose} type="button">
           Cancel
         </Button>
         <Button

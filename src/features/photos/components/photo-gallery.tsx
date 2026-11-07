@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/file-dropzone-field";
 import { Input } from "@/components/ui/input";
 import { SideDrawer } from "@/components/ui/side-drawer";
+import { useOverlayFormDraftGuard } from "@/components/ui/overlay-dismissal-context";
 import {
   archiveAssetPhotoAction,
   createAssetPhotoAction,
@@ -57,12 +58,8 @@ export function PhotoGallery({
   uploadLabel?: string;
 }) {
   const createFinancialFormData = useFinancialFormData();
-  const [preview, setPreview] = useState<PhotoPreview | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [dropzoneKey, setDropzoneKey] = useState(0);
-  const formRef = useRef<HTMLFormElement>(null);
   const galleryTitleRef = useRef<HTMLHeadingElement>(null);
-  const openPhotoPickerRef = useRef<(() => void) | null>(null);
   const photoActionInFlightRef = useRef(false);
   const photoActionFocusRef = useRef<HTMLButtonElement | null>(null);
   const [pendingPhotoAction, setPendingPhotoAction] =
@@ -107,58 +104,6 @@ export function PhotoGallery({
       if (document.activeElement === document.body) galleryTitleRef.current?.focus();
     }
   }, [photos]);
-
-  useEffect(() => {
-    return () => {
-      if (preview) {
-        URL.revokeObjectURL(preview.url);
-      }
-    };
-  }, [preview]);
-
-  const clearSelectedPhoto = () => {
-    if (preview) {
-      URL.revokeObjectURL(preview.url);
-    }
-
-    setPreview(null);
-    setDropzoneKey((key) => key + 1);
-  };
-  const uploadPhotoAction = async (
-    currentState: PhotoActionState,
-    formData: FormData,
-  ) => {
-    const nextState = await createAssetPhotoAction(currentState, formData);
-
-    if (nextState.status === "success") {
-      clearSelectedPhoto();
-      formRef.current?.reset();
-      setUploadOpen(false);
-    }
-
-    return nextState;
-  };
-  const [state, formAction, pending] = useActionState(
-    uploadPhotoAction,
-    initialState,
-  );
-  const handlePhotoFile = (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      return;
-    }
-
-    if (preview) {
-      URL.revokeObjectURL(preview.url);
-    }
-
-    setPreview({
-      name: file.name,
-      url: URL.createObjectURL(file),
-    });
-  };
-  const handleChangePreview = () => {
-    openPhotoPickerRef.current?.();
-  };
 
   return (
     <section onFocusCapture={(event) => {
@@ -232,28 +177,98 @@ export function PhotoGallery({
 
       {canWrite && uploadOpen ? (
         <SideDrawer
-          description="Upload a photo to this property."
+          description={unitId ? "Upload a photo to this unit." : "Upload a photo to this property."}
           onClose={() => setUploadOpen(false)}
           open
           title={uploadLabel}
         >
+        <PhotoUploadForm
+          isCover={photos.length === 0}
+          onSuccess={() => setUploadOpen(false)}
+          propertyId={propertyId}
+          unitId={unitId}
+        />
+        </SideDrawer>
+      ) : null}
+    </section>
+  );
+}
+
+function PhotoUploadForm({
+  isCover,
+  onSuccess,
+  propertyId,
+  unitId,
+}: {
+  isCover: boolean;
+  onSuccess: () => void;
+  propertyId: string;
+  unitId?: string;
+}) {
+  const [preview, setPreview] = useState<PhotoPreview | null>(null);
+  const [dropzoneKey, setDropzoneKey] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+  const openPhotoPickerRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => {
+    if (preview) URL.revokeObjectURL(preview.url);
+  }, [preview]);
+  const clearSelectedPhoto = () => {
+    setPreview(null);
+    setDropzoneKey((key) => key + 1);
+  };
+  const [state, formAction, pending] = useActionState(async (
+    currentState: PhotoActionState,
+    formData: FormData,
+  ) => {
+    const nextState = await createAssetPhotoAction(currentState, formData);
+    if (nextState.status === "success") onSuccess();
+    return nextState;
+  }, initialState);
+  const submitLockedRef = useRef(false);
+  useEffect(() => {
+    if (!pending) submitLockedRef.current = false;
+  }, [pending]);
+  const { onChangeCapture, onInput, refreshDirty } = useOverlayFormDraftGuard(formRef, pending);
+  useEffect(() => {
+    refreshDirty();
+  }, [dropzoneKey, refreshDirty]);
+  const handlePhotoFile = (file: File) => {
+    setPreview({ name: file.name, url: URL.createObjectURL(file) });
+    refreshDirty();
+  };
+  const handleChangePreview = () => openPhotoPickerRef.current?.();
+
+  return (
         <FinancialForm
           action={formAction}
           className="space-y-4 p-5"
+          onChangeCapture={onChangeCapture}
+          onInput={onInput}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (pending || submitLockedRef.current) return;
+            submitLockedRef.current = true;
+            const formData = new FormData(event.currentTarget, (event.nativeEvent as SubmitEvent).submitter);
+            startTransition(() => formAction(formData));
+          }}
           ref={formRef}
         >
           <input name="propertyId" type="hidden" value={propertyId} />
           <input name="unitId" type="hidden" value={unitId ?? ""} />
-          <input name="isCover" type="hidden" value={photos.length === 0 ? "true" : "false"} />
+          <input name="isCover" type="hidden" value={isCover ? "true" : "false"} />
 
+          <fieldset className="space-y-4" disabled={pending}>
           <Field label="Photo">
             <FileDropzoneField
               accept={PHOTO_FILE_ACCEPT}
               description="JPG, PNG, or WebP up to 4 MB."
+              disabled={pending}
               displayFileName={preview?.name}
               key={dropzoneKey}
               name="photo"
               onFile={handlePhotoFile}
+              onClear={() => { setPreview(null); refreshDirty(); }}
+              onReject={() => { setPreview(null); refreshDirty(); }}
               openRef={openPhotoPickerRef}
             />
           </Field>
@@ -281,6 +296,7 @@ export function PhotoGallery({
               <DatePickerField ariaLabel="Taken date" name="takenAt" />
             </Field>
           </div>
+          </fieldset>
 
           {state.fieldErrors?.caption ? (
             <FieldError>{state.fieldErrors.caption[0]}</FieldError>
@@ -306,9 +322,6 @@ export function PhotoGallery({
             {pending ? "Uploading..." : "Upload photo"}
           </Button>
         </FinancialForm>
-        </SideDrawer>
-      ) : null}
-    </section>
   );
 }
 

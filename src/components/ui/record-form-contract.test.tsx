@@ -436,7 +436,7 @@ describe("record form contract", () => {
     render(<PortalControlsHarness />);
     const dialog = screen.getByRole("dialog", { name: "Add lease" });
 
-    await user.click(screen.getByRole("button", { name: /Start date/ }));
+    await user.click(screen.getByRole("combobox", { name: /Start date/ }));
     const today = screen.getByRole("button", { name: "Today" });
     expect(dialog.querySelector("aside")?.contains(today)).toBe(true);
     await user.keyboard("{Escape}");
@@ -444,7 +444,7 @@ describe("record form contract", () => {
     expect(screen.queryByRole("button", { name: "Today" })).toBeNull();
     expect(screen.getByRole("dialog", { name: "Add lease" })).not.toBeNull();
 
-    await user.click(screen.getByRole("button", { name: /Start date/ }));
+    await user.click(screen.getByRole("combobox", { name: /Start date/ }));
     await user.click(screen.getByRole("button", { name: "Today" }));
     expect(screen.getByText("Unsaved changes")).not.toBeNull();
   });

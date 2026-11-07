@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { FileText, Plus } from "lucide-react";
+import { ListFilter, Plus } from "lucide-react";
 import { useRegisterNavigation } from "@/components/data/use-register-navigation";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { WorkspacePage } from "@/components/layout/workspace-page";
@@ -180,8 +180,8 @@ function UnitScreenContent({
                 className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
                 href={activeReview.reportHref}
               >
-                <FileText size={15} />
-                Make report
+                <ListFilter size={15} />
+                Review unoccupied units
               </Link>
             ) : null}
             {canCreate ? (
@@ -298,7 +298,7 @@ function getUnitReviewContext({
       countLabel: "marked vacant",
       description:
         "Vacant units ready for leasing review.",
-      nextStep: "Fill vacancy or create the vacancy report",
+      nextStep: "Fill vacancy or review unoccupied units",
       reportHref: getVacantUnitsReportHref(propertyId),
     };
   }

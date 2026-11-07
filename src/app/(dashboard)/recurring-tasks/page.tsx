@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { renderMaintenanceRoute } from "@/features/maintenance/maintenance-route";
 
 type RecurringTasksPageProps = {
@@ -20,3 +21,5 @@ export default function RecurringTasksPage({
     title: "Recurring Work",
   });
 }
+
+export const metadata: Metadata = { title: "Recurring tasks" };

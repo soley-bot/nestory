@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { ImportPreviewScreen } from "@/features/imports/components/import-preview-screen";
 import {
   getImportReferenceData,
@@ -26,3 +27,5 @@ export default async function ImportPage() {
   );
 }
 
+
+export const metadata: Metadata = { title: "Import" };

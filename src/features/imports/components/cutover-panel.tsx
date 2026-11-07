@@ -141,7 +141,7 @@ export function CutoverPanel({
         <div className="grid gap-4 xl:grid-cols-2">
           <FinancialForm action={stageAction} className="space-y-3 rounded-md border border-border p-3">
             <h3 className="font-medium">Prepare import plan</h3>
-            <FormField label="Start date" name="authorityStartDate" type="date" defaultValue={detail?.authorityStartDate ?? "2026-09-01"} />
+            <FormField label="Start date" name="authorityStartDate" type="date" defaultValue={detail?.authorityStartDate ?? ""} />
             <FormField label="Data owner" name="dataOwner" defaultValue={detail?.dataOwner ?? ""} placeholder="Name or team" />
             <input name="idempotencyKey" type="hidden" value={stageRequestKey} />
             <details>

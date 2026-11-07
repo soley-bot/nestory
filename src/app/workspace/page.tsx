@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { requireWorkspaceContext } from "@/lib/auth/context";
@@ -15,3 +16,5 @@ export default async function WorkspacePage() {
     ),
   );
 }
+
+export const metadata: Metadata = { title: "Workspace" };

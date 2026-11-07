@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { financeReturnHref } from "@/features/finance-operations/finance-tab-route";
@@ -86,3 +87,5 @@ export default async function UnitFinancePage({
 function unitFinanceView(view?: string): FinanceOperationsView {
   return view === "expenses" ? "expenses" : view === "rent" ? "rent" : "transactions";
 }
+
+export const metadata: Metadata = { title: "Unit finances" };

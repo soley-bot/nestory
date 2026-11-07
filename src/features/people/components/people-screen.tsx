@@ -322,8 +322,8 @@ function getPeopleFeedback(
         }
       : handoffRole === "tenant"
         ? {
-            href: `/leases?action=create&tenantPersonId=${personId}`,
-            label: "Create lease",
+            href: `/properties?notice=choose-lease-context&tenantPersonId=${encodeURIComponent(personId)}`,
+            label: "Choose lease property",
           }
         : handoffRole === "staff"
           ? {

@@ -3,7 +3,7 @@
 import { FinancialForm } from "@/lib/finance/financial-write-provider";
 
 import Link from "next/link";
-import { useActionState, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -97,6 +97,9 @@ export function ImportPreviewScreen({
   const [mapping, setMapping] = useState<ImportMapping>({});
   const [fileError, setFileError] = useState<string | null>(null);
   const fileReadVersion = useRef(0);
+  const busy = importing || resuming;
+  const operationInFlight = useRef(false);
+  useEffect(() => { if (!busy) operationInFlight.current = false; }, [busy]);
   const config = getImportTypeConfig(selectedType);
   const availability = getImportAvailability(selectedType, referenceData);
   const savedMapping = savedMappings.find(
@@ -194,7 +197,15 @@ export function ImportPreviewScreen({
     Boolean(importState.message) &&
     (!importState.draftKey || importState.draftKey === draftKey);
 
+  function beginOperation(event: FormEvent<HTMLFormElement>) {
+    if (busy || operationInFlight.current) { event.preventDefault(); return; }
+    operationInFlight.current = true;
+    // A slow file read must not replace the draft while another run resumes.
+    fileReadVersion.current += 1;
+  }
+
   async function handleFileSelect(file: File) {
+    if (busy || operationInFlight.current) return;
     const readVersion = ++fileReadVersion.current;
     setParsedFile(null);
     setMapping({});
@@ -240,6 +251,7 @@ export function ImportPreviewScreen({
   }
 
   function clearFileSelection() {
+    if (busy || operationInFlight.current) return;
     fileReadVersion.current += 1;
     setParsedFile(null);
     setMapping({});
@@ -247,11 +259,13 @@ export function ImportPreviewScreen({
   }
 
   function chooseType(type: ImportType) {
+    if (busy || operationInFlight.current) return;
     setSelectedType(type);
     clearFileSelection();
   }
 
   function updateMapping(field: string, value: string) {
+    if (busy || operationInFlight.current) return;
     setMapping((current) => ({
       ...current,
       [field]: value || undefined,
@@ -269,12 +283,14 @@ export function ImportPreviewScreen({
         <section className="rounded-md border border-border bg-card p-4">
           <CutoverPanel canManage detail={cutoverDetail} />
         </section>
+        {busy ? <p className="text-sm text-muted-foreground" role="status">{resuming ? "Resuming import" : "Importing ready rows"}. Keep this draft open until the result appears.</p> : null}
         <section className="rounded-md border border-border bg-card">
           <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-[minmax(0,260px)_minmax(0,1fr)_auto] sm:items-end">
             <label className="block min-w-0 text-sm font-medium">
               <span className="mb-1.5 block">Import type</span>
               <SelectControl
                 ariaLabel="Import type"
+                disabled={busy}
                 onValueChange={(value) => chooseType(value as ImportType)}
                 options={importTypeOrder.map((type) => ({
                   label: getImportTypeConfig(type).label,
@@ -307,6 +323,7 @@ export function ImportPreviewScreen({
 
           <div className="p-4">
             <FileDropzoneField maxSize={Infinity}
+              disabled={busy}
               key={selectedType}
               aria-label="Select CSV file to import"
               accept={CSV_FILE_ACCEPT}
@@ -373,8 +390,9 @@ export function ImportPreviewScreen({
                     Required fields are marked with an asterisk.
                   </p>
                   <Button
+                    disabled={busy}
                     onClick={() =>
-                      setMapping(
+                      !busy && setMapping(
                         mapHeadersForType(
                           selectedType,
                           parsedFile.headers,
@@ -419,6 +437,7 @@ export function ImportPreviewScreen({
                       </span>
                       <SelectControl
                         ariaLabel={`Map ${field.label}`}
+                        disabled={busy}
                         onValueChange={(value) =>
                           updateMapping(field.key, value)
                         }
@@ -502,13 +521,14 @@ export function ImportPreviewScreen({
                 action={importAction}
                 className="shrink-0"
                 onSubmit={(event) => {
-                  if (payloadError) event.preventDefault();
+                  if (payloadError || currentAction.blocksSubmission || stats.readyCount === 0) { event.preventDefault(); return; }
+                  beginOperation(event);
                 }}
               >
                 <input name="payload" type="hidden" value={payloadError ? "" : payload} />
                 <Button
                   disabled={
-                    importing ||
+                    busy ||
                     Boolean(payloadError) ||
                     currentAction.blocksSubmission ||
                     rows.length === 0 ||
@@ -541,7 +561,8 @@ export function ImportPreviewScreen({
 
         <PastImports
           action={resumeAction}
-          pending={resuming}
+          pending={busy}
+          onSubmit={beginOperation}
           runs={recentRuns}
           state={resumeState}
         />
@@ -769,11 +790,13 @@ function AttentionDetails({
 
 function PastImports({
   action,
+  onSubmit,
   pending,
   runs,
   state,
 }: {
   action: (payload: FormData) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   pending: boolean;
   runs: ImportRunSummary[];
   state: CommitImportRunState;
@@ -821,7 +844,7 @@ function PastImports({
                     Fix references, then re-upload to create a fresh run.
                   </span>
                 ) : run.status === "staged" || run.status === "committing" ? (
-                  <FinancialForm action={action}>
+                  <FinancialForm action={action} onSubmit={onSubmit}>
                     <input name="runId" type="hidden" value={run.id} />
                     <Button
                       aria-label={`${

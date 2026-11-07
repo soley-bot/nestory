@@ -80,6 +80,7 @@ const sortFilterOptions = [
 ] satisfies SelectOption[];
 
 type PropertyFiltersProps = {
+  clearHref?: string;
   navigation: RegisterNavigation;
   onOpenProperty: (propertyId: string) => void;
   properties: PropertySummary[];
@@ -87,6 +88,7 @@ type PropertyFiltersProps = {
 };
 
 export function PropertyFilters({
+  clearHref,
   navigation,
   onOpenProperty,
   properties,
@@ -167,7 +169,7 @@ export function PropertyFilters({
                       {hasAnyFilters ? (
                         <Link
                           className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                          href={pathname}
+                          href={clearHref ?? pathname}
                           onNavigate={navigation.cancelPending}
                           scroll={false}
                         >
@@ -332,7 +334,7 @@ export function PropertyFilters({
               <Link
                 aria-label="Reset property filters"
                 className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-card px-2 text-primary outline-none transition-colors hover:bg-muted hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
-                href={pathname}
+                href={clearHref ?? pathname}
                 onNavigate={navigation.cancelPending}
                 scroll={false}
                 title="Reset filters"

@@ -563,8 +563,8 @@ describe("People route family redesign contract", () => {
     ],
     [
       "tenant",
-      "Create lease",
-      "/leases?action=create&tenantPersonId=11111111-1111-4111-8111-111111111111",
+      "Choose lease property",
+      "/properties?notice=choose-lease-context&tenantPersonId=11111111-1111-4111-8111-111111111111",
     ],
     [
       "staff",
@@ -621,7 +621,7 @@ describe("People route family redesign contract", () => {
 
   it.each([
     ["owner", "Create property"],
-    ["tenant", "Create lease"],
+    ["tenant", "Choose lease property"],
     ["staff", "Grant Workspace Access"],
   ] as const)(
     "offers the %s handoff when the role is selected from All People",

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { DocumentScreen } from "@/features/documents/components/document-screen";
 import { getDocumentsScreenData } from "@/features/documents/data/documents";
 import { parseDocumentSearchParams } from "@/features/documents/document.filters";
@@ -27,3 +28,5 @@ export default async function DocumentsPage({ searchParams }: DocumentsPageProps
     />
   );
 }
+
+export const metadata: Metadata = { title: "Documents" };

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { PeopleModulePage } from "@/features/people/components/people-module-page";
 
 type PeoplePageProps = {
@@ -17,3 +18,5 @@ export default function PeoplePage({ searchParams }: PeoplePageProps) {
     />
   );
 }
+
+export const metadata: Metadata = { title: "People" };

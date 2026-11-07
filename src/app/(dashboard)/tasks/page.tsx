@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { MaintenanceScreen } from "@/features/maintenance/components/maintenance-screen";
@@ -98,3 +99,5 @@ function UnlinkedMemberTasksState() {
     </div>
   );
 }
+
+export const metadata: Metadata = { title: "Tasks" };

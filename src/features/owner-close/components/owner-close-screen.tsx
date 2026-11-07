@@ -1,3 +1,4 @@
+import { EvidenceFileField } from "@/features/owner-balances/components/owner-operation-inputs";
 import { FinancialReportBoundary, FinancialReportLink } from "@/lib/finance/financial-write-provider";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
@@ -569,10 +570,7 @@ function CorrectionForm({
         Reason
         <Input className="h-10" minLength={3} name="reason" required />
       </label>
-      <label className="grid gap-1 text-sm font-medium md:col-span-2">
-        Evidence file fingerprint
-        <Input className="h-10 font-mono" minLength={64} name="evidenceSha256" required />
-      </label>
+      <EvidenceFileField />
       <Button
         className="h-10 px-4 md:col-span-2 xl:col-span-4"
         type="submit"

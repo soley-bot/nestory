@@ -90,7 +90,7 @@ describe("TenantInvoicePaymentForm", () => {
     });
 
     expect(screen.getByLabelText("Amount").getAttribute("name")).toBe("amount");
-    expect(screen.getByRole("button", { name: "Received date" })).not.toBeNull();
+    expect(screen.getByRole("combobox", { name: "Received date" })).not.toBeNull();
     expect(
       container.querySelector('[name="settlementDate"]'),
     ).not.toBeNull();

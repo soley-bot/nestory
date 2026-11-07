@@ -104,7 +104,7 @@ export function AddMemberDialog({
       customRoleId: roles[0]?.id ?? "",
       email: defaults?.email ?? "",
       personId: defaults?.personId ?? "",
-      roleKind: roles.length > 0 ? "custom" : "super_admin",
+      roleKind: "custom",
     }),
     [branches, defaults, roles],
   );
@@ -129,6 +129,7 @@ export function AddMemberDialog({
   const [status, setStatus] = useState<"error" | "saving">();
   const [message, setMessage] = useState<string>();
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
   const submitting = useRef(false);
   const emailRef = useRef<HTMLInputElement>(null);
   const wasOpen = useRef(false);
@@ -142,9 +143,13 @@ export function AddMemberDialog({
     staffMode === "new" ||
     Boolean(staff.displayName || staff.primaryPhone || createdStaff);
   const organizationWide = access.roleKind === "super_admin";
-  const selectedPerson = people.find((person) => person.id === access.personId);
+  const staffOptions: OrganizationStaffOption[] = createdStaff && !people.some((person) => person.id === createdStaff.id)
+    ? [...people, { ...createdStaff, activeStaff: true, archived: false, description: createdStaff.primaryEmail ? `Staff - ${createdStaff.primaryEmail}` : "Staff", roles: ["staff"] }]
+    : people;
+  const selectedPerson = staffOptions.find((person) => person.id === access.personId);
   const selectedStaffEmail =
-    selectedPerson?.primaryEmail ?? createdStaff?.primaryEmail ?? defaults?.staffEmail;
+    staffMode === "new" ? staff.primaryEmail : selectedPerson?.primaryEmail ??
+      (access.personId === defaults?.personId ? defaults?.staffEmail : undefined);
   const emailMismatch = Boolean(
     selectedStaffEmail &&
       access.email.trim() &&
@@ -168,6 +173,7 @@ export function AddMemberDialog({
       ];
 
   const reset = useCallback(() => {
+    if (submitting.current) return;
     setStep("access");
     setAccess(initialAccess);
     setStaffMode("existing");
@@ -217,6 +223,7 @@ export function AddMemberDialog({
   }, [open, reset, returnFocusRef]);
 
   function requestOpen(nextOpen: boolean) {
+    if (submitting.current) return;
     if (nextOpen) {
       onOpenChange(true);
       return;
@@ -275,69 +282,72 @@ export function AddMemberDialog({
   }
 
   async function sendInvitation() {
-    if (submitting.current || duplicateTarget) return;
+    if (submitting.current || duplicateTarget || uncertain) return;
     submitting.current = true;
     setStatus("saving");
     setMessage("Sending invitation");
     let personId = organizationWide ? "" : access.personId;
 
-    if (!organizationWide && staffMode === "new" && !createdStaff) {
-      const staffResult = await createPersonAction({}, buildStaffFormData(staff, createFinancialFormData()));
-      if (staffResult.status !== "success" || !staffResult.personId) {
-        setStaffErrors(staffResult.fieldErrors);
-        setMessage(staffResult.message ?? "Staff could not be saved.");
-        setStatus("error");
-        setStep("staff");
-        submitting.current = false;
-        return;
-      }
-      personId = staffResult.personId;
-      setAccess((current) => ({ ...current, personId }));
-      setCreatedStaff({
-        id: personId,
-        label: staff.displayName.trim(),
-        primaryEmail: staff.primaryEmail.trim(),
-      });
-    } else if (createdStaff) {
-      personId = createdStaff.id;
-    }
-
-    let result: OrganizationActionState;
+    let savingStage = "invitation";
     try {
-      result = await inviteOrganizationUserAction(
+      if (!organizationWide && staffMode === "new") {
+        savingStage = "staff";
+        const staffResult = await createPersonAction({}, buildStaffFormData(staff, createFinancialFormData()));
+        if (staffResult.status !== "success" || !staffResult.personId) {
+          setStaffErrors(staffResult.fieldErrors);
+          setMessage(staffResult.message ?? "Staff could not be saved.");
+          setStatus("error");
+          setStep("staff");
+          return;
+        }
+        personId = staffResult.personId;
+        setAccess((current) => ({ ...current, personId }));
+        setStaffMode("existing");
+        setCreatedStaff({
+          id: personId,
+          label: staff.displayName.trim(),
+          primaryEmail: staff.primaryEmail.trim(),
+        });
+      }
+
+      savingStage = "invitation";
+      const result = await inviteOrganizationUserAction(
         {},
         buildInvitationFormData({ ...access, personId }, createFinancialFormData()),
       );
-    } catch {
-      result = { message: "Invitation was not created.", status: "error" };
-    }
-    submitting.current = false;
 
-    if (result.status === "success") {
-      setStatus(undefined);
-      setMessage(result.message);
-      onOpenChange(false);
-      return;
-    }
+      if (result.status === "success") {
+        setStatus(undefined);
+        setMessage(result.message);
+        onOpenChange(false);
+        return;
+      }
 
-    if (invitationWasPersisted(result)) {
-      setMessage(
-        result.message?.includes("delivery failed")
-          ? "Invitation saved; delivery failed"
-          : result.message,
-      );
+      if (invitationWasPersisted(result)) {
+        setMessage(
+          result.message?.includes("delivery failed")
+            ? "Invitation saved; delivery failed"
+            : result.message,
+        );
+        setStatus("error");
+        onNavigateToInvitations();
+        onOpenChange(false);
+        return;
+      }
+
       setStatus("error");
-      onNavigateToInvitations();
-      onOpenChange(false);
-      return;
+      setMessage(
+        createdStaff?.id === personId || (staffMode === "new" && personId)
+          ? "Staff saved; invitation not created"
+          : result.message ?? "Invitation was not created.",
+      );
+    } catch {
+      setUncertain(true);
+      setStatus("error");
+      setMessage(`We could not confirm whether the ${savingStage === "staff" ? "Staff record" : "invitation"} was saved. Reload the workspace and check Staff and Invitations before trying again.`);
+    } finally {
+      submitting.current = false;
     }
-
-    setStatus("error");
-    setMessage(
-      createdStaff || (staffMode === "new" && personId)
-        ? "Staff saved; invitation not created"
-        : result.message ?? "Invitation was not created.",
-    );
   }
 
   const primaryLabel =
@@ -353,6 +363,10 @@ export function AddMemberDialog({
         <DialogContent
           className="max-h-[calc(100dvh-1rem)] gap-0 overflow-hidden p-0 sm:max-w-2xl"
           onEscapeKeyDown={(event) => {
+            if (submitting.current) {
+              event.preventDefault();
+              return;
+            }
             if (dirty) {
               event.preventDefault();
               setConfirmDiscard(true);
@@ -411,7 +425,7 @@ export function AddMemberDialog({
                 <StaffStep
                   access={access}
                   errors={accessErrors}
-                  people={people}
+                  people={staffOptions}
                   setAccessField={setAccessField}
                   setStaff={setStaff}
                   setStaffErrors={setStaffErrors}
@@ -429,7 +443,7 @@ export function AddMemberDialog({
                   emailMismatch={emailMismatch}
                   message={message}
                   onReviewDuplicate={onReviewDuplicate}
-                  selectedName={selectedPerson?.label ?? createdStaff?.label}
+                  selectedName={staffMode === "new" ? `${staff.displayName.trim()} (will be created)` : selectedPerson?.label}
                   roleName={
                     access.roleKind === "super_admin"
                       ? "Super Admin"
@@ -440,10 +454,17 @@ export function AddMemberDialog({
                 />
               ) : null}
             </div>
+            {step !== "review" && message ? <p className="px-5 pb-3 text-sm text-danger" role="alert">{message}</p> : null}
+            {uncertain ? (
+              <div className="space-y-2 border-t px-5 py-3">
+                <p className="text-sm text-danger" role="alert">The save outcome needs checking before another invitation can be sent.</p>
+                <Button onClick={() => window.location.reload()} type="button" variant="outline">Reload workspace</Button>
+              </div>
+            ) : null}
             <DialogFooter className="m-0 rounded-none px-5 py-3">
               {step !== "access" ? (
                 <Button
-                  disabled={status === "saving"}
+                  disabled={status === "saving" || uncertain}
                   onClick={() => {
                     setMessage(undefined);
                     setStatus(undefined);
@@ -455,7 +476,7 @@ export function AddMemberDialog({
                   Back
                 </Button>
               ) : null}
-              <Button disabled={status === "saving" || Boolean(duplicateTarget)} type="submit">
+              <Button disabled={status === "saving" || uncertain || Boolean(duplicateTarget)} type="submit">
                 {status === "saving" ? "Working" : primaryLabel}
               </Button>
             </DialogFooter>
@@ -469,6 +490,7 @@ export function AddMemberDialog({
         description="Your member invitation changes will be lost."
         onCancel={() => setConfirmDiscard(false)}
         onConfirm={() => {
+          if (submitting.current) return;
           setConfirmDiscard(false);
           reset();
           onOpenChange(false);
@@ -526,6 +548,7 @@ function AccessStep({
             }
           }}
           options={[
+            { label: "Choose access level", value: "" },
             { label: "Super Admin", value: "super_admin" },
             ...roles.map((role) => ({ label: role.name, value: role.id })),
           ]}
@@ -535,6 +558,7 @@ function AccessStep({
               : access.customRoleId
           }
         />
+        {roles.length === 0 ? <p className="text-xs text-muted-foreground">No custom roles are available. Create a role in Settings → Roles for ordinary workspace access. Super Admin must be chosen explicitly.</p> : null}
         {errors.customRoleId ? (
           <span className="text-xs text-danger" role="alert">
             {errors.customRoleId}

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { PeopleModulePage } from "@/features/people/components/people-module-page";
 
 type VendorsPageProps = {
@@ -18,3 +19,5 @@ export default function VendorsPage({ searchParams }: VendorsPageProps) {
     />
   );
 }
+
+export const metadata: Metadata = { title: "Vendors" };

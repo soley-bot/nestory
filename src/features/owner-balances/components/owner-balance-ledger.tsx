@@ -1,3 +1,4 @@
+import { EvidenceFileField, OwnerTransactionPicker, type OwnerTransactionOption } from "./owner-operation-inputs";
 import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import { OwnerContributionControl, OwnerDistributionDateControl } from "@/features/owner-balances/components/owner-cash-controls";
 import { assignReportSourceAction, calculateReportMonthAction } from "@/features/reports/remediation-actions";
@@ -23,12 +24,12 @@ import {
 import { PropertyRecordNavigation } from "@/features/properties/components/property-detail-view";
 import { workflowReturnHref } from "@/features/leases/workflow-return";
 import {
-  recordOwnerCashEventAction,
-  recordOwnerDistributionAction,
-  reverseOwnerInvoicePaymentAction,
-  reversePropertyWithdrawalAction,
-  transferOwnerBalanceComponentAction,
-} from "@/features/owner-balances/lifecycle-actions";
+  recordOwnerCashEventFormAction,
+  recordOwnerDistributionFormAction,
+  reverseOwnerInvoicePaymentFormAction,
+  reversePropertyWithdrawalFormAction,
+  transferOwnerBalanceComponentFormAction,
+} from "@/features/owner-balances/lifecycle-form-actions";
 import {
   OWNER_BALANCE_COMPONENTS,
   type OwnerAccountRegisterRecord,
@@ -512,6 +513,9 @@ export function OwnerBalanceLedger({
                 <div className="space-y-4 border-t border-border py-4">
                   {canCorrect ? (
                     <OwnerCashActions
+                      ownerInvoicePayments={data.ownerInvoicePayments ?? []}
+                      ownerDistributions={data.ownerDistributions ?? []}
+                      scopeLabel={`${selectedOwnerOption?.label ?? "Owner"} · ${data.propertyOptions.find(option => option.id === selectedPropertyId)?.label ?? "Property"}`}
                       scopedHiddenFields={scopedHiddenFields}
                       selectedMonth={selectedMonth}
                     />
@@ -1500,10 +1504,19 @@ function RemediationRow({
 function OwnerCashActions({
   scopedHiddenFields,
   selectedMonth,
+  ownerInvoicePayments,
+  ownerDistributions,
+  scopeLabel,
 }: {
+  ownerInvoicePayments: NonNullable<OwnerBalanceData["ownerInvoicePayments"]>;
+  ownerDistributions: NonNullable<OwnerBalanceData["ownerDistributions"]>;
+  scopeLabel: string;
   scopedHiddenFields: ReactNode;
   selectedMonth: string;
 }) {
+  const options = (transactions: NonNullable<OwnerBalanceData["ownerInvoicePayments"]>) => transactions.map(transaction => ({
+    id: transaction.id, label: `${scopeLabel} · ${transaction.eventDate} · ${formatExactMoney(transaction.amount)} · ${transaction.reference}`,
+  }));
   return (
     <section aria-labelledby="owner-cash-actions-heading" className="space-y-3">
       <div>
@@ -1514,8 +1527,9 @@ function OwnerCashActions({
       <div className="grid gap-3 xl:grid-cols-3">
         {(["owner_contribution", "owner_reimbursement"] as const).map(
           (eventType) => (
-            <FinancialForm
-              action={recordOwnerCashEventAction}
+            <ReportActionForm
+              action={recordOwnerCashEventFormAction}
+              newCommandLabel={eventType === "owner_contribution" ? "Record another contribution" : "Record another reimbursement"}
               className="grid gap-3 rounded-2xl border border-border/80 bg-card p-4"
               key={eventType}
             >
@@ -1544,11 +1558,12 @@ function OwnerCashActions({
                   ? "Record owner contribution"
                   : "Record owner reimbursement"}
               </Button>
-            </FinancialForm>
+            </ReportActionForm>
           ),
         )}
-        <FinancialForm
-          action={recordOwnerDistributionAction}
+        <ReportActionForm
+          action={recordOwnerDistributionFormAction}
+          newCommandLabel="Record another distribution"
           className="grid gap-3 rounded-2xl border border-border/80 bg-card p-4"
         >
           {scopedHiddenFields}
@@ -1569,19 +1584,21 @@ function OwnerCashActions({
           <Button className="h-9 px-3" type="submit">
             Record owner distribution
           </Button>
-        </FinancialForm>
+        </ReportActionForm>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
         <ReversalForm
-          action={reverseOwnerInvoicePaymentAction}
-          idLabel="Owner invoice payment reference"
+          action={reverseOwnerInvoicePaymentFormAction}
+          idLabel="Owner invoice payment"
+          options={options(ownerInvoicePayments)}
           idName="ownerPaymentId"
           selectedMonth={selectedMonth}
           submitLabel="Reverse owner invoice payment"
         />
         <ReversalForm
-          action={reversePropertyWithdrawalAction}
-          idLabel="Owner distribution reference"
+          action={reversePropertyWithdrawalFormAction}
+          idLabel="Owner distribution"
+          options={options(ownerDistributions)}
           idName="withdrawalId"
           selectedMonth={selectedMonth}
           submitLabel="Reverse owner distribution"
@@ -1594,19 +1611,22 @@ function OwnerCashActions({
 function ReversalForm({
   action,
   idLabel,
+  options,
   idName,
   selectedMonth,
   submitLabel,
 }: {
-  action: (formData: FormData) => Promise<void>;
+  action: (formData: FormData) => Promise<import("@/features/reports/report-command-result").ReportCommandResult>;
   idLabel: string;
+  options: OwnerTransactionOption[];
   idName: string;
   selectedMonth: string;
   submitLabel: string;
 }) {
   return (
-    <FinancialForm
+    <ReportActionForm
       action={action}
+      newCommandLabel="Reverse another transaction"
       className="grid gap-3 rounded-2xl border border-border/80 bg-card p-4"
     >
       <input
@@ -1615,10 +1635,7 @@ function ReversalForm({
         value={`owner-reversal-${randomUUID()}`}
       />
       <h3 className="font-semibold">{submitLabel}</h3>
-      <label className="grid gap-1 text-sm">
-        {idLabel}
-        <Input className="h-9" name={idName} required />
-      </label>
+      <OwnerTransactionPicker name={idName} label={idLabel} options={options} />
       <label className="grid gap-1 text-sm">
         Reversal date
         <Input
@@ -1636,7 +1653,7 @@ function ReversalForm({
       <Button className="h-9 px-3" type="submit" variant="outline">
         {submitLabel}
       </Button>
-    </FinancialForm>
+    </ReportActionForm>
   );
 }
 
@@ -1665,8 +1682,9 @@ function TransferAction({
         Super Admin only. Creates equal and opposite balance changes and keeps
         the evidence.
       </p>
-      <FinancialForm
-        action={transferOwnerBalanceComponentAction}
+      <ReportActionForm
+        action={transferOwnerBalanceComponentFormAction}
+        newCommandLabel="Record another balance transfer"
         className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"
       >
         {scopedHiddenFields}
@@ -1740,21 +1758,13 @@ function TransferAction({
                 required
               />
             </label>
-            <label className="grid gap-1 text-sm">
-              Evidence file fingerprint
-              <Input
-                className="h-9 font-mono"
-                minLength={64}
-                name="evidenceSha256"
-                required
-              />
-            </label>
+            <EvidenceFileField />
           </div>
         </details>
         <Button className="h-9 px-3 md:col-span-2 xl:col-span-4" type="submit">
           Transfer balance
         </Button>
-      </FinancialForm>
+      </ReportActionForm>
     </section>
   );
 }

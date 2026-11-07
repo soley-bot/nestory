@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { ReportReturnNavigation } from "@/features/reports/components/report-return-navigation";
 import { reportReturnHref } from "@/features/reports/report-return";
 import { resolveExpenseReportSource } from "@/features/finance-operations/expense-report-source";
@@ -59,3 +60,5 @@ export default async function BillsExpensesPage({
     </>
   );
 }
+
+export const metadata: Metadata = { title: "Bills and expenses" };

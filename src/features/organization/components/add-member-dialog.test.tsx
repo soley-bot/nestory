@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -83,10 +83,12 @@ afterEach(() => {
 
 function DialogHarness({
   defaults,
+  availableRoles = roles,
   onNavigateToInvitations = vi.fn(),
   onReviewDuplicate = vi.fn(),
 }: {
   defaults?: { email?: string; personId?: string; staffEmail?: string };
+  availableRoles?: typeof roles;
   onNavigateToInvitations?: () => void;
   onReviewDuplicate?: (target: { id: string; kind: "invitation" | "member" }) => void;
 }) {
@@ -108,7 +110,7 @@ function DialogHarness({
         onReviewDuplicate={onReviewDuplicate}
         open={open}
         people={[mina]}
-        roles={roles}
+        roles={availableRoles}
         returnFocusRef={triggerRef}
       />
     </>
@@ -196,6 +198,8 @@ describe("AddMemberDialog", () => {
     await user.type(within(dialog).getByLabelText("Staff name"), "Niran Boon");
     await user.type(within(dialog).getByLabelText("Primary phone"), "+66 80 000 0000");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    expect(within(dialog).getByText("Niran Boon (will be created)")).toBeTruthy();
+    expect(within(dialog).queryByText("Staff required")).toBeNull();
     await user.click(within(dialog).getByRole("button", { name: "Send invitation" }));
 
     await waitFor(() => expect(createStaff).toHaveBeenCalledOnce());
@@ -263,5 +267,81 @@ describe("AddMemberDialog", () => {
 
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add member" })).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+});
+
+
+describe("invitation recovery and pending protection", () => {
+  it("uses the reviewed existing Staff after a partial creation success and a changed selection", async () => {
+    inviteMember.mockResolvedValueOnce({ status: "error", message: "Choose another email." });
+    const user = userEvent.setup();
+    render(<DialogHarness />);
+    await openDialog(user);
+    const dialog = await reachStaffStep(user);
+    await user.click(within(dialog).getByRole("button", { name: "Create Staff" }));
+    await user.type(within(dialog).getByLabelText("Staff name"), "Niran Boon");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.click(within(dialog).getByRole("button", { name: "Send invitation" }));
+    await within(dialog).findByText("Staff saved; invitation not created");
+    await user.click(within(dialog).getByRole("button", { name: "Back" }));
+    await user.click(within(dialog).getByRole("button", { name: "Existing Staff" }));
+    await user.click(within(dialog).getByRole("combobox", { name: "Staff member" }));
+    await user.click(screen.getByRole("option", { name: /Mina Chen/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    expect(within(dialog).getByText("Mina Chen", { selector: "dd" })).toBeTruthy();
+    expect(within(dialog).queryByText("Niran Boon", { selector: "dd" })).toBeNull();
+    await user.click(within(dialog).getByRole("button", { name: "Send invitation" }));
+    await waitFor(() => expect(inviteMember).toHaveBeenCalledTimes(2));
+    expect((inviteMember.mock.calls[1][1] as FormData).get("personId")).toBe(mina.id);
+    expect(createStaff).toHaveBeenCalledTimes(1);
+  });
+
+  it("requires an explicit access choice when there are no custom roles", async () => {
+    const user = userEvent.setup();
+    render(<DialogHarness availableRoles={[]} />);
+    const dialog = await openDialog(user);
+    expect(within(dialog).getByRole("combobox", { name: "Access level" }).textContent).toContain("Choose access level");
+    await user.type(within(dialog).getByLabelText("Invitation email"), "ops@example.com");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    expect(within(dialog).getByText("Choose a role.")).toBeTruthy();
+    expect(within(dialog).queryByRole("button", { name: "Send invitation" })).toBeNull();
+    expect(inviteMember).not.toHaveBeenCalled();
+  });
+
+  it("recovers from an interrupted Staff creation without enabling a duplicate retry", async () => {
+    createStaff.mockRejectedValueOnce(new Error("Synthetic lost response"));
+    const user = userEvent.setup();
+    render(<DialogHarness />);
+    await openDialog(user);
+    const dialog = await reachStaffStep(user);
+    await user.click(within(dialog).getByRole("button", { name: "Create Staff" }));
+    await user.type(within(dialog).getByLabelText("Staff name"), "Niran Boon");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.click(within(dialog).getByRole("button", { name: "Send invitation" }));
+    expect(await within(dialog).findByText(/could not confirm whether the Staff record was saved/)).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "Reload workspace" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "Send invitation" })).toHaveProperty("disabled", true);
+    expect(inviteMember).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(await screen.findByRole("alertdialog", { name: "Discard member invitation?" })).toBeTruthy();
+  });
+
+  it("keeps the dialog open and prevents discard while invitation delivery is pending", async () => {
+    let resolve!: (result: { status: string; message: string }) => void;
+    inviteMember.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    const user = userEvent.setup();
+    render(<DialogHarness defaults={{ email: "signin@example.com", personId: mina.id }} />);
+    const dialog = await openDialog(user);
+    await choose(user, "Access scope", "Bangkok");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.click(within(dialog).getByRole("button", { name: "Send invitation" }));
+    await waitFor(() => expect(inviteMember).toHaveBeenCalledOnce());
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: "Add member" })).toBeTruthy();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Working" })).toHaveProperty("disabled", true);
+    await act(async () => resolve({ status: "success", message: "Invitation sent." }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add member" })).toBeNull());
   });
 });

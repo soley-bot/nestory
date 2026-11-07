@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { MaintenanceScreen } from "@/features/maintenance/components/maintenance-screen";
 import type { MaintenanceSurfaceVariant } from "@/features/maintenance/components/maintenance-work-surfaces";
 import { getMaintenanceScreenData } from "@/features/maintenance/data/maintenance";
@@ -149,3 +150,5 @@ function getCasesRouteConfig(viewQuery: MaintenanceViewQuery): {
     surfaceVariant: "table",
   };
 }
+
+export const metadata: Metadata = { title: "Maintenance" };

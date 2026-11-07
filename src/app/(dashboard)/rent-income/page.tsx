@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { financeReturnHref } from "@/features/finance-operations/finance-tab-route";
 import { ReportReturnNavigation } from "@/features/reports/components/report-return-navigation";
@@ -84,3 +85,5 @@ export default async function RentIncomePage({
     </>
   );
 }
+
+export const metadata: Metadata = { title: "Rent income" };

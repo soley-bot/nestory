@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { UnitScreen } from "@/features/units/components/unit-screen";
 import {
   getUnitPropertyOptions,
@@ -29,3 +30,5 @@ export default async function UnitsPage({ searchParams }: UnitsPageProps) {
     />
   );
 }
+
+export const metadata: Metadata = { title: "Units" };

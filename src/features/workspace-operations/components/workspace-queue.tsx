@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDate } from "@/lib/dates/format";
+export { QueueAge } from "./queue-age";
 import type { MoneyDisplayValue } from "@/lib/money/format";
 
 export type WorkspaceQueueTone =
@@ -56,19 +56,6 @@ export function WorkspaceChips({ chips }: { chips: readonly WorkspaceChip[] }) {
         </span>
       ))}
     </div>
-  );
-}
-
-/** Absolute date stays in the title so the relative form never hides the fact. */
-export function QueueAge({ value }: { value?: string }) {
-  if (!value) {
-    return <span className="text-muted-foreground">&mdash;</span>;
-  }
-
-  return (
-    <time dateTime={value} title={formatDate(value)}>
-      {formatRelativeDay(value)}
-    </time>
   );
 }
 
@@ -186,9 +173,11 @@ export function WorkspaceQueueCard({
   context,
   status,
   title,
+  details,
 }: {
   action: ReactNode;
   amount?: ReactNode;
+  details?: ReactNode;
   context: string;
   status: ReactNode;
   title: string;
@@ -205,29 +194,10 @@ export function WorkspaceQueueCard({
           <span className="shrink-0 tabular-nums text-foreground">{amount}</span>
         ) : null}
       </div>
+      {details ? <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">{details}</div> : null}
       <div>{action}</div>
     </li>
   );
 }
 
 export { TableCell as QueueCell, TableRow as QueueRow };
-
-function formatRelativeDay(value: string) {
-  const then = new Date(value);
-
-  if (Number.isNaN(then.getTime())) {
-    return "—";
-  }
-
-  const days = Math.floor((Date.now() - then.getTime()) / 86_400_000);
-
-  if (days <= 0) {
-    return "Today";
-  }
-
-  if (days === 1) {
-    return "Yesterday";
-  }
-
-  return `${days} days ago`;
-}

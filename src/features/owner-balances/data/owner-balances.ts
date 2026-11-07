@@ -1,5 +1,6 @@
 import { requireOwnerBalanceReadContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { readAllRowsByIds } from "@/lib/db/read-all-rows";
 import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
 import { canonicalizeSignedOwnerOpeningAmount } from "@/features/owner-balances/owner-balance.money";
@@ -256,6 +257,50 @@ async function loadOwnerBalanceData(scope: OwnerBalanceScope, organizationId: st
   }
 
   const sources = mapSources((sourcesResult.data ?? []) as OwnerBalanceSourceRow[]);
+  // This source type also includes legacy invoice cash allocations. Only actual
+  // owner_payments IDs can be submitted to reverse_owner_invoice_payment.
+  const paymentIds = sources.filter(source => source.sourceType === "owner_invoice_payment").map(source => source.sourceId);
+  const distributionIds = sources.filter(source => source.sourceType === "owner_distribution").map(source => source.sourceId);
+  const [paymentResult, paymentReversalResult, distributionResult, distributionReversalResult] = await Promise.all([
+    readAllRowsByIds(paymentIds, (ids, from, to) => supabase.from("owner_payments")
+      .select("id, amount::text, received_date, payment_number, reference")
+      .eq("organization_id", context.organizationId).eq("property_id", propertyId)
+      .eq("owner_person_id", ownerPersonId).eq("currency", scope.currency)
+      .in("id", ids).is("reversal_of_id", null)
+      .gte("received_date", scope.periodStart).lte("received_date", endOfMonth(scope.periodEnd))
+      .order("id").range(from, to)),
+    // Reversals can be recorded in a later month than their original payment.
+    readAllRowsByIds(paymentIds, (ids, from, to) => supabase.from("owner_payments")
+      .select("id, reversal_of_id")
+      .eq("organization_id", context.organizationId).eq("property_id", propertyId)
+      .eq("owner_person_id", ownerPersonId).eq("currency", scope.currency)
+      .in("reversal_of_id", ids).order("id").range(from, to)),
+    readAllRowsByIds(distributionIds, (ids, from, to) => supabase.from("property_withdrawals")
+      .select("id, amount::text, withdrawal_date, reference")
+      .eq("organization_id", context.organizationId).eq("property_id", propertyId)
+      .eq("owner_person_id", ownerPersonId).eq("currency", scope.currency)
+      .in("id", ids).is("reversal_of_id", null)
+      .gte("withdrawal_date", scope.periodStart).lte("withdrawal_date", endOfMonth(scope.periodEnd))
+      .order("id").range(from, to)),
+    readAllRowsByIds(distributionIds, (ids, from, to) => supabase.from("property_withdrawals")
+      .select("id, reversal_of_id")
+      .eq("organization_id", context.organizationId).eq("property_id", propertyId)
+      .eq("owner_person_id", ownerPersonId).eq("currency", scope.currency)
+      .in("reversal_of_id", ids).order("id").range(from, to)),
+  ]);
+  if (paymentResult.error || paymentReversalResult.error || distributionResult.error || distributionReversalResult.error) throw new Error("Unable to load owner transaction choices.");
+  const reversedPaymentIds = new Set((paymentReversalResult.data ?? []).map(payment => payment.reversal_of_id));
+  const ownerInvoicePayments = (paymentResult.data ?? []).filter(payment => !reversedPaymentIds.has(payment.id)).map(payment => ({
+    id: payment.id, eventDate: payment.received_date,
+    amount: canonicalizeSignedOwnerOpeningAmount(payment.amount),
+    reference: payment.reference ? `${payment.payment_number} · ${payment.reference}` : payment.payment_number,
+  }));
+  const reversedDistributionIds = new Set((distributionReversalResult.data ?? []).map(distribution => distribution.reversal_of_id));
+  const ownerDistributions = (distributionResult.data ?? []).filter(distribution => !reversedDistributionIds.has(distribution.id)).map(distribution => ({
+    id: distribution.id, eventDate: distribution.withdrawal_date,
+    amount: canonicalizeSignedOwnerOpeningAmount(distribution.amount),
+    reference: distribution.reference ?? "Owner distribution",
+  }));
   const contributionIds = [...new Set(sources.filter(source => ["owner_contribution", "owner_reimbursement", "reversal"].includes(source.sourceType)).map(source => source.sourceLineId))];
   const contributionUnits = new Map<string, string | null>();
   for (let offset = 0; offset < contributionIds.length; offset += 200) {
@@ -272,6 +317,8 @@ async function loadOwnerBalanceData(scope: OwnerBalanceScope, organizationId: st
     accountPageCount: 1,
     accountPageSize: OWNER_ACCOUNT_REGISTER_PAGE_SIZE,
     accountTotal: 1,
+    ownerInvoicePayments,
+    ownerDistributions,
     accounts: [],
     unitOptions,
     ownerOptions,

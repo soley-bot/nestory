@@ -14,7 +14,7 @@ import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SideDrawer } from "@/components/ui/side-drawer";
-import { removeSearchParams } from "@/lib/url/href";
+import { buildHref, removeSearchParams } from "@/lib/url/href";
 import { workflowReturnHref } from "@/features/leases/workflow-return";
 import {
   ArchivePropertyPanel,
@@ -86,6 +86,8 @@ function PropertyScreenContent({
   const router = useRouter();
   const searchParams = useSearchParams();
   const navigation = useRegisterNavigation(viewQuery.query);
+  const tenantPersonId = searchParams.get("tenantPersonId");
+  const clearFiltersHref = buildHref(pathname, { tenantPersonId });
   const createInitialValues = getPropertyCreateInitialValues(
     searchParams,
     ownerOptions,
@@ -103,9 +105,10 @@ function PropertyScreenContent({
   };
   const getPropertyHref = (propertyId: string) => {
     const returnTo = workflowReturnHref(`${pathname}?${searchParams.toString()}`);
-    return returnTo && returnTo !== "/properties"
-      ? `/properties/${propertyId}?${new URLSearchParams({ returnTo })}`
-      : `/properties/${propertyId}`;
+    return buildHref(`/properties/${propertyId}`, {
+      tenantPersonId,
+      returnTo: returnTo && returnTo !== "/properties" ? returnTo : undefined,
+    });
   };
   const openPropertyRecord = (propertyId: string) => {
     navigation.cancelPending();
@@ -181,6 +184,7 @@ function PropertyScreenContent({
         data-slot="property-list-toolbar"
       >
         <PropertyFilters
+          clearHref={clearFiltersHref}
           navigation={navigation}
           onOpenProperty={openPropertyRecord}
           properties={properties}
@@ -193,7 +197,7 @@ function PropertyScreenContent({
             hasFilters ? (
               <Link
                 className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-                href={pathname}
+                href={clearFiltersHref}
                 onNavigate={navigation.cancelPending}
                 scroll={false}
               >
@@ -253,6 +257,11 @@ function PropertyScreenContent({
       }
     >
       <div className="flex min-w-0 flex-col">
+      {searchParams.get("tenantPersonId") ? (
+        <p className="shrink-0 border-b border-accent/30 bg-accent/10 px-4 py-3 text-sm sm:px-6" role="status">
+          Choose where this tenant will lease. Select a property, then choose its unit if needed.
+        </p>
+      ) : null}
       {statusMessage ? (
         <div className="shrink-0 px-4 py-2 sm:px-6">
           <div
@@ -316,7 +325,7 @@ function PropertyScreenContent({
               onClose={() => setDrawer(null)}
               onSuccess={(message, propertyId) => {
                 if (drawer.mode === "create" && propertyId) {
-                  router.push(`/properties/${propertyId}`);
+                  router.push(getPropertyHref(propertyId));
                   return;
                 }
                 setStatusMessage(message);

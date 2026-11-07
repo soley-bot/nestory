@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { PropertySetupScreen } from "@/features/property-setup/components/property-setup-screen";
 import { getPropertySetupData } from "@/features/property-setup/data/property-setup";
 import { getActivePropertyBranchOptions } from "@/features/properties/data/property-branches";
@@ -56,3 +57,5 @@ export default async function PropertySetupPage({ searchParams }: PropertySetupP
     />
   );
 }
+
+export const metadata: Metadata = { title: "Property setup" };

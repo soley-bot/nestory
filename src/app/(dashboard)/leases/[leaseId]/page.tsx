@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { LeaseDetailScreen } from "@/features/leases/components/lease-detail-screen";
 import {
   getFinanceAccountsData,
@@ -193,3 +194,5 @@ function getPaymentRouteNotice({
 
   return { message: "That invoice is no longer available for this Lease." };
 }
+
+export const metadata: Metadata = { title: "Lease details" };

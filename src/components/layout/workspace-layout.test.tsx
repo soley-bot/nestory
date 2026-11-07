@@ -365,7 +365,7 @@ describe("shared workspace anatomy", () => {
     });
     expect(
       within(breadcrumb).getByRole("link", { name: "Workspace" }).getAttribute("href"),
-    ).toBe("/overview");
+    ).toBe("/workspace");
     expect(within(breadcrumb).getByText("Leases").getAttribute("aria-current")).toBe(
       "page",
     );

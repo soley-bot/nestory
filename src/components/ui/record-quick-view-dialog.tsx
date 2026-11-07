@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { OverlayDismissalContext, discardOverlayDraftGuards, getOverlayDraftDecision, type OverlayDraftGuard } from "@/components/ui/overlay-dismissal-context";
+import { OverlayPortalContainerProvider } from "@/components/ui/overlay-portal-container";
 import { cn } from "@/lib/utils";
 
 type RecordQuickViewDialogProps = {
@@ -32,6 +35,33 @@ export function RecordQuickViewDialog({
   const dialogRef = useRef<HTMLElement>(null);
   const onCloseRef = useRef(onClose);
   const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
+  const guardsRef = useRef(new Map<symbol, OverlayDraftGuard>());
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null);
+  const [dismissalDecision, setDismissalDecision] = useState<"dirty" | "saving" | null>(null);
+  const [previousOpen, setPreviousOpen] = useState(open);
+  if (previousOpen !== open) {
+    setPreviousOpen(open);
+    setDismissalDecision(null);
+  }
+
+  const registerDraftGuard = useCallback((guard: OverlayDraftGuard) => {
+    const key = Symbol("draft guard");
+    guardsRef.current.set(key, guard);
+    return () => { guardsRef.current.delete(key); };
+  }, []);
+
+  const requestClose = useCallback(() => {
+    const decision = getOverlayDraftDecision(guardsRef.current.values());
+    if (decision) {
+      setDismissalDecision(decision);
+    } else {
+      setDismissalDecision(null);
+      onCloseRef.current();
+    }
+  }, []);
+  const dismissalContext = useMemo(() => ({ portalContainer, registerDraftGuard, requestClose }),
+    [portalContainer, registerDraftGuard, requestClose]);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -83,22 +113,26 @@ export function RecordQuickViewDialog({
     }
 
     function handleKeyDown(event: KeyboardEvent) {
+      if (dismissalDecision) return;
       if (event.key === "Escape") {
         if (
           event.target instanceof Node &&
-          !dialogRef.current?.contains(event.target)
+          !dialogRef.current?.contains(event.target) &&
+          !portalContainer?.contains(event.target)
         ) {
           return;
         }
 
         event.preventDefault();
-        onCloseRef.current();
+        requestClose();
         return;
       }
 
       if (event.key !== "Tab") {
         return;
       }
+
+      if (event.target instanceof Node && portalContainer?.contains(event.target)) return;
 
       const focusableElements = getFocusableElements();
 
@@ -137,13 +171,15 @@ export function RecordQuickViewDialog({
     document.addEventListener("keydown", handleKeyDown);
 
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open]);
+  }, [dismissalDecision, open, portalContainer, requestClose]);
 
   if (!open) {
     return null;
   }
 
   return (
+    <OverlayDismissalContext.Provider value={dismissalContext}>
+    <OverlayPortalContainerProvider value={portalContainer}>
     <div
       className="fixed inset-0 z-50 grid place-items-center bg-background/70 p-3 backdrop-blur-[2px] sm:p-6"
       data-slot="record-quick-view-overlay"
@@ -152,7 +188,7 @@ export function RecordQuickViewDialog({
         aria-hidden="true"
         className="absolute inset-0 cursor-default"
         data-slot="record-quick-view-backdrop"
-        onClick={() => onCloseRef.current()}
+        onClick={requestClose}
         tabIndex={-1}
         type="button"
       />
@@ -164,6 +200,7 @@ export function RecordQuickViewDialog({
           size === "wide" ? "max-w-[760px]" : "max-w-[640px]",
         )}
         data-slot="record-quick-view-dialog"
+        inert={dismissalDecision ? true : undefined}
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}
@@ -171,7 +208,8 @@ export function RecordQuickViewDialog({
         <Button
           aria-label="Close quick view"
           className="absolute right-3 top-3 z-20 h-8 w-8 bg-card/90 px-0 shadow-sm backdrop-blur-sm"
-          onClick={() => onCloseRef.current()}
+          onClick={requestClose}
+          ref={closeButtonRef}
           type="button"
           variant="ghost"
         >
@@ -184,6 +222,32 @@ export function RecordQuickViewDialog({
           {children}
         </div>
       </section>
+      <div className="contents" data-slot="record-quick-view-portals" ref={setPortalContainer} />
     </div>
+    </OverlayPortalContainerProvider>
+    <ConfirmationDialog
+      ariaLabel={dismissalDecision === "dirty" ? "Unsaved changes" : "Save in progress"}
+      cancelLabel={dismissalDecision === "dirty" ? "Keep editing" : "Continue waiting"}
+      confirmLabel={dismissalDecision === "dirty" ? "Discard changes" : undefined}
+      description={dismissalDecision === "dirty"
+        ? "Your changes will be lost and cannot be recovered."
+        : "Stay in this quick view until the save finishes."}
+      onCancel={() => {
+        setDismissalDecision(null);
+        window.setTimeout(() => closeButtonRef.current?.focus(), 0);
+      }}
+      onConfirm={dismissalDecision === "dirty" ? (event) => {
+        if (getOverlayDraftDecision(guardsRef.current.values()) === "saving") {
+          event.preventDefault();
+          setDismissalDecision("saving");
+          return;
+        }
+        setDismissalDecision(null);
+        discardOverlayDraftGuards(guardsRef.current.values(), () => onCloseRef.current());
+      } : undefined}
+      open={dismissalDecision !== null}
+      title={dismissalDecision === "dirty" ? "Discard unsaved changes?" : "Saving is still in progress"}
+    />
+    </OverlayDismissalContext.Provider>
   );
 }

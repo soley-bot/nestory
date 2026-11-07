@@ -139,7 +139,7 @@ describe("TimelineScreen workspace contract", () => {
       within(screen.getByRole("navigation", { name: "Breadcrumb" }))
         .getByRole("link", { name: "Workspace" })
         .getAttribute("href"),
-    ).toBe("/overview");
+    ).toBe("/workspace");
     expect(
       within(screen.getByRole("navigation", { name: "Breadcrumb" }))
         .getByText("Records")

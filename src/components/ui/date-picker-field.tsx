@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { DayPicker } from "@daypicker/react";
 import * as Popover from "@radix-ui/react-popover";
 import {
@@ -48,8 +48,10 @@ export function DatePickerField(props: DatePickerFieldProps) {
   } = props;
   const minDate = useMemo(() => parseDateValue(minValue ?? ""), [minValue]);
   const [open, setOpen] = useState(false);
+  const calendarId = useId();
   const [value, setValue] = useState(defaultValue);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const previousValueRef = useRef(value);
   const portalContainer = useDrawerPortalContainer();
   const [visibleMonth, setVisibleMonth] = useState(() =>
@@ -89,6 +91,11 @@ export function DatePickerField(props: DatePickerFieldProps) {
         <Popover.Trigger asChild>
           <button
             aria-describedby={ariaDescribedBy}
+            aria-controls={calendarId}
+            aria-expanded={open}
+            aria-haspopup="dialog"
+            aria-invalid={ariaInvalid}
+            aria-required={ariaRequired ?? required}
             aria-label={ariaLabel}
             aria-labelledby={ariaLabelledBy}
             data-invalid={ariaInvalid}
@@ -96,6 +103,8 @@ export function DatePickerField(props: DatePickerFieldProps) {
               "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-2.5 text-left text-sm shadow-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring data-[invalid=true]:border-danger data-[invalid=true]:ring-2 data-[invalid=true]:ring-danger/20",
               className,
             )}
+            role="combobox"
+            ref={triggerRef}
             type="button"
           >
             <span className={value ? "text-foreground" : "text-muted-foreground"}>
@@ -106,6 +115,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
         </Popover.Trigger>
         <Popover.Portal container={portalContainer ?? undefined}>
           <Popover.Content
+            id={calendarId}
             align="start"
             avoidCollisions
             className="z-[80] max-h-[var(--radix-popover-content-available-height)] w-[312px] overflow-y-auto rounded-md border border-border bg-card p-3 shadow-lg"
@@ -172,7 +182,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
                 outside: "text-muted-foreground opacity-40",
                 root: "mt-1",
                 selected:
-                  "[&>button]:bg-accent [&>button]:text-background [&>button]:hover:bg-accent",
+                  "[&>button]:bg-accent [&>button]:text-accent-foreground [&>button]:hover:bg-accent",
                 today: "[&>button]:border [&>button]:border-accent",
                 weekday: "h-7 text-center text-xs font-medium text-muted-foreground",
               }}
@@ -183,7 +193,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
               month={visibleMonth}
               onMonthChange={setVisibleMonth}
               onSelect={(day) => {
-                if (!day) {
+                if (!day || triggerRef.current?.matches(":disabled")) {
                   return;
                 }
 
@@ -200,6 +210,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
               <button
                 className="rounded-md px-2 py-1 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => {
+                  if (triggerRef.current?.matches(":disabled")) return;
                   setValue("");
                   onValueChange?.("");
                   setOpen(false);
@@ -213,6 +224,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
                 title={`Today in ${timeZone}`}
                 className="rounded-md px-2 py-1 text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => {
+                  if (triggerRef.current?.matches(":disabled")) return;
                   const today = businessDate ?? getToday();
                   setValue(today);
                   onValueChange?.(today);

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import {
   OverlayDismissalContext,
+  discardOverlayDraftGuards,
+  getOverlayDraftDecision,
   type OverlayDraftGuard,
 } from "@/components/ui/overlay-dismissal-context"
 import { OverlayPortalContainerProvider } from "@/components/ui/overlay-portal-container"
@@ -34,7 +36,7 @@ export function Modal({
   size?: "compact" | "default"
   title: string
 }) {
-  const draftGuardRef = React.useRef<OverlayDraftGuard | null>(null)
+  const draftGuardsRef = React.useRef(new Map<symbol, OverlayDraftGuard>())
   const closeButtonRef = React.useRef<HTMLButtonElement | null>(null)
   const previouslyFocusedElementRef = React.useRef<HTMLElement | null>(null)
   const [dismissalDecision, setDismissalDecision] = React.useState<
@@ -48,22 +50,15 @@ export function Modal({
   }
 
   const registerDraftGuard = React.useCallback((guard: OverlayDraftGuard) => {
-    draftGuardRef.current = guard
-    return () => {
-      if (draftGuardRef.current === guard) draftGuardRef.current = null
-    }
+    const key = Symbol("draft guard")
+    draftGuardsRef.current.set(key, guard)
+    return () => { draftGuardsRef.current.delete(key) }
   }, [])
 
   const requestClose = React.useCallback(() => {
-    const status = draftGuardRef.current?.status
-
-    if (status === "saving") {
-      setDismissalDecision("saving")
-      return
-    }
-
-    if (status === "dirty" || status === "error") {
-      setDismissalDecision("dirty")
+    const decision = getOverlayDraftDecision(draftGuardsRef.current.values())
+    if (decision) {
+      setDismissalDecision(decision)
       return
     }
 
@@ -72,16 +67,14 @@ export function Modal({
   }, [onClose])
 
   const discardAndClose = React.useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
-    if (draftGuardRef.current?.status === "saving") {
+    if (getOverlayDraftDecision(draftGuardsRef.current.values()) === "saving") {
       event.preventDefault()
       setDismissalDecision("saving")
       return
     }
 
-    const onDiscard = draftGuardRef.current?.onDiscard
     setDismissalDecision(null)
-    if (onDiscard) onDiscard()
-    else onClose()
+    discardOverlayDraftGuards(draftGuardsRef.current.values(), onClose)
   }, [onClose])
 
   const cancelDismissal = React.useCallback(() => {

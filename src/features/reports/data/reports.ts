@@ -217,14 +217,14 @@ function trimTrustedReportForScreen(report: TrustedReport): TrustedReport {
   }
   return {
     ...report,
-    rows: (report.kind === "unit-profit-loss" ? report.rows : report.rows.slice(0, maxScreenReportRows)).map((row) => ({
+    rows: (["unit-profit-loss", "monthly-owner-activity"].includes(report.kind) ? report.rows : report.rows.slice(0, maxScreenReportRows)).map((row) => ({
       ...row,
       sourceLinks:
         report.kind === "monthly-owner-activity"
           ? row.sourceLinks
           : row.sourceLinks.slice(0, maxScreenSourceLinks),
     })),
-    totalRowCount: report.rows.length,
+    totalRowCount: report.totalRowCount ?? report.rows.length,
   };
 }
 

@@ -323,3 +323,10 @@ const data = {
 function classTokens(element: Element) {
   return (element.getAttribute("class") ?? "").split(/\s+/).filter(Boolean);
 }
+
+it("keeps the selected property in the attention drill-through", () => {
+  render(<OverviewScreen data={data} query={{...query, propertyId: "property-a"}} />);
+  fireEvent.click(screen.getByRole("button", {name: /Needs attention/}));
+  expect(screen.getByRole("link", {name: /View all checks/}).getAttribute("href")).toContain("propertyId=property-a");
+  cleanup();
+});

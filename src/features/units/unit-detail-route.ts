@@ -42,15 +42,18 @@ export function parseUnitDetailQuery(
 }
 
 export function buildUnitRecordHref({
+  tenantPersonId,
   section,
   sourceTaskId,
   unitId,
 }: {
+  tenantPersonId?: string;
   section: UnitRecordSection;
   sourceTaskId?: string;
   unitId: string;
 }) {
   return buildHref(`/units/${unitId}`, {
+    tenantPersonId,
     section,
     sourceTaskId,
   });

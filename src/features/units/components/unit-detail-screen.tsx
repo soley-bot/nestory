@@ -35,7 +35,9 @@ import {
 import type { UnitRecordSection } from "@/features/units/unit-detail-route";
 import type { UnitDetail } from "@/features/units/unit.types";
 import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
+import { buildHref } from "@/lib/url/href";
 import { formatDate } from "@/lib/dates/format";
+import { formatUnitLeaseReadiness, formatUnitOperationalReadiness } from "@/features/units/data/unit-summary";
 
 type DrawerState =
   | { mode: "edit"; unit: UnitDetail }
@@ -55,6 +57,7 @@ type ConfirmationState = {
 };
 
 type UnitDetailScreenProps = {
+  tenantPersonId?: string;
   activeSection: UnitRecordSection;
   canArchive: boolean;
   canCreateLease: boolean;
@@ -66,14 +69,14 @@ type UnitDetailScreenProps = {
 };
 
 export function UnitDetailScreen(props: UnitDetailScreenProps) {
-  const { unit } = props;
+  const { tenantPersonId, unit } = props;
   return (
     <FinancialReportBoundary expectedGeneration={unit.financialGeneration} fallback={
       <>
         <PageHeader title={`Unit ${unit.unitNumber}`} description={`${unit.propertyCode} / ${unit.propertyName}`} breadcrumb={
           <PageBreadcrumb current={`Unit ${unit.unitNumber}`} items={[
             { href: "/units", label: "Units" },
-            { href: unit.hrefs.property, label: `${unit.propertyCode} / ${unit.propertyName}` },
+            { href: buildHref(`/properties/${unit.propertyId}`, { tenantPersonId }), label: `${unit.propertyCode} / ${unit.propertyName}` },
           ]} />
         } />
         <nav aria-label="Unit record navigation" className="flex gap-4 px-4 py-3">
@@ -88,6 +91,7 @@ export function UnitDetailScreen(props: UnitDetailScreenProps) {
 }
 
 function UnitDetailScreenContent({
+  tenantPersonId,
   activeSection,
   canArchive,
   canCreateLease,
@@ -179,9 +183,9 @@ function UnitDetailScreenContent({
           <PageBreadcrumb
             current={`Unit ${unit.unitNumber}`}
             items={[
-              { href: "/properties", label: "Properties" },
+              { href: buildHref("/properties", { tenantPersonId }), label: "Properties" },
               {
-                href: unit.hrefs.property,
+                href: buildHref(`/properties/${unit.propertyId}`, { tenantPersonId }),
                 label: `${unit.propertyCode} — ${unit.propertyName}`,
               },
             ]}
@@ -189,8 +193,11 @@ function UnitDetailScreenContent({
         }
         context={
           <div className="flex items-center gap-2">
+            <Badge tone={unit.readiness.operational === "available" ? "success" : "warning"}>
+              {formatUnitOperationalReadiness(unit.readiness.operational)}
+            </Badge>
             <Badge tone={unit.readiness.lease === "occupied" ? "success" : "neutral"}>
-              {unit.readiness.lease === "occupied" ? "Occupied" : "Available"}
+              {formatUnitLeaseReadiness(unit.readiness.lease)}
               {unit.activeLease ? ` · Lease ends ${formatDate(unit.activeLease.endDate)}` : ""}
             </Badge>
             {unit.isArchived ? <Badge tone="warning">Archived</Badge> : null}
@@ -199,6 +206,15 @@ function UnitDetailScreenContent({
         description={`${unit.propertyCode} / ${unit.propertyName}`}
         title={`Unit ${unit.unitNumber}`}
       />
+
+      {tenantPersonId ? (
+        <div className="mx-4 mt-4 rounded-md border border-accent/30 bg-accent/10 p-4 text-sm sm:mx-6">
+          <p className="font-medium">Create a lease for this tenant in Unit {unit.unitNumber}</p>
+          {canCreateLease && !unit.isArchived && unit.readiness.canStartLease ? (
+            <Button className="mt-3" onClick={() => setDrawer({ mode: "create-lease", unit })}>Create lease</Button>
+          ) : <p className="mt-2">This unit is unavailable for a new lease.</p>}
+        </div>
+      ) : null}
 
       {statusMessage ? (
         <div className="px-4 pt-5 sm:px-6 lg:shrink-0 lg:px-6">
@@ -212,6 +228,7 @@ function UnitDetailScreenContent({
       ) : null}
 
       <UnitDetailView
+        tenantPersonId={tenantPersonId}
         canArchiveFiles={canArchive}
         canWriteFiles={canWrite}
         initialSection={activeSection}
@@ -291,6 +308,7 @@ function UnitDetailScreenContent({
             >
               {(options) => (
                 <LeaseForm
+                  initialValues={tenantPersonId ? { tenantPersonId } : undefined}
                   returnTo={`/units/${unit.id}?section=${activeSection}`}
                   billingFormConfig={options.billingFormConfig}
                   canRecordDepositReceipt={canRecordDepositReceipt}

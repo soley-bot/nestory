@@ -510,6 +510,7 @@ export function WorkspaceCommandPalette({
                       const nextIsPageMode =
                         nextNormalizedQuery.startsWith(">");
                       setQuery(nextQuery);
+                      if (nextNormalizedQuery === normalizedQuery) return;
                       setActiveIndex(0);
                       setEntityState({
                         query: nextNormalizedQuery,

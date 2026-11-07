@@ -231,6 +231,93 @@ describe("authoritative owner balance loader", () => {
     expect(data.withdrawalCapacity).toBeNull();
   });
 
+  it("deduplicates payment allocations into real payment choices and excludes legacy and later-reversed records", async () => {
+    const existingRpc = mocks.rpc.getMockImplementation()!;
+    const legacyInvoiceId = "00000000-0000-4000-8000-000000000050";
+    const reversedPaymentId = "00000000-0000-4000-8000-000000000051";
+    mocks.rpc.mockImplementation((name: string, args: unknown) => name === "get_owner_balance_source_ledger"
+      ? query({data: [
+        {...sourceLedgerRows()[0], source_type: "owner_invoice_payment", source_id: sourceId, gross_signed_amount: "-100.00"},
+        {...sourceLedgerRows()[0], allocation_set_id: "allocation-two", source_line_id: "line-two", source_type: "owner_invoice_payment", source_id: sourceId, gross_signed_amount: "-0.01"},
+        {...sourceLedgerRows()[0], allocation_set_id: "legacy-cash", source_type: "owner_invoice_payment", source_id: legacyInvoiceId},
+        {...sourceLedgerRows()[0], allocation_set_id: "reversed-cash", source_type: "owner_invoice_payment", source_id: reversedPaymentId},
+      ], error: null}) : existingRpc(name, args));
+    const existingFrom = mocks.from.getMockImplementation()!;
+    const paymentQueries: ReturnType<typeof query>[] = [];
+    mocks.from.mockImplementation((table: string) => {
+      if (table !== "owner_payments") return existingFrom(table);
+      const builder = query({data: [], error: null});
+      builder.select.mockImplementation((columns?: string) => {
+        const selected = query({data: columns?.includes("reversal_of_id")
+          ? [{id: "later-reversal", reversal_of_id: reversedPaymentId}]
+          : [
+            {id: sourceId, amount: "100.01", received_date: "2026-08-10", payment_number: "OP-001", reference: "Bank transfer"},
+            {id: reversedPaymentId, amount: "200.00", received_date: "2026-08-11", payment_number: "OP-002", reference: null},
+          ], error: null});
+        paymentQueries.push(selected);
+        return selected;
+      });
+      return builder;
+    });
+    const result = await getOwnerBalanceData({currency: "USD", periodStart: "2026-08-01", periodEnd: "2026-08-31", propertyId, ownerPersonId: ownerId});
+    expect(result.ownerInvoicePayments).toEqual([{id: sourceId, eventDate: "2026-08-10", amount: "100.01", reference: "OP-001 · Bank transfer"}]);
+    for (const builder of paymentQueries) {
+      expect(builder.eq).toHaveBeenCalledWith("organization_id", organizationId);
+      expect(builder.eq).toHaveBeenCalledWith("property_id", propertyId);
+      expect(builder.eq).toHaveBeenCalledWith("owner_person_id", ownerId);
+      expect(builder.eq).toHaveBeenCalledWith("currency", "USD");
+      expect(builder.in.mock.calls[0][1]).toEqual([sourceId, legacyInvoiceId, reversedPaymentId]);
+    }
+    const paymentQuery = paymentQueries.find(builder => builder.in.mock.calls[0][0] === "id")!;
+    expect(paymentQuery.gte).toHaveBeenCalledWith("received_date", "2026-08-01");
+    expect(paymentQuery.lte).toHaveBeenCalledWith("received_date", "2026-08-31");
+    const reversalQuery = paymentQueries.find(builder => builder.in.mock.calls[0][0] === "reversal_of_id")!;
+    expect(reversalQuery.gte).not.toHaveBeenCalled();
+    expect(reversalQuery.lte).not.toHaveBeenCalled();
+  });
+
+  it("omits distributions reversed in another month and keeps both lookups scoped to candidate records", async () => {
+    const existingRpc = mocks.rpc.getMockImplementation()!;
+    const reversedId = "00000000-0000-4000-8000-000000000052";
+    mocks.rpc.mockImplementation((name: string, args: unknown) => name === "get_owner_balance_source_ledger"
+      ? query({data: [
+        {...sourceLedgerRows()[0], source_type: "owner_distribution", source_id: sourceId},
+        {...sourceLedgerRows()[0], allocation_set_id: "reversed-distribution", source_type: "owner_distribution", source_id: reversedId},
+      ], error: null}) : existingRpc(name, args));
+    const existingFrom = mocks.from.getMockImplementation()!;
+    const distributionQueries: ReturnType<typeof query>[] = [];
+    mocks.from.mockImplementation((table: string) => {
+      if (table !== "property_withdrawals") return existingFrom(table);
+      const builder = query({data: [], error: null});
+      builder.select.mockImplementation((columns?: string) => {
+        const selected = query({data: columns?.includes("reversal_of_id")
+          ? [{id: "next-month-reversal", reversal_of_id: reversedId}]
+          : [
+            {id: sourceId, amount: "900719925474.09", withdrawal_date: "2026-08-10", reference: "Bank payout"},
+            {id: reversedId, amount: "200.00", withdrawal_date: "2026-08-11", reference: "Reversed payout"},
+          ], error: null});
+        distributionQueries.push(selected);
+        return selected;
+      });
+      return builder;
+    });
+    const result = await getOwnerBalanceData({currency: "USD", periodStart: "2026-08-01", periodEnd: "2026-08-31", propertyId, ownerPersonId: ownerId});
+    expect(result.ownerDistributions).toEqual([{id: sourceId, eventDate: "2026-08-10", amount: "900719925474.09", reference: "Bank payout"}]);
+    for (const builder of distributionQueries) {
+      expect(builder.eq).toHaveBeenCalledWith("organization_id", organizationId);
+      expect(builder.eq).toHaveBeenCalledWith("property_id", propertyId);
+      expect(builder.eq).toHaveBeenCalledWith("owner_person_id", ownerId);
+      expect(builder.eq).toHaveBeenCalledWith("currency", "USD");
+      expect(builder.in.mock.calls[0][1]).toEqual([sourceId, reversedId]);
+    }
+    const originalQuery = distributionQueries.find(builder => builder.in.mock.calls[0][0] === "id")!;
+    expect(originalQuery.gte).toHaveBeenCalledWith("withdrawal_date", "2026-08-01");
+    expect(originalQuery.lte).toHaveBeenCalledWith("withdrawal_date", "2026-08-31");
+    const reversalQuery = distributionQueries.find(builder => builder.in.mock.calls[0][0] === "reversal_of_id")!;
+    expect(reversalQuery.gte).not.toHaveBeenCalled();
+    expect(reversalQuery.lte).not.toHaveBeenCalled();
+  });
+
   it("still rejects a denied owner account catalog", async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "Not authorized" } });
     await expect(getOwnerBalanceData({
@@ -667,15 +754,17 @@ function sourceLedgerRows() {
 }
 
 function query(result: { data: unknown; error: unknown }) {
+  let page = result;
   const builder = {
     eq: vi.fn(() => builder),
     gte: vi.fn(() => builder),
-    in: vi.fn(() => builder),
+    in: vi.fn((_column?: string, _values?: string[]) => { void _column; void _values; return builder; }),
     is: vi.fn(() => builder),
     lte: vi.fn(() => builder),
     order: vi.fn(() => builder),
-    select: vi.fn(() => builder),
-    then: (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve),
+    select: vi.fn((_columns?: string) => { void _columns; return builder; }),
+    range: vi.fn((from: number, to: number) => {page = {...result, data: Array.isArray(result.data) ? result.data.slice(from, to + 1) : result.data}; return builder;}),
+    then: (resolve: (value: unknown) => unknown) => Promise.resolve(page).then(resolve),
   };
   return builder;
 }

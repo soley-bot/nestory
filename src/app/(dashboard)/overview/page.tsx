@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { OverviewScreen } from "@/features/overview/components/overview-screen";
 import { getOverviewScreenData } from "@/features/overview/data/overview";
 import { parseOverviewSearchParams } from "@/features/overview/overview.filters";
@@ -22,3 +23,5 @@ export default async function OverviewPage({ searchParams }: OverviewPageProps) 
     />
   );
 }
+
+export const metadata: Metadata = { title: "Overview" };

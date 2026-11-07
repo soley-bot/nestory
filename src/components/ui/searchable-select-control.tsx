@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  useCallback,
+  useEffect,
   useId,
   useMemo,
   useRef,
@@ -63,6 +65,13 @@ export function SearchableSelectControl({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const tabbingAwayRef = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const listboxRef = useRef<HTMLDivElement | null>(null);
+  const [listboxMounted, setListboxMounted] = useState(false);
+  const setListbox = useCallback((element: HTMLDivElement | null) => {
+    listboxRef.current = element;
+    setListboxMounted(element !== null);
+  }, []);
+  const composingRef = useRef(false);
   const portalContainer = useDrawerPortalContainer();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -93,6 +102,21 @@ export function SearchableSelectControl({
     : visibleOptions[activeIndex] ??
       visibleOptions.find((option) => !option.disabled);
 
+  useEffect(() => {
+    if (!open || !activeOption || !listboxRef.current) return;
+    const option = Array.from(listboxRef.current.querySelectorAll<HTMLElement>("[role='option']"))
+      .find((item) => item.id === `${listboxId}-${encodeURIComponent(activeOption.value)}`);
+    if (!option) return;
+    const viewport = listboxRef.current;
+    const optionBounds = option.getBoundingClientRect();
+    const viewportBounds = viewport.getBoundingClientRect();
+    if (optionBounds.top < viewportBounds.top) {
+      viewport.scrollTop -= viewportBounds.top - optionBounds.top;
+    } else if (optionBounds.bottom > viewportBounds.bottom) {
+      viewport.scrollTop += optionBounds.bottom - viewportBounds.bottom;
+    }
+  }, [activeOption, listboxId, listboxMounted, open]);
+
   function choose(option: SearchableSelectControlOption) {
     if (option.disabled || disabled || triggerRef.current?.matches(":disabled")) {
       return;
@@ -105,6 +129,7 @@ export function SearchableSelectControl({
   }
 
   function onSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (composingRef.current || event.nativeEvent.isComposing || event.keyCode === 229) return;
     const enabledOptions = visibleOptions.filter((option) => !option.disabled);
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
@@ -245,6 +270,8 @@ export function SearchableSelectControl({
                   setQuery(event.currentTarget.value);
                   setActiveIndex(0);
                 }}
+                onCompositionStart={() => { composingRef.current = true; }}
+                onCompositionEnd={() => { composingRef.current = false; }}
                 onKeyDown={onSearchKeyDown}
                 placeholder="Search"
                 ref={searchRef}
@@ -256,6 +283,7 @@ export function SearchableSelectControl({
               aria-label={`${ariaLabel} options`}
               className="mt-1 max-h-64 overflow-y-auto"
               id={listboxId}
+              ref={setListbox}
               role="listbox"
             >
               {visibleOptions.length === 0 ? (

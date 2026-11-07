@@ -30,6 +30,7 @@ import type {
 
 const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
+  timeZone: "UTC",
   year: "numeric",
 });
 type LeaseScreenProps = {
@@ -115,7 +116,10 @@ export function LeaseScreen({
       return;
     }
 
-    router.replace("/properties?notice=choose-lease-context", {
+    const tenantPersonId = searchParams.get("tenantPersonId");
+    const params = new URLSearchParams({ notice: "choose-lease-context" });
+    if (tenantPersonId) params.set("tenantPersonId", tenantPersonId);
+    router.replace(`/properties?${params}`, {
       scroll: false,
     });
   }, [router, searchParams]);

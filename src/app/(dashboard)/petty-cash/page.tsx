@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { PettyCashScreen } from "@/features/petty-cash/components/petty-cash-screen";
 import { getPettyCashScreenData } from "@/features/petty-cash/data/petty-cash";
 import { requireFinanceContext } from "@/lib/auth/context";
@@ -31,3 +32,5 @@ export default async function PettyCashPage({
     />
   );
 }
+
+export const metadata: Metadata = { title: "Petty cash" };

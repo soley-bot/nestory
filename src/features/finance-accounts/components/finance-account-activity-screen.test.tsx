@@ -107,3 +107,13 @@ function fixture(): FinanceAccountActivity {
     total: "700.00",
   };
 }
+
+it("keeps attempted dates and permitted mobile navigation available after filter rejection", () => {
+  render(<FinanceAccountActivityScreen activity={fixture()} attemptedFilters={{periodStart: "2026-11-30", periodEnd: "2026-11-01"}} filterError="From must be on or before To." navigation={{canReadFinanceReports: true, canSubmitExpense: true}} />);
+  expect(screen.getByLabelText("From")).toHaveValue("2026-11-30");
+  expect(screen.getByLabelText("To")).toHaveValue("2026-11-01");
+  expect(screen.getByRole("alert")).toHaveTextContent("on or before");
+  expect(screen.queryByText("USD 700.00")).toBeNull();
+  expect(screen.getByRole("link", {name: "Expenses"})).toHaveAttribute("href", "/bills-expenses");
+  expect(screen.getByRole("link", {name: "Reports"})).toHaveAttribute("href", "/reports");
+});

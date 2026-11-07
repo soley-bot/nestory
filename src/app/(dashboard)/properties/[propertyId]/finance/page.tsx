@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
   FinanceOperationsScreen,
@@ -70,3 +71,5 @@ function propertyFinanceView(view?: string): FinanceOperationsView {
   if (view === "owner") return "account";
   return view === "rent" ? "rent" : "transactions";
 }
+
+export const metadata: Metadata = { title: "Property finances" };

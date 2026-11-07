@@ -434,7 +434,7 @@ describe("maintenance workspace redesign contract", () => {
     fireEvent.click(screen.getByText("Record cost", { selector: "summary" }));
     expect(new FormData(form).get("vendorPersonId")).toBe("vendor-1");
     fireEvent.click(screen.getByText("Follow up", { selector: "summary" }));
-    await screen.findByRole("button", { name: "Reminder date" });
+    await screen.findByRole("combobox", { name: "Reminder date" });
     expect(new FormData(form).get("reminderDate")).toBe("2026-07-17");
     expect(new FormData(form).getAll("reminderDate")).toHaveLength(1);
     expect(new FormData(form).get("dueDate")).toBe("2026-07-18");
@@ -457,9 +457,22 @@ describe("maintenance workspace redesign contract", () => {
     expect(failedDraft.get("costEstimateAmount")).toBe("125");
     expect(failedDraft.get("vendorPersonId")).toBe("vendor-1");
     await waitFor(() => expect(document.activeElement?.getAttribute("name")).toBe("category"));
+    const category = container.querySelector('[name="category"]')!;
+    expect(category.getAttribute("aria-invalid")).toBe("true");
+    expect(document.getElementById(category.getAttribute("aria-describedby")!)?.textContent).toBe("Enter a category.");
     expect(onClose).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("associates an organization-wide branch error with its editable selector", async () => {
+    maintenanceActions.update.mockResolvedValueOnce({ status: "error", fieldErrors: { branchId: ["Choose an active branch."] } } as never);
+    const { container } = renderForm(makeCase());
+    fireEvent.submit(container.querySelector("form")!);
+    const error = await screen.findByText("Choose an active branch.");
+    const branch = screen.getByRole("combobox", { name: "Branch" });
+    expect(branch.getAttribute("aria-invalid")).toBe("true");
+    expect(branch.getAttribute("aria-describedby")?.split(" ")).toContain(error.id);
   });
 
   it("retains edited unlocked actual cost after an unrelated validation error and retries the same amount", async () => {
@@ -513,6 +526,9 @@ describe("maintenance workspace redesign contract", () => {
       expect(document.activeElement).toBe(checklistItem);
     });
     expect(checklistItem.value).toBe("X".repeat(2001));
+    expect(checklistItem.getAttribute("aria-invalid")).toBe("true");
+    expect(document.getElementById(checklistItem.getAttribute("aria-describedby")!)?.textContent).toBe("Keep the checklist within 2,000 characters.");
+    expect(screen.getByRole("textbox", { name: "Checklist item 1" })).toBe(checklistItem);
     expect(new FormData(form).get("checklistText")).toBe("[ ] " + "X".repeat(2001));
     expect(onClose).not.toHaveBeenCalled();
   });

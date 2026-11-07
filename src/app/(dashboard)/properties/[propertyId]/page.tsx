@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { PropertyDetailScreen } from "@/features/properties/components/property-detail-screen";
 import { getPropertyDetail } from "@/features/properties/data/properties";
 import { requirePermission } from "@/lib/auth/context";
@@ -6,7 +7,7 @@ import { ReportReturnNavigation } from "@/features/reports/components/report-ret
 
 type PropertyPageProps = {
   params: Promise<{ propertyId: string }>;
-  searchParams?: Promise<{ section?: string; returnTo?: string }>;
+  searchParams?: Promise<{ section?: string; returnTo?: string; tenantPersonId?: string }>;
 };
 
 export default async function PropertyPage({
@@ -14,7 +15,7 @@ export default async function PropertyPage({
   searchParams = Promise.resolve({}),
 }: PropertyPageProps) {
   const { propertyId } = await params;
-  const { section, returnTo } = await searchParams;
+  const { section, returnTo, tenantPersonId } = await searchParams;
   const context = await requirePermission("properties.view");
   const property = await getPropertyDetail(context.organizationId, propertyId, { operationalTimezone: context.operationalTimezone });
 
@@ -26,6 +27,7 @@ export default async function PropertyPage({
     <>
     <ReportReturnNavigation returnTo={returnTo} />
     <PropertyDetailScreen
+      tenantPersonId={tenantPersonId}
       returnTo={returnTo}
       canArchive={context.permissionKeys.has("properties.archive")}
       canCreateLease={context.permissionKeys.has("leases.prepare")}
@@ -43,3 +45,5 @@ function getInitialPropertySection(section?: string) {
     ? section
     : "overview";
 }
+
+export const metadata: Metadata = { title: "Property details" };

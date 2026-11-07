@@ -6,6 +6,7 @@ import { useCallback, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { useOverlayDraftGuard } from "@/components/ui/overlay-dismissal-context";
 import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SideDrawer } from "@/components/ui/side-drawer";
 
@@ -124,6 +125,19 @@ async function expectParentPreserved(
 }
 
 describe("nested modal dismissal", () => {
+  it("protects one dirty form even when a sibling form is clean", async () => {
+    const user = userEvent.setup();
+    const close = vi.fn();
+    render(<Modal onClose={close} open title="Edit record">
+      <ModalGuard status="dirty" />
+      <ModalGuard status="clean" />
+    </Modal>);
+    await user.click(screen.getByRole("button", { name: "Close modal" }));
+    expect(close).not.toHaveBeenCalled();
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(close).toHaveBeenCalledTimes(1);
+  });
   it.each(["Cancel", "X", "Escape"] as const)(
     "closes a clean child through %s and retains the parent draft guard",
     async (dismissal) => {
@@ -237,3 +251,8 @@ describe("nested modal dismissal", () => {
     expect(screen.queryByRole("dialog", { name: "Create owner" })).toBeNull();
   });
 });
+
+function ModalGuard({ status }: { status: "dirty" | "clean" }) {
+  useOverlayDraftGuard({ status });
+  return <input aria-label={`${status} input`} />;
+}

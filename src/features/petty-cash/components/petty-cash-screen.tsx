@@ -1,6 +1,6 @@
 "use client";
 
-import { FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
+import { FinancialFormCancel, FinancialForm, FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 
 import Link from "next/link";
 import { recordDisplayLabel } from "@/lib/presentation/record-label";
@@ -983,7 +983,7 @@ function PettyCashAccountForm({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <FinancialForm action={action}>
+    <FinancialForm draftGuard={{pending, saved: state.status === "success"}} action={action}>
       <div className="grid gap-4 p-4 sm:grid-cols-2">
         <Field label="Account number" error={state.fieldErrors?.accountNumber?.[0]}>
           <Input name="accountNumber" placeholder="PM-CASH-01" required />
@@ -1108,7 +1108,7 @@ function PettyCashEntryForm({
   }
 
   return (
-    <FinancialForm action={action} className="flex h-full flex-col">
+    <FinancialForm draftGuard={{pending, saved: state.status === "success"}} action={action} className="flex h-full flex-col">
       <input name="accountId" type="hidden" value={account.id} />
       <input name="periodId" type="hidden" value={period.id} />
       {entry ? <input name="entryId" type="hidden" value={entry.id} /> : null}
@@ -1465,7 +1465,7 @@ function PostPettyCashPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <FinancialForm action={action} className="flex h-full flex-col">
+    <FinancialForm draftGuard={{pending, saved: state.status === "success"}} action={action} className="flex h-full flex-col">
       <input name="entryId" type="hidden" value={entry.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <OperationSummary
@@ -1522,7 +1522,7 @@ function VoidPettyCashPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <FinancialForm action={action} className="flex h-full flex-col">
+    <FinancialForm draftGuard={{pending, saved: state.status === "success"}} action={action} className="flex h-full flex-col">
       <input name="entryId" type="hidden" value={entry.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <OperationSummary
@@ -1584,7 +1584,7 @@ function OpenNextPeriodPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <FinancialForm action={action} className="flex h-full flex-col">
+    <FinancialForm draftGuard={{pending, saved: state.status === "success"}} action={action} className="flex h-full flex-col">
       <input name="accountId" type="hidden" value={account.id} />
       <input name="periodId" type="hidden" value={period.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
@@ -1769,14 +1769,14 @@ function DrawerFooter({
   return (
     <div className="border-t border-border px-4 py-4 sm:px-5">
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <Button
+        <FinancialFormCancel
           className="w-full sm:w-auto"
           onClick={onClose}
           type="button"
           variant="outline"
         >
           Cancel
-        </Button>
+        </FinancialFormCancel>
         <Button
           className="w-full sm:w-auto"
           disabled={disabled}

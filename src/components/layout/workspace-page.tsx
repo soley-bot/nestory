@@ -45,7 +45,7 @@ export function WorkspacePage({
   const breadcrumb = title ? (
     <PageBreadcrumb
       current={breadcrumbCurrent ?? title}
-      items={breadcrumbItems ?? [{ href: "/overview", label: "Workspace" }]}
+      items={breadcrumbItems ?? [{ href: "/workspace", label: "Workspace" }]}
     />
   ) : null;
   const generatedHeader = title ? (

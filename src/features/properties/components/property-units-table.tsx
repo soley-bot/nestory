@@ -1,12 +1,15 @@
 import Link from "next/link";
+import { buildHref } from "@/lib/url/href";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import type { PropertyDetailUnit } from "@/features/properties/data/property-detail";
 import { cn } from "@/lib/utils";
 
 export function PropertyUnitsTable({
+  tenantPersonId,
   units,
 }: {
+  tenantPersonId?: string;
   units: PropertyDetailUnit[];
 }) {
   return (
@@ -18,7 +21,7 @@ export function PropertyUnitsTable({
               "block rounded-md border border-border bg-card p-4 text-sm transition-colors hover:bg-muted/35",
               unit.isArchived && "text-muted-foreground",
             )}
-            href={`/units/${unit.id}`}
+            href={buildHref(`/units/${unit.id}`, { tenantPersonId })}
             key={unit.id}
             prefetch={false}
           >
@@ -82,7 +85,7 @@ export function PropertyUnitsTable({
                 key={unit.id}
               >
                 <td className="px-3 py-2.5">
-                  <UnitLabel unit={unit} />
+                  <UnitLabel tenantPersonId={tenantPersonId} unit={unit} />
                 </td>
                 <td className="px-2 py-2.5">
                   <div className="flex min-w-0 items-center gap-2">
@@ -123,7 +126,7 @@ export function PropertyUnitsTable({
   );
 }
 
-function UnitLabel({ unit }: { unit: PropertyDetailUnit }) {
+function UnitLabel({ tenantPersonId, unit }: { tenantPersonId?: string; unit: PropertyDetailUnit }) {
   if (unit.isArchived) {
     return <span className="break-words font-medium">Unit {unit.unitNumber}</span>;
   }
@@ -131,7 +134,7 @@ function UnitLabel({ unit }: { unit: PropertyDetailUnit }) {
   return (
     <Link
       className="break-words font-medium text-primary hover:underline"
-      href={`/units/${unit.id}`}
+      href={buildHref(`/units/${unit.id}`, { tenantPersonId })}
       prefetch={false}
     >
       Unit {unit.unitNumber}

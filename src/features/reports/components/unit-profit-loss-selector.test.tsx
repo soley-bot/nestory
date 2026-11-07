@@ -1,9 +1,11 @@
 /* @vitest-environment jsdom */
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { UnitProfitLossSelector } from "./unit-profit-loss-selector";
 import type { ReportsViewQuery, ReportUnitOption } from "../reports.types";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 afterEach(cleanup);
 const viewQuery: ReportsViewQuery = { month: "2026-11", propertyId: "property-1", unitId: "all", report: "unit-profit-loss", ownerPersonId: "all", peopleArchiveState: "active", peopleView: "relationship", status: "all" };

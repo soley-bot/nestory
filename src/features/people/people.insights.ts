@@ -171,7 +171,7 @@ export function buildPeopleInsightsFromCounts({
       {
         count: missingContactCount,
         description: "People records without a usable email or phone.",
-        href: "/people",
+        href: "/people?status=missing_contact",
         id: "missing-contact",
         label: "Missing contact",
         tone: missingContactCount > 0 ? "warning" : "success",
@@ -179,7 +179,7 @@ export function buildPeopleInsightsFromCounts({
       {
         count: missingRoleCount,
         description: "Records that cannot drive workflows until a role is set.",
-        href: "/people",
+        href: "/people?status=no_role",
         id: "missing-role",
         label: "No role",
         tone: missingRoleCount > 0 ? "warning" : "success",

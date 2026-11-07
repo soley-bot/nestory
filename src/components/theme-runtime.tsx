@@ -51,12 +51,17 @@ export function ThemeRuntime({
         apply();
       }
     };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === getDisplayThemeStorageKey(organizationId, userId)) apply();
+    };
     apply();
     media.addEventListener("change", apply);
     window.addEventListener(DISPLAY_THEME_UPDATED_EVENT, handleDisplayTheme);
+    window.addEventListener("storage", handleStorage);
     return () => {
       media.removeEventListener("change", apply);
       window.removeEventListener(DISPLAY_THEME_UPDATED_EVENT, handleDisplayTheme);
+      window.removeEventListener("storage", handleStorage);
     };
   }, [organizationId, theme, userId]);
 

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { AuthPageShell } from "@/features/auth/components/auth-page-shell";
 import { UpdatePasswordForm } from "@/features/auth/components/update-password-form";
@@ -30,3 +31,5 @@ export default async function UpdatePasswordPage() {
     </AuthPageShell>
   );
 }
+
+export const metadata: Metadata = { title: "Update password" };

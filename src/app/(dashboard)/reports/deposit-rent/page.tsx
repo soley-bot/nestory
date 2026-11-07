@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { FinancialReportBoundary } from "@/lib/finance/financial-write-provider";
 import { redirect } from "next/navigation";
@@ -74,3 +75,5 @@ export default async function DepositRentReportPage({ searchParams }: {
   </WorkspacePage>;
   }, parsed.success && parsed.data.propertyId ? `${parsed.data.month}-01` : undefined);
 }
+
+export const metadata: Metadata = { title: "Deposit and rent report" };
