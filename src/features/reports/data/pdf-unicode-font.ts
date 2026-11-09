@@ -1,3 +1,4 @@
+import { deflateSync } from "node:zlib";
 import { create, type Font } from "fontkit";
 import { commercialUnicodeFontBase64 } from "@/features/finance-operations/documents/commercial-unicode-font";
 
@@ -81,7 +82,7 @@ export function unicodeFontObjects(firstId: number): Array<Buffer | string> {
     `<< /Type /Font /Subtype /Type0 /BaseFont /NotoSansKhmer /Encoding /Identity-H /DescendantFonts [${firstId + 1} 0 R] /ToUnicode ${firstId + 4} 0 R >>`,
     `<< /Type /Font /Subtype /CIDFontType2 /BaseFont /NotoSansKhmer /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor ${firstId + 2} 0 R /W [0 [${widths.join(" ")}]] /CIDToGIDMap /Identity >>`,
     `<< /Type /FontDescriptor /FontName /NotoSansKhmer /Flags 4 /FontBBox [${box.join(" ")}] /ItalicAngle 0 /Ascent ${round(font.ascent * scale)} /Descent ${round(font.descent * scale)} /CapHeight ${round(font.capHeight * scale)} /StemV 80 /FontFile2 ${firstId + 3} 0 R >>`,
-    stream(bytes, `/Length1 ${bytes.byteLength}`),
+    stream(deflateSync(bytes), `/Filter /FlateDecode /Length1 ${bytes.byteLength}`),
     stream(Buffer.from(cmap.join("\n"), "ascii")),
   ];
 }
