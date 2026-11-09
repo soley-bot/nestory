@@ -16,7 +16,8 @@ import {
 import { requirePrivilegedStepUp } from "@/lib/auth/privileged-step-up-guard";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { buildOwnerStatementXlsx } from "@/features/reports/data/excel";
-import { buildOwnerStatementPdf } from "@/features/reports/data/pdf";
+import { buildLegacyOwnerStatementPdf, buildOwnerStatementPdf } from "@/features/reports/data/pdf";
+import { UnsupportedReportTextError } from "@/features/reports/data/pdf-unicode-font";
 import { loadOwnerStatementPresentation } from "@/features/reports/data/owner-statement-presentation";
 import { loadOwnerStatementPublication } from "@/features/reports/data/owner-statement-report";
 
@@ -190,17 +191,22 @@ async function completeOwnerStatementPublication(
 
   const artifacts = [
     {
-      bytes: buildOwnerStatementPdf(model, presentation),
       contentType: "application/pdf",
       format: "pdf" as const,
+      render: () => ({
+        bytes: buildOwnerStatementPdf(model, presentation),
+        compatibleExistingBytes: () => buildLegacyOwnerStatementPdf(model, presentation),
+      }),
     },
     {
-      bytes: buildOwnerStatementXlsx(model, presentation),
-      compatibleExistingBytes: buildOwnerStatementXlsx(model, presentation, {
-        includeDepositSummary: true,
-      }),
       contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       format: "xlsx" as const,
+      render: () => ({
+        bytes: buildOwnerStatementXlsx(model, presentation),
+        compatibleExistingBytes: buildOwnerStatementXlsx(model, presentation, {
+          includeDepositSummary: true,
+        }),
+      }),
     },
   ];
   const admin = await requirePrivilegedStepUp(
@@ -213,6 +219,15 @@ async function completeOwnerStatementPublication(
 
   for (const artifact of artifacts) {
     if (registeredFormats.has(artifact.format)) continue;
+    let rendered: ReturnType<typeof artifact.render>;
+    try {
+      rendered = artifact.render();
+    } catch (error) {
+      if (error instanceof UnsupportedReportTextError) {
+        throw new Error("owner_statement_pdf_font_unsupported", { cause: error });
+      }
+      throw error;
+    }
     const storagePath = ownerStatementStoragePath(
       organizationId,
       publicationId,
@@ -222,9 +237,9 @@ async function completeOwnerStatementPublication(
     const selectedArtifact = await uploadOrVerifyArtifact(
       bucket,
       storagePath,
-      artifact.bytes,
+      rendered.bytes,
       artifact.contentType,
-      artifact.compatibleExistingBytes,
+      rendered.compatibleExistingBytes,
     );
 
     const object = await admin.rpc("get_owner_statement_artifact_object", {
@@ -315,7 +330,7 @@ async function uploadOrVerifyArtifact(
   path: string,
   bytes: Uint8Array,
   contentType: string,
-  compatibleExistingBytes?: Uint8Array,
+  compatibleExistingBytes?: Uint8Array | (() => Uint8Array),
 ) {
   const expectedHash = sha256Hex(bytes);
   const upload = await bucket.upload(path, bytes, { contentType, upsert: false });
@@ -333,10 +348,11 @@ async function uploadOrVerifyArtifact(
   if (existingBytes.byteLength === bytes.byteLength && existingHash === expectedHash) {
     return { bytes: existingBytes, hash: existingHash };
   }
-  const compatibleHash = compatibleExistingBytes && sha256Hex(compatibleExistingBytes);
+  const compatibleBytes = typeof compatibleExistingBytes === "function" ? compatibleExistingBytes() : compatibleExistingBytes;
+  const compatibleHash = compatibleBytes && sha256Hex(compatibleBytes);
   if (
-    compatibleExistingBytes &&
-    existingBytes.byteLength === compatibleExistingBytes.byteLength &&
+    compatibleBytes &&
+    existingBytes.byteLength === compatibleBytes.byteLength &&
     existingHash === compatibleHash
   ) return { bytes: existingBytes, hash: existingHash };
   throw new Error("Existing Owner Statement artifact bytes do not match this publication.");

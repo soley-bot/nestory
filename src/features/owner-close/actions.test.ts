@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   adminDownload: vi.fn(),
   adminFrom: vi.fn(),
   adminRpc: vi.fn(),
+  buildLegacyPdf: vi.fn(() => new Uint8Array([1, 2, 3])),
   buildPdf: vi.fn(() => new Uint8Array([1, 2, 3])),
   buildXlsx: vi.fn((
     _model: unknown,
@@ -53,13 +54,18 @@ vi.mock("@/features/reports/data/owner-statement-presentation", () => ({
   loadOwnerStatementPresentation: mocks.loadPresentation,
 }));
 vi.mock("@/features/reports/data/pdf", () => ({
+  buildLegacyOwnerStatementPdf: mocks.buildLegacyPdf,
   buildOwnerStatementPdf: mocks.buildPdf,
+}));
+vi.mock("@/features/reports/data/pdf-unicode-font", () => ({
+  UnsupportedReportTextError: class UnsupportedReportTextError extends Error {},
 }));
 vi.mock("@/features/reports/data/excel", () => ({
   buildOwnerStatementXlsx: mocks.buildXlsx,
 }));
 
-import { closeReportMonthAction } from "@/features/reports/remediation-actions";
+import { closeReportMonthAction, publishReportStatementAction } from "@/features/reports/remediation-actions";
+import { UnsupportedReportTextError } from "@/features/reports/data/pdf-unicode-font";
 import * as ownerCloseActions from "@/features/owner-close/actions";
 import {
   closeOwnerMonthAction,
@@ -280,6 +286,7 @@ describe("owner close checked actions", () => {
         propertyLabel: "CTR-RES / Central Residence",
       },
     );
+    expect(mocks.buildLegacyPdf).not.toHaveBeenCalled();
     expect(mocks.upload).toHaveBeenCalledTimes(2);
     expect(mocks.upload.mock.calls[0]?.[2]).toMatchObject({ upsert: false });
     expect(mocks.upload.mock.calls[1]?.[2]).toMatchObject({ upsert: false });
@@ -293,6 +300,45 @@ describe("owner close checked actions", () => {
       "register_owner_statement_artifact_verified",
     ]);
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/balances");
+  });
+
+  it("reports unsupported PDF text as an incomplete publication before any artifact upload", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: { publication_id: publicationId, statement_number: "OS-202608-000000000000" },
+      error: null,
+    });
+    mocks.buildPdf.mockImplementationOnce(() => { throw new UnsupportedReportTextError(); });
+
+    const result = await publishReportStatementAction(form({
+      idempotencyKey: "owner-statement-unsupported-pdf",
+      revisionId,
+    }));
+
+    expect(result).toMatchObject({ status: "error", message: expect.stringContaining("files remain incomplete") });
+    expect(mocks.rpc).toHaveBeenCalledWith("publish_owner_statement", expect.anything());
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.adminRpc).not.toHaveBeenCalled();
+  });
+
+  it("resumes a missing Excel artifact without re-rendering an already registered PDF", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: { publication_id: publicationId, statement_number: "OS-202608-000000000000" },
+      error: null,
+    });
+    mocks.loadPublication.mockResolvedValueOnce({
+      artifacts: [{ format: "pdf" }], publicationId,
+      statementNumber: "OS-202608-000000000000",
+    });
+
+    await ownerCloseActions.resumeOwnerStatementPublicationAction(form({
+      idempotencyKey: "owner-statement-resume-excel-only",
+      publicationId,
+    }));
+
+    expect(mocks.buildPdf).not.toHaveBeenCalled();
+    expect(mocks.upload).toHaveBeenCalledOnce();
+    expect(mocks.adminRpc.mock.calls.filter(([name]) => name === "register_owner_statement_artifact_verified")
+      .map(([, args]) => args.p_format)).toEqual(["xlsx"]);
   });
 
   it("resumes an incomplete publication from a fresh key and publication identity", async () => {
@@ -441,6 +487,38 @@ describe("owner close checked actions", () => {
     }))).rejects.toThrow("do not match");
 
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("registers exact pre-Unicode PDF bytes after an interrupted upload", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: { publication_id: publicationId, statement_number: "OS-202608-000000000000" },
+      error: null,
+    });
+    mocks.buildLegacyPdf.mockReturnValueOnce(new Uint8Array([7, 8, 9]));
+    mocks.upload.mockResolvedValueOnce({
+      data: null,
+      error: { message: "The resource already exists", statusCode: "409" },
+    });
+    mocks.download.mockResolvedValueOnce({
+      data: new Blob([new Uint8Array([7, 8, 9])], { type: "application/pdf" }),
+      error: null,
+    });
+    mocks.adminDownload.mockResolvedValueOnce({
+      data: new Blob([new Uint8Array([7, 8, 9])], { type: "application/pdf" }),
+      error: null,
+    });
+
+    await publishOwnerStatementAction(form({ idempotencyKey: "owner-statement-legacy-pdf", revisionId }));
+
+    expect(mocks.buildLegacyPdf).toHaveBeenCalledOnce();
+    expect(mocks.upload.mock.calls[0]?.[2]).toMatchObject({ upsert: false });
+    expect(mocks.adminRpc).toHaveBeenCalledWith(
+      "register_owner_statement_artifact_verified",
+      expect.objectContaining({
+        p_format: "pdf",
+        p_sha256: createHash("sha256").update(new Uint8Array([7, 8, 9])).digest("hex"),
+      }),
+    );
   });
 
   it("resumes an XLSX uploaded by the prior compatible renderer", async () => {

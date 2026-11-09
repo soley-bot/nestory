@@ -12528,6 +12528,14 @@ export type Database = {
           uploaded_at: string
         }[]
       }
+      get_maintenance_task_labels: {
+        Args: { p_organization_id: string; p_task_ids: string[] }
+        Returns: {
+          assignee_label: string
+          property_label: string
+          task_id: string
+        }[]
+      }
       get_maintenance_vendor_options: {
         Args: { p_organization_id: string }
         Returns: {

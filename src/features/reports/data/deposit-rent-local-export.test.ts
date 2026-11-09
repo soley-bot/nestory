@@ -96,6 +96,14 @@ describe("unmounted, disabled local source/client/export integration",()=>{
     const h=harness();const response=await h.handle(request("pdf"));expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("application/pdf");expect(Buffer.from(await response.arrayBuffer()).subarray(0,4).toString()).toBe("%PDF");
   });
+  it("reports unsupported PDF text without returning a download",async()=>{
+    const h=harness();
+    h.dependencies.membership.mockResolvedValue({organizationId:org,organizationName:"漢字",authorizationKey:"branch1:role1:finance+lease"});
+    const response=await h.handle(request("pdf"));
+    expect(response.status).toBe(400);
+    expect(response.headers.get("Content-Disposition")).toBeNull();
+    expect(await response.text()).toContain("Download Excel to preserve the original names");
+  });
   it("includes a checked recovery root omitted from current leases without dropping its deposit history",async()=>{
     const h=harness(data=>{
       data.finance.recovery_leases=[{id:lease,property_id:property,archived_at:"2026-10-01"}];

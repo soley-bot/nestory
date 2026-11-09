@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
+  buildLegacyOwnerStatementPdf,
   buildOwnerStatementPdf,
   buildTrustedReportPdf,
 } from "@/features/reports/data/pdf";
@@ -7,8 +9,31 @@ import { mapOwnerStatementPublicationPayload } from "@/features/reports/data/own
 import { ownerStatementPublicationPayload } from "@/features/reports/data/owner-statement-report.test-fixture";
 import type { TrustedReport } from "@/features/reports/reports.types";
 import { isContainedPdf } from "@/lib/uploads/pdf-containment";
+import { unicodeTextCommands } from "./pdf-unicode-font";
+import { canonicalizeSignedOwnerOpeningAmount as money } from "@/features/owner-balances/owner-balance.money";
 
 describe("trusted report PDF export", () => {
+  it("shapes Khmer consistently after a Latin label", () => {
+    const glyphs = (text: string) => [...unicodeTextCommands(text, 0, 0, 9).join("\n")
+      .matchAll(/<([0-9a-f]{4})> Tj/g)].map(match => match[1]);
+    const khmer = glyphs("ភ្នំពេញ");
+    expect(glyphs("Café ភ្នំពេញ").slice(-khmer.length)).toEqual(khmer);
+  });
+  it("preserves Khmer and accented identities in the downloadable report", () => {
+    const report = monthlyOwnerActivityReport();
+    report.rows[0]!.cells.owner = "សុខា";
+    report.rows[0]!.cells.property = "ផ្ទះ";
+    const bytes = buildTrustedReportPdf({ organizationName: "Café ភ្នំពេញ", report });
+    const text = unicodePdfText(bytes);
+    expect(text).toContain("Café ភ្នំពេញ");
+    expect(text).toContain("សុខា");
+    expect(text).toContain("ផ្ទះ");
+    expect(isContainedPdf(bytes)).toBe(true);
+  });
+  it("rejects unsupported glyphs instead of silently removing an identity", () => {
+    expect(() => buildTrustedReportPdf({ organizationName: "漢字", report: monthlyOwnerActivityReport() }))
+      .toThrow("Download Excel to preserve the original names");
+  });
   it("keeps P&L summary text clear of the repeated table header after a page break", () => {
     const report = monthlyOwnerActivityReport();
     report.kind = "unit-profit-loss";
@@ -130,6 +155,52 @@ describe("trusted report PDF export", () => {
 });
 
 describe("official owner statement PDF", () => {
+  it("reproduces pre-Unicode statement bytes for interrupted uploads", () => {
+    const model = mapOwnerStatementPublicationPayload(structuredClone(ownerStatementPublicationPayload));
+    const cases = [
+      [{ organizationName: "Independent Property Service", ownerName: "XIA YIXUAN", propertyLabel: "The PEAK #2807" }, "1a727b6047290160fb9bc9c8dbb7e9c016a381797e43aec636213cf516aa32e3"],
+      [{ organizationName: "Café ភ្នំពេញ", ownerName: "សុខា", propertyLabel: "ផ្ទះ" }, "edcb549342e3b9c3fd90ee8863ae7b3c6ecb748f27553115e1250b3a74ba179f"],
+      [{ organizationName: "Café — D’Amour", ownerName: "Renée “Sokha”", propertyLabel: "Crème-Brûlée / Central Residence" }, "7c5ce8d03088116f7e7256c4c9cb990218a1498d61517897a3ed9074ce6af8c5"],
+      [{ organizationName: "A very long company name with Café and Khmer ភ្នំពេញ that should truncate at the page margin", ownerName: "A very long owner name with punctuation and Khmer សុខា that should be ellipsized", propertyLabel: "A very long property label / building name / unit number / with repeated details and Café ភ្នំពេញ that should wrap or ellipsize" }, "ffe4b4af504d731be19e8c20bf0d8266adb691d2f7eb3df563e59684e60f5c94"],
+      [{ organizationName: "Building /F3 unit", ownerName: "Owner", propertyLabel: "Property" }, "380c6479499a181c2720b02caced2fa945629017ac088fc92f68504a548dce57"],
+    ] as const;
+    for (const [presentation, expectedHash] of cases) {
+      expect(createHash("sha256").update(buildLegacyOwnerStatementPdf(model, presentation)).digest("hex"))
+        .toBe(expectedHash);
+    }
+    const asciiMarkerPdf = buildOwnerStatementPdf(model, cases[4][0]);
+    expect(createHash("sha256").update(asciiMarkerPdf).digest("hex")).toBe(cases[4][1]);
+    expect(Buffer.from(asciiMarkerPdf).toString("latin1")).not.toContain("/FontFile2");
+
+    const transactionModel = structuredClone(model);
+    transactionModel.lines = [{ ...transactionModel.lines[0]!, lineKind: "movement", signedAmount: money("-40.00") }];
+    transactionModel.components[0]!.movementAmount = money("-40.00");
+    transactionModel.components[0]!.closingAmount = money("1210.00");
+    const transactionPresentation = {
+      organizationName: "Café ភ្នំពេញ", ownerName: "សុខា", propertyLabel: "Crème-Brûlée / Central Residence",
+      transactionDetails: { 1: {
+        unit: "A long unit name with punctuation — and Khmer ភ្នំពេញ plus more words to wrap",
+        name: "Renée សុខា with a very long name that should wrap across several table rows",
+        category: "Maintenance — repairs and inspection with Café and Khmer ផ្ទះ over many words",
+      } },
+    };
+    expect(createHash("sha256").update(buildLegacyOwnerStatementPdf(transactionModel, transactionPresentation)).digest("hex"))
+      .toBe("e636dd09248765c8f36b0e2c5f9967eac78d948dbe8ca366da5210f2f01d160a");
+    expect(unicodePdfText(buildOwnerStatementPdf(model, cases[1][0]))).toContain("Café ភ្នំពេញ");
+  });
+  it("preserves Khmer owner and property names in the published statement", () => {
+    const model = mapOwnerStatementPublicationPayload(structuredClone(ownerStatementPublicationPayload));
+    const bytes = buildOwnerStatementPdf(model, {
+      organizationName: "Café ភ្នំពេញ",
+      ownerName: "សុខា",
+      propertyLabel: "ផ្ទះ",
+    });
+    const text = unicodePdfText(bytes);
+    expect(text).toContain("Café ភ្នំពេញ");
+    expect(text).toContain("សុខា");
+    expect(text).toContain("ផ្ទះ");
+    expect(isContainedPdf(bytes)).toBe(true);
+  });
   it("renders a branded cash register with human-readable scope and no internal trace", () => {
     const model = mapOwnerStatementPublicationPayload(
       structuredClone(ownerStatementPublicationPayload),
@@ -217,4 +288,10 @@ function monthlyOwnerActivityReport(): TrustedReport {
     title: "Owner activity",
     totalsTraceLabel: "Totals trace to property account entries.",
   };
+}
+
+// ActualText preserves logical text when complex-script glyphs are reordered.
+function unicodePdfText(bytes: Uint8Array) {
+  return [...Buffer.from(bytes).toString('latin1').matchAll(/\/ActualText <FEFF([0-9A-F]+)>/g)]
+    .map((match) => Buffer.from(match[1]!, 'hex').swap16().toString('utf16le')).join('\n');
 }
