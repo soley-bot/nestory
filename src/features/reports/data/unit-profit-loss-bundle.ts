@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/db/server";
 import { loadScopedFinanceContext } from "@/features/finance-operations/data/scoped-finance-context";
 import { getTrustedReport } from "./trusted-report";
 import { buildTrustedReportPdf } from "./pdf";
+import { UnsupportedReportTextError } from "./pdf-unicode-font";
 import { buildTrustedReportXlsx } from "./excel";
 import { getReportExportFilename } from "./report-format";
 import { loadReportCompanyLogo } from "./owner-statement-presentation";
@@ -41,9 +42,16 @@ export async function getUnitProfitLossBundle(
     }
     // Numbering also protects distinct units whose display labels slugify alike.
     const filename = `${String(index + 1).padStart(2, "0")}-${getReportExportFilename(report, viewQuery, selection.format)}`;
-    files[filename] = selection.format === "pdf"
-      ? buildTrustedReportPdf({ organizationName, report })
-      : buildTrustedReportXlsx(report, { organizationName, logo });
+    try {
+      files[filename] = selection.format === "pdf"
+        ? buildTrustedReportPdf({ organizationName, report })
+        : buildTrustedReportXlsx(report, { organizationName, logo });
+    } catch (error) {
+      if (error instanceof UnsupportedReportTextError) {
+        return { validation: { code: "unsupported_report_text", status: 400, message: error.message } };
+      }
+      throw error;
+    }
   }
   return { body: zipSync(files, { level: 0 }), filename: `unit-profit-loss-${selection.month}-${selection.format}.zip` };
 }

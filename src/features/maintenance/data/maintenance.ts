@@ -83,6 +83,12 @@ const staffRoleSelect = "person_id";
 const MAINTENANCE_QUERY_BATCH_SIZE = 1_000;
 const MAINTENANCE_REFERENCE_ID_BATCH_SIZE = 100;
 
+type MaintenanceTaskLabels = {
+  task_id: string;
+  property_label: string;
+  assignee_label: string | null;
+};
+
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 type MaintenanceTaskQuery = ReturnType<typeof createBaseTaskQuery>;
 
@@ -244,7 +250,7 @@ async function loadMaintenanceScreenData(
       ? [{ branchId: actor.branchId, personId: actor.personId }]
       : []
     : await getMaintenanceMemberIdentities(supabase, organizationId);
-  const [references, vendorOptions] = await Promise.all([
+  const [references, vendorOptions, taskLabels] = await Promise.all([
     getMaintenanceReferenceRows({
       additionalPersonIds: memberIdentities.map((identity) => identity.personId),
       organizationId,
@@ -256,7 +262,9 @@ async function loadMaintenanceScreenData(
     !loadAssignmentOptions
       ? Promise.resolve([] as MaintenanceVendorOption[])
       : getMaintenanceVendorOptions(supabase, organizationId),
+    getMaintenanceTaskLabels(supabase, organizationId, referenceTaskRows.map((task) => task.id)),
   ]);
+  const labelsByTaskId = new Map(taskLabels.map((labels) => [labels.task_id, labels]));
   const branchesById = indexById(references.branches);
   const propertiesById = indexById(references.properties);
   const unitsById = indexById(references.units);
@@ -278,6 +286,7 @@ async function loadMaintenanceScreenData(
       memberIdentities,
       peopleById,
       propertiesById,
+      labels: labelsByTaskId.get(task.id),
       currentTime,
       task,
       today,
@@ -294,6 +303,7 @@ async function loadMaintenanceScreenData(
       memberIdentities,
       peopleById,
       propertiesById,
+      labels: labelsByTaskId.get(task.id),
       currentTime,
       task,
       today,
@@ -926,6 +936,25 @@ function applyActorTaskScope<T extends { eq: (column: string, value: string) => 
   return query;
 }
 
+async function getMaintenanceTaskLabels(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  taskIds: string[],
+) {
+  const labels: MaintenanceTaskLabels[] = [];
+  for (let start = 0; start < taskIds.length; start += MAINTENANCE_QUERY_BATCH_SIZE) {
+    const result = await supabase.rpc("get_maintenance_task_labels", {
+      p_organization_id: organizationId,
+      p_task_ids: taskIds.slice(start, start + MAINTENANCE_QUERY_BATCH_SIZE),
+    });
+    if (result.error) {
+      throw new Error(`Could not load maintenance task labels: ${result.error.message}`);
+    }
+    labels.push(...(result.data ?? []));
+  }
+  return labels;
+}
+
 async function getMaintenanceReferenceRows({
   additionalPersonIds = [],
   organizationId,
@@ -1210,6 +1239,7 @@ function toMaintenanceCase({
   memberIdentities,
   peopleById,
   propertiesById,
+  labels,
   task,
   today,
   unitsById,
@@ -1223,6 +1253,7 @@ function toMaintenanceCase({
   memberIdentities: MaintenanceMemberIdentity[];
   peopleById: Map<string, PersonRow>;
   propertiesById: Map<string, PropertyRow>;
+  labels?: MaintenanceTaskLabels;
   task: MaintenanceTaskRow;
   today: string;
   unitsById: Map<string, UnitRow>;
@@ -1273,7 +1304,7 @@ function toMaintenanceCase({
         : "No actual cost",
     actualCostReference: task.actual_cost_reference ?? undefined,
     archivedAt: task.archived_at ?? undefined,
-    assigneeLabel: assignee?.display_name ?? "Unassigned",
+    assigneeLabel: labels?.assignee_label ?? assignee?.display_name ?? "Unassigned",
     assigneePersonId: task.assignee_person_id ?? undefined,
     branchId: task.branch_id ?? undefined,
     branchLabel: branch ? `${branch.code} - ${branch.name}` : "No branch",
@@ -1340,7 +1371,7 @@ function toMaintenanceCase({
     progressState,
     progressTone: getProgressTone(progressState),
     propertyId: task.property_id,
-    propertyLabel: property ? `${property.code} - ${property.name}` : "Unknown property",
+    propertyLabel: labels?.property_label ?? (property ? `${property.code} - ${property.name}` : "Unknown property"),
     recurrenceFrequency,
     recurrenceLabel: formatRecurrence(recurrenceFrequency),
     reminderDate: task.reminder_date ?? undefined,

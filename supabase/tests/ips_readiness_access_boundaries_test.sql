@@ -410,5 +410,90 @@ SELECT is(
     WHERE policy_row->>'id' IN (pg_temp.access_id('approved')::text, pg_temp.access_id('foreign_draft')::text)),
   'allowed draft edit leaves the approved and foreign policy rows unchanged');
 
+-- The browser uses custom permission roles after ordinary access activation.
+-- These positive cases prevent the legacy history guard from breaking the
+-- otherwise-authorized Maintenance and My work pages.
+INSERT INTO access_ids(label) VALUES ('custom_manager_role'), ('custom_member_role');
+INSERT INTO public.organization_roles(id, organization_id, name, created_by, updated_by)
+SELECT pg_temp.access_id(label), pg_temp.access_id('org'), label,
+  pg_temp.access_id('admin'), pg_temp.access_id('admin')
+FROM (VALUES ('custom_manager_role'), ('custom_member_role')) fixture(label);
+INSERT INTO public.organization_role_permissions(organization_id, role_id, permission_key, granted_by)
+SELECT pg_temp.access_id('org'), pg_temp.access_id(role_label),
+  permission::public.organization_permission_key, pg_temp.access_id('admin')
+FROM (VALUES
+  ('custom_manager_role', 'maintenance.view'),
+  ('custom_manager_role', 'maintenance.review'),
+  ('custom_member_role', 'maintenance.view'),
+  ('custom_member_role', 'maintenance.complete')
+) fixture(role_label, permission);
+UPDATE public.organization_members
+SET role = 'custom', custom_role_id = pg_temp.access_id(fixture.role_label)
+FROM (VALUES
+  ('operations_manager', 'custom_manager_role'),
+  ('operations_member', 'custom_member_role')
+) fixture(actor, role_label)
+WHERE organization_id = pg_temp.access_id('org')
+  AND user_id = pg_temp.access_id(fixture.actor);
+-- The legacy Finance assertions above are complete; activation rejects any
+-- remaining legacy ordinary membership, including these unrelated fixtures.
+DELETE FROM public.organization_members WHERE organization_id = pg_temp.access_id('org')
+  AND user_id IN (pg_temp.access_id('finance_manager'), pg_temp.access_id('finance_member'));
+-- This transaction tests read authorization, not the separately tested legacy
+-- transition workflow; mark the synthetic membership conversion complete.
+UPDATE public.organization_authorization_states
+SET ordinary_access_enabled = true, transition_manifest_required = false
+WHERE organization_id = pg_temp.access_id('org');
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', pg_temp.access_id('operations_manager')::text, true);
+SELECT results_eq(
+  $$ SELECT * FROM public.get_maintenance_cost_status_history(
+    pg_temp.access_id('org'), ARRAY(SELECT id FROM pg_temp.access_tasks))
+    ORDER BY task_id, submission_id $$,
+  $$ SELECT * FROM pg_temp.access_history
+    WHERE task_id IN (pg_temp.access_id('assigned_task'), pg_temp.access_id('unassigned_task'),
+      pg_temp.access_id('custom_assigned_task')) ORDER BY task_id, submission_id $$,
+  'permitted custom reviewer sees complete branch history without foreign tasks');
+SELECT set_config('request.jwt.claim.sub', pg_temp.access_id('operations_member')::text, true);
+SELECT results_eq(
+  $$ SELECT * FROM public.get_maintenance_cost_status_history(
+    pg_temp.access_id('org'), ARRAY(SELECT id FROM pg_temp.access_tasks))
+    ORDER BY task_id, submission_id $$,
+  $$ SELECT * FROM pg_temp.access_history WHERE task_id = pg_temp.access_id('assigned_task')
+    ORDER BY task_id, submission_id $$,
+  'permitted custom member sees only own same-branch task history');
+SELECT is((SELECT count(*) FROM public.get_maintenance_cost_status_history(
+  pg_temp.access_id('org'), ARRAY[pg_temp.access_id('unassigned_task'),
+    pg_temp.access_id('other_branch_task'), pg_temp.access_id('foreign_task')])),
+  0::bigint, 'custom member cannot widen scope with explicit task IDs');
+SELECT set_config('request.jwt.claim.sub', pg_temp.access_id('custom_viewer')::text, true);
+SELECT throws_ok(
+  $$ SELECT * FROM public.get_maintenance_cost_status_history(
+    pg_temp.access_id('org'), ARRAY[pg_temp.access_id('custom_assigned_task')]) $$,
+  '42501', 'Not authorized', 'assignment still cannot replace maintenance permission');
+RESET ROLE;
+DELETE FROM public.organization_role_permissions
+WHERE role_id = pg_temp.access_id('custom_member_role') AND permission_key = 'maintenance.view';
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', pg_temp.access_id('operations_member')::text, true);
+SELECT throws_ok(
+  $$ SELECT * FROM public.get_maintenance_cost_status_history(
+    pg_temp.access_id('org'), ARRAY[pg_temp.access_id('assigned_task')]) $$,
+  '42501', 'Not authorized', 'revoked read permission takes effect without a new login');
+RESET ROLE;
+UPDATE public.organization_authorization_states SET ordinary_access_enabled = false
+WHERE organization_id = pg_temp.access_id('org');
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', pg_temp.access_id('operations_manager')::text, true);
+SELECT throws_ok(
+  $$ SELECT * FROM public.get_maintenance_cost_status_history(
+    pg_temp.access_id('org'), ARRAY[pg_temp.access_id('assigned_task')]) $$,
+  '42501', 'Not authorized', 'disabled ordinary access denies the custom reviewer');
+RESET ROLE;
+SELECT ok(NOT has_function_privilege('anon',
+  'public.get_maintenance_cost_status_history(uuid,uuid[])', 'EXECUTE'),
+  'maintenance history remains unavailable to anonymous callers');
+
 SELECT * FROM finish();
 ROLLBACK;

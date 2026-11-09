@@ -36,6 +36,7 @@ const knownErrors: Record<string, string> = {
   owner_statement_revision_not_closed: "Close the owner month before publishing its statement.",
   owner_statement_revision_not_current: "A newer close exists. Recheck and publish the current revision.",
   owner_statement_revision_already_published: "This revision is already published. Recheck to download its saved files.",
+  owner_statement_pdf_font_unsupported: "The Owner Statement publication was saved, but its PDF could not be created because the current font does not support some text. Its files remain incomplete. Excel preserves the original text; PDF completion needs font support.",
   owner_close_correction_negative_component: "This correction would make a balance negative. Check the component and amount.",
   owner_close_correction_month_not_locked: "The financial month must be locked before recording a close correction.",
   owner_close_correction_target_invalid: "The correction revision has changed. Recheck and select the current preparing revision.",

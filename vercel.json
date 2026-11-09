@@ -1,10 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["sin1"],
+  "regions": [
+    "sin1"
+  ],
   "git": {
     "deploymentEnabled": {
       "codex/ui-ux-fixes-20261107": false,
-      "codex/ui-ux-live-verification-20261107": false
+      "codex/ui-ux-live-verification-20261107": false,
+      "codex/operations-unicode-release-20261109": false
     }
   }
 }

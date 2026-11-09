@@ -20,6 +20,39 @@ vi.mock("@/lib/db/server", () => ({
 }));
 
 describe("getMaintenanceScreenData reference loading", () => {
+  it.each(["coordinator", "assigned"] as const)("shows task labels without directory permissions for %s users", async (workflowMode) => {
+    const supabase = createMaintenanceSupabaseStub({
+      directoriesHidden: true,
+      taskLabels: [
+        { task_id: "task-visible", property_label: "P1 - Visible Property", assignee_label: "Former Assignee" },
+        { task_id: "task-off-page", property_label: "P2 - Off-page Property", assignee_label: "Former Assignee" },
+      ],
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+    const result = await getMaintenanceScreenData("org-1", makeViewQuery(), {
+      branchId: "branch-visible", personId: "visible-assignee", dataScope: "branch", workflowMode,
+    });
+    expect(result.cases[0]).toMatchObject({
+      propertyLabel: "P1 - Visible Property", assigneeLabel: "Former Assignee",
+    });
+    expect(result.summary.propertyStats).toContainEqual(expect.objectContaining({
+      propertyId: "property-off-page", propertyLabel: "P2 - Off-page Property",
+    }));
+    expect(supabase.client.rpc).toHaveBeenCalledWith("get_maintenance_task_labels", {
+      p_organization_id: "org-1", p_task_ids: ["task-visible", "task-off-page"],
+    });
+    expect(result.propertyOptions).toEqual([]);
+    expect(result.staffOptions).toEqual([]);
+    expect(supabase.client.rpc).not.toHaveBeenCalledWith("get_maintenance_execution_members", expect.anything());
+  });
+
+  it("reports failed label reads instead of presenting assigned tasks as unassigned", async () => {
+    const supabase = createMaintenanceSupabaseStub({ labelsDenied: true });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+    await expect(getMaintenanceScreenData("org-1", makeViewQuery()))
+      .rejects.toThrow("Could not load maintenance task labels: Not authorized");
+  });
+
   it("rejects unverifiable financial data before reading maintenance costs", async () => {
     vi.mocked(createSupabaseServerClient).mockClear();
     vi.mocked(withFinancialReadContext).mockRejectedValueOnce(new Error("Financial reporting is paused"));
@@ -410,10 +443,16 @@ type EqCall = {
 
 function createMaintenanceSupabaseStub({
   assignmentDenied = false,
+  directoriesHidden = false,
+  labelsDenied = false,
+  taskLabels = [],
   documentRows = [],
   memberIdentityCount = 1,
 }: {
   assignmentDenied?: boolean;
+  directoriesHidden?: boolean;
+  labelsDenied?: boolean;
+  taskLabels?: Array<Record<string, unknown>>;
   documentRows?: Array<Record<string, unknown>>;
   memberIdentityCount?: number;
 } = {}) {
@@ -478,12 +517,21 @@ function createMaintenanceSupabaseStub({
     ],
   };
 
+  if (directoriesHidden) {
+    rowsByTable.properties = [];
+    rowsByTable.people = [];
+  }
   const client = {
     from: vi.fn((table: string) => {
       fromCalls.push(table);
       return createQuery(table, rowsByTable, inCalls, eqCalls);
     }),
     rpc: vi.fn(async (name: string) => {
+      if (name === "get_maintenance_task_labels") {
+        return labelsDenied
+          ? { data: null, error: { code: "42501", message: "Not authorized" } }
+          : { data: taskLabels, error: null };
+      }
       if (assignmentDenied && ["get_maintenance_execution_members", "get_maintenance_vendor_options"].includes(name)) {
         return { data: null, error: { code: "42501", message: "Not authorized" } };
       }

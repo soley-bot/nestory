@@ -1,4 +1,6 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { ownerStatementCash } from "@/features/reports/data/owner-statement-cash";
+import { needsUnicodeFont, unicodeFontObjects, unicodeTextCommands, unicodeTextWidth, UnsupportedReportTextError } from "./pdf-unicode-font";
 import { profitLossSummaryRows, profitLossBasisNote, formatProfitLossAmount, type ProfitLossFunding } from "./profit-loss-funding";
 import {
   formatLongReportDate,
@@ -208,10 +210,17 @@ export async function getReportPdf(
   if (readinessReport.exportValidation) {
     return { validation: readinessReport.exportValidation };
   }
-  return {
-    body: buildTrustedReportPdf({ organizationName, report: readinessReport }),
-    filename: getReportExportFilename(readinessReport, viewQuery, "pdf"),
-  };
+  try {
+    return {
+      body: buildTrustedReportPdf({ organizationName, report: readinessReport }),
+      filename: getReportExportFilename(readinessReport, viewQuery, "pdf"),
+    };
+  } catch (error) {
+    if (error instanceof UnsupportedReportTextError) {
+      return { validation: { message: error.message, status: 400 } };
+    }
+    throw error;
+  }
 }
 
 export function buildTrustedReportPdf({
@@ -316,6 +325,16 @@ const ownerStatementColumns: PdfColumn[] = [
   { align: "right", label: "Cash In", width: 80 },
   { align: "right", label: "Balance", width: 82 },
 ];
+
+const legacyOwnerStatementText = new AsyncLocalStorage<boolean>();
+
+// Verify an interrupted pre-Unicode upload against its original bytes only.
+export function buildLegacyOwnerStatementPdf(
+  model: OwnerStatementPublicationModel,
+  presentation: OwnerStatementPresentation,
+) {
+  return legacyOwnerStatementText.run(true, () => buildOwnerStatementPdf(model, presentation));
+}
 
 export function buildOwnerStatementPdf(
   model: OwnerStatementPublicationModel,
@@ -2285,6 +2304,10 @@ function drawText(
         : 0;
 
   commands.push(`${toRgb(options.color ?? colors.ink)} rg`);
+  if (needsUnicodeFont(text)) {
+    commands.push(...unicodeTextCommands(text, x + offset, y, fontSize));
+    return;
+  }
   commands.push(
     `BT /${font} ${fontSize} Tf 1 0 0 1 ${round(x + offset)} ${round(y)} Tm (${escapePdfString(
       text,
@@ -2330,9 +2353,19 @@ function wrapText(
       continue;
     }
 
-    const chunkSize = Math.max(4, Math.floor(maxWidth / (fontSize * 0.56)));
-    for (let index = 0; index < word.length; index += chunkSize) {
-      lines.push(word.slice(index, index + chunkSize));
+    if (needsUnicodeFont(word)) {
+      for (const character of graphemes(word)) {
+        if (current && estimateTextWidth(current + character, fontSize) > maxWidth) {
+          lines.push(current);
+          current = "";
+        }
+        current += character;
+      }
+    } else {
+      const chunkSize = Math.max(4, Math.floor(maxWidth / (fontSize * 0.56)));
+      for (let index = 0; index < word.length; index += chunkSize) {
+        lines.push(word.slice(index, index + chunkSize));
+      }
     }
   }
 
@@ -2377,7 +2410,7 @@ function ellipsizeTextToWidth(
 
   let truncated = "";
 
-  for (const char of text) {
+  for (const char of graphemes(text)) {
     const candidate = `${truncated}${char}`;
 
     if (estimateTextWidth(`${candidate}${ellipsis}`, fontSize) > maxWidth) {
@@ -2391,6 +2424,7 @@ function ellipsizeTextToWidth(
 }
 
 function estimateTextWidth(value: string, fontSize: number, bold = false) {
+  if (needsUnicodeFont(value)) return unicodeTextWidth(value, fontSize);
   let units = 0;
 
   for (const char of value) {
@@ -2416,7 +2450,11 @@ function createPdfDocument(
   imageAssets: PdfImageAsset[] = [],
 ) {
   const firstImageObjectId = 5 + pageContents.length * 2;
-  const maxObjectId = firstImageObjectId + imageAssets.length - 1;
+  const firstFontObjectId = firstImageObjectId + imageAssets.length;
+  const fontObjects = pageContents.some(content => /^BT \/F3 /m.test(content))
+    ? unicodeFontObjects(firstFontObjectId) : [];
+  const fontResource = fontObjects.length ? ` /F3 ${firstFontObjectId} 0 R` : "";
+  const maxObjectId = firstFontObjectId + fontObjects.length - 1;
   const objects: Array<Buffer | string> = new Array(maxObjectId + 1);
   const pageRefs = pageContents
     .map((_, index) => `${5 + index * 2} 0 R`)
@@ -2437,7 +2475,7 @@ function createPdfDocument(
     const contentLength = Buffer.byteLength(content, "latin1");
 
     objects[pageObjectId] =
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageSize.width} ${pageSize.height}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${imageResources} >> /Contents ${contentObjectId} 0 R >>`;
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageSize.width} ${pageSize.height}] /Resources << /Font << /F1 3 0 R /F2 4 0 R${fontResource} >>${imageResources} >> /Contents ${contentObjectId} 0 R >>`;
     objects[contentObjectId] =
       `<< /Length ${contentLength} >>\nstream\n${content}\nendstream`;
   });
@@ -2453,6 +2491,8 @@ function createPdfDocument(
       Buffer.from("\nendstream", "latin1"),
     ]);
   });
+
+  fontObjects.forEach((object, index) => { objects[firstFontObjectId + index] = object; });
 
   const parts: Buffer[] = [Buffer.from("%PDF-1.4\n", "latin1")];
   let byteLength = parts[0].byteLength;
@@ -2493,17 +2533,24 @@ function getUnitFloorLabel(row: OccupancyReportRow) {
 }
 
 function sanitizeText(value: string) {
-  const sanitized = value
+  const punctuation = value
     .replace(/[\u2010-\u2015]/g, "-")
     .replace(/[\u2018\u2019]/g, "'")
-    .replace(/[\u201c\u201d]/g, '"')
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\x20-\x7e]+/g, " ")
+    .replace(/[\u201c\u201d]/g, '"');
+  const sanitized = legacyOwnerStatementText.getStore()
+    ? punctuation.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^\x20-\x7e]+/g, " ").replace(/\s+/g, " ").trim()
+    : punctuation
+    .normalize("NFC")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
   return sanitized || "-";
+}
+
+const graphemeSegmenter = new Intl.Segmenter("km", { granularity: "grapheme" });
+function graphemes(text: string) {
+  return Array.from(graphemeSegmenter.segment(text), part => part.segment);
 }
 
 function escapePdfString(value: string) {

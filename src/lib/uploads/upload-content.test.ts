@@ -360,6 +360,21 @@ describe("validateUploadedFileContent", () => {
     expect(result).toMatchObject({ contentType: "application/pdf", ok: true });
   });
 
+  it.each([
+    ["BT (name) Tj ET", true],
+    ["BI /W 1 /H 1 ID x EI", false],
+  ])("checks content inside a marked-text dictionary (%s)", async (content, ok) => {
+    const bytes = pdfBytes([
+      "<< /Type /Catalog /Pages 2 0 R >>",
+      "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 1 1] /Resources << >> /Contents 4 0 R >>",
+      streamObject("", `/Span << /ActualText <FEFF179F17BB178117B6> >> BDC ${content} EMC`),
+    ]);
+    expect(await validateUploadedFileContent(
+      new File([bytes], "marked.pdf", { type: "application/pdf" }), ["application/pdf"],
+    )).toMatchObject({ ok });
+  });
+
   it("rejects escaped PDF names that decode to an active action", async () => {
     const bytes = classicPdfBytes(
       "/Open#41ction 3 0 R",

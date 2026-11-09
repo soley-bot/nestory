@@ -882,7 +882,13 @@ function isStaticContentStream(bytes: Uint8Array) {
       position = next;
       continue;
     }
-    if (bytes[position] === 0x3c && bytes[position + 1] !== 0x3c) {
+    if (bytes[position] === 0x3c && bytes[position + 1] === 0x3c) {
+      // Consume both dictionary delimiters; the second '<' is not a hex string.
+      // Marked content uses these dictionaries for passive ActualText values.
+      position += 2;
+      continue;
+    }
+    if (bytes[position] === 0x3c) {
       const next = skipContentHexString(bytes, position);
       if (next === null) return false;
       position = next;

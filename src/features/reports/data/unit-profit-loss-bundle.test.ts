@@ -80,6 +80,17 @@ describe("unit report bundle", () => {
     expect(result).toEqual({ validation: { status: 409, code: "monthly_rent_incomplete", message: "Review billing." } });
   });
 
+  it("returns a readable validation if a later PDF contains unsupported text", async () => {
+    vi.mocked(getTrustedReport).mockResolvedValueOnce(unitReport(unit1)).mockResolvedValueOnce({
+      ...unitReport(unit2), scopeLabel: "漢字 / Unit A2",
+    });
+    const result = await getUnitProfitLossBundle("org", "Example", selection);
+    expect(result).toMatchObject({
+      validation: { code: "unsupported_report_text", status: 400, message: expect.stringContaining("Download Excel") },
+    });
+    expect(result).not.toHaveProperty("body");
+  });
+
   it("fails closed if a source returns combined or misattributed unit details", async () => {
     vi.mocked(getTrustedReport).mockResolvedValue(unitReport(unit2));
     expect(await getUnitProfitLossBundle("org", "Example", selection)).toMatchObject({ validation: { status: 409, code: "invalid_unit_report" } });

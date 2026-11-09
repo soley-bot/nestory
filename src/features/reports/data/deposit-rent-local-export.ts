@@ -1,6 +1,7 @@
 import { withFinancialDownloadContext } from "@/lib/finance/financial-write-context.server";
 import { loadLocalDepositReport, revalidateLocalDepositScope, LocalDepositExportError, type LocalDepositClient } from "./deposit-rent-local-source";
 import { buildTrustedReportPdf } from "./pdf";
+import { UnsupportedReportTextError } from "./pdf-unicode-font";
 import { buildTrustedReportXlsx } from "./excel";
 import { z } from "zod";
 
@@ -64,6 +65,7 @@ export function createLocalDepositExportHandler(dependencies: LocalDepositExport
       });
       }, scope.periodStart);
     } catch (error) {
+      if (error instanceof UnsupportedReportTextError) return text(error.message, 400);
       return error instanceof LocalDepositExportError ? text(error.message, error.status) : text("Local report sources could not be verified.", 409);
     }
   };
