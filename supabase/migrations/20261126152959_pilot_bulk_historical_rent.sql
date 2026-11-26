@@ -175,8 +175,10 @@ BEGIN
         END IF;
         IF quote->>'status' = 'existing' THEN
           outcome := jsonb_build_object('status','existing','invoiceId',quote->>'invoiceId','message','Already invoiced.');
-        ELSIF quote->>'status' IS DISTINCT FROM 'ready' OR quote->>'token' IS DISTINCT FROM item.token THEN
-          outcome := jsonb_build_object('status','review','message',coalesce(quote->>'note','Lease details changed. Review the month again.'));
+        ELSIF quote->>'status' IS DISTINCT FROM 'ready' THEN
+          outcome := jsonb_build_object('status','review','message',coalesce(quote->>'note','This lease is outside the selected scope.'));
+        ELSIF quote->>'token' IS DISTINCT FROM item.token THEN
+          outcome := jsonb_build_object('status','review','message','Lease details changed. Review the month again.');
         ELSE
           issued := app_private.try_generate_lease_rent_invoice(p_org,item.id,p_month,(quote->>'issueDate')::date,'manual_recovery',(SELECT auth.uid()));
           IF issued->>'status' = 'generated' THEN
@@ -188,7 +190,10 @@ BEGIN
               OR invoice.property_id IS DISTINCT FROM (quote->>'propertyId')::uuid OR invoice.unit_id IS DISTINCT FROM (quote->>'unitId')::uuid
               OR invoice.lease_term_id IS DISTINCT FROM (quote->>'termId')::uuid OR invoice.billing_term_id IS DISTINCT FROM (quote->>'ruleId')::uuid
               OR invoice.collection_route::text IS DISTINCT FROM quote->>'route' OR invoice.issue_date IS DISTINCT FROM (quote->>'issueDate')::date
-              OR invoice.due_date IS DISTINCT FROM invoice.issue_date THEN
+              OR invoice.due_date IS DISTINCT FROM invoice.issue_date OR invoice.is_prorated IS DISTINCT FROM (quote->>'prorated')::boolean
+              OR (SELECT min(seg.segment_start) IS DISTINCT FROM (quote->>'from')::date
+                OR max(seg.segment_end) IS DISTINCT FROM (quote->>'through')::date FROM public.tenant_invoice_rent_segments seg
+                WHERE seg.organization_id = p_org AND seg.invoice_id = invoice.id) THEN
               RAISE EXCEPTION 'bulk_rent_quote_changed' USING ERRCODE='PBR01';
             END IF;
             outcome := jsonb_build_object('status','generated','invoiceId',invoice.id,'message',invoice.invoice_number);

@@ -250,7 +250,8 @@ SET SESSION AUTHORIZATION authenticator;
 SET LOCAL ROLE authenticated;
 SELECT ok(public.post_pilot_bulk_rent(org,month,pg_temp.selection(review,lease_id)||
   jsonb_build_array(jsonb_build_object('id',ended_lease,'token',repeat('0',32)))) @>
-  jsonb_build_array(jsonb_build_object('leaseId',lease_id,'status','generated'),jsonb_build_object('leaseId',ended_lease,'status','review')),
+  jsonb_build_array(jsonb_build_object('leaseId',lease_id,'status','generated'),jsonb_build_object('leaseId',ended_lease,'status','review',
+    'message','Lease details changed. Review the month again.')),
   'mixed results issue only the reviewed invoice while automatic posting is on') FROM bulk_history;
 SELECT is((SELECT count(*) FROM public.tenant_invoices i JOIN bulk_history b ON i.billing_period_start=b.month),1::bigint,'unconfirmed partial rent stays unbilled');
 SELECT is(public.post_pilot_bulk_rent(org,month,pg_temp.selection(review,lease_id))->0->>'status','existing','a repeated batch skips the previously issued invoice') FROM bulk_history;
