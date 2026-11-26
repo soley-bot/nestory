@@ -39,6 +39,23 @@ function load(client: ReturnType<typeof createCappedReadHarness>["client"], cont
 }
 
 describe("complete monthly rent source reads", () => {
+  it("indexes large term histories once while preserving every missing-rent row", async () => {
+    const { context } = fixture(2000);
+    let termLeaseReads = 0;
+    context.terms = context.terms.flatMap(term => Array.from({ length: 4 }, (_, index) => ({
+      ...term,
+      start_date: `${2023 + index}-01-01`,
+      end_date: `${2023 + index}-12-31`,
+      get lease_id() { termLeaseReads += 1; return term.lease_id; },
+    })));
+    const harness = createCappedReadHarness({ tenant_invoice_balances: [], tenant_invoice_lines: [] });
+    const rows = await load(harness.client, context);
+    expect(rows).toHaveLength(2000);
+    expect(new Set(rows.map(row => row.id)).size).toBe(2000);
+    expect(rows.every(row => row.cells.issue === "Monthly rent invoice is missing; review the lease billing setup and generate the missing month.")).toBe(true);
+    expect(termLeaseReads).toBeLessThanOrEqual(context.terms.length * 2);
+  });
+
   it("reads past server caps for invoices and multiple rent lines per invoice", async () => {
     const { context, tables } = fixture(601);
     const harness = createCappedReadHarness({

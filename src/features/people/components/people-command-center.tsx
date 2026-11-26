@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import type { PeopleInsights } from "@/features/people/people.insights";
 
 type PeopleCommandCenterProps = {
-  insights: PeopleInsights;
+  insights: Pick<PeopleInsights, "attentionQueues">;
 };
 
 export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {

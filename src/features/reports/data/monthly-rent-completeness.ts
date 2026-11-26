@@ -16,20 +16,27 @@ export async function loadMonthlyRentGaps({ supabase, organizationId, context, v
   viewQuery: ReportsViewQuery;
   period: { start: string; end: string };
 }): Promise<TrustedReportRow[]> {
+  const termsByLease = new Map<string, ScopedFinanceContext["terms"]>();
+  for (const term of context.terms) {
+    const terms = termsByLease.get(term.lease_id);
+    if (terms) terms.push(term);
+    else termsByLease.set(term.lease_id, [term]);
+  }
+  const ownerPropertyIds = new Set(context.owner_assignments.filter(owner =>
+    owner.person_id === viewQuery.ownerPersonId && !owner.archived_at
+    && (!owner.started_on || owner.started_on <= period.end) && (!owner.ended_on || owner.ended_on >= period.start)
+  ).map(owner => owner.property_id));
   const properties = new Map(context.properties.filter(property => !property.archived_at
     && (viewQuery.propertyId === "all" || property.id === viewQuery.propertyId)
-    && (viewQuery.ownerPersonId === "all" || context.owner_assignments.some(owner =>
-      owner.property_id === property.id && owner.person_id === viewQuery.ownerPersonId && !owner.archived_at
-      && (!owner.started_on || owner.started_on <= period.end) && (!owner.ended_on || owner.ended_on >= period.start)
-    ))).map(property => [property.id, property]));
+    && (viewQuery.ownerPersonId === "all" || ownerPropertyIds.has(property.id))).map(property => [property.id, property]));
   const leases = context.leases.filter(lease => !lease.archived_at && (["active", "notice_given"].includes(lease.status)
-    || (["ended", "terminated"].includes(lease.status) && context.terms.some(term => term.lease_id === lease.id && term.start_date <= period.end && term.end_date >= period.start)))
+    || (["ended", "terminated"].includes(lease.status) && (termsByLease.get(lease.id) ?? []).some(term => term.start_date <= period.end && term.end_date >= period.start)))
     // The lease header reflects the current term; a later renewal must not hide earlier obligations.
-    && (lease.lease_start_date <= period.end || context.terms.some(term => term.lease_id === lease.id && term.start_date <= period.end))
+    && (lease.lease_start_date <= period.end || (termsByLease.get(lease.id) ?? []).some(term => term.start_date <= period.end))
     && properties.has(lease.property_id)
     && (viewQuery.unitId === "all" || lease.unit_id === viewQuery.unitId));
   const expectedLeases = leases.filter(lease => {
-    const started = context.terms.filter(term => term.lease_id === lease.id && term.start_date <= period.end)
+    const started = (termsByLease.get(lease.id) ?? []).filter(term => term.start_date <= period.end)
       .sort((a,b) => b.start_date.localeCompare(a.start_date));
     // A later zero-rent term cannot erase a positive-rent segment of this month.
     const hasRentInMonth = started.some(term => term.end_date >= period.start && term.rent_amount > 0);
@@ -69,7 +76,7 @@ export async function loadMonthlyRentGaps({ supabase, organizationId, context, v
   }
   return expectedLeases.filter(lease => issued.get(`${lease.property_id}:${lease.id}`) !== 1).map(lease => {
     const duplicate = (issued.get(`${lease.property_id}:${lease.id}`) ?? 0) > 1;
-    const expired = expiredRentTermEndDate("billing_setup_missing", period.start, context.terms.filter(term => term.lease_id === lease.id));
+    const expired = expiredRentTermEndDate("billing_setup_missing", period.start, termsByLease.get(lease.id) ?? []);
     const issue = duplicate ? "Multiple issued rent invoices cover this billing month; review and correct the duplicate billing before using totals." : expired
       ? `Rent term ended ${expired}; confirm continued occupancy and record the agreed renewal before generating rent.`
       : "Monthly rent invoice is missing; review the lease billing setup and generate the missing month.";

@@ -3,14 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   captureException,
   getAccessByPersonId,
-  getPeopleInsightsData,
+  getPeopleAttentionData,
   getPeopleScreenData,
   parsePeopleSearchParams,
   requirePermission,
 } = vi.hoisted(() => ({
   captureException: vi.fn(),
   getAccessByPersonId: vi.fn(),
-  getPeopleInsightsData: vi.fn(),
+  getPeopleAttentionData: vi.fn(),
   getPeopleScreenData: vi.fn(),
   parsePeopleSearchParams: vi.fn(),
   requirePermission: vi.fn(),
@@ -19,7 +19,7 @@ const {
 vi.mock("@sentry/nextjs", () => ({ captureException }));
 vi.mock("@/features/organization/data", () => ({ getAccessByPersonId }));
 vi.mock("@/features/people/data/people-insights", () => ({
-  getPeopleInsightsData,
+  getPeopleAttentionData,
 }));
 vi.mock("@/features/people/data/people", () => ({ getPeopleScreenData }));
 vi.mock("@/features/people/people.filters", () => ({ parsePeopleSearchParams }));
@@ -34,7 +34,7 @@ describe("PeopleModulePageContent", () => {
   beforeEach(() => {
     captureException.mockReset();
     getAccessByPersonId.mockReset();
-    getPeopleInsightsData.mockReset();
+    getPeopleAttentionData.mockReset();
     getPeopleScreenData.mockReset();
     parsePeopleSearchParams.mockReset();
     requirePermission.mockReset();
@@ -115,7 +115,7 @@ describe("PeopleModulePageContent", () => {
       pagination: { totalCount: 0 },
       people: [],
     });
-    getPeopleInsightsData.mockReturnValue(new Promise(() => undefined));
+    getPeopleAttentionData.mockReturnValue(new Promise(() => undefined));
 
     const content = await PeopleModulePageContent({
       config: {
@@ -131,7 +131,7 @@ describe("PeopleModulePageContent", () => {
       "organization-1",
       expect.anything(),
     );
-    expect(getPeopleInsightsData).not.toHaveBeenCalled();
+    expect(getPeopleAttentionData).not.toHaveBeenCalled();
     expect(content.props.insightsAction).toMatchObject({
       props: {
         children: {
@@ -146,16 +146,16 @@ describe("PeopleModulePageContent", () => {
   });
 
   it("loads insights through the organization-scoped streamed action", async () => {
-    getPeopleInsightsData.mockResolvedValue({ metrics: [] });
+    getPeopleAttentionData.mockResolvedValue({ attentionQueues: [] });
 
     await PeopleInsightsAction({ organizationId: "organization-1" });
 
-    expect(getPeopleInsightsData).toHaveBeenCalledWith("organization-1");
+    expect(getPeopleAttentionData).toHaveBeenCalledWith("organization-1");
   });
 
   it("contains and reports an optional insights query failure", async () => {
     const error = new Error("Insights query unavailable");
-    getPeopleInsightsData.mockRejectedValue(error);
+    getPeopleAttentionData.mockRejectedValue(error);
 
     await expect(
       PeopleInsightsAction({ organizationId: "organization-1" }),
@@ -170,7 +170,7 @@ describe("PeopleModulePageContent", () => {
     const redirect = Object.assign(new Error("NEXT_REDIRECT"), {
       digest: "NEXT_REDIRECT;replace;/login;307;",
     });
-    getPeopleInsightsData.mockRejectedValue(redirect);
+    getPeopleAttentionData.mockRejectedValue(redirect);
 
     await expect(
       PeopleInsightsAction({ organizationId: "organization-1" }),
@@ -195,7 +195,7 @@ describe("PeopleModulePageContent", () => {
     ).rejects.toBe(denied);
 
     expect(getPeopleScreenData).not.toHaveBeenCalled();
-    expect(getPeopleInsightsData).not.toHaveBeenCalled();
+    expect(getPeopleAttentionData).not.toHaveBeenCalled();
   });
 });
 

@@ -130,15 +130,22 @@ export async function searchWorkspaceWithStatus({
     return cache.get(key)!;
   }
 
-  async function related(table: Table, column: string, ids: string[]) {
-    if (!ids.length) return [];
+  function related(table: Table, column: string, ids: string[]) {
+    if (!ids.length) return Promise.resolve([]);
     const uniqueIds = [...new Set(ids)];
     const groups: Promise<Row[]>[] = [];
     // Keep UUID lists below proxy URL limits, including context enrichment.
     for (let index = 0; index < uniqueIds.length; index += 75) {
-      groups.push(read(base(table).in(column, uniqueIds.slice(index, index + 75)).order("id")));
+      const batch = uniqueIds.slice(index, index + 75);
+      // Request-local promises share in-flight reads without retaining data
+      // across users. Sorting only the key preserves existing batch cutoffs.
+      const key = JSON.stringify(["related", table, column, [...batch].sort()]);
+      if (!cache.has(key)) {
+        cache.set(key, read(base(table).in(column, batch).order("id")));
+      }
+      groups.push(cache.get(key)!);
     }
-    return dedupe((await Promise.all(groups)).flat());
+    return Promise.all(groups).then(groups => dedupe(groups.flat()));
   }
 
   let portfolioContextUnavailable = false;
@@ -147,18 +154,32 @@ export async function searchWorkspaceWithStatus({
     portfolioContextUnavailable = true;
     return createPortfolioSearch([], []);
   }));
-  const propertyFields = async (includeUnits = false) => {
-    const portfolio = await getPortfolio();
+  const propertyFieldsCache = new Map<boolean, Promise<Row[]>>();
+  function propertyFields(includeUnits = false) {
+    if (!propertyFieldsCache.has(includeUnits)) {
+      propertyFieldsCache.set(includeUnits, readPropertyFields(includeUnits));
+    }
+    return propertyFieldsCache.get(includeUnits)!;
+  }
+  async function readPropertyFields(includeUnits: boolean) {
+    const [portfolio, direct] = await Promise.all([
+      getPortfolio(),
+      fields("properties", ["name", "code", "address"]),
+    ]);
     const ids = portfolio.properties.filter(property => includeUnits
       ? portfolio.matchesProperty(anchor, property.id)
       : matchesSearchText(anchor, portfolio.propertyValues(property.id))).map(property => property.id);
-    return dedupe([...(await fields("properties", ["name", "code", "address"])), ...(await related("properties", "id", ids))]);
-  };
+    return dedupe([...direct, ...(await related("properties", "id", ids))]);
+  }
   async function portfolioRows(table: "tasks" | "documents") {
     const portfolio = await getPortfolio();
     const propertyIds = portfolio.properties.filter(row => matchesSearchText(anchor, portfolio.propertyValues(row.id))).map(row => row.id);
     const unitIds = portfolio.units.filter(row => matchesSearchText(anchor, portfolio.unitValues(row.id))).map(row => row.id);
-    return dedupe([...(await related(table, "property_id", propertyIds)), ...(await related(table, "unit_id", unitIds))]);
+    const groups = await Promise.all([
+      related(table, "property_id", propertyIds),
+      related(table, "unit_id", unitIds),
+    ]);
+    return dedupe(groups.flat());
   }
   async function portfolioText(row: Row) {
     const portfolio = await getPortfolio();
@@ -172,9 +193,12 @@ export async function searchWorkspaceWithStatus({
         : anchor;
     const [direct, properties] = await Promise.all([
       (async () => {
-        const portfolio = await getPortfolio();
+        const [portfolio, direct] = await Promise.all([
+          getPortfolio(),
+          fields("units", ["unit_number"], term),
+        ]);
         const ids = portfolio.units.filter(unit => matchesSearchText(term, [unit.unit_number])).map(unit => unit.id);
-        return dedupe([...(await fields("units", ["unit_number"], term)), ...(await related("units", "id", ids))]);
+        return dedupe([...direct, ...(await related("units", "id", ids))]);
       })(),
       propertyFields(),
     ]);
@@ -215,18 +239,19 @@ export async function searchWorkspaceWithStatus({
             meta: [row.code, row.address].filter(Boolean).join(" · "),
             href: `/properties/${row.id}`,
           },
-          searchText: [...(await getPortfolio()).propertyValues(row.id), ...(await getPortfolio()).units.filter(unit => unit.property_id === row.id).map(unit => unit.unit_number)].join(" "),
+          searchText: (await getPortfolio()).propertyValuesWithUnits(row.id).join(" "),
         })));
-      case "people":
-        return Promise.all(dedupe([
-          ...(await fields("people", [
+      case "people": {
+        const groups = await Promise.all([
+          fields("people", [
             "display_name",
             "legal_name",
             "primary_email",
             "primary_phone",
-          ])),
-          ...(await related("people", "id", (await getPortfolio()).ownerIds(anchor))),
-        ]).map(async (row) => ({
+          ]),
+          getPortfolio().then(portfolio => related("people", "id", portfolio.ownerIds(anchor))),
+        ]);
+        return Promise.all(dedupe(groups.flat()).map(async (row) => ({
           result: {
             id: row.id,
             kind: "person",
@@ -242,6 +267,7 @@ export async function searchWorkspaceWithStatus({
           },
           searchText: `${row.legal_name ?? ""} ${(await getPortfolio()).ownerValues(row.id).join(" ")}`,
         })));
+      }
       case "units": {
         const rows = await getUnits();
         const properties = await propertyContext(rows);
@@ -310,7 +336,11 @@ export async function searchWorkspaceWithStatus({
       }
       case "tasks": {
         if (isAssignmentOnly(context) && !context.personId) return [];
-        return Promise.all(dedupe([...(await fields("tasks", ["title", "description"])), ...(await portfolioRows("tasks"))]).map(async (row) => ({
+        const groups = await Promise.all([
+          fields("tasks", ["title", "description"]),
+          portfolioRows("tasks"),
+        ]);
+        return Promise.all(dedupe(groups.flat()).map(async (row) => ({
           result: {
             id: row.id,
             kind: isAssignmentOnly(context) ? "task" : "maintenance",
@@ -324,8 +354,12 @@ export async function searchWorkspaceWithStatus({
           searchText: `${row.description ?? ""} ${await portfolioText(row)}`,
         })));
       }
-      case "documents":
-        return Promise.all(dedupe([...(await fields("documents", ["file_name"])), ...(await portfolioRows("documents"))]).map(async (row) => ({
+      case "documents": {
+        const groups = await Promise.all([
+          fields("documents", ["file_name"]),
+          portfolioRows("documents"),
+        ]);
+        return Promise.all(dedupe(groups.flat()).map(async (row) => ({
           result: {
             id: row.id,
             kind: "document",
@@ -335,6 +369,7 @@ export async function searchWorkspaceWithStatus({
           },
           searchText: await portfolioText(row),
         })));
+      }
     }
   }
 

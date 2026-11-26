@@ -21,6 +21,28 @@ function client(invoices: unknown[] = [], lines: { invoice_id: string; id?: stri
 }
 const load = (supabase = client(), input = context, scope = viewQuery) => loadMonthlyRentGaps({ supabase, organizationId: "org", context: input, viewQuery: scope, period });
 describe("monthly rent completeness", () => {
+  it("keeps term and owner lookups scoped to each lease and the selected historical owner", async () => {
+    const input: ScopedFinanceContext = {
+      ...context,
+      properties: [context.properties[0], { ...context.properties[0], id: "p2" }],
+      leases: [context.leases[0], { ...context.leases[0], id: "l2", property_id: "p2" }],
+      terms: [
+        { ...context.terms[0], end_date: "infinity", rent_amount: 0 },
+        { ...context.terms[0], lease_id: "l2", end_date: "infinity", rent_amount: 500 },
+      ],
+      owner_assignments: [
+        { id: "o1", person_id: "owner", property_id: "p2", is_primary: true, started_on: "2026-10-31", ended_on: null, archived_at: null },
+        { id: "o2", person_id: "other", property_id: "p1", is_primary: true, started_on: null, ended_on: null, archived_at: null },
+      ],
+    };
+    const before = JSON.stringify(input);
+    const rows = await load(client(), input, { ...viewQuery, ownerPersonId: "owner" });
+    expect(rows.map(row => row.id)).toEqual(["missing-rent:l2"]);
+    expect(JSON.stringify(input)).toBe(before);
+    input.owner_assignments[0].started_on = "2026-11-01";
+    expect(await load(client(), input, { ...viewQuery, ownerPersonId: "owner" })).toEqual([]);
+  });
+
   it.each(["active", "notice_given", "ended", "terminated"])("checks historical rent after a later renewal (%s)", async status => {
     for (const month of ["09", "10"]) {
       const reportPeriod = { start: `2026-${month}-01`, end: `2026-${month}-${month === "09" ? "30" : "31"}` };
