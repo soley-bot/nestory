@@ -23,8 +23,9 @@ export async function loadOwnerProfitLossEventPage(
   const validated = validateScope(scope);
   const validatedCursor = cursor ? validateCursor(cursor) : null;
   const { data, error } = await client.rpc(
-    "get_owner_profit_loss_events_page",
+    validated.rentalMonth ? "get_report_profit_loss_events_page" : "get_owner_profit_loss_events_page",
     {
+      ...(validated.rentalMonth ? { p_rental_month: true } : {}),
       p_after_recognized_on: validatedCursor?.recognizedOn ?? null,
       p_after_source_id: validatedCursor?.sourceId ?? null,
       p_after_source_type: validatedCursor?.sourceType ?? null,

@@ -28,7 +28,7 @@ SELECT ok(
   )
   AND NOT has_function_privilege(
     'authenticated',
-    'app_private.get_owner_profit_loss_events_page(uuid,uuid,currency_code,date,date,date,text,uuid,integer)',
+    'app_private.get_owner_profit_loss_events_page(uuid,uuid,currency_code,date,date,date,text,uuid,integer,boolean)',
     'EXECUTE'
   ),
   'only authenticated callers can execute the checked public boundary'
@@ -45,7 +45,7 @@ SELECT ok(
       AND definition LIKE '%line.currency = p_currency%'
     FROM (
       SELECT pg_get_functiondef(
-        'app_private.get_owner_profit_loss_events_page(uuid,uuid,currency_code,date,date,date,text,uuid,integer)'::regprocedure
+        'app_private.get_owner_profit_loss_events_page(uuid,uuid,currency_code,date,date,date,text,uuid,integer,boolean)'::regprocedure
       ) AS definition
     ) AS authority
   ),

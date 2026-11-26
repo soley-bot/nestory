@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
 
 // This UI accepts hostedBinding() and exact zero-plan text, never executable
 // SQL, credentials, row archives, endpoint URLs or arbitrary RPC names.
-export const PILOT_RESET_ORGANIZATION = "752a87b8-bd04-4a45-9cb8-00687af66e73";
+export const PILOT_RESET_ORGANIZATION = PILOT_ORGANIZATION_ID;
 export const PILOT_RESET_PROJECT = "pfvmztxktkwyewvxfgot";
 export const PILOT_RESET_OPERATION = "7c70e27f-ba37-48cc-8f93-d32badcb2fb7";
 export const MAX_REVIEW_BYTES = 256 * 1024;

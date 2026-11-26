@@ -44,7 +44,7 @@ export function ReportsFilters({ compact = false, action, ownerOptions, property
       <ScopeField label="Report"><SearchableSelectControl ariaLabel="Filter report by unit" contentClassName="w-[440px] max-w-[calc(100vw-2rem)]" wrapOptions className="h-auto min-h-8 w-[280px] max-w-full rounded-lg px-3 text-sm font-normal shadow-none py-1.5 [&_.truncate]:overflow-visible [&_.truncate]:whitespace-normal [&_.truncate]:[overflow-wrap:anywhere]" name="unitId" value={unitId} onValueChange={setUnitId} options={[{ label: "Separate unit reports", value: "all" }, ...visibleUnits.map(unit => ({ label: unit.label, value: unit.id }))]} /></ScopeField>
       <Button aria-label="Apply filters" className="h-7 rounded-full px-3 text-xs" type="submit">Apply</Button>
       {showReset ? <Button asChild size="sm" variant="ghost" className="h-7 text-xs"><Link aria-label="Reset report filters" href={`/reports/${viewQuery.report}`}>Reset</Link></Button> : null}
-      <span className="ml-auto rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] text-blue-700 dark:bg-blue-950/30 dark:text-blue-300" title="Income and expenses count by invoice or cost date, even before payment.">Accrual</span>
+      <span className="ml-auto rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] text-blue-700 dark:bg-blue-950/30 dark:text-blue-300" title="Income counts when earned and expenses when incurred, even before payment.">Accrual</span>
     </FinancialForm>
   </section>;
 

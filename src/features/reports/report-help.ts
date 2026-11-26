@@ -18,7 +18,7 @@ export const unitProfitLossHelp: PageHelpContent = {
     { question: "Why is opening activity unavailable for a unit?", answer: "Some property account activity may not be assigned to a unit. Review the property in Owner activity. Nestory does not guess how to allocate unassigned activity." },
   ],
   terms: [
-    { term: "Accrual", meaning: "Income and expenses count by invoice or cost date, even before payment." },
+    { term: "Accrual", meaning: "Income counts when earned and expenses when incurred, even before payment." },
     { term: "Net operating income", meaning: "Recognized income minus recognized expenses. Pending expenses are excluded." },
     { term: "Opening account activity", meaning: "Recorded property-account entries before the selected month. This is not cash available for withdrawal." },
   ],

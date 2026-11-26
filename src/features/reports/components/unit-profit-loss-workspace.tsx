@@ -16,6 +16,7 @@ export function UnitProfitLossWorkspace({ report, returnTo }: { report: TrustedR
     <div className="pt-4 pb-2">
       <h2 className="text-base font-semibold">{report.scopeLabel}</h2>
       <p className="mt-1 text-xs text-muted-foreground">{report.periodLabel}</p>
+      {report.unitProfitLossBasisNote ? <p className="mt-1 text-sm text-muted-foreground">{report.unitProfitLossBasisNote}</p> : null}
       {report.unitProfitLossScopeNote ? <p className="mt-2 text-sm text-muted-foreground">{report.unitProfitLossScopeNote}</p> : null}
     </div>
     <ProfitLossDetail unitScope returnTo={returnTo} lines={report.unitProfitLossLines ?? []} funding={report.unitProfitLossFunding} />

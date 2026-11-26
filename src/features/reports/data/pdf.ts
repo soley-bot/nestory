@@ -1216,7 +1216,7 @@ function drawUnitProfitLossHeader(commands: string[], organizationName: string, 
   scopeLines.forEach((line, index) => drawText(commands, line, marginX, 530 - index * 12, { bold: true, fontSize: 10, width: unitStatementContentWidth }));
   drawText(commands, report.periodLabel, marginX, 489, { fontSize: 9, color: colors.muted, width: 500 });
   drawText(commands, "Amounts in USD", marginX + 620, 489, { fontSize: 9, align: "right", width: 150 });
-  drawText(commands, profitLossBasisNote, marginX, 473, { fontSize: 8, color: colors.muted, width: unitStatementContentWidth });
+  drawText(commands, report.unitProfitLossBasisNote ?? profitLossBasisNote, marginX, 473, { fontSize: 8, color: colors.muted, width: unitStatementContentWidth });
 }
 
 function drawUnitProfitLossSectionRow(

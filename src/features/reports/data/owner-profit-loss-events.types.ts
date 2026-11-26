@@ -83,6 +83,7 @@ export type OwnerProfitLossEventCursor = {
 export type OwnerProfitLossEventScope = {
   currency: "USD";
   organizationId: string;
+  rentalMonth?: boolean;
   pageSize?: number;
   periodEnd: string;
   periodStart: string;
@@ -91,6 +92,7 @@ export type OwnerProfitLossEventScope = {
 };
 
 export type OwnerProfitLossEventsRpcArgs = {
+  p_rental_month?: true;
   p_after_recognized_on: string | null;
   p_after_source_id: string | null;
   p_after_source_type: string | null;
@@ -104,7 +106,7 @@ export type OwnerProfitLossEventsRpcArgs = {
 
 export type OwnerProfitLossEventsRpcClient = {
   rpc(
-    name: "get_owner_profit_loss_events_page",
+    name: "get_owner_profit_loss_events_page" | "get_report_profit_loss_events_page",
     args: OwnerProfitLossEventsRpcArgs,
   ): PromiseLike<{
     data: OwnerProfitLossEventDatabaseRow[] | null;
