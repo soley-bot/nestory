@@ -6,6 +6,8 @@ import { getFinancialWriteContext, withFinancialReadContext } from "@/lib/financ
 import { getOwnerCloseData } from "@/features/owner-close/data/owner-close";
 import { loadOwnerStatementPublication } from "@/features/reports/data/owner-statement-report";
 import { ownerStatementCash } from "@/features/reports/data/owner-statement-cash";
+import { loadStatementCorrectionSources } from "@/features/reports/data/owner-statement-corrections";
+import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
 import { getOwnerBalanceData } from "./data/owner-balances";
 import { isStatementReportEnabled } from "./statement-report-enabled";
 import { OWNER_BALANCE_COMPONENTS } from "./owner-balance.types";
@@ -55,6 +57,13 @@ export async function readStatementReport(input: StatementScope): Promise<Statem
 }
 
 async function readStatementSnapshot(input: StatementScope, organizationId: string): Promise<StatementReport | null> {
+  async function displayCash(model: Parameters<typeof ownerStatementCash>[0], version = 2) {
+    if (organizationId !== PILOT_ORGANIZATION_ID || version !== 2) return ownerStatementCash(model);
+    const corrections = model.lines.some(line => line.sources.some(source => source.sourceType === "reversal"))
+      ? await loadStatementCorrectionSources(await createSupabaseServerClient(), organizationId, input.propertyId, model.lines)
+      : new Map();
+    return ownerStatementCash(model, corrections);
+  }
   const data = await getOwnerCloseData({ currency: "USD", monthStart: `${input.month}-01`, ownerPersonId: input.ownerPersonId, propertyId: input.propertyId });
   const publication = data.publications.filter(item => !item.supersededByPublicationId).sort((a, b) => b.revisionNumber - a.revisionNumber)[0];
   if (!publication) {
@@ -68,19 +77,19 @@ async function readStatementSnapshot(input: StatementScope, organizationId: stri
         if (opening.length !== 1 || closing.length !== 1) throw new Error("Closed statement balances are incomplete.");
         return { component, openingAmount: opening[0].signedAmount, closingAmount: closing[0].signedAmount };
       });
-      return { cash: ownerStatementCash({ components, lines: revision.lines }), statementNumber: `Closed revision ${revision.revisionNumber}`, artifacts: [], stale: false, published: false, frozen: true };
+      return { cash: await displayCash({ components, lines: revision.lines }), statementNumber: `Closed revision ${revision.revisionNumber}`, artifacts: [], stale: false, published: false, frozen: true };
     }
     const balance = await getOwnerBalanceData({ currency: "USD", periodStart: `${input.month}-01`, periodEnd: `${input.month}-01`, ownerPersonId: input.ownerPersonId, propertyId: input.propertyId });
     const period = balance.periods.find(item => item.monthStart === `${input.month}-01` && (item.status === "ready" || item.status === "closed"));
     if (!period) return null;
     const lines: OwnerStatementLine[] = balance.sources.flatMap(source => source.movements.map(movement => ({ id: movement.id, lineNumber: 0, businessDate: source.eventDate, component: movement.component, description: source.sourceType.replaceAll("_", " "), lineKind: "movement" as const, signedAmount: movement.signedAmount, sourceCount: 1, sources: [{ id: source.allocationSetId, sourceFingerprint: source.sourceFingerprint, sourceId: source.sourceId, sourceLineId: source.sourceLineId, sourceType: source.sourceType }] }))).map((line, index) => ({ ...line, lineNumber: index + 1 }));
     const unitLabels = Object.fromEntries(balance.sources.flatMap(source => source.movements.map(() => source.unitLabel)).map((label, index) => [index + 1, label]));
-    return { cash: ownerStatementCash({ components: period.components, lines }), unitLabels, statementNumber: "Draft", artifacts: [], stale: false, published: false };
+    return { cash: await displayCash({ components: period.components, lines }), unitLabels, statementNumber: "Draft", artifacts: [], stale: false, published: false };
   }
   const client = await createSupabaseServerClient();
   const model = await loadOwnerStatementPublication(client, organizationId, publication.id);
   if (model.organizationId !== organizationId || model.ownerPersonId !== input.ownerPersonId || model.propertyId !== input.propertyId || model.monthStart !== `${input.month}-01`) throw new Error("Statement scope mismatch.");
   // The frozen publication contract has no unit label. Do not backfill current
   // roster data into a historical statement; the UI explicitly says Not recorded.
-  return { cash: ownerStatementCash(model), statementNumber: model.statementNumber, artifacts: model.artifacts.map(item => ({ id: item.id, format: item.format })), stale: Boolean(data.series && (data.series.state !== "closed" || data.series.currentClosedRevisionId !== publication.revisionId)), published: true };
+  return { cash: await displayCash(model, model.presentationVersion ?? 1), statementNumber: model.statementNumber, artifacts: model.artifacts.map(item => ({ id: item.id, format: item.format })), stale: Boolean(data.series && (data.series.state !== "closed" || data.series.currentClosedRevisionId !== publication.revisionId)), published: true };
 }

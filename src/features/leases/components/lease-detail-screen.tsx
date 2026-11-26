@@ -71,6 +71,7 @@ import type {
 import {
   buildLeaseRecordHref,
   buildLeaseRentChargesHref,
+  type IssuedChargeEdit,
   type LeaseRecordSection,
 } from "@/features/leases/lease-detail-route";
 import type {
@@ -163,6 +164,7 @@ export function LeaseDetailScreen({
   canViewFinance,
   canViewPropertyRecords = false,
   currentRentEditInvoiceId,
+  issuedChargeEdit,
   historicalRentCorrectionCandidates = [],
   lease,
   leaseDepositAccounts,
@@ -179,6 +181,7 @@ export function LeaseDetailScreen({
   billingFormConfig?: LeaseBillingFormConfig;
   canViewPropertyRecords?: boolean;
   currentRentEditInvoiceId?: string;
+  issuedChargeEdit?: IssuedChargeEdit;
   historicalRentCorrectionCandidates?: HistoricalRentCorrectionCandidate[];
   lease: LeaseSummary;
   leaseDepositAccounts: FinanceOperationsData["leaseDepositAccounts"];
@@ -194,8 +197,13 @@ export function LeaseDetailScreen({
   const [transition, setTransition] = useState<LeaseTransition | null>(null);
   const [termChange, setTermChange] = useState<LeaseTermChange | null>(null);
   const [historicalRentCorrectionOpen, setHistoricalRentCorrectionOpen] =
-    useState(Boolean(currentRentEditInvoiceId));
-  const [correctionMode, setCorrectionMode] = useState<"rent" | "management_fee">("rent");
+    useState(Boolean(currentRentEditInvoiceId || issuedChargeEdit));
+  const [correctionMode, setCorrectionMode] = useState<"rent" | "management_fee">(issuedChargeEdit?.mode ?? "rent");
+  const focusedInvoiceId = issuedChargeEdit?.invoiceId ?? currentRentEditInvoiceId;
+  const focusedInvoice = historicalRentCorrectionCandidates.find(candidate => candidate.invoiceId === focusedInvoiceId);
+  const rentBusinessDate = billingFormConfig?.rentBusinessDate ?? getBusinessDateValue();
+  const currentMonthEdit = !permissions.canCorrectHistoricalRent || (correctionMode === "rent" && Boolean(focusedInvoice
+    && focusedInvoice.billingPeriodStart <= rentBusinessDate && rentBusinessDate <= focusedInvoice.billingPeriodEnd));
   const [feePaymentDateOpen, setFeePaymentDateOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const pendingPaymentReceiptRef = useRef<TenantPaymentReceiptResult | null>(
@@ -538,21 +546,17 @@ export function LeaseDetailScreen({
           mode={correctionMode}
           candidates={historicalRentCorrectionCandidates.filter((candidate) => {
             if (
-              currentRentEditInvoiceId &&
-              candidate.invoiceId !== currentRentEditInvoiceId
+              focusedInvoiceId &&
+              candidate.invoiceId !== focusedInvoiceId
             ) {
               return false;
             }
             if (correctionMode === "management_fee") {
               return !candidate.managementFeeCorrected;
             }
-            return permissions.canCorrectHistoricalRent
-              ? candidate.billingPeriodEnd <
-                  (billingFormConfig?.rentBusinessDate ??
-                    getBusinessDateValue())
-              : true;
+            return currentMonthEdit || candidate.billingPeriodEnd < rentBusinessDate;
           })}
-          currentMonthOnly={!permissions.canCorrectHistoricalRent}
+          currentMonthOnly={currentMonthEdit}
           lease={lease}
           onClose={() => setHistoricalRentCorrectionOpen(false)}
           onSuccess={(message) => {

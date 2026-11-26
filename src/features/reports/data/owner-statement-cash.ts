@@ -1,9 +1,10 @@
 import type { OwnerStatementPublicationModel } from "@/features/reports/data/owner-statement-report";
+import { statementSourceKey, type StatementCorrectionSources } from "./owner-statement-corrections";
 
 export function ownerStatementCash(model: {
   components: Pick<OwnerStatementPublicationModel["components"][number], "component" | "openingAmount" | "closingAmount">[];
   lines: OwnerStatementPublicationModel["lines"];
-}) {
+}, correctionSources?: StatementCorrectionSources) {
 
   const component = model.components.find((item) => item.component === "ips_held_owner_cash");
 
@@ -19,15 +20,18 @@ export function ownerStatementCash(model: {
 
   let cashOutCents = 0;
 
-  const transactions = model.lines
+  const movements = model.lines
 
     .filter((line) => line.lineKind === "movement" && line.component === "ips_held_owner_cash")
 
-    .toSorted((a, b) => a.businessDate.localeCompare(b.businessDate) || a.lineNumber - b.lineNumber)
+    .toSorted((a, b) => a.businessDate.localeCompare(b.businessDate) || a.lineNumber - b.lineNumber);
 
-    .map((line) => {
+  const transactions = effectiveMovements(movements, correctionSources).map(({ line, signedCents, sourceType }) => {
 
-      const signedCents = ownerStatementCents(line.signedAmount);
+      const type = ownerStatementTransactionLabel(sourceType, signedCents < 0 ? "Cash out" : "Cash in");
+      const ownerLabel = sourceType === "owner_close_correction" ? "Owner balance"
+        : sourceType === "tenant_rent_receipt" && signedCents < 0 ? "Rent refund"
+        : sourceType === "management_fee_occurrence" && signedCents > 0 ? "Management fee credit" : type;
 
       const incoming = signedCents > 0 ? signedCents : 0;
 
@@ -55,9 +59,9 @@ export function ownerStatementCash(model: {
 
         date: line.businessDate,
 
-        details: ownerStatementDescription(line.description),
+        details: correctionSources ? ownerLabel : ownerStatementDescription(line.description),
 
-        type: ownerStatementTransactionLabel(line.sources[0]?.sourceType, signedCents < 0 ? "Cash out" : "Cash in"),
+        type: correctionSources ? ownerLabel : type,
 
         lineNumber: line.lineNumber,
 
@@ -75,6 +79,39 @@ export function ownerStatementCash(model: {
 
   return { cashInCents, cashOutCents, closingCents, openingCents, depositCents, transactions };
 
+}
+
+function effectiveMovements(lines: OwnerStatementPublicationModel["lines"], corrections?: StatementCorrectionSources) {
+  const movements = lines.map(line => ({ line, signedCents: ownerStatementCents(line.signedAmount), sourceType: line.sources[0]?.sourceType }));
+  if (!corrections) return movements;
+  const originalBySource = new Map<string, (typeof movements)[number] | null>();
+  for (const movement of movements) {
+    const [source] = movement.line.sources;
+    if (movement.line.sources.length === 1 && source.sourceType !== "reversal") {
+      const key = statementSourceKey(source);
+      originalBySource.set(key, originalBySource.has(key) ? null : movement);
+    }
+  }
+  const absorbed = new Set<number>();
+  for (const movement of movements) {
+    const sources = movement.line.sources;
+    if (!sources.some(source => source.sourceType === "reversal")) continue;
+    const roots = sources.map(source => {
+      if (source.sourceType !== "reversal") return source;
+      const root = corrections.get(statementSourceKey(source));
+      if (!root) throw new Error("Could not verify the corrected statement movement.");
+      return root;
+    });
+    const types = new Set(roots.map(source => source.sourceType));
+    movement.sourceType = types.size === 1 ? roots[0].sourceType : "account_activity";
+    if (roots.length !== 1) continue;
+    const original = originalBySource.get(statementSourceKey(roots[0]));
+    if (!original) continue;
+    original.signedCents += movement.signedCents;
+    if (!Number.isSafeInteger(original.signedCents)) throw new Error("Owner Statement totals exceed the supported range.");
+    absorbed.add(movement.line.lineNumber);
+  }
+  return movements.filter(movement => !absorbed.has(movement.line.lineNumber) && movement.signedCents !== 0);
 }
 
 function ownerStatementTransactionLabel(sourceType: string | undefined, fallback: string) {

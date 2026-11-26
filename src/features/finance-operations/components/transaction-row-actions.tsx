@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { buildIssuedChargeEditHref } from "@/features/leases/lease-detail-route";
 import { Ellipsis } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -9,12 +10,15 @@ import type { TransactionRow } from "../data/transaction-workspace";
 import { TransactionDeleteDialog } from "./transaction-delete-dialog";
 import type { TransactionDeleteEntry } from "../transaction-delete";
 
-export function TransactionRowActions({ row, canCorrect, canViewLeases, canCorrectIssuedRent = false, onEditExpense, onDeleteExpense }: {
+export function TransactionRowActions({ row, canCorrect, canViewLeases, canCorrectIssuedRent = false, onEditExpense, onDeleteExpense, returnTo }: {
   row: TransactionRow; canCorrect: boolean; canViewLeases: boolean; canCorrectIssuedRent?: boolean;
   onEditExpense?: () => void; onDeleteExpense?: () => void;
+  returnTo?: string;
 }) {
   const [deleting, setDeleting] = useState(false);
   const source = row.source;
+  const feeSource = row.kind === "management_fee" && source.kind === "account" && source.entry.source?.kind === "lease" ? source.entry.source : undefined;
+  const canOpenCharge = canCorrect && canViewLeases && canCorrectIssuedRent;
   let entry: TransactionDeleteEntry | null = null;
   let block = "";
   if (source.kind === "charge") {
@@ -24,11 +28,13 @@ export function TransactionRowActions({ row, canCorrect, canViewLeases, canCorre
     entry = { kind: source.settlement.route === "through_ips" ? "tenant-payment" : "owner-collection", id: source.settlement.id, date: source.settlement.date, amount: source.settlement.amount, label: row.label, propertyId: row.propertyId };
   }
   if (row.history || (!canCorrect && !onEditExpense && !onDeleteExpense)) return null;
+  if (row.kind === "management_fee" && !(canOpenCharge && feeSource?.invoiceId)) return null;
   if (source.kind === "expense" && !onEditExpense && !onDeleteExpense) return null;
   return <>
     <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={`Actions for ${row.label}`}><Ellipsis aria-hidden="true" /></Button></DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {source.kind === "charge" && canCorrect && canViewLeases && canCorrectIssuedRent && source.invoice.lines.some(line => line.lineType === "rent") ? <DropdownMenuItem asChild><Link href={`/leases/${source.invoice.leaseId}`}>Edit issued rent on lease</Link></DropdownMenuItem> : null}
+        {source.kind === "charge" && canOpenCharge && source.invoice.generationSource === "lease_rules_v1" ? <DropdownMenuItem asChild><Link href={buildIssuedChargeEditHref(source.invoice.leaseId, { mode: "rent", invoiceId: source.invoice.id }, returnTo)}>Edit issued rent on lease</Link></DropdownMenuItem> : null}
+        {canOpenCharge && feeSource?.invoiceId ? <DropdownMenuItem asChild><Link href={buildIssuedChargeEditHref(feeSource.id, { mode: "management_fee", invoiceId: feeSource.invoiceId }, returnTo)}>Correct management fee</Link></DropdownMenuItem> : null}
         {onEditExpense ? <DropdownMenuItem onSelect={onEditExpense}>Edit</DropdownMenuItem> : null}
         {onDeleteExpense ? <DropdownMenuItem onSelect={onDeleteExpense}>{source.kind === "expense" && source.submission.status === "submitted" ? "Cancel expense" : "Reverse expense"}</DropdownMenuItem> : null}
         {canCorrect && entry ? <DropdownMenuItem onSelect={() => setDeleting(true)}>Delete</DropdownMenuItem> : null}

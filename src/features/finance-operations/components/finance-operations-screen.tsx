@@ -38,7 +38,7 @@ import { FinanceWorkspaceNavigation } from "@/features/finance/components/financ
 import { findConfiguredAccountId } from "@/features/finance-accounts/finance-account-selection";
 
 import { getCalendarDateInTimeZone } from "@/features/leases/lease-billing-rule-state";
-import { buildLeaseCurrentRentEditHref, buildLeasePaymentResolutionHref } from "@/features/leases/lease-detail-route";
+import { buildIssuedChargeEditHref, buildLeaseCurrentRentEditHref, buildLeasePaymentResolutionHref } from "@/features/leases/lease-detail-route";
 import { financeReturnHref, financeTabHref, propertyFinanceReturnLinks } from "@/features/finance-operations/finance-tab-route";
 import { workflowReturnHref } from "@/features/leases/workflow-return";
 
@@ -456,6 +456,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
         >
           {visibleDetailDrawer.mode === "invoice-details" ? (
             <InvoiceDetails
+              isSuperAdmin={props.isSuperAdmin ?? false}
               canViewPropertyRecords={props.canViewPropertyRecords ?? true}
               businessDate={
                 props.rentBusinessDate ??
@@ -742,6 +743,7 @@ function getScreen(
         onOpenInvoice={invoice => openModal({ mode: "invoice-details", invoice })}
         onOpenExpense={submission => openModal({ mode: "expense-details", submission })}
         renderTransactionActions={row => <TransactionRowActions canCorrectIssuedRent={props.isSuperAdmin} row={row} canCorrect={props.canCorrectFinance} canViewLeases={props.canViewLeases ?? false}
+          returnTo={`/${scope.kind === "unit" ? "units" : "properties"}/${scope.id}/finance?view=transactions`}
           onEditExpense={row.source.kind === "expense" && canReplaceExpense(row.source.submission, props) ? () => { if (row.source.kind === "expense") openDrawer({ mode: "expense", replacement: row.source.submission }); } : undefined}
           onDeleteExpense={row.source.kind === "expense" && !row.source.submission.transactionReviewBlocked && (row.source.submission.status === "approved" ? props.canReverseExpense : row.source.submission.status === "submitted" && canReplaceExpense(row.source.submission, props)) ? () => { if (row.source.kind === "expense") openModal({ mode: row.source.submission.status === "approved" ? "expense-reversal" : "expense-cancel", submission: row.source.submission }); } : undefined}
         />}
@@ -2368,6 +2370,7 @@ function BalancesView({
 }
 
 function InvoiceDetails({
+  isSuperAdmin,
   businessDate,
   canCorrectFinance,
   canRecordPayments,
@@ -2386,6 +2389,7 @@ function InvoiceDetails({
   publicationOpen,
 }: {
   businessDate: string;
+  isSuperAdmin: boolean;
   canCorrectFinance: boolean;
   canRecordPayments: boolean;
   canViewLeases: boolean;
@@ -2411,13 +2415,15 @@ function InvoiceDetails({
   const pdfHref = pdf.href ?? pdfResultHref;
   const canPublishPdf =
     canRecordPayments && invoice.paymentStatus !== "voided" && !pdfHref;
-  const canEditCurrentRent =
+  const canEditIssuedCharge =
     canCorrectFinance &&
     canViewLeases &&
     invoice.generationSource === "lease_rules_v1" &&
     invoice.paymentStatus !== "voided" &&
-    invoice.billingPeriodStart <= businessDate &&
-    Boolean(invoice.billingPeriodEnd && invoice.billingPeriodEnd >= businessDate);
+    invoice.billingPeriodStart <= businessDate;
+  const canEditCurrentRent = canEditIssuedCharge && Boolean(invoice.billingPeriodEnd && invoice.billingPeriodEnd >= businessDate);
+  const adminChargeEdit = canEditIssuedCharge && isSuperAdmin;
+  const chargeOrigin = workflowReturnHref(`${pathname}?${searchParams}`);
 
   return (
     <>
@@ -2555,11 +2561,12 @@ function InvoiceDetails({
               {canEditCurrentRent ? (
                 <Button asChild variant="outline">
                   <Link href={buildLeaseCurrentRentEditHref({ invoiceId: invoice.id, leaseId: invoice.leaseId,
-                    returnTo: workflowReturnHref(`${pathname}?${searchParams}`) })}>
+                    returnTo: chargeOrigin })}>
                     Edit this month&apos;s rent
                   </Link>
                 </Button>
-              ) : null}
+              ) : adminChargeEdit ? <Button asChild variant="outline"><Link href={buildIssuedChargeEditHref(invoice.leaseId, { invoiceId: invoice.id, mode: "rent" }, chargeOrigin)}>Correct issued rent</Link></Button> : null}
+              {adminChargeEdit ? <Button asChild variant="outline"><Link href={buildIssuedChargeEditHref(invoice.leaseId, { invoiceId: invoice.id, mode: "management_fee" }, chargeOrigin)}>Correct management fee</Link></Button> : null}
               <TenantInvoiceVoidControl canCorrectFinance={canCorrectFinance} invoice={invoice} onSuccess={onVoidSuccess} />
               {canCorrect ? <Button type="button" onClick={onCorrect} variant="outline">Reverse payment record</Button> : null}
             </div>

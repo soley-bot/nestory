@@ -52,6 +52,7 @@ export type OwnerStatementRevisionHistory = {
 };
 
 export type OwnerStatementPublicationModel = {
+  presentationVersion?: 1 | 2;
   artifacts: OwnerStatementArtifact[];
   closeContentHash: string;
   closeReason: string;
@@ -132,8 +133,11 @@ export function mapOwnerStatementPublicationPayload(
   }
   const currency = requiredString(row.currency);
   if (currency !== "USD") throw new Error("Unsupported Owner Statement currency.");
+  const presentationVersion = row.presentation_version ?? 1;
+  if (presentationVersion !== 1 && presentationVersion !== 2) throw new Error("Unsupported Owner Statement presentation.");
 
   return {
+    presentationVersion,
     artifacts: row.artifacts.map(mapArtifact).sort((a, b) => a.format.localeCompare(b.format)),
     closeContentHash: hash(row.close_content_hash),
     closeReason: requiredString(row.close_reason),

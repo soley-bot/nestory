@@ -2,11 +2,13 @@ import { workflowReturnHref } from "./workflow-return";
 import { buildHref } from "@/lib/url/href";
 
 export type LeaseRecordSection = "overview" | "rent" | "occupancy" | "files";
+export type IssuedChargeEdit = { invoiceId: string; mode: "rent" | "management_fee" };
 
 export type LeaseDetailQuery = {
   paymentFocusRequested: boolean;
   paymentInvoiceId: string | null;
   rentEditInvoiceId: string | null;
+  issuedChargeEdit?: IssuedChargeEdit;
   section: LeaseRecordSection;
   returnTo?: string;
 };
@@ -33,6 +35,8 @@ export function parseLeaseDetailQuery(
   const returnTo = workflowReturnHref(firstValue(searchParams.returnTo));
   return {
     ...(returnTo ? { returnTo } : {}),
+    ...(invoiceId && databaseIdPattern.test(invoiceId) && (action === "correct-issued-rent" || action === "correct-management-fee")
+      ? { issuedChargeEdit: { invoiceId, mode: action === "correct-management-fee" ? "management_fee" : "rent" } as IssuedChargeEdit } : {}),
     paymentFocusRequested,
     paymentInvoiceId:
       paymentFocusRequested && invoiceId && databaseIdPattern.test(invoiceId)
@@ -46,6 +50,11 @@ export function parseLeaseDetailQuery(
       ? (section as LeaseRecordSection)
       : "overview",
   };
+}
+
+export function buildIssuedChargeEditHref(leaseId: string, edit: IssuedChargeEdit, returnTo?: string) {
+  return buildHref(`/leases/${leaseId}`, { action: edit.mode === "rent" ? "correct-issued-rent" : "correct-management-fee",
+    invoiceId: edit.invoiceId, section: "rent", returnTo: workflowReturnHref(returnTo) });
 }
 
 export function buildLeaseCurrentRentEditHref({
