@@ -1,3 +1,8 @@
+export function getPreviousBusinessMonthValue(businessMonth: string) {
+  const [year, month] = businessMonth.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0, 7);
+}
+
 export function getBusinessDateValue(
   date = new Date(),
   timeZone = "Asia/Phnom_Penh",

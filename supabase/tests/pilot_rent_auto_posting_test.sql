@@ -165,6 +165,109 @@ SELECT results_eq($$SELECT i.issue_date,i.due_date,f.fee_date,l.recognized_on FR
   $$SELECT d,d+6,d,d FROM (SELECT (date_trunc('month',current_date)+interval '1 month')::date d) first_day$$,
   'the first scheduled run posts rent and fee on day one with rent due on the seventh and no duplicate on retry');
 ROLLBACK TO SAVEPOINT first_day;
+
+SAVEPOINT bulk_history;
+-- The following calls emulate fresh PostgREST requests after the scheduler
+-- tests above, which ran inside this same rollback-only database transaction.
+SELECT set_config('app.financial_scheduler_scope','',true);
+CREATE TEMP TABLE bulk_history AS SELECT s.*,gen_random_uuid() AS ended_lease,gen_random_uuid() AS ended_unit,
+  (date_trunc('month',current_date)-interval '1 month')::date AS month, '[]'::jsonb AS review FROM rent_setting s;
+GRANT SELECT, UPDATE ON bulk_history TO authenticated;
+INSERT INTO public.units(id,organization_id,property_id,unit_number,status,current_rent_amount,current_rent_currency)
+  SELECT ended_unit,org,property_id,'Ended unit','vacant',620,'USD' FROM bulk_history;
+INSERT INTO public.leases(id,organization_id,property_id,unit_id,primary_tenant_person_id,status,created_by,updated_by)
+  SELECT ended_lease,org,property_id,ended_unit,tenant_id,'ended',admin_id,admin_id FROM bulk_history;
+INSERT INTO public.lease_terms(organization_id,lease_id,term_sequence,start_date,end_date,rent_amount,rent_currency,
+  rent_due_day,payment_frequency,status,authority_kind,confirmed_at,confirmed_by,created_by,updated_by)
+  SELECT org,ended_lease,1,month,month+9,620,'USD',1,'monthly','expired','authoritative',now(),admin_id,admin_id,admin_id FROM bulk_history;
+INSERT INTO public.lease_billing_terms(organization_id,lease_id,property_id,effective_from,effective_to,collection_route,
+  management_fee_mode,management_fee_value,charge_management_fee_when_active,full_management_fee_during_proration,
+  billing_recipient_kind,billing_recipient_person_id,rent_calculation_timezone,short_month_due_day_rule,
+  lease_start_proration_rule,lease_end_proration_rule,mid_period_rent_change_rule,charge_through_lease_end,rule_source,
+  confirmed_at,confirmed_by,created_by,updated_by)
+  SELECT org,ended_lease,property_id,month,month+9,'through_ips','flat',62,true,false,'individual',tenant_id,'UTC',
+    'last_calendar_day','actual_days','actual_days','next_full_month',true,'lease_default_v1',now(),admin_id,admin_id,admin_id FROM bulk_history;
+CREATE FUNCTION pg_temp.selection(rows jsonb, lease uuid) RETURNS jsonb LANGUAGE sql AS $$
+  SELECT jsonb_build_array(jsonb_build_object('id',lease,'token',r->>'token')) FROM jsonb_array_elements(rows) r WHERE r->>'leaseId'=lease::text;
+$$;
+SET SESSION AUTHORIZATION authenticator;
+SET LOCAL ROLE authenticated;
+UPDATE bulk_history SET review=public.preview_pilot_bulk_rent(org,month);
+SELECT is(jsonb_array_length(review),2,'past month review includes an active lease and a lease which has already ended') FROM bulk_history;
+SELECT is((SELECT count(*) FROM public.tenant_invoices i JOIN bulk_history b ON i.billing_period_start=b.month),0::bigint,'preview creates zero invoices');
+SELECT ok(review @> jsonb_build_array(jsonb_build_object('leaseId',lease_id,'rent',450,'fee',45,'prorated',false))
+  AND review @> jsonb_build_array(jsonb_build_object('leaseId',ended_lease,'rent',round(6200::numeric/((month+interval '1 month')::date-month),2),
+  'prorated',true,'through',month+9)),'preview shows the full monthly and actual-days prorated charges') FROM bulk_history;
+SELECT is(public.preview_pilot_bulk_rent(org,month,NULL,other_org),'[]'::jsonb,'review honors the property filter') FROM bulk_history;
+SELECT is(public.preview_pilot_bulk_rent(org,month,greatest(lease_id,ended_lease)), '[]'::jsonb,'a review cursor cannot repeat an earlier lease') FROM bulk_history;
+SELECT throws_ok($$SELECT public.preview_pilot_bulk_rent(org,date_trunc('month',current_date)::date) FROM bulk_history$$,
+  '22023','bulk_rent_choose_past_month','current month belongs to normal posting');
+SELECT throws_ok($$SELECT public.preview_pilot_bulk_rent(org,(month-interval '1 month')::date) FROM bulk_history$$,
+  '22023','financial_date_before_start','earlier financial generations remain protected');
+SELECT throws_ok($$SELECT public.post_pilot_bulk_rent(org,month,pg_temp.selection(review,lease_id)||pg_temp.selection(review,lease_id)) FROM bulk_history$$,
+  '22023','Invalid rent selection','duplicate leases in one request are rejected');
+SELECT is(public.post_pilot_bulk_rent(org,month,pg_temp.selection(review,lease_id),other_org)->0->>'status','review','posting also honors the property filter') FROM bulk_history;
+SAVEPOINT edited_recipient;
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
+UPDATE public.people SET display_name='Updated billing identity' WHERE id=(SELECT tenant_id FROM bulk_history);
+SET SESSION AUTHORIZATION authenticator;
+SET LOCAL ROLE authenticated;
+SELECT is(public.post_pilot_bulk_rent(org,month,pg_temp.selection(review,lease_id))->0->>'status','review',
+  'changing the billing identity after selection requires a fresh review') FROM bulk_history;
+SELECT is((SELECT count(*) FROM public.tenant_invoices i JOIN bulk_history b ON i.billing_period_start=b.month),0::bigint,
+  'the stale review cannot post a tenant invoice');
+ROLLBACK TO SAVEPOINT edited_recipient;
+SAVEPOINT bulk_stale_form;
+SELECT set_config('request.headers','{"x-nestory-financial-generation":"0"}',true);
+SELECT throws_ok($$SELECT public.post_pilot_bulk_rent(org,month,pg_temp.selection(review,lease_id)) FROM bulk_history$$,
+  '40001','financial_generation_stale','bulk posts require the captured generation');
+ROLLBACK TO SAVEPOINT bulk_stale_form;
+SAVEPOINT bulk_locked;
+SELECT public.set_financial_month_lock(org,month,true,'Reviewed test close') FROM bulk_history;
+SELECT ok(public.preview_pilot_bulk_rent(org,month) @> '[{"status":"blocked","note":"The financial month is locked."}]'::jsonb
+  AND public.post_pilot_bulk_rent(org,month,pg_temp.selection(review,lease_id))->0->>'status'='review','closing a reviewed month blocks confirmation') FROM bulk_history;
+ROLLBACK TO SAVEPOINT bulk_locked;
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.sign_in(finance_id) FROM bulk_history;
+SET SESSION AUTHORIZATION authenticator;
+SET LOCAL ROLE authenticated;
+SELECT throws_ok($$SELECT public.preview_pilot_bulk_rent(org,month) FROM bulk_history$$,
+  '42501','bulk_rent_forbidden','ordinary finance staff cannot preview bulk rent');
+SELECT throws_ok($$SELECT public.post_pilot_bulk_rent(org,month,pg_temp.selection(review,lease_id)) FROM bulk_history$$,
+  '42501','bulk_rent_forbidden','ordinary finance staff cannot confirm bulk rent');
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.sign_in(foreign_admin_id) FROM bulk_history;
+SET SESSION AUTHORIZATION authenticator;
+SET LOCAL ROLE authenticated;
+SELECT throws_ok($$SELECT public.preview_pilot_bulk_rent(org,month) FROM bulk_history$$,'42501','bulk_rent_forbidden','another organization cannot review Pilot rent');
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.sign_in(admin_id) FROM bulk_history;
+SET SESSION AUTHORIZATION authenticator;
+SET LOCAL ROLE authenticated;
+SELECT ok(public.post_pilot_bulk_rent(org,month,pg_temp.selection(review,lease_id)||
+  jsonb_build_array(jsonb_build_object('id',ended_lease,'token',repeat('0',32)))) @>
+  jsonb_build_array(jsonb_build_object('leaseId',lease_id,'status','generated'),jsonb_build_object('leaseId',ended_lease,'status','review')),
+  'mixed results issue only the reviewed invoice while automatic posting is on') FROM bulk_history;
+SELECT is((SELECT count(*) FROM public.tenant_invoices i JOIN bulk_history b ON i.billing_period_start=b.month),1::bigint,'unconfirmed partial rent stays unbilled');
+SELECT is(public.post_pilot_bulk_rent(org,month,pg_temp.selection(review,lease_id))->0->>'status','existing','a repeated batch skips the previously issued invoice') FROM bulk_history;
+SELECT ok(public.preview_pilot_bulk_rent(org,month) @> jsonb_build_array(jsonb_build_object('status','existing','leaseId',lease_id)),
+  'resuming after an interruption shows the issued invoice') FROM bulk_history;
+SELECT public.set_pilot_rent_auto_posting(org,false,(public.get_financial_write_context(org)->>'automatic_rent_updated_at')::timestamptz) FROM bulk_history;
+SELECT is(public.post_pilot_bulk_rent(org,month,pg_temp.selection(review,ended_lease))->0->>'status','generated',
+  'an explicitly selected ended lease can also be issued when automatic posting is off') FROM bulk_history;
+SELECT ok((SELECT i.total_amount=(r->>'rent')::numeric AND f.amount=(r->>'fee')::numeric AND f.fee_date=b.month
+  AND i.issue_date=current_date AND i.due_date=current_date FROM bulk_history b CROSS JOIN LATERAL jsonb_array_elements(b.review) r
+  JOIN public.tenant_invoices i ON i.lease_id=(r->>'leaseId')::uuid
+  JOIN public.management_fee_occurrences f ON f.tenant_invoice_id=i.id
+  WHERE i.lease_id=b.ended_lease AND i.billing_period_start=b.month),'prorated rent and fee match the preview and retain their separate issue and rental dates');
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
+ROLLBACK TO SAVEPOINT bulk_history;
+
 SAVEPOINT late_invoice;
 SELECT app_private.generate_simple_lease_rent_invoice(org,lease_id,
   (date_trunc('month',current_date)-interval '1 month')::date,current_date,'manual_recovery',admin_id) FROM rent_setting;

@@ -87,7 +87,11 @@ const rent: PageHelpContent = {
   purpose: "Review tenant invoices and record rent payments.",
   steps: ["Use the invoice filters to find the tenant and rent period.", "Open the invoice and review its outstanding amount.", "If available, choose Record tenant payment, complete the payment details, and save."],
   example: "Find the tenant's September invoice before recording the September payment.",
-  questions: [{ question: "Why is rent missing?", answer: "Check the filters and lease billing setup. Rent generation issues appear in finance work when available." }, { question: "Can I correct an existing payment?", answer: "Only available correction actions can be used. Review the visible consequences and any blocker before confirming." }],
+  questions: [
+    { question: "Why is rent missing?", answer: "Check the filters and lease billing setup. Rent generation issues appear in finance work when available." },
+    { question: "How can I bill a past month in Pilot?", answer: "A Pilot Super Admin can choose Generate past rent, select the rental month, then review the rent and management fee for each lease. Select the leases to bill and confirm. Prorated leases can be selected individually." },
+    { question: "Can I correct an existing payment?", answer: "Only available correction actions can be used. Review the visible consequences and any blocker before confirming." },
+  ],
   terms: [{ term: "Outstanding amount", meaning: "The amount still due on the invoice after recorded payments and adjustments." }],
 };
 

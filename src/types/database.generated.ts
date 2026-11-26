@@ -13127,6 +13127,15 @@ export type Database = {
         Args: { p_entry_id: string; p_organization_id: string }
         Returns: string
       }
+      post_pilot_bulk_rent: {
+        Args: {
+          p_items: Json
+          p_month: string
+          p_org: string
+          p_property?: string
+        }
+        Returns: Json
+      }
       prepare_deposit_rent_journal: {
         Args: {
           p_expected_snapshot: string
@@ -13185,6 +13194,15 @@ export type Database = {
           p_organization_id: string
           p_payment_date: string
           p_withdrawal_id: string
+        }
+        Returns: Json
+      }
+      preview_pilot_bulk_rent: {
+        Args: {
+          p_after?: string
+          p_month: string
+          p_org: string
+          p_property?: string
         }
         Returns: Json
       }
