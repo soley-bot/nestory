@@ -41,6 +41,7 @@ export function BulkRentControl({ property }: { property: string | null }) {
   const fullMonth = visible.filter(row => !row.prorated);
   const allFullSelected = fullMonth.length > 0 && fullMonth.every(row => selected.has(row.leaseId));
   const sameIssueDate = picked.every(row => row.issueDate === picked[0]?.issueDate);
+  const rent = picked.reduce((sum, row) => sum + row.rent, 0);
   const fees = picked.reduce((sum, row) => sum + row.fee, 0);
 
   async function review(value: string) {
@@ -144,11 +145,14 @@ export function BulkRentControl({ property }: { property: string | null }) {
           <ul className="max-h-64 divide-y overflow-y-auto rounded-md border">{picked.map(row => <li className="p-3" key={row.leaseId}><LeaseDetails row={row} />
             {!sameIssueDate && <p>Issued and due {formatDate(row.issueDate)}</p>}</li>)}</ul>
         </>}
-        {(phase === "select" || phase === "confirm") && picked.length > 0 &&
-          <div className="rounded-md bg-muted p-3"><strong>{picked.length} selected · Rent {formatMoney(picked.reduce((sum,row) => sum + row.rent,0))}</strong>
-            <div>Owner management fees {formatMoney(fees)}</div></div>}
-        {phase === "select" && ready.length > 0 && <Button type="button" disabled={!available || !picked.length || loading}
-          onClick={() => setPhase("confirm")}>Review selected invoices</Button>}
+        {phase === "select" && ready.length > 0 &&
+          <div className="sticky bottom-0 -mx-4 -mb-4 flex flex-wrap items-center justify-between gap-2 border-t bg-background px-4 py-3">
+            <div aria-live="polite"><strong>{picked.length} selected · Rent {formatMoney(rent)}</strong>
+              <div className="text-xs text-muted-foreground">Owner management fees {formatMoney(fees)}</div></div>
+            <Button type="button" disabled={!available || !picked.length || loading} onClick={() => setPhase("confirm")}>Review selected invoices</Button>
+          </div>}
+        {phase === "confirm" && <div className="rounded-md bg-muted p-3"><strong>Total rent {formatMoney(rent)}</strong>
+          <div>Owner management fees {formatMoney(fees)}</div></div>}
         {phase === "confirm" && <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => setPhase("select")}>Back to selection</Button>
           <Button type="button" disabled={!available} onClick={() => void generate()}>Generate {picked.length} {picked.length === 1 ? "invoice" : "invoices"}</Button></div>}
         {phase === "posting" && <p role="status">Generating invoices… {results.length} of {picked.length} checked.</p>}
