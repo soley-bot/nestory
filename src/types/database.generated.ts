@@ -8164,6 +8164,7 @@ export type Database = {
           id: string
           organization_id: string
           owner_close_revision_id: string
+          presentation_version: number
           statement_number: string
           supersedes_publication_id: string | null
         }
@@ -8175,6 +8176,7 @@ export type Database = {
           id?: string
           organization_id: string
           owner_close_revision_id: string
+          presentation_version?: number
           statement_number: string
           supersedes_publication_id?: string | null
         }
@@ -8186,6 +8188,7 @@ export type Database = {
           id?: string
           organization_id?: string
           owner_close_revision_id?: string
+          presentation_version?: number
           statement_number?: string
           supersedes_publication_id?: string | null
         }
@@ -13205,6 +13208,14 @@ export type Database = {
         }[]
       }
       publish_owner_statement: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_owner_close_revision_id: string
+        }
+        Returns: Json
+      }
+      publish_owner_statement_v2: {
         Args: {
           p_idempotency_key: string
           p_organization_id: string

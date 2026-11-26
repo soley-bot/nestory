@@ -93,7 +93,7 @@ try {
     await drawer.locator('input[name="leaseId"] + button').click();
     await page.getByRole("option").filter({ hasText: /R-01/ }).click();
     await drawer.getByRole("button", { name: "Generate selected month" }).click();
-    await page.getByText("Historical rent month generated.", { exact: true }).waitFor();
+    await page.getByText("Rent invoice ready for the selected month.", { exact: true }).waitFor();
     phase("Super Admin recovers only the selected historical month through visible controls");
   });
 

@@ -4,6 +4,18 @@ import { buildMonthlyOwnerActivityReport } from "@/features/reports/data/monthly
 import type { ReportsViewQuery } from "@/features/reports/reports.types";
 
 describe("owner activity report", () => {
+  it("shows Pilot's net category amounts without staff notes or individual correction references", () => {
+    const report = buildMonthlyOwnerActivityReport({
+      ownerSummary: true,
+      entries: [entry("rent_income", 700, 700), entry("management_fee_expense", 70, -70),
+        entry("owner_expense", 125, -125), { ...entry("owner_expense_reversal", -40, 40), label: "Wrong vendor (internal)" }],
+      ownerAssignments: new Map(), period: { start: "2026-08-01", end: "2026-08-31" },
+      properties: [{ id: "property-1", code: "P1", name: "Unit building" }], viewQuery: query(),
+    });
+    expect(report.rows[0].cells).toMatchObject({ propertyCosts: "USD 85.00", netChange: "USD 545.00" });
+    expect(report.rows[0].sourceLinks.map(source => source.label).sort()).toEqual(["Management fee", "Property cost", "Rent"]);
+    expect(JSON.stringify(report)).not.toMatch(/Wrong vendor|expense_customer_adjustment|Expense reversal/);
+  });
   it("mirrors the property account categories operators use", () => {
     const report = buildMonthlyOwnerActivityReport({
       entries: [

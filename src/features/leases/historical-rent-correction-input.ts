@@ -119,7 +119,7 @@ export function historicalRentCorrectionErrorMessage(error: {
     return "Preview changed after the page loaded. Preview this correction again.";
   }
   if (evidence.includes("financial_month_locked")) {
-    return "Unlock the current financial month before replaying settlement evidence.";
+    return "The rental month or posting month is locked. Reopen the affected month, then preview the correction again.";
   }
   if (
     evidence.includes("historical_rent_owner_close_reopen_required") ||

@@ -89,11 +89,14 @@ export async function hydrateAccountEntrySources(client: Client, organizationId:
   const feeIds = ids("management_fee_occurrence");
   if (feeIds.length) {
     const [result, reversals] = await Promise.all([
-      client.from("management_fee_occurrences").select("id, lease_id, reversal_of_id, settlement_status").eq("organization_id", organizationId).in("property_id", propertyIds).in("id", feeIds),
+      client.from("management_fee_occurrences").select("id, lease_id, tenant_invoice_id, reversal_of_id, settlement_status").eq("organization_id", organizationId).in("property_id", propertyIds).in("id", feeIds),
       client.from("management_fee_occurrences").select("reversal_of_id").eq("organization_id", organizationId).in("property_id", propertyIds).in("reversal_of_id", feeIds),
     ]);
     assertComplete(result, reversals);
-    if (!result.error && !reversals.error) for (const row of result.data ?? []) sources.set(key("management_fee_occurrence", row.id), { kind: "lease", id: row.lease_id, reference: null, isReversed: Boolean(row.reversal_of_id || row.settlement_status === "reversed" || reversals.data?.some(reversal => reversal.reversal_of_id === row.id)) });
+    if (!result.error && !reversals.error) for (const row of result.data ?? []) sources.set(key("management_fee_occurrence", row.id), {
+      kind: "lease", id: row.lease_id, invoiceId: row.tenant_invoice_id, reference: null,
+      isReversed: Boolean(row.reversal_of_id || row.settlement_status === "reversed" || reversals.data?.some(reversal => reversal.reversal_of_id === row.id)),
+    });
   }
   return entries.map((entry) => ({ ...entry, unitId: entry.sourceType === "owner_contribution" ? contributionUnits.get(entry.id) : entry.unitId, source: sources.get(key(entry.sourceType, entry.id)) }));
 }

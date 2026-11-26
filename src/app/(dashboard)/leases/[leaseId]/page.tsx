@@ -23,7 +23,7 @@ type LeasePageProps = {
 export default async function LeasePage({ params, searchParams }: LeasePageProps) {
   const [{ leaseId }, rawSearchParams] = await Promise.all([params, searchParams]);
   const context = await requirePermission("leases.view");
-  const { paymentFocusRequested, paymentInvoiceId, rentEditInvoiceId, section, returnTo } =
+  const { paymentFocusRequested, paymentInvoiceId, rentEditInvoiceId, issuedChargeEdit, section, returnTo } =
     parseLeaseDetailQuery(rawSearchParams);
   const viewQuery = {
     ...parseLeaseSearchParams({ archiveState: "all" }),
@@ -90,7 +90,12 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
   const currentRentCandidate = historicalRentCorrectionCandidates.find(
     (candidate) => candidate.invoiceId === rentEditInvoiceId,
   );
-  const routeNotice = rentEditInvoiceId && !currentRentCandidate
+  const scopedEdit = context.roleKind === "super_admin" && canViewFinance && issuedChargeEdit
+    && historicalRentCorrectionCandidates.some(candidate => candidate.invoiceId === issuedChargeEdit.invoiceId
+      && (issuedChargeEdit.mode !== "management_fee" || !candidate.managementFeeCorrected)) ? issuedChargeEdit : undefined;
+  const routeNotice = issuedChargeEdit && !scopedEdit
+    ? { message: "This charge is unavailable for correction. Review the issued invoice and its history." }
+    : rentEditInvoiceId && !currentRentCandidate
     ? {
         message:
           "This month's rent can no longer be edited here. It may already have been corrected or is no longer the current issued rent.",
@@ -117,6 +122,7 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
         canCorrectFinance: context.permissionKeys.has("finance.correct_records"),
       }}
       historicalRentCorrectionCandidates={historicalRentCorrectionCandidates}
+      issuedChargeEdit={scopedEdit}
       currentRentEditInvoiceId={
         context.permissionKeys.has("finance.correct_records") &&
         canViewFinance &&

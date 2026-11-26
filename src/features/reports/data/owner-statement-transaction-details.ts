@@ -6,6 +6,7 @@ import { loadOwnerProfitLossEventPage } from "./owner-profit-loss-events";
 import { resolveDepositStatementDetail, type DepositStatementSourceReader } from "./deposit-statement-detail-adapter";
 import { createDepositStatementSourceReader } from "./deposit-statement-source-reader";
 import { getReportMonthRange } from "../reports.filters";
+import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
 import type { OwnerProfitLossEvent, OwnerProfitLossEventCursor, OwnerProfitLossEventsRpcClient } from "./owner-profit-loss-events.types";
 
 export type StatementTransactionDetail = { unit: string; name: string; category: string };
@@ -152,7 +153,8 @@ export async function loadStatementTransactionDetails(
       await required("owner_component_transfer_instructions", "id, property_id", value(transfer, "transfer_instruction_id"));
       return { unit: "Property-level", name: identity.ownerName, category: "Balance Transfer" };
     }
-    const propertySources = { owner_distribution: ["property_withdrawals", "Owner Distribution"], owner_close_correction: ["owner_close_corrections", "Correction"] } as const;
+    const propertySources = { owner_distribution: ["property_withdrawals", "Owner Distribution"],
+      owner_close_correction: ["owner_close_corrections", model.organizationId === PILOT_ORGANIZATION_ID && model.presentationVersion === 2 ? "Owner balance" : "Correction"] } as const;
     const propertySource = propertySources[type as keyof typeof propertySources];
     if (propertySource) {
       await required(propertySource[0], "id, property_id", id);

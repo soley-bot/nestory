@@ -273,7 +273,7 @@ describe("rent generation recovery action", () => {
     formData.set("leaseId", leaseId);
 
     await expect(recoverLeaseRentPeriodAction({}, formData)).resolves.toEqual({
-      message: "Historical rent month generated.",
+      message: "Rent invoice ready for the selected month.",
       status: "success",
     });
     expect(requireHistoricalRentRecoveryContext).toHaveBeenCalledOnce();
@@ -289,13 +289,24 @@ describe("rent generation recovery action", () => {
   it.each(["Asia/Phnom_Penh", "America/Los_Angeles"])("leaves the selected lease's current month to the database when the organization uses %s", async (operationalTimezone) => {
     requireCurrentRentRetryContext.mockResolvedValue({ organizationId, operationalTimezone });
     financialContext.mockResolvedValue({ generation: 1, status: "open", automatic_rent_enabled: false });
-    rpc.mockResolvedValue({ data: { status: "generated" }, error: null });
+    rpc.mockResolvedValue({ data: { status: "generated", invoiceId: "invoice-1" }, error: null });
     const form = new FormData(); form.set("billingPeriod", "current"); form.set("leaseId", leaseId); form.set("__financialGeneration", "1");
-    expect(await recoverLeaseRentPeriodAction({}, form)).toMatchObject({ status: "success", message: "Selected rent month generated." });
+    expect(await recoverLeaseRentPeriodAction({}, form)).toMatchObject({ status: "success", message: "Rent invoice ready for the selected month." });
     expect(requireHistoricalRentRecoveryContext).not.toHaveBeenCalled();
     expect(rpc).toHaveBeenCalledExactlyOnceWith("generate_current_lease_rent", {
       p_organization_id: organizationId, p_lease_id: leaseId,
     });
+  });
+
+  it("only confirms a ready rent invoice when the generator identifies it", async () => {
+    const form = new FormData();
+    form.set("billingPeriod", "2026-07");
+    form.set("leaseId", leaseId);
+    for (const data of [null, { status: "skipped" }, { status: "generated", invoiceId: null }]) {
+      rpc.mockResolvedValueOnce({ data, error: null });
+      expect((await recoverLeaseRentPeriodAction({}, form)).status).toBe("error");
+    }
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it("does not use current-month permission for automatic billing, stale forms or historical months", async () => {
@@ -563,6 +574,14 @@ describe("ordinary finance operation actions", () => {
     });
     expect(requireFinanceOperationContext).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("explains the missing owner allocation when a rent payment cannot be reversed", async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "tenant_payment_owner_allocation_required" } });
+    expect(await reverseTenantInvoicePaymentAction({}, settlementReversalForm())).toMatchObject({
+      status: "error", message: expect.stringContaining("Review the receipt in Owner accounts"),
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it.each([

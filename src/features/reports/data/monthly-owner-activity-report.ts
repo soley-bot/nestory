@@ -1,7 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { formatDate } from "@/lib/dates/format";
 import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
-import { parseExactMoneyToCents } from "@/features/finance/data/property-cash-events.money";
+import { formatExactCents, parseExactMoneyToCents } from "@/features/finance/data/property-cash-events.money";
+import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
 import { formatProfitLossAmount } from "./profit-loss-funding";
 import { compareReportKeys, readReportSource, readReportSourceBatches } from "./report-source-completeness";
 import { getReportMonthRange } from "@/features/reports/reports.filters";
@@ -116,6 +117,7 @@ export async function getMonthlyOwnerActivityReport({
 
   return buildMonthlyOwnerActivityReport({
     entries,
+    ownerSummary: organizationId === PILOT_ORGANIZATION_ID,
     ownerAssignments,
     period,
     properties,
@@ -124,18 +126,21 @@ export async function getMonthlyOwnerActivityReport({
 }
 
 export function buildMonthlyOwnerActivityReport({
-  entries,
+  entries: accountEntries,
+  ownerSummary = false,
   ownerAssignments,
   period,
   properties,
   viewQuery,
 }: {
   entries: AccountEntry[];
+  ownerSummary?: boolean;
   ownerAssignments: Map<string, OwnerAssignment>;
   period: { end: string; start: string };
   properties: Property[];
   viewQuery: ReportsViewQuery;
 }): TrustedReport {
+  const entries = ownerSummary ? summarizeOwnerActivity(accountEntries) : accountEntries;
   const entriesByProperty = new Map<string, AccountEntry[]>();
   for (const entry of entries) {
     if (!entry.property_id) continue;
@@ -181,7 +186,7 @@ export function buildMonthlyOwnerActivityReport({
     const sourceLinks = [...propertyEntries]
       .sort(compareAccountEntries)
       .map((entry, index) => ({
-        detail: sourceDetail(entry),
+        detail: ownerSummary ? formatProfitLossAmount(parseExactMoneyToCents(entry.amount ?? 0)) : sourceDetail(entry),
         href: buildPropertyAccountHref({
           activity: activityFilter(entry.category),
           month: viewQuery.month,
@@ -216,7 +221,7 @@ export function buildMonthlyOwnerActivityReport({
         propertyId: property.id,
         sourceCount: propertyEntries.length,
         sourceLinks,
-        sourceSummary: `${propertyEntries.length} source ${propertyEntries.length === 1 ? "record" : "records"}`,
+        sourceSummary: ownerSummary ? "Monthly totals by category" : `${propertyEntries.length} source ${propertyEntries.length === 1 ? "record" : "records"}`,
         title: propertyLabel,
       },
     ];
@@ -288,8 +293,27 @@ export function buildMonthlyOwnerActivityReport({
       },
     ],
     title: "Owner activity",
-    totalsTraceLabel: `Totals trace to ${visibleEntries.length} property account ${visibleEntries.length === 1 ? "entry" : "entries"}.`,
+    totalsTraceLabel: ownerSummary ? "Amounts include the final activity for each property and category." :
+      `Totals trace to ${visibleEntries.length} property account ${visibleEntries.length === 1 ? "entry" : "entries"}.`,
   };
+}
+
+function summarizeOwnerActivity(entries: AccountEntry[]): AccountEntry[] {
+  const groups = new Map<string, { propertyId: string; category: string; amount: bigint; effect: bigint }>();
+  for (const entry of entries) {
+    if (!entry.property_id) continue;
+    const category = entry.category === "owner_expense_reversal" ? "owner_expense" : entry.category ?? "other";
+    const key = `${entry.property_id}:${category}`;
+    const group = groups.get(key) ?? { propertyId: entry.property_id, category, amount: BigInt(0), effect: BigInt(0) };
+    group.amount += parseExactMoneyToCents(entry.amount ?? 0);
+    group.effect += parseExactMoneyToCents(entry.balance_effect ?? 0);
+    groups.set(key, group);
+  }
+  return [...groups.values()].filter(group => group.amount !== BigInt(0) || group.effect !== BigInt(0)).map(group => ({
+    property_id: group.propertyId, category: group.category, amount: formatExactCents(group.amount),
+    balance_effect: formatExactCents(group.effect), label: categoryLabel(group.category),
+    event_date: null, source_type: "monthly-total", source_id: `${group.propertyId}:${group.category}`,
+  }));
 }
 
 function balanceEffectTotal(entries: AccountEntry[]) {

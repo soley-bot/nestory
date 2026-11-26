@@ -569,7 +569,7 @@ SELECT is(
 );
 
 WITH published AS (
-  SELECT public.publish_owner_statement(
+  SELECT public.publish_owner_statement_v2(
     '00000000-0000-0000-0000-000000000001',
     (SELECT revision_two_id FROM owner_statement_test_runtime),
     'track-4b-publish-r2'
@@ -578,6 +578,11 @@ WITH published AS (
 UPDATE owner_statement_test_runtime
 SET publication_two_id = (published.result->>'publication_id')::uuid
 FROM published;
+
+SELECT results_eq($$SELECT (public.get_owner_statement_publication('00000000-0000-0000-0000-000000000001',publication_one_id)->>'presentation_version')::integer,
+  (public.get_owner_statement_publication('00000000-0000-0000-0000-000000000001',publication_two_id)->>'presentation_version')::integer
+  FROM owner_statement_test_runtime$$,$$SELECT 1,2$$,
+  'an issued statement retains its layout and the following revision uses the new owner presentation');
 
 SELECT is(
   (

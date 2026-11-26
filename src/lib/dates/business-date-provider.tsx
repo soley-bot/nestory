@@ -61,6 +61,7 @@ function createClock(serverTime?: string) {
 export function useBusinessDate() {
   const { businessDate, getCurrentTime, hasServerClock, timeZone } = useContext(BusinessDateContext);
   return {
+    getCurrentTime,
     getBusinessDateValue: (date?: Date) =>
       date
         ? getBusinessDateValue(date, timeZone)

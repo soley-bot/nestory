@@ -109,7 +109,7 @@ function ownerStatementSheetXml(
   presentation: OwnerStatementPresentation | undefined,
   options: { includeDepositSummary?: boolean },
 ) {
-  const cash = ownerStatementCash(model);
+  const cash = ownerStatementCash(model, presentation?.correctionSources);
   const money = (cents: number): OwnerWorkbookCell => ({ style: 3, type: "number", value: centsDecimal(BigInt(cents)) });
   const balance = (label: string, cents: number): OwnerWorkbookCell[] => [{ style: 2, span: 8, value: label }, { ...money(cents), style: 8 }];
   const rows: OwnerWorkbookCell[][] = [

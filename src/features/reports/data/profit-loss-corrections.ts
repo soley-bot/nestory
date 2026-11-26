@@ -1,6 +1,6 @@
 import type { OwnerProfitLossEvent } from "./owner-profit-loss-events.types";
 
-/** Suppress only a fully offset original and its linked corrections within one report account. */
+/** Combine linked movements within one period and account, retaining every cent. */
 export function effectiveProfitLossDetail(events: OwnerProfitLossEvent[]) {
   const byKey = new Map(events.map(event => [event.eventKey, event]));
   const reversals = new Map<string, OwnerProfitLossEvent[]>();
@@ -11,7 +11,8 @@ export function effectiveProfitLossDetail(events: OwnerProfitLossEvent[]) {
     if (group) group.push(event);
     else reversals.set(key, [event]);
   }
-  const cancelled = new Set<string>();
+  const absorbed = new Set<string>();
+  const amounts = new Map<string, bigint>();
   for (const [key, group] of reversals) {
     const original = byKey.get(key);
     if (!original || original.isReversal) continue;
@@ -21,9 +22,14 @@ export function effectiveProfitLossDetail(events: OwnerProfitLossEvent[]) {
       event.economicClass === original.economicClass && event.categoryId === original.categoryId &&
       event.categoryCode === original.categoryCode && event.categoryReportingGroup === original.categoryReportingGroup &&
       !reversals.has(event.eventKey))) continue;
-    if (group.reduce((sum, event) => sum + event.signedAmountCents, original.signedAmountCents) !== BigInt(0)) continue;
-    cancelled.add(key);
-    for (const event of group) cancelled.add(event.eventKey);
+    const amount = group.reduce((sum, event) => sum + event.signedAmountCents, original.signedAmountCents);
+    amounts.set(key, amount);
+    if (amount === BigInt(0)) absorbed.add(key);
+    for (const event of group) absorbed.add(event.eventKey);
   }
-  return events.filter(event => !cancelled.has(event.eventKey));
+  return events.filter(event => !absorbed.has(event.eventKey)).map(event => {
+    const amount = amounts.get(event.eventKey);
+    if (amount !== undefined) return { ...event, signedAmountCents: amount };
+    return event.isReversal ? { ...event, description: event.categoryLabel } : event;
+  });
 }

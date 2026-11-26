@@ -290,6 +290,7 @@ export function buildTrustedReportPdf({
 
 export type OwnerStatementPresentation = {
   transactionDetails?: Record<number, import("./owner-statement-transaction-details").StatementTransactionDetail>;
+  correctionSources?: import("./owner-statement-corrections").StatementCorrectionSources;
   logo?: Omit<PdfImageAsset, "name">;
   organizationName: string;
   ownerName: string;
@@ -340,7 +341,7 @@ export function buildOwnerStatementPdf(
   model: OwnerStatementPublicationModel,
   presentation: OwnerStatementPresentation,
 ) {
-  const cash = ownerStatementCash(model);
+  const cash = ownerStatementCash(model, presentation.correctionSources);
   const pages: OwnerStatementTransaction[][] = [[]];
   let used = ownerStatementRowHeight;
   for (const transaction of cash.transactions.filter(row => row.cashInCents !== 0 || row.cashOutCents !== 0)) {

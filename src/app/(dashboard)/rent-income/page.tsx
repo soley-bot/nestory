@@ -60,6 +60,7 @@ export default async function RentIncomePage({
     <FinanceOperationsScreen
       key={selectedInvoice?.data?.id ?? "rent"}
       initialInvoiceId={selectedInvoice?.data?.id}
+      reportReturnHref={reportReturnHref(query.returnTo)}
       isSuperAdmin={context.isSuperAdmin}
       currentUserId={context.userId}
       canApproveOwnExpense={context.capabilities.canReverseExpense}

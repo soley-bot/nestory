@@ -53,7 +53,7 @@ describe("historical rent correction input", () => {
     ["historical_rent_payment_account_unavailable", "original payment account"],
     ["historical_rent_owner_roster_changed", "Owner shares have changed"],
     ["privileged_email_step_up_required", "email verification"],
-    ["financial_month_locked", "Unlock the current financial month"],
+    ["financial_month_locked", "rental month or posting month is locked"],
     ["historical_rent_owner_close_reopen_required", "Reopen every affected Owner Close month"],
     ["historical_rent_settlement_owner_effect_missing", "owner allocation evidence is incomplete"],
   ] as const)("maps %s to operator copy", (databaseMessage, expected) => {

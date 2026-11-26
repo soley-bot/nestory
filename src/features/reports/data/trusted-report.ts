@@ -830,10 +830,16 @@ function buildUnitPerformanceReport(context: ReportContext): TrustedReport {
 
 function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
   const singleUnit = context.viewQuery.unitId !== "all";
-  const unassignedCount = context.ownerProfitLossEvents.filter(event => event.unitId === null).length;
   if (context.ownerProfitLossEvents.some(event => event.unitId !== null && context.unitsById.get(event.unitId)?.property_id !== event.propertyId)) {
     throw new Error("Profit and loss unit identity is unavailable in the report scope.");
   }
+  const reportEvents = context.pilotMonthlyProfitLoss ? effectiveProfitLossDetail(context.ownerProfitLossEvents) : context.ownerProfitLossEvents;
+  const eventsByUnit = context.pilotMonthlyProfitLoss ? groupByNullable(reportEvents, "unitId") : context.ownerProfitLossEventsByUnitId;
+  const unassignedCount = reportEvents.filter(event => event.unitId === null).length;
+  const reportSource = (event: OwnerProfitLossEvent) => {
+    const source = ownerProfitLossEventSource(event);
+    return context.pilotMonthlyProfitLoss ? { ...source, label: event.categoryLabel } : source;
+  };
   const unitRows = context.units
     .toSorted((first, second) => {
       const firstProperty = context.propertiesById.get(first.property_id);
@@ -852,7 +858,7 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
     })
     .map((unit) => {
       const property = context.propertiesById.get(unit.property_id);
-      const events = context.ownerProfitLossEventsByUnitId.get(unit.id) ?? [];
+      const events = eventsByUnit.get(unit.id) ?? [];
       const incomeEvents = events.filter(
         (event) => event.economicClass === "owner_income",
       );
@@ -876,7 +882,7 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
         sources: compactSources([
           property && propertySource(property),
           unitSource(unit),
-          ...events.map(ownerProfitLossEventSource),
+          ...events.map(reportSource),
         ]),
         title: `${property?.code ?? "Unknown"} / Unit ${unit.unit_number}`,
         tone:
@@ -888,7 +894,7 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
       });
     });
   const propertyLevelRows = singleUnit ? [] : context.properties.flatMap((property) => {
-    const events = context.ownerProfitLossEvents.filter(
+    const events = reportEvents.filter(
       (event) => event.propertyId === property.id && event.unitId === null,
     );
     if (events.length === 0) return [];
@@ -914,7 +920,7 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
         id: `property-level:${property.id}`,
         sources: compactSources([
           propertySource(property),
-          ...events.map(ownerProfitLossEventSource),
+          ...events.map(reportSource),
         ]),
         title: `${property.code} / Property-level`,
         tone:
@@ -928,11 +934,10 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
   });
   const rows = [...unitRows, ...propertyLevelRows];
   const recognizedEvents = singleUnit
-    ? context.ownerProfitLossEvents.filter(event => event.unitId === context.viewQuery.unitId)
-    : context.ownerProfitLossEvents;
-  const detailEvents = context.pilotMonthlyProfitLoss ? effectiveProfitLossDetail(recognizedEvents) : recognizedEvents;
+    ? reportEvents.filter(event => event.unitId === context.viewQuery.unitId)
+    : reportEvents;
   const unitProfitLossLines =
-    detailEvents
+    recognizedEvents
           .map<UnitProfitLossLine>((event) => {
             const unit = event.unitId
               ? context.unitsById.get(event.unitId)
@@ -940,7 +945,7 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
             return {
               sourceHref: ownerProfitLossEventHref(event),
               name: event.partyName ?? "",
-              type: event.isReversal ? "Correction" : event.economicClass === "owner_income" ? "Invoice" : "Expense",
+              type: event.isReversal ? (context.pilotMonthlyProfitLoss ? "Credit" : "Correction") : event.economicClass === "owner_income" ? "Invoice" : "Expense",
               amountCents: event.signedAmountCents,
               category: event.categoryLabel,
               categoryCode: event.categoryCode,

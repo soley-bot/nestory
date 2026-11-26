@@ -2,6 +2,8 @@ import { needsBoundedSearch, readBoundedSearch } from "@/lib/search/bounded-regi
 import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
 import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
+import { formatExactCents, parseExactMoneyToCents } from "@/features/finance/data/property-cash-events.money";
 import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { measureWorkspaceRead } from "@/lib/observability/workspace-performance.server";
 import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
@@ -328,6 +330,7 @@ async function loadHistoricalRentCorrectionCandidates(
   const supabase = await createSupabaseServerClient();
   const currentDate =
     options.rentBusinessDate ?? new Date().toISOString().slice(0, 10);
+  const allowRepeat = organizationId === PILOT_ORGANIZATION_ID && !options.currentPeriodOnly;
   const { data: invoices, error: invoiceError } = await readAllRows((from, to) => {
     let invoiceQuery = supabase
     .from("tenant_invoice_balances")
@@ -357,7 +360,7 @@ async function loadHistoricalRentCorrectionCandidates(
   if (invoiceIds.length === 0) return [];
 
   let currentRentInvoiceIds: Set<string> | null = null;
-  if (options.currentPeriodOnly) {
+  if (options.currentPeriodOnly || allowRepeat) {
     const { data: currentRentInvoices, error: currentRentInvoiceError } =
       await readAllRowsByIds(invoiceIds, (ids, from, to) => supabase
         .from("tenant_invoices")
@@ -378,17 +381,18 @@ async function loadHistoricalRentCorrectionCandidates(
 
   const [{ data: lines, error: lineError }, { data: corrections, error: correctionError }, { data: fees, error: feeError }] =
     await Promise.all([
-      readAllRowsByIds(invoiceIds, (ids, from, to) => supabase
+      readAllRowsByIds(invoiceIds, (ids, from, to) => {
+        const query = supabase
         .from("tenant_invoice_lines")
-        .select("id, invoice_id, amount, reversal_of_id, supersedes_line_id")
+        .select("id, invoice_id, amount, reversal_of_id, supersedes_line_id, correction_occurrence_id")
         .eq("organization_id", organizationId)
-        .eq("line_type", "rent")
-        .is("reversal_of_id", null)
-        .is("supersedes_line_id", null)
-        .in("invoice_id", ids).order("id").range(from, to)),
+        .eq("line_type", "rent");
+        if (!allowRepeat) query.is("reversal_of_id", null).is("supersedes_line_id", null);
+        return query.in("invoice_id", ids).order("id").range(from, to);
+      }),
       readAllRowsByIds(invoiceIds, (ids, from, to) => supabase
         .from("tenant_invoice_corrections")
-        .select("id, tenant_invoice_id, action")
+        .select("id, tenant_invoice_id, action, corrected_due_date")
         .eq("organization_id", organizationId)
         .in("action", ["historical_rent", "management_fee"])
         .in("tenant_invoice_id", ids).order("id").range(from, to)),
@@ -416,9 +420,15 @@ async function loadHistoricalRentCorrectionCandidates(
     (corrections ?? []).filter((correction) => correction.action === "management_fee")
       .map((correction) => correction.tenant_invoice_id),
   );
+  const reversedLines = new Set((lines ?? []).map(line => line.reversal_of_id).filter(Boolean));
+  const rentCorrections = new Map((corrections ?? []).filter(row => row.action === "historical_rent").map(row => [row.id, row]));
+  const feeCentsByInvoice = new Map<string, bigint>();
+  for (const fee of fees ?? []) {
+    feeCentsByInvoice.set(fee.tenant_invoice_id, (feeCentsByInvoice.get(fee.tenant_invoice_id) ?? BigInt(0)) + parseExactMoneyToCents(fee.amount));
+  }
   const linesByInvoiceId = new Map<string, typeof lines>();
   for (const line of lines ?? []) {
-    if (!line.invoice_id) continue;
+    if (!line.invoice_id || line.reversal_of_id || reversedLines.has(line.id)) continue;
     const invoiceLines = linesByInvoiceId.get(line.invoice_id) ?? [];
     invoiceLines.push(line);
     linesByInvoiceId.set(line.invoice_id, invoiceLines);
@@ -440,22 +450,23 @@ async function loadHistoricalRentCorrectionCandidates(
       return [];
     }
     const rentLines = linesByInvoiceId.get(invoice.id) ?? [];
-    if (correctedInvoiceIds.has(invoice.id) || rentLines.length !== 1) return [];
+    if ((!allowRepeat && correctedInvoiceIds.has(invoice.id)) || rentLines.length !== 1) return [];
     const rentLine = rentLines[0];
     if (!rentLine) return [];
+    const currentCorrection = rentLine.correction_occurrence_id ? rentCorrections.get(rentLine.correction_occurrence_id) : undefined;
+    if (rentLine.supersedes_line_id && (!currentCorrection?.corrected_due_date || currentCorrection.tenant_invoice_id !== invoice.id)) return [];
+    const effectiveDueDate = currentCorrection?.corrected_due_date ?? invoice.due_date;
     return [{
       billingPeriodEnd: invoice.billing_period_end,
       billingPeriodStart: invoice.billing_period_start,
       currency: invoice.currency,
       invoiceId: invoice.id,
       invoiceNumber: invoice.invoice_number,
-      originalDueDate: invoice.due_date,
-      originalDueDay: Number(invoice.due_date.slice(8, 10)),
+      originalDueDate: effectiveDueDate,
+      originalDueDay: Number(effectiveDueDate.slice(8, 10)),
       originalRentAmount: Number(rentLine.amount),
-      managementFeeCorrected: feeCorrectedInvoiceIds.has(invoice.id),
-      originalManagementFeeAmount: (fees ?? [])
-        .filter((fee) => fee.tenant_invoice_id === invoice.id)
-        .reduce((total, fee) => total + Number(fee.amount), 0),
+      managementFeeCorrected: !allowRepeat && feeCorrectedInvoiceIds.has(invoice.id),
+      originalManagementFeeAmount: Number(formatExactCents(feeCentsByInvoice.get(invoice.id) ?? BigInt(0))),
       paymentStatus: invoice.payment_status,
       settledAmount:
         Number(invoice.paid_through_ips ?? 0) +

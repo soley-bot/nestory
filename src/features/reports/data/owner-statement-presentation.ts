@@ -5,6 +5,8 @@ import type { OwnerStatementPresentation } from "@/features/reports/data/pdf";
 import type { OwnerStatementPublicationModel } from "@/features/reports/data/owner-statement-report";
 import { loadScopedFinanceContext } from "@/features/finance-operations/data/scoped-finance-context";
 import { loadStatementTransactionDetails } from "./owner-statement-transaction-details";
+import { loadStatementCorrectionSources } from "./owner-statement-corrections";
+import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
 
 export async function loadOwnerStatementPresentation(
   client: SupabaseClient<Database>,
@@ -29,9 +31,15 @@ export async function loadOwnerStatementPresentation(
   const logo = organization.data.logo_storage_path
     ? await loadPdfLogo(client, organization.data.logo_storage_path)
     : undefined;
+  const [transactionDetails, correctionSources] = await Promise.all([
+    loadStatementTransactionDetails(client, model, { ownerName: owner.display_name, organizationName: organization.data.name }, finance),
+    model.organizationId === PILOT_ORGANIZATION_ID && model.presentationVersion === 2
+      ? loadStatementCorrectionSources(client, model.organizationId, model.propertyId, model.lines) : undefined,
+  ]);
   return {
     logo,
-    transactionDetails: await loadStatementTransactionDetails(client, model, { ownerName: owner.display_name, organizationName: organization.data.name }, finance),
+    transactionDetails,
+    correctionSources,
     organizationName: organization.data.name,
     ownerName: owner.display_name,
     propertyLabel: [property.code, property.name].filter(Boolean).join(" / "),

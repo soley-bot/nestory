@@ -47,7 +47,12 @@ describe("Monthly Unit Profit & Loss", () => {
       expect(exported).not.toContain("Reversed cleaning");
       expect(exported).not.toContain("Cancelled vendor");
     }
-    for (const changes of [{ signedAmountCents: BigInt(-2000) }, { reversalOfId: "missing" },
+    const partial = buildTrustedReport({ ...input, ownerProfitLossEvents: [original, { ...reversal, signedAmountCents: BigInt(-2000) }] });
+    expect(partial.unitProfitLossLines?.map(line => [line.id, line.amountCents])).toEqual([[original.eventKey, BigInt(2000)]]);
+    expect(partial.rows.flatMap(row => row.sourceLinks).map(source => source.id)).not.toContain(reversal.sourceId);
+    const credit = buildTrustedReport({ ...input, ownerProfitLossEvents: [reversal] });
+    expect(credit.unitProfitLossLines?.[0]).toMatchObject({ type: "Credit", description: "Cleaning", amountCents: BigInt(-4000) });
+    for (const changes of [{ reversalOfId: "missing" },
       { unitId: null }, { periodStart: "2026-06-01" }, { categoryCode: "repairs" }]) {
       const exceptions = buildTrustedReport({ ...input, ownerProfitLossEvents: [original, { ...reversal, ...changes }] });
       expect(exceptions.unitProfitLossLines?.map(line => line.id)).toContain(original.eventKey);
