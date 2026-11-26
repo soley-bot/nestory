@@ -56,6 +56,8 @@ BEGIN
     RAISE EXCEPTION 'Unexpected owner P&L event definition';
   END IF;
   FOR change IN SELECT * FROM (VALUES
+    ($sql$AND pg_catalog.date_trunc('month', line.recognized_on)::date <> invoice.billing_period_start$sql$,
+     $sql$AND (invoice.generation_source = 'lease_rules_v1' OR pg_catalog.date_trunc('month', line.recognized_on)::date <> invoice.billing_period_start)$sql$),
     ($sql$AND pg_catalog.date_trunc('month', fee.fee_date)::date <> invoice.billing_period_start$sql$,
      $sql$AND (invoice.generation_source = 'lease_rules_v1' OR pg_catalog.date_trunc('month', fee.fee_date)::date <> invoice.billing_period_start)$sql$),
     ($sql$CASE WHEN basis.report_date <> line.recognized_on

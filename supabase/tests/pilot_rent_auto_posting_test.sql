@@ -149,6 +149,12 @@ SELECT results_eq($$SELECT f.fee_date, l.recognized_on, f.amount FROM public.man
   JOIN public.owner_invoice_lines l ON l.source_type='management_fee' AND l.source_id=f.id$$,
   $$SELECT date_trunc('month',current_date)::date, date_trunc('month',current_date)::date, 45::numeric$$,
   'the repeated scheduled run produces one fee and one owner charge on the first of the rental month');
+SELECT results_eq($$SELECT economic_class,recognized_on,signed_amount FROM rent_setting s CROSS JOIN LATERAL
+  public.get_report_profit_loss_events_page(s.org,s.property_id,'USD',date_trunc('month',current_date)::date,
+  (date_trunc('month',current_date)+interval '1 month - 1 day')::date,NULL,NULL,NULL,100,true)
+  ORDER BY economic_class$$,
+  $$SELECT kind,date_trunc('month',current_date)::date,amount FROM (VALUES('owner_expense'::text,45::numeric),('owner_income',450)) t(kind,amount) ORDER BY kind$$,
+  'same-month catch-up rent and its fee both appear on the first on the Pilot P&L');
 SAVEPOINT first_day;
 SELECT app_private.run_due_rent_generation((date_trunc('month',current_date::timestamp)+interval '1 month 17 minutes') AT TIME ZONE 'UTC');
 SELECT app_private.run_due_rent_generation((date_trunc('month',current_date::timestamp)+interval '1 month 1 hour 17 minutes') AT TIME ZONE 'UTC');
