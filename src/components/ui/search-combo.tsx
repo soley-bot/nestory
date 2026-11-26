@@ -53,6 +53,7 @@ export function SearchCombo({
   suggestions = [],
 }: SearchComboProps) {
   const listboxId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const composing = useRef(false);
   const suggestionsListRef = useRef<HTMLDivElement>(null);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
@@ -108,6 +109,7 @@ export function SearchCombo({
               size={16}
             />
             <SearchInput
+              ref={inputRef}
               maxLength={maxLength}
               aria-activedescendant={activeSuggestion ? `${listboxId}-${encodeURIComponent(activeSuggestion.id)}` : undefined}
               aria-autocomplete={onSuggestionSelect ? "list" : undefined}
@@ -152,7 +154,12 @@ export function SearchCombo({
             <button
               aria-label={`Clear ${ariaLabel.toLowerCase()}`}
               className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-              onClick={() => { setSuggestionsOpen(false); setActiveSuggestionId(null); onQueryChange(""); }}
+              onClick={() => {
+                inputRef.current?.focus({ preventScroll: true });
+                setSuggestionsOpen(false);
+                setActiveSuggestionId(null);
+                onQueryChange("");
+              }}
               type="button"
             >
               <X size={14} />

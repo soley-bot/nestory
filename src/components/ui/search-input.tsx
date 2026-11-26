@@ -1,7 +1,7 @@
-import type { InputHTMLAttributes } from "react";
+import type { ComponentProps } from "react";
 import { Input } from "@/components/ui/input";
 
-type SearchInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "inputMode" | "type">;
+type SearchInputProps = Omit<ComponentProps<"input">, "inputMode" | "type">;
 
 export function SearchInput(props: SearchInputProps) {
   return <Input autoComplete="off" inputMode="search" type="text" {...props} />;
