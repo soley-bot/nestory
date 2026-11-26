@@ -2707,7 +2707,7 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
     expect(screen.getByRole("button", { name: "Close drawer" })).not.toBeNull();
     expect(screen.queryByText("Already paid")).toBeNull();
-    const receiptSection = screen.getByRole("group", {
+    const receiptSection = await screen.findByRole("group", {
       name: "Payment",
     });
     expect(receiptSection).not.toBeNull();
@@ -2735,14 +2735,18 @@ describe("FinanceOperationsScreen", () => {
       screen.getByLabelText("Reference (optional)"),
     ).toHaveProperty("required", false);
     const evidence = screen.getByLabelText("Receipt (optional)");
+    const expenseForm = screen.getByRole("form", { name: "Record property expense form" }) as HTMLFormElement;
     expect(evidence).toHaveProperty("required", false);
+    expect(new FormData(expenseForm).has("evidenceFile")).toBe(false);
     expect(evidence.getAttribute("accept")).toBe(
       "application/pdf,image/jpeg,image/png,image/webp",
     );
     const user = userEvent.setup();
     await user.type(screen.getByLabelText("Line amount"), "30");
     await user.upload(evidence, new File(["receipt"], "receipt.pdf", { type: "application/pdf" }));
+    expect(new FormData(expenseForm).has("evidenceFile")).toBe(true);
     await user.click(screen.getByRole("button", { name: "Remove receipt" }));
+    expect(new FormData(expenseForm).has("evidenceFile")).toBe(false);
     expect((evidence as HTMLInputElement).files).toHaveLength(0);
     expect(screen.getByLabelText("Line amount")).toHaveProperty("value", "30");
     expect(screen.queryByRole("button", { name: "Remove receipt" })).toBeNull();
