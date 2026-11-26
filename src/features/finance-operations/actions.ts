@@ -475,8 +475,11 @@ export async function recoverLeaseRentPeriodAction(
     };
   }
 
+  if ((result?.status !== "generated" && result?.status !== "already_generated") || typeof result.invoiceId !== "string" || !result.invoiceId) {
+    return actionError("Could not confirm the rent invoice. Check the rent register before trying again.");
+  }
   revalidateFinance();
-  return { message: currentManualMonth ? "Selected rent month generated." : "Historical rent month generated.", status: "success" };
+  return { message: "Rent invoice ready for the selected month.", status: "success" };
 }
 
 export async function createManualTenantChargeAction(
@@ -763,6 +766,9 @@ export async function reverseTenantInvoicePaymentAction(
     p_reason: parsed.data.reason,
     p_reversal_date: parsed.data.reversalDate,
   });
+  if (error?.message === "tenant_payment_owner_allocation_required") {
+    return actionError("This rent receipt needs an owner allocation. Review the receipt in Owner accounts before reversing the payment.");
+  }
   if (error) return backendActionError();
   revalidateFinance();
   return { message: "Tenant payment reversed.", status: "success" };

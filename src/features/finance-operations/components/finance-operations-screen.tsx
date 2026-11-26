@@ -12,7 +12,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Fragment, useActionState, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { useOverlayDraftGuard, type OverlayDraftGuard } from "@/components/ui/overlay-dismissal-context";
-import { ChevronRight, Eye, Plus, WalletCards } from "lucide-react";
+import { ChevronRight, Plus, WalletCards } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
@@ -41,6 +41,7 @@ import { getCalendarDateInTimeZone } from "@/features/leases/lease-billing-rule-
 import { buildLeaseCurrentRentEditHref, buildLeasePaymentResolutionHref } from "@/features/leases/lease-detail-route";
 import { financeReturnHref, financeTabHref, propertyFinanceReturnLinks } from "@/features/finance-operations/finance-tab-route";
 import { workflowReturnHref } from "@/features/leases/workflow-return";
+import { ReportReturnNavigation } from "@/features/reports/components/report-return-navigation";
 
 import { createManualTenantChargeAction, publishTenantInvoicePdfAction, recordOwnerPaymentAction, recordWithdrawalAction, recoverLeaseRentPeriodAction, recoverRentGenerationExceptionAction, reverseExpenseAction, reverseOwnerCollectionConfirmationAction, reverseTenantInvoicePaymentAction, retryTenantReceiptPdfAction, reviewExpenseAction, cancelExpenseAction } from "@/features/finance-operations/actions";
 import { FinanceCategorySetupEntry } from "@/features/finance-operations/components/finance-category-manager";
@@ -58,7 +59,7 @@ import { useManualChargeInvoiceContext } from "./use-manual-charge-invoice-conte
 import { sortPropertyAccountEntriesNewestFirst } from "@/features/finance-operations/property-account";
 import { useBusinessDate } from "@/lib/dates/business-date-provider";
 import { ExpenseChangeHistory } from "./expense-change-history";
-import { formatDate } from "@/lib/dates/format";
+import { formatDate, formatLeaseMonth } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
@@ -91,6 +92,7 @@ type ModalState =
   | {
       transactionScope?: FinanceOperationsScreenProps["scope"];
       canChooseAnother?: boolean;
+      fromInvoiceDetails?: boolean;
       invoice?: TenantInvoiceSummary;
       mode: "payment";
     }
@@ -108,6 +110,7 @@ type ModalState =
   | {
       invoice: TenantInvoiceSummary;
       mode: "settlement-reversal";
+      fromInvoiceDetails?: boolean;
     }
   | { mode: "withdrawal"; position: PropertyFinancePosition };
 
@@ -164,11 +167,6 @@ export type FinanceOperationsScreenProps = FinanceOperationsData & {
 };
 
 const actionInitialState: FinanceOperationsActionState = {};
-const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  timeZone: "UTC",
-  year: "numeric",
-});
 
 export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
   const financialSession = useFinancialWriteContext();
@@ -468,18 +466,21 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
               canRecordPayments={props.canRecordPayments}
               canViewLeases={props.canViewLeases ?? false}
               invoice={visibleDetailDrawer.invoice}
+              reportReturnHref={props.reportReturnHref}
               pdf={visibleDetailDrawer.invoice.pdf}
               pdfResultHref={invoicePdfResultHref}
               onCorrect={() =>
                 setModal({
                   invoice: visibleDetailDrawer.invoice,
                   mode: "settlement-reversal",
+                  fromInvoiceDetails: true,
                 })
               }
               onRecordPayment={() =>
                 setModal({
                   invoice: visibleDetailDrawer.invoice,
                   mode: "payment",
+                  fromInvoiceDetails: true,
                 })
               }
               onVoidSuccess={onActionSuccess}
@@ -563,7 +564,14 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
 
       {visibleActionModal ? (
         <Modal
-          onClose={closeModal}
+          onClose={() => {
+            if ((visibleActionModal.mode === "payment" || visibleActionModal.mode === "settlement-reversal")
+                && visibleActionModal.fromInvoiceDetails && currentModalInvoice) {
+              setModal({ mode: "invoice-details", invoice: currentModalInvoice });
+            } else {
+              closeModal();
+            }
+          }}
           open
           title={visibleActionModal.mode === "rent-recovery" && manualRent ? "Generate rent invoice" : getModalTitle(visibleActionModal)}
         >
@@ -580,6 +588,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
             />
           ) : visibleActionModal.mode === "rent-recovery" ? (
             <HistoricalRentRecoveryForm
+              currentRentStatuses={props.currentRentStatuses}
               fixedLease={visibleActionModal.lease}
               leases={visibleActionModal.eligibleLeaseIds ? props.leases.filter(lease => visibleActionModal.eligibleLeaseIds?.includes(lease.id)) : props.leases}
               requireLeaseChoice={Boolean(visibleActionModal.eligibleLeaseIds)}
@@ -608,8 +617,11 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
             ) : (
               <PaymentChooser
                 invoices={props.tenantInvoices.filter(
-                  (invoice) => invoice.balanceDue > 0 && (!visibleActionModal.transactionScope || invoice.propertyId === visibleActionModal.transactionScope.propertyId && (visibleActionModal.transactionScope.kind !== "unit" || invoice.unitId === visibleActionModal.transactionScope.id)),
+                  (invoice) => invoice.balanceDue > 0 && isVisibleTenantInvoice(invoice)
+                    && (!props.initialRentLeaseId || invoice.leaseId === props.initialRentLeaseId)
+                    && (!visibleActionModal.transactionScope || invoice.propertyId === visibleActionModal.transactionScope.propertyId && (visibleActionModal.transactionScope.kind !== "unit" || invoice.unitId === visibleActionModal.transactionScope.id)),
                 )}
+                paginated={(props.tenantInvoicePage?.pagination.totalPages ?? 1) > 1}
                 onChoose={(invoice) =>
                   setModal({ canChooseAnother: true, invoice, mode: "payment", transactionScope: visibleActionModal.transactionScope })
                 }
@@ -637,6 +649,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
           ) : visibleActionModal.mode === "settlement-reversal" ? (
             <SettlementReversalForm
               invoice={visibleActionModal.invoice}
+              organizationName={organizationName}
               onSuccess={onActionSuccess}
             />
           ) : visibleActionModal.mode === "withdrawal" ? (
@@ -788,8 +801,8 @@ function getScreen(
       : [];
     const scopedLease = scopedLeases.length === 1 ? scopedLeases[0] : undefined;
     const openInvoices = invoices.filter((invoice) => invoice.balanceDue > 0);
-    const focusedPayableInvoice = props.initialRentLeaseId
-      ? invoices.find((invoice) => invoice.balanceDue > 0)
+    const focusedPayableInvoice = props.initialRentLeaseId && openInvoices.length === 1 && (props.tenantInvoicePage?.pagination.totalPages ?? 1) === 1
+      ? openInvoices[0]
       : undefined;
     return {
       activeRoute: "/rent-income" as const,
@@ -841,6 +854,7 @@ function getScreen(
       body: (
         <RentView
           manualRent={manualRent}
+          canViewLeases={props.canViewLeases ?? false}
           canGenerateRent={props.canRecordPayments && props.canRetryCurrentRent && (!props.initialRentLeaseId || Boolean(focusedLease))}
           leases={props.leases}
           currentRentStatuses={props.currentRentStatuses}
@@ -850,6 +864,7 @@ function getScreen(
           units={props.unitOptions}
           properties={props.propertyOptions}
           page={props.tenantInvoicePage}
+          selectedInvoice={props.selectedTenantInvoice}
           positions={props.positions}
           invoices={invoices}
           openModal={openModal}
@@ -1716,6 +1731,7 @@ function RentGenerationRetry({
 }
 
 function HistoricalRentRecoveryForm({
+  currentRentStatuses,
   fixedLease,
   leases,
   onSuccess,
@@ -1723,6 +1739,7 @@ function HistoricalRentRecoveryForm({
   canRecoverHistorical = false,
   requireLeaseChoice = false,
 }: {
+  currentRentStatuses?: CurrentLeaseRentStatus[];
   fixedLease?: FinanceLease;
   leases: FinanceLease[];
   onSuccess: (message: string) => void;
@@ -1730,7 +1747,7 @@ function HistoricalRentRecoveryForm({
   canRecoverHistorical?: boolean;
   requireLeaseChoice?: boolean;
 }) {
-  const { getBusinessMonthValue } = useBusinessDate();
+  const { getBusinessMonthValue, getCurrentTime } = useBusinessDate();
   const [chooseEarlierMonth, setChooseEarlierMonth] = useState(false);
   const currentBillingMonth = manualRent && (!canRecoverHistorical || !chooseEarlierMonth);
   const eligibleLeases = (fixedLease ? [fixedLease] : leases).filter(
@@ -1740,7 +1757,11 @@ function HistoricalRentRecoveryForm({
       lease.status === "ended" ||
       lease.status === "terminated",
   );
-  const [selectedLeaseId, setSelectedLeaseId] = useState(requireLeaseChoice ? "" : eligibleLeases[0]?.id ?? "");
+  const [selectedLeaseId, setSelectedLeaseId] = useState(!requireLeaseChoice && eligibleLeases.length === 1 ? eligibleLeases[0].id : "");
+  const leaseTimezone = eligibleLeases.find(lease => lease.id === selectedLeaseId)?.billing?.rentCalculationTimezone;
+  const currentLeaseMonth = currentRentStatuses?.find(status => status.leaseId === selectedLeaseId)?.billingPeriodStart?.slice(0, 7)
+    ?? (leaseTimezone ? getCalendarDateInTimeZone(getCurrentTime(), leaseTimezone).slice(0, 7) : getBusinessMonthValue());
+  const latestHistoricalMonth = getPreviousBusinessMonthValue(currentLeaseMonth);
   const [state, action, pending] = useActionState(
     recoverLeaseRentPeriodAction,
     actionInitialState,
@@ -1787,7 +1808,9 @@ function HistoricalRentRecoveryForm({
         {currentBillingMonth ? <><input type="hidden" name="billingPeriod" value="current" /><p className="text-sm">Current billing month for the selected lease.{!canRecoverHistorical ? " A Super Admin can generate earlier months." : ""}</p></> :
         <MonthPickerField
           ariaLabel={manualRent ? "Billing month" : "Missed rent month"}
-          defaultValue={manualRent ? undefined : getPreviousBusinessMonthValue(getBusinessMonthValue())}
+          defaultValue={latestHistoricalMonth}
+          key={`${selectedLeaseId}:${latestHistoricalMonth}`}
+          maxMonth={latestHistoricalMonth}
           name="billingPeriod"
           required
         />}
@@ -1795,7 +1818,7 @@ function HistoricalRentRecoveryForm({
       <ActionMessage state={state} />
       <FormFooter>
         <span className="text-xs text-muted-foreground">
-          Existing lease-month invoices are replayed safely.
+          Each lease has one rent invoice per billing month.
         </span>
         <SubmitButton disabled={!fixedLease && !selectedLeaseId} label="Generate selected month" />
       </FormFooter>
@@ -1805,6 +1828,7 @@ function HistoricalRentRecoveryForm({
 
 function RentView({
   manualRent,
+  canViewLeases,
   canGenerateRent,
   currentRentStatuses,
   rentUnitTargets,
@@ -1814,6 +1838,7 @@ function RentView({
   units,
   properties,
   page,
+  selectedInvoice,
   positions,
   invoices,
   openModal,
@@ -1821,6 +1846,7 @@ function RentView({
   scoped,
 }: {
   manualRent: boolean;
+  canViewLeases: boolean;
   canGenerateRent: boolean;
   currentRentStatuses?: CurrentLeaseRentStatus[];
   rentUnitTargets?: RentUnitTarget[];
@@ -1830,6 +1856,7 @@ function RentView({
   units: FinanceOperationsData["unitOptions"];
   properties: FinanceOperationsData["propertyOptions"];
   page?: FinanceOperationsData["tenantInvoicePage"];
+  selectedInvoice?: TenantInvoiceSummary | null;
   positions: FinanceOperationsData["positions"];
   invoices: TenantInvoiceSummary[];
   openModal: (modal: ModalState) => void;
@@ -1867,6 +1894,7 @@ function RentView({
       />
       {!hideUnitList ? <RentUnitList
         canGenerateRent={canGenerateRent}
+        canViewLeases={canViewLeases}
         currentRentStatuses={currentRentStatuses}
         rentUnitTargets={listTargets}
         leases={listLeases}
@@ -1875,6 +1903,12 @@ function RentView({
           mode: "rent-recovery",
           ...(eligibleLeases.length === 1 ? { lease: eligibleLeases[0] } : { eligibleLeaseIds: eligibleLeases.map(lease => lease.id) }),
         })}
+        onViewInvoice={(id) => {
+          const invoice = selectedInvoice?.id === id ? selectedInvoice : invoices.find(item => item.id === id);
+          if (!invoice) return false;
+          openModal({ invoice, mode: "invoice-details" });
+          return true;
+        }}
         properties={listProperties}
         units={listUnits}
       /> : null}
@@ -1904,15 +1938,14 @@ function RentView({
         ) : (
           <TableFrame className="p-0">
             <Table scrollRegionLabel="Finance records"
-              className={cn("table-fixed min-w-[1000px]", scoped && "lg:min-w-[960px]")}
+              className="table-fixed min-w-[800px]"
             >
               <colgroup>
-                <col className="w-[21%]" />
-                <col className="w-[28%]" />
-                <col className="w-[12%]" />
-                <col className="w-[16%]" />
-                <col className="w-[14%]" />
-                <col className="w-[9%]" />
+                <col className="w-[23%]" />
+                <col className="w-[32%]" />
+                <col className="w-[13%]" />
+                <col className="w-[17%]" />
+                <col className="w-[15%]" />
               </colgroup>
               <thead className="bg-[var(--table-header-bg)]">
                 <tr>
@@ -1921,21 +1954,26 @@ function RentView({
                   <Th>Collected by</Th>
                   <Th align="right">Balance</Th>
                   <Th>Status</Th>
-                  <Th align="right">Preview</Th>
                 </tr>
               </thead>
               <tbody>
                 {filteredInvoices.map((invoice) => (
                   <tr className="border-b border-border" key={invoice.id}>
                     <Td className="overflow-hidden">
-                      <p className="whitespace-normal [overflow-wrap:anywhere] font-medium" title={invoice.invoiceNumber}>
+                      <button
+                        type="button"
+                        className="min-h-8 min-w-8 rounded-sm text-left font-medium text-primary underline underline-offset-2 [overflow-wrap:anywhere] focus-visible:outline-2 focus-visible:outline-ring"
+                        aria-label={`View invoice ${invoice.invoiceNumber}`}
+                        onClick={() => openModal({ invoice, mode: "invoice-details" })}
+                      >
                         {invoice.invoiceNumber}
-                      </p>
+                      </button>
                       <p
                         className="whitespace-normal [overflow-wrap:anywhere] text-xs text-foreground"
                         title={invoice.lines.map((line) => line.label).join(", ")}
                       >
-                        {invoice.lines.map((line) => line.label).join(", ")}
+                        <span>{invoice.lines.map((line) => line.label).join(", ")}</span>
+                        {" · "}{formatLeaseMonth(invoice.billingPeriodStart)}
                       </p>
                       <p className="whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">
                         Due {formatDate(invoice.dueDate)}
@@ -1986,19 +2024,6 @@ function RentView({
                         settlements={invoice.settlements}
                         status={invoice.paymentStatus}
                       />
-                    </Td>
-                    <Td align="right">
-                      <Button
-                        aria-label={`View invoice ${invoice.invoiceNumber}`}
-                        className="h-8 w-8 px-0"
-                        onClick={() =>
-                          openModal({ invoice, mode: "invoice-details" })
-                        }
-                        title={`View invoice ${invoice.invoiceNumber}`}
-                        variant="ghost"
-                      >
-                        <Eye size={15} />
-                      </Button>
                     </Td>
                   </tr>
                 ))}
@@ -2384,6 +2409,7 @@ function InvoiceDetails({
   pdf,
   pdfResultHref,
   publicationOpen,
+  reportReturnHref,
 }: {
   businessDate: string;
   canCorrectFinance: boolean;
@@ -2401,6 +2427,7 @@ function InvoiceDetails({
   pdf: CommercialDocumentLink;
   pdfResultHref: string | null;
   publicationOpen: boolean;
+  reportReturnHref?: string | null;
 }) {
   const canCorrect =
     canCorrectFinance &&
@@ -2422,6 +2449,7 @@ function InvoiceDetails({
   return (
     <>
       <div className="space-y-4 p-4" hidden={publicationOpen}>
+      <ReportReturnNavigation returnTo={reportReturnHref ?? undefined} />
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="font-semibold">{invoice.invoiceNumber}</p>
@@ -3247,18 +3275,27 @@ function AccountPositionItem({
 function PaymentChooser({
   invoices,
   onChoose,
+  paginated,
 }: {
   invoices: TenantInvoiceSummary[];
   onChoose: (invoice: TenantInvoiceSummary) => void;
+  paginated: boolean;
 }) {
+  const [query, setQuery] = useState("");
+  const matches = invoices.filter(invoice => matchesSearchText(query, [
+    invoice.recipientLabel, invoice.propertyLabel, invoice.unitLabel, invoice.invoiceNumber,
+    invoice.billingPeriodStart.slice(0, 7), formatLeaseMonth(invoice.billingPeriodStart),
+  ]));
   return (
     <div className="max-h-[520px] overflow-y-auto p-2">
-      {invoices.length === 0 ? (
+      {invoices.length > 1 ? <Input type="search" aria-label="Search open invoices" placeholder="Search tenant, unit, invoice or lease month" value={query} onChange={event => setQuery(event.target.value)} /> : null}
+      {paginated ? <p className="p-2 text-xs text-muted-foreground">Showing open invoices on this page. Use the register search to find invoices on other pages.</p> : null}
+      {matches.length === 0 ? (
         <p className="p-4 text-sm text-muted-foreground">
-          There are no open tenant invoices.
+          {invoices.length ? "No matching open invoices." : "There are no open tenant invoices."}
         </p>
       ) : (
-        invoices.map((invoice) => (
+        matches.map((invoice) => (
           <Button
             className="h-auto w-full justify-between gap-4 px-3 py-3 text-left"
             key={invoice.id}
@@ -3266,12 +3303,15 @@ function PaymentChooser({
             type="button"
             variant="ghost"
           >
-            <span>
+            <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">
               <span className="block text-sm font-medium">
                 {invoice.recipientLabel}
               </span>
               <span className="block text-xs text-muted-foreground">
                 {invoice.propertyLabel} · {invoice.invoiceNumber}
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                {invoice.unitLabel} · {formatLeaseMonth(invoice.billingPeriodStart)} lease month
               </span>
             </span>
             <span className="flex items-center gap-2">
@@ -3572,15 +3612,18 @@ function ExpenseReversalForm({
 function SettlementReversalForm({
   invoice,
   onSuccess,
+  organizationName,
 }: {
   invoice: TenantInvoiceSummary;
   onSuccess: (message: string) => void;
+  organizationName: string;
 }) {
   const { getBusinessDateValue } = useBusinessDate();
   const settlements = invoice.settlements.filter(
     (settlement) => !settlement.isReversed,
   );
-  const [settlementId, setSettlementId] = useState(settlements[0]?.id ?? "");
+  const [selectedId, setSelectedId] = useState(settlements.length === 1 ? settlements[0].id : "");
+  const settlementId = settlements.find(settlement => settlement.id === selectedId)?.id ?? "";
   const [reason, setReason] = useState("");
   const idempotencyKey = useStableActionId("settlement-reversal");
   const action =
@@ -3608,10 +3651,12 @@ function SettlementReversalForm({
         rows={[
           ["Invoice", invoice.invoiceNumber],
           ["Customer", invoice.recipientLabel],
+          ["Lease month", formatLeaseMonth(invoice.billingPeriodStart)],
+          ["Unit", invoice.unitLabel],
           [
             "Collection route",
             invoice.collectionRoute === "through_ips"
-              ? "Collected by IPS"
+              ? `Collected by ${getOrganizationShortLabel(organizationName)}`
               : "Collected by owner",
           ],
         ]}
@@ -3620,17 +3665,19 @@ function SettlementReversalForm({
         <SelectControl
           ariaLabel="Payment record"
           name="settlementId"
-          onValueChange={setSettlementId}
+          onValueChange={setSelectedId}
           options={settlements.map((settlement) => ({
             label: settlementOptionLabel(settlement),
             value: settlement.id,
           }))}
+          placeholder="Choose a payment record"
           required
           value={settlementId}
         />
       </Field>
       <Field label="Reversal date">
         <DatePickerField
+          ariaLabel="Reversal date"
           defaultValue={getBusinessDateValue()}
           name="reversalDate"
           required
@@ -3666,6 +3713,7 @@ function settlementOptionLabel(settlement: TenantInvoiceSettlement) {
     formatDate(settlement.date),
     formatMoneyDisplay(settlement.amount).primary,
     reference || null,
+    settlement.receiptNumber,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -4149,13 +4197,6 @@ function expenseStatusTone(
   status: ExpenseSubmissionSummary["status"],
 ): "danger" | "neutral" | "success" | "warning" {
   return expenseStatusPresentation(status).tone;
-}
-
-function formatLeaseMonth(value: string) {
-  const date = new Date(`${value.slice(0, 10)}T00:00:00Z`);
-  return Number.isNaN(date.getTime())
-    ? value
-    : leaseMonthFormatter.format(date);
 }
 
 function getPreviousBusinessMonthValue(businessMonth: string) {

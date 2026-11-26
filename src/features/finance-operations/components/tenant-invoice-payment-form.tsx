@@ -33,6 +33,7 @@ import {
   isTenantPaymentReceivingAccount,
 } from "@/features/finance-accounts/finance-account-selection";
 import { useBusinessDate } from "@/lib/dates/business-date-provider";
+import { formatLeaseMonth } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
 
 export type TenantPaymentReceiptResult = {
@@ -162,6 +163,8 @@ function TenantInvoicePaymentFormStateful({
         rows={[
           ["Invoice", invoice.invoiceNumber],
           ["Customer", invoice.recipientLabel],
+          ["Lease month", formatLeaseMonth(invoice.billingPeriodStart)],
+          ["Unit", invoice.unitLabel],
           ["Balance", formatMoneyDisplay(invoice.balanceDue).primary],
           ...(invoice.collectionRoute === "through_ips"
             ? ([

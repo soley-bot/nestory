@@ -25,6 +25,7 @@ type MonthPickerFieldProps = {
   ariaLabel?: string;
   className?: string;
   defaultValue?: string;
+  maxMonth?: string;
   name: string;
   onValueChange?: (value: string) => void;
   required?: boolean;
@@ -34,6 +35,7 @@ export function MonthPickerField({
   ariaLabel,
   className,
   defaultValue,
+  maxMonth,
   name,
   onValueChange,
   required = false,
@@ -81,7 +83,8 @@ export function MonthPickerField({
               <p className="text-sm font-semibold">{visibleYear}</p>
               <button
                 aria-label="Next year"
-                className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
+                disabled={Boolean(maxMonth && visibleYear >= Number(maxMonth.slice(0, 4)))}
                 onClick={() => setVisibleYear((year) => year + 1)}
                 type="button"
               >
@@ -101,8 +104,9 @@ export function MonthPickerField({
                   <button
                     aria-label={`${month} ${visibleYear}`}
                     aria-pressed={isSelected}
+                    disabled={Boolean(maxMonth && monthValue > maxMonth)}
                     className={cn(
-                      "h-8 rounded-md text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
+                      "h-8 rounded-md text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40",
                       isSelected
                         ? "bg-accent text-accent-foreground hover:bg-accent"
                         : "text-foreground",
@@ -133,7 +137,7 @@ export function MonthPickerField({
               >
                 Clear
               </button>
-              <button
+              {(!maxMonth || getToday().slice(0, 7) <= maxMonth) && <button
                 className="rounded-md px-2 py-1 text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => {
                   const currentMonth = getToday().slice(0, 7);
@@ -145,7 +149,7 @@ export function MonthPickerField({
                 type="button"
               >
                 This month
-              </button>
+              </button>}
             </div>
           </Popover.Content>
         </Popover.Portal>
