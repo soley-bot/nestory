@@ -1,35 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
-import { getPeopleInsightsData } from "@/features/people/data/people-insights";
+import { getPeopleAttentionData } from "@/features/people/data/people-insights";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(),
 }));
 
-describe("getPeopleInsightsData", () => {
+describe("getPeopleAttentionData", () => {
   it("computes a safe exact DTO across every active organization record", async () => {
     const rows = makeRows(205);
     const supabase = createInsightsClient(rows);
     vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
 
-    const insights = await getPeopleInsightsData("org-1");
+    const insights = await getPeopleAttentionData("org-1");
 
-    expect(insights).toMatchObject({
-      totalCount: 205,
-      visibleCount: 205,
-    });
-    expect(findMetric(insights, "People")?.value).toBe("205");
-    expect(findMetric(insights, "Tenants")?.value).toBe("101/101");
-    expect(findMetric(insights, "Owners")?.value).toBe("50/50");
-    expect(findMetric(insights, "Vendors")?.value).toBe("30/30");
-    expect(findRelationship(insights, "Staff readiness")).toMatchObject({
-      count: 20,
-      readyCount: 20,
-    });
+    expect(Object.keys(insights)).toEqual(["attentionQueues"]);
     expect(findQueue(insights, "missing-contact")?.count).toBe(1);
     expect(findQueue(insights, "missing-role")?.count).toBe(4);
-    expect(findQueue(insights, "missing-evidence")?.count).toBe(205);
     expect(findQueue(insights, "vendor-review")?.count).toBe(0);
+    expect(findQueue(insights, "missing-evidence")).toBeUndefined();
 
     const peopleQueries = supabase.queries.filter(
       (query) => query.table === "people",
@@ -37,7 +26,7 @@ describe("getPeopleInsightsData", () => {
     expect(peopleQueries).toHaveLength(2);
     expect(
       peopleQueries.every(
-        (query) => query.limit !== undefined && query.limit <= 200,
+        (query) => query.range !== undefined && query.range[1] - query.range[0] < 200,
       ),
     ).toBe(true);
     expect(
@@ -51,40 +40,21 @@ describe("getPeopleInsightsData", () => {
       ),
     ).toBe(true);
 
-    const allowedColumns: Record<TableName, string[]> = {
-      documents: ["id", "lease_id", "property_id", "unit_id"],
-      lease_parties: [
-        "id",
-        "person_id",
-        "lease_id",
-        "ended_on",
-        "archived_at",
-      ],
-      leases: [
-        "id",
-        "property_id",
-        "unit_id",
-        "status",
-        "archived_at",
-      ],
+    const allowedColumns: Partial<Record<TableName, string[]>> = {
       people: ["id", "primary_email", "primary_phone"],
       person_contacts: ["id", "person_id", "email", "phone"],
       person_roles: ["id", "person_id", "role"],
-      property_owners: [
-        "id",
-        "person_id",
-        "property_id",
-        "ended_on",
-        "archived_at",
-      ],
-      vendor_profiles: ["id", "person_id", "archived_at"],
+      vendor_profiles: ["id", "person_id"],
     };
+    expect([...new Set(supabase.queries.map(query => query.table))].sort())
+      .toEqual(Object.keys(allowedColumns).sort());
 
     expect(supabase.queries).not.toHaveLength(0);
     for (const query of supabase.queries) {
       expect(query.selectedColumns).toEqual(allowedColumns[query.table]);
       expect(query.orders).toEqual([{ ascending: true, column: "id" }]);
-      expect(query.limit).toBeLessThanOrEqual(200);
+      expect(query.count).toBe("exact");
+      expect(query.range![1] - query.range![0]).toBeLessThan(200);
     }
     expect(supabase.storageFrom).not.toHaveBeenCalled();
 
@@ -112,10 +82,64 @@ describe("getPeopleInsightsData", () => {
     });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
 
-    await expect(getPeopleInsightsData("org-1")).rejects.toThrow(
+    await expect(getPeopleAttentionData("org-1")).rejects.toThrow(
       "Could not load people insights from person_roles: denied",
     );
   });
+  it("continues through smaller API pages without truncating the attention counts", async () => {
+    const supabase = createInsightsClient(makeRows(205), { apiCap: 25 });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+    const insights = await getPeopleAttentionData("org-1");
+    expect(findQueue(insights, "missing-contact")?.count).toBe(1);
+    expect(findQueue(insights, "missing-role")?.count).toBe(4);
+    expect(supabase.queries.filter(query => query.table === "people")).toHaveLength(9);
+  });
+
+  it("rejects changing source counts instead of presenting incomplete totals", async () => {
+    const supabase = createInsightsClient(makeRows(205), { changingTable: "people" });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+    await expect(getPeopleAttentionData("org-1")).rejects.toThrow("row count changed");
+  });
+
+  it("does not read unused evidence or relationship sources", async () => {
+    const supabase = createInsightsClient(makeRows(205), { failTable: "documents" });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+    expect((await getPeopleAttentionData("org-1")).attentionQueues).toHaveLength(3);
+    expect(supabase.queries.some(query =>
+      ["documents", "leases", "lease_parties", "property_owners"].includes(query.table),
+    )).toBe(false);
+  });
+
+  it("preserves contact, active-role and vendor readiness rules without double counting", async () => {
+    const rows = makeRows(6);
+    rows.people[0].primary_email = "  ";
+    rows.people[1].primary_email = null;
+    rows.person_roles[2].status = "inactive";
+    rows.person_roles[3].archived_at = "2026-01-01";
+    rows.person_roles[4].role = "unknown";
+    const common = { organization_id: "org-1", archived_at: null };
+    rows.person_contacts.push(
+      { ...common, id: "contact-1", person_id: "person-001", email: "contact@example.com", phone: null },
+      { ...common, id: "contact-2", person_id: "person-002", email: "old@example.com", phone: null, archived_at: "2026-01-01" },
+      { ...common, id: "contact-3", person_id: "person-002", email: "other@example.com", phone: null, organization_id: "org-2" },
+    );
+    rows.person_roles.push(
+      ...makeRoleRange(1, 2, "vendor"),
+      { ...makeRoleRange(2, 2, "vendor")[0], id: "duplicate-vendor-role" },
+      ...makeRoleRange(998, 999, "vendor"),
+    );
+    rows.vendor_profiles.push(
+      { ...common, id: "vendor-1", person_id: "person-001" },
+      { ...common, id: "vendor-2", person_id: "person-002", archived_at: "2026-01-01" },
+    );
+    const supabase = createInsightsClient(rows);
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+    const insights = await getPeopleAttentionData("org-1");
+    expect(findQueue(insights, "missing-contact")?.count).toBe(1);
+    expect(findQueue(insights, "missing-role")?.count).toBe(3);
+    expect(findQueue(insights, "vendor-review")?.count).toBe(1);
+  });
+
 });
 
 type TableName =
@@ -137,6 +161,8 @@ type RecordedFilter = {
 type RecordedQuery = {
   filters: RecordedFilter[];
   limit?: number;
+  count?: "exact";
+  range?: [number, number];
   orders: Array<{ ascending: boolean; column: string }>;
   selectedColumns: string[];
   table: TableName;
@@ -144,7 +170,7 @@ type RecordedQuery = {
 
 function createInsightsClient(
   rowsByTable: Record<TableName, Array<Record<string, unknown>>>,
-  { failTable }: { failTable?: TableName } = {},
+  { failTable, apiCap = Infinity, changingTable }: { failTable?: TableName; apiCap?: number; changingTable?: TableName } = {},
 ) {
   const queries: RecordedQuery[] = [];
   const storageFrom = vi.fn();
@@ -160,6 +186,7 @@ function createInsightsClient(
       queries.push(query);
 
       const builder = {
+        returns: () => builder,
         eq(column: string, value: unknown) {
           query.filters.push({ column, operator: "eq", value });
           return builder;
@@ -183,7 +210,12 @@ function createInsightsClient(
           });
           return builder;
         },
-        select(columns: string) {
+        range(from: number, to: number) {
+          query.range = [from, to];
+          return builder;
+        },
+        select(columns: string, options?: { count?: "exact" }) {
+          query.count = options?.count;
           query.selectedColumns = columns
             .split(",")
             .map((column) => column.trim());
@@ -202,9 +234,13 @@ function createInsightsClient(
         ) {
           const value =
             table === failTable
-              ? { data: null, error: { message: "denied" } }
+              ? { count: null, data: null, error: { message: "denied" } }
               : {
-                  data: applyQuery(rowsByTable[table], query),
+                  count: query.count === "exact"
+                    ? applyQuery(rowsByTable[table], { ...query, range: undefined, limit: undefined }).length
+                      + (table === changingTable && (query.range?.[0] ?? 0) > 0 ? 1 : 0)
+                    : null,
+                  data: applyQuery(rowsByTable[table], query).slice(0, apiCap),
                   error: null,
                 };
 
@@ -237,7 +273,7 @@ function applyQuery(
     .toSorted((first, second) =>
       String(first.id).localeCompare(String(second.id)),
     )
-    .slice(0, query.limit)
+    .slice(query.range?.[0] ?? 0, query.range ? query.range[1] + 1 : query.limit)
     .map((row) =>
       Object.fromEntries(
         query.selectedColumns.map((column) => [column, row[column]]),
@@ -358,22 +394,8 @@ function pad(value: number) {
   return String(value).padStart(3, "0");
 }
 
-function findMetric(
-  insights: Awaited<ReturnType<typeof getPeopleInsightsData>>,
-  label: string,
-) {
-  return insights.metrics.find((metric) => metric.label === label);
-}
-
-function findRelationship(
-  insights: Awaited<ReturnType<typeof getPeopleInsightsData>>,
-  label: string,
-) {
-  return insights.relationshipStats.find((stat) => stat.label === label);
-}
-
 function findQueue(
-  insights: Awaited<ReturnType<typeof getPeopleInsightsData>>,
+  insights: Awaited<ReturnType<typeof getPeopleAttentionData>>,
   id: string,
 ) {
   return insights.attentionQueues.find((queue) => queue.id === id);

@@ -206,6 +206,29 @@ function selectRecordedColumns(
 }
 
 describe("searchWorkspace", () => {
+  it("shares related reads across categories but never across search requests", async () => {
+    const common = { organization_id: "org-1", archived_at: null };
+    const { client, queries } = createSearchClient({
+      properties: [{ ...common, id: "p1", name: "Riverside", code: "RIV", address: "" }],
+      units: [{ ...common, id: "u1", property_id: "p1", unit_number: "101", status: "occupied" }],
+      current_leases: [{ ...common, id: "l1", property_id: "p1", unit_id: "u1", tenant_name: "Tenant", status: "active" }],
+      tasks: [{ ...common, id: "t1", property_id: "p1", unit_id: "u1", title: "Repair", description: "", category: "repair", status: "pending" }],
+      documents: [{ ...common, id: "d1", property_id: "p1", unit_id: "u1", file_name: "lease.pdf", category: "lease" }],
+    });
+    const options = { client: client as never, context: superAdminContext(), query: "Riverside" };
+    const first = await searchWorkspaceWithStatus(options);
+    expect(first.results.map(row => row.id).sort()).toEqual(["d1", "l1", "p1", "t1", "u1"]);
+    expect(first.partial).toBe(false);
+    const propertyReads = () => queries.filter(query => query.table === "properties" && query.filters.some(filter =>
+      filter.column === "id" && filter.operator === "in" && JSON.stringify(filter.value) === '["p1"]',
+    ));
+    expect(propertyReads()).toHaveLength(1);
+    const count = queries.length;
+    expect(await searchWorkspaceWithStatus(options)).toEqual(first);
+    expect(propertyReads()).toHaveLength(2);
+    expect(queries).toHaveLength(count * 2);
+  });
+
   it("retains direct matches and reports partial search when owner context is unavailable", async () => {
     const {client} = createSearchClient({people: [{id: "person", organization_id: "org-1", archived_at: null, display_name: "Morgan", legal_name: null}]}, ["property_owners"]);
     const result = await searchWorkspaceWithStatus({client: client as never, context: superAdminContext(), query: "Morgan"});

@@ -33,6 +33,7 @@ export function createPortfolioSearch(properties: PortfolioProperty[], units: Po
     ownerValues: (id: string) => owners.get(id) ?? [],
     ownerIds: (token: string) => [...owners].filter(([, values]) => matchesSearchText(token, values)).map(([id]) => id),
     propertyValues: (id: string) => propertyText.get(id) ?? [],
+    propertyValuesWithUnits: (id: string) => propertyWithUnits.get(id) ?? [],
     unitValues: (id: string) => unitText.get(id) ?? [],
     matchesProperty(query: string, id: string, extra: string[] = []) {
       return matchesSearchText(query, [...(propertyWithUnits.get(id) ?? []), ...extra]);

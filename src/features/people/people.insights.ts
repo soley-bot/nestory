@@ -167,41 +167,12 @@ export function buildPeopleInsightsFromCounts({
   visibleCount,
 }: PeopleInsightCounts): PeopleInsights {
   return {
-    attentionQueues: [
-      {
-        count: missingContactCount,
-        description: "People records without a usable email or phone.",
-        href: "/people?status=missing_contact",
-        id: "missing-contact",
-        label: "Missing contact",
-        tone: missingContactCount > 0 ? "warning" : "success",
-      },
-      {
-        count: missingRoleCount,
-        description: "Records that cannot drive workflows until a role is set.",
-        href: "/people?status=no_role",
-        id: "missing-role",
-        label: "No role",
-        tone: missingRoleCount > 0 ? "warning" : "success",
-      },
-      {
-        count: missingEvidenceCount,
-        description: "Records without linked documents or evidence.",
-        href: "/people",
-        id: "missing-evidence",
-        label: "Evidence gaps",
-        tone: missingEvidenceCount > 0 ? "warning" : "success",
-      },
-      {
-        count: vendors.count - vendors.readyCount,
-        description: "Vendor records missing contact or service profile context.",
-        href: "/vendors",
-        id: "vendor-review",
-        label: "Vendor review",
-        tone:
-          vendors.count - vendors.readyCount > 0 ? "warning" : "success",
-      },
-    ],
+    attentionQueues: buildPeopleAttentionQueuesFromCounts({
+      missingContactCount,
+      missingEvidenceCount,
+      missingRoleCount,
+      vendorReviewCount: vendors.count - vendors.readyCount,
+    }),
     metrics: [
       {
         helper:
@@ -272,6 +243,56 @@ export function buildPeopleInsightsFromCounts({
     totalCount,
     visibleCount,
   };
+}
+
+export function buildPeopleAttentionQueuesFromCounts({
+  missingContactCount,
+  missingEvidenceCount,
+  missingRoleCount,
+  vendorReviewCount,
+}: {
+  missingContactCount: number;
+  missingEvidenceCount?: number;
+  missingRoleCount: number;
+  vendorReviewCount: number;
+}): PeopleAttentionQueue[] {
+  const queues: PeopleAttentionQueue[] = [
+    {
+      count: missingContactCount,
+      description: "People records without a usable email or phone.",
+      href: "/people?status=missing_contact",
+      id: "missing-contact",
+      label: "Missing contact",
+      tone: missingContactCount > 0 ? "warning" : "success",
+    },
+    {
+      count: missingRoleCount,
+      description: "Records that cannot drive workflows until a role is set.",
+      href: "/people?status=no_role",
+      id: "missing-role",
+      label: "No role",
+      tone: missingRoleCount > 0 ? "warning" : "success",
+    },
+  ];
+  if (missingEvidenceCount !== undefined) {
+    queues.push({
+      count: missingEvidenceCount,
+      description: "Records without linked documents or evidence.",
+      href: "/people",
+      id: "missing-evidence",
+      label: "Evidence gaps",
+      tone: missingEvidenceCount > 0 ? "warning" : "success",
+    });
+  }
+  queues.push({
+    count: vendorReviewCount,
+    description: "Vendor records missing contact or service profile context.",
+    href: "/vendors",
+    id: "vendor-review",
+    label: "Vendor review",
+    tone: vendorReviewCount > 0 ? "warning" : "success",
+  });
+  return queues;
 }
 
 export function buildPeopleTrustedReport({

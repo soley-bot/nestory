@@ -1689,8 +1689,10 @@ export function MaintenanceForm({
   useDrawerDraftGuard(guard);
 
   useEffect(() => {
+    // A fast response can settle without a separate pending render. Release the
+    // synchronous duplicate-submit lock when the completed state arrives too.
     if (!pending) submitLockedRef.current = false;
-  }, [pending]);
+  }, [pending, state]);
 
   useEffect(() => {
     if (formRef.current) {

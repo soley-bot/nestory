@@ -5,7 +5,7 @@ import { PeopleScreen } from "@/features/people/components/people-screen";
 import { PeopleScreenSkeleton } from "@/features/people/components/people-screen-skeleton";
 import { PeopleCommandCenter } from "@/features/people/components/people-command-center";
 import { getAccessByPersonId } from "@/features/organization/data";
-import { getPeopleInsightsData } from "@/features/people/data/people-insights";
+import { getPeopleAttentionData } from "@/features/people/data/people-insights";
 import { getPeopleScreenData } from "@/features/people/data/people";
 import { parsePeopleSearchParams } from "@/features/people/people.filters";
 import type { PersonRoleValue } from "@/features/people/people.types";
@@ -96,9 +96,9 @@ export async function PeopleInsightsAction({
 }: {
   organizationId: string;
 }) {
-  let insights: Awaited<ReturnType<typeof getPeopleInsightsData>>;
+  let insights: Awaited<ReturnType<typeof getPeopleAttentionData>>;
   try {
-    insights = await getPeopleInsightsData(organizationId);
+    insights = await getPeopleAttentionData(organizationId);
   } catch (error) {
     unstable_rethrow(error);
     Sentry.captureException(error, {
