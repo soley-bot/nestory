@@ -103,17 +103,17 @@ export const pilotManualRestartStatusSchema = z.object({
   eligible: z.boolean(), status: z.enum(["ready", "already_open", "not_ready"]),
   operation_id: z.literal(PILOT_RESET_OPERATION), generation: z.literal(1),
   checkpoint_sha256: sha.nullable(), financial_start_date: z.literal("2026-10-01"),
-  billing_mode: z.enum(["manual", "paused"]),
+  billing_mode: z.enum(["manual", "paused", "automatic"]),
   preserved_counts: z.object({ properties: count, units: count, people: count, leases: count }),
   reason: z.string().nullable(),
 }).refine(value => !value.eligible || value.status === "ready" && value.checkpoint_sha256 !== null && value.billing_mode === "paused");
 export type PilotManualRestartStatus = z.infer<typeof pilotManualRestartStatusSchema>;
 export type ManualRestartActionState = { kind: "idle" | "invalid" | "uncertain" | "reopened"; message?: string };
 export const pilotManualRestartReceiptSchema = z.object({
-  status: z.enum(["open", "already_open"]), billing_mode: z.literal("manual"), generation: z.literal(1),
+  status: z.enum(["open", "already_open"]), billing_mode: z.enum(["manual", "automatic"]), generation: z.literal(1),
   operation_id: z.literal(PILOT_RESET_OPERATION), financial_start_date: z.literal("2026-10-01"),
   checkpoint_sha256: sha, receipt_recorded_at: z.iso.datetime({ offset: true }),
-});
+}).refine(value => value.status !== "open" || value.billing_mode === "manual");
 
 export function parseSessionReview(source: string): SessionReview | null {
   if (typeof source !== "string" || new TextEncoder().encode(source).length > MAX_REVIEW_BYTES) return null;

@@ -144,4 +144,10 @@ describe("Pilot manual billing restart", () => {
     expect((await restart()).kind).toBe("uncertain");
     expect(rpc).toHaveBeenCalledTimes(3);
   });
+  it("reports the saved automatic mode on a complete already-open replay", async () => {
+    rpc.mockResolvedValue({ data: { status: "already_open", billing_mode: "automatic", generation: 1,
+      operation_id: operationId, financial_start_date: "2026-10-01", checkpoint_sha256: checkpoint,
+      receipt_recorded_at: "2026-10-29T00:00:00+00:00" }, error: null });
+    expect(await restart()).toMatchObject({ kind: "reopened", message: expect.stringContaining("Automatic rent posting is on") });
+  });
 });

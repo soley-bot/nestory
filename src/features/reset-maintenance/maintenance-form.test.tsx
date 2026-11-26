@@ -107,6 +107,13 @@ it("does not offer a restart for unavailable or ineligible status", () => {
   view.rerender(<ManualRestartPanel status={{ ...readyRestart, eligible: false, status: "not_ready" }} />);
   expect(screen.queryByRole("checkbox")).toBeNull(); expect(restart).not.toHaveBeenCalled();
 });
+
+it("shows an already reopened workspace with automatic billing without offering another restart", () => {
+  render(<ManualRestartPanel status={{ ...readyRestart, eligible: false, status: "already_open", billing_mode: "automatic" }} />);
+  expect(screen.getByRole("link", { name: "Open Pilot" })).toBeTruthy();
+  expect(screen.getByText(/automatic rent posting is on/i)).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Reopen Pilot for manual billing" })).toBeNull();
+});
 it("locks an uncertain restart instead of automatically retrying it", async () => {
   restart.mockResolvedValue({ kind: "uncertain", message: "Refresh to reconcile." });
   render(<ManualRestartPanel status={readyRestart} />);

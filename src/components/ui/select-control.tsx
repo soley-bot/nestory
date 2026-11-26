@@ -28,6 +28,7 @@ type SelectControlProps = {
   "aria-labelledby"?: string;
   "aria-required"?: boolean | "false" | "true";
   ariaLabel?: string;
+  alwaysSearch?: boolean;
   className?: string;
   defaultValue?: string;
   disabled?: boolean;
@@ -47,6 +48,7 @@ export function SelectControl(props: SelectControlProps) {
     "aria-labelledby": ariaLabelledBy,
     "aria-required": ariaRequired,
     ariaLabel,
+    alwaysSearch = false,
     className,
     defaultValue = "",
     disabled = false,
@@ -64,7 +66,7 @@ export function SelectControl(props: SelectControlProps) {
   const previousValueRef = useRef(selectedValue);
   const hasEmptyOption = options.some((option) => option.value === "");
   const radixValue = toRadixValue(selectedValue, hasEmptyOption);
-  const usesSearch = Boolean(ariaLabel) && options.length >= SEARCHABLE_OPTION_THRESHOLD;
+  const usesSearch = Boolean(ariaLabel) && (alwaysSearch || options.length >= SEARCHABLE_OPTION_THRESHOLD);
 
   useEffect(() => {
     if (previousValueRef.current === selectedValue) {

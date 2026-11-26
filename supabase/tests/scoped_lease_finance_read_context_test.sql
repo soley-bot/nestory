@@ -272,7 +272,12 @@ SELECT is(jsonb_array_length((SELECT payload->'recovery_leases' FROM recovery_co
   'Finance-only recovery metadata retains both scoped termless leases and excludes other branches');
 SELECT is((SELECT array_agg(key ORDER BY key)::text FROM recovery_context_result,
   LATERAL jsonb_object_keys(payload->'recovery_leases'->0) key),
-  '{archived_at,id,property_id}','recovery metadata exposes only identity and archival fields');
+  '{archived_at,id,primary_tenant_person_id,property_id,status,unit_id}',
+  'the scoped base lease identifies its unit, tenant, status and archival');
+SELECT is((SELECT array_agg(r.lease_id) FROM read_scope_state s CROSS JOIN LATERAL
+  public.get_scoped_current_rent_statuses(s.org,ARRAY(SELECT lease_id FROM read_scope_rows)) r),
+  ARRAY[(SELECT lease_id FROM read_scope_rows WHERE kind='active_a')],
+  'a finance-only branch reader sees current rent only for active leases inside the branch');
 SELECT ok((SELECT bool_and((entry->>'archived_at' IS NOT NULL) = (row.kind='archived_a'))
   FROM recovery_context_result, LATERAL jsonb_array_elements(payload->'recovery_leases') entry
   JOIN read_scope_rows row ON row.lease_id=(entry->>'id')::uuid),
@@ -289,6 +294,7 @@ RESET ROLE;
 SELECT ok(NOT has_function_privilege(role_name,'public.'||signature,'EXECUTE'),role_name||' denied '||signature)
 FROM unnest(ARRAY['anon','service_role']) role_name CROSS JOIN unnest(ARRAY[
   'get_scoped_leases_with_effective_rent(uuid,date)','get_lease_read_context(uuid,uuid[])',
-  'get_finance_read_context(uuid,uuid)','get_scoped_lease_rent_readiness(uuid,uuid,date)']) signature;
+  'get_finance_read_context(uuid,uuid)','get_scoped_lease_rent_readiness(uuid,uuid,date)',
+  'get_scoped_current_rent_statuses(uuid,uuid[])']) signature;
 SELECT * FROM finish();
 ROLLBACK;

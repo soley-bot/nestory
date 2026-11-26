@@ -12931,6 +12931,15 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: Json
       }
+      get_scoped_current_rent_statuses: {
+        Args: { p_lease_ids: string[]; p_organization_id: string }
+        Returns: {
+          billing_period_start: string
+          invoice_id: string
+          lease_id: string
+          status: string
+        }[]
+      }
       get_scoped_lease_rent_readiness: {
         Args: {
           p_effective_date: string
@@ -14044,6 +14053,14 @@ export type Database = {
           p_supersedes_billing_term_id: string
         }
         Returns: string
+      }
+      set_pilot_rent_auto_posting: {
+        Args: {
+          p_enabled: boolean
+          p_expected_updated_at: string
+          p_organization_id: string
+        }
+        Returns: boolean
       }
       set_property_rental_structure: {
         Args: {

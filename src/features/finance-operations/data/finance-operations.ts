@@ -23,6 +23,7 @@ import type { Database } from "@/types/database";
 import type {
   ExpenseSubmissionSummary,
   CommercialDocumentLink,
+  CurrentLeaseRentStatus,
   FinanceCategory,
   FinanceLease,
   FinanceOperationsData,
@@ -33,6 +34,7 @@ import type {
   PropertyAccountEntry,
   PropertyFinancePosition,
   RentGenerationException,
+  RentUnitTarget,
   TenantInvoiceLine,
   TenantInvoicePublicationSnapshot,
   TenantInvoiceSettlement,
@@ -464,6 +466,24 @@ async function loadFinanceOperationsData(
   const leasesResult = { data: readContext.leases.filter((lease) =>
     lease.archived_at === null && ["active", "notice_given", "ended", "terminated"].includes(lease.status),
   ).sort((left, right) => right.lease_start_date.localeCompare(left.lease_start_date)) };
+  const activePropertyIds = new Set(readContext.properties.filter(property => property.archived_at === null).map(property => property.id));
+  const rentTargetRows = options.rentInvoiceQuery ? (() => {
+    const currentLeaseById = new Map(readContext.leases.map(lease => [lease.id, lease]));
+    return (readContext.recovery_leases ?? readContext.leases).flatMap(lease => {
+      const current = currentLeaseById.get(lease.id);
+      const status = "status" in lease ? lease.status ?? current?.status : current?.status;
+      const unitId = "unit_id" in lease ? lease.unit_id === undefined ? current?.unit_id : lease.unit_id : current?.unit_id;
+      const personId = "primary_tenant_person_id" in lease ? lease.primary_tenant_person_id ?? current?.primary_tenant_person_id : current?.primary_tenant_person_id;
+      return lease.archived_at === null && (status === "active" || status === "notice_given") &&
+        unitId !== undefined && personId && activePropertyIds.has(lease.property_id)
+        ? [{ id: lease.id, propertyId: lease.property_id, unitId, personId }] : [];
+    });
+  })() : [];
+  const currentRentStatuses = options.rentInvoiceQuery
+    ? await loadCurrentRentStatuses(supabase, organizationId, rentTargetRows
+      .filter(lease => !options.rentInvoiceQuery?.unitId || lease.unitId === options.rentInvoiceQuery.unitId)
+      .map(lease => lease.id))
+    : undefined;
   const leaseTermsResult = { data: readContext.terms };
   const billingResult = { data: readContext.billing_terms };
 
@@ -524,11 +544,6 @@ async function loadFinanceOperationsData(
   ).values()].sort((left, right) => left.display_name.localeCompare(right.display_name));
   const owners = readContext.owner_assignments.filter((assignment) =>
     assignment.is_primary && assignment.ended_on === null && assignment.archived_at === null,
-  );
-  const activePropertyIds = new Set(
-    properties
-      .filter((property) => property.archived_at === null)
-      .map((property) => property.id),
   );
   // Base Lease metadata distinguishes active and archived termless leases.
   // The optional fallback supports an older schema during a rolling release.
@@ -691,6 +706,13 @@ async function loadFinanceOperationsData(
       }) satisfies FinanceCategory,
   );
   return {
+    currentRentStatuses,
+    rentUnitTargets: options.rentInvoiceQuery ? rentTargetRows.map(target => ({
+      id: target.id,
+      propertyId: target.propertyId,
+      unitId: target.unitId,
+      tenantLabel: personById.get(target.personId) ?? "Tenant unavailable",
+    } satisfies RentUnitTarget)) : undefined,
     tenantInvoicePage: rentInvoiceResult?.page,
     selectedTenantInvoice: rentInvoiceResult?.selectedInvoice ? toTenantInvoice(
       rentInvoiceResult.selectedInvoice, propertyById, unitById, linesByInvoiceId,
@@ -1087,8 +1109,12 @@ export function scopeFinanceOperationsData(
   const inScope = (propertyId: string, unitId?: string | null) =>
     propertyId === scope.propertyId &&
     (!scope.unitId || unitId === scope.unitId);
+  const scopedRentTargetIds = new Set((data.rentUnitTargets ?? data.leases)
+    .filter(lease => inScope(lease.propertyId, lease.unitId)).map(lease => lease.id));
 
   return {
+    currentRentStatuses: data.currentRentStatuses?.filter(status => scopedRentTargetIds.has(status.leaseId)),
+    rentUnitTargets: data.rentUnitTargets?.filter(target => inScope(target.propertyId, target.unitId)),
     accountActivityIsRecent: data.accountActivityIsRecent,
     tenantInvoicePage: data.tenantInvoicePage,
     selectedTenantInvoice: data.selectedTenantInvoice && inScope(data.selectedTenantInvoice.propertyId, data.selectedTenantInvoice.unitId) ? data.selectedTenantInvoice : undefined,
@@ -1165,6 +1191,58 @@ export function scopeFinanceOperationsData(
         (!scope.unitId || unit.id === scope.unitId),
     ),
   };
+}
+
+async function loadCurrentRentStatuses(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  leaseIds: string[],
+): Promise<CurrentLeaseRentStatus[]> {
+  const statuses: CurrentLeaseRentStatus[] = [];
+  for (let index = 0; index < leaseIds.length; index += 100) {
+    const batch = leaseIds.slice(index, index + 100);
+    const unknown = () => batch.map(leaseId => ({
+      leaseId, billingPeriodStart: null, status: "unknown" as const,
+    }));
+    let result: { data: unknown; error: unknown };
+    try {
+      result = await supabase.rpc("get_scoped_current_rent_statuses", {
+        p_organization_id: organizationId,
+        p_lease_ids: batch,
+      });
+    } catch {
+      statuses.push(...unknown());
+      continue;
+    }
+    if (result.error || !Array.isArray(result.data)) {
+      statuses.push(...unknown());
+      continue;
+    }
+    const byId = new Map<string, CurrentLeaseRentStatus>();
+    let malformed = false;
+    for (const raw of result.data as unknown[]) {
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) { malformed = true; break; }
+      const row = raw as Record<string, unknown>;
+      if (typeof row.lease_id !== "string" || !batch.includes(row.lease_id) ||
+        byId.has(row.lease_id) ||
+        typeof row.status !== "string" || !["posted", "voided", "missing", "setup_needed", "unknown"].includes(row.status) ||
+        (row.billing_period_start !== null && (typeof row.billing_period_start !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(row.billing_period_start))) ||
+        (row.invoice_id !== null && typeof row.invoice_id !== "string")) {
+        malformed = true;
+        break;
+      }
+      byId.set(row.lease_id, {
+        leaseId: row.lease_id,
+        billingPeriodStart: row.billing_period_start as string | null,
+        status: row.status as CurrentLeaseRentStatus["status"],
+        invoiceId: row.invoice_id as string | null,
+      });
+    }
+    statuses.push(...(malformed ? unknown() : batch.map(leaseId => byId.get(leaseId) ?? {
+      leaseId, billingPeriodStart: null, status: "unknown" as const,
+    })));
+  }
+  return statuses;
 }
 
 async function getTenantInvoiceSettlementRows(

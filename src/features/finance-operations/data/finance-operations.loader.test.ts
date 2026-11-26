@@ -110,6 +110,76 @@ describe("finance operations initial reads", () => {
     expect(lineQueries[0].filters).toContainEqual(["in:invoice_id", invoices.map(invoice => invoice.id)]);
     expect(harness.queries.filter(query => ["property_finance_positions", "rent_generation_exceptions"].includes(query.table)).every(query => query.filters.some(([column, value]) => column === "property_id" && value === propertyId))).toBe(true);
   });
+  it("reads current rent status for every scoped current lease independently of the invoice page", async () => {
+    const propertyId = "00000000-0000-4000-8000-000000000030";
+    const lease = { property_id: propertyId, unit_id: "unit-1", primary_tenant_person_id: "tenant-1",
+      tenant_name: "Tenant", status: "active", lease_start_date: "2026-01-01",
+      lease_end_date: "2027-01-01", monthly_rent_amount: 500, archived_at: null };
+    const harness = createFinanceReadHarness({
+      properties: { data: [{ id: propertyId, code: "P", name: "Property", archived_at: null }] },
+      units: { data: [{ id: "unit-1", property_id: propertyId, unit_number: "101", archived_at: null }] },
+      current_leases: { data: [{ ...lease, id: "lease-posted" }, { ...lease, id: "lease-missing" }] },
+      current_rent_statuses: { data: [
+        { lease_id: "lease-posted", billing_period_start: "2026-11-01", status: "posted", invoice_id: "invoice-outside-page" },
+        { lease_id: "lease-missing", billing_period_start: "2026-11-01", status: "missing", invoice_id: null },
+      ] },
+      rent_invoice_page: { data: { invoices: [], selectedInvoice: null,
+        pagination: { from: 0, to: 0, page: 1, pageSize: 50, totalCount: 0, totalPages: 1 },
+        totalVisibleCount: 0, totalsByCurrency: [], propertyOptions: [{ id: propertyId, label: "Property" }] } },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getFinanceOperationsData("organization-1", propertyId, { includeExpenses: false, rentInvoiceQuery: parseRentInvoiceQuery({ property: propertyId }) });
+    expect(result.tenantInvoices).toHaveLength(0);
+    expect(result.currentRentStatuses).toEqual([
+      { leaseId: "lease-posted", billingPeriodStart: "2026-11-01", status: "posted", invoiceId: "invoice-outside-page" },
+      { leaseId: "lease-missing", billingPeriodStart: "2026-11-01", status: "missing", invoiceId: null },
+    ]);
+    expect(harness.rpcCalls).toContainEqual(["get_scoped_current_rent_statuses", {
+      p_organization_id: "organization-1", p_lease_ids: ["lease-posted", "lease-missing"],
+    }]);
+  });
+  it("treats omitted current rent status rows as unknown and chunks the exact lease IDs", async () => {
+    const propertyId = "00000000-0000-4000-8000-000000000030";
+    const currentLeases = Array.from({ length: 101 }, (_, index) => ({
+      id: `lease-${index}`, property_id: propertyId, unit_id: null,
+      primary_tenant_person_id: "tenant-1", tenant_name: "Tenant", status: "active",
+      lease_start_date: "2026-01-01", lease_end_date: "2027-01-01",
+      monthly_rent_amount: 500, archived_at: null,
+    }));
+    const harness = createFinanceReadHarness({
+      properties: { data: [{ id: propertyId, code: "P", name: "Property", archived_at: null }] },
+      current_leases: { data: currentLeases },
+      current_rent_statuses: { data: [] },
+      rent_invoice_page: { data: { invoices: [], selectedInvoice: null,
+        pagination: { from: 0, to: 0, page: 1, pageSize: 50, totalCount: 0, totalPages: 1 },
+        totalVisibleCount: 0, totalsByCurrency: [], propertyOptions: [{ id: propertyId, label: "Property" }] } },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getFinanceOperationsData("organization-1", propertyId, { includeExpenses: false, rentInvoiceQuery: parseRentInvoiceQuery({ property: propertyId }) });
+    expect(result.currentRentStatuses).toHaveLength(101);
+    expect(result.currentRentStatuses?.every(status => status.status === "unknown")).toBe(true);
+    expect(harness.rpcCalls.filter(([name]) => name === "get_scoped_current_rent_statuses")
+      .map(([, args]) => (args as { p_lease_ids: string[] }).p_lease_ids.length)).toEqual([100, 1]);
+  });
+  it("keeps an active termless lease as a unit rent target with setup-needed status", async () => {
+    const propertyId = "00000000-0000-4000-8000-000000000030";
+    const harness = createFinanceReadHarness({
+      properties: { data: [{ id: propertyId, code: "P", name: "Property", archived_at: null }] },
+      units: { data: [{ id: "unit-1", property_id: propertyId, unit_number: "101", archived_at: null }] },
+      people: { data: [{ id: "tenant-1", display_name: "Tenant", party_type: "individual", archived_at: null }] },
+      recovery_leases: { data: [{ id: "lease-termless", property_id: propertyId, unit_id: "unit-1", status: "active",
+        primary_tenant_person_id: "tenant-1", archived_at: null }] },
+      current_rent_statuses: { data: [{ lease_id: "lease-termless", billing_period_start: "2026-11-01", status: "setup_needed", invoice_id: null }] },
+      rent_invoice_page: { data: { invoices: [], selectedInvoice: null,
+        pagination: { from: 0, to: 0, page: 1, pageSize: 50, totalCount: 0, totalPages: 1 },
+        totalVisibleCount: 0, totalsByCurrency: [], propertyOptions: [{ id: propertyId, label: "Property" }] } },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const result = await getFinanceOperationsData("organization-1", propertyId, { includeExpenses: false, rentInvoiceQuery: parseRentInvoiceQuery({ property: propertyId }) });
+    expect(result.leases).toHaveLength(0);
+    expect(result.rentUnitTargets).toContainEqual({ id: "lease-termless", propertyId, unitId: "unit-1", tenantLabel: "Tenant" });
+    expect(result.currentRentStatuses).toContainEqual({ leaseId: "lease-termless", billingPeriodStart: "2026-11-01", status: "setup_needed", invoiceId: null });
+  });
   it("excludes confirmed archived rent targets while retaining ended and termless leases needing recovery", async () => {
     const lease = {
       property_id: "property-1", unit_id: null, primary_tenant_person_id: "tenant-1",
@@ -704,7 +774,7 @@ function createFinanceReadHarness(
           ? "scoped_context"
           : name === "get_lease_rent_business_date"
             ? "rent_business_date"
-            : name === "get_rent_invoice_page" ? "rent_invoice_page" : "rpc",
+            : name === "get_rent_invoice_page" ? "rent_invoice_page" : name === "get_scoped_current_rent_statuses" ? "current_rent_statuses" : "rpc",
       ); },
     },
     maxInFlight: () => peak,

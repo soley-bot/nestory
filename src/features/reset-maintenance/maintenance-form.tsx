@@ -18,7 +18,7 @@ export function MaintenanceForm({ manualRestart }: { manualRestart?: PilotManual
     <section className="space-y-5 rounded-xl border bg-card p-5">
     <div className="space-y-2">
       <h1 className="text-lg font-semibold">Pilot October reset approvals</h1>
-      <p className="text-sm text-muted-foreground">Review one stage of the prepared reset or recovery packet. October starts with zero balances and no rental invoices. Properties, people, leases and all contract terms stay intact; billing stays paused.</p>
+      <p className="text-sm text-muted-foreground">Review one stage of the prepared reset or recovery packet. October started with zero balances and no rental invoices. Properties, people, leases and all contract terms stay intact. Current billing status appears above.</p>
       <p className="text-sm text-muted-foreground">This page records your approval. The protected operator performs the stage after checking the backup, current source and execution gates.</p>
     </div>
     <form action={action} className="space-y-4">
@@ -73,11 +73,12 @@ export function MaintenanceForm({ manualRestart }: { manualRestart?: PilotManual
 
 export function ManualRestartPanel({ status }: { status: PilotManualRestartStatus | null }) {
   const [state, action, pending] = useActionState(restartPilotManualBillingAction, { kind: "idle" } as ManualRestartActionState);
-  const reopened = status?.status === "already_open" && status.billing_mode === "manual" || state.kind === "reopened";
+  const reopened = status?.status === "already_open" || state.kind === "reopened";
+  const automatic = status?.status === "already_open" && status.billing_mode === "automatic";
   const locked = pending || reopened || state.kind === "uncertain";
   return <section className="space-y-4 rounded-xl border bg-card p-5">
-    <h2 className="text-lg font-semibold">{reopened ? "Pilot is open for manual billing" : "Resume Pilot after the October reset"}</h2>
-    <p className="text-sm text-muted-foreground">Reopen financial entry with automatic rent invoices off. Users choose when to generate rent or enter charges, payments, expenses and deposits. This does not run the reset again or generate invoices.</p>
+    <h2 className="text-lg font-semibold">{reopened ? "Pilot is open for financial entry" : "Resume Pilot after the October reset"}</h2>
+    <p className="text-sm text-muted-foreground">{reopened ? automatic ? "Automatic rent posting is on. The next normal schedule or eligible lease update may generate this month's missing rent." : "Automatic rent posting is off. Users can generate rent manually and enter other financial records." : "Reopen financial entry with automatic rent invoices off. Users choose when to generate rent or enter charges, payments, expenses and deposits. This does not run the reset again or generate invoices."}</p>
     {status && <p className="text-sm">Retained records: {status.preserved_counts.properties} properties, {status.preserved_counts.units} units, {status.preserved_counts.people} people and {status.preserved_counts.leases} leases. The financial period starts on 1 October 2026.</p>}
     {reopened ? <Button asChild>
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- A full navigation replaces the frozen financial session after restart. */}
