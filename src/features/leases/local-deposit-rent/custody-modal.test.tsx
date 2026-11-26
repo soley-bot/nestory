@@ -16,6 +16,8 @@ it("guards a dirty footer close, pending Escape and failed original retry, then 
  fireEvent.submit(screen.getByRole("button",{name:"Confirm existing deposit custody"}).closest("form")!);await waitFor(()=>expect(mocks.save).toHaveBeenCalledOnce());const original=mocks.save.mock.calls[0][0];
  expect((screen.getByRole("button",{name:/^Close$/}) as HTMLButtonElement).disabled).toBe(true);fireEvent.keyDown(screen.getByRole("dialog"),{key:"Escape"});expect(close).not.toHaveBeenCalled();fireEvent.click(await screen.findByRole("button",{name:"Continue waiting"}));
  finish({status:"error",message:"Unconfirmed"});await screen.findByText("Unconfirmed");fireEvent.click(screen.getByRole("button",{name:"Close modal"}));expect(screen.getByRole("alertdialog",{name:"Discard unsaved changes?"})).toBeTruthy();fireEvent.click(screen.getByRole("button",{name:"Keep editing"}));fireEvent.click(screen.getByRole("button",{name:"Retry original custody confirmation"}));await waitFor(()=>expect(success).toHaveBeenCalledWith("Saved"));expect(mocks.save.mock.calls[1][0]).toEqual(original);
+ // The callback runs before React commits the cleared draft and pending state.
+ await screen.findByRole("button",{name:"Confirm existing deposit custody"});
  fireEvent.click(screen.getByRole("button",{name:/^Close$/}));expect(close).toHaveBeenCalledOnce();
 });
 it("allows dismissal after an initial loading error",async()=>{mocks.list.mockResolvedValue({status:"error",message:"Unavailable"});const {close}=show();await screen.findByText("Unavailable");fireEvent.click(screen.getByRole("button",{name:/^Close$/}));expect(close).toHaveBeenCalledOnce();});
