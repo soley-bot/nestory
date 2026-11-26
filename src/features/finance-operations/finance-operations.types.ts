@@ -268,7 +268,23 @@ export type PropertyAccountEntry = {
   sourceType: string;
 };
 
+export type CurrentLeaseRentStatus = {
+    leaseId: string;
+    billingPeriodStart: string | null;
+    status: "posted" | "voided" | "missing" | "setup_needed" | "unknown";
+    invoiceId?: string | null;
+};
+
+export type RentUnitTarget = {
+  id: string;
+  propertyId: string;
+  unitId: string | null;
+  tenantLabel: string;
+};
+
 export type FinanceOperationsData = {
+  currentRentStatuses?: CurrentLeaseRentStatus[];
+  rentUnitTargets?: RentUnitTarget[];
   financialGeneration?: number;
   tenantInvoicePage?: import("./data/rent-invoice-page").RentInvoicePage;
   selectedTenantInvoice?: TenantInvoiceSummary;

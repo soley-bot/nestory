@@ -3,11 +3,11 @@ import test from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { SESSION_TESTS, SINGLE_ADMIN_RUNTIME_BOOTSTRAP_SQL, databaseTestPlan, localDatabaseTestTarget, runSessionTest, syntheticFixtureDiagnostics, verifyPgTapOutput } from './run-database-tests.mjs';
 
-test('all fourteen privileged tests stay classified and every other SQL test remains ordinary', () => {
+test('privileged tests stay classified and every other SQL test remains ordinary', () => {
   const root = new URL('../supabase/tests/', import.meta.url);
   const files = readdirSync(root).filter(name => name.endsWith('.sql')).map(name => ({ name, source: readFileSync(new URL(name, root), 'utf8') }));
   const plan = databaseTestPlan(files);
-  assert.equal(plan.session.length, 14);
+  assert.equal(plan.session.length, 15);
   assert.ok(plan.session.some(file => file.name === 'financial_reset_empty_books_test.sql'));
   assert.equal(plan.ordinary.length + plan.session.length, files.length);
   assert.throws(() => databaseTestPlan(files.filter(file => file.name !== SESSION_TESTS[0])), /exactly once/);
@@ -47,12 +47,14 @@ test('owned synthetic fixture failures retain bounded TAP evidence without raw s
  assert.throws(()=>verifyPgTapOutput(source+'1..2\n','financial_reset_manual_restart_test.sql'),/caught: rejected/);
 });
 
-test('fixed execute-resume fixture uses the existing clean-schema lane', () => {
-  const calls=[];
-  const file={name:'financial_reset_execute_resume_test.sql',source:'synthetic'};
-  assert.equal(runSessionTest(file,{run:()=>{throw Error('ordinary database must not receive fixed Pilot fixture');},
-    runSingleAdmin:value=>{calls.push(value);return 'ok 1 - isolated\n1..1\n';}}),1);
-  assert.deepEqual(calls,[file]);
+test('fixed Pilot fixtures run in a clean schema', () => {
+  for (const name of ['financial_reset_execute_resume_test.sql', 'pilot_rent_auto_posting_test.sql']) {
+    const file = { name, source: 'synthetic' };
+    assert.equal(runSessionTest(file, {
+      run() { throw Error('ordinary database must not receive fixed Pilot fixture'); },
+      runSingleAdmin(value) { assert.equal(value, file); return 'ok 1 - isolated\n1..1\n'; },
+    }), 1);
+  }
 });
 
 test('only the fixed single-admin include expands before streamed session execution',()=>{

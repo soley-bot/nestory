@@ -137,6 +137,11 @@ SELECT is((SELECT public.generate_current_lease_rent(org,pg_temp.empty_books_id(
  'Super Admin current-month generation uses the same selected rule and returns the same invoice');
 SELECT is((SELECT public.restart_pilot_manual_billing(operation,1,checkpoint_sha256)->>'status' FROM manual_restart_review),
  'already_open','idempotent restart replay preserves legitimate financial entries after opening');
+SELECT is((SELECT public.set_pilot_rent_auto_posting(org,true,(public.get_financial_write_context(org)->>'automatic_rent_updated_at')::timestamptz)
+ FROM manual_restart_review),true,'the reopened workspace can later change its posting policy');
+SELECT is(public.get_pilot_manual_restart_status()->>'billing_mode','automatic','maintenance displays the current policy after reopening');
+SELECT is((SELECT public.restart_pilot_manual_billing(operation,1,checkpoint_sha256)->>'billing_mode' FROM manual_restart_review),
+ 'automatic','reading the existing receipt never switches an open workspace back to manual');
 RESET ROLE;
 RESET SESSION AUTHORIZATION;
 SELECT is((SELECT count(*) FROM app_private.financial_reset_manual_restart_receipts),1::bigint,'restart replay never creates a second receipt');

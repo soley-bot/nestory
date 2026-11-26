@@ -15,11 +15,18 @@ The two maintenance RPCs have a 30-second function-specific query budget. The pr
 ## Normal user behavior
 
 - Properties, units, people, leases and financial entry become available after a full page refresh.
-- Rent cron and lease, term, billing-rule and rent-policy catch-up skip automatic rent generation for Pilot.
-- Authorized finance users explicitly select **Generate rent invoice** for the current billing month. The database resolves that month from the selected lease's billing rule when submitted, including timezone and scheduled-rule transitions. This uses the existing canonical rent and fee calculation and its idempotency checks.
+- Pilot starts in manual mode. While automatic posting is off, the rent scheduler and changes to a lease, term, billing rule or rent policy skip automatic generation.
+- In **Finance → Rent & collections**, the unit list shows the rent status for each lease's current billing month. Select **Only show rent to generate** to find leases still missing a charge. A posted charge links to its invoice. A vacant unit shows **No current lease**.
+- In manual mode, authorized staff can select **Generate rent invoice** on a unit, review the lease and confirm the charge. They can also open the page's **Generate rent invoice** form and type a property, unit or tenant name in the lease picker. The database uses the selected lease's billing clock, rent and fee rules, and existing invoice check.
 - Earlier-month recovery keeps its existing administrator restriction. Future months and dates before the financial cutoff remain rejected.
 - Other organizations retain their existing billing behavior. Lease activation and deferred owner-cash settlement keep their existing schedules.
 - Old financial forms and retired idempotency keys remain rejected. Reopening does not declare missing rent complete or bypass report/close checks.
+
+## Change automatic rent posting
+
+In the open Pilot workspace, a Super Admin can open **Settings → Organization** and turn **Pilot automatic rent posting** on or off. The setting applies to the whole workspace. Each change records the administrator and the previous and new values in the activity log.
+
+Turning posting on mid-month lets the normal schedule and eligible lease updates generate missing rent for the current lease-local billing month. Saving the setting issues no invoices. Earlier months still require explicit recovery. Turning it off stops subsequent automatic charges and preserves invoices already posted. A unit charged manually before the next scheduled run keeps its existing lease-month invoice.
 
 ## Verification
 

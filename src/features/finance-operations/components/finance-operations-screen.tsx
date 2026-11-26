@@ -47,7 +47,8 @@ import { FinanceCategorySetupEntry } from "@/features/finance-operations/compone
 import { TenantInvoiceVoidControl } from "@/features/finance-operations/components/tenant-invoice-void-control";
 import type { TenantPaymentReceiptResult } from "@/features/finance-operations/components/tenant-invoice-payment-form";
 import { getRentInvoiceView, isVisibleTenantInvoice, RentInvoiceFilterBar } from "@/features/finance-operations/components/rent-invoice-filters";
-import type { CommercialDocumentLink, ExpenseSubmissionSummary, FinanceLease, FinanceOperationsActionState, FinanceOperationsData, OwnerInvoiceSummary, PropertyAccountEntry, PropertyFinancePosition, RentGenerationException, TenantInvoiceSettlement, TenantInvoiceSummary } from "@/features/finance-operations/finance-operations.types";
+import { RentUnitList } from "@/features/finance-operations/components/rent-unit-list";
+import type { CommercialDocumentLink, CurrentLeaseRentStatus, ExpenseSubmissionSummary, FinanceLease, FinanceOperationsActionState, FinanceOperationsData, OwnerInvoiceSummary, PropertyAccountEntry, PropertyFinancePosition, RentGenerationException, RentUnitTarget, TenantInvoiceSettlement, TenantInvoiceSummary } from "@/features/finance-operations/finance-operations.types";
 import { categoryLabel, expenseStatusPresentation, formatEvidenceSize, getInvoiceStatusPresentation, maintenanceStatusLabel } from "@/features/finance-operations/finance-operations-view-model";
 import { OwnerContributionControl } from "@/features/owner-balances/components/owner-cash-controls";
 import { TransactionWorkspace } from "./transaction-workspace";
@@ -93,7 +94,7 @@ type ModalState =
       invoice?: TenantInvoiceSummary;
       mode: "payment";
     }
-  | { mode: "rent-recovery"; lease?: FinanceLease }
+  | { mode: "rent-recovery"; lease?: FinanceLease; eligibleLeaseIds?: string[] }
   | { invoice: OwnerInvoiceSummary; mode: "owner-payment" }
   | {
       decision: "approve" | "reject";
@@ -147,6 +148,7 @@ export type FinanceOperationsScreenProps = FinanceOperationsData & {
   initialInvoiceId?: string;
   initialExpenseIntent?: "owner" | "tenant";
   initialRentLeaseId?: string;
+  hideRentUnitList?: boolean;
   openingAuthority?: ReactNode;
   organizationName: string;
   reportReturnHref?: string | null;
@@ -579,7 +581,8 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
           ) : visibleActionModal.mode === "rent-recovery" ? (
             <HistoricalRentRecoveryForm
               fixedLease={visibleActionModal.lease}
-              leases={props.leases}
+              leases={visibleActionModal.eligibleLeaseIds ? props.leases.filter(lease => visibleActionModal.eligibleLeaseIds?.includes(lease.id)) : props.leases}
+              requireLeaseChoice={Boolean(visibleActionModal.eligibleLeaseIds)}
               onSuccess={onActionSuccess}
               manualRent={manualRent}
               canRecoverHistorical={props.canRecoverRent}
@@ -839,6 +842,13 @@ function getScreen(
         <RentView
           manualRent={manualRent}
           canGenerateRent={props.canRecordPayments && props.canRetryCurrentRent && (!props.initialRentLeaseId || Boolean(focusedLease))}
+          leases={props.leases}
+          currentRentStatuses={props.currentRentStatuses}
+          rentUnitTargets={props.rentUnitTargets}
+          unitListPropertyId={props.selectedPropertyId ?? props.scope?.propertyId}
+          hideUnitList={Boolean(props.hideRentUnitList || props.initialRentLeaseId || props.initialBillingLeaseId)}
+          units={props.unitOptions}
+          properties={props.propertyOptions}
           page={props.tenantInvoicePage}
           positions={props.positions}
           invoices={invoices}
@@ -1711,12 +1721,14 @@ function HistoricalRentRecoveryForm({
   onSuccess,
   manualRent = false,
   canRecoverHistorical = false,
+  requireLeaseChoice = false,
 }: {
   fixedLease?: FinanceLease;
   leases: FinanceLease[];
   onSuccess: (message: string) => void;
   manualRent?: boolean;
   canRecoverHistorical?: boolean;
+  requireLeaseChoice?: boolean;
 }) {
   const { getBusinessMonthValue } = useBusinessDate();
   const [chooseEarlierMonth, setChooseEarlierMonth] = useState(false);
@@ -1728,6 +1740,7 @@ function HistoricalRentRecoveryForm({
       lease.status === "ended" ||
       lease.status === "terminated",
   );
+  const [selectedLeaseId, setSelectedLeaseId] = useState(requireLeaseChoice ? "" : eligibleLeases[0]?.id ?? "");
   const [state, action, pending] = useActionState(
     recoverLeaseRentPeriodAction,
     actionInitialState,
@@ -1752,13 +1765,17 @@ function HistoricalRentRecoveryForm({
           <input type="hidden" name="leaseId" value={fixedLease.id} />
           <p className="text-sm">{fixedLease.tenantLabel} · {fixedLease.unitLabel}</p>
         </> : <SelectControl
-          defaultValue={eligibleLeases[0]?.id}
+          ariaLabel="Lease"
+          alwaysSearch
           name="leaseId"
+          onValueChange={setSelectedLeaseId}
           options={eligibleLeases.map((lease) => ({
-            label: `${lease.tenantLabel} · ${lease.unitLabel}`,
+            label: `${lease.tenantLabel} · ${lease.propertyLabel} · ${lease.unitLabel}`,
             value: lease.id,
           }))}
+          placeholder="Choose lease"
           required
+          value={selectedLeaseId}
         />}
       </Field>
       <fieldset className="space-y-1.5 text-sm">
@@ -1780,7 +1797,7 @@ function HistoricalRentRecoveryForm({
         <span className="text-xs text-muted-foreground">
           Existing lease-month invoices are replayed safely.
         </span>
-        <SubmitButton label="Generate selected month" />
+        <SubmitButton disabled={!fixedLease && !selectedLeaseId} label="Generate selected month" />
       </FormFooter>
     </FinancialForm>
   );
@@ -1789,6 +1806,13 @@ function HistoricalRentRecoveryForm({
 function RentView({
   manualRent,
   canGenerateRent,
+  currentRentStatuses,
+  rentUnitTargets,
+  unitListPropertyId,
+  hideUnitList,
+  leases,
+  units,
+  properties,
   page,
   positions,
   invoices,
@@ -1798,6 +1822,13 @@ function RentView({
 }: {
   manualRent: boolean;
   canGenerateRent: boolean;
+  currentRentStatuses?: CurrentLeaseRentStatus[];
+  rentUnitTargets?: RentUnitTarget[];
+  unitListPropertyId?: string | null;
+  hideUnitList: boolean;
+  leases: FinanceLease[];
+  units: FinanceOperationsData["unitOptions"];
+  properties: FinanceOperationsData["propertyOptions"];
   page?: FinanceOperationsData["tenantInvoicePage"];
   positions: FinanceOperationsData["positions"];
   invoices: TenantInvoiceSummary[];
@@ -1821,6 +1852,10 @@ function RentView({
     (sum, invoice) => sum + invoice.paidThroughIps + invoice.collectedByOwner,
     0,
   );
+  const listLeases = unitListPropertyId ? leases.filter(lease => lease.propertyId === unitListPropertyId) : leases;
+  const listTargets = unitListPropertyId ? rentUnitTargets?.filter(target => target.propertyId === unitListPropertyId) : rentUnitTargets;
+  const listUnits = unitListPropertyId ? units.filter(unit => unit.propertyId === unitListPropertyId) : units;
+  const listProperties = unitListPropertyId ? properties.filter(property => property.id === unitListPropertyId) : properties;
   return (
     <div className="workspace-gutter-x mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 py-4 sm:px-6 2xl:px-8">
       <CompactTotals
@@ -1830,6 +1865,19 @@ function RentView({
           { label: "Invoices", value: page?.pagination.totalCount ?? filteredInvoices.length },
         ]}
       />
+      {!hideUnitList ? <RentUnitList
+        canGenerateRent={canGenerateRent}
+        currentRentStatuses={currentRentStatuses}
+        rentUnitTargets={listTargets}
+        leases={listLeases}
+        manualRent={manualRent}
+        onChooseLease={(eligibleLeases) => openModal({
+          mode: "rent-recovery",
+          ...(eligibleLeases.length === 1 ? { lease: eligibleLeases[0] } : { eligibleLeaseIds: eligibleLeases.map(lease => lease.id) }),
+        })}
+        properties={listProperties}
+        units={listUnits}
+      /> : null}
       <RentInvoiceFilterBar
         invoices={invoices}
         resultCount={page?.pagination.totalCount ?? filteredInvoices.length}

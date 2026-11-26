@@ -23,6 +23,8 @@ vi.mock(
           props.initialBillingLeaseId ?? "",
         )}
         data-initial-rent-lease-id={String(props.initialRentLeaseId ?? "")}
+        data-selected-property-id={String(props.selectedPropertyId ?? "")}
+        data-hide-rent-unit-list={String(props.hideRentUnitList ?? false)}
         data-can-view-leases={String(props.canViewLeases ?? false)}
         data-testid="finance-operations"
       />
@@ -144,13 +146,15 @@ describe("RentIncomePage repair routing", () => {
 
     const screen = document.querySelector('[data-testid="finance-operations"]');
     expect(screen?.getAttribute("data-initial-rent-lease-id")).toBe("lease-1");
+    expect(screen?.getAttribute("data-hide-rent-unit-list")).toBe("true");
     expect(screen?.getAttribute("data-initial-billing-lease-id")).toBe("");
     expect(mocks.financeData).toHaveBeenCalledWith("organization-1", undefined, expect.objectContaining({ rentInvoiceQuery: expect.objectContaining({ leaseId: "lease-1" }) }));
   });
 
   it("passes property, paging and search to the bounded server query", async () => {
     const propertyId = "00000000-0000-4000-8000-000000000030";
-    await RentIncomePage({ searchParams: Promise.resolve({ property: propertyId, page: "8", status: "paid", q: "Morgan 7FD2", sort: "due_asc" }) });
+    render(await RentIncomePage({ searchParams: Promise.resolve({ property: propertyId, page: "8", status: "paid", q: "Morgan 7FD2", sort: "due_asc" }) }));
+    expect(screen.getByTestId("finance-operations").getAttribute("data-selected-property-id")).toBe(propertyId);
     expect(mocks.financeData).toHaveBeenCalledWith("organization-1", propertyId, expect.objectContaining({
       includeExpenses: false,
       rentInvoiceQuery: expect.objectContaining({ propertyId, page: 8, status: "paid", query: "Morgan 7FD2", sort: "due_asc" }),

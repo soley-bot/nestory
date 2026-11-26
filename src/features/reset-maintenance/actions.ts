@@ -91,6 +91,8 @@ export async function restartPilotManualBillingAction(
       : uncertain;
     const receipt = pilotManualRestartReceiptSchema.safeParse(result.data);
     if (!receipt.success || receipt.data.checkpoint_sha256 !== checkpoint) return uncertain;
-    return { kind: "reopened", message: "Pilot is open for manual financial entry. Automatic rent invoices remain off. Open Pilot to refresh your session." };
+    return { kind: "reopened", message: receipt.data.billing_mode === "automatic"
+      ? "Pilot is open. Automatic rent posting is on. Open Pilot to refresh your session."
+      : "Pilot is open for manual financial entry. Automatic rent invoices remain off. Open Pilot to refresh your session." };
   } catch { return uncertain; }
 }

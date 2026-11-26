@@ -26,6 +26,14 @@ export const SESSION_TESTS = Object.freeze([
   'financial_reset_reviewed_dispositions_test.sql',
   'financial_reset_scoped_session_commands_test.sql',
   'financial_reset_single_admin_test.sql',
+  'pilot_rent_auto_posting_test.sql',
+]);
+
+const SCHEMA_ONLY_TESTS = new Set([
+  'financial_reset_single_admin_test.sql',
+  'financial_reset_execute_resume_test.sql',
+  'financial_reset_manual_restart_test.sql',
+  'pilot_rent_auto_posting_test.sql',
 ]);
 
 export function databaseTestPlan(files) {
@@ -82,7 +90,7 @@ export function databaseTestPlan(files) {
 }
 
 export function syntheticFixtureDiagnostics(output, name) {
-  if(!['financial_reset_single_admin_test.sql','financial_reset_execute_resume_test.sql','financial_reset_manual_restart_test.sql'].includes(name)) return '';
+  if (!SCHEMA_ONLY_TESTS.has(name)) return '';
   // Streamed synthetic fixtures also SELECT binding documents. Print only TAP
   // results/diagnostics on failure, never those raw values, dumps or credentials.
   const tap=String(output??'').split(/\r?\n/).filter(line=>/^(?:ok [0-9]+\b|not ok [0-9]+\b|#|Bail out!)/.test(line));
@@ -144,7 +152,7 @@ export async function localDatabaseTestTarget({ config, execute, env = process.e
   assert.equal(run("SELECT session_user='supabase_admin' AND current_user=session_user AND inet_server_addr() IS NULL AND (SELECT rolsuper FROM pg_roles WHERE rolname=session_user);").trim(), 't',
     'Session tests require the existing local socket administrator; no role changes are permitted.');
   const runSingleAdmin = (file) => {
-    assert.ok(['financial_reset_single_admin_test.sql', 'financial_reset_execute_resume_test.sql', 'financial_reset_manual_restart_test.sql'].includes(file.name));
+    assert.ok(SCHEMA_ONLY_TESTS.has(file.name));
     const database = `single_admin_test_${randomUUID().replaceAll('-', '')}`;
     const checkedDocker = (arguments_, input, options) => { verify(inspect(), initial.id); return docker(arguments_, input, options); };
     const cloneRun = (source, options) => checkedDocker(args.map((value, index) => args[index - 1] === '-d' ? database : value), source, options);
@@ -199,7 +207,7 @@ export const SINGLE_ADMIN_RUNTIME_BOOTSTRAP_SQL = [
 
 export function runSessionTest(file, target) {
   assert.ok(SESSION_TESTS.includes(file.name));
-  return verifyPgTapOutput(['financial_reset_single_admin_test.sql', 'financial_reset_execute_resume_test.sql', 'financial_reset_manual_restart_test.sql'].includes(file.name) ? target.runSingleAdmin(file) : target.run(file.source), file.name);
+  return verifyPgTapOutput(SCHEMA_ONLY_TESTS.has(file.name) ? target.runSingleAdmin(file) : target.run(file.source), file.name);
 }
 
 export async function main(repository = path.resolve(import.meta.dirname, '..')) {
