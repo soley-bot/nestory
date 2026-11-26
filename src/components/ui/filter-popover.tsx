@@ -39,7 +39,7 @@ export function FilterPopover({
           align="end"
           collisionPadding={16}
           className={cn(
-            "z-50 min-w-0 w-[min(560px,calc(100vw-2rem))] rounded-md border border-border bg-card p-3 shadow-lg outline-none [overflow-wrap:anywhere]",
+            "z-50 max-h-[var(--radix-popover-content-available-height)] min-w-0 w-[min(560px,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-md border border-border bg-card p-3 shadow-lg outline-none [overflow-wrap:anywhere]",
             contentClassName,
           )}
           id={id}

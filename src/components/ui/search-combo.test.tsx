@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { SearchCombo } from "./search-combo";
+import { useState } from "react";
 
 afterEach(cleanup);
 
@@ -88,4 +89,26 @@ it("keeps pointer selection and plain Enter search working", async () => {
   expect(submit).toHaveBeenCalledOnce();
   await user.click(screen.getByText("River One"));
   expect(select).toHaveBeenCalledWith({ id: "river-1", label: "River One" });
+});
+
+it.each(["pointer", "keyboard"])("keeps search ready for typing after clearing with the %s", async (interaction) => {
+  const user = userEvent.setup();
+  const submit = vi.fn((event) => event.preventDefault());
+  function Search() {
+    const [query, setQuery] = useState("River");
+    return <SearchCombo ariaLabel="Search properties" placeholder="Search properties" query={query} onQueryChange={setQuery} onSubmit={submit} submitLabel="Search properties" showSubmitButton={false} />;
+  }
+  render(<Search />);
+  const input = screen.getByRole("textbox", { name: "Search properties" });
+  if (interaction === "pointer") {
+    await user.click(screen.getByRole("button", { name: "Clear search properties" }));
+  } else {
+    await user.click(input);
+    await user.tab();
+    await user.keyboard("{Enter}");
+  }
+  expect(document.activeElement).toBe(input);
+  await user.keyboard("Park");
+  expect((input as HTMLInputElement).value).toBe("Park");
+  expect(submit).not.toHaveBeenCalled();
 });

@@ -108,13 +108,19 @@ export function SearchableSelectControl({
       .find((item) => item.id === `${listboxId}-${encodeURIComponent(activeOption.value)}`);
     if (!option) return;
     const viewport = listboxRef.current;
-    const optionBounds = option.getBoundingClientRect();
-    const viewportBounds = viewport.getBoundingClientRect();
-    if (optionBounds.top < viewportBounds.top) {
-      viewport.scrollTop -= viewportBounds.top - optionBounds.top;
-    } else if (optionBounds.bottom > viewportBounds.bottom) {
-      viewport.scrollTop += optionBounds.bottom - viewportBounds.bottom;
-    }
+    const revealActiveOption = () => {
+      const optionBounds = option.getBoundingClientRect();
+      const viewportBounds = viewport.getBoundingClientRect();
+      if (optionBounds.top < viewportBounds.top) {
+        viewport.scrollTop -= viewportBounds.top - optionBounds.top;
+      } else if (optionBounds.bottom > viewportBounds.bottom) {
+        viewport.scrollTop += optionBounds.bottom - viewportBounds.bottom;
+      }
+    };
+    revealActiveOption();
+    const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(revealActiveOption);
+    observer?.observe(viewport);
+    return () => observer?.disconnect();
   }, [activeOption, listboxId, listboxMounted, open]);
 
   function choose(option: SearchableSelectControlOption) {
@@ -228,7 +234,8 @@ export function SearchableSelectControl({
         <Popover.Portal container={portalContainer ?? undefined}>
           <Popover.Content
             align="start"
-            className={cn("z-[90] w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-1rem)] rounded-md border border-border bg-card p-1 shadow-lg", contentClassName)}
+            collisionPadding={8}
+            className={cn("z-[90] flex max-h-[var(--radix-popover-content-available-height)] w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-1rem)] flex-col rounded-md border border-border bg-card p-1 shadow-lg", contentClassName)}
             onOpenAutoFocus={(event) => {
               event.preventDefault();
               searchRef.current?.focus();
@@ -242,7 +249,7 @@ export function SearchableSelectControl({
             onEscapeKeyDown={(event) => event.stopPropagation()}
             sideOffset={4}
           >
-            <label className="relative block">
+            <label className="relative block shrink-0">
               <span className="sr-only" id={searchLabelId}>
                 {ariaLabelledBy ? "Search" : `Search ${ariaLabel}`}
               </span>
@@ -281,7 +288,7 @@ export function SearchableSelectControl({
             </label>
             <div
               aria-label={`${ariaLabel} options`}
-              className="mt-1 max-h-64 overflow-y-auto"
+              className="mt-1 min-h-0 max-h-64 overflow-y-auto overscroll-contain"
               id={listboxId}
               ref={setListbox}
               role="listbox"

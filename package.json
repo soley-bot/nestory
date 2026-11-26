@@ -111,7 +111,7 @@
     "fontkit": "2.0.4",
     "get-nonce": "1.0.1",
     "lucide-react": "^1.21.0",
-    "next": "16.4.2",
+    "next": "16.4.6",
     "radix-ui": "^1.6.7",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
@@ -140,7 +140,7 @@
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
-    "eslint-config-next": "16.4.2",
+    "eslint-config-next": "16.4.6",
     "jsdom": "^29.1.1",
     "msw": "^2.14.6",
     "openpgp": "6.3.2",
@@ -156,7 +156,7 @@
     "@sentry/nextjs": {
       "glob": "14.0.2"
     },
-    "@next/eslint-plugin-next@16.4.2": {
+    "@next/eslint-plugin-next@16.4.6": {
       "fast-glob": "$@nestory/next-eslint-glob"
     }
   }
