@@ -163,7 +163,7 @@ function TenantInvoicePaymentFormStateful({
         rows={[
           ["Invoice", invoice.invoiceNumber],
           ["Customer", invoice.recipientLabel],
-          ["Lease month", formatLeaseMonth(invoice.billingPeriodStart)],
+          ["Billing month", formatLeaseMonth(invoice.billingPeriodStart, "long")],
           ["Unit", invoice.unitLabel],
           ["Balance", formatMoneyDisplay(invoice.balanceDue).primary],
           ...(invoice.collectionRoute === "through_ips"

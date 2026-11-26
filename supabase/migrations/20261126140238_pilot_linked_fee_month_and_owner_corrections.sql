@@ -4,7 +4,25 @@ BEGIN;
 -- publications can still reproduce exactly the bytes of the original version.
 ALTER TABLE public.owner_statement_publications ADD COLUMN presentation_version smallint NOT NULL DEFAULT 1
   CHECK (presentation_version IN (1, 2));
-ALTER TABLE public.owner_statement_publications ALTER COLUMN presentation_version SET DEFAULT 2;
+ALTER TABLE public.owner_statement_publications ALTER COLUMN presentation_version SET DEFAULT
+  CASE WHEN current_setting('app.owner_statement_presentation',true)='2' THEN 2 ELSE 1 END;
+
+-- A client on the previous deployment may still be finishing a publication.
+-- Only the renderer that understands the new layout requests version two.
+CREATE FUNCTION public.publish_owner_statement_v2(p_organization_id uuid, p_owner_close_revision_id uuid, p_idempotency_key text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' AS $$
+DECLARE
+  previous text := current_setting('app.owner_statement_presentation',true);
+  result jsonb;
+BEGIN
+  PERFORM set_config('app.owner_statement_presentation','2',true);
+  result := public.publish_owner_statement(p_organization_id,p_owner_close_revision_id,p_idempotency_key);
+  PERFORM set_config('app.owner_statement_presentation',coalesce(previous,''),true);
+  RETURN result;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.publish_owner_statement_v2(uuid,uuid,text) FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.publish_owner_statement_v2(uuid,uuid,text) TO authenticated;
 
 -- Keep the fee within rent issuance and preserve every original posting and
 -- reversal. Existing owner allocations and published statements stay frozen.

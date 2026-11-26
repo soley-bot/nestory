@@ -17,9 +17,11 @@ const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
-export function formatLeaseMonth(value: string) {
+const fullLeaseMonthFormatter = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+
+export function formatLeaseMonth(value: string, length: "short" | "long" = "short") {
   const date = new Date(`${value.slice(0, 10)}T00:00:00Z`);
-  return Number.isNaN(date.getTime()) ? value : leaseMonthFormatter.format(date);
+  return Number.isNaN(date.getTime()) ? value : (length === "long" ? fullLeaseMonthFormatter : leaseMonthFormatter).format(date);
 }
 
 export function formatDate(value: string | Date): string {

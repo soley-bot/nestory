@@ -1966,16 +1966,18 @@ function RentView({
                         type="button"
                         className="min-h-8 min-w-8 rounded-sm text-left font-medium text-primary underline underline-offset-2 [overflow-wrap:anywhere] focus-visible:outline-2 focus-visible:outline-ring"
                         aria-label={`View invoice ${invoice.invoiceNumber}`}
+                        aria-describedby={`invoice-month-${invoice.id}`}
                         onClick={() => openModal({ invoice, mode: "invoice-details" })}
                       >
                         {invoice.invoiceNumber}
                       </button>
                       <p
+                        id={`invoice-month-${invoice.id}`}
                         className="whitespace-normal [overflow-wrap:anywhere] text-xs text-foreground"
                         title={invoice.lines.map((line) => line.label).join(", ")}
                       >
                         <span>{invoice.lines.map((line) => line.label).join(", ")}</span>
-                        {" · "}{formatLeaseMonth(invoice.billingPeriodStart)}
+                        {" · "}<span className="font-semibold">{formatLeaseMonth(invoice.billingPeriodStart, "long")}</span>
                       </p>
                       <p className="whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">
                         Due {formatDate(invoice.dueDate)}
@@ -2488,8 +2490,8 @@ function InvoiceDetails({
       <DefinitionRows
         rows={[
           [
-            "Lease month",
-            `${formatLeaseMonth(invoice.billingPeriodStart)} lease month`,
+            "Billing month",
+            formatLeaseMonth(invoice.billingPeriodStart, "long"),
           ],
           ["Unit", invoice.unitLabel],
           ["Occupants", invoice.occupantLabels.join(", ") || "—"],
@@ -3291,7 +3293,7 @@ function PaymentChooser({
   const [query, setQuery] = useState("");
   const matches = invoices.filter(invoice => matchesSearchText(query, [
     invoice.recipientLabel, invoice.propertyLabel, invoice.unitLabel, invoice.invoiceNumber,
-    invoice.billingPeriodStart.slice(0, 7), formatLeaseMonth(invoice.billingPeriodStart),
+    invoice.billingPeriodStart.slice(0, 7), formatLeaseMonth(invoice.billingPeriodStart), formatLeaseMonth(invoice.billingPeriodStart, "long"),
   ]));
   return (
     <div className="max-h-[520px] overflow-y-auto p-2">
@@ -3318,7 +3320,7 @@ function PaymentChooser({
                 {invoice.propertyLabel} · {invoice.invoiceNumber}
               </span>
               <span className="block text-xs text-muted-foreground">
-                {invoice.unitLabel} · {formatLeaseMonth(invoice.billingPeriodStart)} lease month
+                {invoice.unitLabel} · {formatLeaseMonth(invoice.billingPeriodStart, "long")}
               </span>
             </span>
             <span className="flex items-center gap-2">
@@ -3658,7 +3660,7 @@ function SettlementReversalForm({
         rows={[
           ["Invoice", invoice.invoiceNumber],
           ["Customer", invoice.recipientLabel],
-          ["Lease month", formatLeaseMonth(invoice.billingPeriodStart)],
+          ["Billing month", formatLeaseMonth(invoice.billingPeriodStart, "long")],
           ["Unit", invoice.unitLabel],
           [
             "Collection route",

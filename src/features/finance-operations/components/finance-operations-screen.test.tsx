@@ -1538,7 +1538,7 @@ describe("FinanceOperationsScreen", () => {
     );
 
     expect(screen.queryByText("Generated automatically")).toBeNull();
-    expect(screen.getByText("Rent").parentElement?.textContent).toBe("Rent · Aug 2026");
+    expect(screen.getByText("Rent").parentElement?.textContent).toBe("Rent · August 2026");
     expect(screen.queryByText("Prorated")).toBeNull();
     await user.click(
       screen.getByRole("button", {
@@ -1551,7 +1551,7 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
     expect(within(dialog).getByText("Rent")).not.toBeNull();
     expect(within(dialog).getAllByText("USD 640.00").length).toBeGreaterThan(0);
-    expect(within(dialog).getByText("Aug 2026 lease month")).not.toBeNull();
+    expect(within(dialog).getByText("August 2026")).not.toBeNull();
     expect(within(dialog).getByText("Prorated")).not.toBeNull();
     expect(
       within(dialog)
@@ -1672,7 +1672,7 @@ describe("FinanceOperationsScreen", () => {
     expect(within(chooser).queryByRole("button", { name: /INV-NOV/ })).toBeNull();
     await user.click(within(chooser).getByRole("button", { name: /INV-OCT/ }));
     const payment = screen.getByRole("dialog");
-    expect(await within(payment).findByText("Oct 2026")).toBeTruthy();
+    expect(await within(payment).findByText("October 2026")).toBeTruthy();
     expect(within(payment).getByText(november.unitLabel)).toBeTruthy();
     expect(valueOfNamedInput(within(payment).getByRole("button", { name: "Record payment" }).closest("form")!, "invoiceId")).toBe(october.id);
   });

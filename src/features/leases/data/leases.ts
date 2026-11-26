@@ -3,6 +3,7 @@ import { loadPortfolioSearch } from "@/lib/search/portfolio.server";
 import type { PortfolioSearch } from "@/lib/search/portfolio";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
+import { formatExactCents, parseExactMoneyToCents } from "@/features/finance/data/property-cash-events.money";
 import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { measureWorkspaceRead } from "@/lib/observability/workspace-performance.server";
 import { readAllRows, readAllRowsByIds } from "@/lib/db/read-all-rows";
@@ -421,6 +422,10 @@ async function loadHistoricalRentCorrectionCandidates(
   );
   const reversedLines = new Set((lines ?? []).map(line => line.reversal_of_id).filter(Boolean));
   const rentCorrections = new Map((corrections ?? []).filter(row => row.action === "historical_rent").map(row => [row.id, row]));
+  const feeCentsByInvoice = new Map<string, bigint>();
+  for (const fee of fees ?? []) {
+    feeCentsByInvoice.set(fee.tenant_invoice_id, (feeCentsByInvoice.get(fee.tenant_invoice_id) ?? BigInt(0)) + parseExactMoneyToCents(fee.amount));
+  }
   const linesByInvoiceId = new Map<string, typeof lines>();
   for (const line of lines ?? []) {
     if (!line.invoice_id || line.reversal_of_id || reversedLines.has(line.id)) continue;
@@ -461,9 +466,7 @@ async function loadHistoricalRentCorrectionCandidates(
       originalDueDay: Number(effectiveDueDate.slice(8, 10)),
       originalRentAmount: Number(rentLine.amount),
       managementFeeCorrected: !allowRepeat && feeCorrectedInvoiceIds.has(invoice.id),
-      originalManagementFeeAmount: (fees ?? [])
-        .filter((fee) => fee.tenant_invoice_id === invoice.id)
-        .reduce((total, fee) => total + Number(fee.amount), 0),
+      originalManagementFeeAmount: Number(formatExactCents(feeCentsByInvoice.get(invoice.id) ?? BigInt(0))),
       paymentStatus: invoice.payment_status,
       settledAmount:
         Number(invoice.paid_through_ips ?? 0) +

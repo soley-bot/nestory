@@ -15,6 +15,7 @@ import {
 } from "@/lib/auth/context";
 import { requirePrivilegedStepUp } from "@/lib/auth/privileged-step-up-guard";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
 import { buildOwnerStatementXlsx } from "@/features/reports/data/excel";
 import { buildLegacyOwnerStatementPdf, buildOwnerStatementPdf } from "@/features/reports/data/pdf";
 import { UnsupportedReportTextError } from "@/features/reports/data/pdf-unicode-font";
@@ -132,7 +133,7 @@ export async function publishOwnerStatementAction(formData: FormData): Promise<v
   const input = parse(publishSchema, formData);
   const context = await requireOwnerStatementPublicationContext();
   const supabase = await createSupabaseServerClient(formData);
-  const publication = await supabase.rpc("publish_owner_statement", {
+  const publication = await supabase.rpc(context.organizationId === PILOT_ORGANIZATION_ID ? "publish_owner_statement_v2" : "publish_owner_statement", {
     p_idempotency_key: input.idempotencyKey,
     p_organization_id: context.organizationId,
     p_owner_close_revision_id: input.revisionId,

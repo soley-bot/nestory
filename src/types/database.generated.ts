@@ -13215,6 +13215,14 @@ export type Database = {
         }
         Returns: Json
       }
+      publish_owner_statement_v2: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_owner_close_revision_id: string
+        }
+        Returns: Json
+      }
       record_auth_password_credential_proof: {
         Args: { p_auth_user_id: string; p_proof_method: string }
         Returns: string

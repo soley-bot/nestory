@@ -5,6 +5,7 @@ beforeEach(() => { vi.clearAllMocks(); readBoundary.mockReset(); readBoundary.mo
 const { createSupabaseServerClient } = vi.hoisted(() => ({ createSupabaseServerClient: vi.fn() }));
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient }));
 import { getHistoricalRentCorrectionCandidates } from "@/features/leases/data/leases";
+import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
 
 describe("issued fee correction candidates", () => {
   it("does not read correction sources when the financial snapshot is unavailable", async () => {
@@ -106,6 +107,29 @@ describe("issued fee correction candidates", () => {
     expect(candidates.find((candidate) => candidate.invoiceId === "missing")?.managementFeeCorrected).toBe(false);
     expect(queries.tenant_invoice_balances).toContainEqual({ field: "billing_period_start", op: "lte", value: expect.any(String) });
     expect(queries.tenant_invoice_corrections).toContainEqual({ field: "action", op: "in", value: ["historical_rent", "management_fee"] });
+  });
+
+  it("opens the effective Pilot rent line, due date and fee after earlier edits", async () => {
+    const tables: Record<string, unknown[]> = {
+      tenant_invoice_balances: [{ id: "invoice", invoice_number: "INV-1", billing_period_start: "2026-10-01", billing_period_end: "2026-10-31",
+        due_date: "2026-10-07", currency: "USD", payment_status: "paid", paid_through_ips: 450, collected_by_owner: 0 }],
+      tenant_invoices: [{ id: "invoice" }],
+      tenant_invoice_lines: [
+        { id: "original", invoice_id: "invoice", amount: 450 }, { id: "reversal", invoice_id: "invoice", amount: -450, reversal_of_id: "original" },
+        { id: "replacement", invoice_id: "invoice", amount: 460, supersedes_line_id: "original", correction_occurrence_id: "change" },
+      ],
+      tenant_invoice_corrections: [{ id: "change", tenant_invoice_id: "invoice", action: "historical_rent", corrected_due_date: "2026-10-09" },
+        { id: "fee-change", tenant_invoice_id: "invoice", action: "management_fee" }],
+      management_fee_occurrences: [45, -45, 48.33].map(amount => ({ tenant_invoice_id: "invoice", amount })),
+    };
+    createSupabaseServerClient.mockResolvedValue({ from(table: string) {
+      const query = { select: () => query, eq: () => query, in: () => query, lte: () => query, order: () => query,
+        range: async () => ({ data: tables[table], error: null }) };
+      return query;
+    } });
+    expect(await getHistoricalRentCorrectionCandidates(PILOT_ORGANIZATION_ID, "lease", { rentBusinessDate: "2026-11-26" }))
+      .toMatchObject([{ invoiceId: "invoice", originalRentAmount: 460, originalDueDay: 9, originalManagementFeeAmount: 48.33,
+        managementFeeCorrected: false, settledAmount: 450 }]);
   });
 
   it("excludes non-scheduled invoices from the delegated current-period editor", async () => {

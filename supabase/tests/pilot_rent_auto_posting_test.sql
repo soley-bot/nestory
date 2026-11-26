@@ -101,7 +101,7 @@ RESET SESSION AUTHORIZATION;
 INSERT INTO public.lease_terms(organization_id,lease_id,term_sequence,start_date,end_date,rent_amount,rent_currency,
   rent_due_day,payment_frequency,status,authority_kind,confirmed_at,confirmed_by,created_by,updated_by)
 SELECT org,lease_id,1,(date_trunc('month',current_date)-interval '1 month')::date,current_date+interval '1 year',
-  450,'USD',1,'monthly','active','authoritative',now(),admin_id,admin_id,admin_id FROM rent_setting;
+  450,'USD',7,'monthly','active','authoritative',now(),admin_id,admin_id,admin_id FROM rent_setting;
 INSERT INTO public.lease_billing_terms(organization_id,lease_id,property_id,effective_from,effective_to,collection_route,
   management_fee_mode,management_fee_value,charge_management_fee_when_active,full_management_fee_during_proration,
   billing_recipient_kind,billing_recipient_person_id,rent_calculation_timezone,short_month_due_day_rule,
@@ -149,6 +149,16 @@ SELECT results_eq($$SELECT f.fee_date, l.recognized_on, f.amount FROM public.man
   JOIN public.owner_invoice_lines l ON l.source_type='management_fee' AND l.source_id=f.id$$,
   $$SELECT date_trunc('month',current_date)::date, date_trunc('month',current_date)::date, 45::numeric$$,
   'the repeated scheduled run produces one fee and one owner charge on the first of the rental month');
+SAVEPOINT first_day;
+SELECT app_private.run_due_rent_generation((date_trunc('month',current_date::timestamp)+interval '1 month 17 minutes') AT TIME ZONE 'UTC');
+SELECT app_private.run_due_rent_generation((date_trunc('month',current_date::timestamp)+interval '1 month 1 hour 17 minutes') AT TIME ZONE 'UTC');
+SELECT results_eq($$SELECT i.issue_date,i.due_date,f.fee_date,l.recognized_on FROM public.tenant_invoices i
+  JOIN public.management_fee_occurrences f ON f.tenant_invoice_id=i.id
+  JOIN public.owner_invoice_lines l ON l.source_type='management_fee' AND l.source_id=f.id
+  WHERE i.billing_period_start=(date_trunc('month',current_date)+interval '1 month')::date$$,
+  $$SELECT d,d+6,d,d FROM (SELECT (date_trunc('month',current_date)+interval '1 month')::date d) first_day$$,
+  'the first scheduled run posts rent and fee on day one with rent due on the seventh and no duplicate on retry');
+ROLLBACK TO SAVEPOINT first_day;
 SAVEPOINT late_invoice;
 SELECT app_private.generate_simple_lease_rent_invoice(org,lease_id,
   (date_trunc('month',current_date)-interval '1 month')::date,current_date,'manual_recovery',admin_id) FROM rent_setting;
@@ -184,7 +194,7 @@ SELECT lives_ok($$SELECT pg_temp.apply_fee(450,55,'pilot-fee-change-2')$$,'revis
 SELECT lives_ok($$SELECT pg_temp.apply_fee(450,0,'pilot-fee-change-3')$$,'reduce the fee to zero');
 SELECT lives_ok($$SELECT pg_temp.apply_fee(450,48.33,'pilot-fee-change-4')$$,'restore a fee on the same lineage after zero');
 SELECT results_eq($$SELECT count(*),sum(f.amount) FROM public.management_fee_occurrences f JOIN issued_edit e ON e.invoice_id=f.tenant_invoice_id$$,
-  $$VALUES(7::bigint,48.33::numeric)$$,'three reversed fees and the one effective fee retain the full staff history');
+  $$SELECT 7::bigint,48.33::numeric$$,'three reversed fees and the one effective fee retain the full staff history');
 SELECT is((SELECT count(*) FROM public.management_fee_occurrences f JOIN issued_edit e ON e.invoice_id=f.tenant_invoice_id
   WHERE f.reversal_of_id IS NULL AND f.supersedes_occurrence_id IS NULL),1::bigint,'restoring the fee preserves a single original charge');
 SELECT lives_ok($$SELECT pg_temp.apply_rent(425,'pilot-rent-change-1')$$,'edit rent after revising the linked fee');
@@ -201,6 +211,22 @@ SELECT results_eq($$SELECT economic_class,sum(signed_amount),min(recognized_on),
 SELECT is((SELECT count(*) FROM issued_edit i JOIN public.tenant_invoices t ON i.invoice_id=t.id CROSS JOIN LATERAL
   public.get_report_profit_loss_events_page(i.org,t.property_id,'USD',i.month,(i.month+interval '1 month - 1 day')::date,NULL,NULL,NULL,100,true) ev
   WHERE ev.description ILIKE '%staff only%'),0::bigint,'the owner-facing report scope excludes private reasons');
+SAVEPOINT paid_charge;
+CREATE TEMP TABLE payment_source AS SELECT public.create_financial_reconciliation_source(org,'PILOTRENT',
+  'Synthetic rent account','bank','organization_pooled','USD',NULL,'****1001') AS id FROM issued_edit;
+SELECT public.record_tenant_invoice_payment_with_account(i.org,i.invoice_id,415,current_date,link.account_id,'Synthetic receipt',
+  jsonb_build_array(jsonb_build_object('lineId',line.id,'amount',415)),'pilot-test-paid-charge')
+  FROM issued_edit i JOIN public.tenant_invoice_lines line ON line.invoice_id=i.invoice_id AND line.line_type='rent' AND line.reversal_of_id IS NULL
+  JOIN public.finance_account_source_links link ON link.organization_id=i.org JOIN payment_source source ON source.id=link.source_id
+  WHERE NOT EXISTS (SELECT 1 FROM public.tenant_invoice_lines r WHERE r.organization_id=i.org AND r.reversal_of_id=line.id);
+SELECT public.allocate_owner_event(i.org,'tenant_rent_receipt',a.id,'pilot-test-owner-'||a.id::text)
+  FROM issued_edit i JOIN public.tenant_invoice_payments p ON p.invoice_id=i.invoice_id
+  JOIN public.tenant_invoice_payment_allocations a ON a.payment_id=p.id;
+SELECT lives_ok($$SELECT pg_temp.apply_rent(425,'pilot-paid-rent-first')$$,'an authorized edit preserves the collected rent on a paid invoice');
+SELECT lives_ok($$SELECT pg_temp.apply_rent(420,'pilot-paid-rent-second')$$,'a paid invoice can be revised again in the open period');
+SELECT results_eq($$SELECT b.paid_through_ips,b.balance_due FROM issued_edit i JOIN public.tenant_invoice_balances b ON b.id=i.invoice_id$$,
+  $$SELECT 415::numeric,5::numeric$$,'both edits retain the payment and leave only the outstanding difference');
+ROLLBACK TO SAVEPOINT paid_charge;
 SELECT public.set_financial_month_lock(org,month,true,'Synthetic month close') FROM issued_edit;
 SELECT ok((pg_temp.fee_preview(415,41)->'blockers') @> '[{"code":"financial_month_locked"}]'::jsonb,'closing the rental month blocks another fee edit');
 SELECT ok((SELECT public.preview_historical_rent_correction(org,invoice_id,405,extract(day FROM due_date)::integer)->'blockers' FROM issued_edit)
