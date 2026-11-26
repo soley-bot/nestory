@@ -32,7 +32,7 @@ export function ReceiptEvidenceField({ required = false }: { required?: boolean 
       <Field label={required ? "Replacement receipt" : "Receipt (optional)"}>
         <UploadFileInput
           accept="application/pdf,image/jpeg,image/png,image/webp"
-          name="evidenceFile"
+          name={required || hasFile ? "evidenceFile" : undefined}
           onChange={(event) => setHasFile(Boolean(event.currentTarget.files?.length))}
           ref={inputRef}
           required={required}

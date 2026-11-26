@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { RecordField } from "@/components/ui/record-form";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -27,6 +27,41 @@ class ResizeObserverStub {
 }
 
 describe("SelectControl", () => {
+  it("keeps the active option visible when the picker height shrinks", async () => {
+    const user = userEvent.setup();
+    let viewportHeight = 120;
+    let resizeList: (() => void) | undefined;
+    const originalObserver = globalThis.ResizeObserver;
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(private callback: () => void) {}
+      observe(target: Element) {
+        if (target.getAttribute("role") === "listbox") resizeList = this.callback;
+      }
+      disconnect() {}
+      unobserve() {}
+    });
+    const bounds = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const viewport = this.closest('[role="listbox"]') as HTMLElement | null;
+      const isOption = this.getAttribute("role") === "option";
+      const index = isOption ? Number(this.textContent?.match(/Property (\d+)/)?.[1]) - 1 : 0;
+      const top = isOption ? index * 40 - (viewport?.scrollTop ?? 0) : 0;
+      const height = isOption ? 40 : viewportHeight;
+      return { top, bottom: top + height, left: 0, right: 200, width: 200, height, x: 0, y: top, toJSON() {} };
+    });
+    try {
+      render(<SelectControl ariaLabel="Property" defaultValue="8" options={Array.from({ length: 12 }, (_, index) => ({ label: `Property ${index + 1}`, value: String(index) }))} />);
+      await user.click(screen.getByRole("combobox", { name: "Property" }));
+      const viewport = screen.getByRole("listbox");
+      expect(viewport.scrollTop).toBe(240);
+      viewportHeight = 80;
+      act(() => resizeList?.());
+      expect(viewport.scrollTop).toBe(280);
+      expect(document.activeElement).toBe(screen.getByRole("combobox", { name: "Search Property" }));
+    } finally {
+      bounds.mockRestore();
+      vi.stubGlobal("ResizeObserver", originalObserver);
+    }
+  });
   it("scrolls to a selected option on open and keeps keyboard navigation visible", async () => {
     const user = userEvent.setup();
     const bounds = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {

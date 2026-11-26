@@ -57,7 +57,7 @@ export function PeopleFilters({
         <div className="flex flex-col gap-2 text-sm lg:flex-row lg:items-center lg:justify-between">
           <SearchCombo
             ariaLabel="Search people"
-            className="lg:max-w-[560px]"
+            className="basis-auto sm:basis-auto lg:max-w-[560px]"
             disabled={isPending}
             onQueryChange={search.onQueryChange}
             onCompositionChange={search.onCompositionChange}
@@ -91,7 +91,8 @@ export function PeopleFilters({
               <Popover.Portal>
                 <Popover.Content
                   align="end"
-                  className="z-50 w-[min(calc(100vw-2rem),460px)] rounded-md border border-border bg-card text-sm shadow-lg"
+                  collisionPadding={8}
+                  className="z-50 max-h-[var(--radix-popover-content-available-height)] w-[min(calc(100vw-2rem),460px)] overflow-y-auto overscroll-contain rounded-md border border-border bg-card text-sm shadow-lg"
                   id="people-advanced-search"
                   side="bottom"
                   sideOffset={6}
