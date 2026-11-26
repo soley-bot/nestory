@@ -148,6 +148,7 @@ export type FinanceOperationsScreenProps = FinanceOperationsData & {
   initialInvoiceId?: string;
   initialExpenseIntent?: "owner" | "tenant";
   initialRentLeaseId?: string;
+  hideRentUnitList?: boolean;
   openingAuthority?: ReactNode;
   organizationName: string;
   reportReturnHref?: string | null;
@@ -844,6 +845,8 @@ function getScreen(
           leases={props.leases}
           currentRentStatuses={props.currentRentStatuses}
           rentUnitTargets={props.rentUnitTargets}
+          unitListPropertyId={props.selectedPropertyId ?? props.scope?.propertyId}
+          hideUnitList={Boolean(props.hideRentUnitList || props.initialRentLeaseId || props.initialBillingLeaseId)}
           units={props.unitOptions}
           properties={props.propertyOptions}
           page={props.tenantInvoicePage}
@@ -1805,6 +1808,8 @@ function RentView({
   canGenerateRent,
   currentRentStatuses,
   rentUnitTargets,
+  unitListPropertyId,
+  hideUnitList,
   leases,
   units,
   properties,
@@ -1819,6 +1824,8 @@ function RentView({
   canGenerateRent: boolean;
   currentRentStatuses?: CurrentLeaseRentStatus[];
   rentUnitTargets?: RentUnitTarget[];
+  unitListPropertyId?: string | null;
+  hideUnitList: boolean;
   leases: FinanceLease[];
   units: FinanceOperationsData["unitOptions"];
   properties: FinanceOperationsData["propertyOptions"];
@@ -1845,6 +1852,10 @@ function RentView({
     (sum, invoice) => sum + invoice.paidThroughIps + invoice.collectedByOwner,
     0,
   );
+  const listLeases = unitListPropertyId ? leases.filter(lease => lease.propertyId === unitListPropertyId) : leases;
+  const listTargets = unitListPropertyId ? rentUnitTargets?.filter(target => target.propertyId === unitListPropertyId) : rentUnitTargets;
+  const listUnits = unitListPropertyId ? units.filter(unit => unit.propertyId === unitListPropertyId) : units;
+  const listProperties = unitListPropertyId ? properties.filter(property => property.id === unitListPropertyId) : properties;
   return (
     <div className="workspace-gutter-x mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 py-4 sm:px-6 2xl:px-8">
       <CompactTotals
@@ -1854,19 +1865,19 @@ function RentView({
           { label: "Invoices", value: page?.pagination.totalCount ?? filteredInvoices.length },
         ]}
       />
-      <RentUnitList
+      {!hideUnitList ? <RentUnitList
         canGenerateRent={canGenerateRent}
         currentRentStatuses={currentRentStatuses}
-        rentUnitTargets={rentUnitTargets}
-        leases={leases}
+        rentUnitTargets={listTargets}
+        leases={listLeases}
         manualRent={manualRent}
         onChooseLease={(eligibleLeases) => openModal({
           mode: "rent-recovery",
           ...(eligibleLeases.length === 1 ? { lease: eligibleLeases[0] } : { eligibleLeaseIds: eligibleLeases.map(lease => lease.id) }),
         })}
-        properties={properties}
-        units={units}
-      />
+        properties={listProperties}
+        units={listUnits}
+      /> : null}
       <RentInvoiceFilterBar
         invoices={invoices}
         resultCount={page?.pagination.totalCount ?? filteredInvoices.length}

@@ -25,8 +25,10 @@ export default async function RentIncomePage({
     : null;
   if (selectedInvoice?.error) throw new Error("Could not load the report invoice.");
   let data: Awaited<ReturnType<typeof getFinanceOperationsData>>;
+  let selectedPropertyId: string | undefined;
   try {
     const rentInvoiceQuery = parseRentInvoiceQuery(query);
+    selectedPropertyId = rentInvoiceQuery.propertyId;
     data = await getFinanceOperationsData(context.organizationId, rentInvoiceQuery.propertyId, {
       includeExpenses: false,
       rentInvoiceQuery: { ...rentInvoiceQuery, ...(!query.invoiceId && query.action !== "billing" && query.leaseId ? { leaseId: query.leaseId } : {}), selectedInvoiceId: selectedInvoice?.data?.id },
@@ -79,7 +81,9 @@ export default async function RentIncomePage({
       canViewPropertyRecords={context.permissionKeys.has("properties.view")}
       initialBillingLeaseId={initialBillingLeaseId}
       initialRentLeaseId={query.invoiceId || query.action === "billing" ? undefined : query.leaseId}
+      hideRentUnitList={typeof query.leaseId === "string" && query.leaseId.length > 0}
       organizationName={context.organizationName}
+      selectedPropertyId={selectedPropertyId}
       view="rent"
     />
     </>
