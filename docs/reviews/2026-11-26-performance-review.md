@@ -1,6 +1,8 @@
 # Nestory performance review — 26 November 2026
 
-Three application bottlenecks were repaired on `codex/performance-review-20261126`, based on fetched `origin/main` at `2f24d844226399762545765e6b1e188b3886088b`. Changes are local; no deployment or database migration was performed.
+Three application bottlenecks were repaired on `codex/performance-review-20261126`, based on fetched `origin/main` at `2f24d844226399762545765e6b1e188b3886088b`. This records the preparation-stage measurements and checks; no deployment or database migration was performed during that review.
+
+Before release, current main `430fa34cec3f158505925d70d5289f907f118e01` was merged into this branch without conflicts. This preserves PR #299's search/filter polish and PR #300's receipt-optional property expenses. PR #299 already contains the identical Next.js 16.4.6 dependency update, so those package changes are not an additional difference in the performance PR. Subsequent protected-release and production acceptance evidence is recorded separately from this original benchmark record.
 
 Final build verification also exposed advisories against the existing Next.js 16.4.2 pin. Next.js, its ESLint configuration and the scoped ESLint override are updated together to 16.4.6, a patch within the same release line. The explicit-directory ESLint adapter remains in use and its version contract is updated. The official [November security release](https://nextjs.org/blog/november-2026-security-release) identifies patched 16.4 releases; [16.4.6](https://github.com/vercel/next.js/releases/tag/v16.4.6) also contains bug fixes for response compression and development garbage collection. Only 12 Next.js family package versions changed in the lockfile. The dependency audit and final production build pass.
 
