@@ -99,7 +99,9 @@ export function RentUnitList({
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div>
         <h2 className="font-medium">Units for rent</h2>
-        <p className="text-xs text-muted-foreground">{manualRent && canGenerateRent ? "Choose a unit with rent to generate." : "Browse units and current rent status."}</p>
+        <p className="text-xs text-muted-foreground">{filter === "setup_needed"
+          ? "Review the lease terms and billing rule for each unit."
+          : manualRent && canGenerateRent ? "Choose a unit with rent to generate." : "Browse units and current rent status."}</p>
       </div>
       <span aria-live="polite" className="text-xs text-muted-foreground">{filtered.length} of {rows.length} units and whole-property leases</span>
     </div>

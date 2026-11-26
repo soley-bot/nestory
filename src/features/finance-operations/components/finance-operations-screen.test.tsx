@@ -1923,6 +1923,7 @@ describe("FinanceOperationsScreen", () => {
     expect(within(list).queryByRole("button", { name: /Generate rent invoice for/ })).toBeNull();
     expect(within(list).getByRole("link", { name: "View Dara Tenant's invoice" })).not.toBeNull();
     await user.selectOptions(within(list).getByRole("combobox", { name: "Unit rent status" }), "setup_needed");
+    expect(within(list).getByText("Review the lease terms and billing rule for each unit.")).toBeTruthy();
     expect(within(list).getAllByRole("listitem")).toHaveLength(2);
     expect(within(list).queryByText(/Third Tenant/)).toBeNull();
     expect(within(list).getByText("Check the signed lease for Termless Tenant. No confirmed term is available.")).toBeTruthy();
