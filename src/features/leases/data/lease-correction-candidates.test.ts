@@ -124,7 +124,7 @@ describe("issued fee correction candidates", () => {
     };
     createSupabaseServerClient.mockResolvedValue({ from(table: string) {
       const query = { select: () => query, eq: () => query, in: () => query, lte: () => query, order: () => query,
-        range: async () => ({ data: tables[table], error: null }) };
+        range: async (from: number, to: number) => ({ data: tables[table].slice(from, to + 1), error: null }) };
       return query;
     } });
     expect(await getHistoricalRentCorrectionCandidates(PILOT_ORGANIZATION_ID, "lease", { rentBusinessDate: "2026-11-26" }))
