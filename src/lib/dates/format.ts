@@ -11,6 +11,17 @@ const calendarDateFormatter = new Intl.DateTimeFormat("en-GB", {
   timeZone: "UTC",
 });
 
+const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+export function formatLeaseMonth(value: string) {
+  const date = new Date(`${value.slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) ? value : leaseMonthFormatter.format(date);
+}
+
 export function formatDate(value: string | Date): string {
   if (value === "infinity") return "Month to month";
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {

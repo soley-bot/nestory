@@ -57,8 +57,13 @@ vi.mock("../actions", async (importOriginal) => {
 });
 
 vi.mock("next/link", () => ({
-  default: ({ children, ...props }: AnchorHTMLAttributes<HTMLAnchorElement>) => (
-    <a {...props} data-next-link="true">
+  default: ({ children, onNavigate, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+    onNavigate?: (event: { preventDefault: () => void }) => void;
+  }) => (
+    <a {...props} data-next-link="true" onClick={event => {
+      props.onClick?.(event);
+      if (!event.defaultPrevented && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) onNavigate?.(event);
+    }}>
       {children}
     </a>
   ),
@@ -1512,7 +1517,7 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
   });
 
-  it("keeps lease context in invoice details instead of expanding every rent row", async () => {
+  it("shows the lease month alongside the charge and leaves proration details in the invoice", async () => {
     const user = userEvent.setup();
     const input = data();
     const invoice = tenantInvoice();
@@ -1533,7 +1538,7 @@ describe("FinanceOperationsScreen", () => {
     );
 
     expect(screen.queryByText("Generated automatically")).toBeNull();
-    expect(screen.queryByText("Aug 2026 lease month")).toBeNull();
+    expect(screen.getByText("Rent").parentElement?.textContent).toBe("Rent · Aug 2026");
     expect(screen.queryByText("Prorated")).toBeNull();
     await user.click(
       screen.getByRole("button", {
@@ -1653,6 +1658,43 @@ describe("FinanceOperationsScreen", () => {
     expect(within(dialog).queryByText("INV-UNRELATED")).toBeNull();
   });
 
+  it("asks which month to pay when a lease has two open invoices with the same due date", async () => {
+    const user = userEvent.setup();
+    const november = { ...tenantInvoice(), billingPeriodStart: "2026-11-01", dueDate: "2026-11-26", invoiceNumber: "INV-NOV", collectionRoute: "through_ips" as const };
+    const october = { ...november, id: "invoice-october", invoiceNumber: "INV-OCT", billingPeriodStart: "2026-10-01" };
+    const unrelated = { ...october, id: "other-invoice", leaseId: "other-lease", invoiceNumber: "INV-OTHER" };
+    render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canRecordPayments: true })} initialRentLeaseId={november.leaseId}
+      organizationName="Pilot" tenantInvoices={[november, unrelated, october]} view="rent" />);
+    await user.click(screen.getByRole("button", { name: "Record tenant payment" }));
+    const chooser = screen.getByRole("dialog");
+    expect(within(chooser).queryByText(/INV-OTHER/)).toBeNull();
+    await user.type(within(chooser).getByRole("searchbox", { name: "Search open invoices" }), "Oct 2026");
+    expect(within(chooser).queryByRole("button", { name: /INV-NOV/ })).toBeNull();
+    await user.click(within(chooser).getByRole("button", { name: /INV-OCT/ }));
+    const payment = screen.getByRole("dialog");
+    expect(await within(payment).findByText("Oct 2026")).toBeTruthy();
+    expect(within(payment).getByText(november.unitLabel)).toBeTruthy();
+    expect(valueOfNamedInput(within(payment).getByRole("button", { name: "Record payment" }).closest("form")!, "invoiceId")).toBe(october.id);
+  });
+
+  it("returns from a discarded payment draft to its invoice and filtered source report", async () => {
+    const user = userEvent.setup();
+    const invoice = { ...tenantInvoice(), collectionRoute: "through_ips" as const };
+    const report = "/reports/unit-profit-loss?month=2026-08&unitId=unit-1";
+    render(<FinanceOperationsScreen {...data()} {...financeCapabilities({ canRecordPayments: true })} organizationName="Pilot"
+      reportReturnHref={report} tenantInvoices={[invoice]} view="rent" />);
+    await user.click(screen.getByRole("button", { name: `View invoice ${invoice.invoiceNumber}` }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Record payment" }));
+    const payment = screen.getByRole("dialog");
+    await user.type(await within(payment).findByRole("textbox", { name: "Reference (optional)" }), "unsaved");
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    const details = await screen.findByRole("dialog", { name: "Invoice details" });
+    expect(within(details).getByText(invoice.invoiceNumber)).toBeTruthy();
+    expect(within(details).getByRole("link", { name: "Return to report and recheck" }).getAttribute("href")).toBe(report);
+    expect(financeActionMocks.recordTenantInvoicePaymentAction).not.toHaveBeenCalled();
+  });
+
   it("offers manual billing when the rent register is empty without promising automatic generation", () => {
     const input = data();
     input.tenantInvoices = [];
@@ -1711,6 +1753,7 @@ describe("FinanceOperationsScreen", () => {
       { ...firstLease, billing: { ...firstLease.billing!, rentCalculationTimezone: "Asia/Phnom_Penh" } },
       { ...firstLease, id: "lease-2", tenantLabel: "Other Tenant", billing: { ...firstLease.billing!, rentCalculationTimezone: "America/Los_Angeles" } },
     ];
+    input.currentRentStatuses = [{ leaseId: "lease-2", status: "missing", billingPeriodStart: "2026-01-01" }];
     render(<FinancialWriteProvider organizationId="org" context={{ generation: 1, status: "open", financial_start_date: "2026-10-01", enforced: true, automatic_rent_enabled: false }}>
       <FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordPayments: true, canRetryCurrentRent: true, canRecoverRent: true })}
         financialGeneration={1} organizationName="Pilot" view="rent" />
@@ -1719,6 +1762,7 @@ describe("FinanceOperationsScreen", () => {
     const dialog = screen.getByRole("dialog", { name: "Generate rent invoice" });
     const form = within(dialog).getByRole("button", { name: "Generate selected month" }).closest("form")!;
     expect(new FormData(form).get("billingPeriod")).toBe("current");
+    expect(within(dialog).getByRole("button", { name: "Generate selected month" })).toHaveProperty("disabled", true);
     await user.click(within(dialog).getByRole("combobox"));
     const search = screen.getByRole("combobox", { name: /search lease/i });
     await user.type(search, "other ten");
@@ -1728,14 +1772,17 @@ describe("FinanceOperationsScreen", () => {
     expect(new FormData(form).get("billingPeriod")).toBe("current");
     expect(within(dialog).getByText("Current billing month for the selected lease.")).not.toBeNull();
     await user.click(within(dialog).getByRole("checkbox", { name: "Choose an earlier month" }));
-    expect(within(dialog).getByRole("button", { name: "Billing month" })).not.toBeNull();
-    expect(new FormData(form).get("billingPeriod")).not.toBe("current");
+    expect(new FormData(form).get("billingPeriod")).toBe("2025-12");
+    await user.click(within(dialog).getByRole("button", { name: "Billing month" }));
+    expect(screen.getByRole("button", { name: "Next year" })).toHaveProperty("disabled", true);
+    await user.click(screen.getByRole("button", { name: "Dec 2025" }));
     await user.click(within(dialog).getByRole("checkbox", { name: "Choose an earlier month" }));
     expect(new FormData(form).get("billingPeriod")).toBe("current");
   });
 
   it("lists all units, filters rent to generate, and opens only the chosen unit's form", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
+    navigation.pathname = "/rent-income";
     const user = userEvent.setup();
     const input = data();
     input.unitOptions.push({ id: "unit-2", label: "HOME — Unit 02", propertyId: "property-1" });
@@ -1756,11 +1803,11 @@ describe("FinanceOperationsScreen", () => {
     expect(within(list).queryByRole("button", { name: "Generate rent invoice for HOME — Unit 01" })).toBeNull();
     expect(within(list).getByRole("link", { name: "View Dara Tenant's invoice" }).getAttribute("href"))
       .toBe("/rent-income?invoiceId=00000000-0000-4000-8000-000000000099");
-    const onlyMissing = within(list).getByRole("checkbox", { name: "Only show rent to generate" });
-    await user.click(onlyMissing);
+    const status = within(list).getByRole("combobox", { name: "Unit rent status" });
+    await user.selectOptions(status, "missing");
     expect(within(list).getAllByRole("listitem")).toHaveLength(1);
     expect(within(list).getByText("HOME — Unit 02")).not.toBeNull();
-    await user.click(onlyMissing);
+    await user.selectOptions(status, "all");
     expect(within(list).getAllByRole("listitem")).toHaveLength(3);
     await user.type(within(list).getByRole("searchbox", { name: "Search units for rent" }), "unit 02");
     expect(within(list).queryByText("HOME — Unit 01")).toBeNull();
@@ -1841,7 +1888,10 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByText("No rent invoices")).not.toBeNull();
   });
 
-  it("does not offer unit generation for voided, setup-needed or unknown rent status", () => {
+  it.each([true, false])("filters units needing setup and respects lease access (%s)", async (canViewLeases) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
+    const user = userEvent.setup();
+    navigation.pathname = "/rent-income";
     const input = data();
     input.unitOptions.push(
       { id: "unit-2", label: "HOME — Unit 02", propertyId: "property-1" },
@@ -1862,7 +1912,7 @@ describe("FinanceOperationsScreen", () => {
       { id: "lease-termless", propertyId: "property-1", unitId: "unit-4", tenantLabel: "Termless Tenant" },
     ];
     render(<FinancialWriteProvider organizationId="org" context={{ generation: 1, status: "open", financial_start_date: "2026-10-01", enforced: true, automatic_rent_enabled: false }}>
-      <FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordPayments: true, canRetryCurrentRent: true })}
+      <FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordPayments: true, canRetryCurrentRent: true })} canViewLeases={canViewLeases}
         financialGeneration={1} organizationName="Pilot" view="rent" />
     </FinancialWriteProvider>);
     const list = screen.getByRole("region", { name: "Units for rent" });
@@ -1872,6 +1922,18 @@ describe("FinanceOperationsScreen", () => {
     expect(within(list).getByText(/Termless Tenant: Billing setup needed/)).not.toBeNull();
     expect(within(list).queryByRole("button", { name: /Generate rent invoice for/ })).toBeNull();
     expect(within(list).getByRole("link", { name: "View Dara Tenant's invoice" })).not.toBeNull();
+    await user.selectOptions(within(list).getByRole("combobox", { name: "Unit rent status" }), "setup_needed");
+    expect(within(list).getByText("Review the lease terms and billing rule for each unit.")).toBeTruthy();
+    expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(list).queryByText(/Third Tenant/)).toBeNull();
+    expect(within(list).getByText("Check the signed lease for Termless Tenant. No confirmed term is available.")).toBeTruthy();
+    expect(within(list).queryByRole("link", { name: "Review Termless Tenant's lease" })).toBeNull();
+    const leaseLink = within(list).queryByRole("link", { name: "Review Second Tenant's lease" });
+    if (canViewLeases) {
+      expect(leaseLink?.getAttribute("href")).toContain("returnTo=%2Frent-income%3FunitRentStatus%3Dsetup_needed");
+    } else {
+      expect(leaseLink).toBeNull();
+    }
   });
 
   it("keeps manual tenant charges behind payment-recording authority", async () => {
@@ -2519,7 +2581,7 @@ describe("FinanceOperationsScreen", () => {
         propertyLabel: "HOME — Riverside Home",
       },
     },
-  ])("keeps the six-column invoice table bounded in the $label workspace", ({ scope }) => {
+  ])("opens the invoice from the first column in the $label workspace", ({ scope }) => {
     const input = data();
     input.tenantInvoices = [tenantInvoice()];
 
@@ -2537,14 +2599,13 @@ describe("FinanceOperationsScreen", () => {
       '[data-slot="rent-invoices-surface"]',
     );
     const table = within(rentSurface!).getByRole("table");
-    expect(within(table).getAllByRole("columnheader")).toHaveLength(6);
-    expect(table.className).toContain("min-w-[1000px]");
-    expect(table.className).toContain("lg:min-w-[960px]");
+    expect(within(table).getAllByRole("columnheader")).toHaveLength(5);
     const preview = within(table).getByRole("button", {
       name: `View invoice ${input.tenantInvoices[0].invoiceNumber}`,
     });
     expect(preview.className).toContain("h-8");
     expect(preview.className).toContain("w-8");
+    expect(preview.closest("td")?.cellIndex).toBe(0);
   });
 
   it("filters the mixed work queue without losing the oldest-first order", async () => {
@@ -2590,7 +2651,7 @@ describe("FinanceOperationsScreen", () => {
     expect(within(region).queryByText("Tenant payment")).toBeNull();
   });
 
-  it("keeps tenant context widest while reserving width for invoice Preview", () => {
+  it("keeps tenant context widest beside the invoice number", () => {
     const input = data();
     input.tenantInvoices = [tenantInvoice()];
 
@@ -2607,12 +2668,11 @@ describe("FinanceOperationsScreen", () => {
       container.querySelectorAll('[data-slot="rent-invoices-surface"] col'),
     );
     expect(columns.map((column) => column.className)).toEqual([
-      "w-[21%]",
-      "w-[28%]",
-      "w-[12%]",
-      "w-[16%]",
-      "w-[14%]",
-      "w-[9%]",
+      "w-[23%]",
+      "w-[32%]",
+      "w-[13%]",
+      "w-[17%]",
+      "w-[15%]",
     ]);
   });
 
@@ -4639,7 +4699,6 @@ describe("FinanceOperationsScreen", () => {
       "Collected by",
       "Balance",
       "Status",
-      "Preview",
     ]);
     expect(screen.queryByText("Occupants: Sokha Trading Co.")).toBeNull();
     expect(screen.queryByText("Generated automatically")).toBeNull();
