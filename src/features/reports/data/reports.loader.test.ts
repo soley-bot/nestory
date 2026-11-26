@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getReportsScreenData } from "@/features/reports/data/reports";
 import { getTrustedReport } from "./trusted-report";
+import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
 import type { ReportsViewQuery } from "@/features/reports/reports.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
@@ -179,6 +180,19 @@ describe("live Finance report reads", () => {
     expect(result.trustedReport.unitProfitLossLines).toEqual([
       expect.objectContaining({ name: "Tenant Example", type: "Invoice" }),
     ]);
+    expect(harness.rpcCalls.some(([name]) => name === "get_report_profit_loss_events_page")).toBe(false);
+  });
+
+  it("uses the rental month for each page of the Pilot unit report", async () => {
+    const event = { ...ownerProfitLossEvent(), organization_id: PILOT_ORGANIZATION_ID, unit_id: UNIT_ID };
+    const harness = createReportReadHarness({ ownerProfitLossEvents: [event] });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(harness.client as never);
+    const { trustedReport } = await getReportsScreenData(PILOT_ORGANIZATION_ID, reportQuery({ report: "unit-profit-loss", unitId: UNIT_ID }));
+    expect(trustedReport.unitProfitLossLines).toHaveLength(1);
+    expect(trustedReport.unitProfitLossBasisNote).toContain("rental month");
+    const pages = harness.rpcCalls.filter(([name]) => name === "get_report_profit_loss_events_page");
+    expect(pages.map(([, args]) => [args.p_after_source_id, args.p_rental_month])).toEqual([[null, true], [event.source_id, true]]);
+    expect(harness.rpcCalls.some(([name]) => name === "get_owner_profit_loss_events_page")).toBe(false);
   });
 
   it("preserves the report property selector's name ordering", async () => {
@@ -406,7 +420,7 @@ function createReportReadHarness({
         if (name === "get_owner_profit_loss_names") {
           return new Query({ data: ownerProfitLossNames, count: ownerProfitLossNames.length, error: null });
         }
-        if (name === "get_owner_profit_loss_events_page") {
+        if (name === "get_owner_profit_loss_events_page" || name === "get_report_profit_loss_events_page") {
           return Promise.resolve({ data: args.p_after_source_id ? [] : ownerProfitLossEvents, error: null });
         }
         throw new Error(`Unexpected report RPC: ${name}`);

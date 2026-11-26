@@ -12931,6 +12931,49 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: Json
       }
+      get_report_profit_loss_events_page: {
+        Args: {
+          p_after_recognized_on: string
+          p_after_source_id: string
+          p_after_source_type: string
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_organization_id: string
+          p_page_size: number
+          p_period_end: string
+          p_period_start: string
+          p_property_id: string
+          p_rental_month: boolean
+        }
+        Returns: {
+          category_code: string
+          category_id: string
+          category_label: string
+          category_reporting_group: string
+          contract_version: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          cursor_recognized_on: string
+          cursor_source_id: string
+          cursor_source_type: string
+          description: string
+          economic_class: string
+          event_key: string
+          is_reversal: boolean
+          lease_id: string
+          organization_id: string
+          period_start: string
+          property_id: string
+          recognition_basis: string
+          recognized_on: string
+          reversal_of_id: string
+          reversal_source_type: string
+          signed_amount: number
+          source_id: string
+          source_parent_id: string
+          source_parent_type: string
+          source_type: string
+          unit_id: string
+        }[]
+      }
       get_scoped_current_rent_statuses: {
         Args: { p_lease_ids: string[]; p_organization_id: string }
         Returns: {

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { strFromU8, unzipSync } from "fflate";
 
 import type { OwnerProfitLossEvent } from "@/features/reports/data/owner-profit-loss-events.types";
+import { buildTrustedReportPdf } from "./pdf";
+import { buildTrustedReportXlsx } from "./excel";
 import {
   buildTrustedReport,
   getTrustedReportSourceRequirements,
@@ -9,6 +12,47 @@ import {
 type TrustedReportInput = Parameters<typeof buildTrustedReport>[0];
 
 describe("Monthly Unit Profit & Loss", () => {
+  it("shows effective Pilot expenses on screen and in both exports", () => {
+    const input = reportInput();
+    input.viewQuery.unitId = "unit-1";
+    const cost: Partial<OwnerProfitLossEvent> = {
+      categoryCode: "cleaning", categoryLabel: "Cleaning", categoryReportingGroup: "maintenance",
+      sourceType: "owner_invoice_line", economicClass: "owner_expense", signedAmountCents: BigInt(4000),
+    };
+    const original = event("original", { ...cost, description: "Reversed cleaning" });
+    const reversal = event("reversal", { ...cost, sourceType: "expense_customer_adjustment",
+      description: "Cancelled vendor", reversalOfId: original.sourceId, reversalSourceType: original.sourceType,
+      isReversal: true, signedAmountCents: BigInt(-4000) });
+    input.ownerProfitLossEvents = [
+      event("rent", { signedAmountCents: BigInt(70000) }),
+      event("fee", { ...cost, sourceType: "management_fee_occurrence", categoryCode: "management_fee",
+        categoryLabel: "Management fee", description: "Management fee", signedAmountCents: BigInt(7000) }),
+      original, reversal, event("replacement", { ...cost, description: "Confirmed cleaning" }),
+      event("other", { ...cost, description: "AC cleaning", signedAmountCents: BigInt(4500) }),
+    ];
+    expect(buildTrustedReport(input).unitProfitLossLines).toHaveLength(6);
+    input.pilotMonthlyProfitLoss = true;
+    const report = buildTrustedReport(input);
+    expect(report.summary.slice(0, 3).map(metric => metric.value)).toEqual(["USD 700.00", "USD 155.00", "USD 545.00"]);
+    expect(report.unitProfitLossLines?.map(line => line.id).sort()).toEqual([
+      "management_fee_occurrence:fee", "owner_invoice_line:other", "owner_invoice_line:replacement", "tenant_invoice_line:rent",
+    ]);
+    const sheet = strFromU8(unzipSync(buildTrustedReportXlsx(report))["xl/worksheets/sheet1.xml"]!);
+    const pdf = Buffer.from(buildTrustedReportPdf({ organizationName: "Example", report })).toString("latin1");
+    for (const exported of [sheet, pdf]) {
+      expect(exported).toContain("rental month");
+      for (const amount of ["40.00", "45.00", "155.00", "545.00"]) expect(exported).toContain(amount);
+      expect(exported).toContain("Confirmed cleaning");
+      expect(exported).toContain("AC cleaning");
+      expect(exported).not.toContain("Reversed cleaning");
+      expect(exported).not.toContain("Cancelled vendor");
+    }
+    for (const changes of [{ signedAmountCents: BigInt(-2000) }, { reversalOfId: "missing" },
+      { unitId: null }, { periodStart: "2026-06-01" }, { categoryCode: "repairs" }]) {
+      const exceptions = buildTrustedReport({ ...input, ownerProfitLossEvents: [original, { ...reversal, ...changes }] });
+      expect(exceptions.unitProfitLossLines?.map(line => line.id)).toContain(original.eventKey);
+    }
+  });
   it("uses linked owner names and property names for the export heading", () => {
     const input = reportInput();
     input.owners = [{ id: "ownership-1", property_id: "property-1", person_id: "owner-1", ownership_label: null, ownership_percent: 100 }];

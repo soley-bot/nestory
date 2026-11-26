@@ -9,6 +9,7 @@ export type ProfitLossFunding = {
 };
 
 export const profitLossBasisLabel = "Accrual basis";
+export const pilotProfitLossBasisNote = "Rent and its management fee count in the rental month. Other income and expenses use the invoice or cost date.";
 export const profitLossBasisNote = "Accrual basis: income and expenses by invoice or cost date.";
 export const profitLossFundingHeading = "Owner funding and account activity";
 

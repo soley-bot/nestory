@@ -206,6 +206,7 @@ export type TrustedReport = {
   unitProfitLossOwnerProperties?: { ownerName: string; propertyName: string }[];
   unitProfitLossDetailScope?: "single-unit";
   unitProfitLossScopeNote?: string;
+  unitProfitLossBasisNote?: string;
   unitProfitLossLines?: UnitProfitLossLine[];
 };
 

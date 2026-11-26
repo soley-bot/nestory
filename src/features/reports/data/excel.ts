@@ -194,7 +194,7 @@ function profitLossSheetXml(report: TrustedReport, hasLogo: boolean) {
     [{ style: 4, span: 7, value: report.unitProfitLossOwnerProperties?.length
       ? report.unitProfitLossOwnerProperties.map(({ ownerName, propertyName }) => `Owner: ${ownerName} | Property: ${propertyName}`).join("\n")
       : `Owner: Not provided | Property: ${report.scopeLabel}` }],
-    [{ style: 4, span: 7, value: profitLossBasisNote }],
+    [{ style: 4, span: 7, value: report.unitProfitLossBasisNote ?? profitLossBasisNote }],
     heading("Account", "Date", "Type", "Name", "Unit", "Description", "Amount"),
     [{ style: 10, span: 7, value: "Income" }],
     ...detail("income"), total("Total Income", income),

@@ -1,4 +1,7 @@
 import { loadMonthlyRentGaps } from "./monthly-rent-completeness";
+import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
+import { pilotProfitLossBasisNote } from "./profit-loss-funding";
+import { effectiveProfitLossDetail } from "./profit-loss-corrections";
 import { withFinancialReadContext } from "@/lib/finance/financial-write-context.server";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { loadProfitLossFunding } from "./profit-loss-funding-loader";
@@ -172,6 +175,7 @@ type PersonRow = {
 };
 
 type TrustedReportInput = {
+  pilotMonthlyProfitLoss?: boolean;
   documents: DocumentRow[];
   effectiveLeaseDate?: string;
   generatedAt?: string;
@@ -443,11 +447,13 @@ async function loadTrustedReport({
       (viewQuery.unitId !== "all" && !units.some((unit) => unit.id === viewQuery.unitId))
     ) return invalidReportScope(viewQuery);
 
+    const pilotMonthlyProfitLoss = organizationId === PILOT_ORGANIZATION_ID;
     const ownerProfitLossEvents =
       propertyIds.length === 0
         ? []
         : await loadReportOwnerProfitLossEvents({
             organizationId,
+            rentalMonth: pilotMonthlyProfitLoss,
             period,
             propertyIds,
             supabase,
@@ -474,6 +480,7 @@ async function loadTrustedReport({
     }));
 
     const report = buildTrustedReport({
+      pilotMonthlyProfitLoss,
       documents: [],
       ledgerEntries: [],
       leases: [],
@@ -923,8 +930,9 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
   const recognizedEvents = singleUnit
     ? context.ownerProfitLossEvents.filter(event => event.unitId === context.viewQuery.unitId)
     : context.ownerProfitLossEvents;
+  const detailEvents = context.pilotMonthlyProfitLoss ? effectiveProfitLossDetail(recognizedEvents) : recognizedEvents;
   const unitProfitLossLines =
-    recognizedEvents
+    detailEvents
           .map<UnitProfitLossLine>((event) => {
             const unit = event.unitId
               ? context.unitsById.get(event.unitId)
@@ -984,8 +992,8 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
       { align: "right", key: "expenses", label: "Expenses" },
       { align: "right", key: "netIncome", label: "Net income" },
     ],
-    description:
-      "Owner income and expense recognized by invoice or owner-cost obligation date, shown by unit with property-level activity kept explicit.",
+    description: context.pilotMonthlyProfitLoss ? pilotProfitLossBasisNote
+      : "Owner income and expense recognized by invoice or owner-cost obligation date, shown by unit with property-level activity kept explicit.",
     emptyDescription:
       "Add units or issue owner-recognized income and expense obligations for this scope.",
     emptyTitle: "No unit profit and loss rows",
@@ -996,7 +1004,8 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
       metric(
         "Income",
         formatUsdCents(incomeCents),
-        "Owner income recognized when tenant invoice lines are issued",
+        context.pilotMonthlyProfitLoss ? "Rent for the selected rental month and other invoiced income"
+          : "Owner income recognized when tenant invoice lines are issued",
         incomeSourceCount,
       ),
       metric(
@@ -1015,6 +1024,7 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
     ],
     title: "Monthly Unit Profit & Loss",
     totalsTraceLabel: `Totals trace to ${recognizedEvents.length} recognized owner event${recognizedEvents.length === 1 ? "" : "s"} in ${context.periodLabel}, including ${propertyLevelCount} property-level event${propertyLevelCount === 1 ? "" : "s"}. Tenant settlements, Ledger rows, and tenant-recharge company costs are not recognition sources.`,
+    unitProfitLossBasisNote: context.pilotMonthlyProfitLoss ? pilotProfitLossBasisNote : undefined,
     unitProfitLossDetailScope:
       context.viewQuery.unitId === "all" ? undefined : "single-unit",
     unitProfitLossScopeNote: singleUnit
@@ -2366,11 +2376,13 @@ async function loadReportOwnerProfitLossEvents({
   organizationId,
   period,
   propertyIds,
+  rentalMonth,
   supabase,
 }: {
   organizationId: string;
   period: { end: string; start: string };
   propertyIds: string[];
+  rentalMonth?: boolean;
   supabase: SupabaseServerClient;
 }) {
   const eventLists: OwnerProfitLossEvent[][] = [];
@@ -2384,6 +2396,7 @@ async function loadReportOwnerProfitLossEvents({
         {
           currency: "USD",
           organizationId,
+          rentalMonth,
           periodEnd: period.end,
           periodStart: period.start,
           propertyId,
