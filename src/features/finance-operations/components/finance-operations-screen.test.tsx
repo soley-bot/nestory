@@ -4478,6 +4478,33 @@ describe("FinanceOperationsScreen", () => {
     ).toBe(true);
   });
 
+  it("opens the payment form for the invoice selected in the rent register", async () => {
+    const invoice = tenantInvoice();
+    const input = { ...data(), tenantInvoices: [invoice, { ...invoice, id: "other-invoice", invoiceNumber: "INV-OTHER" }] };
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRecordPayments: true })} organizationName="Pilot" view="rent" />);
+    await userEvent.setup().click(screen.getByRole("button", { name: `Confirm collection for ${invoice.invoiceNumber}` }));
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(valueOfNamedInput(dialog, "invoiceId")).toBe(invoice.id));
+    expect(within(dialog).queryByText("INV-OTHER")).toBeNull();
+  });
+
+  it.each([true, false])("shows the exact fee correction in the property account only for an authorized admin: %s", async (isSuperAdmin) => {
+    const invoiceId = "30000000-0000-4000-8000-000000000001";
+    const input = data();
+    input.accountEntries = [{ id: "fee", source: { kind: "lease", id: "lease-1", invoiceId, reference: null }, amount: 25, category: "management_fee", createdAt: "2026-09-01", date: "2026-09-01", label: "Management fee", note: null, propertyId: "property-1", runningBalance: 50, sourceType: "management_fee_occurrence" }];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canCorrectFinance: true })} isSuperAdmin={isSuperAdmin} canViewLeases selectedPropertyId="property-1" organizationName="Pilot" view="account" />);
+    await userEvent.setup().click(screen.getByRole("button", { name: /Actions for Management fee/ }));
+    if (isSuperAdmin) {
+      const href = new URL(screen.getByRole("menuitem", { name: "Correct management fee" }).getAttribute("href")!, "http://localhost");
+      expect(href.pathname).toBe("/leases/lease-1");
+      expect(href.searchParams.get("invoiceId")).toBe(invoiceId);
+      expect(href.searchParams.get("action")).toBe("correct-management-fee");
+    } else {
+      expect(screen.queryByRole("menuitem", { name: "Correct management fee" })).toBeNull();
+      expect(screen.getByRole("menuitem", { name: "Open lease" })).toBeTruthy();
+    }
+  });
+
   it("offers property contribution and corrects the mapped withdrawal source", async () => {
     const user = userEvent.setup();
     const input = data();
@@ -4491,6 +4518,7 @@ describe("FinanceOperationsScreen", () => {
     await user.type(screen.getByRole("textbox", { name: "Amount (USD)" }), "45");
     await user.type(screen.getByRole("textbox", { name: "Reason for correction" }), "Correct amount recorded");
     await user.click(screen.getByRole("button", { name: "Review correction" }));
+    expect(screen.getByRole("button", { name: "Confirm correction" })).toBeTruthy();
     expect(valueOfNamedInput(screen.getByRole("dialog"), "originalId")).toBe("actual-withdrawal");
   });
 
@@ -4736,7 +4764,8 @@ describe("FinanceOperationsScreen", () => {
     );
 
     const row = screen.getByRole("row", { name: /INV-202608-001/ });
-    expect(within(row).getAllByRole("button")).toHaveLength(1);
+    expect(within(row).getAllByRole("button", { name: /View invoice/ })).toHaveLength(1);
+    expect(within(row).getByRole("button", { name: "Confirm collection for INV-202608-001" })).toBeTruthy();
     expect(
       within(row).getByRole("button", { name: "View invoice INV-202608-001" }),
     ).not.toBeNull();

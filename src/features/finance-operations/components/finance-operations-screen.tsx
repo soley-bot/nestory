@@ -9,7 +9,7 @@ import dynamic from "next/dynamic";
 import { useStableActionId, useSuccess, Field, FormFooter, SubmitButton, ActionMessage, DefinitionRows } from "./finance-form-primitives";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Fragment, useActionState, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useActionState, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { useOverlayDraftGuard, type OverlayDraftGuard } from "@/components/ui/overlay-dismissal-context";
 import { ChevronRight, Plus, WalletCards } from "lucide-react";
@@ -78,10 +78,11 @@ export type FinanceOperationsView =
 
 type ModalState =
   | { mode: "expense-cancel"; submission: ExpenseSubmissionSummary }
-  | { lease?: FinanceLease; mode: "manual-charge"; transactionScope?: FinanceOperationsScreenProps["scope"] }
+  | { lease?: FinanceLease; mode: "manual-charge"; transactionScope?: FinanceOperationsScreenProps["scope"]; transactionMonth?: string }
   | {
       invoice: TenantInvoiceSummary;
       mode: "invoice-details";
+      focusPayments?: boolean;
     }
   | {
       mode: "expense-details";
@@ -94,6 +95,7 @@ type ModalState =
     }
   | {
       transactionScope?: FinanceOperationsScreenProps["scope"];
+      transactionMonth?: string;
       canChooseAnother?: boolean;
       fromInvoiceDetails?: boolean;
       invoice?: TenantInvoiceSummary;
@@ -219,6 +221,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
   const [invoicePdfPublicationOpen, setInvoicePdfPublicationOpen] =
     useState(false);
   const pdfDrawerTriggerRef = useRef<HTMLElement | null>(null);
+  const paymentHistoryRef = useRef<HTMLHeadingElement>(null);
   const [receiptResult, setReceiptResult] =
     useState<TenantPaymentReceiptResult | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -442,6 +445,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
 
       {visibleDetailDrawer ? (
         <SideDrawer
+          initialFocusRef={visibleDetailDrawer.mode === "invoice-details" && visibleDetailDrawer.focusPayments ? paymentHistoryRef : undefined}
           onClose={
             visibleDetailDrawer.mode === "invoice-details" &&
             invoicePdfPublicationOpen
@@ -458,6 +462,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
         >
           {visibleDetailDrawer.mode === "invoice-details" ? (
             <InvoiceDetails
+              paymentHistoryRef={paymentHistoryRef}
               canReviewPaidRent={Boolean(props.canGeneratePastRent && props.canCorrectFinance)}
               isSuperAdmin={props.isSuperAdmin ?? false}
               canViewPropertyRecords={props.canViewPropertyRecords ?? true}
@@ -583,6 +588,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
         >
           {visibleActionModal.mode === "manual-charge" ? (
             <ManualTenantChargeForm
+              selectedMonth={visibleActionModal.transactionMonth}
               canGeneratePastRent={props.canGeneratePastRent}
               invoicesArePaginated={Boolean(props.tenantInvoicePage)}
               leaseChargeAccounts={props.leaseChargeAccounts}
@@ -607,9 +613,10 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
             visibleActionModal.invoice ? (
               <TenantInvoicePaymentForm
                 invoice={visibleActionModal.invoice}
+                selectedMonth={visibleActionModal.transactionMonth}
                 onChooseAnother={
                   visibleActionModal.canChooseAnother
-                    ? () => setModal({ mode: "payment", transactionScope: visibleActionModal.transactionScope })
+                    ? () => setModal({ mode: "payment", transactionScope: visibleActionModal.transactionScope, transactionMonth: visibleActionModal.transactionMonth })
                     : undefined
                 }
                 onReceiptResult={setReceiptResult}
@@ -630,7 +637,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
                 )}
                 paginated={(props.tenantInvoicePage?.pagination.totalPages ?? 1) > 1}
                 onChoose={(invoice) =>
-                  setModal({ canChooseAnother: true, invoice, mode: "payment", transactionScope: visibleActionModal.transactionScope })
+                  setModal({ canChooseAnother: true, invoice, mode: "payment", transactionScope: visibleActionModal.transactionScope, transactionMonth: visibleActionModal.transactionMonth })
                 }
               />
             )
@@ -737,6 +744,16 @@ function ScopedFinanceNavigation({
   );
 }
 
+function leaseEntryAction(entry: PropertyAccountEntry, props: FinanceOperationsScreenProps, returnTo: string) {
+  const source = entry.source;
+  if (source?.kind !== "lease" || !props.canViewLeases) return;
+  if (entry.sourceType === "management_fee_occurrence" && entry.amount > 0 && source.invoiceId &&
+      !source.isReversed && !source.blockedReason && props.isSuperAdmin && props.canCorrectFinance) {
+    return { label: "Correct management fee", href: buildIssuedChargeEditHref(source.id, { invoiceId: source.invoiceId, mode: "management_fee" }, returnTo) };
+  }
+  return { label: "Open lease", href: `/leases/${source.id}` };
+}
+
 function getScreen(
   props: FinanceOperationsScreenProps,
   openModal: (modal: ModalState) => void,
@@ -762,19 +779,20 @@ function getScreen(
         onOpenInvoice={invoice => openModal({ mode: "invoice-details", invoice })}
         onOpenExpense={submission => openModal({ mode: "expense-details", submission })}
         renderTransactionActions={row => <TransactionRowActions canCorrectIssuedRent={props.isSuperAdmin} row={row} canCorrect={props.canCorrectFinance} canViewLeases={props.canViewLeases ?? false}
+          onReviewPayments={row.source.kind === "charge" ? () => { if (row.source.kind === "charge") openModal({ mode: "invoice-details", invoice: row.source.invoice, focusPayments: true }); } : undefined}
           returnTo={`/${scope.kind === "unit" ? "units" : "properties"}/${scope.id}/finance?view=transactions`}
           onEditExpense={row.source.kind === "expense" && canReplaceExpense(row.source.submission, props) ? () => { if (row.source.kind === "expense") openDrawer({ mode: "expense", replacement: row.source.submission }); } : undefined}
           onDeleteExpense={row.source.kind === "expense" && !row.source.submission.transactionReviewBlocked && (row.source.submission.status === "approved" ? props.canReverseExpense : row.source.submission.status === "submitted" && canReplaceExpense(row.source.submission, props)) ? () => { if (row.source.kind === "expense") openModal({ mode: row.source.submission.status === "approved" ? "expense-reversal" : "expense-cancel", submission: row.source.submission }); } : undefined}
         />}
-        renderAccountActions={entry => <AccountEntryActions canRecoverOwnerDistribution={props.isSuperAdmin} entry={entry} propertyLabel={scope.propertyLabel} canCorrectFinance={props.canCorrectFinance && props.canRecordOwnerCash} sourceAction={entry.source?.kind === "lease" && props.canViewLeases ? { label: "Open lease", href: `/leases/${entry.source.id}` } : undefined} />}
+        renderAccountActions={entry => <AccountEntryActions canRecoverOwnerDistribution={props.isSuperAdmin} entry={entry} propertyLabel={scope.propertyLabel} canCorrectFinance={props.canCorrectFinance && props.canRecordOwnerCash} sourceAction={leaseEntryAction(entry, props, `/${scope.kind === "unit" ? "units" : "properties"}/${scope.id}/finance?view=transactions`)} />}
         actions={(effectiveScope, month) => {
           const transactionScope: NonNullable<FinanceOperationsScreenProps["scope"]> = effectiveScope.unitId ? { ...scope, id: effectiveScope.unitId, kind: "unit", label: props.unitOptions.find(unit => unit.id === effectiveScope.unitId)?.label ?? scope.label } : scope;
           const leases = props.leases.filter(lease => lease.propertyId === effectiveScope.propertyId && (!effectiveScope.unitId || lease.unitId === effectiveScope.unitId) && ["active", "notice_given"].includes(lease.status));
           const openInvoices = props.tenantInvoices.filter(invoice => invoice.propertyId === effectiveScope.propertyId && (!effectiveScope.unitId || invoice.unitId === effectiveScope.unitId) && invoice.balanceDue > 0 && invoice.paymentStatus !== "voided");
           return <>
           {props.canRecordPayments ? <>
-            <Button onClick={() => openModal({ mode: "manual-charge", transactionScope, lease: leases.length === 1 ? leases[0] : undefined })}>Add charge</Button>
-            <Button variant="outline" disabled={!openInvoices.length} onClick={() => openModal({ mode: "payment", transactionScope, invoice: openInvoices.length === 1 ? openInvoices[0] : undefined, canChooseAnother: true })}>Receive payment</Button>
+            <Button onClick={() => openModal({ mode: "manual-charge", transactionScope, transactionMonth: month, lease: leases.length === 1 ? leases[0] : undefined })}>Add charge</Button>
+            <Button variant="outline" disabled={!openInvoices.length} onClick={() => openModal({ mode: "payment", transactionScope, transactionMonth: month, invoice: openInvoices.length === 1 ? openInvoices[0] : undefined, canChooseAnother: true })}>Receive payment</Button>
           </> : null}
           {props.canSubmitExpense ? <Button variant="outline" onClick={() => openDrawer({ mode: "expense", initialResponsibility: "owner", fixedScope: transactionScope })}>Add expense</Button> : null}
           {props.canRecordOwnerCash && position?.ownerPersonId ? <>
@@ -863,6 +881,7 @@ function getScreen(
         ) : undefined,
       body: (
         <RentView
+          canRecordPayments={props.canRecordPayments}
           manualRent={manualRent}
           canViewLeases={props.canViewLeases ?? false}
           canGenerateRent={props.canRecordPayments && props.canRetryCurrentRent && (!props.initialRentLeaseId || Boolean(focusedLease))}
@@ -1001,7 +1020,7 @@ function getScreen(
             }
             if (source.kind === "lease" && props.canViewLeases) {
               const lease = props.leases.find((item) => item.id === source.id && item.propertyId === entry.propertyId);
-              return lease ? { label: "Open lease", href: `/leases/${lease.id}` } : undefined;
+              return lease ? leaseEntryAction(entry, props, `/properties/${entry.propertyId}/finance?view=owner`) : undefined;
             }
             return undefined;
           }}
@@ -1844,6 +1863,7 @@ function HistoricalRentRecoveryForm({
 }
 
 function RentView({
+  canRecordPayments,
   manualRent,
   canViewLeases,
   canGenerateRent,
@@ -1863,6 +1883,7 @@ function RentView({
   scoped,
 }: {
   manualRent: boolean;
+  canRecordPayments: boolean;
   canViewLeases: boolean;
   canGenerateRent: boolean;
   currentRentStatuses?: CurrentLeaseRentStatus[];
@@ -2043,6 +2064,13 @@ function RentView({
                         settlements={invoice.settlements}
                         status={invoice.paymentStatus}
                       />
+                      {canRecordPayments && invoice.balanceDue > 0 && invoice.paymentStatus !== "voided" ? (
+                        <button type="button" className="mt-1 block rounded-sm text-xs font-medium text-primary underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-ring"
+                          aria-label={`${invoice.collectionRoute === "through_ips" ? "Record payment" : "Confirm collection"} for ${invoice.invoiceNumber}`}
+                          onClick={() => openModal({ invoice, mode: "payment" })}>
+                          {invoice.collectionRoute === "through_ips" ? "Record payment" : "Confirm collection"}
+                        </button>
+                      ) : null}
                     </Td>
                   </tr>
                 ))}
@@ -2412,6 +2440,7 @@ function BalancesView({
 }
 
 function InvoiceDetails({
+  paymentHistoryRef,
   canReviewPaidRent,
   isSuperAdmin,
   businessDate,
@@ -2441,6 +2470,7 @@ function InvoiceDetails({
   canViewPropertyRecords: boolean;
   invoice: TenantInvoiceSummary;
   onCorrect: () => void;
+  paymentHistoryRef: RefObject<HTMLHeadingElement | null>;
   onPublicationClose: () => void;
   onPublicationSuccess: (state: FinanceOperationsActionState) => void;
   onPublishPdf: (trigger: HTMLElement) => void;
@@ -2549,6 +2579,7 @@ function InvoiceDetails({
       {invoice.isProrated ? <Badge tone="accent">Prorated</Badge> : null}
       <SettlementHistory
         canRetryReceipt={canRecordPayments}
+        headingRef={paymentHistoryRef}
         settlements={invoice.settlements}
       />
       {canReviewPaidRent && invoice.paymentStatus === "paid" && invoice.collectionRoute === "through_ips" &&
@@ -2707,39 +2738,37 @@ function InvoicePdfPublicationForm({
 
 function SettlementHistory({
   canRetryReceipt,
+  headingRef,
   settlements,
 }: {
   canRetryReceipt: boolean;
+  headingRef: RefObject<HTMLHeadingElement | null>;
   settlements: TenantInvoiceSettlement[];
 }) {
-  const ipsSettlements = settlements.filter(
-    (settlement) => settlement.route === "through_ips",
-  );
-  if (ipsSettlements.length === 0) return null;
+  if (settlements.length === 0) return null;
 
   return (
     <section aria-labelledby="settlement-history-heading">
-      <h3 className="text-sm font-semibold" id="settlement-history-heading">
+      <h3 ref={headingRef} tabIndex={-1} className="rounded-sm text-sm font-semibold focus-visible:outline-2 focus-visible:outline-ring" id="settlement-history-heading">
         Payment history
       </h3>
       <div className="mt-2 divide-y divide-border border-y border-border">
-        {ipsSettlements.map((settlement) => (
+        {settlements.map((settlement) => (
           <div
             className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
             key={settlement.id}
           >
             <div className="min-w-0">
-              <p className="font-medium">
-                {settlement.receiptNumber ?? formatDate(settlement.date)}
-              </p>
+              <p className="font-medium">{formatDate(settlement.date)} · <Money amount={settlement.amount} /></p>
+              <p className="break-words text-xs text-muted-foreground">{[settlement.receiptNumber ?? (settlement.route === "direct_to_owner" ? "Owner collection" : null), settlement.reference].filter(Boolean).join(" · ")}</p>
               {settlement.isReversed ? (
                 <Badge tone="warning">Reversed</Badge>
               ) : null}
             </div>
-            <ReceiptAction
+            {settlement.route === "through_ips" ? <ReceiptAction
               canRetry={canRetryReceipt}
               settlement={settlement}
-            />
+            /> : null}
           </div>
         ))}
       </div>
@@ -3899,6 +3928,7 @@ function WithdrawalForm({
 }
 
 function ManualTenantChargeForm({
+  selectedMonth,
   canGeneratePastRent,
   invoicesArePaginated = false,
   leaseChargeAccounts,
@@ -3910,6 +3940,7 @@ function ManualTenantChargeForm({
   scope,
 }: {
   canGeneratePastRent?: boolean;
+  selectedMonth?: string;
   invoicesArePaginated?: boolean;
   leaseChargeAccounts: FinanceOperationsData["leaseChargeAccounts"];
   fixedLease?: FinanceLease;
@@ -3935,7 +3966,7 @@ function ManualTenantChargeForm({
   const [categoryAccountId, setCategoryAccountId] = useState(initialCategoryAccountId);
   const submittedCategoryAccountIdRef = useRef(initialCategoryAccountId);
   const [leaseId, setLeaseId] = useState(fixedLease?.id ?? "");
-  const [billingPeriod, setBillingPeriod] = useState(getBusinessMonthValue());
+  const [billingPeriod, setBillingPeriod] = useState(selectedMonth || getBusinessMonthValue());
   const idempotencyKey = useStableActionId("manual-tenant-charge");
   const [state, action, pending] = useActionState(
     createManualTenantChargeAction,

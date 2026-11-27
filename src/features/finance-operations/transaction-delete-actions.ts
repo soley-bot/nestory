@@ -36,13 +36,13 @@ export async function deleteTransactionAction(_state: FinanceOperationsActionSta
         : input.kind === "contribution"
           ? z.object({ originalId: z.literal(input.id), reversalId: uuid }).safeParse(result.data).success
           : z.object({ property_withdrawal_id: uuid, reversal_of_id: z.literal(input.id) }).safeParse(result.data).success;
-    if (!valid) return { status: "error", message: "The deletion could not be confirmed. Refresh the list before trying again." };
+    if (!valid) return { status: "error", message: "The change could not be confirmed. Refresh the transaction to check its status." };
   } catch {
-    return { status: "error", message: "The deletion could not be confirmed. Refresh the list before trying again." };
+    return { status: "error", message: "The change could not be confirmed. Refresh the transaction to check its status." };
   }
   revalidatePath(`/properties/${input.propertyId}`, "layout");
   for (const path of ["/units", "/finance", "/rent-income", "/balances", "/reports", "/ledger"]) revalidatePath(path, "layout");
   return input.kind === "tenant-invoice"
     ? { status: "success", message: "Invoice voided and removed from Rent & collections. Review the lease to prevent future charges." }
-    : { status: "success", message: "Transaction deleted. Its history is retained." };
+    : { status: "success", message: "Reversal recorded." };
 }

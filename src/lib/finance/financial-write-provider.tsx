@@ -5,7 +5,7 @@ import { useOverlayFormDraftGuard, useOverlayCloseRequest } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { FINANCIAL_GENERATION_FIELD, financialContextKey, financialWriteContextSchema, type FinancialWriteContext } from "./financial-write-context";
 
-type FinancialSession = { context: FinancialWriteContext; invalid: boolean };
+type FinancialSession = { context: FinancialWriteContext; invalid: boolean; organizationId: string };
 const FinancialContext = createContext<FinancialSession | null>(null);
 
 export function FinancialWriteProvider({ children, context, organizationId }: {
@@ -38,7 +38,7 @@ export function FinancialWriteProvider({ children, context, organizationId }: {
     return () => { disposed = true; clearInterval(timer); window.removeEventListener("focus", onVisible); document.removeEventListener("visibilitychange", onVisible); };
   }, [initial, organizationId]);
   const blocked = invalid || initial.status === "frozen" || financialContextKey(context) !== financialContextKey(initial);
-  return <FinancialContext.Provider value={{ context: initial, invalid: blocked }}>
+  return <FinancialContext.Provider value={{ context: initial, invalid: blocked, organizationId }}>
     {blocked ? <div role="alert" className="border-b border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-950">
       {initial.status === "frozen" ? "Financial changes and reports are paused while this workspace is being reset." : "The workspace’s financial session changed or could not be verified. Reload before entering transactions or using reports."}
       <button className="ml-3 underline" onClick={() => window.location.reload()} type="button">Reload page</button>

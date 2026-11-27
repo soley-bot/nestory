@@ -12,6 +12,7 @@ import {
 } from "@/features/finance-operations/data/finance-operations";
 import { getUnitDetail } from "@/features/units/data/units";
 import { requireFinanceContext } from "@/lib/auth/context";
+import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
 import { parseRentInvoiceQuery, type RentInvoiceSearchParams } from "@/features/finance-operations/rent-invoice-query";
 
 export default async function UnitFinancePage({
@@ -63,6 +64,7 @@ export default async function UnitFinancePage({
       canRecordPayments={context.capabilities.canOperateFinance}
       canReadFinanceReports={context.capabilities.canReadFinanceReports}
       canRecoverRent={context.capabilities.canRecoverHistoricalRent}
+      canGeneratePastRent={context.organizationId === PILOT_ORGANIZATION_ID && context.isSuperAdmin && context.capabilities.canRecoverHistoricalRent}
       canReviewExpense={context.capabilities.canReviewExpense}
       canReverseExpense={context.capabilities.canReverseExpense}
       canRetryCurrentRent={context.capabilities.canRetryCurrentRent}

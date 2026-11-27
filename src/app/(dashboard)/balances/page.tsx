@@ -105,6 +105,7 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps) 
     <>
     <ReportReturnNavigation returnTo={originReportHref} />
     <OwnerBalanceLedger
+      openOpeningBalance={!scopeWasSanitized && Boolean(requestedPropertyId && requestedOwnerPersonId && validMonth(first(query.month))) && selectedView === "summary" && first(query.action) === "opening-balance"}
       originReportHref={originReportHref}
       canAllocate={context.capabilities.canOperateFinance}
       canGenerate={context.capabilities.canCloseOwnerMonth}

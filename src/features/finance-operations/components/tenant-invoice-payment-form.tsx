@@ -45,6 +45,7 @@ export type TenantPaymentReceiptResult = {
 
 type TenantInvoicePaymentFormProps = {
   invoice: TenantInvoiceSummary;
+  selectedMonth?: string;
   onChooseAnother?: () => void;
   onReceiptResult: (result: TenantPaymentReceiptResult) => void;
   onSuccess: (message: string) => void;
@@ -67,6 +68,7 @@ export function TenantInvoicePaymentForm(
 
 function TenantInvoicePaymentFormStateful({
   invoice,
+  selectedMonth,
   onChooseAnother,
   onReceiptResult,
   onSuccess,
@@ -76,6 +78,8 @@ function TenantInvoicePaymentFormStateful({
   submitLabel,
 }: TenantInvoicePaymentFormProps) {
   const { getBusinessDateValue } = useBusinessDate();
+  const today = getBusinessDateValue();
+  const [receivedDate, setReceivedDate] = useState(selectedMonth && selectedMonth !== today.slice(0, 7) ? "" : today);
   const idempotencyKey = useStableActionId(
     invoice.collectionRoute === "through_ips" ? "payment" : "owner-confirm",
   );
@@ -194,7 +198,9 @@ function TenantInvoicePaymentFormStateful({
         <Field label={settlementDateLabel}>
           <DatePickerField
             ariaLabel={settlementDateLabel}
-            defaultValue={getBusinessDateValue()}
+            defaultValue={receivedDate}
+            initialMonth={selectedMonth}
+            onValueChange={setReceivedDate}
             name="settlementDate"
             required
           />
@@ -225,7 +231,7 @@ function TenantInvoicePaymentFormStateful({
         </Field>
       </div>
       <p className="text-xs text-muted-foreground">
-        Use the actual {invoice.collectionRoute === "through_ips" ? "payment" : "collection"} date, including earlier dates. This date determines the cash reporting period. Record entry time is saved automatically.
+        Use the date the {invoice.collectionRoute === "through_ips" ? "payment was received" : "owner collected the money"}. This sets the cash reporting month.
       </p>
       {invoice.collectionRoute === "through_ips" ? (
         <p className="text-xs text-muted-foreground">A receipt is prepared after saving.</p>
@@ -280,7 +286,7 @@ function TenantInvoicePaymentFormStateful({
         ) : (
           <span />
         )}
-        <SubmitButton label={actionLabel} />
+        <SubmitButton disabled={!receivedDate} label={actionLabel} />
       </FormFooter>
       <ConfirmationDialog
         cancelLabel="Keep editing"
@@ -363,10 +369,10 @@ function FormFooter({ children }: { children: ReactNode }) {
   );
 }
 
-function SubmitButton({ label }: { label: string }) {
+function SubmitButton({ label, disabled }: { label: string; disabled?: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button disabled={pending} type="submit" variant="default">
+    <Button disabled={pending || disabled} type="submit" variant="default">
       {pending ? "Saving…" : label}
     </Button>
   );

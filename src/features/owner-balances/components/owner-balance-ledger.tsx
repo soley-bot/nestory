@@ -53,6 +53,7 @@ type OwnerBalanceLedgerProps = {
   closingAuthority?: ReactNode;
   data: OwnerBalanceData;
   openingAuthority?: ReactNode;
+  openOpeningBalance?: boolean;
   organizationName: string;
   originReportHref?: string;
   propertyAccount?: {
@@ -80,6 +81,7 @@ export function OwnerBalanceLedger({
   closingAuthority,
   data,
   openingAuthority,
+  openOpeningBalance = false,
   organizationName,
   originReportHref,
   propertyAccount,
@@ -220,7 +222,8 @@ export function OwnerBalanceLedger({
 
           <div className="space-y-4" hidden={selectedView !== "summary"}>
             {selectedView === "summary" ? <OwnerAccountOperations
-              key={`${selectedPropertyId}:${selectedOwnerPersonId}:${selectedMonth}`}
+              key={`${selectedPropertyId}:${selectedOwnerPersonId}:${selectedMonth}:${openOpeningBalance}`}
+              openOpeningBalance={openOpeningBalance}
               closingAuthority={closingAuthority}
               generationAuthority={generationAuthority}
               openingAuthority={openingAuthority}

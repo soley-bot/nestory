@@ -54,6 +54,7 @@ vi.mock("@/features/owner-balances/components/owner-balance-ledger", () => ({
     canViewPropertyRecords?: boolean;
     closingAuthority?: React.ReactNode;
     openingAuthority?: React.ReactNode;
+    openOpeningBalance?: boolean;
     selectedView?: string;
     selectedSourceLineId?: string;
   }) => (
@@ -63,6 +64,7 @@ vi.mock("@/features/owner-balances/components/owner-balance-ledger", () => ({
       data-can-transfer={String(props.canTransfer)}
       data-can-resolve-ownership={String(props.canResolveOwnership)}
       data-can-view-property-records={String(props.canViewPropertyRecords)}
+      data-open-opening-balance={String(props.openOpeningBalance)}
       data-testid="authoritative-ledger"
       data-selected-view={props.selectedView}
       data-selected-source-line-id={props.selectedSourceLineId}
@@ -85,6 +87,15 @@ const propertyId = "00000000-0000-4000-8000-000000000002";
 const ownerId = "00000000-0000-4000-8000-000000000003";
 
 describe("BalancesPage opening balance integration", () => {
+  it.each([
+    [propertyId, ownerId, "2026-10", true],
+    [propertyId, undefined, "2026-10", false],
+    ["00000000-0000-4000-8000-000000000099", ownerId, "2026-10", false],
+    [propertyId, ownerId, "invalid", false],
+  ] as const)("opens the carry-over shortcut only for its exact property, owner and month", async (property, owner, month, expected) => {
+    render(await BalancesPage({ searchParams: Promise.resolve({ view: "summary", action: "opening-balance", propertyId: property, ownerPersonId: owner, month }) }));
+    expect(screen.getByTestId("authoritative-ledger").getAttribute("data-open-opening-balance")).toBe(String(expected));
+  });
   it("shows the new statement report for Pilot without loading management controls", async () => {
     const context = await mocks.requireFinanceContext();
     mocks.requireFinanceContext.mockResolvedValue({ ...context, organizationSlug: "pilot" });

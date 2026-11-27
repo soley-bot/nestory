@@ -83,6 +83,14 @@ describe("TenantInvoicePaymentForm", () => {
     expect(onChooseAnother).not.toHaveBeenCalled();
   });
 
+  it("requires an actual received date when starting from a past transaction month", () => {
+    const { container } = render(<TenantInvoicePaymentForm invoice={invoice()} selectedMonth="2024-10" ownerLabel="Owner" payFromAccounts={[account()]}
+      onReceiptResult={vi.fn()} onSuccess={vi.fn()} submitLabel="Save payment" />);
+    expect(valueOfNamedInput(container, "settlementDate")).toBe("");
+    expect((screen.getByRole("button", { name: "Save payment" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(actionMocks.recordTenantInvoicePaymentAction).not.toHaveBeenCalled();
+  });
+
   it("submits an IPS payment with the authoritative field names", () => {
     const { container } = renderForm({
       invoice: invoice({ collectionRoute: "through_ips" }),

@@ -108,7 +108,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("OpeningBalanceScreen", () => {
-  it.each([0, 2])("hides opening authority from generation %s under a retained generation one layout", generation => {
+  it.each([0, 2])("hides opening balance controls from generation %s under a retained generation one layout", generation => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise(() => {}));
     render(<FinancialWriteProvider organizationId={organizationId} context={{ generation: 1, status: "open", financial_start_date: "2026-08-01", enforced: true }}>
       <OpeningBalanceScreen {...superAdminProps()} data={{ ...freshOwnerData(), financialGeneration: generation }} />

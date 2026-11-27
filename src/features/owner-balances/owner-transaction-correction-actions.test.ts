@@ -36,7 +36,7 @@ describe("owner transaction correction action", () => {
     await expect(correctOwnerTransactionAction({ status: "idle" }, form())).rejects.toThrow("Forbidden");
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
-  it.each([["owner_period_closed", "closed"], ["already_reversed", "already"], ["would_underfund_owner_cash", "cash"], ["privileged_email_step_up_required", "Verify your email"]])("explains %s", async (code, message) => {
+  it.each([["owner_period_closed", "closed"], ["financial_date_before_start", "financial start date"], ["already_reversed", "already"], ["would_underfund_owner_cash", "cash"], ["privileged_email_step_up_required", "Verify your email"]])("explains %s", async (code, message) => {
     mocks.rpc.mockResolvedValue({ error: { message: code } });
     expect((await correctOwnerTransactionAction({ status: "idle" }, form())).message).toContain(message);
   });

@@ -40,6 +40,7 @@ type SideDrawerProps = {
   children: React.ReactNode;
   description?: string;
   footer?: React.ReactNode;
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
   onClose: () => void;
   open: boolean;
   size?: "default" | "preview";
@@ -51,6 +52,7 @@ export function SideDrawer({
   children,
   description,
   footer,
+  initialFocusRef,
   onClose,
   open,
   size = "default",
@@ -142,11 +144,15 @@ export function SideDrawer({
             event.preventDefault();
             restorePreviousFocus();
           }}
-          onOpenAutoFocus={() => {
+          onOpenAutoFocus={(event) => {
             previouslyFocusedElementRef.current =
               document.activeElement instanceof HTMLElement
                 ? document.activeElement
                 : null;
+            if (initialFocusRef?.current) {
+              event.preventDefault();
+              initialFocusRef.current.focus();
+            }
           }}
           showCloseButton={false}
           style={{
