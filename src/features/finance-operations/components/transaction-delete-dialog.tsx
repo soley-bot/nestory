@@ -88,7 +88,7 @@ function DeleteForm({
 function transactionDeleteCopy(kind: TransactionDeleteEntry["kind"]): TransactionDeleteCopy {
   if (kind === "tenant-invoice") {
     return {
-      description: "Remove this invoice from current balances. For rent billed after a confirmed Pilot move-out, any linked fee paid from held owner funds returns to the owner’s balance. Staff can view the void in correction history.",
+      description: "Remove this invoice from current balances and Rent & collections. The lease controls future rent. For Pilot rent billed after a recorded move-out, voiding returns any fee paid from held funds to the owner’s balance.",
       pendingLabel: "Voiding…",
       reasonLabel: "Reason for voiding",
       submitLabel: "Void invoice",
