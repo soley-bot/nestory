@@ -4032,7 +4032,7 @@ function ManualTenantChargeForm({
         categoryAccountId === findConfiguredAccountId(matchingLeaseChargeAccounts, "rental_income", selectedLease.propertyId) ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3">
             <p className="text-sm">Billing monthly rent for {formatLeaseMonth(billingPeriod + "-01", "long")}? Use the lease rate and its management fee.</p>
-            <BulkRentControl initialMonth={billingPeriod} property={selectedLease.propertyId} unitSearch={selectedLease.unitLabel} />
+            <BulkRentControl initialMonth={billingPeriod} property={selectedLease.propertyId} leaseId={selectedLease.id} />
           </div>
         ) : null}
       <div className="grid gap-4 sm:grid-cols-2">

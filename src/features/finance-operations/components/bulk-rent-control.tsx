@@ -14,7 +14,7 @@ import { formatMoney } from "@/lib/money/format";
 import { postBulkRentAction, previewBulkRentAction } from "../actions";
 import { bulkRentChunkSize, type BulkRentOutcome, type BulkRentRow, type ReadyRent } from "../bulk-rent";
 
-export function BulkRentControl({ property, initialMonth, unitSearch = "" }: { property: string | null; initialMonth?: string; unitSearch?: string }) {
+export function BulkRentControl({ property, initialMonth, leaseId }: { property: string | null; initialMonth?: string; leaseId?: string }) {
   const { getBusinessMonthValue } = useBusinessDate();
   const latest = getPreviousBusinessMonthValue(getBusinessMonthValue());
   const session = useFinancialWriteContext();
@@ -44,13 +44,13 @@ export function BulkRentControl({ property, initialMonth, unitSearch = "" }: { p
   const rent = picked.reduce((sum, row) => sum + row.rent, 0);
   const fees = picked.reduce((sum, row) => sum + row.fee, 0);
 
-  async function review(value: string, searchValue = "") {
+  async function review(value: string) {
     const request = ++loadId.current;
     setMonth(value);
     setPhase("select");
     setLoading(true);
     setError("");
-    setSearch(searchValue);
+    setSearch("");
     setResults([]);
     setRows([]);
     setSelected(new Set());
@@ -58,7 +58,8 @@ export function BulkRentControl({ property, initialMonth, unitSearch = "" }: { p
       const response = await previewBulkRentAction(value, property);
       if (request !== loadId.current) return;
       if (response.data) {
-        setRows([...response.data].sort((a,b) => a.property.localeCompare(b.property) ||
+        const matchingRows = response.data.filter(row => !leaseId || row.leaseId === leaseId);
+        setRows(matchingRows.sort((a,b) => a.property.localeCompare(b.property) ||
           (a.unit ?? "").localeCompare(b.unit ?? "", undefined, { numeric: true }) || a.tenant.localeCompare(b.tenant)));
       } else setError(response.error);
     } catch {
@@ -104,7 +105,7 @@ export function BulkRentControl({ property, initialMonth, unitSearch = "" }: { p
   }
 
   return <>
-    <Button type="button" variant="outline" disabled={!available} onClick={() => { setOpen(true); void review(initialMonth ?? latest, unitSearch); }}>Generate past rent</Button>
+    <Button type="button" variant="outline" disabled={!available} onClick={() => { setOpen(true); void review(initialMonth ?? latest); }}>Generate past rent</Button>
     <Modal open={open} title={phase === "confirm" ? "Confirm past rent invoices" : phase === "results" ? "Rent generation results" : "Generate past rent"}
       onClose={() => { if (!posting.current) { ++loadId.current; setOpen(false); } }}>
       <div className="space-y-4 p-4 text-sm">
@@ -115,7 +116,7 @@ export function BulkRentControl({ property, initialMonth, unitSearch = "" }: { p
           {loading ? <p role="status">Checking leases and existing invoices…</p> : !error && <>
             <p role="status">{ready.length} ready to invoice · {existing.length} already invoiced · {blocked.length} to review</p>
             {ready.length > 0 && <>
-              <Input aria-label="Find a lease" placeholder="Find property, unit or tenant" value={search} onChange={event => setSearch(event.target.value)} />
+              {!leaseId && <Input aria-label="Find a lease" placeholder="Find property, unit or tenant" value={search} onChange={event => setSearch(event.target.value)} />}
               {fullMonth.length > 0 && <label className="flex items-center gap-2 font-medium"><input type="checkbox" checked={allFullSelected}
                 onChange={event => select(fullMonth,event.target.checked)} />
                 {fullMonth.length === 1 ? "Select 1 full-month lease" : `Select all ${fullMonth.length} full-month leases`}{query && " in search results"}</label>}
@@ -134,7 +135,7 @@ export function BulkRentControl({ property, initialMonth, unitSearch = "" }: { p
             {blocked.length > 0 && <details><summary className="cursor-pointer font-medium">Needs review ({blocked.length})</summary>
               <ul className="max-h-40 space-y-2 overflow-auto pt-2">{blocked.map(row => <li key={row.leaseId}><Link className="underline" href={`/leases/${row.leaseId}`}>{row.property} · {row.unit} · {row.tenant}</Link> · {row.note}</li>)}</ul>
             </details>}
-            {!rows.length && <p>No leases or invoices were found for {label}{property ? " at this property" : ""}.</p>}
+            {!rows.length && <p>{leaseId ? `No rent or invoices were found for this lease in ${label}.` : `No leases or invoices were found for ${label}${property ? " at this property" : ""}.`}</p>}
           </>}
           {error && <Button type="button" variant="outline" onClick={() => void review(month)}>Retry review</Button>}
         </> : <p className="font-semibold">{label} · {picked.length} {picked.length === 1 ? "lease" : "leases"}</p>}
