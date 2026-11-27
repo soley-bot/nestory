@@ -15,10 +15,10 @@ describe("TransactionWorkspace", () => {
     fireEvent.change(screen.getByRole("textbox",{name:"Search transactions"}),{target:{value:"missing"}});
     expect(screen.getByText("No transactions match this period and filters.")).not.toBeNull();
   });
-  it("passes the effective unit to create controls", () => {
+  it("passes the effective unit and selected month to create controls", () => {
     const actions=vi.fn(() => <button>Create scoped charge</button>);
     render(<TransactionWorkspace data={data} scope={{propertyId:"property-a",unitId:"unit-a"}} canReadReports={false} actions={actions} {...callbacks} />);
-    expect(actions).toHaveBeenLastCalledWith({propertyId:"property-a",unitId:"unit-a"});
+    expect(actions).toHaveBeenLastCalledWith({propertyId:"property-a",unitId:"unit-a"},"2026-09");
   });
   it("keeps unit P&L export context and labels owner cash scope", () => {
     render(<TransactionWorkspace data={data} scope={{propertyId:"property-a",unitId:"unit-a"}} canReadReports {...callbacks} />);

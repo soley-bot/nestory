@@ -50,6 +50,7 @@ import type { TenantPaymentReceiptResult } from "@/features/finance-operations/c
 import { getRentInvoiceView, isVisibleTenantInvoice, RentInvoiceFilterBar } from "@/features/finance-operations/components/rent-invoice-filters";
 import { RentUnitList } from "@/features/finance-operations/components/rent-unit-list";
 import { BulkRentControl } from "./bulk-rent-control";
+import { PaidLeaseRentControl } from "./paid-lease-rent-control";
 import { getPreviousBusinessMonthValue } from "@/lib/dates/business-date";
 import type { CommercialDocumentLink, CurrentLeaseRentStatus, ExpenseSubmissionSummary, FinanceLease, FinanceOperationsActionState, FinanceOperationsData, OwnerInvoiceSummary, PropertyAccountEntry, PropertyFinancePosition, RentGenerationException, RentUnitTarget, TenantInvoiceSettlement, TenantInvoiceSummary } from "@/features/finance-operations/finance-operations.types";
 import { categoryLabel, expenseStatusPresentation, formatEvidenceSize, getInvoiceStatusPresentation, maintenanceStatusLabel } from "@/features/finance-operations/finance-operations-view-model";
@@ -457,6 +458,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
         >
           {visibleDetailDrawer.mode === "invoice-details" ? (
             <InvoiceDetails
+              canReviewPaidRent={Boolean(props.canGeneratePastRent && props.canCorrectFinance)}
               isSuperAdmin={props.isSuperAdmin ?? false}
               canViewPropertyRecords={props.canViewPropertyRecords ?? true}
               businessDate={
@@ -581,6 +583,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
         >
           {visibleActionModal.mode === "manual-charge" ? (
             <ManualTenantChargeForm
+              canGeneratePastRent={props.canGeneratePastRent}
               invoicesArePaginated={Boolean(props.tenantInvoicePage)}
               leaseChargeAccounts={props.leaseChargeAccounts}
               fixedLease={visibleActionModal.lease}
@@ -764,7 +767,7 @@ function getScreen(
           onDeleteExpense={row.source.kind === "expense" && !row.source.submission.transactionReviewBlocked && (row.source.submission.status === "approved" ? props.canReverseExpense : row.source.submission.status === "submitted" && canReplaceExpense(row.source.submission, props)) ? () => { if (row.source.kind === "expense") openModal({ mode: row.source.submission.status === "approved" ? "expense-reversal" : "expense-cancel", submission: row.source.submission }); } : undefined}
         />}
         renderAccountActions={entry => <AccountEntryActions canRecoverOwnerDistribution={props.isSuperAdmin} entry={entry} propertyLabel={scope.propertyLabel} canCorrectFinance={props.canCorrectFinance && props.canRecordOwnerCash} sourceAction={entry.source?.kind === "lease" && props.canViewLeases ? { label: "Open lease", href: `/leases/${entry.source.id}` } : undefined} />}
-        actions={effectiveScope => {
+        actions={(effectiveScope, month) => {
           const transactionScope: NonNullable<FinanceOperationsScreenProps["scope"]> = effectiveScope.unitId ? { ...scope, id: effectiveScope.unitId, kind: "unit", label: props.unitOptions.find(unit => unit.id === effectiveScope.unitId)?.label ?? scope.label } : scope;
           const leases = props.leases.filter(lease => lease.propertyId === effectiveScope.propertyId && (!effectiveScope.unitId || lease.unitId === effectiveScope.unitId) && ["active", "notice_given"].includes(lease.status));
           const openInvoices = props.tenantInvoices.filter(invoice => invoice.propertyId === effectiveScope.propertyId && (!effectiveScope.unitId || invoice.unitId === effectiveScope.unitId) && invoice.balanceDue > 0 && invoice.paymentStatus !== "voided");
@@ -775,7 +778,7 @@ function getScreen(
           </> : null}
           {props.canSubmitExpense ? <Button variant="outline" onClick={() => openDrawer({ mode: "expense", initialResponsibility: "owner", fixedScope: transactionScope })}>Add expense</Button> : null}
           {props.canRecordOwnerCash && position?.ownerPersonId ? <>
-            <OwnerContributionControl units={props.unitOptions} unitId={effectiveScope.unitId} canRecordOwnerCash propertyId={position.propertyId} ownerPersonId={position.ownerPersonId} ownerLabel={position.ownerLabel} />
+            <OwnerContributionControl units={props.unitOptions} unitId={effectiveScope.unitId} selectedMonth={month} canRecordOwnerCash propertyId={position.propertyId} ownerPersonId={position.ownerPersonId} ownerLabel={position.ownerLabel} />
             {!effectiveScope.unitId ? <Button variant="outline" disabled={position.availableWithdrawal <= 0} onClick={() => openModal({ mode: "withdrawal", position })}>Owner distribution</Button> : null}
           </> : null}
         </>; }}
@@ -1056,6 +1059,7 @@ function getScreen(
         leases={props.leases}
         openDrawer={openDrawer}
         ownerInvoices={props.ownerInvoices}
+        propertyOptions={props.propertyOptions}
         rentGenerationExceptions={props.rentGenerationExceptions}
         tenantInvoices={props.tenantInvoices.filter(isVisibleTenantInvoice)}
       />
@@ -1098,6 +1102,7 @@ function FinanceWorkView({
   leases,
   openDrawer,
   ownerInvoices,
+  propertyOptions,
   rentGenerationExceptions,
   tenantInvoices,
 }: {
@@ -1107,6 +1112,7 @@ function FinanceWorkView({
   leases: FinanceLease[];
   openDrawer: (drawer: DrawerState) => void;
   ownerInvoices: OwnerInvoiceSummary[];
+  propertyOptions: FinanceOperationsData["propertyOptions"];
   rentGenerationExceptions: RentGenerationException[];
   tenantInvoices: TenantInvoiceSummary[];
 }) {
@@ -1129,6 +1135,7 @@ function FinanceWorkView({
       !currentExpiredLeaseIds.has(lease.id),
   );
   const leaseById = new Map(leases.map((lease) => [lease.id, lease]));
+  const propertyLabels = new Map(propertyOptions.map(({ id, label }) => [id, label]));
   const tenantDue = tenantInvoices.filter((invoice) => invoice.balanceDue > 0);
   const ownerDue = ownerInvoices.filter((invoice) => invoice.balanceDue > 0);
   const workCount =
@@ -1216,7 +1223,8 @@ function FinanceWorkView({
   }
 
   return (
-    <div className="workspace-gutter-x mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 py-4 sm:px-6 2xl:px-8">
+    <div className="workspace-gutter-x mx-auto flex w-full min-w-0 flex-col gap-3 px-4 py-4 sm:px-6 2xl:px-8">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
       <p
         aria-label="Finance work summary"
         className="text-sm text-muted-foreground"
@@ -1230,6 +1238,7 @@ function FinanceWorkView({
         {formatCount(ownerDue.length, "owner invoice payment")}
       </p>
       <FinanceCategorySetupEntry />
+      </div>
       <section
         className="min-h-0 flex-1 border-t border-border"
         data-slot="finance-work-surface"
@@ -1289,13 +1298,16 @@ function FinanceWorkView({
         ) : (
           <>
             <TableFrame borderless className="p-0">
-              <Table scrollRegionLabel="Finance records" className="min-w-[860px]">
+              <Table scrollRegionLabel="Finance records" className="table-fixed [&_td]:whitespace-normal [&_td]:[overflow-wrap:anywhere] [&_td_a]:max-w-full [&_td_button]:max-w-full">
+              <colgroup>
+                <col className="w-[29%]" /><col className="w-[27%]" /><col className="w-[13%]" /><col className="w-[13%]" /><col className="w-[18%]" />
+              </colgroup>
               <thead className="bg-[var(--table-header-bg)]">
                 <tr>
                   <Th>Work</Th>
-                  <Th>Property</Th>
+                  <Th>Property / unit</Th>
                   <Th align="right">Amount</Th>
-                  <Th>Due</Th>
+                  <Th>Date</Th>
                   <Th align="right">Action</Th>
                 </tr>
               </thead>
@@ -1342,10 +1354,10 @@ function FinanceWorkView({
                                 : "Set up lease billing"}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {item.lease.tenantLabel} · {item.lease.unitLabel}
+                              {item.lease.tenantLabel}
                             </p>
                           </Td>
-                          <Td>{item.lease.propertyLabel}</Td>
+                          <Td>{item.lease.propertyLabel}<span className="block text-xs text-muted-foreground">{item.lease.unitLabel}</span></Td>
                           <Td>—</Td>
                           <Td>Before invoicing</Td>
                           <Td align="right">
@@ -1372,6 +1384,7 @@ function FinanceWorkView({
                           canViewLeases={canViewLeases}
                           exception={item.exception}
                           lease={item.lease}
+                          propertyLabel={item.lease?.propertyLabel ?? propertyLabels.get(item.exception.propertyId)}
                           primaryAction
                         />
                       ) : item.kind === "tenant" ? (
@@ -1386,7 +1399,7 @@ function FinanceWorkView({
                           {item.invoice.recipientLabel} · {item.invoice.invoiceNumber}
                         </p>
                       </Td>
-                      <Td>{item.invoice.propertyLabel}</Td>
+                      <Td>{item.invoice.propertyLabel}<span className="block text-xs text-muted-foreground">{item.invoice.unitLabel}</span></Td>
                       <Td align="right">
                         <Money amount={item.invoice.balanceDue} />
                       </Td>
@@ -1412,7 +1425,7 @@ function FinanceWorkView({
                                 : `/rent-income?leaseId=${item.invoice.leaseId}`
                             }
                           >
-                            Review tenant payment
+                            <span className="sr-only">Review tenant payment</span><span aria-hidden>Review payment</span>
                           </Link>
                         </Button>
                       </Td>
@@ -1442,7 +1455,7 @@ function FinanceWorkView({
                           <Link
                             href={`/properties/${item.invoice.propertyId}/account`}
                           >
-                            Review owner account
+                            <span className="sr-only">Review owner account</span><span aria-hidden>Open account</span>
                           </Link>
                         </Button>
                       </Td>
@@ -1624,12 +1637,14 @@ function RentGenerationExceptionRow({
   canViewLeases,
   exception,
   lease,
+  propertyLabel,
   primaryAction = false,
 }: {
   canRecover: boolean;
   canViewLeases: boolean;
   exception: RentGenerationException;
   lease: FinanceLease | null;
+  propertyLabel?: string;
   primaryAction?: boolean;
 }) {
   const monthLabel = formatLeaseMonth(exception.billingPeriodStart);
@@ -1644,22 +1659,17 @@ function RentGenerationExceptionRow({
   return (
     <tr className="border-b border-border">
       <Td>
-        <p className="font-medium">{exception.expiredTermEndDate ? "Review lease renewal or move-out" : "Rent generation needs attention"}</p>
-        <p className="text-xs text-muted-foreground">{exception.expiredTermEndDate
-          ? `The recorded rent term ended ${formatDate(exception.expiredTermEndDate)}. No recorded rent term covers ${monthLabel}. Confirm renewal or move-out before generating rent; this exception does not establish that rent is owed.`
-          : guidance}</p>
-        {retiredPolicyException ? (
-          <details className="mt-1 text-xs text-muted-foreground">
-            <summary>Original exception</summary>
-            <p>{exception.message}</p>
-          </details>
-        ) : null}
-        <p className="mt-1 text-xs text-muted-foreground">
-          {exception.attemptCount}{" "}
-          {exception.attemptCount === 1 ? "attempt" : "attempts"}
-        </p>
+        <p className="font-medium">{exception.expiredTermEndDate ? "Review lease renewal or move-out" : exception.code === "billing_setup_missing" ? "Review rent billing setup" : "Rent generation needs attention"}</p>
+        <details className="mt-0.5 text-xs text-muted-foreground">
+          <summary className="w-fit cursor-pointer rounded-sm hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
+            {exception.expiredTermEndDate ? `Term ended ${formatDate(exception.expiredTermEndDate)}` : "Details"}
+          </summary>
+          <p className="mt-1">{exception.expiredTermEndDate ? `Confirm renewal or move-out before billing ${monthLabel}.` : guidance}</p>
+          {retiredPolicyException ? <p className="mt-1">{exception.message}</p> : null}
+          <p className="mt-1">{formatCount(exception.attemptCount, "attempt")}</p>
+        </details>
       </Td>
-      <Td>{lease?.propertyLabel ?? "Property unavailable"}</Td>
+      <Td>{propertyLabel ?? "Property unavailable"}{lease ? <span className="block text-xs text-muted-foreground">{lease.unitLabel}</span> : null}</Td>
       <Td>{lease && !exception.expiredTermEndDate ? <Money amount={lease.monthlyRent} /> : "—"}</Td>
       <Td>{monthLabel}</Td>
       <Td align="right">
@@ -1669,7 +1679,7 @@ function RentGenerationExceptionRow({
               <Link href={`/leases/${exception.leaseId}`}>Review lease</Link>
             </Button>
           ) : <span className="text-xs text-muted-foreground">Ask a lease administrator to review</span>
-        ) : retiredPolicyException ? (
+        ) : retiredPolicyException || (exception.code === "billing_setup_missing" && !billingReady) ? (
           <div className="flex flex-wrap justify-end gap-2">
             {canViewLeases ? (
               <Button asChild size="sm" variant="outline">
@@ -1720,7 +1730,7 @@ function RentGenerationRetry({
         type="submit"
         variant={primaryAction ? "default" : "outline"}
       >
-        {pending ? "Generating..." : recheck ? "Recheck and generate" : "Generate missing rent"}
+        {pending ? "Generating…" : recheck ? "Recheck rent" : "Generate rent"}
       </Button>
       {state.message ? (
         <p
@@ -2402,6 +2412,7 @@ function BalancesView({
 }
 
 function InvoiceDetails({
+  canReviewPaidRent,
   isSuperAdmin,
   businessDate,
   canCorrectFinance,
@@ -2421,6 +2432,7 @@ function InvoiceDetails({
   publicationOpen,
   reportReturnHref,
 }: {
+  canReviewPaidRent: boolean;
   businessDate: string;
   isSuperAdmin: boolean;
   canCorrectFinance: boolean;
@@ -2539,6 +2551,12 @@ function InvoiceDetails({
         canRetryReceipt={canRecordPayments}
         settlements={invoice.settlements}
       />
+      {canReviewPaidRent && invoice.paymentStatus === "paid" && invoice.collectionRoute === "through_ips" &&
+        !invoice.generationSource && invoice.billingPeriodStart.slice(0, 7) < businessDate.slice(0, 7) &&
+        invoice.lines.length === 1 && invoice.lines[0].lineType === "other" &&
+        invoice.lines[0].label.trim().toLowerCase() === "rental income" ? (
+          <PaidLeaseRentControl key={invoice.id} invoiceId={invoice.id} onSuccess={onVoidSuccess} />
+        ) : null}
       {pdf.publicationStatus === "published" && pdf.publishedAt ? (
         <p className="text-xs text-muted-foreground">
           Published {formatDate(pdf.publishedAt)}
@@ -3637,7 +3655,9 @@ function SettlementReversalForm({
     (settlement) => !settlement.isReversed,
   );
   const [selectedId, setSelectedId] = useState(settlements.length === 1 ? settlements[0].id : "");
-  const settlementId = settlements.find(settlement => settlement.id === selectedId)?.id ?? "";
+  const selectedSettlement = settlements.find(settlement => settlement.id === selectedId);
+  const settlementId = selectedSettlement?.id ?? "";
+  const today = getBusinessDateValue();
   const [reason, setReason] = useState("");
   const idempotencyKey = useStableActionId("settlement-reversal");
   const action =
@@ -3692,11 +3712,14 @@ function SettlementReversalForm({
       <Field label="Reversal date">
         <DatePickerField
           ariaLabel="Reversal date"
-          defaultValue={getBusinessDateValue()}
+          key={settlementId}
+          defaultValue={selectedSettlement && selectedSettlement.date > today ? selectedSettlement.date : today}
+          minValue={selectedSettlement?.date}
           name="reversalDate"
           required
         />
       </Field>
+      {selectedSettlement ? <p className="text-xs text-muted-foreground">The earliest reversal date is {formatDate(selectedSettlement.date)}, the date of this payment record.</p> : null}
       <Field label="Reason">
         <Input
           onChange={(event) => setReason(event.target.value)}
@@ -3876,6 +3899,7 @@ function WithdrawalForm({
 }
 
 function ManualTenantChargeForm({
+  canGeneratePastRent,
   invoicesArePaginated = false,
   leaseChargeAccounts,
   fixedLease,
@@ -3885,6 +3909,7 @@ function ManualTenantChargeForm({
   onSuccess,
   scope,
 }: {
+  canGeneratePastRent?: boolean;
   invoicesArePaginated?: boolean;
   leaseChargeAccounts: FinanceOperationsData["leaseChargeAccounts"];
   fixedLease?: FinanceLease;
@@ -4003,6 +4028,13 @@ function ManualTenantChargeForm({
         </Field>
       )}
 
+      {canGeneratePastRent && selectedLease && billingPeriod < getBusinessMonthValue() &&
+        categoryAccountId === findConfiguredAccountId(matchingLeaseChargeAccounts, "rental_income", selectedLease.propertyId) ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3">
+            <p className="text-sm">Billing monthly rent for {formatLeaseMonth(billingPeriod + "-01", "long")}? Use the lease rate and its management fee.</p>
+            <BulkRentControl initialMonth={billingPeriod} property={selectedLease.propertyId} leaseId={selectedLease.id} />
+          </div>
+        ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Category">
           <SelectControl

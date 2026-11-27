@@ -21,13 +21,18 @@ import type {
 import { cn } from "@/lib/utils";
 import { RecheckReport } from "@/features/reports/components/report-remediation-controls";
 import { unitProfitLossHelp } from "../report-help";
+import { ownerCashActivityHref } from "@/features/owner-balances/owner-account-view";
+import { formatLeaseMonth } from "@/lib/dates/format";
+import { withReportReturn } from "../report-return";
 
 type ReportsScreenProps = ReportsScreenData & {
+  canReadFinance?: boolean;
   organizationName: string;
   viewStorageKey?: string;
 };
 
 export function ReportBuilderScreen({
+  canReadFinance = false,
   ownerOptions = [],
   propertyOptions,
   trustedReport,
@@ -50,6 +55,8 @@ export function ReportBuilderScreen({
   const queryKey = buildReportQueryParams(viewQuery).toString();
 
   if (trustedReport.kind === "unit-profit-loss") {
+    const reportHref = `/reports/${viewQuery.report}?${queryKey}`;
+    const cashProperty = viewQuery.propertyId === "all" ? unitOptions.find(unit => unit.id === viewQuery.unitId)?.propertyId : viewQuery.propertyId;
     return <FinancialReportBoundary expectedGeneration={trustedReport.financialGeneration}><WorkspacePage className="overflow-x-clip" header={<header className="workspace-gutter-x flex min-h-12 flex-wrap items-center gap-3 border-b border-border/70 py-2">
       <Link href="/reports" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />All reports</Link>
       <h1 className="text-sm font-semibold">{viewQuery.unitId === "all" ? "Unit profit & loss" : "Profit & loss detail"}</h1>
@@ -58,10 +65,13 @@ export function ReportBuilderScreen({
     </header>}>
       <ReportsFilters key={queryKey} compact action={`/reports/${viewQuery.report}`} propertyOptions={propertyOptions} unitOptions={unitOptions} ownerOptions={ownerOptions} viewQuery={viewQuery} />
       <div className="workspace-gutter-x pb-4">
-        {validation ? <div role={trustedReport.scopeValidation ? "alert" : "status"} className="my-3 rounded-md border border-warning/30 bg-warning-soft/35 px-3 py-2 text-sm"><p className="font-semibold">Report unavailable</p><p>{validation.message}</p></div> : null}
+        {validation ? <div role={trustedReport.scopeValidation ? "alert" : "status"} className="my-3 rounded-md border border-warning/30 bg-warning-soft/35 px-3 py-2 text-sm">
+          <p className="font-semibold">Report unavailable</p><p>{validation.message}</p>
+          {!trustedReport.scopeValidation && validation.code === "monthly_rent_incomplete" && canReadFinance && cashProperty ? <Link className="mt-2 inline-block underline underline-offset-2" href={withReportReturn(ownerCashActivityHref(cashProperty, viewQuery.month, viewQuery.ownerPersonId), reportHref)}>View property owner cash for {formatLeaseMonth(`${viewQuery.month}-01`, "long")}</Link> : null}
+        </div> : null}
         {!validation && viewQuery.unitId === "all"
           ? <UnitProfitLossSelector key={queryKey} unitOptions={unitOptions} viewQuery={viewQuery} />
-          : <UnitProfitLossWorkspace returnTo={`/reports/${viewQuery.report}?${queryKey}`} key={queryKey} report={trustedReport} />}
+          : <UnitProfitLossWorkspace returnTo={reportHref} key={queryKey} report={trustedReport} />}
       </div>
     </WorkspacePage></FinancialReportBoundary>;
   }

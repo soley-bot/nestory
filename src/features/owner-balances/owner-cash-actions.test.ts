@@ -13,7 +13,10 @@ function form(overrides: Record<string, string> = {}) { const data = new FormDat
 describe("owner cash commands", () => {
   beforeEach(() => { vi.clearAllMocks(); mocks.operation.mockResolvedValue({ organizationId: "org" }); mocks.correction.mockResolvedValue({ organizationId: "org" }); mocks.rpc.mockResolvedValue({ data: { withdrawalId, reversalId: ownerPersonId, oldDate: "2026-09-12", newDate: values.distributionDate }, error: null }); });
   it("records exact contribution with server organization and selected scope", async () => {
-    expect(await recordOwnerContributionAction(idle, form())).toMatchObject({ status: "success" });
+    expect(await recordOwnerContributionAction(idle, form())).toEqual({
+      status: "success", message: expect.stringMatching(/^Owner contribution of USD 123\.40 recorded for 12 Sept? 2026\.$/),
+      activityHref: `/properties/${propertyId}/account?month=2026-09&activity=owner_cash&ownerPersonId=${ownerPersonId}`,
+    });
     expect(mocks.operation).toHaveBeenCalledOnce();
     expect(mocks.rpc).toHaveBeenCalledWith("record_owner_contribution", { p_amount: "123.40", p_currency: "USD", p_event_date: values.eventDate, p_unit_id: undefined, p_idempotency_key: values.idempotencyKey, p_organization_id: "org", p_owner_person_id: ownerPersonId, p_property_id: propertyId, p_reason: values.reason });
     expect(mocks.revalidate).toHaveBeenCalledWith(`/properties/${propertyId}`, "layout");

@@ -5,10 +5,12 @@ import { financialWriteError } from "@/lib/finance/financial-write-context";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { canonicalizeOwnerOpeningAmount } from "@/features/owner-balances/owner-balance.money";
+import { ownerCashActivityHref } from "./owner-account-view";
 import { requireFinanceCorrectionContext, requireFinanceOperationContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { formatDate } from "@/lib/dates/format";
 
-export type OwnerCashActionState = { status: "idle" | "error" | "success"; message?: string };
+export type OwnerCashActionState = { status: "idle" | "error" | "success"; message?: string; activityHref?: string };
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, "Choose a valid record.");
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a valid date.").refine(value => {
   const parsed = new Date(`${value}T00:00:00Z`);
@@ -61,7 +63,11 @@ export async function recordOwnerContributionAction(_previous: OwnerCashActionSt
     if (result.error) return { status: "error", message: commandError(result.error.message) };
   } catch { return { status: "error", message: "The contribution could not be recorded. Please try again." }; }
   refresh(input.propertyId);
-  return { status: "success", message: "Owner contribution recorded." };
+  return {
+    status: "success",
+    message: `Owner contribution of USD ${amount} recorded for ${formatDate(input.eventDate)}.`,
+    activityHref: ownerCashActivityHref(input.propertyId, input.eventDate.slice(0, 7), input.ownerPersonId),
+  };
 }
 
 export async function correctOwnerDistributionDateAction(_previous: OwnerCashActionState, formData: FormData): Promise<OwnerCashActionState> {

@@ -975,12 +975,7 @@ describe("FinanceOperationsScreen", () => {
       screen.queryByRole("button", { name: "Finance categories" }),
     ).toBeNull();
     const setup = screen.getByRole("region", { name: "Finance setup" });
-    expect(within(setup).getByText("Finance setup")).not.toBeNull();
-    expect(
-      within(setup).getByText(
-        "Configure the accounts used for expenses, charges, payments, and deposits.",
-      ),
-    ).not.toBeNull();
+    expect(within(setup).getByText("Chart of accounts")).not.toBeNull();
     const trigger = within(setup).getByRole("link", {
       name: "Open Chart of Accounts",
     });
@@ -1415,7 +1410,10 @@ describe("FinanceOperationsScreen", () => {
     render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canConfigureRent: true, canRetryCurrentRent: true })}
       canViewLeases={canViewLeases} organizationName="IPS" view="work" />);
     const row = screen.getByText("Review lease renewal or move-out").closest("tr")!;
-    expect(within(row).getByText(/this exception does not establish that rent is owed/)).not.toBeNull();
+    const details = row.querySelector("details")!;
+    expect(details.open).toBe(false);
+    expect(details.querySelector("summary")?.textContent).toContain("Term ended");
+    expect(details.textContent).toContain("Confirm renewal or move-out before billing Sep 2026.");
     expect(within(row).getAllByRole("cell")[2].textContent).toBe("—");
     expect(screen.queryByRole("button", { name: /Generate missing rent/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "Set up" })).toBeNull();
@@ -1425,6 +1423,23 @@ describe("FinanceOperationsScreen", () => {
       expect(screen.getByText("Ask a lease administrator to review")).not.toBeNull();
     }
     vi.useRealTimers();
+  });
+
+  it("opens lease billing for missing setup and shows the property when the lease is absent from the work list", () => {
+    const input = data();
+    input.leases = [];
+    input.propertyOptions = [{ id: "property-1", label: "Riverside" }];
+    input.rentGenerationExceptions = [{
+      attemptCount: 23, billingPeriodStart: "2026-10-01", code: "billing_setup_missing",
+      id: "needs-setup", lastAttemptAt: "2026-10-26", leaseId: "lease-1",
+      message: "Complete lease billing setup.", propertyId: "property-1",
+    }];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRetryCurrentRent: true })}
+      canViewLeases organizationName="IPS" view="work" />);
+    const row = within(screen.getByText("Review rent billing setup").closest("tr")!);
+    expect(row.getByText("Riverside")).not.toBeNull();
+    expect(row.getByRole("link", { name: "Review lease billing" }).getAttribute("href")).toBe("/leases/lease-1?section=rent");
+    expect(row.queryByRole("button", { name: /generate/i })).toBeNull();
   });
 
   it("keeps current renewal setup visible alongside an expired historical month", () => {

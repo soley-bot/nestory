@@ -39,6 +39,7 @@ export default async function ReportBuilderPage({
   return (
     <ReportBuilderScreen
       {...data}
+      canReadFinance={context.permissionKeys.has("finance.view")}
       organizationName={context.organizationName}
       viewStorageKey={`${context.organizationId}:${context.userId}`}
     />

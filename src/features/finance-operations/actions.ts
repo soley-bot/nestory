@@ -534,6 +534,46 @@ Promise<BulkRentResponse<BulkRentOutcome[]>> {
   return { data: results.data };
 }
 
+const paidRentReview = z.object({
+  month: date, rent: z.number().positive(), fee: z.number().nonnegative(),
+  currency: z.literal("USD"), receipt: z.string().min(1), receivedDate: date, token: z.string().regex(/^[0-9a-f]{32}$/),
+});
+
+function paidRentReviewError(message: string) {
+  if (isPrivilegedStepUpRequiredError({ code: "42501", message })) return privilegedStepUpRequiredActionMessage;
+  if (message.includes("paid_rent_closed")) return "An owner statement is already closed for this period. Review it with Finance.";
+  if (message.includes("paid_rent_changed")) return "The charge or lease has changed. Review the amounts again.";
+  if (message.includes("paid_rent_lease_mismatch")) return "The amount, tenant, or period does not match the lease. Review the lease billing details.";
+  if (message.includes("paid_rent_not_eligible")) return "This action requires one fully paid rental-income charge with its original receipt.";
+  if (message.includes("forbidden")) return "Only a Pilot Super Admin with access to this property can correct this charge.";
+  return financialWriteError(message) ?? "Could not verify this charge. Refresh the invoice and review it again.";
+}
+
+export async function previewPaidLeaseRentAction(invoiceId: string): Promise<BulkRentResponse<z.infer<typeof paidRentReview>>> {
+  const context = await requireHistoricalRentRecoveryContext();
+  if (context.organizationId !== PILOT_ORGANIZATION_ID || !context.isSuperAdmin) return { error: paidRentReviewError("forbidden") };
+  if (!uuid.safeParse(invoiceId).success) return { error: "Select an invoice to review." };
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("preview_paid_lease_rent", { p_org: context.organizationId, p_invoice: invoiceId });
+  if (error) return { error: paidRentReviewError(error.message) };
+  const review = paidRentReview.safeParse(data);
+  return review.success ? { data: review.data } : { error: paidRentReviewError("") };
+}
+
+export async function confirmPaidLeaseRentAction(invoiceId: string, token: string, intent: FormData): Promise<BulkRentResponse<true>> {
+  const context = await requireHistoricalRentRecoveryContext();
+  if (context.organizationId !== PILOT_ORGANIZATION_ID || !context.isSuperAdmin) return { error: paidRentReviewError("forbidden") };
+  if (!uuid.safeParse(invoiceId).success || !paidRentReview.shape.token.safeParse(token).success) return { error: "Review the invoice first." };
+  const supabase = await createSupabaseServerClient(intent);
+  const { data, error } = await supabase.rpc("confirm_paid_lease_rent", { p_org: context.organizationId, p_invoice: invoiceId, p_token: token });
+  if (error) return { error: paidRentReviewError(error.message) };
+  const result = paidRentReview.extend({ invoiceId: uuid }).safeParse(data);
+  if (!result.success || result.data.invoiceId !== invoiceId || result.data.token !== token) return { error: paidRentReviewError("") };
+  revalidateFinance();
+  revalidatePath("/reports", "layout");
+  return { data: true };
+}
+
 export async function createManualTenantChargeAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
@@ -821,6 +861,9 @@ export async function reverseTenantInvoicePaymentAction(
   if (error?.message === "tenant_payment_owner_allocation_required") {
     return actionError("This rent receipt needs an owner allocation. Review the receipt in Owner accounts before reversing the payment.");
   }
+  if (error?.message === "Reversal date cannot be before the payment date" || error?.message === "Reversal date cannot be before the original payment date") {
+    return actionError("Choose the payment date or a later reversal date.");
+  }
   if (error) return backendActionError();
   revalidateFinance();
   return { message: "Tenant payment reversed.", status: "success" };
@@ -847,6 +890,9 @@ export async function reverseOwnerCollectionConfirmationAction(
       p_reversal_date: parsed.data.reversalDate,
     },
   );
+  if (error?.message === "Reversal date cannot be before the confirmation date") {
+    return actionError("Choose the collection confirmation date or a later reversal date.");
+  }
   if (error) return backendActionError();
   revalidateFinance();
   return { message: "Owner collection reversed.", status: "success" };

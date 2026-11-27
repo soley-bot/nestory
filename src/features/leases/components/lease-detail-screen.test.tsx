@@ -671,7 +671,7 @@ describe("LeaseDetailScreen", () => {
     const dialog = screen.getByRole("dialog", {
       name: "Correct historical rent",
     });
-    expect(within(dialog).getByText(/separate from Change rent/)).not.toBeNull();
+    expect(within(dialog).getByText(/one issued month/)).not.toBeNull();
     expect(
       within(dialog).getByRole("combobox", { name: "Issued rent period" }),
     ).not.toBeNull();
@@ -684,6 +684,10 @@ describe("LeaseDetailScreen", () => {
     expect(
       within(dialog).queryByRole("button", { name: "Apply historical correction" }),
     ).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText("Corrected rent amount"), { target: { value: "0" } });
+    expect(within(dialog).getByRole("link", { name: "Open invoice" }).getAttribute("href")).toContain("11111111-1111-4111-8111-111111111111");
+    expect(within(dialog).getByText(/review the receipt before changing the charge/i)).not.toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Review move-out" })).toBeNull();
   });
 
   it("gives Finance Managers a current-month rent edit with reason and balance preview", async () => {

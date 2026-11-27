@@ -7,22 +7,11 @@ import type { FinanceCategory } from "@/features/finance-operations/finance-oper
 
 export function FinanceCategorySetupEntry() {
   return (
-    <section
-      aria-label="Finance setup"
-      className="flex flex-col gap-2 border-y border-border py-2 sm:flex-row sm:items-center sm:justify-between"
-    >
-      <div>
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Finance setup
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          Configure the accounts used for expenses, charges, payments, and deposits.
-        </p>
-      </div>
+    <section aria-label="Finance setup">
       <Button asChild size="sm" variant="ghost">
-        <Link href="/finance/accounts">
+        <Link aria-label="Open Chart of Accounts" href="/finance/accounts">
           <Settings2 aria-hidden="true" />
-          Open Chart of Accounts
+          Chart of accounts
         </Link>
       </Button>
     </section>

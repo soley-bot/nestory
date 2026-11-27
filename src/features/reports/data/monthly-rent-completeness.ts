@@ -70,18 +70,41 @@ export async function loadMonthlyRentGaps({ supabase, organizationId, context, v
     }, (previous, current) => compareReportKeys(previous.id, current.id)), row => row.id);
   const rentInvoiceIds = new Set(lines.map(line => line.invoice_id));
   const issued = new Map<string, number>();
-  for (const invoice of invoices.filter(invoice => invoice.billing_period_start === period.start && rentInvoiceIds.has(invoice.id))) {
+  const otherInvoices = new Map<string, string[]>();
+  for (const invoice of invoices) {
+    if (invoice.billing_period_start !== period.start) continue;
     const key = `${invoice.property_id}:${invoice.lease_id}`;
-    issued.set(key, (issued.get(key) ?? 0) + 1);
+    if (rentInvoiceIds.has(invoice.id)) {
+      issued.set(key, (issued.get(key) ?? 0) + 1);
+    } else {
+      const ids = otherInvoices.get(key);
+      if (ids) ids.push(invoice.id);
+      else otherInvoices.set(key, [invoice.id]);
+    }
   }
   return expectedLeases.filter(lease => issued.get(`${lease.property_id}:${lease.id}`) !== 1).map(lease => {
-    const duplicate = (issued.get(`${lease.property_id}:${lease.id}`) ?? 0) > 1;
+    const key = `${lease.property_id}:${lease.id}`;
+    const duplicate = (issued.get(key) ?? 0) > 1;
+    const leaseHref = `/leases/${encodeURIComponent(lease.id)}?section=rent`;
+    const other = otherInvoices.get(key);
+    const property = properties.get(lease.property_id)!;
+    if (!duplicate && other?.length) {
+      const issue = other.length === 1
+        ? "An invoice already exists for this rental month. It has no lease rent line. Review its charges and any receipt before billing again."
+        : "Invoices already exist for this rental month. Review their charges and any receipts before billing again.";
+      const sourceLinks = other.map(id => ({
+        id, href: `/rent-income?invoiceId=${encodeURIComponent(id)}`, label: "Review existing invoice", recordType: "income-obligation" as const,
+      }));
+      const href = other.length === 1 ? sourceLinks[0].href : leaseHref;
+      return { id: `review-rent:${lease.id}`, title: lease.tenant_name, propertyId: lease.property_id,
+        href, nextActionHref: href, tone: "danger" as const, sourceCount: sourceLinks.length, sourceLinks,
+        sourceSummary: issue, cells: { property: `${property.code} - ${property.name}`, tenant: lease.tenant_name, issue } };
+    }
     const expired = expiredRentTermEndDate("billing_setup_missing", period.start, termsByLease.get(lease.id) ?? []);
     const issue = duplicate ? "Multiple issued rent invoices cover this billing month; review and correct the duplicate billing before using totals." : expired
       ? `Rent term ended ${expired}; confirm continued occupancy and record the agreed renewal before generating rent.`
       : "Monthly rent invoice is missing; review the lease billing setup and generate the missing month.";
-    const property = properties.get(lease.property_id)!;
-    const href = `/leases/${encodeURIComponent(lease.id)}?section=rent`;
+    const href = leaseHref;
     return { id: `${duplicate ? "duplicate" : "missing"}-rent:${lease.id}`, title: lease.tenant_name, propertyId: lease.property_id,
       href, nextActionHref: href, tone: "danger" as const, sourceCount: 1,
       sourceLinks: [{ id: lease.id, label: "Review lease rent and billing", href, recordType: "lease" as const }],

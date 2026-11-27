@@ -47,6 +47,24 @@ it("requires an explicit confirmation, sends bounded batches and leaves prorated
   expect(calls.every(([month,property,,form]) => month === "2026-10" && property === null && form.get("__financialGeneration") === "8")).toBe(true);
 });
 
+it("opens past rent for the selected lease even when two leases share the same displayed unit number", async () => {
+  vi.mocked(previewBulkRentAction).mockResolvedValue({ data: [
+    { ...ready[0], unit: "A-01" }, { ...ready[1], unit: "A-01" },
+  ] });
+  render(<BusinessDateProvider businessDate="2026-11-26" timeZone="UTC">
+    <BulkRentControl property="property-1" initialMonth="2026-10" leaseId={ready[1].leaseId} />
+  </BusinessDateProvider>);
+  fireEvent.click(screen.getByRole("button", { name: "Generate past rent" }));
+  await screen.findByText("1 ready to invoice · 0 already invoiced · 0 to review");
+  expect(previewBulkRentAction).toHaveBeenCalledWith("2026-10", "property-1");
+  expect(screen.queryByLabelText("Select River apartments A-01 Tenant 1")).toBeNull();
+  fireEvent.click(screen.getByLabelText("Select River apartments A-01 Tenant 2"));
+  fireEvent.click(screen.getByRole("button", { name: "Review selected invoices" }));
+  fireEvent.click(screen.getByRole("button", { name: "Generate 1 invoice" }));
+  await screen.findByText(/1 generated/);
+  expect(vi.mocked(postBulkRentAction).mock.calls[0][2]).toEqual([{ id: ready[1].leaseId, token: ready[1].token }]);
+});
+
 it("allows a partial month to be selected individually and directs an uncertain outcome back through review", async () => {
   await openReview();
   fireEvent.click(screen.getByLabelText("Select River apartments Unit 12 Tenant 12"));

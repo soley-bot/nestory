@@ -102,7 +102,8 @@ describe("TenantInvoiceVoidControl", () => {
     const dialog = screen.getByRole("dialog", { name: "Void invoice" });
     expect(dialog).not.toBeNull();
     expect(within(dialog).getByText(/current balances and Rent & collections/)).not.toBeNull();
-    expect(within(dialog).getByText(/does not cancel the lease/)).not.toBeNull();
+    expect(within(dialog).getByText(/lease controls future rent/)).not.toBeNull();
+    expect(within(dialog).getByText(/returns any fee paid from held funds/)).not.toBeNull();
     expect(within(dialog).getByLabelText("Reason for voiding")).not.toBeNull();
 
     await user.type(

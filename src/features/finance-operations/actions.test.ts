@@ -585,6 +585,15 @@ describe("ordinary finance operation actions", () => {
   });
 
   it.each([
+    [reverseTenantInvoicePaymentAction, "Reversal date cannot be before the payment date", "Choose the payment date"],
+    [reverseOwnerCollectionConfirmationAction, "Reversal date cannot be before the confirmation date", "Choose the collection confirmation date"],
+  ] as const)("explains the earliest allowed settlement reversal date", async (action, error, copy) => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: error } });
+    expect(await action({}, settlementReversalForm())).toMatchObject({ status: "error", message: expect.stringContaining(copy) });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each([
     [reverseTenantInvoicePaymentAction, "reverse_tenant_invoice_payment"],
     [reverseOwnerCollectionConfirmationAction, "reverse_owner_collection_confirmation"],
   ] as const)(

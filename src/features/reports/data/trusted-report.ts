@@ -368,7 +368,7 @@ async function loadTrustedReport({
       viewQuery.propertyId === "all" ? undefined : viewQuery.propertyId);
     const gaps = await loadMonthlyRentGaps({ supabase, organizationId, context: financeContext, viewQuery, period: getReportMonthRange(viewQuery.month) });
     if (gaps.length) {
-      const message = "Monthly rent billing is incomplete. Review the linked leases and generate the missing invoices before using this report.";
+      const message = "Monthly rent billing is incomplete. Review the entries below to see which charges need attention.";
       return {
         kind: viewQuery.report, title: "Monthly billing needs review", description: message,
         columns: [{ key: "property", label: "Property" }, { key: "tenant", label: "Tenant" }, { key: "issue", label: "Required action" }],
