@@ -1059,6 +1059,7 @@ function getScreen(
         leases={props.leases}
         openDrawer={openDrawer}
         ownerInvoices={props.ownerInvoices}
+        propertyOptions={props.propertyOptions}
         rentGenerationExceptions={props.rentGenerationExceptions}
         tenantInvoices={props.tenantInvoices.filter(isVisibleTenantInvoice)}
       />
@@ -1101,6 +1102,7 @@ function FinanceWorkView({
   leases,
   openDrawer,
   ownerInvoices,
+  propertyOptions,
   rentGenerationExceptions,
   tenantInvoices,
 }: {
@@ -1110,6 +1112,7 @@ function FinanceWorkView({
   leases: FinanceLease[];
   openDrawer: (drawer: DrawerState) => void;
   ownerInvoices: OwnerInvoiceSummary[];
+  propertyOptions: FinanceOperationsData["propertyOptions"];
   rentGenerationExceptions: RentGenerationException[];
   tenantInvoices: TenantInvoiceSummary[];
 }) {
@@ -1132,6 +1135,7 @@ function FinanceWorkView({
       !currentExpiredLeaseIds.has(lease.id),
   );
   const leaseById = new Map(leases.map((lease) => [lease.id, lease]));
+  const propertyLabels = new Map(propertyOptions.map(({ id, label }) => [id, label]));
   const tenantDue = tenantInvoices.filter((invoice) => invoice.balanceDue > 0);
   const ownerDue = ownerInvoices.filter((invoice) => invoice.balanceDue > 0);
   const workCount =
@@ -1380,6 +1384,7 @@ function FinanceWorkView({
                           canViewLeases={canViewLeases}
                           exception={item.exception}
                           lease={item.lease}
+                          propertyLabel={item.lease?.propertyLabel ?? propertyLabels.get(item.exception.propertyId)}
                           primaryAction
                         />
                       ) : item.kind === "tenant" ? (
@@ -1632,12 +1637,14 @@ function RentGenerationExceptionRow({
   canViewLeases,
   exception,
   lease,
+  propertyLabel,
   primaryAction = false,
 }: {
   canRecover: boolean;
   canViewLeases: boolean;
   exception: RentGenerationException;
   lease: FinanceLease | null;
+  propertyLabel?: string;
   primaryAction?: boolean;
 }) {
   const monthLabel = formatLeaseMonth(exception.billingPeriodStart);
@@ -1662,7 +1669,7 @@ function RentGenerationExceptionRow({
           <p className="mt-1">{formatCount(exception.attemptCount, "attempt")}</p>
         </details>
       </Td>
-      <Td>{lease?.propertyLabel ?? "Property unavailable"}{lease ? <span className="block text-xs text-muted-foreground">{lease.unitLabel}</span> : null}</Td>
+      <Td>{propertyLabel ?? "Property unavailable"}{lease ? <span className="block text-xs text-muted-foreground">{lease.unitLabel}</span> : null}</Td>
       <Td>{lease && !exception.expiredTermEndDate ? <Money amount={lease.monthlyRent} /> : "—"}</Td>
       <Td>{monthLabel}</Td>
       <Td align="right">
@@ -1672,7 +1679,7 @@ function RentGenerationExceptionRow({
               <Link href={`/leases/${exception.leaseId}`}>Review lease</Link>
             </Button>
           ) : <span className="text-xs text-muted-foreground">Ask a lease administrator to review</span>
-        ) : retiredPolicyException ? (
+        ) : retiredPolicyException || (exception.code === "billing_setup_missing" && !billingReady) ? (
           <div className="flex flex-wrap justify-end gap-2">
             {canViewLeases ? (
               <Button asChild size="sm" variant="outline">

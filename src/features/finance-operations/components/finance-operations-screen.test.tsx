@@ -1425,6 +1425,23 @@ describe("FinanceOperationsScreen", () => {
     vi.useRealTimers();
   });
 
+  it("opens lease billing for missing setup and shows the property when the lease is absent from the work list", () => {
+    const input = data();
+    input.leases = [];
+    input.propertyOptions = [{ id: "property-1", label: "Riverside" }];
+    input.rentGenerationExceptions = [{
+      attemptCount: 23, billingPeriodStart: "2026-10-01", code: "billing_setup_missing",
+      id: "needs-setup", lastAttemptAt: "2026-10-26", leaseId: "lease-1",
+      message: "Complete lease billing setup.", propertyId: "property-1",
+    }];
+    render(<FinanceOperationsScreen {...input} {...financeCapabilities({ canRetryCurrentRent: true })}
+      canViewLeases organizationName="IPS" view="work" />);
+    const row = within(screen.getByText("Review rent billing setup").closest("tr")!);
+    expect(row.getByText("Riverside")).not.toBeNull();
+    expect(row.getByRole("link", { name: "Review lease billing" }).getAttribute("href")).toBe("/leases/lease-1?section=rent");
+    expect(row.queryByRole("button", { name: /generate/i })).toBeNull();
+  });
+
   it("keeps current renewal setup visible alongside an expired historical month", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-15T05:00:00Z"));
