@@ -72,7 +72,7 @@ describe("opening balance authority loader", () => {
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
-  it("does not query opening authority when the financial guard rejects", async () => {
+  it("does not load opening balances when financial reporting is paused", async () => {
     mocks.readBoundary.mockRejectedValueOnce(new Error("Financial reporting is paused"));
     await expect(getOpeningBalanceAuthorityData({ effectiveDate: "2026-08-01" })).rejects.toThrow("Financial reporting is paused");
     expect(mocks.rpc).not.toHaveBeenCalled();

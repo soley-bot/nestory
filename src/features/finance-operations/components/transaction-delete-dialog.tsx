@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { formatCalendarDate } from "@/lib/dates/format";
 import { formatMoney } from "@/lib/money/format";
 import { deleteTransactionAction } from "../transaction-delete-actions";
-import type { TransactionDeleteEntry } from "../transaction-delete";
+import { transactionUndoLabels, type TransactionDeleteEntry } from "../transaction-delete";
 import type { FinanceOperationsActionState } from "../finance-operations.types";
 
 type TransactionDeleteCopy = {
@@ -88,7 +88,7 @@ function DeleteForm({
 function transactionDeleteCopy(kind: TransactionDeleteEntry["kind"]): TransactionDeleteCopy {
   if (kind === "tenant-invoice") {
     return {
-      description: "Remove this invoice from current balances and Rent & collections. The lease controls future rent. For Pilot rent billed after a recorded move-out, voiding returns any fee paid from held funds to the owner’s balance.",
+      description: "Voiding removes this invoice from current balances and Rent & collections. The lease controls future rent. For Pilot rent billed after move-out, voiding also returns any fee paid from held funds to the owner.",
       pendingLabel: "Voiding…",
       reasonLabel: "Reason for voiding",
       submitLabel: "Void invoice",
@@ -98,11 +98,13 @@ function transactionDeleteCopy(kind: TransactionDeleteEntry["kind"]): Transactio
   }
 
   return {
-    description: "This removes the transaction from current balances and reports. Its history is retained. No money is transferred or refunded.",
-    pendingLabel: "Deleting…",
-    reasonLabel: "Reason for deletion",
-    submitLabel: "Delete transaction",
-    successMessage: "Transaction deleted. Its history is retained.",
-    title: "Delete transaction",
+    description: kind === "tenant-payment" || kind === "owner-collection"
+      ? "The amount goes back on the invoice as due. The original payment stays in history."
+      : "Updates the owner’s recorded balance. The original transaction stays in history.",
+    pendingLabel: "Reversing…",
+    reasonLabel: "Reason for reversal",
+    submitLabel: transactionUndoLabels[kind],
+    successMessage: "Reversal recorded.",
+    title: transactionUndoLabels[kind],
   };
 }

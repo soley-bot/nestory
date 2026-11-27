@@ -11,6 +11,7 @@ import type { PropertyAccountEntry } from "../finance-operations.types";
 import { formatCalendarDate } from "@/lib/dates/format";
 import { formatMoney } from "@/lib/money/format";
 import { TransactionDeleteDialog } from "./transaction-delete-dialog";
+import { transactionUndoLabels } from "../transaction-delete";
 
 export function AccountEntryActions({ entry, propertyLabel, canCorrectFinance, canRecoverOwnerDistribution = false, sourceAction }: {
   entry: PropertyAccountEntry;
@@ -24,6 +25,8 @@ export function AccountEntryActions({ entry, propertyLabel, canCorrectFinance, c
   const [deleteOpen, setDeleteOpen] = useState(false);
   const source = entry.source;
   const cash = source?.kind === "distribution" || source?.kind === "contribution" ? source : null;
+  const editable = canCorrectFinance && cash && !cash.isReversed && !cash.blockedReason;
+  const undoLabel = cash?.kind === "contribution" ? transactionUndoLabels.contribution : transactionUndoLabels.distribution;
   return <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -31,7 +34,7 @@ export function AccountEntryActions({ entry, propertyLabel, canCorrectFinance, c
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
         <DropdownMenuItem onSelect={() => setDetailsOpen(true)}>View transaction</DropdownMenuItem>
-        {canCorrectFinance && cash && !cash.blockedReason ? <><DropdownMenuItem onSelect={() => setCorrectionOpen(true)}>Edit</DropdownMenuItem><DropdownMenuItem onSelect={() => setDeleteOpen(true)}>Delete</DropdownMenuItem></> : null}
+        {editable ? <><DropdownMenuItem onSelect={() => setCorrectionOpen(true)}>Edit</DropdownMenuItem><DropdownMenuItem onSelect={() => setDeleteOpen(true)}>{undoLabel}</DropdownMenuItem></> : null}
         {sourceAction?.href ? <DropdownMenuItem asChild><Link href={sourceAction.href}>{sourceAction.label}</Link></DropdownMenuItem> : sourceAction ? <DropdownMenuItem onSelect={sourceAction.onSelect}>{sourceAction.label}</DropdownMenuItem> : null}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -46,11 +49,17 @@ export function AccountEntryActions({ entry, propertyLabel, canCorrectFinance, c
           {entry.note ? <><dt>Details</dt><dd>{entry.note}</dd></> : null}
         </dl>
         {!source ? <p className="text-muted-foreground">This entry is available for reference. Its source is unavailable for correction here.</p> : null}
-        {source?.kind === "lease" ? <p className="text-muted-foreground">To correct an issued fee, open the lease and choose Manage lease, then Correct management fee.</p> : null}
         {source?.blockedReason ? <p className="text-muted-foreground">{source.blockedReason}</p> : null}
+        {sourceAction?.href ? <Button asChild variant="outline"><Link href={sourceAction.href}>{sourceAction.label}</Link></Button> : sourceAction?.onSelect ? (
+          <Button variant="outline" onClick={() => { setDetailsOpen(false); sourceAction.onSelect?.(); }}>{sourceAction.label}</Button>
+        ) : null}
+        {editable ? <div className="flex justify-end gap-2 border-t pt-3">
+          <Button variant="outline" onClick={() => { setDetailsOpen(false); setDeleteOpen(true); }}>{undoLabel}</Button>
+          <Button onClick={() => { setDetailsOpen(false); setCorrectionOpen(true); }}>Edit</Button>
+        </div> : null}
       </DialogContent>
     </Dialog>
-    {cash ? <OwnerTransactionCorrectionDialog canRecoverOwnerDistribution={canRecoverOwnerDistribution} open={correctionOpen} onOpenChange={setCorrectionOpen} canCorrectFinance={canCorrectFinance && !cash.blockedReason} propertyId={entry.propertyId} entry={{ id: cash.id, kind: cash.kind as "distribution" | "contribution", date: entry.date, amount: entry.amount.toFixed(2), reference: cash.reference }} /> : null}
-    {cash ? <TransactionDeleteDialog open={deleteOpen} onOpenChange={setDeleteOpen} canDelete={canCorrectFinance && !cash.blockedReason} entry={{ id: cash.id, kind: cash.kind as "distribution" | "contribution", date: entry.date, amount: entry.amount, label: entry.label, propertyId: entry.propertyId }} /> : null}
+    {editable ? <OwnerTransactionCorrectionDialog canRecoverOwnerDistribution={canRecoverOwnerDistribution} open={correctionOpen} onOpenChange={setCorrectionOpen} canCorrectFinance propertyId={entry.propertyId} entry={{ id: cash.id, kind: cash.kind as "distribution" | "contribution", date: entry.date, amount: entry.amount.toFixed(2), reference: cash.reference }} /> : null}
+    {editable ? <TransactionDeleteDialog open={deleteOpen} onOpenChange={setDeleteOpen} canDelete entry={{ id: cash.id, kind: cash.kind as "distribution" | "contribution", date: entry.date, amount: entry.amount, label: entry.label, propertyId: entry.propertyId }} /> : null}
   </>;
 }

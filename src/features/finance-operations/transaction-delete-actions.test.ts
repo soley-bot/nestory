@@ -106,6 +106,7 @@ describe("delete financial transaction", () => {
 
   it.each([
     ["dependent_owner_cash:test", "used by another"],
+    ["financial_date_before_start", "financial start date"],
     ["Financial month is locked", "month is closed"],
     ["tenant_invoice_has_settlements", "payments attached"],
     ["Tenant invoice payment is already reversed", "Refresh the list"],

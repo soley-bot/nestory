@@ -17,8 +17,8 @@ describe("delete transaction confirmation", () => {
     const close = vi.fn(); const user = userEvent.setup();
     render(<TransactionDeleteDialog open canDelete entry={entry} onOpenChange={close} />);
     expect(screen.getByText("31 Aug 2026")).toBeTruthy(); expect(screen.getByText("USD 454.40")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Delete transaction" }).hasAttribute("disabled")).toBe(true);
-    await user.type(screen.getByLabelText("Reason for deletion"), "Duplicate transaction");
+    expect(screen.getByRole("button", { name: "Reverse distribution" }).hasAttribute("disabled")).toBe(true);
+    await user.type(screen.getByLabelText("Reason for reversal"), "Duplicate transaction");
     expect(mocks.action).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Cancel" })); expect(close).toHaveBeenCalledWith(false);
     expect(mocks.action).not.toHaveBeenCalled();
@@ -27,8 +27,8 @@ describe("delete transaction confirmation", () => {
     mocks.action.mockResolvedValue({ status: "error", message: "This money is used by another transaction." });
     const close = vi.fn(); const user = userEvent.setup();
     render(<TransactionDeleteDialog open canDelete entry={entry} onOpenChange={close} />);
-    await user.type(screen.getByLabelText("Reason for deletion"), "Duplicate transaction");
-    await user.click(screen.getByRole("button", { name: "Delete transaction" }));
+    await user.type(screen.getByLabelText("Reason for reversal"), "Duplicate transaction");
+    await user.click(screen.getByRole("button", { name: "Reverse distribution" }));
     expect((await screen.findByRole("alert")).textContent).toContain("used by another");
     expect(mocks.action).toHaveBeenCalledOnce(); expect(close).not.toHaveBeenCalled();
   });

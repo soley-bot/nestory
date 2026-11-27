@@ -15,6 +15,9 @@ describe("owner cash controls", () => {
   it("shows scoped contribution fields", () => {
     render(<OwnerContributionControl canRecordOwnerCash propertyId="property" ownerPersonId="owner" ownerLabel="Alex Owner" />);
     fireEvent.click(screen.getByRole("button", { name: "Record owner contribution" }));
+    const opening = new URL(screen.getByRole("link", { name: "Review opening balance" }).getAttribute("href")!, "http://localhost");
+    expect(opening.pathname).toBe("/balances");
+    expect(Object.fromEntries(opening.searchParams)).toMatchObject({ propertyId: "property", ownerPersonId: "owner", action: "opening-balance" });
     expect(screen.getByText("Alex Owner")).toBeTruthy();
     expect(screen.getByLabelText("Amount (USD)")).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Contribution date" })).toBeTruthy();

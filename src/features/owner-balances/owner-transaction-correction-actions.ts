@@ -1,5 +1,5 @@
 "use server";
-import { financialFormValues } from "@/lib/finance/financial-write-context";
+import { financialFormValues, financialWriteError } from "@/lib/finance/financial-write-context";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -23,11 +23,13 @@ const resultSchema = z.object({
 });
 
 function correctionError(message = "") {
+  const sessionError = financialWriteError(message);
+  if (sessionError) return sessionError;
   if (/privileged_email_step_up_required/.test(message)) return "Verify your email for this financial correction, then try again.";
   if (/forbidden|permission/.test(message)) return "You do not have permission to correct this transaction.";
   if (/closed|month_locked/.test(message)) return "An affected financial month is closed. Reopen it before correcting this transaction.";
   if (/already_reversed|already_corrected/.test(message)) return "This transaction has already been corrected or reversed. Refresh the account and open the replacement.";
-  if (/unchanged/.test(message)) return "Change the date, amount, or reference before reviewing the correction.";
+  if (/unchanged/.test(message)) return "Change the date, amount, or reference before saving.";
   if (/dependent_owner_cash/.test(message)) return "This contribution has already funded another payment. Correct or reverse the dependent payment first, then review this contribution again.";
   if (/underfund|insufficient|held_cash|cash_reserv/.test(message)) return "This correction would leave insufficient owner cash. Review the amount, date, and later payments.";
   if (/in_future/.test(message)) return "Choose a date on or before today.";

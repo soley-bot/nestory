@@ -58,6 +58,7 @@ function OwnerCashForm({ scope, propertyId, correction, onClose, onSuccess }: {
       </> : <>
         <input name="ownerPersonId" type="hidden" value={scope?.ownerPersonId} />
         <input name="currency" type="hidden" value="USD" />
+        {scope ? <p className="text-sm text-muted-foreground">Money carried over from last month? <Link className="font-medium text-primary underline underline-offset-2" href={`/balances?${new URLSearchParams({ propertyId: scope.propertyId, ownerPersonId: scope.ownerPersonId, month: selectedMonth, action: "opening-balance" })}`}>Review opening balance</Link></p> : null}
         <dl className="flex flex-wrap gap-x-2 text-sm"><dt className="text-muted-foreground">Owner</dt><dd className="font-medium">{scope?.ownerLabel}</dd></dl>
         {scope?.units ? <label className="grid min-w-0 gap-1 text-sm">Unit
           <SelectControl ariaLabel="Contribution unit" name="unitId" defaultValue={scope.unitId ?? ""} options={[{ value: "", label: "Property-wide" }, ...scope.units.filter(unit => unit.propertyId === scope.propertyId).map(unit => ({ value: unit.id, label: unit.label }))]} />

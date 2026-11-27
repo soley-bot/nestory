@@ -3,6 +3,7 @@ import { financialFormValues, financialGenerationHeaders, FINANCIAL_GENERATION_H
 import { financialWriteError } from "@/lib/finance/financial-write-context";
 import { getFinancialWriteContext } from "@/lib/finance/financial-write-context.server";
 import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
+import { transactionCommandError } from "./transaction-delete";
 import { bulkRentMonth, bulkRentOutcome, bulkRentProperty, bulkRentRow, bulkRentSelection,
   type BulkRentOutcome, type BulkRentResponse, type BulkRentRow, type BulkRentSelection } from "./bulk-rent";
 
@@ -858,13 +859,7 @@ export async function reverseTenantInvoicePaymentAction(
     p_reason: parsed.data.reason,
     p_reversal_date: parsed.data.reversalDate,
   });
-  if (error?.message === "tenant_payment_owner_allocation_required") {
-    return actionError("This rent receipt needs an owner allocation. Review the receipt in Owner accounts before reversing the payment.");
-  }
-  if (error?.message === "Reversal date cannot be before the payment date" || error?.message === "Reversal date cannot be before the original payment date") {
-    return actionError("Choose the payment date or a later reversal date.");
-  }
-  if (error) return backendActionError();
+  if (error) return actionError(transactionCommandError(error.message));
   revalidateFinance();
   return { message: "Tenant payment reversed.", status: "success" };
 }
@@ -890,10 +885,7 @@ export async function reverseOwnerCollectionConfirmationAction(
       p_reversal_date: parsed.data.reversalDate,
     },
   );
-  if (error?.message === "Reversal date cannot be before the confirmation date") {
-    return actionError("Choose the collection confirmation date or a later reversal date.");
-  }
-  if (error) return backendActionError();
+  if (error) return actionError(transactionCommandError(error.message));
   revalidateFinance();
   return { message: "Owner collection reversed.", status: "success" };
 }

@@ -127,14 +127,16 @@ export function OwnerAccountOperations({
   closingAuthority,
   generationAuthority,
   openingAuthority,
+  openOpeningBalance = false,
 }: {
   closingAuthority?: ReactNode;
   generationAuthority?: ReactNode;
   openingAuthority?: ReactNode;
+  openOpeningBalance?: boolean;
 }) {
   const [activeOperation, setActiveOperation] = useState<
     "closing" | "generation" | "opening" | null
-  >(null);
+  >(openOpeningBalance && openingAuthority ? "opening" : null);
 
   if (!closingAuthority && !generationAuthority && !openingAuthority) {
     return null;
@@ -189,7 +191,14 @@ export function OwnerAccountOperations({
               ? "Calculate this owner account month from its recorded sources."
               : "Review readiness and close this owner account month."
         }
-        onClose={() => setActiveOperation(null)}
+        onClose={() => {
+          setActiveOperation(null);
+          if (openOpeningBalance) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("action");
+            window.history.replaceState(window.history.state, "", url);
+          }
+        }}
         open={activeOperation !== null}
         title={title}
       >
