@@ -4517,7 +4517,8 @@ describe("FinanceOperationsScreen", () => {
     await user.clear(screen.getByRole("textbox", { name: "Amount (USD)" }));
     await user.type(screen.getByRole("textbox", { name: "Amount (USD)" }), "45");
     await user.type(screen.getByRole("textbox", { name: "Reason for correction" }), "Correct amount recorded");
-    expect(screen.getByRole("button", { name: "Save changes" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Review correction" }));
+    expect(screen.getByRole("button", { name: "Confirm correction" })).toBeTruthy();
     expect(valueOfNamedInput(screen.getByRole("dialog"), "originalId")).toBe("actual-withdrawal");
   });
 
