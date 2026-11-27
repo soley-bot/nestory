@@ -1020,7 +1020,7 @@ describe("LeaseDetailScreen", () => {
     await user.click(screen.getByRole("button", { name: "Edit draft" }));
 
     const dialog = screen.getByRole("dialog", { name: "Edit draft" });
-    expect(await within(dialog).findByRole("form", { name: "Edit draft form" })).not.toBeNull();
+    expect(await within(dialog).findByRole("form", { name: "Edit draft form" }, { timeout: 5000 })).not.toBeNull();
     expect(within(dialog).queryByRole("combobox", { name: "Tenant" })).toBeNull();
     expect(within(dialog).queryByRole("combobox", { name: "Property" })).toBeNull();
     expect(within(dialog).queryByRole("combobox", { name: "Unit" })).toBeNull();

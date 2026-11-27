@@ -284,11 +284,12 @@ SELECT ok((SELECT count(*)=1 AND sum(t.amount)=450 AND min(t.received_date)=p.mo
   AND (SELECT count(*)=1 FROM public.tenant_invoice_payments t WHERE t.id=(p.review->>'paymentId')::uuid AND t.receipt_number=p.review->>'receipt')
   AND (SELECT count(*)=2 FROM public.tenant_invoice_corrections c WHERE c.tenant_invoice_id=(p.manual->>'invoiceId')::uuid AND c.action='management_fee'),
   'both fee edits are audited and the original dated receipt survives once') FROM paid_review p;
-SELECT results_eq($$SELECT economic_class,recognized_on,signed_amount FROM paid_review p CROSS JOIN LATERAL
+SELECT results_eq($$SELECT economic_class,min(recognized_on),max(recognized_on),sum(signed_amount),count(*) FROM paid_review p CROSS JOIN LATERAL
   public.get_report_profit_loss_events_page(p.org,p.property_id,'USD',p.month,(p.month+interval '1 month - 1 day')::date,
-    NULL,NULL,NULL,100,true) e WHERE e.unit_id=(SELECT unit_id FROM rent_setting) ORDER BY signed_amount$$,
-  $$SELECT 'owner_expense'::text,month,42::numeric FROM paid_review UNION ALL SELECT 'owner_income',month,450 FROM paid_review ORDER BY 3$$,
-  'the owner sees the final fee and a single rent amount in the original rental month');
+    NULL,NULL,NULL,100,true) e WHERE e.unit_id=(SELECT unit_id FROM rent_setting) GROUP BY economic_class ORDER BY economic_class$$,
+  $$SELECT 'owner_expense'::text,month,month,42::numeric,3::bigint FROM paid_review
+    UNION ALL SELECT 'owner_income',month,month,450::numeric,1::bigint FROM paid_review ORDER BY 1$$,
+  'the original fee, its reversal and its replacement net to the revised fee while the month counts the rent once');
 ROLLBACK TO SAVEPOINT paid_rent_review;
 SAVEPOINT departed_rent;
 RESET ROLE;
