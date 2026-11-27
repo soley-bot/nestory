@@ -9,7 +9,7 @@ import dynamic from "next/dynamic";
 import { useStableActionId, useSuccess, Field, FormFooter, SubmitButton, ActionMessage, DefinitionRows } from "./finance-form-primitives";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Fragment, useActionState, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useActionState, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { useOverlayDraftGuard, type OverlayDraftGuard } from "@/components/ui/overlay-dismissal-context";
 import { ChevronRight, Plus, WalletCards } from "lucide-react";
@@ -221,6 +221,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
   const [invoicePdfPublicationOpen, setInvoicePdfPublicationOpen] =
     useState(false);
   const pdfDrawerTriggerRef = useRef<HTMLElement | null>(null);
+  const paymentHistoryRef = useRef<HTMLHeadingElement>(null);
   const [receiptResult, setReceiptResult] =
     useState<TenantPaymentReceiptResult | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -444,6 +445,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
 
       {visibleDetailDrawer ? (
         <SideDrawer
+          initialFocusRef={visibleDetailDrawer.mode === "invoice-details" && visibleDetailDrawer.focusPayments ? paymentHistoryRef : undefined}
           onClose={
             visibleDetailDrawer.mode === "invoice-details" &&
             invoicePdfPublicationOpen
@@ -460,7 +462,7 @@ export function FinanceOperationsScreen(input: FinanceOperationsScreenProps) {
         >
           {visibleDetailDrawer.mode === "invoice-details" ? (
             <InvoiceDetails
-              focusPayments={visibleDetailDrawer.focusPayments}
+              paymentHistoryRef={paymentHistoryRef}
               canReviewPaidRent={Boolean(props.canGeneratePastRent && props.canCorrectFinance)}
               isSuperAdmin={props.isSuperAdmin ?? false}
               canViewPropertyRecords={props.canViewPropertyRecords ?? true}
@@ -2438,7 +2440,7 @@ function BalancesView({
 }
 
 function InvoiceDetails({
-  focusPayments = false,
+  paymentHistoryRef,
   canReviewPaidRent,
   isSuperAdmin,
   businessDate,
@@ -2468,7 +2470,7 @@ function InvoiceDetails({
   canViewPropertyRecords: boolean;
   invoice: TenantInvoiceSummary;
   onCorrect: () => void;
-  focusPayments?: boolean;
+  paymentHistoryRef: RefObject<HTMLHeadingElement | null>;
   onPublicationClose: () => void;
   onPublicationSuccess: (state: FinanceOperationsActionState) => void;
   onPublishPdf: (trigger: HTMLElement) => void;
@@ -2577,7 +2579,7 @@ function InvoiceDetails({
       {invoice.isProrated ? <Badge tone="accent">Prorated</Badge> : null}
       <SettlementHistory
         canRetryReceipt={canRecordPayments}
-        focusPayments={focusPayments}
+        headingRef={paymentHistoryRef}
         settlements={invoice.settlements}
       />
       {canReviewPaidRent && invoice.paymentStatus === "paid" && invoice.collectionRoute === "through_ips" &&
@@ -2736,20 +2738,18 @@ function InvoicePdfPublicationForm({
 
 function SettlementHistory({
   canRetryReceipt,
-  focusPayments,
+  headingRef,
   settlements,
 }: {
   canRetryReceipt: boolean;
-  focusPayments: boolean;
+  headingRef: RefObject<HTMLHeadingElement | null>;
   settlements: TenantInvoiceSettlement[];
 }) {
-  const heading = useRef<HTMLHeadingElement>(null);
-  useEffect(() => { if (focusPayments) heading.current?.focus(); }, [focusPayments]);
   if (settlements.length === 0) return null;
 
   return (
     <section aria-labelledby="settlement-history-heading">
-      <h3 ref={heading} tabIndex={-1} className="rounded-sm text-sm font-semibold focus-visible:outline-2 focus-visible:outline-ring" id="settlement-history-heading">
+      <h3 ref={headingRef} tabIndex={-1} className="rounded-sm text-sm font-semibold focus-visible:outline-2 focus-visible:outline-ring" id="settlement-history-heading">
         Payment history
       </h3>
       <div className="mt-2 divide-y divide-border border-y border-border">

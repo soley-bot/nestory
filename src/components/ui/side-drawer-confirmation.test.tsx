@@ -2,7 +2,7 @@
 
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useCallback, useMemo, useState } from "react";
+import { createRef, useCallback, useMemo, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   SideDrawer,
@@ -50,6 +50,13 @@ function DrawerHarness({ status = "dirty", secondStatus }: { status?: DraftStatu
 }
 
 describe("side drawer dismissal confirmation", () => {
+  it("focuses the requested section when a drawer opens from a linked record", async () => {
+    const section = createRef<HTMLHeadingElement>();
+    render(<SideDrawer initialFocusRef={section} open onClose={vi.fn()} title="Invoice details">
+      <h3 ref={section} tabIndex={-1}>Payment history</h3>
+    </SideDrawer>);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Payment history" })));
+  });
   it("keeps the saving notice when a save starts during discard confirmation", async () => {
     const user = userEvent.setup();
     const { rerender } = render(<DrawerHarness />);
