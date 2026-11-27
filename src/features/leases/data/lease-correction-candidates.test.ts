@@ -163,4 +163,36 @@ describe("issued fee correction candidates", () => {
 
     expect(candidates.map((candidate) => candidate.invoiceId)).toEqual(["scheduled"]);
   });
+
+  it("offers only the confirmed manual invoice with its own issued fee in the Pilot fee editor", async () => {
+    const ids = ["confirmed", "unconfirmed", "other-fee"];
+    const tables: Record<string, unknown[]> = {
+      tenant_invoice_balances: ids.map(id => ({
+        id, invoice_number: id, billing_period_start: "2026-10-01", billing_period_end: "2026-10-31",
+        due_date: "2026-11-07", currency: "USD", payment_status: "paid",
+        paid_through_ips: 600, collected_by_owner: 0,
+      })),
+      tenant_invoices: [],
+      tenant_invoice_lines: ids.map(id => ({ id: `line-${id}`, invoice_id: id, amount: 600 })),
+      management_fee_occurrences: ids.map(id => ({ id: `fee-${id}`, tenant_invoice_id: id, amount: 60 })),
+      tenant_invoice_corrections: [],
+      activity_logs: [
+        { id: "confirmation", entity_id: "confirmed", fee_id: "fee-confirmed" },
+        { id: "mismatch", entity_id: "other-fee", fee_id: "fee-confirmed" },
+      ],
+    };
+    const filters: Record<string, unknown> = {};
+    createSupabaseServerClient.mockResolvedValue({ from(table: string) {
+      const query = {
+        select: () => query, order: () => query, lte: () => query,
+        eq: (field: string, value: unknown) => { if (table === "activity_logs") filters[field] = value; return query; },
+        in: (field: string, value: string[]) => { if (table === "activity_logs") filters[field] = value; return query; },
+        range: async (from: number, to: number) => ({ data: tables[table].slice(from, to + 1), error: null }),
+      };
+      return query;
+    } });
+    const candidates = await getHistoricalRentCorrectionCandidates(PILOT_ORGANIZATION_ID, "lease", { rentBusinessDate: "2026-11-27" });
+    expect(candidates).toMatchObject([{ invoiceId: "confirmed", managementFeeOnly: true, originalManagementFeeAmount: 60, settledAmount: 600 }]);
+    expect(filters).toEqual({ organization_id: PILOT_ORGANIZATION_ID, entity_type: "tenant_invoice", action: "confirmed_monthly_rent", entity_id: ids });
+  });
 });

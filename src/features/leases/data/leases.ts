@@ -412,6 +412,28 @@ async function loadHistoricalRentCorrectionCandidates(
     );
   }
 
+  // Confirming a paid manual invoice creates a lease fee and preserves the original invoice source.
+  const confirmedFeeInvoices = new Set<string>();
+  if (allowRepeat && currentRentInvoiceIds) {
+    const manualFees = (fees ?? []).filter(fee => !currentRentInvoiceIds.has(fee.tenant_invoice_id));
+    const { data: confirmations, error } = await readAllRowsByIds(
+      manualFees.map(fee => fee.tenant_invoice_id),
+      (ids, from, to) => supabase.from("activity_logs")
+        .select("id, entity_id, fee_id:new_values->>feeId")
+        .eq("organization_id", organizationId)
+        .eq("entity_type", "tenant_invoice")
+        .eq("action", "confirmed_monthly_rent")
+        .in("entity_id", ids).order("id").range(from, to),
+    );
+    if (error) throw new Error(`Could not load confirmed monthly rent: ${error.message}`);
+    const invoiceByFee = new Map(manualFees.map(fee => [fee.id, fee.tenant_invoice_id]));
+    for (const confirmation of confirmations ?? []) {
+      if (invoiceByFee.get(confirmation.fee_id) === confirmation.entity_id) {
+        confirmedFeeInvoices.add(confirmation.entity_id);
+      }
+    }
+  }
+
   const correctedInvoiceIds = new Set(
     (corrections ?? []).filter((correction) => correction.action === "historical_rent")
       .map((correction) => correction.tenant_invoice_id),
@@ -435,9 +457,6 @@ async function loadHistoricalRentCorrectionCandidates(
   }
 
   return (invoices ?? []).flatMap((invoice) => {
-    if (currentRentInvoiceIds && !currentRentInvoiceIds.has(invoice.id ?? "")) {
-      return [];
-    }
     if (
       !invoice.id ||
       !invoice.invoice_number ||
@@ -449,6 +468,8 @@ async function loadHistoricalRentCorrectionCandidates(
     ) {
       return [];
     }
+    const managementFeeOnly = confirmedFeeInvoices.has(invoice.id);
+    if (currentRentInvoiceIds && !currentRentInvoiceIds.has(invoice.id) && !managementFeeOnly) return [];
     const rentLines = linesByInvoiceId.get(invoice.id) ?? [];
     if ((!allowRepeat && correctedInvoiceIds.has(invoice.id)) || rentLines.length !== 1) return [];
     const rentLine = rentLines[0];
@@ -465,6 +486,7 @@ async function loadHistoricalRentCorrectionCandidates(
       originalDueDate: effectiveDueDate,
       originalDueDay: Number(effectiveDueDate.slice(8, 10)),
       originalRentAmount: Number(rentLine.amount),
+      managementFeeOnly,
       managementFeeCorrected: !allowRepeat && feeCorrectedInvoiceIds.has(invoice.id),
       originalManagementFeeAmount: Number(formatExactCents(feeCentsByInvoice.get(invoice.id) ?? BigInt(0))),
       paymentStatus: invoice.payment_status,

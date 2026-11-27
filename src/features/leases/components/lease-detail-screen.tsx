@@ -71,6 +71,7 @@ import type {
 import {
   buildLeaseRecordHref,
   buildLeaseRentChargesHref,
+  canCorrectIssuedCharge,
   type IssuedChargeEdit,
   type LeaseRecordSection,
 } from "@/features/leases/lease-detail-route";
@@ -545,16 +546,9 @@ export function LeaseDetailScreen({
         <HistoricalRentCorrectionModal
           mode={correctionMode}
           candidates={historicalRentCorrectionCandidates.filter((candidate) => {
-            if (
-              focusedInvoiceId &&
-              candidate.invoiceId !== focusedInvoiceId
-            ) {
-              return false;
-            }
-            if (correctionMode === "management_fee") {
-              return !candidate.managementFeeCorrected;
-            }
-            return currentMonthEdit || candidate.billingPeriodEnd < rentBusinessDate;
+            if (focusedInvoiceId && candidate.invoiceId !== focusedInvoiceId) return false;
+            return canCorrectIssuedCharge(candidate, correctionMode)
+              && (correctionMode === "management_fee" || currentMonthEdit || candidate.billingPeriodEnd < rentBusinessDate);
           })}
           currentMonthOnly={currentMonthEdit}
           onReviewMoveOut={permissions.canClose && currentOccupancy && ["active", "notice_given"].includes(lease.statusValue) ? () => {
@@ -1364,7 +1358,7 @@ function HistoricalRentCorrectionModal({
                 value={invoiceId}
               />
             </label>
-            {selectedCandidate ? (
+            {selectedCandidate && !feeOnly ? (
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-y border-border py-3 text-sm">
                 <span className="text-muted-foreground">Issued rent</span>
                 <span className="text-right tabular-nums">
@@ -1525,12 +1519,14 @@ function HistoricalRentCorrectionPreviewPanel({
     <section className="space-y-3 border-t border-border pt-4" aria-label="Correction preview">
       <h3 className="text-sm font-semibold">Review correction</h3>
       <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-2 text-sm">
-        <span className="text-muted-foreground">Rent</span>
-        <span className="tabular-nums">{preview.originalRentAmount.toFixed(2)}</span>
-        <span className="tabular-nums">→ {preview.correctedRentAmount.toFixed(2)}</span>
-        <span className="text-muted-foreground">Due date</span>
-        <span>{preview.originalDueDate}</span>
-        <span>→ {preview.correctedDueDate}</span>
+        {correctedManagementFeeAmount === undefined ? <>
+          <span className="text-muted-foreground">Rent</span>
+          <span className="tabular-nums">{preview.originalRentAmount.toFixed(2)}</span>
+          <span className="tabular-nums">→ {preview.correctedRentAmount.toFixed(2)}</span>
+          <span className="text-muted-foreground">Due date</span>
+          <span>{preview.originalDueDate}</span>
+          <span>→ {preview.correctedDueDate}</span>
+        </> : null}
         <span className="text-muted-foreground">{correctedManagementFeeAmount !== undefined ? "Management fee" : "Management fee change"}</span>
         <span className="tabular-nums">{correctedManagementFeeAmount !== undefined ? (preview.originalManagementFeeAmount ?? 0).toFixed(2) : ""}</span>
         <span className="tabular-nums">{correctedManagementFeeAmount !== undefined ? `→ ${(preview.correctedManagementFeeAmount ?? 0).toFixed(2)}` : preview.managementFeeDelta.toFixed(2)}</span>
@@ -1551,7 +1547,7 @@ function HistoricalRentCorrectionPreviewPanel({
       <p className="text-xs text-muted-foreground">
         {preview.blockers.length > 0
           ? "This correction cannot be applied. No refund or tenant credit has been recorded."
-          : correctedManagementFeeAmount !== undefined ? "Only this period's management fee changes. Rent, payments, and the recurring billing rule stay unchanged." : "Collected cash stays unchanged. This correction adjusts rent and management fees while retaining the original receipts and statements."}
+          : correctedManagementFeeAmount !== undefined ? "This fee applies to the selected rental month." : "Collected cash stays unchanged. This correction adjusts rent and management fees while retaining the original receipts and statements."}
       </p>
       {preview.blockers.length > 0 ? (
         <div className="border-l-2 border-danger pl-3">

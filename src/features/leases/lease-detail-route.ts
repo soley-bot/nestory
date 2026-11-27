@@ -1,8 +1,13 @@
 import { workflowReturnHref } from "./workflow-return";
+import type { HistoricalRentCorrectionCandidate } from "./lease.types";
 import { buildHref } from "@/lib/url/href";
 
 export type LeaseRecordSection = "overview" | "rent" | "occupancy" | "files";
 export type IssuedChargeEdit = { invoiceId: string; mode: "rent" | "management_fee" };
+
+export function canCorrectIssuedCharge(candidate: HistoricalRentCorrectionCandidate, mode: IssuedChargeEdit["mode"]) {
+  return mode === "management_fee" ? !candidate.managementFeeCorrected : !candidate.managementFeeOnly;
+}
 
 export type LeaseDetailQuery = {
   paymentFocusRequested: boolean;
