@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { loadProfitLossFunding } from "./profit-loss-funding-loader";
 import { createCappedReadHarness } from "@/lib/db/complete-read.test-fixture";
+import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
 
 function harness({ rows = 501, failure = false } = {}) {
   const calls: unknown[][] = [];
@@ -31,6 +32,32 @@ const options = {
   viewQuery: { unitId: "u1" } as never,
 };
 describe("P&L funding source loader", () => {
+  it.each([
+    { scenario: "linked full reversal", linked: "cost", amount: "45.00", date: "2026-10-02", expected: BigInt(115538) },
+    { scenario: "unrelated equal amount", linked: "other-cost", amount: "45.00", date: "2026-10-02", expected: null },
+    { scenario: "partial reversal", linked: "cost", amount: "40.00", date: "2026-10-02", expected: null },
+    { scenario: "adjustment from another property", linked: "cost", amount: "45.00", date: "2026-10-02", sourceProperty: "p2", expected: null },
+    { scenario: "reversal after the opening date", linked: "cost", amount: "45.00", date: "2026-11-01", expected: null },
+  ])("handles an unassigned owner expense in a Pilot unit opening balance: $scenario", async ({ linked, amount, date, sourceProperty, expected }) => {
+    const property = { organization_id: PILOT_ORGANIZATION_ID, property_id: "p1" };
+    const entry = { ...property, event_date: "2026-10-01", unit_id: null };
+    const h = createCappedReadHarness({
+      property_account_entries: [
+        { ...entry, source_type: "owner_contribution", source_id: "funding", category: "owner_contribution", balance_effect: "615.38" },
+        { ...entry, unit_id: "u1", source_type: "tenant_invoice_payment", source_id: "payment", category: "rent_income", balance_effect: "600.00" },
+        { ...entry, unit_id: "u1", source_type: "management_fee_occurrence", source_id: "fee", category: "management_fee_expense", balance_effect: "-60.00" },
+        { ...entry, event_date: "2026-10-02", source_type: "ips_expense_responsibility", source_id: "cost", category: "owner_expense", balance_effect: "-45.00" },
+        { ...entry, event_date: date, source_type: "expense_customer_adjustment", source_id: "credit", category: "owner_expense_reversal", balance_effect: amount },
+      ],
+      expense_customer_adjustments: [{ ...property, property_id: sourceProperty ?? property.property_id, id: "credit", responsibility: "owner", currency: "USD", responsibility_id: linked }],
+      owner_cash_events: [{ ...entry, id: "funding", unit_id: "u1", amount: "615.38", currency: "USD", event_type: "owner_contribution", reversal_of_id: null }],
+    }, { apiRowCap: 2 });
+    const result = await loadProfitLossFunding({ ...options, organizationId: PILOT_ORGANIZATION_ID,
+      financeContext: { units: [{ id: "u1", property_id: "p1" }, { id: "u2", property_id: "p1" }] } as never,
+      period: { start: "2026-11-01", end: "2026-11-30" }, supabase: h.client as never });
+    expect(result.remainingBalanceCents).toBe(expected);
+    expect(result.contributionCents).toBe(BigInt(0));
+  });
   it("totals 36,000 prior unit entries and 36,000 contributions through a 137-row cap", async () => {
     const id = (index: number) => String(index).padStart(6, "0");
     const h = createCappedReadHarness({

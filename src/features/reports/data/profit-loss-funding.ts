@@ -69,7 +69,15 @@ export function buildProfitLossFunding({ propertyIds, unitId, units, monthStart,
     remainingBalanceCents += parseExactMoneyToCents(row.balance_effect);
   }
   // Property account balances include all units. Never guess an allocation.
-  const unresolvedActivity = hasUnresolvedRows(unassignedActivity.map(row => ({ id: `${row.source_type}:${row.source_id}`, property_id: row.property_id, amount: row.balance_effect, reversal_of_id: row.reversal_of_id ? `${row.source_type}:${row.reversal_of_id}` : null })));
+  const unresolvedActivity = hasUnresolvedRows(unassignedActivity.map(row => {
+    const originalSource = row.source_type === "expense_customer_adjustment" ? "ips_expense_responsibility" : row.source_type;
+    return {
+      id: `${row.source_type}:${row.source_id}`,
+      property_id: row.property_id,
+      amount: row.balance_effect,
+      reversal_of_id: row.reversal_of_id ? `${originalSource}:${row.reversal_of_id}` : null,
+    };
+  }));
   if (multiUnit && (activityScope !== "unit" || unresolvedActivity || hasUnresolvedRows(unassignedCash))) return unavailable("Some property account activity is not assigned to a unit. Review the property in Owner activity. Unassigned contributions are shown separately and excluded from the unit total.");
   return { contributionCents, remainingBalanceCents };
 }
