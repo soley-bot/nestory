@@ -1,8 +1,9 @@
 import type { createSupabaseServerClient } from "@/lib/db/server";
+import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
 import type { ScopedFinanceContext } from "@/features/finance-operations/data/scoped-finance-context";
 import type { ReportsViewQuery } from "../reports.types";
 import { buildProfitLossFunding, type FundingCashRow, type FundingActivityRow } from "./profit-loss-funding";
-import { assertReportSourceWithinLimit, compareReportKeys, readReportSource, readReportSourceById } from "./report-source-completeness";
+import { assertReportSourceWithinLimit, compareReportKeys, readReportSource, readReportSourceBatches, readReportSourceById } from "./report-source-completeness";
 
 type ReportClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 async function loadUnitOpeningActivity(supabase: ReportClient, organizationId: string, propertyId: string, monthStart: string) {
@@ -34,6 +35,19 @@ async function loadUnitOpeningActivity(supabase: ReportClient, organizationId: s
         if (!source) throw new Error("Unable to resolve unit contribution activity.");
         row.unit_id = source.unit_id;
         row.reversal_of_id = source.reversal_of_id;
+    }
+  }
+  if (organizationId === PILOT_ORGANIZATION_ID) {
+    const reversals = activity.filter(row => row.unit_id === null && row.category === "owner_expense_reversal" && row.source_type === "expense_customer_adjustment");
+    const sources = await readReportSourceBatches("unit opening expense reversals", reversals.map(row => row.source_id),
+      ids => readReportSourceById("resolve unit opening expense reversals", (from, to) =>
+        supabase.from("expense_customer_adjustments").select("id, responsibility_id", { count: "exact" })
+          .eq("organization_id", organizationId).eq("property_id", propertyId).eq("currency", "USD")
+          .eq("responsibility", "owner").in("id", ids).order("id").range(from, to)),
+      row => row.id);
+    const originalByAdjustment = new Map(sources.map(source => [source.id, source.responsibility_id]));
+    for (const reversal of reversals) {
+      reversal.reversal_of_id = originalByAdjustment.get(reversal.source_id);
     }
   }
   return activity;
