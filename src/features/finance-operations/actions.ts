@@ -2,6 +2,9 @@
 import { financialFormValues, financialGenerationHeaders, FINANCIAL_GENERATION_HEADER } from "@/lib/finance/financial-write-context";
 import { financialWriteError } from "@/lib/finance/financial-write-context";
 import { getFinancialWriteContext } from "@/lib/finance/financial-write-context.server";
+import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
+import { bulkRentMonth, bulkRentOutcome, bulkRentProperty, bulkRentRow, bulkRentSelection,
+  type BulkRentOutcome, type BulkRentResponse, type BulkRentRow, type BulkRentSelection } from "./bulk-rent";
 
 import { retainExpenseEvidence } from "./retain-expense-evidence";
 import { revalidatePath } from "next/cache";
@@ -480,6 +483,55 @@ export async function recoverLeaseRentPeriodAction(
   }
   revalidateFinance();
   return { message: "Rent invoice ready for the selected month.", status: "success" };
+}
+
+function bulkRentError(message: string) {
+  if (message.includes("bulk_rent_choose_past_month")) return "Choose a completed rental month.";
+  if (message.includes("bulk_rent_forbidden")) return "Sign in as a Pilot Super Admin to generate past rent.";
+  return financialWriteError(message) ?? "Could not verify the billing records. Review the month again before retrying.";
+}
+
+export async function previewBulkRentAction(month: string, property: string | null): Promise<BulkRentResponse<BulkRentRow[]>> {
+  const context = await requireHistoricalRentRecoveryContext();
+  if (context.organizationId !== PILOT_ORGANIZATION_ID || !context.isSuperAdmin) return { error: bulkRentError("bulk_rent_forbidden") };
+  if (!bulkRentMonth.safeParse(month).success || !bulkRentProperty.safeParse(property).success) return { error: "Choose a valid month and property." };
+  const supabase = await createSupabaseServerClient();
+  const rows: BulkRentRow[] = [];
+  let after: string | undefined;
+  for (;;) {
+    const page = await supabase.rpc("preview_pilot_bulk_rent", {
+      p_org: context.organizationId, p_month: `${month}-01`, p_after: after, p_property: property ?? undefined,
+    });
+    if (page.error) return { error: bulkRentError(page.error.message) };
+    const parsed = bulkRentRow.array().safeParse(page.data);
+    if (!parsed.success) return { error: bulkRentError("") };
+    for (const lease of parsed.data) {
+      if (after && lease.leaseId <= after) return { error: bulkRentError("") };
+      rows.push(lease);
+      after = lease.leaseId;
+    }
+    if (parsed.data.length < 100) return { data: rows };
+  }
+}
+
+export async function postBulkRentAction(month: string, property: string | null, selection: BulkRentSelection, intent: FormData):
+Promise<BulkRentResponse<BulkRentOutcome[]>> {
+  const context = await requireHistoricalRentRecoveryContext();
+  if (context.organizationId !== PILOT_ORGANIZATION_ID || !context.isSuperAdmin) return { error: bulkRentError("bulk_rent_forbidden") };
+  const items = bulkRentSelection.safeParse(selection);
+  if (!bulkRentMonth.safeParse(month).success || !bulkRentProperty.safeParse(property).success || !items.success) {
+    return { error: "Review the rental month and select the leases again." };
+  }
+  const supabase = await createSupabaseServerClient(intent);
+  const { data, error } = await supabase.rpc("post_pilot_bulk_rent", {
+    p_org: context.organizationId, p_month: `${month}-01`, p_items: items.data, p_property: property ?? undefined,
+  });
+  if (error) return { error: bulkRentError(error.message) };
+  const results = bulkRentOutcome.array().safeParse(data);
+  if (!results.success || results.data.length !== items.data.length ||
+    !items.data.every(item => results.data.some(result => result.leaseId === item.id))) return { error: bulkRentError("") };
+  if (results.data.some(result => result.status === "generated")) revalidateFinance();
+  return { data: results.data };
 }
 
 export async function createManualTenantChargeAction(

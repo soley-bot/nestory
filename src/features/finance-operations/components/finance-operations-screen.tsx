@@ -49,6 +49,8 @@ import { TenantInvoiceVoidControl } from "@/features/finance-operations/componen
 import type { TenantPaymentReceiptResult } from "@/features/finance-operations/components/tenant-invoice-payment-form";
 import { getRentInvoiceView, isVisibleTenantInvoice, RentInvoiceFilterBar } from "@/features/finance-operations/components/rent-invoice-filters";
 import { RentUnitList } from "@/features/finance-operations/components/rent-unit-list";
+import { BulkRentControl } from "./bulk-rent-control";
+import { getPreviousBusinessMonthValue } from "@/lib/dates/business-date";
 import type { CommercialDocumentLink, CurrentLeaseRentStatus, ExpenseSubmissionSummary, FinanceLease, FinanceOperationsActionState, FinanceOperationsData, OwnerInvoiceSummary, PropertyAccountEntry, PropertyFinancePosition, RentGenerationException, RentUnitTarget, TenantInvoiceSettlement, TenantInvoiceSummary } from "@/features/finance-operations/finance-operations.types";
 import { categoryLabel, expenseStatusPresentation, formatEvidenceSize, getInvoiceStatusPresentation, maintenanceStatusLabel } from "@/features/finance-operations/finance-operations-view-model";
 import { OwnerContributionControl } from "@/features/owner-balances/components/owner-cash-controls";
@@ -140,6 +142,7 @@ export type FinanceOperationsScreenProps = FinanceOperationsData & {
   canRecordPayments: boolean;
   canReadFinanceReports?: boolean;
   canRecoverRent: boolean;
+  canGeneratePastRent?: boolean;
   canReviewExpense: boolean;
   canReverseExpense: boolean;
   canRetryCurrentRent: boolean;
@@ -810,6 +813,8 @@ function getScreen(
       activeRoute: "/rent-income" as const,
       actions: props.canRecordPayments ? (
           <>
+            {props.canGeneratePastRent && !scope && !props.hideRentUnitList && !props.initialRentLeaseId && !props.initialBillingLeaseId
+              ? <BulkRentControl key={props.selectedPropertyId ?? "portfolio"} property={props.selectedPropertyId ?? null} /> : null}
             {manualRent && props.canRetryCurrentRent && (!props.initialRentLeaseId || focusedLease) ? <Button variant="outline" onClick={() => openModal({ mode: "rent-recovery", lease: focusedLease ?? scopedLease })}>Generate rent invoice</Button> : null}
             {!props.initialRentLeaseId ? (
               <Button
@@ -4206,13 +4211,6 @@ function expenseStatusTone(
   status: ExpenseSubmissionSummary["status"],
 ): "danger" | "neutral" | "success" | "warning" {
   return expenseStatusPresentation(status).tone;
-}
-
-function getPreviousBusinessMonthValue(businessMonth: string) {
-  const [year, month] = businessMonth
-    .split("-")
-    .map(Number);
-  return new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0, 7);
 }
 
 function getOrganizationShortLabel(organizationName: string) {

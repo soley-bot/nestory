@@ -8,6 +8,7 @@ import { FinanceOperationsScreen } from "@/features/finance-operations/component
 import { getFinanceOperationsData } from "@/features/finance-operations/data/finance-operations";
 import { parseRentInvoiceQuery, RentPropertyUnavailableError, type RentInvoiceSearchParams } from "@/features/finance-operations/rent-invoice-query";
 import { requireFinanceContext } from "@/lib/auth/context";
+import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
 
 export default async function RentIncomePage({
   searchParams = Promise.resolve({}),
@@ -74,6 +75,7 @@ export default async function RentIncomePage({
       canRecordPayments={context.capabilities.canOperateFinance}
       canReadFinanceReports={context.capabilities.canReadFinanceReports}
       canRecoverRent={context.capabilities.canRecoverHistoricalRent}
+      canGeneratePastRent={context.organizationId === PILOT_ORGANIZATION_ID && context.isSuperAdmin && context.capabilities.canRecoverHistoricalRent}
       canReviewExpense={context.capabilities.canReviewExpense}
       canReverseExpense={context.capabilities.canReverseExpense}
       canRetryCurrentRent={context.capabilities.canRetryCurrentRent}
