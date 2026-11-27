@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -489,12 +490,12 @@ describe("maintenance workspace redesign contract", () => {
     fireEvent.click(screen.getByText("Record cost", { selector: "summary" }));
     fireEvent.change(actualCost, { target: { value: "125.50" } });
     fireEvent.click(screen.getByText("Record cost", { selector: "summary" }));
-    fireEvent.submit(form);
+    await act(async () => { fireEvent.submit(form); });
     await waitFor(() => expect(screen.getByText("Enter a category.")).toBeTruthy());
     expect(actualCost.value).toBe("125.50");
     expect(new FormData(form).get("actualCostAmount")).toBe("125.50");
     expect(onClose).not.toHaveBeenCalled();
-    fireEvent.submit(form);
+    await act(async () => { fireEvent.submit(form); });
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     const calls = maintenanceActions.update.mock.calls as unknown as Array<[unknown, FormData]>;
     expect(calls).toHaveLength(2);
