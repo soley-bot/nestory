@@ -40,6 +40,15 @@ describe("DatePickerField", () => {
     expect(chooser.getAttribute("aria-haspopup")).toBe("dialog");
   });
 
+  it("opens an empty field in its requested month while Today still uses the business date", () => {
+    const { container } = render(<DatePickerField ariaLabel="Contribution date" businessDate="2026-11-27" initialMonth="2026-10" name="eventDate" />);
+    openCalendar("Contribution date");
+    expect(screen.getByRole("grid").querySelector('[data-day="2026-10-01"]')).not.toBeNull();
+    expect((container.querySelector('[name="eventDate"]') as HTMLInputElement).value).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "Today" }));
+    expect((container.querySelector('[name="eventDate"]') as HTMLInputElement).value).toBe("2026-11-27");
+  });
+
   it.each([
     ["Asia/Phnom_Penh", "2027-01-01"],
     ["UTC", "2026-12-31"],

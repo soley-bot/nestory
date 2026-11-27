@@ -23,6 +23,7 @@ type DatePickerFieldProps = {
   ariaLabel?: string;
   className?: string;
   defaultValue?: string;
+  initialMonth?: string;
   minValue?: string;
   businessDate?: string;
   name: string;
@@ -40,6 +41,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
     ariaLabel,
     className,
     defaultValue = "",
+    initialMonth,
     minValue,
     businessDate,
     name,
@@ -55,7 +57,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
   const previousValueRef = useRef(value);
   const portalContainer = useDrawerPortalContainer();
   const [visibleMonth, setVisibleMonth] = useState(() =>
-    getVisibleMonth(defaultValue, businessDate ?? getBusinessDateValue()),
+    getVisibleMonth(defaultValue || (initialMonth ? `${initialMonth}-01` : ""), businessDate ?? getBusinessDateValue()),
   );
   const selectedDate = useMemo(() => parseDateValue(value), [value]);
 

@@ -11538,6 +11538,10 @@ export type Database = {
         }
         Returns: string
       }
+      confirm_paid_lease_rent: {
+        Args: { p_invoice: string; p_org: string; p_token: string }
+        Returns: Json
+      }
       continue_lease_month_to_month: {
         Args: {
           p_expected_billing_rule_id: string
@@ -13195,6 +13199,10 @@ export type Database = {
           p_payment_date: string
           p_withdrawal_id: string
         }
+        Returns: Json
+      }
+      preview_paid_lease_rent: {
+        Args: { p_invoice: string; p_org: string }
         Returns: Json
       }
       preview_pilot_bulk_rent: {

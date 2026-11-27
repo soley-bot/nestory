@@ -207,6 +207,100 @@ SELECT throws_ok($$SELECT public.preview_pilot_bulk_rent(org,(month-interval '1 
 SELECT throws_ok($$SELECT public.post_pilot_bulk_rent(org,month,pg_temp.selection(review,lease_id)||pg_temp.selection(review,lease_id)) FROM bulk_history$$,
   '22023','Invalid rent selection','duplicate leases in one request are rejected');
 SELECT is(public.post_pilot_bulk_rent(org,month,pg_temp.selection(review,lease_id),other_org)->0->>'status','review','posting also honors the property filter') FROM bulk_history;
+-- A manual rent charge can already have a genuine receipt before staff notice
+-- that it was booked in the wrong month. Exercise the normal entry points.
+SAVEPOINT paid_rent_review;
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
+CREATE TEMP TABLE paid_review AS SELECT org,property_id,lease_id,month,gen_random_uuid() AS bank,
+  NULL::uuid AS account_id,NULL::jsonb AS manual,NULL::jsonb AS review,NULL::jsonb AS done FROM bulk_history;
+GRANT SELECT,UPDATE ON paid_review TO authenticated;
+UPDATE paid_review p SET account_id=(SELECT a.id FROM public.finance_accounts a WHERE a.organization_id=p.org AND a.system_role='rental_income');
+SELECT set_config('app.financial_reconciliation_source_context','on',true);
+INSERT INTO public.financial_reconciliation_sources(id,organization_id,currency,code,display_name,source_kind,scope_kind)
+SELECT bank,org,'USD','PAID_RENT_BANK','Lease rent test bank','bank','organization_pooled' FROM paid_review;
+SET SESSION AUTHORIZATION authenticator;
+SET LOCAL ROLE authenticated;
+UPDATE paid_review SET manual=public.create_manual_tenant_charge_with_account(org,lease_id,account_id,month,month+6,450,'Rent for last month','paid-rent-test-charge');
+SELECT throws_ok($$SELECT public.preview_paid_lease_rent(org,(manual->>'invoiceId')::uuid) FROM paid_review$$,
+  '22023','paid_rent_not_eligible','an unpaid invoice cannot use the paid charge correction');
+SELECT public.record_tenant_invoice_payment(org,(manual->>'invoiceId')::uuid,450,month+13,bank,'October receipt',
+  jsonb_build_array(jsonb_build_object('lineId',manual->>'lineId','amount',450)),'paid-rent-test-receipt') FROM paid_review;
+UPDATE paid_review SET review=public.preview_paid_lease_rent(org,(manual->>'invoiceId')::uuid);
+SELECT ok(review @> jsonb_build_object('month',month,'receivedDate',month+13,'rent',450,'fee',45),'review binds the rental month, receipt date, rent and fee') FROM paid_review;
+SELECT throws_ok($$SELECT public.confirm_paid_lease_rent(org,(manual->>'invoiceId')::uuid,repeat('0',32)) FROM paid_review$$,
+  '40001','paid_rent_changed','a stale confirmation cannot correct a paid charge');
+SELECT is((SELECT count(*) FROM public.management_fee_occurrences f,paid_review p WHERE f.tenant_invoice_id=(p.manual->>'invoiceId')::uuid),
+  0::bigint,'preview and stale confirmation leave the fee untouched');
+UPDATE paid_review SET done=public.confirm_paid_lease_rent(org,(manual->>'invoiceId')::uuid,review->>'token');
+SELECT is(public.confirm_paid_lease_rent(org,(manual->>'invoiceId')::uuid,review->>'token'),done,'replaying the same confirmation has no additional effect') FROM paid_review;
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
+SELECT ok(l.line_type='rent' AND l.income_item_id=(p.review->>'incomeId')::uuid AND f.rent_billing_period_start=p.month
+  AND f.income_type='rent' AND f.amount_received=450 AND l.recognized_on=i.issue_date AND i.generation_source IS NULL,
+  'the existing obligation counts as rent and retains its original issue date and source')
+FROM paid_review p JOIN public.tenant_invoice_lines l ON l.id=(p.manual->>'lineId')::uuid
+JOIN public.tenant_invoices i ON i.id=l.invoice_id JOIN public.finance_income_items f ON f.id=l.income_item_id;
+SELECT is((SELECT count(*) FROM public.tenant_invoice_payments t,paid_review p WHERE t.invoice_id=(p.manual->>'invoiceId')::uuid
+  AND t.id=(p.review->>'paymentId')::uuid AND t.received_date=p.month+13 AND t.amount=450 AND t.receipt_number=p.review->>'receipt' AND t.reversal_of_id IS NULL),
+  1::bigint,'the original payment and dated receipt survive the correction');
+SELECT ok((SELECT count(*)=1 AND min(f.fee_date)=p.month AND sum(f.amount)=45 FROM public.management_fee_occurrences f
+  WHERE f.tenant_invoice_id=(p.manual->>'invoiceId')::uuid)
+  AND (SELECT count(*)=2 FROM public.owner_event_allocation_sets s WHERE s.organization_id=p.org AND
+    (s.source_type='tenant_rent_receipt' AND s.source_line_id=(p.review->>'allocationId')::uuid
+     OR s.source_type='management_fee_occurrence' AND s.source_line_id=(p.done->>'feeId')::uuid)),
+  'one first-of-month fee and one cash allocation reach the owner accounts') FROM paid_review p;
+SELECT results_eq($$SELECT economic_class,recognized_on,signed_amount FROM paid_review p CROSS JOIN LATERAL
+  public.get_report_profit_loss_events_page(p.org,p.property_id,'USD',p.month,(p.month+interval '1 month - 1 day')::date,
+    NULL,NULL,NULL,100,true) e WHERE e.unit_id=(SELECT unit_id FROM rent_setting) ORDER BY signed_amount$$,
+  $$SELECT 'owner_expense'::text,month,45::numeric FROM paid_review UNION ALL SELECT 'owner_income',month,450 FROM paid_review ORDER BY 3$$,
+  'monthly P&L includes the paid rent and its fee in the rental month');
+SELECT is((SELECT sum(e.signed_amount) FROM paid_review p CROSS JOIN LATERAL public.get_report_profit_loss_events_page(
+  p.org,p.property_id,'USD',(p.month+interval '1 month')::date,(p.month+interval '2 months - 1 day')::date,
+  NULL,NULL,NULL,100,true) e WHERE e.economic_class='owner_income'),450::numeric,'the following month counts only its own rent');
+ROLLBACK TO SAVEPOINT paid_rent_review;
+SAVEPOINT departed_rent;
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
+CREATE TEMP TABLE departure AS SELECT b.*, i.id AS invoice_id,i.issue_date,
+  (SELECT jsonb_agg(jsonb_build_object('id',il.id,'amount',il.amount) ORDER BY il.id)
+   FROM public.tenant_invoice_lines il WHERE il.invoice_id=i.id) AS lines,gen_random_uuid() AS occupancy
+  FROM bulk_history b JOIN public.tenant_invoices i ON i.lease_id=b.lease_id AND i.billing_period_start=(b.month+interval '1 month')::date;
+GRANT SELECT ON departure TO authenticated;
+SELECT set_config('app.people_leases_skip_sync','on',true);
+INSERT INTO public.lease_occupancies(id,organization_id,lease_id,property_id,unit_id,status,actual_move_in_date,evidence_state,business_lifecycle,
+  record_source,actual_move_in_kind,actual_move_in_confidence,evidence_reason,evidence_recorded_by,created_by,updated_by)
+  SELECT occupancy,org,lease_id,property_id,unit_id,'occupied',month,'accepted','occupied','operator_confirmed','known','confirmed',
+    'Confirmed move in',admin_id,admin_id,admin_id FROM departure;
+SELECT set_config('app.people_leases_skip_sync','off',true);
+SET SESSION AUTHORIZATION authenticator;
+SET LOCAL ROLE authenticated;
+SELECT public.record_owner_contribution(org,property_id,owner_id,'USD',current_date,100,'Owner funds for expenses','departure-owner-funds',unit_id) FROM departure;
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
+INSERT INTO public.owner_charge_cash_allocations(organization_id,property_id,owner_invoice_line_id,allocation_date,amount,created_by)
+  SELECT d.org,d.property_id,ol.id,current_date,f.amount,d.admin_id FROM departure d
+  JOIN public.management_fee_occurrences f ON f.tenant_invoice_id=d.invoice_id
+  JOIN public.owner_invoice_lines ol ON ol.source_type='management_fee' AND ol.source_id=f.id;
+SELECT is((SELECT count(*) FROM public.owner_charge_cash_allocations WHERE reversal_of_id IS NULL),1::bigint,'the unpaid tenant invoice has a fee settled from held owner funds');
+SET SESSION AUTHORIZATION authenticator;
+SET LOCAL ROLE authenticated;
+SELECT throws_ok($$SELECT public.void_tenant_invoice_checked(org,invoice_id,issue_date,lines,'Premature void attempt','departure-not-closed') FROM departure$$,
+  '23514','owner_invoice_settlement_active','held cash is protected while the lease is active');
+SELECT public.transition_lease_lifecycle(org,lease_id,'active',occupancy,'end',(month+interval '1 month - 1 day')::date,NULL,
+  'Confirmed final occupancy date','departure-confirm-moveout') FROM departure;
+SELECT lives_ok($$SELECT public.void_tenant_invoice_checked(org,invoice_id,issue_date,lines,'Rent billed after confirmed move-out','departure-void-rent') FROM departure$$,
+  'voiding rent after the confirmed departure releases its held fee');
+SELECT lives_ok($$SELECT public.void_tenant_invoice_checked(org,invoice_id,issue_date,lines,'Rent billed after confirmed move-out','departure-void-rent') FROM departure$$,
+  'retrying the void cannot return the fee twice');
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
+SELECT ok((SELECT i.lifecycle='void' FROM public.tenant_invoices i WHERE i.id=d.invoice_id)
+  AND (SELECT l.status='ended' FROM public.leases l WHERE l.id=d.lease_id)
+  AND (SELECT count(*)=2 AND sum(f.amount)=0 FROM public.management_fee_occurrences f WHERE f.tenant_invoice_id=d.invoice_id)
+  AND (SELECT count(*)=2 AND sum(a.amount)=0 FROM public.owner_charge_cash_allocations a WHERE a.property_id=d.property_id),
+  'the tenant charge and owner fee are cancelled, held funds are restored once, and future rent has stopped') FROM departure d;
+ROLLBACK TO SAVEPOINT departed_rent;
 SAVEPOINT edited_recipient;
 RESET ROLE;
 RESET SESSION AUTHORIZATION;

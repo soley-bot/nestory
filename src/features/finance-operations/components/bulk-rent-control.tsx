@@ -14,7 +14,7 @@ import { formatMoney } from "@/lib/money/format";
 import { postBulkRentAction, previewBulkRentAction } from "../actions";
 import { bulkRentChunkSize, type BulkRentOutcome, type BulkRentRow, type ReadyRent } from "../bulk-rent";
 
-export function BulkRentControl({ property }: { property: string | null }) {
+export function BulkRentControl({ property, initialMonth, unitSearch = "" }: { property: string | null; initialMonth?: string; unitSearch?: string }) {
   const { getBusinessMonthValue } = useBusinessDate();
   const latest = getPreviousBusinessMonthValue(getBusinessMonthValue());
   const session = useFinancialWriteContext();
@@ -44,13 +44,13 @@ export function BulkRentControl({ property }: { property: string | null }) {
   const rent = picked.reduce((sum, row) => sum + row.rent, 0);
   const fees = picked.reduce((sum, row) => sum + row.fee, 0);
 
-  async function review(value: string) {
+  async function review(value: string, searchValue = "") {
     const request = ++loadId.current;
     setMonth(value);
     setPhase("select");
     setLoading(true);
     setError("");
-    setSearch("");
+    setSearch(searchValue);
     setResults([]);
     setRows([]);
     setSelected(new Set());
@@ -104,7 +104,7 @@ export function BulkRentControl({ property }: { property: string | null }) {
   }
 
   return <>
-    <Button type="button" variant="outline" disabled={!available} onClick={() => { setOpen(true); void review(latest); }}>Generate past rent</Button>
+    <Button type="button" variant="outline" disabled={!available} onClick={() => { setOpen(true); void review(initialMonth ?? latest, unitSearch); }}>Generate past rent</Button>
     <Modal open={open} title={phase === "confirm" ? "Confirm past rent invoices" : phase === "results" ? "Rent generation results" : "Generate past rent"}
       onClose={() => { if (!posting.current) { ++loadId.current; setOpen(false); } }}>
       <div className="space-y-4 p-4 text-sm">

@@ -16,7 +16,7 @@ import type { ExpenseSubmissionSummary, FinanceOperationsData, PropertyAccountEn
 import { filterTransactions, projectTransactions, transactionReportLinks, type TransactionRow, type TransactionScope } from "../data/transaction-workspace";
 
 export function TransactionWorkspace({ data, scope, actions, canReadReports, onOpenInvoice, onOpenExpense, renderAccountActions, renderTransactionActions }: {
-  data: FinanceOperationsData; scope: TransactionScope; actions?: (scope: TransactionScope) => ReactNode; canReadReports: boolean;
+  data: FinanceOperationsData; scope: TransactionScope; actions?: (scope: TransactionScope, month: string) => ReactNode; canReadReports: boolean;
   onOpenInvoice: (invoice: TenantInvoiceSummary) => void;
   onOpenExpense: (submission: ExpenseSubmissionSummary) => void;
   renderAccountActions: (entry: PropertyAccountEntry) => ReactNode;
@@ -38,7 +38,7 @@ export function TransactionWorkspace({ data, scope, actions, canReadReports, onO
   const links = transactionReportLinks(effectiveScope, month, position?.ownerPersonId);
   const due = data.tenantInvoices.filter(invoice => invoice.propertyId === scope.propertyId && (!effectiveScope.unitId || invoice.unitId === effectiveScope.unitId) && invoice.paymentStatus !== "voided").reduce((sum, invoice) => sum + Math.round(invoice.balanceDue * 100), 0) / 100;
   return <section aria-label="Transactions" className="flex min-w-0 flex-col gap-4 px-4 py-4 sm:px-6">
-    <div className="flex flex-wrap items-center gap-2">{actions?.(effectiveScope)}</div>
+    <div className="flex flex-wrap items-center gap-2">{actions?.(effectiveScope, month)}</div>
     <dl className="flex flex-wrap gap-x-10 gap-y-3 border-y py-3 text-sm">
       <div><dt className="text-muted-foreground">Tenant amount due · current</dt><dd className="font-semibold"><MoneyDisplay value={formatMoneyDisplay(due)} /></dd></div>
       {!effectiveScope.unitId && position ? <div><dt className="text-muted-foreground">Owner cash held · current</dt><dd className="font-semibold"><MoneyDisplay value={formatMoneyDisplay(position.cashHeldByIps)} /></dd></div> : null}

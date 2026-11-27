@@ -1004,7 +1004,7 @@ function PropertyAccountLedger({
           </section>
         ) : (
           <>
-            {selectedOwnerPersonId ? <OwnerContributionControl units={data.unitOptions} canRecordOwnerCash={canRecordOwnerCash} propertyId={propertyId} ownerPersonId={selectedOwnerPersonId} ownerLabel={data.ownerOptions.find(option => option.id === selectedOwnerPersonId)?.label ?? "Selected owner"} /> : null}
+            {selectedOwnerPersonId ? <OwnerContributionControl units={data.unitOptions} selectedMonth={selectedMonth} canRecordOwnerCash={canRecordOwnerCash} propertyId={propertyId} ownerPersonId={selectedOwnerPersonId} ownerLabel={data.ownerOptions.find(option => option.id === selectedOwnerPersonId)?.label ?? "Selected owner"} /> : null}
             <section
               aria-label="Owner cash position"
               className="grid grid-cols-1 divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0"

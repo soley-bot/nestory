@@ -32,13 +32,18 @@ const report: TrustedReport = {
 };
 
 it('FIN-01 keeps incomplete P&L unavailable and exposes remediation links', () => {
-  render(<ReportBuilderScreen organizationName="Synthetic audit" ownerOptions={[]} propertyOptions={[]} unitOptions={[]} trustedReport={report} viewQuery={query} />);
+  render(<ReportBuilderScreen canReadFinance organizationName="Synthetic audit" ownerOptions={[]} propertyOptions={[]} unitOptions={[{id: query.unitId, label: 'Example unit', propertyId: 'synthetic-property'}]} trustedReport={report} viewQuery={query} />);
   expect(screen.getByText('Report unavailable')).toBeTruthy();
   expect(screen.queryByRole('row', { name: 'Income USD 0.00' })).toBeNull();
   expect(screen.queryByRole('row', { name: 'Operating expenses USD 0.00' })).toBeNull();
   expect(screen.queryByRole('row', { name: 'Net operating income USD 0.00' })).toBeNull();
   expect(screen.queryByText('No income in this period.')).toBeNull();
   expect(screen.getByRole('link', { name: 'Review billing for Synthetic tenant' }).getAttribute('href')).toContain('/leases/synthetic-lease?section=rent');
+  const cash = new URL(screen.getByRole('link', { name: 'View property owner cash for October 2026' }).getAttribute('href')!, 'http://localhost');
+  expect(cash.pathname).toBe('/properties/synthetic-property/account');
+  expect(cash.searchParams.get('month')).toBe('2026-10');
+  expect(cash.searchParams.get('activity')).toBe('owner_cash');
+  expect(cash.searchParams.get('returnTo')).toContain('/reports/unit-profit-loss');
   expect(screen.getAllByText('Synthetic tenant').length).toBeGreaterThan(0);
   expect(screen.queryByRole('button', { name: 'Export' })).toBeNull();
 });

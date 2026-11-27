@@ -87,7 +87,7 @@ import type {
 import { getCalendarDateInTimeZone } from "@/features/leases/lease-billing-rule-state";
 import { workflowReturnHref } from "@/features/leases/workflow-return";
 import { useBusinessDate } from "@/lib/dates/business-date-provider";
-import { formatDate, formatCalendarDate } from "@/lib/dates/format";
+import { formatDate, formatCalendarDate, formatLeaseMonth } from "@/lib/dates/format";
 
 const DocumentForm = dynamic(
   () => import("@/features/documents/components/document-screen").then((module) => module.DocumentForm),
@@ -557,6 +557,10 @@ export function LeaseDetailScreen({
             return currentMonthEdit || candidate.billingPeriodEnd < rentBusinessDate;
           })}
           currentMonthOnly={currentMonthEdit}
+          onReviewMoveOut={permissions.canClose && currentOccupancy && ["active", "notice_given"].includes(lease.statusValue) ? () => {
+            setHistoricalRentCorrectionOpen(false);
+            setTransition("end");
+          } : undefined}
           lease={lease}
           onClose={() => setHistoricalRentCorrectionOpen(false)}
           onSuccess={(message) => {
@@ -1240,6 +1244,7 @@ function HistoricalRentCorrectionModal({
   candidates,
   currentMonthOnly,
   lease,
+  onReviewMoveOut,
   onClose,
   onSuccess,
 }: {
@@ -1247,6 +1252,7 @@ function HistoricalRentCorrectionModal({
   candidates: HistoricalRentCorrectionCandidate[];
   currentMonthOnly: boolean;
   lease: LeaseSummary;
+  onReviewMoveOut?: () => void;
   onClose: () => void;
   onSuccess: (message: string) => void;
 }) {
@@ -1275,6 +1281,7 @@ function HistoricalRentCorrectionModal({
   );
   const selectedCandidate =
     candidates.find((candidate) => candidate.invoiceId === invoiceId) ?? null;
+  const zeroRent = !feeOnly && correctedRentAmount.trim() !== "" && Number(correctedRentAmount) === 0;
   const preview = previewState.preview;
   const previewMatches = previewMatchesInput(preview, {
     correctedManagementFeeAmount: feeOnly ? correctedManagementFeeAmount : undefined,
@@ -1326,10 +1333,10 @@ function HistoricalRentCorrectionModal({
 
         <p className="text-sm text-muted-foreground">
           {feeOnly
-            ? "Set the management fee for this issued period, including a missing fee. This one-off amount updates the owner charge; rent, payments, and the recurring billing rule stay unchanged."
+            ? "Set the owner’s management fee for the selected month."
             : currentMonthOnly
-              ? "Change only this issued month's rent. Existing payments stay linked, and the recurring rent for future months stays unchanged."
-              : "This is separate from Change rent. It appends reversal and replacement evidence for one issued period; the original invoice, receipts, Ledger, lease terms, and prior Owner Statements stay unchanged."}
+              ? "Adjust the rent on this month’s invoice."
+              : "Adjust the rent or due day for one issued month."}
         </p>
 
         {candidates.length === 0 ? (
@@ -1350,7 +1357,7 @@ function HistoricalRentCorrectionModal({
                 name="invoiceId"
                 onValueChange={changeCandidate}
                 options={candidates.map((candidate) => ({
-                  label: `${candidate.billingPeriodStart}–${candidate.billingPeriodEnd} · ${candidate.invoiceNumber} · ${candidate.paymentStatus}`,
+                  label: `${formatLeaseMonth(candidate.billingPeriodStart, "long")} · ${candidate.invoiceNumber} · ${candidate.paymentStatus}`,
                   value: candidate.invoiceId,
                 }))}
                 required
@@ -1367,7 +1374,7 @@ function HistoricalRentCorrectionModal({
                   )}
                 </span>
                 <span className="text-muted-foreground">Issued due date</span>
-                <span className="text-right">{selectedCandidate.originalDueDate}</span>
+                <span className="text-right">{formatDate(selectedCandidate.originalDueDate)}</span>
                 <span className="text-muted-foreground">Settlement recorded</span>
                 <span className="text-right tabular-nums">
                   {formatCorrectionMoney(
@@ -1388,7 +1395,7 @@ function HistoricalRentCorrectionModal({
               <label className="grid gap-1.5 text-sm font-medium">
                 Corrected rent amount
                 <NumberInput
-                  min="0.01"
+                  min="0"
                   name="correctedRentAmount"
                   onChange={(event) => setCorrectedRentAmount(event.target.value)}
                   required
@@ -1409,6 +1416,16 @@ function HistoricalRentCorrectionModal({
                 />
               </label>}
             </div>}
+            {zeroRent && selectedCandidate ? <div className="space-y-2 rounded-md border border-border p-3" role="status">
+              <p className="text-sm font-medium">No rent due for {formatLeaseMonth(selectedCandidate.billingPeriodStart, "long")}?</p>
+              <p className="text-sm text-muted-foreground">{selectedCandidate.settledAmount > 0
+                ? "This invoice has a payment. Review the receipt before changing the charge."
+                : "If the tenant left, record the move-out date. Then open each unpaid invoice billed after that date and choose Void invoice."}</p>
+              <div className="flex gap-2">
+                {onReviewMoveOut && selectedCandidate.settledAmount === 0 ? <Button type="button" onClick={onReviewMoveOut} variant="outline">Review move-out</Button> : null}
+                <Button asChild variant="outline"><Link href={`/rent-income?invoiceId=${encodeURIComponent(selectedCandidate.invoiceId)}`}>Open invoice</Link></Button>
+              </div>
+            </div> : null}
             <label className="grid gap-1.5 text-sm font-medium">
               Reason
               <Input
@@ -1416,7 +1433,7 @@ function HistoricalRentCorrectionModal({
                 minLength={8}
                 name="reason"
                 onChange={(event) => setReason(event.target.value)}
-                placeholder="Reference the signed Lease evidence or operator finding"
+                placeholder="Why is this charge changing?"
                 required
                 value={reason}
               />
@@ -1435,7 +1452,7 @@ function HistoricalRentCorrectionModal({
             ) : null}
             <div className="flex justify-end gap-2">
               <GuardedCancelButton onClose={onClose} />
-              <Button disabled={previewPending} type="submit" variant="outline">
+              <Button disabled={previewPending || zeroRent} type="submit" variant="outline">
                 {previewPending ? "Checking..." : "Preview correction"}
               </Button>
             </div>

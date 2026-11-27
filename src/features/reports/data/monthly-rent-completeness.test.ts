@@ -115,9 +115,13 @@ describe("monthly rent completeness", () => {
     expect(rows[0].cells.issue).not.toContain("ended");
   });
   it("requires an issued month invoice with a rent line", async () => {
-    expect(await load(client([invoice], []))).toHaveLength(1);
+    const [review] = await load(client([invoice], []));
+    expect(review.href).toBe("/rent-income?invoiceId=i1");
+    expect(review.cells.issue).toContain("An invoice already exists for this rental month");
+    expect(review.cells.issue).not.toContain("generate");
     expect(await load(client([invoice], [{ invoice_id: "i1" }]))).toEqual([]);
-    expect(await load(client([{ ...invoice, billing_period_start: "2026-09-01" }], [{ invoice_id: "i1" }]))).toHaveLength(1);
+    const [missing] = await load(client([{ ...invoice, billing_period_start: "2026-09-01" }], [{ invoice_id: "i1" }]));
+    expect(missing.href).toBe("/leases/l1?section=rent");
   });
   it("honors property, unit and owner scope", async () => {
     for (const change of [{ propertyId: "p2" }, { unitId: "u2" }, { ownerPersonId: "o2" }]) expect(await load(client(), context, { ...viewQuery, ...change })).toEqual([]);
