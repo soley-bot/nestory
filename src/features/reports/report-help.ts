@@ -23,3 +23,11 @@ export const unitProfitLossHelp: PageHelpContent = {
     { term: "Opening account activity", meaning: "Recorded property-account entries before the selected month. This is not cash available for withdrawal." },
   ],
 };
+
+export const pilotUnitBalanceHelp: PageHelpContent = {
+  ...unitProfitLossHelp,
+  questions: [
+    { question: "How does the closing balance carry forward?", answer: "The closing balance includes account entries dated through the last day of the month. It becomes the next month’s opening balance. Rent enters this balance when a collection is recorded." },
+    ...unitProfitLossHelp.questions,
+  ],
+};

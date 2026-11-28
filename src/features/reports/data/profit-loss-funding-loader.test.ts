@@ -32,6 +32,49 @@ const options = {
   viewQuery: { unitId: "u1" } as never,
 };
 describe("P&L funding source loader", () => {
+  it("carries the selected Pilot unit's closing balance into the next opening, including collections once", async () => {
+    const property = { organization_id: PILOT_ORGANIZATION_ID, property_id: "p1" };
+    const entry = (source_type: string, source_id: string, event_date: string, balance_effect: string, unit_id: string | null = "u1") =>
+      ({ ...property, source_type, source_id, category: source_type, event_date, balance_effect, unit_id });
+    const h = createCappedReadHarness({
+      property_account_entries: [
+        entry("owner_contribution", "fund", "2026-10-01", "615.38", null),
+        entry("tenant_invoice_payment", "received", "2026-10-14", "600.00"),
+        entry("management_fee_occurrence", "oct-fee", "2026-10-01", "-60.00"),
+        entry("ips_expense_responsibility", "cleaning", "2026-10-31", "-55.00"),
+        entry("tenant_invoice_payment", "sibling", "2026-10-31", "250.00", "u2"),
+        entry("management_fee_occurrence", "nov-fee", "2026-11-01", "-60.00"),
+        entry("tenant_invoice_payment", "later-collection", "2026-12-01", "600.00"),
+      ],
+      owner_cash_events: [{ ...property, id: "fund", unit_id: "u1", currency: "USD", event_type: "owner_contribution", reversal_of_id: null }],
+    }, { apiRowCap: 2 });
+    const load = (start: string, end: string) => loadProfitLossFunding({ ...options, organizationId: PILOT_ORGANIZATION_ID,
+      financeContext: { units: [{ id: "u1", property_id: "p1" }, { id: "u2", property_id: "p1" }] } as never,
+      supabase: h.client as never, period: { start, end } });
+    const october = await load("2026-10-01", "2026-10-31");
+    const november = await load("2026-11-01", "2026-11-30");
+    expect(october).toMatchObject({ remainingBalanceCents: BigInt(0), contributionCents: BigInt(61538),
+      accountPeriod: { start: "2026-10-01", end: "2026-10-31", closingBalanceCents: BigInt(110038) } });
+    expect(november.remainingBalanceCents).toBe(october.accountPeriod?.closingBalanceCents);
+    expect(november).toMatchObject({ contributionCents: BigInt(0), accountPeriod: { closingBalanceCents: BigInt(104038) } });
+  });
+  it("uses both cumulative snapshots for a single-unit property, across the end of the year", async () => {
+    const property = { organization_id: PILOT_ORGANIZATION_ID, property_id: "p1", unit_id: null };
+    const h = createCappedReadHarness({ property_account_entries: [
+      { ...property, event_date: "2026-11-30", source_type: "owner_contribution", source_id: "fund", running_balance: "125.00" },
+      { ...property, event_date: "2026-12-31", source_type: "property_withdrawal", source_id: "paid", running_balance: "25.00" },
+      { ...property, event_date: "2027-01-01", source_type: "owner_expense", source_id: "cost", running_balance: "-5.00" },
+    ] }, { transformResult: (read, result) => read.select?.includes("balance_effect:running_balance")
+      ? { ...result, data: result.data?.map(row => ({ ...row, balance_effect: row.running_balance })) ?? null } : result });
+    const load = (start: string, end: string) => loadProfitLossFunding({
+      ...options, organizationId: PILOT_ORGANIZATION_ID, supabase: h.client as never, period: { start, end } });
+    expect(await load("2026-12-01", "2026-12-31")).toMatchObject({
+      remainingBalanceCents: BigInt(12500), accountPeriod: { closingBalanceCents: BigInt(2500) } });
+    expect(await load("2027-01-01", "2027-01-31")).toMatchObject({
+      remainingBalanceCents: BigInt(2500), accountPeriod: { closingBalanceCents: BigInt(-500) } });
+    expect(await load("2027-02-01", "2027-02-28")).toMatchObject({
+      remainingBalanceCents: BigInt(-500), accountPeriod: { closingBalanceCents: BigInt(-500) } });
+  });
   it.each([
     { scenario: "linked full reversal", linked: "cost", amount: "45.00", date: "2026-10-02", expected: BigInt(115538) },
     { scenario: "unrelated equal amount", linked: "other-cost", amount: "45.00", date: "2026-10-02", expected: null },
@@ -56,6 +99,7 @@ describe("P&L funding source loader", () => {
       financeContext: { units: [{ id: "u1", property_id: "p1" }, { id: "u2", property_id: "p1" }] } as never,
       period: { start: "2026-11-01", end: "2026-11-30" }, supabase: h.client as never });
     expect(result.remainingBalanceCents).toBe(expected);
+    expect(result.accountPeriod?.closingBalanceCents).toBe(date === "2026-11-01" ? BigInt(115538) : expected);
     expect(result.contributionCents).toBe(BigInt(0));
   });
   it("totals 36,000 prior unit entries and 36,000 contributions through a 137-row cap", async () => {
@@ -118,6 +162,7 @@ describe("P&L funding source loader", () => {
     const { calls, client } = harness();
     const result = await loadProfitLossFunding({ ...options, supabase: client as never });
     expect(result).toMatchObject({ contributionCents: BigInt(501), remainingBalanceCents: BigInt(-9300) });
+    expect(result.accountPeriod).toBeUndefined();
     expect(calls).toContainEqual(["owner_cash_events", "range", 500, 500]);
     expect(calls).toContainEqual(["property_account_entries", "range", 0, 0]);
     expect(calls).toContainEqual(["property_account_entries", "lt", "event_date", "2026-09-01"]);

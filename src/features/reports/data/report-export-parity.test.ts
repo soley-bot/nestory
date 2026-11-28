@@ -56,6 +56,26 @@ function cashFixture() {
 const transactionDetails = Object.fromEntries(events.map(([category, , direction], index) => [index + 1, { unit: "Unit A1", name: direction === "income" ? "Sample Tenant" : "Sample Vendor", category }]));
 
 describe("PDF and XLSX accounting presentation", () => {
+  it("exports the Pilot period balances in order and preserves a zero or unavailable closing balance", () => {
+    for (const closingBalanceCents of [BigInt(110038), BigInt(0), null]) {
+      const funded = { ...report, unitProfitLossFunding: {
+        contributionCents: BigInt(61538), remainingBalanceCents: BigInt(0),
+        accountPeriod: { start: "2026-08-01", end: "2026-08-31", closingBalanceCents },
+      } };
+      const pdf = Buffer.from(buildTrustedReportPdf({ organizationName: "Pilot", report: funded })).toString("latin1");
+      const sheet = strFromU8(unzipSync(buildTrustedReportXlsx(funded))["xl/worksheets/sheet1.xml"]!);
+      for (const text of [pdf, sheet]) {
+        const opening = text.indexOf("Opening balance, 01 Aug 2026");
+        const funding = text.indexOf("Owner funding contributions");
+        const closing = text.indexOf("Closing balance, 31 Aug 2026");
+        expect(opening).toBeGreaterThan(text.indexOf("Net operating income"));
+        expect(funding).toBeGreaterThan(opening);
+        expect(closing).toBeGreaterThan(funding);
+        const value = closingBalanceCents === null ? "Unavailable" : closingBalanceCents === BigInt(0) ? "0.00" : /1,?100\.38/;
+        expect(text.slice(closing)).toMatch(value);
+      }
+    }
+  });
   it("includes owner funding and remaining balance in the same order and amounts in both exports", () => {
     const funded = { ...report, unitProfitLossFunding: { contributionCents: BigInt(68200), remainingBalanceCents: -BigInt(9300) } };
     const pdf = Buffer.from(buildTrustedReportPdf({ organizationName: "IPS", report: funded })).toString("latin1");

@@ -69,6 +69,12 @@ export function getReportMonthRange(month: string) {
   };
 }
 
+export function addIsoDays(date: string, days: number) {
+  const value = new Date(`${date}T00:00:00.000Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
 function parseReportKind(value: string | string[] | undefined): ReportKind {
   const candidate = getFirstSearchParam(value);
 

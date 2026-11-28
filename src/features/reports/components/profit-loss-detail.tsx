@@ -95,7 +95,7 @@ export function ProfitLossDetail({ lines, funding, returnTo, unitScope = false }
         </TableBody>
         {funding ? <TableBody aria-label={profitLossFundingHeading}>
           <TableRow><TableCell colSpan={7} className="pt-3 text-muted-foreground">{profitLossFundingHeading}</TableCell></TableRow>
-          {totals.slice(3).map(row => <TableRow key={row.label}>
+          {totals.slice(3).map(row => <TableRow key={row.label} className={row.isClosingBalance ? "border-t bg-muted/40 font-semibold" : undefined}>
             <TableCell colSpan={6} className="!pl-5">{row.label}</TableCell>
             <TableCell className="whitespace-nowrap text-right tabular-nums">{formatProfitLossAmount(row.amountCents)}</TableCell>
           </TableRow>)}

@@ -1,9 +1,11 @@
 import { parseExactMoneyToCents } from "@/features/finance/data/property-cash-events.money";
+import { formatCalendarDate } from "@/lib/dates/format";
 import type { UnitProfitLossLine } from "../reports.types";
 
 export type ProfitLossFunding = {
   contributionCents: bigint;
   remainingBalanceCents: bigint | null;
+  accountPeriod?: { start: string; end: string; closingBalanceCents: bigint | null };
   unassignedContributionCents?: bigint;
   unavailableReason?: string;
 };
@@ -32,9 +34,10 @@ function hasUnresolvedRows(rows: { id: string; property_id: string; amount: numb
   return rows.some(row => !cancelled.has(row.id) && parseExactMoneyToCents(row.amount) !== BigInt(0));
 }
 
-export function buildProfitLossFunding({ propertyIds, unitId, units, monthStart, cash, activity, activityScope = "property" }: {
+export function buildProfitLossFunding({ propertyIds, unitId, units, monthStart, cash, activity, closing, activityScope = "property" }: {
   propertyIds: string[]; unitId: string; units: { id: string; property_id: string }[];
   monthStart: string; cash: FundingCashRow[]; activity: FundingActivityRow[]; activityScope?: "property" | "unit";
+  closing?: { end: string; activity: FundingActivityRow[] };
 }): ProfitLossFunding {
   const selectedUnit = units.find(unit => unit.id === unitId);
   const ids = new Set(unitId === "all" ? propertyIds : propertyIds.filter(id => id === selectedUnit?.property_id));
@@ -54,46 +57,61 @@ export function buildProfitLossFunding({ propertyIds, unitId, units, monthStart,
     }
     else contributionCents += parseExactMoneyToCents(row.amount);
   }
-  const unavailable = (unavailableReason: string): ProfitLossFunding => ({ contributionCents, unassignedContributionCents, remainingBalanceCents: null, unavailableReason });
-  let remainingBalanceCents = BigInt(0);
-  const unassignedActivity: FundingActivityRow[] = [];
-  for (const row of activity) {
-    if (!ids.has(row.property_id) || row.event_date >= monthStart) continue;
-    const key = `${row.source_type}:${row.source_id}`;
-    if (seen.has(key)) throw new Error("Duplicate owner account activity source.");
-    seen.add(key);
-    if (multiUnit && activityScope === "unit") {
-      if (row.unit_id === null) unassignedActivity.push(row);
-      if (row.unit_id !== unitId) continue;
+  function accountBalance(rows: FundingActivityRow[]) {
+    if (multiUnit && activityScope !== "unit") return null;
+    const sources = new Set<string>();
+    const unassigned = [];
+    let balance = BigInt(0);
+    for (const row of rows) {
+      if (!ids.has(row.property_id)) continue;
+      const key = `${row.source_type}:${row.source_id}`;
+      if (sources.has(key)) throw new Error("Duplicate owner account activity source.");
+      sources.add(key);
+      if (multiUnit && row.unit_id === null) {
+        const originalType = row.source_type === "expense_customer_adjustment" ? "ips_expense_responsibility" : row.source_type;
+        unassigned.push({ id: key, property_id: row.property_id, amount: row.balance_effect,
+          reversal_of_id: row.reversal_of_id ? `${originalType}:${row.reversal_of_id}` : null });
+      }
+      if (!multiUnit || row.unit_id === unitId) balance += parseExactMoneyToCents(row.balance_effect);
     }
-    remainingBalanceCents += parseExactMoneyToCents(row.balance_effect);
+    return hasUnresolvedRows(unassigned) ? null : balance;
   }
-  // Property account balances include all units. Never guess an allocation.
-  const unresolvedActivity = hasUnresolvedRows(unassignedActivity.map(row => {
-    const originalSource = row.source_type === "expense_customer_adjustment" ? "ips_expense_responsibility" : row.source_type;
-    return {
-      id: `${row.source_type}:${row.source_id}`,
-      property_id: row.property_id,
-      amount: row.balance_effect,
-      reversal_of_id: row.reversal_of_id ? `${originalSource}:${row.reversal_of_id}` : null,
-    };
-  }));
-  if (multiUnit && (activityScope !== "unit" || unresolvedActivity || hasUnresolvedRows(unassignedCash))) return unavailable("Some property account activity is not assigned to a unit. Review the property in Owner activity. Unassigned contributions are shown separately and excluded from the unit total.");
-  return { contributionCents, remainingBalanceCents };
+  const unresolvedCash = hasUnresolvedRows(unassignedCash);
+  const remainingBalanceCents = !closing && unresolvedCash ? null : accountBalance(activity.filter(row => row.event_date < monthStart));
+  const result: ProfitLossFunding = { contributionCents, remainingBalanceCents };
+  if (closing) {
+    result.accountPeriod = { start: monthStart, end: closing.end,
+      closingBalanceCents: accountBalance(closing.activity.filter(row => row.event_date <= closing.end)) };
+  }
+  if (remainingBalanceCents === null || result.accountPeriod?.closingBalanceCents === null || unresolvedCash) {
+    result.unassignedContributionCents = unassignedContributionCents;
+    result.unavailableReason = "Some property account activity is not assigned to a unit. Review the property in Owner activity. Unassigned contributions are shown separately and excluded from the unit total.";
+  }
+  return result;
 }
 
 export function profitLossSummaryRows(lines: UnitProfitLossLine[], funding?: ProfitLossFunding, totals?: { income: bigint; expenses: bigint }) {
   const income = totals?.income ?? lines.filter(line => line.direction === "income").reduce((sum, line) => sum + line.amountCents, BigInt(0));
   const expenses = totals?.expenses ?? lines.filter(line => line.direction === "expense").reduce((sum, line) => sum + line.amountCents, BigInt(0));
-  const rows: { label: string; amountCents: bigint | null }[] = [
+  const rows: { label: string; amountCents: bigint | null; isClosingBalance?: boolean }[] = [
     { label: "Total income", amountCents: income }, { label: "Total expenses", amountCents: expenses },
     { label: "Net operating income", amountCents: income - expenses },
   ];
-  if (funding) rows.push(
-    { label: "Owner funding contributions", amountCents: funding.contributionCents },
-    { label: "Opening account activity", amountCents: funding.remainingBalanceCents },
-  );
-  if (funding?.unassignedContributionCents) rows.splice(4, 0, { label: "Property-level contributions (unassigned)", amountCents: funding.unassignedContributionCents });
+  if (!funding) return rows;
+  const period = funding.accountPeriod;
+  if (period) rows.push({ label: `Opening balance, ${formatCalendarDate(period.start)}`, amountCents: funding.remainingBalanceCents });
+  rows.push({ label: "Owner funding contributions", amountCents: funding.contributionCents });
+  if (funding.unassignedContributionCents) rows.push({ label: "Property-level contributions (unassigned)", amountCents: funding.unassignedContributionCents });
+  if (period) {
+    const opening = funding.remainingBalanceCents;
+    const closing = period.closingBalanceCents;
+    rows.push(
+      { label: "Collections, costs and payouts", amountCents: opening === null || closing === null ? null : closing - opening - funding.contributionCents },
+      { label: `Closing balance, ${formatCalendarDate(period.end)}`, amountCents: closing, isClosingBalance: true },
+    );
+  } else {
+    rows.push({ label: "Opening account activity", amountCents: funding.remainingBalanceCents });
+  }
   return rows;
 }
 
