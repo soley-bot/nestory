@@ -200,6 +200,7 @@ export type LeaseRentReadiness = {
 
 export type HistoricalRentCorrectionCandidate = {
   managementFeeCorrected?: boolean;
+  managementFeeOnly?: boolean;
   originalManagementFeeAmount?: number;
   billingPeriodEnd: string;
   billingPeriodStart: string;

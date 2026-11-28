@@ -11,7 +11,7 @@ import {
   getLeasesScreenData,
 } from "@/features/leases/data/leases";
 import { parseLeaseSearchParams } from "@/features/leases/lease.filters";
-import { parseLeaseDetailQuery } from "@/features/leases/lease-detail-route";
+import { canCorrectIssuedCharge, parseLeaseDetailQuery } from "@/features/leases/lease-detail-route";
 import { requirePermission } from "@/lib/auth/context";
 import LeaseNotFound from "./not-found";
 
@@ -88,11 +88,11 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
       })
     : undefined;
   const currentRentCandidate = historicalRentCorrectionCandidates.find(
-    (candidate) => candidate.invoiceId === rentEditInvoiceId,
+    (candidate) => candidate.invoiceId === rentEditInvoiceId && canCorrectIssuedCharge(candidate, "rent"),
   );
   const scopedEdit = context.roleKind === "super_admin" && canViewFinance && issuedChargeEdit
     && historicalRentCorrectionCandidates.some(candidate => candidate.invoiceId === issuedChargeEdit.invoiceId
-      && (issuedChargeEdit.mode !== "management_fee" || !candidate.managementFeeCorrected)) ? issuedChargeEdit : undefined;
+      && canCorrectIssuedCharge(candidate, issuedChargeEdit.mode)) ? issuedChargeEdit : undefined;
   const routeNotice = issuedChargeEdit && !scopedEdit
     ? { message: "This charge is unavailable for correction. Review the issued invoice and its history." }
     : rentEditInvoiceId && !currentRentCandidate

@@ -227,6 +227,9 @@ SELECT throws_ok($$SELECT public.preview_paid_lease_rent(org,(manual->>'invoiceI
 SELECT public.record_tenant_invoice_payment(org,(manual->>'invoiceId')::uuid,450,month+13,bank,'October receipt',
   jsonb_build_array(jsonb_build_object('lineId',manual->>'lineId','amount',450)),'paid-rent-test-receipt') FROM paid_review;
 UPDATE paid_review SET review=public.preview_paid_lease_rent(org,(manual->>'invoiceId')::uuid);
+SELECT throws_ok($$SELECT public.preview_historical_rent_correction(org,(manual->>'invoiceId')::uuid,
+  450,extract(day FROM month+6)::integer,42) FROM paid_review$$,
+  '23514','historical_rent_invoice_not_eligible','a paid manual charge needs a confirmed lease fee before staff can edit the fee');
 SELECT ok(review @> jsonb_build_object('month',month,'receivedDate',month+13,'rent',450,'fee',45),'review binds the rental month, receipt date, rent and fee') FROM paid_review;
 SELECT throws_ok($$SELECT public.confirm_paid_lease_rent(org,(manual->>'invoiceId')::uuid,repeat('0',32)) FROM paid_review$$,
   '40001','paid_rent_changed','a stale confirmation cannot correct a paid charge');
@@ -258,6 +261,35 @@ SELECT results_eq($$SELECT economic_class,recognized_on,signed_amount FROM paid_
 SELECT is((SELECT sum(e.signed_amount) FROM paid_review p CROSS JOIN LATERAL public.get_report_profit_loss_events_page(
   p.org,p.property_id,'USD',(p.month+interval '1 month')::date,(p.month+interval '2 months - 1 day')::date,
   NULL,NULL,NULL,100,true) e WHERE e.economic_class='owner_income'),450::numeric,'the following month counts only its own rent');
+SET SESSION AUTHORIZATION authenticator;
+SET LOCAL ROLE authenticated;
+CREATE FUNCTION pg_temp.confirmed_fee_preview(amount numeric) RETURNS jsonb LANGUAGE sql AS $$
+  SELECT public.preview_historical_rent_correction(org,(manual->>'invoiceId')::uuid,
+    450,extract(day FROM month+6)::integer,amount) FROM paid_review;
+$$;
+SELECT ok(pg_temp.confirmed_fee_preview(42) @> jsonb_build_object('originalManagementFeeAmount',45,
+  'feeRecognizedOn',month,'correctedDueDate',month+6,'blockers','[]'::jsonb),
+  'a fee edit keeps the recorded tenant due date and the first of the rental month') FROM paid_review;
+CREATE FUNCTION pg_temp.correct_confirmed_fee(amount numeric, request_key text) RETURNS jsonb LANGUAGE sql AS $$
+  SELECT public.correct_historical_rent(org,(manual->>'invoiceId')::uuid,450,extract(day FROM month+6)::integer,
+    'Reviewed fee for confirmed monthly rent',pg_temp.confirmed_fee_preview(amount)->>'previewHash',request_key,amount)
+    FROM paid_review;
+$$;
+SELECT lives_ok($$SELECT pg_temp.correct_confirmed_fee(0,'confirmed-fee-remove')$$,'a confirmed rent fee can be removed');
+SELECT lives_ok($$SELECT pg_temp.correct_confirmed_fee(42,'confirmed-fee-revise')$$,'a removed confirmed rent fee can be restored at a revised amount');
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
+SELECT ok((SELECT count(*)=1 AND sum(t.amount)=450 AND min(t.received_date)=p.month+13
+    FROM public.tenant_invoice_payments t WHERE t.invoice_id=(p.manual->>'invoiceId')::uuid)
+  AND (SELECT count(*)=1 FROM public.tenant_invoice_payments t WHERE t.id=(p.review->>'paymentId')::uuid AND t.receipt_number=p.review->>'receipt')
+  AND (SELECT count(*)=2 FROM public.tenant_invoice_corrections c WHERE c.tenant_invoice_id=(p.manual->>'invoiceId')::uuid AND c.action='management_fee'),
+  'both fee edits are audited and the original dated receipt survives once') FROM paid_review p;
+SELECT results_eq($$SELECT economic_class,min(recognized_on),max(recognized_on),sum(signed_amount),count(*) FROM paid_review p CROSS JOIN LATERAL
+  public.get_report_profit_loss_events_page(p.org,p.property_id,'USD',p.month,(p.month+interval '1 month - 1 day')::date,
+    NULL,NULL,NULL,100,true) e WHERE e.unit_id=(SELECT unit_id FROM rent_setting) GROUP BY economic_class ORDER BY economic_class$$,
+  $$SELECT 'owner_expense'::text,month,month,42::numeric,3::bigint FROM paid_review
+    UNION ALL SELECT 'owner_income',month,month,450::numeric,1::bigint FROM paid_review ORDER BY 1$$,
+  'the original fee, its reversal and its replacement net to the revised fee while the month counts the rent once');
 ROLLBACK TO SAVEPOINT paid_rent_review;
 SAVEPOINT departed_rent;
 RESET ROLE;

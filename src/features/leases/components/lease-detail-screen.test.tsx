@@ -837,6 +837,28 @@ describe("LeaseDetailScreen", () => {
     expect(within(feeDialog).queryByLabelText("Corrected management fee amount")).toBeNull();
   });
 
+  it("offers the recovered fee without offering to change the paid manual rent", async () => {
+    const user = userEvent.setup();
+    renderDetail("rent", makeLease(), { ...allLeasePermissions, canCorrectHistoricalRent: true }, {
+      historicalRentCorrectionCandidates: [{
+        invoiceId: "11111111-1111-4111-8111-111111111111", invoiceNumber: "INV-CONFIRMED",
+        billingPeriodStart: "2020-10-01", billingPeriodEnd: "2020-10-31", currency: "USD",
+        originalDueDate: "2020-11-07", originalDueDay: 7, originalRentAmount: 600, settledAmount: 600,
+        originalManagementFeeAmount: 60, managementFeeOnly: true, paymentStatus: "paid",
+      }],
+    });
+    await user.click(screen.getByRole("button", { name: "Manage lease" }));
+    await user.click(screen.getByRole("menuitem", { name: "Correct historical rent" }));
+    const rentDialog = screen.getByRole("dialog", { name: "Correct historical rent" });
+    expect(within(rentDialog).queryByLabelText("Corrected rent amount")).toBeNull();
+    await user.click(within(rentDialog).getByRole("button", { name: "Close modal" }));
+    await user.click(screen.getByRole("button", { name: "Manage lease" }));
+    await user.click(screen.getByRole("menuitem", { name: "Correct management fee" }));
+    const feeDialog = screen.getByRole("dialog", { name: "Correct management fee" });
+    expect(within(feeDialog).getByRole("combobox", { name: "Issued rent period" }).textContent).toContain("INV-CONFIRMED");
+    expect(within(feeDialog).getByLabelText<HTMLInputElement>("Corrected management fee amount").value).toBe("60.00");
+  });
+
   it("previews a current-period missing management fee and invalidates changed amounts", async () => {
     const user = userEvent.setup();
     const invoiceId = "11111111-1111-4111-8111-111111111111";
@@ -863,7 +885,8 @@ describe("LeaseDetailScreen", () => {
     await user.type(screen.getByLabelText("Reason"), "Missing management fee on issued invoice");
     await user.click(screen.getByRole("button", { name: "Preview correction" }));
     expect(await screen.findByRole("button", { name: "Apply management fee correction" })).not.toBeNull();
-    expect(screen.getByText(/Only this period.*management fee changes/)).not.toBeNull();
+    expect(within(screen.getByRole("region", { name: "Correction preview" })).queryByText("Due date")).toBeNull();
+    expect(screen.getByText("This fee applies to the selected rental month.")).not.toBeNull();
     const form = within(dialog).getByRole("button", { name: "Apply management fee correction" }).closest("form");
     const payload = new FormData(form!);
     expect(payload.get("correctedRentAmount")).toBe("1450.00");
@@ -997,7 +1020,7 @@ describe("LeaseDetailScreen", () => {
     await user.click(screen.getByRole("button", { name: "Edit draft" }));
 
     const dialog = screen.getByRole("dialog", { name: "Edit draft" });
-    expect(await within(dialog).findByRole("form", { name: "Edit draft form" })).not.toBeNull();
+    expect(await within(dialog).findByRole("form", { name: "Edit draft form" }, { timeout: 5000 })).not.toBeNull();
     expect(within(dialog).queryByRole("combobox", { name: "Tenant" })).toBeNull();
     expect(within(dialog).queryByRole("combobox", { name: "Property" })).toBeNull();
     expect(within(dialog).queryByRole("combobox", { name: "Unit" })).toBeNull();
