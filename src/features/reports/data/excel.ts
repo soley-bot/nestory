@@ -200,9 +200,9 @@ function profitLossSheetXml(report: TrustedReport, hasLogo: boolean) {
     ...detail("income"), total("Total Income", income),
     [{ style: 10, span: 7, value: "Expenses" }],
     ...detail("expense"), total("Total Expenses", expenses),
-    ...profitLossSummaryRows(lines, report.unitProfitLossFunding).slice(2).flatMap(row => [
-      ...(row.label === "Owner funding contributions" ? [[{ style: 10, span: 7, value: profitLossFundingHeading }]] : []),
-      row.label === "Net operating income"
+    ...profitLossSummaryRows(lines, report.unitProfitLossFunding).slice(2).flatMap((row, index) => [
+      ...(index === 1 ? [[{ style: 10, span: 7, value: profitLossFundingHeading }]] : []),
+      row.label === "Net operating income" || row.isClosingBalance
         ? total(row.label, row.amountCents)
         : [{ style: 4, value: row.label }, ...Array.from({ length: 5 }, () => ({ value: "" })),
           row.amountCents === null ? { value: "Unavailable" } : money(row.amountCents)]]),

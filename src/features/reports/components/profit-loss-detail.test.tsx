@@ -7,6 +7,18 @@ import type { UnitProfitLossLine } from "../reports.types";
 afterEach(cleanup);
 const line: UnitProfitLossLine = { amountCents: BigInt(6500), category: "Repairs", categoryCode: "repairs", categoryId: null, currency: "USD", date: "2026-09-09", description: "Roof repair", direction: "expense", id: "repair", property: "Property One", reportingGroup: "expenses", unit: "Property-level" };
 describe("Reference P&L account table", () => {
+  it("shows the opening, signed activity and closing balance even when accrual profit differs", () => {
+    render(<ProfitLossDetail lines={[line]} funding={{
+      remainingBalanceCents: BigInt(0), contributionCents: BigInt(61538),
+      accountPeriod: { start: "2026-10-01", end: "2026-10-31", closingBalanceCents: BigInt(110038) },
+    }} />);
+    const rows = within(screen.getByRole("rowgroup", { name: "Owner funding and account activity" })).getAllByRole("row");
+    expect(rows.slice(1).map(row => within(row).getAllByRole("cell").map(cell => cell.textContent))).toEqual([
+      ["Opening balance, 01 Oct 2026", "USD 0.00"], ["Owner funding contributions", "USD 615.38"],
+      ["Collections, costs and payouts", "USD 485.00"], ["Closing balance, 31 Oct 2026", "USD 1,100.38"],
+    ]);
+    expect(screen.getByRole("row", { name: "Net operating income -USD 65.00" })).toBeTruthy();
+  });
   it("opens the source expense with the exact report filters", async () => {
     const user = userEvent.setup();
     const returnTo = "/reports/unit-profit-loss?month=2026-09&propertyId=p&unitId=u";

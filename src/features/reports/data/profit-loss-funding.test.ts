@@ -6,6 +6,13 @@ const cash = [{ id: "c1", property_id: "p1", unit_id: "u1", event_date: "2026-08
 const expense = { property_id: "p1", unit_id: "u1", event_date: "2026-08-01", category: "owner_expense", balance_effect: "-775.00", source_type: "ips_expense_responsibility", source_id: "e1" };
 
 describe("P&L owner funding", () => {
+  it("keeps a known opening when this month introduces unassigned funding", () => {
+    const funding = { ...expense, event_date: "2026-08-31", unit_id: null, source_type: "owner_contribution", source_id: "c1", balance_effect: "682.00" };
+    const result = buildProfitLossFunding({ ...scope, units: [...scope.units, { id: "u2", property_id: "p1" }],
+      activityScope: "unit", cash: [{ ...cash[0], unit_id: null }], activity: [funding], closing: { end: "2026-08-31", activity: [funding] } });
+    expect(result).toMatchObject({ remainingBalanceCents: BigInt(0), contributionCents: BigInt(0),
+      unassignedContributionCents: BigInt(68200), accountPeriod: { closingBalanceCents: null } });
+  });
   it("uses assigned unit activity after Pilot contribution corrections", () => {
     const units = [...scope.units, { id: "u2", property_id: "p1" }];
     const contributions = [...cash, { ...cash[0], id: "c2", unit_id: "u2", amount: "225.00" }];

@@ -2,19 +2,20 @@ import type { createSupabaseServerClient } from "@/lib/db/server";
 import { PILOT_ORGANIZATION_ID } from "@/lib/pilot-organization";
 import type { ScopedFinanceContext } from "@/features/finance-operations/data/scoped-finance-context";
 import type { ReportsViewQuery } from "../reports.types";
+import { addIsoDays } from "../reports.filters";
 import { buildProfitLossFunding, type FundingCashRow, type FundingActivityRow } from "./profit-loss-funding";
 import { assertReportSourceWithinLimit, compareReportKeys, readReportSource, readReportSourceBatches, readReportSourceById } from "./report-source-completeness";
 
 type ReportClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
-async function loadUnitOpeningActivity(supabase: ReportClient, organizationId: string, propertyId: string, monthStart: string) {
-  const activity = await readReportSource("complete unit opening activity", (from, to) =>
+async function loadUnitAccountActivity(supabase: ReportClient, organizationId: string, propertyId: string, before: string) {
+  const activity = await readReportSource("complete unit account activity", (from, to) =>
     supabase.from("property_account_entries")
       .select("property_id, unit_id, event_date, category, balance_effect, source_type, source_id", { count: "exact" })
-      .eq("organization_id", organizationId).eq("property_id", propertyId).lt("event_date", monthStart)
+      .eq("organization_id", organizationId).eq("property_id", propertyId).lt("event_date", before)
       .order("source_type").order("source_id").range(from, to),
     row => {
-      if (row.property_id !== propertyId || !row.event_date || row.event_date >= monthStart || !row.source_type || !row.source_id) {
-        throw new Error("Unit opening activity source escaped its scope or has no identity.");
+      if (row.property_id !== propertyId || !row.event_date || row.event_date >= before || !row.source_type || !row.source_id) {
+        throw new Error("Unit account activity source escaped its scope or has no identity.");
       }
       return `${row.source_type}:${row.source_id}`;
     }, (previous, current) => compareReportKeys(`${previous.source_type}:${previous.source_id}`, `${current.source_type}:${current.source_id}`)) as FundingActivityRow[];
@@ -31,10 +32,10 @@ async function loadUnitOpeningActivity(supabase: ReportClient, organizationId: s
     if (sources.length !== batch.length || sources.some(source => !batch.includes(source.id))) throw new Error("Unable to resolve unit contribution activity.");
     const sourcesById = new Map(sources.map(source => [source.id, source]));
     for (const row of batchRows) {
-        const source = sourcesById.get(row.source_id);
-        if (!source) throw new Error("Unable to resolve unit contribution activity.");
-        row.unit_id = source.unit_id;
-        row.reversal_of_id = source.reversal_of_id;
+      const source = sourcesById.get(row.source_id);
+      if (!source) throw new Error("Unable to resolve unit contribution activity.");
+      row.unit_id = source.unit_id;
+      row.reversal_of_id = source.reversal_of_id;
     }
   }
   if (organizationId === PILOT_ORGANIZATION_ID) {
@@ -53,42 +54,68 @@ async function loadUnitOpeningActivity(supabase: ReportClient, organizationId: s
   return activity;
 }
 
+function loadMonthlyContributions(supabase: ReportClient, organizationId: string, propertyId: string, period: { start: string; end: string }) {
+  return readReportSource("complete P&L owner contributions", (from, to) =>
+    supabase.from("owner_cash_events").select("id, property_id, unit_id, event_date, amount, reversal_of_id", { count: "exact" })
+      .eq("organization_id", organizationId).eq("property_id", propertyId).eq("currency", "USD")
+      .eq("event_type", "owner_contribution").gte("event_date", period.start).lte("event_date", period.end)
+      .order("id").range(from, to), row => {
+        if (row.property_id !== propertyId || row.event_date < period.start || row.event_date > period.end) throw new Error("Owner contribution escaped report scope.");
+        return row.id;
+      }, (previous, current) => compareReportKeys(previous.id, current.id));
+}
+
+async function loadPropertyBalanceBefore(supabase: ReportClient, organizationId: string, propertyId: string, before: string) {
+  // The last row in the view's window order holds the complete cumulative balance.
+  const { data, error } = await supabase.from("property_account_entries")
+    .select("property_id, unit_id, event_date, category, balance_effect:running_balance, source_type, source_id")
+    .eq("organization_id", organizationId).eq("property_id", propertyId).lt("event_date", before)
+    .order("event_date", { ascending: false }).order("created_at", { ascending: false })
+    .order("source_type", { ascending: false }).order("source_id", { ascending: false }).range(0, 0);
+  if (error || !data || data.length > 1 || data.some(row => row.property_id !== propertyId || !row.event_date || row.event_date >= before)) {
+    throw new Error("Unable to load P&L account balance.");
+  }
+  return data as FundingActivityRow[];
+}
+
 export async function loadProfitLossFunding({ supabase, organizationId, financeContext, propertyIds, viewQuery, period }: {
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>; organizationId: string;
+  supabase: ReportClient; organizationId: string;
   financeContext: ScopedFinanceContext; propertyIds: string[]; viewQuery: ReportsViewQuery; period: { start: string; end: string };
 }) {
   const unit = financeContext.units.find(unit => unit.id === viewQuery.unitId);
   const ids = propertyIds.filter(id => viewQuery.unitId === "all" || id === unit?.property_id);
-  const needsUnitActivity = viewQuery.unitId !== "all" && financeContext.units.filter(unit => ids.includes(unit.property_id)).length > 1;
+  const scope = { propertyIds: ids, unitId: viewQuery.unitId, units: financeContext.units, monthStart: period.start };
+  const closingCutoff = organizationId === PILOT_ORGANIZATION_ID && unit ? addIsoDays(period.end, 1) : undefined;
+  if (unit && ids.includes(unit.property_id) && financeContext.units.filter(other => other.property_id === unit.property_id).length > 1) {
+    const activity = await loadUnitAccountActivity(supabase, organizationId, unit.property_id, closingCutoff ?? period.start);
+    // Through month-end these entries already contain every contribution and its resolved unit.
+    const cash = closingCutoff ? activity
+      .filter(row => row.source_type === "owner_contribution" && row.event_date >= period.start)
+      .map(({ property_id, unit_id, event_date, source_id, balance_effect, reversal_of_id }) =>
+        ({ property_id, unit_id, event_date, id: source_id, amount: balance_effect, reversal_of_id }))
+      : await loadMonthlyContributions(supabase, organizationId, unit.property_id, period);
+    return buildProfitLossFunding({ ...scope, activityScope: "unit", cash, activity,
+      closing: closingCutoff ? { end: period.end, activity } : undefined });
+  }
   const cash: FundingCashRow[] = [];
   const activity: FundingActivityRow[] = [];
+  const closingActivity: FundingActivityRow[] = [];
   for (let offset = 0; offset < ids.length; offset += 4) {
     const results = await Promise.all(ids.slice(offset, offset + 4).map(async propertyId => {
-      const contributions = await readReportSource("complete P&L owner contributions", (from, to) =>
-        supabase.from("owner_cash_events").select("id, property_id, unit_id, event_date, amount, reversal_of_id", { count: "exact" })
-          .eq("organization_id", organizationId).eq("property_id", propertyId).eq("currency", "USD")
-          .eq("event_type", "owner_contribution").gte("event_date", period.start).lte("event_date", period.end)
-          .order("id").range(from, to), row => {
-            if (row.property_id !== propertyId || row.event_date < period.start || row.event_date > period.end) throw new Error("Owner contribution escaped report scope.");
-            return row.id;
-          }, (previous, current) => compareReportKeys(previous.id, current.id));
-      if (needsUnitActivity) return { contributions, opening: await loadUnitOpeningActivity(supabase, organizationId, propertyId, period.start) };
-      // The view owns the cumulative balance. Read its last row before the month
-      // in the exact reverse of its window order, not a truncated history sum.
-      const opening = await supabase.from("property_account_entries")
-        .select("property_id, unit_id, event_date, category, balance_effect:running_balance, source_type, source_id")
-        .eq("organization_id", organizationId).eq("property_id", propertyId).lt("event_date", period.start)
-        .order("event_date", { ascending: false }).order("created_at", { ascending: false })
-        .order("source_type", { ascending: false }).order("source_id", { ascending: false }).range(0, 0);
-      if (opening.error || !opening.data || opening.data.length > 1) throw new Error("Unable to load P&L remaining balance.");
-      return { contributions, opening: (opening.data ?? []) as FundingActivityRow[] };
+      const [contributions, opening, closing] = await Promise.all([
+        loadMonthlyContributions(supabase, organizationId, propertyId, period),
+        loadPropertyBalanceBefore(supabase, organizationId, propertyId, period.start),
+        closingCutoff ? loadPropertyBalanceBefore(supabase, organizationId, propertyId, closingCutoff) : [],
+      ]);
+      return { contributions, opening, closing };
     }));
     for (const result of results) {
       assertReportSourceWithinLimit("P&L owner contributions", cash.length + result.contributions.length);
       assertReportSourceWithinLimit("P&L opening activity", activity.length + result.opening.length);
       cash.push(...result.contributions);
       activity.push(...result.opening);
+      closingActivity.push(...result.closing);
     }
   }
-  return buildProfitLossFunding({ propertyIds: ids, unitId: viewQuery.unitId, units: financeContext.units, monthStart: period.start, cash, activity, activityScope: needsUnitActivity ? "unit" : "property" });
+  return buildProfitLossFunding({ ...scope, cash, activity, closing: closingCutoff ? { end: period.end, activity: closingActivity } : undefined });
 }

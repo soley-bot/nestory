@@ -113,7 +113,7 @@ type UnitStatementFlowRow =
       kind: "totals";
       netIncome: string;
       funding?: ProfitLossFunding;
-      summaryRows: { label: string; amountCents: bigint | null }[];
+      summaryRows: ReturnType<typeof profitLossSummaryRows>;
     };
 
 type UnitStatementPage = {
@@ -1393,21 +1393,22 @@ function drawUnitProfitLossTotals(
   const amountX = marginX + 685;
   const amountWidth = 85;
 
-  row.summaryRows.forEach(({ label, amountCents }, index) => {
+  row.summaryRows.forEach(({ label, amountCents, isClosingBalance }, index) => {
     const value = formatProfitLossAmount(amountCents);
     const y = yTop - index * (row.funding ? 18 : 22);
+    const emphasize = index === 2 || isClosingBalance === true;
     drawText(commands, label, labelX, y, {
       align: "right",
-      bold: index === 2,
+      bold: emphasize,
       color: colors.ink,
-      fontSize: index === 2 ? 10 : 8.5,
+      fontSize: emphasize ? 10 : 8.5,
       width: labelWidth,
     });
     drawText(commands, value, amountX, y, {
       align: "right",
-      bold: index === 2,
+      bold: emphasize,
       color: colors.ink,
-      fontSize: index === 2 ? 10 : 8.5,
+      fontSize: emphasize ? 10 : 8.5,
       width: amountWidth,
     });
   });

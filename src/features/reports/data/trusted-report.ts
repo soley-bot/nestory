@@ -11,7 +11,7 @@ import {
   formatMoneyDisplay,
   type CurrencyCode,
 } from "@/lib/money/format";
-import { getReportDateRange, getReportMonthRange, isExtendedReport } from "@/features/reports/reports.filters";
+import { addIsoDays, getReportDateRange, getReportMonthRange, isExtendedReport } from "@/features/reports/reports.filters";
 import { getMonthlyOwnerActivityReport } from "@/features/reports/data/monthly-owner-activity-report";
 import { iteratePropertyCashEvents } from "@/features/finance/data/property-cash-events";
 import type {
@@ -2521,13 +2521,6 @@ async function loadReportPeople(
     .in("id", ids)
     .is("archived_at", null)
     .order("id").range(from, to)), row => row.id);
-}
-
-function addIsoDays(date: string, days: number) {
-  const value = new Date(`${date}T00:00:00.000Z`);
-  value.setUTCDate(value.getUTCDate() + days);
-
-  return value.toISOString().slice(0, 10);
 }
 
 function ownerProfitLossEventHref(event: OwnerProfitLossEvent): string | undefined {

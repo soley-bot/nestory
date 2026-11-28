@@ -20,7 +20,7 @@ import type {
 } from "@/features/reports/reports.types";
 import { cn } from "@/lib/utils";
 import { RecheckReport } from "@/features/reports/components/report-remediation-controls";
-import { unitProfitLossHelp } from "../report-help";
+import { pilotUnitBalanceHelp, unitProfitLossHelp } from "../report-help";
 import { ownerCashActivityHref } from "@/features/owner-balances/owner-account-view";
 import { formatLeaseMonth } from "@/lib/dates/format";
 import { withReportReturn } from "../report-return";
@@ -61,7 +61,7 @@ export function ReportBuilderScreen({
       <Link href="/reports" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />All reports</Link>
       <h1 className="text-sm font-semibold">{viewQuery.unitId === "all" ? "Unit profit & loss" : "Profit & loss detail"}</h1>
       <span className="text-xs text-muted-foreground">{profitLossBasisLabel}</span>
-      <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2"><PageHelp content={unitProfitLossHelp} />{validation || viewQuery.unitId === "all" ? null : <ExportMenu viewQuery={viewQuery} />}<RecheckReport /></div>
+      <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2"><PageHelp content={trustedReport.unitProfitLossFunding?.accountPeriod ? pilotUnitBalanceHelp : unitProfitLossHelp} />{validation || viewQuery.unitId === "all" ? null : <ExportMenu viewQuery={viewQuery} />}<RecheckReport /></div>
     </header>}>
       <ReportsFilters key={queryKey} compact action={`/reports/${viewQuery.report}`} propertyOptions={propertyOptions} unitOptions={unitOptions} ownerOptions={ownerOptions} viewQuery={viewQuery} />
       <div className="workspace-gutter-x pb-4">
